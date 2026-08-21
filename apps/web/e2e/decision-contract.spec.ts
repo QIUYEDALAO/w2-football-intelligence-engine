@@ -491,7 +491,7 @@ test("V41 presents unassessed model evidence in Chinese and keeps codes technica
 
   await expect(page.locator(".v41-three-layer")).toContainText("逐市场 · 均未就绪");
   await expect(page.locator(".v41-three-layer")).not.toContainText("部分就绪");
-  await expect(page.locator(".v41-focus-summary")).toContainText("可比较模型尚未就绪（需已验证校准），暂不进行模型—市场比较");
+  await expect(page.locator(".v41-focus-summary")).toContainText("尚无权威评估结论");
   await expect(page.locator(".v41-focus-summary")).not.toContainText("ASIAN_HANDICAP/TOTALS");
   await expect(page.locator(".v41-market-details")).toContainText("可用模型");
   await expect(page.locator("[data-market-details='ASIAN_HANDICAP']")).toContainText("尚未就绪");
@@ -528,9 +528,9 @@ test("raw system health cannot override collection windows or candidate quote ag
   await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "1571806");
   await expect(page.locator(".v41-shortlist > header")).toContainText("0 场优先");
   await expect(page.locator(".v41-shortlist-list")).not.toContainText("证据已过期");
-  await expect(page.locator(".v41-shortlist-list")).toContainText("关注：盘口或赔率变化、候选输入尚未完全就绪");
+  await expect(page.locator(".v41-shortlist-list")).toContainText("关注 · 尚无权威评估结论");
   await expect(page.locator(".v41-shortlist-list")).toContainText("其他关注 · 3 场（不计入优先）");
-  await expect(page.locator(".v41-focus-summary")).toContainText("模型—市场诊断");
+  await expect(page.locator(".v41-focus-summary")).toContainText("尚无权威评估结论");
 });
 
 for (const [scenario, cause, copy] of [
@@ -555,7 +555,7 @@ test("V41 separates diagnostic market age from the candidate quote-age hard gate
   const totals = page.locator("[data-market='TOTALS']");
   await expect(page.locator("[data-market-details='TOTALS']")).toContainText("证据不足");
   await expect(page.locator(".v41-market-details")).toContainText("同一时刻机构双边报价可比较");
-  await expect(page.locator(".v41-focus-summary")).toContainText("模型—市场诊断");
+  await expect(page.locator(".v41-focus-summary")).toContainText("尚无权威评估结论");
   await expect(page.locator(".v41-three-layer")).toContainText("市场输入报价证据逐市场 · 均未就绪");
   await expect(page.locator(".v41-candidate")).toHaveCount(0);
   await expect(page.locator(".v41-snapshots time").first()).toHaveText("08-09 14:02");
@@ -682,6 +682,61 @@ test("V41 keeps low-priority diagnostics folded by default", async ({ page }) =>
   await expect(page.locator(".v41-factor-checklist > header")).toBeVisible();
 });
 
+test("V41 uses diagnosis as the only unassessed conclusion and explains stale market movement", async ({ page }) => {
+  const payload = workspace();
+  const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
+  focused.intelligence_state = "DATA_INCOMPLETE";
+  focused.readiness.missing_fields = ["lineups", "ratings", "team_value"];
+  focused.factual_summary = "错误的旧数据链结论";
+  focused.evaluation_execution.diagnosis = {
+    status: "CHECKPOINT_NOT_DUE",
+    primary_blocker_zh: "第一个评估档位尚未到达",
+    missing_detail_zh: "候选轨道尚未启动；尚未发生门禁判定。",
+    next_step_zh: "等待最近一个已注册评估档位。",
+    next_checkpoint: "T3_ODDS",
+    next_checkpoint_at: "2026-08-09T15:45:00Z",
+    non_blocking_missing_zh: ["阵容", "评级", "球队身价"],
+    evidence_codes: ["T3_ODDS:PLANNED"],
+  };
+  const handicap = focused.market_radar.markets.ASIAN_HANDICAP;
+  handicap.main_line = "0.25";
+  handicap.prices = { HOME: 1.70, AWAY: 2.02 };
+  handicap.quote_age_seconds = 22_740;
+  handicap.movement = {
+    status: "PRICE_MOVEMENT",
+    from_captured_at: "2026-08-19T23:08:41Z",
+    to_captured_at: "2026-08-20T23:01:20Z",
+    line_delta: "0",
+    price_delta: { HOME: 0.02, AWAY: 0.51 },
+    probability_delta: { HOME: 0.064689, AWAY: -0.064689 },
+  };
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+
+  const row = page.locator(`.v41-shortlist-list [data-fixture-id='${focused.fixture_id}']`);
+  await expect(row.locator(".v41-shortlist-title")).toContainText("本菲卡 vs 波尔图");
+  await expect(row.locator(".v41-shortlist-title time")).toHaveText("22:30");
+  await expect(row).toContainText("让球 -0.25 未变");
+  await expect(row).toContainText("客赔 1.51 → 2.02（+33.8%）");
+  await expect(row).toContainText("历史变化 · 当前不可执行");
+  await expect(row).toContainText("当前报价已过期，等待 T3 更新");
+  await expect(row.locator(".v41-stripe")).toHaveCount(1);
+  await expect(row).toHaveCSS("border-left-width", "0px");
+
+  const conclusionNodes = [
+    row.locator(".v41-shortlist-status[data-primary-conclusion]"),
+    page.locator(".v41-focus-summary[data-primary-conclusion]"),
+    page.locator(".v41-evaluation-diagnosis[data-primary-conclusion]"),
+  ];
+  const conclusions = await Promise.all(conclusionNodes.map(async (node) => {
+    await expect(node).toHaveCount(1);
+    return node.getAttribute("data-primary-conclusion");
+  }));
+  expect(new Set(conclusions)).toEqual(new Set(["第一个评估档位尚未到达"]));
+  await expect(page.locator(".v41-focus-summary")).toContainText("第一个评估档位尚未到达");
+  await expect(page.locator(".v41-focus-summary")).not.toContainText("错误的旧数据链结论");
+});
+
 test("V41 makes the final official candidate card authoritative and folds repeated semantics", async ({ page }) => {
   const payload = workspace();
   const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
@@ -689,7 +744,7 @@ test("V41 makes the final official candidate card authoritative and folds repeat
     status: "CANDIDATE",
     ever_formed_candidate: true,
     final_states: [],
-    latest_candidates: [{ market: "ASIAN_HANDICAP", selection: "AWAY", exact_line: "-0.5", decimal_odds: 1.88, bookmaker_id: "bookmaker-1", captured_at: "2026-08-09T15:15:00Z", evaluated_at: "2026-08-09T15:16:00Z", checkpoint: "T15_ODDS", final_state: "EVALUATED_CANDIDATE", final_active: true }],
+    latest_candidates: [{ market: "ASIAN_HANDICAP", selection: "AWAY", exact_line: "-0.5", decimal_odds: 1.88, bookmaker_id: "bookmaker-1", captured_at: "2026-08-09T15:15:00Z", evaluated_at: "2026-08-09T15:16:00Z", checkpoint: "T15_ODDS", final_state: "EVALUATED_CANDIDATE", final_active: true, later_unassessed_checkpoints: [] }],
     checkpoint_count: 2,
     market_evaluation_count: 2,
     checkpoints: ["T3_ODDS", "T15_ODDS"],

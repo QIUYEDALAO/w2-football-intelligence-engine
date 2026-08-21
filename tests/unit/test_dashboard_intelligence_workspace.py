@@ -1185,10 +1185,7 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
         "intelligence_state": "MARKET_STABLE",
         "reason_codes": ["MARKET_STABLE_ALL_AVAILABLE_MARKETS"],
         "affected_domains": ["MARKET"],
-        "factual_summary": (
-            "尚无已落盘让球主盘/大小球主盘市场证据；"
-            "无法生成走势或当前模型—市场比较；等待既有调度形成证据。"
-        ),
+        "factual_summary": "模型核心输入未就绪；四字段 xG：主队 0/3，客队 0/3。",
         "readiness_status": "READY",
         "readiness_context": {
             "reason_code": None,
@@ -1411,7 +1408,7 @@ def test_primary_reason_grouping_counts_each_match_once() -> None:
     match = next(item for item in payload["matches"] if item["fixture_id"] == "fixture-two")
 
     assert match["priority_reason_primary"] == "MARKET_MOVEMENT"
-    assert match["priority_reason_secondary"] == ["MODEL_DIAGNOSTIC"]
+    assert match["priority_reason_secondary"] == ["MODEL_DIAGNOSTIC", "DATA_INCOMPLETE"]
     assert payload["today_summary"]["priority_match_count"] == 1
     assert payload["today_summary"]["primary_reason_counts"] == {"MARKET_MOVEMENT": 1}
 
@@ -1579,13 +1576,11 @@ def test_postdeploy_real_shape_uses_stale_evidence_and_scopes_raw_blocked_health
     assert payload["data_operations"]["system_health"] == "BLOCKED_DAY"
     assert payload["today_summary"]["primary_reason_counts"] == {"MARKET_MOVEMENT": 1}
     assert focused["priority_reason_primary"] == "MARKET_MOVEMENT"
-    assert focused["priority_reason_secondary"] == [
-        "CANDIDATE_INPUT_NOT_READY",
-    ]
+    assert focused["priority_reason_secondary"] == ["DATA_INCOMPLETE"]
     assert payload["matches"][0]["priority_reason_primary"] is None
     assert payload["matches"][0]["priority_reason_secondary"] == ["DATA_INCOMPLETE"]
     assert focused["factual_summary"] == payload["attention"][1]["factual_summary"]
-    assert "已就绪市场可进行模型—市场诊断" in focused["factual_summary"]
+    assert focused["factual_summary"] == "模型核心输入未就绪；四字段 xG：主队 0/3，客队 0/3。"
     assert focused["risks"]["DATA_RISK"]["explanation"] == (
         "数据字段已超过新鲜度边界；比赛或盘口身份尚未完成；另有 1 项技术原因"
     )
@@ -2014,8 +2009,8 @@ def test_market_eligibility_preserves_ah_ou_partial_truth_without_cross_contamin
     assert match["readiness"]["market_aggregate_status"] == "NOT_READY"
     assert match["readiness"]["market_evidence_status"] == "AVAILABLE"
     assert match["readiness"]["candidate_input_status"] == "NOT_READY"
-    assert match["priority_reason_secondary"] == ["CANDIDATE_INPUT_NOT_READY"]
-    assert "可比较模型尚未就绪（需已验证校准），暂不进行模型—市场比较" in match["factual_summary"]
+    assert match["priority_reason_secondary"] == ["DATA_INCOMPLETE"]
+    assert match["factual_summary"] == "模型核心输入未就绪；四字段 xG：主队 0/3，客队 0/3。"
 
 
 def test_completed_no_edge_evaluations_take_precedence_over_calibration_gap() -> None:
@@ -2289,12 +2284,22 @@ def test_fixture_1570351_reports_checkpoint_not_due_before_first_slot() -> None:
     ]
     day_view["cards"] = [card]
 
-    diagnosis = _workspace(day_view)["matches"][0]["evaluation_execution"]["diagnosis"]
+    card["intelligence_state"] = "DATA_INCOMPLETE"
+    card["missing_fields"] = ["lineups", "ratings", "team_value"]
+    payload = _workspace(day_view)
+    match = payload["matches"][0]
+    diagnosis = match["evaluation_execution"]["diagnosis"]
 
     assert diagnosis["status"] == "CHECKPOINT_NOT_DUE"
     assert diagnosis["next_checkpoint"] == "T3_ODDS"
     assert diagnosis["next_checkpoint_at"] == "2026-08-20T16:00:00Z"
     assert "输入缺失" not in diagnosis["missing_detail_zh"]
+    assert match["priority_reason_secondary"] == []
+    assert match["factual_summary"] == (
+        "第一个评估档位尚未到达；候选轨道尚未启动；尚未发生门禁判定。"
+    )
+    assert payload["attention"][0]["factual_summary"] == match["factual_summary"]
+    assert not any(field in match["factual_summary"] for field in card["missing_fields"])
 
 
 def test_fixture_1570334_reports_four_field_xg_hard_gate() -> None:

@@ -1745,20 +1745,18 @@ def _priority_reasons(match: Mapping[str, Any]) -> tuple[str | None, list[str]]:
     if normalize_match_status(match.get("status")) == "FINISHED":
         return None, []
     reasons: set[str] = set()
-    state = _text(match.get("intelligence_state"))
     markets = _mapping(_mapping(match.get("market_radar")).get("markets"))
     relation = _mapping(_mapping(match.get("w2_analysis")).get("model_market_relation"))
+    diagnosis_status = _text(
+        _mapping(_mapping(match.get("evaluation_execution")).get("diagnosis")).get("status")
+    )
 
-    if state == "COLLECTION_INCIDENT":
+    if diagnosis_status in {"CHECKPOINT_MISSED", "PROVIDER_EMPTY", "EVALUATION_ERROR"}:
         reasons.add("COLLECTION_INCIDENT")
-    if state == "DATA_INCOMPLETE":
-        readiness = _mapping(match.get("readiness"))
-        reasons.add(
-            "CANDIDATE_INPUT_NOT_READY"
-            if _text(readiness.get("market_evidence_status")) == "AVAILABLE"
-            and _text(readiness.get("candidate_input_status")) == "NOT_READY"
-            else "DATA_INCOMPLETE"
-        )
+    if diagnosis_status == "XG_INPUT_MISSING":
+        reasons.add("DATA_INCOMPLETE")
+    if diagnosis_status == "GATE_BLOCKED":
+        reasons.add("CANDIDATE_INPUT_NOT_READY")
     if any(_is_attention_worthy_movement(_mapping(market)) for market in markets.values()):
         reasons.add("MARKET_MOVEMENT")
     if any(
@@ -1766,17 +1764,12 @@ def _priority_reasons(match: Mapping[str, Any]) -> tuple[str | None, list[str]]:
         and _text(_mapping(relation.get(name)).get("status"))
         not in {"", "MARKET_NOT_READY", "NOT_AVAILABLE"}
         for name, market in markets.items()
-    ) and state in {
+    ) and _text(match.get("intelligence_state")) in {
         "MODEL_DIAGNOSTIC_WARNING",
         "MODEL_MARKET_DISAGREEMENT",
         "MARKET_ANOMALY",
     }:
         reasons.add("MODEL_DIAGNOSTIC")
-    readiness = _mapping(match.get("readiness"))
-    if _text(readiness.get("lineup_expectation")) == "EXPECTED_NEAR_KICKOFF" and _text(
-        readiness.get("lineup_status")
-    ) in {"", "NOT_AVAILABLE", "PROVIDER_EMPTY", "PENDING"}:
-        reasons.add("LINEUP_PENDING")
 
     primary = next(
         (
@@ -2026,42 +2019,17 @@ def _global_model_quality(forward: Mapping[str, Any], generated_at: Any) -> dict
 
 def _match_factual_summary(match: Mapping[str, Any]) -> str:
     execution = _mapping(match.get("evaluation_execution"))
-    if _text(execution.get("status")) != "UNASSESSED":
-        return _text(execution.get("summary_zh"))
-    markets = list(_mapping(_mapping(match.get("market_radar")).get("markets")).values())
-    statuses = {_text(_mapping(market).get("status")) for market in markets}
-    depth = max(
-        (_int(_mapping(market).get("snapshot_count")) for market in markets),
-        default=0,
-    )
-    if statuses <= {"INSUFFICIENT"} or depth == 0:
-        return (
-            "尚无已落盘让球主盘/大小球主盘市场证据；"
-            "无法生成走势或当前模型—市场比较；等待既有调度形成证据。"
+    if _text(execution.get("status")) == "UNASSESSED":
+        diagnosis = _mapping(execution.get("diagnosis"))
+        return "；".join(
+            item
+            for item in (
+                _text(diagnosis.get("primary_blocker_zh")),
+                _text(diagnosis.get("missing_detail_zh")),
+            )
+            if item
         )
-    aggregate = _text(_mapping(match.get("readiness")).get("market_aggregate_status"))
-    relation = _mapping(_mapping(match.get("w2_analysis")).get("model_market_relation"))
-    diagnostic_ready = any(
-        _text(_mapping(item).get("status"))
-        in {"COMPARABLE_WITHIN_MARKET_RANGE", "MODEL_OUTSIDE_MARKET_RANGE"}
-        for item in relation.values()
-    )
-    market_copy = (
-        "已有当前让球主盘/大小球主盘市场证据，但时间线不足两点；仅展示当前横截面，不判断走势。"
-        if depth < 2
-        else "已有当前让球主盘/大小球主盘持久化时间线；可展示已证实走势。"
-    )
-    diagnostic_copy = (
-        "已就绪市场可进行模型—市场诊断。"
-        if diagnostic_ready
-        else "可比较模型尚未就绪（需已验证校准），暂不进行模型—市场比较。"
-    )
-    candidate_copy = {
-        "READY": "两个市场的候选输入均已就绪。",
-        "PARTIAL": "仅部分市场候选输入就绪；未就绪市场不形成影子候选。",
-        "NOT_READY": "两个市场的候选输入均未就绪，暂不形成影子候选。",
-    }.get(aggregate, "候选输入状态尚未确认。")
-    return market_copy + diagnostic_copy + candidate_copy
+    return _text(execution.get("summary_zh"))
 
 
 def _risks(source: Mapping[str, Any]) -> dict[str, Any]:

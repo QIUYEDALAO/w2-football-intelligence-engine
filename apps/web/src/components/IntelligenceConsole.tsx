@@ -251,6 +251,73 @@ function quoteAgeMaximumSeconds(checklist: FixtureFactorChecklist, market: Works
   return factor ? evidenceNumber(factor, "maximum_seconds") : null;
 }
 
+function diagnosisConclusion(match: WorkspaceMatch): string {
+  return match.evaluation_execution.diagnosis.primary_blocker_zh;
+}
+
+function unassessedSummary(match: WorkspaceMatch): string {
+  const diagnosis = match.evaluation_execution.diagnosis;
+  return match.evaluation_execution.status === "UNASSESSED"
+    ? `${diagnosis.primary_blocker_zh}；${diagnosis.missing_detail_zh}`
+    : match.factual_summary;
+}
+
+function priceNumber(value: unknown): number | null {
+  const raw = value && typeof value === "object" && "median" in value
+    ? (value as { median?: unknown }).median
+    : value;
+  const parsed = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function checkpointUpdateLabel(checkpoint: string | null): string {
+  return ({
+    T3_ODDS: "T3",
+    T60_ODDS_LINEUPS: "T-60m",
+    T45_ODDS: "T-45m",
+    "T-30m_VALIDATION_LOCK": "T-30m",
+    T15_ODDS: "T-15m",
+  } as Record<string, string>)[checkpoint || ""] || checkpoint || "下一档";
+}
+
+function marketMovementDetail(match: WorkspaceMatch, thresholdRatio: number): string | null {
+  const candidates = (Object.values(match.market_radar.markets) as WorkspaceMarket[]).flatMap((market) => {
+    const movement = market.movement;
+    const currentLine = market.main_line === null ? Number.NaN : Number(market.main_line);
+    const lineDelta = movement.line_delta === null || movement.line_delta === undefined ? Number.NaN : Number(movement.line_delta);
+    const lineChanged = Number.isFinite(lineDelta) && Math.abs(lineDelta) > 0.0001;
+    const priceChanges = Object.entries(movement.price_delta || {}).flatMap(([side, delta]) => {
+      const current = priceNumber(market.prices[side]);
+      const previous = current === null ? null : current - Number(delta);
+      if (current === null || previous === null || !Number.isFinite(previous) || previous === 0) return [];
+      return [{ side, current, previous, ratio: (current - previous) / Math.abs(previous) }];
+    }).sort((left, right) => Math.abs(right.ratio) - Math.abs(left.ratio));
+    const strongest = priceChanges[0];
+    const attentionWorthy = lineChanged || Boolean(strongest && Math.abs(strongest.ratio) >= thresholdRatio);
+    if (!attentionWorthy) return [];
+    const marketLabel = market.market === "ASIAN_HANDICAP" ? "让球" : "大小球";
+    const previousLine = Number.isFinite(currentLine) && Number.isFinite(lineDelta)
+      ? String(currentLine - lineDelta)
+      : market.main_line;
+    const lineCopy = lineChanged
+      ? `${marketLabel} ${marketLineLabel(market.market, previousLine)} → ${marketLineLabel(market.market, market.main_line)}`
+      : `${marketLabel} ${marketLineLabel(market.market, market.main_line)} 未变`;
+    const movementSide = ({ HOME: "主", AWAY: "客", OVER: "大球", UNDER: "小球" } as Record<string, string>)[strongest?.side || ""];
+    const sideCopy = strongest
+      ? `${movementSide || strongest.side}赔 ${strongest.previous.toFixed(2)} → ${strongest.current.toFixed(2)}（${strongest.ratio >= 0 ? "+" : ""}${(strongest.ratio * 100).toFixed(1)}%）`
+      : null;
+    const maximumAge = quoteAgeMaximumSeconds(match.factor_checklist, market.market);
+    const stale = market.quote_age_seconds !== null && maximumAge !== null && market.quote_age_seconds > maximumAge;
+    const freshness = market.quote_age_seconds === null || maximumAge === null
+      ? "报价时效待确认"
+      : stale
+        ? `历史变化 · 当前不可执行；当前报价已过期，等待 ${checkpointUpdateLabel(match.evaluation_execution.diagnosis.next_checkpoint)} 更新`
+        : "当前报价未过期";
+    return [{ copy: [lineCopy, sideCopy, freshness].filter(Boolean).join("；"), score: (lineChanged ? 100 : 0) + Math.abs(strongest?.ratio || 0) }];
+  });
+  return candidates.sort((left, right) => right.score - left.score)[0]?.copy || null;
+}
+
 function comparisonSummary(market: WorkspaceMarket): string {
   if (market.cross_sectional_comparison_status === "AVAILABLE") return "同一时刻机构双边报价可比较";
   return "当前横截面对比证据不足";
@@ -423,6 +490,17 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
         ? "已完场 · 曾形成候选，最终技术失效"
         : `已完场 · ${evaluationStatusLabel(match.evaluation_execution.status)}`;
     const matchTitle = `${match.home_team_label.display_name} vs ${match.away_team_label.display_name}`;
+    const diagnosis = diagnosisConclusion(match);
+    const movement = match.priority_reason_primary === "MARKET_MOVEMENT"
+      ? marketMovementDetail(match, workspace.runtime.market_price_attention_threshold_ratio)
+      : null;
+    const statusCopy = match.outcome.is_finished
+      ? finishedSummary
+      : kind === "priority"
+        ? `优先 ${priorityPosition} · ${movement || REASON_LABELS[match.priority_reason_primary || ""] || label(match.priority_reason_primary)}${match.evaluation_execution.status === "UNASSESSED" ? ` · 尚未评估：${diagnosis}` : ""}`
+        : kind === "attention"
+          ? `关注 · ${diagnosis}`
+          : limited ? `${presentation.label} · ${diagnosis}` : diagnosis;
     return (
       <button aria-pressed={selectedId === match.fixture_id} className={`${limited ? "v41-limited-match " : ""}${selectedId === match.fixture_id ? "is-selected" : ""}`.trim() || undefined} data-fixture-id={match.fixture_id} key={match.fixture_id} onClick={() => onSelect(match.fixture_id)} type="button">
         <span className={`v41-stripe v41-stripe--${stripe}`} />
@@ -430,10 +508,10 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
           <div className="v41-shortlist-title" title={matchTitle}>
             <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
             <strong><MatchName match={match} /></strong>
-          </div>
-          <div className="v41-shortlist-status">
-            {match.outcome.is_finished ? <span><b>{finishedSummary}</b></span> : kind === "priority" ? <span className="v41-reason-line"><b>优先 {priorityPosition} · 主因：{REASON_LABELS[match.priority_reason_primary || ""] || label(match.priority_reason_primary)}</b>{match.priority_reason_secondary.length ? <small>次因：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small> : null}</span> : kind === "attention" ? <span className="v41-reason-line"><small>关注：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small></span> : limited ? <span><b>{presentation.label}</b> · W2 盘口证据尚未落盘</span> : <span><b>{match.shadow_candidate.status === "ACTIVE" ? "影子候选" : "普通查看"}</b> · 未触发优先复核</span>}
             <time>{kickoffLabel(match.kickoff_utc, workspace.date)}</time>
+          </div>
+          <div className="v41-shortlist-status" data-primary-conclusion={diagnosis} title={statusCopy}>
+            <span className={kind === "priority" ? "v41-reason-line" : undefined}><b>{statusCopy}</b></span>
           </div>
         </span>
       </button>
@@ -537,7 +615,7 @@ function EvaluationDiagnosis({ match }: { match: WorkspaceMatch }) {
   const nextStep = diagnosis.next_checkpoint && diagnosis.next_checkpoint_at
     ? `${diagnosis.next_step_zh} ${diagnosis.next_checkpoint} ${localDateTime(diagnosis.next_checkpoint_at)}`
     : diagnosis.next_step_zh;
-  return <div className="v41-evaluation-diagnosis" data-diagnosis-status={diagnosis.status}>
+  return <div className="v41-evaluation-diagnosis" data-diagnosis-status={diagnosis.status} data-primary-conclusion={diagnosis.primary_blocker_zh}>
     <span />
     <dl>
       <div><dt>首要阻断 / 结论</dt><dd>{diagnosis.primary_blocker_zh}</dd></div>
@@ -696,7 +774,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
         <div><h1><MatchName match={match} /></h1><p>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)} · {localDateTime(match.kickoff_utc)} · 比赛 {match.fixture_id}</p></div>
         <div><span>开球时间</span><strong>{clock(match.kickoff_utc)}</strong></div>
       </header>
-      <div className={`v41-focus-summary ${collectionWarning ? "is-warning" : ""}`}><b>{collectionWarning ? "采集状态" : "本场摘要"}</b><span>{match.factual_summary}</span></div>
+      <div className={`v41-focus-summary ${collectionWarning ? "is-warning" : ""}`} data-primary-conclusion={diagnosisConclusion(match)}><b>{collectionWarning ? "采集状态" : "本场摘要"}</b><span>{unassessedSummary(match)}</span></div>
       <div className="v41-focus-body">
         <div className="v41-focus-markets">
           <p className="v41-market-contract">市场雷达 · 仅绘制已落盘快照 · 点间不插值、不推断缺失路径</p>

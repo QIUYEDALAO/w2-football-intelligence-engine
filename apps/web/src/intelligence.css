@@ -584,8 +584,7 @@ summary {
 }
 
 .v41-shortlist-list button.is-selected {
-  border-left: 2px solid var(--v41-accent);
-  padding-left: 8px;
+  background: var(--v41-focus);
 }
 
 .v41-stripe {
@@ -626,7 +625,13 @@ summary {
 }
 
 .v41-shortlist-title strong {
+  flex: 1;
   min-width: 0;
+}
+
+.v41-shortlist-title time {
+  flex: none;
+  margin-left: auto;
 }
 
 .v41-shortlist-status {
@@ -673,10 +678,10 @@ summary {
 }
 
 .v41-reason-line {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  flex-wrap: wrap;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .v41-reason-line > b {
@@ -2053,7 +2058,6 @@ summary {
   padding-bottom: 5px;
 }
 
-.v41-shortlist-list button.is-selected { padding-left: 5px; }
 .v41-shortlist-copy { gap: 1px; }
 .v41-shortlist-title {
   overflow: hidden;
