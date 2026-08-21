@@ -12,6 +12,7 @@ Coverage is evidence of execution, not proof of semantic liveness. A line not ob
 - Offline base update: `infra/local-release/Dockerfile.runtime-base-coverage` installs the exact locked Linux wheel on top of the fixed dependency base; it never inherits from a prior release.
 - Configuration: `config/coverage/production.coveragerc`.
 - Compose overlay: `infra/compose/production-coverage.override.yml`.
+- Reboot persistence: `infra/systemd/w2-staging-coverage.conf` adds only the coverage overlay to the existing unit commands and is removed when the window ends.
 - Measured packages: `/app/src/w2` and `/app/apps` only.
 - Data path: existing shared runtime volume, `/app/runtime/coverage/.coverage.*`.
 - Separate static contexts: `production-api`, `production-worker`, and `production-scheduler`.
