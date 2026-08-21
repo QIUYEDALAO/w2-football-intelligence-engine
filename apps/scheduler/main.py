@@ -280,10 +280,16 @@ def parse_fixture_kickoff(value: Any) -> datetime | None:
 def future_refresh_fixture_payloads(
     *,
     provider_league_id: str | None = None,
+    kickoff_from: datetime,
+    kickoff_to: datetime,
 ) -> list[dict[str, Any]]:
     from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 
-    return FutureRefreshDbRepository().fixture_payloads(provider_league_id=provider_league_id)
+    return FutureRefreshDbRepository().live_fixture_payloads(
+        provider_league_id=provider_league_id,
+        kickoff_from=kickoff_from,
+        kickoff_to=kickoff_to,
+    )
 
 
 def checkpoint_poll_seconds() -> int:
@@ -345,7 +351,26 @@ def generate_checkpoint_plans(
     from w2.matchday.repository import MatchdayRuntimeRepository
 
     repository = MatchdayRuntimeRepository()
-    fixtures = future_refresh_fixture_payloads(provider_league_id=provider_league_id)
+    policy = next(
+        (
+            item
+            for item in matchday_checkpoint_policies().values()
+            if str(item.provider_league_id) == str(provider_league_id or "")
+        ),
+        None,
+    )
+    if policy is None:
+        return {
+            "status": "MATCHDAY_POLICY_NOT_AVAILABLE",
+            "fixture_payload_count": 0,
+            "generated_plan_count": 0,
+            "provider_calls": 0,
+        }
+    fixtures = future_refresh_fixture_payloads(
+        provider_league_id=provider_league_id,
+        kickoff_from=now - timedelta(hours=36),
+        kickoff_to=now + timedelta(hours=policy.discovery_horizon_hours),
+    )
     plans = canonical_checkpoint_plans_from_fixture_payloads(fixtures, now=now)
     if postmatch_only_enabled():
         plans = [plan for plan in plans if plan.checkpoint == "POSTMATCH_RESULT"]

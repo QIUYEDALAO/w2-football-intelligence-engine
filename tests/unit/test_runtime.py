@@ -1122,6 +1122,31 @@ def test_scheduler_postmatch_only_filters_prematch_plans(monkeypatch) -> None:
     assert checkpoints == ["POSTMATCH_RESULT"]
 
 
+def test_checkpoint_plan_generation_applies_live_horizon_to_scoped_reader(
+    monkeypatch,
+) -> None:
+    now = datetime(2026, 8, 21, 12, tzinfo=UTC)
+    captured: dict[str, object] = {}
+
+    class FakeRepository:
+        def upsert_checkpoint_plan(self, _plan: Any) -> str:
+            raise AssertionError("no fixtures means no plans")
+
+    def fixture_payloads(**kwargs: object) -> list[dict[str, Any]]:
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(scheduler_main, "future_refresh_fixture_payloads", fixture_payloads)
+    monkeypatch.setattr("w2.matchday.repository.MatchdayRuntimeRepository", FakeRepository)
+
+    result = scheduler_main.generate_checkpoint_plans(now, provider_league_id="113")
+
+    assert result["generated_plan_count"] == 0
+    assert captured["provider_league_id"] == "113"
+    assert captured["kickoff_from"] == now - timedelta(hours=36)
+    assert captured["kickoff_to"] > now
+
+
 def test_scheduler_checkpoint_batch_claims_persisted_rows_without_fixture_rebuild(
     monkeypatch,
 ) -> None:

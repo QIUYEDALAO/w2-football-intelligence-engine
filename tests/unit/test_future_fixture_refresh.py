@@ -32,6 +32,7 @@ from w2.ingestion.future_refresh import (
     refresh_progress_status,
     run_future_refresh_task,
 )
+from w2.ingestion.raw_fixture_scope import RawFixtureScope
 from w2.markets.quote_identity import evaluate_quote_freshness, project_quote_identity
 from w2.operations.gate_a import (
     GATE_A_SELECTION_POLICY_VERSION,
@@ -1966,6 +1967,48 @@ def test_raw_lineup_persistence_defers_materialization_until_fixture_identity_ex
     ) == (True, None)
     assert repository.materialization_called is False
     assert service._projection_events == {}
+
+
+def test_fixture_discovery_raw_is_classified_live_at_write_time(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class Repository:
+        def save_raw_payload(self, **kwargs: Any) -> str:
+            captured.update(kwargs)
+            return "db://raw_payload/hash"
+
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="db",
+            discovery_date="2026-06-23",
+        ),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", Repository)
+    response = LiveApiFootballResponse(
+        endpoint="fixtures",
+        params={"date": "2026-06-23"},
+        status_code=200,
+        elapsed_ms=1,
+        payload={"response": []},
+        headers={},
+        captured_at=NOW,
+    )
+
+    assert service._save_raw_payload_first(
+        endpoint="fixtures",
+        params={"date": "2026-06-23"},
+        response=response,
+        payload_hash="a" * 64,
+        payload={"response": []},
+    ) == (True, None)
+    assert captured["fixture_scope"] is RawFixtureScope.LIVE_DISCOVERY
+    assert isinstance(captured["request_identity"], str)
 
 
 def test_fixture_change_triggers_projection_before_task_success(

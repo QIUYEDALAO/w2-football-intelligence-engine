@@ -26,6 +26,7 @@ from w2.infrastructure.persistence.future_refresh_models import (
     FutureRefreshCheckpointAuditModel,
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
+    RawFixtureScopeMembershipModel,
     RawPayloadModel,
 )
 from w2.infrastructure.persistence.ingestion_models import (
@@ -46,6 +47,7 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
     FutureRefreshPersistenceError,
 )
+from w2.ingestion.raw_fixture_scope import RawFixtureScope, raw_fixture_request_identity
 from w2.matchday.intake_v2 import CheckpointPlan
 from w2.matchday.repository import MatchdayRuntimeRepository
 from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
@@ -1913,6 +1915,83 @@ def test_raw_payload_inserted_at_is_first_insert_authority(
         assert replay is not None
         assert replay.inserted_at == first_inserted_at
         assert session.scalar(select(func.count()).select_from(RawPayloadModel)) == 1
+
+
+def test_raw_fixture_scope_is_item_level_append_only_and_fail_closed(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+
+    def payload(fixture_id: int, kickoff: datetime) -> dict[str, Any]:
+        return {
+            "response": [
+                {
+                    "fixture": {"id": fixture_id, "date": kickoff.isoformat()},
+                    "league": {"id": 140, "season": 2026},
+                }
+            ]
+        }
+
+    request_identity = raw_fixture_request_identity(
+        endpoint="fixtures",
+        params={"league": "140", "season": "2026"},
+    )
+    fixtures = (
+        ("1" * 64, 101, NOW + timedelta(hours=2), RawFixtureScope.LIVE_DISCOVERY),
+        ("2" * 64, 102, NOW - timedelta(days=2), RawFixtureScope.HISTORICAL_TRAINING),
+        ("3" * 64, 103, NOW + timedelta(hours=3), RawFixtureScope.CONTROLLED_AUDIT),
+    )
+    for raw_hash, fixture_id, kickoff, scope in fixtures:
+        repository.save_raw_payload(
+            sha256=raw_hash,
+            endpoint="fixtures",
+            captured_at=NOW,
+            payload=payload(fixture_id, kickoff),
+            fixture_scope=scope,
+            request_identity=request_identity,
+        )
+    repository.save_raw_payload(
+        sha256="4" * 64,
+        endpoint="fixtures",
+        captured_at=NOW,
+        payload=payload(104, NOW + timedelta(hours=4)),
+    )
+
+    live = repository.live_fixture_payloads(
+        provider_league_id="140",
+        kickoff_from=NOW,
+        kickoff_to=NOW + timedelta(days=1),
+    )
+    history = repository.historical_fixture_payloads(
+        provider_league_id="140",
+        kickoff_from=NOW - timedelta(days=3),
+        kickoff_to=NOW,
+    )
+
+    assert [row["fixture"]["id"] for row in live] == [101]
+    assert [row["fixture"]["id"] for row in history] == [102]
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(RawPayloadModel)) == 4
+        assert (
+            session.scalar(select(func.count()).select_from(RawFixtureScopeMembershipModel))
+            == 3
+        )
+
+    with pytest.raises(
+        FutureRefreshPersistenceError,
+        match="RAW_FIXTURE_SCOPE_MEMBERSHIP_CONFLICT",
+    ):
+        repository.save_raw_payload(
+            sha256="1" * 64,
+            endpoint="fixtures",
+            captured_at=NOW,
+            payload=payload(101, NOW + timedelta(hours=2)),
+            fixture_scope=RawFixtureScope.HISTORICAL_TRAINING,
+            request_identity=request_identity,
+        )
 
 
 def test_scoped_xg_snapshot_reader_uses_latest_pre_fixture_team_state(
