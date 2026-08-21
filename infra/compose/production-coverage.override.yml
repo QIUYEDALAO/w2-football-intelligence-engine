@@ -1,0 +1,42 @@
+services:
+  api:
+    command:
+      - "coverage"
+      - "run"
+      - "--rcfile=/app/config/coverage/production.coveragerc"
+      - "-m"
+      - "uvicorn"
+      - "apps.api.main:app"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+    environment:
+      W2_COVERAGE_CONTEXT: production-api
+
+  worker:
+    command:
+      - "coverage"
+      - "run"
+      - "--rcfile=/app/config/coverage/production.coveragerc"
+      - "-m"
+      - "celery"
+      - "-A"
+      - "apps.worker.celery_app"
+      - "worker"
+      - "--loglevel=INFO"
+      - "--concurrency=1"
+      - "--max-tasks-per-child=10"
+      - "--max-memory-per-child=1200000"
+    environment:
+      W2_COVERAGE_CONTEXT: production-worker
+
+  scheduler:
+    command:
+      - "coverage"
+      - "run"
+      - "--rcfile=/app/config/coverage/production.coveragerc"
+      - "-m"
+      - "apps.scheduler.main"
+    environment:
+      W2_COVERAGE_CONTEXT: production-scheduler
