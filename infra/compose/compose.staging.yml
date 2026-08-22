@@ -122,6 +122,42 @@ services:
         max-size: "5m"
         max-file: "2"
 
+  factor-v2-forward-collector:
+    profiles: ["factor-v2"]
+    image: ${W2_PYTHON_IMAGE:?immutable Python image reference required}
+    command:
+      - "python"
+      - "scripts/run_factor_v2_forward_collection.py"
+      - "--write-db"
+    volumes:
+      - /opt/w2/shared/runtime/factor-v2:/app/runtime/factor-v2
+    environment:
+      W2_ENVIRONMENT: staging
+      W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD}@postgres:5432/w2
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "false"
+      W2_RECOMMENDATION_ENABLED: "false"
+      W2_FORMAL_RECOMMENDATION_ENABLED: "false"
+      W2_EXTERNAL_ALERTING: "false"
+      W2_FACTOR_V2_FORWARD_COLLECTION_ENABLED: "true"
+      W2_FACTOR_V2_FORWARD_COLLECTION_CONTROL_FILE: /app/runtime/factor-v2/enabled
+      W2_FACTOR_V2_FORWARD_COLLECTION_DAILY_STATE_FILE: /app/runtime/factor-v2/last-success-utc-date
+      W2_FACTOR_V2_FORWARD_COLLECTION_REPORT_DIR: /app/runtime/factor-v2/reports
+      W2_FACTOR_V2_QUIET_HORIZON_SECONDS: "3600"
+      PYTHONDONTWRITEBYTECODE: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - w2-staging
+    mem_limit: 2g
+    restart: no
+    logging:
+      driver: local
+      options:
+        max-size: "5m"
+        max-file: "2"
+
   api:
     image: ${W2_PYTHON_IMAGE:?immutable Python image reference required}
     command:

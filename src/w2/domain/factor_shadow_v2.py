@@ -24,6 +24,7 @@ def factor_shadow_forecast_contract(
     pit_input_identity_hash: str,
     captured_at: datetime,
     feature_as_of: datetime,
+    computed_at: datetime | None = None,
     source_mode: FactorShadowSourceMode | str,
     production_capture_identity_hash: str | None = None,
     production_captured_at: datetime | None = None,
@@ -31,13 +32,19 @@ def factor_shadow_forecast_contract(
     mode = FactorShadowSourceMode(str(source_mode))
     _require_aware(captured_at, "captured_at")
     _require_aware(feature_as_of, "feature_as_of")
-    if feature_as_of > captured_at:
-        raise ValueError("FACTOR_SHADOW_FEATURE_ASOF_AFTER_CAPTURE")
+    resolved_computed_at = computed_at or captured_at
+    _require_aware(resolved_computed_at, "computed_at")
     if mode is FactorShadowSourceMode.FORWARD_SHADOW:
+        if feature_as_of != captured_at:
+            raise ValueError("FACTOR_SHADOW_FORWARD_FEATURE_ASOF_MUST_EQUAL_CAPTURE")
+        if resolved_computed_at < captured_at:
+            raise ValueError("FACTOR_SHADOW_COMPUTED_BEFORE_CAPTURE")
         if not production_capture_identity_hash or production_captured_at != captured_at:
             raise ValueError("FACTOR_SHADOW_FORWARD_CAPTURE_PAIR_REQUIRED")
     elif production_capture_identity_hash is not None or production_captured_at is not None:
         raise ValueError("FACTOR_SHADOW_HISTORY_PRODUCTION_CAPTURE_FORBIDDEN")
+    elif feature_as_of > captured_at or resolved_computed_at < feature_as_of:
+        raise ValueError("FACTOR_SHADOW_HISTORY_TIME_INVALID")
 
     identity = {
         "fixture_id": str(fixture_id),
@@ -53,6 +60,7 @@ def factor_shadow_forecast_contract(
         **identity,
         "schema_version": FACTOR_SHADOW_V2_CONTRACT_VERSION,
         "feature_as_of": feature_as_of,
+        "computed_at": resolved_computed_at,
         "production_capture_identity_hash": production_capture_identity_hash,
         "probability_method": "EXACT_MATRIX",
         "sampling_used": False,

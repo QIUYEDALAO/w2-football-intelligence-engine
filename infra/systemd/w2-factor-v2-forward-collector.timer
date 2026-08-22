@@ -1,0 +1,11 @@
+[Unit]
+Description=Probe for one daily W2 Factor V2 delayed forward collection
+
+[Timer]
+OnCalendar=*-*-* *:05:00 UTC
+AccuracySec=1min
+Persistent=false
+Unit=w2-factor-v2-forward-collector.service
+
+[Install]
+WantedBy=timers.target

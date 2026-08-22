@@ -52,3 +52,21 @@ def test_staging_api_public_binding_is_rejected() -> None:
 
     with pytest.raises(SystemExit):
         checker.assert_no_public_ports(["0.0.0.0:18000:8000"], "api")
+
+
+def test_factor_v2_collector_is_standalone_provider_zero_and_has_no_ports() -> None:
+    compose = load_compose()
+    collector = compose["services"]["factor-v2-forward-collector"]
+    environment = collector["environment"]
+
+    assert collector["profiles"] == ["factor-v2"]
+    assert collector["restart"] is False
+    assert "ports" not in collector
+    assert environment["W2_PROVIDER_CALLS_DISABLED"] == "true"
+    assert environment["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
+    assert environment["W2_RECOMMENDATION_ENABLED"] == "false"
+    assert environment["W2_FORMAL_RECOMMENDATION_ENABLED"] == "false"
+    assert environment["W2_EXTERNAL_ALERTING"] == "false"
+    assert "W2_API_FOOTBALL_API_KEY" not in environment
+    assert "W2_REDIS_URL" not in environment
+    assert "W2_CELERY_BROKER_URL" not in environment

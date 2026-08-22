@@ -41,6 +41,13 @@ class FactorShadowForecastCaptureModel(Base):
             "probability_method = 'EXACT_MATRIX' and sampling_used = false",
             name="ck_factor_shadow_forecast_exact_matrix",
         ),
+        CheckConstraint(
+            "(source_mode = 'FORWARD_SHADOW' and feature_as_of = captured_at "
+            "and computed_at >= captured_at) or "
+            "(source_mode = 'HISTORICAL_REPLAY' and feature_as_of <= captured_at "
+            "and computed_at >= feature_as_of)",
+            name="ck_factor_shadow_forecast_delayed_pit_time",
+        ),
     )
 
     forecast_identity_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -53,6 +60,7 @@ class FactorShadowForecastCaptureModel(Base):
     kickoff_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     feature_as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     source_mode: Mapped[str] = mapped_column(String(32), nullable=False)
     model_family: Mapped[str] = mapped_column(String(64), nullable=False)
     model_version: Mapped[str] = mapped_column(String(128), nullable=False)

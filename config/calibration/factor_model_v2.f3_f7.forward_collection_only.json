@@ -1,0 +1,90 @@
+{
+  "schema_version": "w2.factor_model.forward_collection_artifact.v1",
+  "artifact_sha256": "8710a75cd635024092e3276622270125708b050afbf4b7de461e97d0fbaf51fb",
+  "status": "COLLECTION_ONLY_GATE1_FAILED_GATE2_CLOSED",
+  "influence_eligible": false,
+  "candidate_eligible": false,
+  "notification_eligible": false,
+  "official_profit_and_loss_eligible": false,
+  "feature_registry_version": "factor-model-v2.v1.unadmitted",
+  "source_gate1_report_sha256": "07a8de9874a65760f9c34085ae09f96b677e6970244ae1922ff022f49ddb3ab2",
+  "source_ablation_results_sha256": "3b64565fdd9f384c401c9ed4e9a97ff4aa23d84f44bed631a7763f674c7ed99d",
+  "source_preprocessing_file_sha256": "ac8eee965a35973ea13a30e62c194031281e2a27dc1ba0d129d4fd46f0e35269",
+  "preprocessing": {
+    "preprocessing_sha256": "ed4d3275f0e5d374d1794aaefa01e518870264c504565fe35beb60d00497e240",
+    "missing_strategy": "TRAIN_MEAN_PLUS_MISSING_INDICATOR",
+    "parameters": {
+      "F3_REST_FITNESS": {
+        "mean": 0.44241879223893615,
+        "standard_deviation": 17.893500411243103,
+        "status": "FITTED"
+      },
+      "F7_STRENGTH_FORM": {
+        "mean": 0.24329214613833045,
+        "standard_deviation": 106.67353016725197,
+        "status": "FITTED"
+      }
+    }
+  },
+  "factor_calibration": {
+    "active_factor_ids": [
+      "F3_REST_FITNESS",
+      "F7_STRENGTH_FORM"
+    ],
+    "admitted_for_forward_shadow": false,
+    "admitted_for_historical_replay": true,
+    "calibration_sha256": "850c473eeb18c16d61e638292240303c41511d68d69c2e97acc64e08b1167d60",
+    "calibration_version": "factor-v2.f3-f7.poisson-newton.v1",
+    "excluded_factor_statuses": {
+      "F6_H2H": "EXCLUDED_BY_PREREGISTERED_THRESHOLD"
+    },
+    "feature_bounds": {
+      "F3_REST_FITNESS.missing": {
+        "maximum": 0.0,
+        "minimum": 0.0
+      },
+      "F3_REST_FITNESS.value": {
+        "maximum": 1.926635207316192,
+        "minimum": -1.9760854302542323
+      },
+      "F7_STRENGTH_FORM.missing": {
+        "maximum": 1.0,
+        "minimum": 0.0
+      },
+      "F7_STRENGTH_FORM.value": {
+        "maximum": 3.8707408210443996,
+        "minimum": -3.324501462198065
+      }
+    },
+    "fit_diagnostics": {
+      "converged": true,
+      "final_poisson_nll": 4673.862691461,
+      "fit_split": "TRAIN",
+      "initial_poisson_nll": 4755.72876292,
+      "iterations": 5,
+      "numerical_ridge": 1e-08,
+      "optimizer": "NEWTON_RAPHSON_BACKTRACKING_V1",
+      "training_fixture_count": 2684
+    },
+    "fit_split": "TRAIN",
+    "max_goals": 12,
+    "preprocessing_sha256": "ed4d3275f0e5d374d1794aaefa01e518870264c504565fe35beb60d00497e240",
+    "relative_coefficients": {
+      "F3_REST_FITNESS.missing": 0.0,
+      "F3_REST_FITNESS.value": -0.5531284278055477,
+      "F7_STRENGTH_FORM.missing": -0.19495564995772083,
+      "F7_STRENGTH_FORM.value": 0.26856454602075114
+    },
+    "rho": 0.0,
+    "schema_version": "w2.factor_model.ablation_calibration.v2",
+    "split_manifest_sha256": "01a4f593efc3814cf31b6d4a677320513cdc996baf006d59c4c4d029fda243ce",
+    "total_coefficients": {
+      "F3_REST_FITNESS.missing": 0.0,
+      "F3_REST_FITNESS.value": 0.1384313339606611,
+      "F7_STRENGTH_FORM.missing": 0.03309824845580659,
+      "F7_STRENGTH_FORM.value": 0.07165189258165376
+    }
+  },
+  "xg_pit_semantics": "SOURCE_KICKOFF_ONLY",
+  "xg_method_version": "api-football.expected-goals.statistics.v1"
+}

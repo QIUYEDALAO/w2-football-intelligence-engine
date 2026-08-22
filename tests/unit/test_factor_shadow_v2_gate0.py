@@ -84,6 +84,41 @@ def test_forward_forecast_requires_exact_production_capture_pair() -> None:
         )
 
 
+def test_forward_forecast_separates_delayed_computed_at_from_captured_at() -> None:
+    delayed = factor_shadow_forecast_contract(
+        fixture_id="api_football:1570351",
+        model_family="w2.factor-shadow",
+        model_version="factor-model-v2.unfitted",
+        feature_registry_version="factor-model-v2.v1.unadmitted",
+        calibration_version="factor-model-v2.unfitted",
+        pit_input_identity_hash="a" * 64,
+        captured_at=NOW,
+        feature_as_of=NOW,
+        computed_at=NOW + timedelta(hours=12),
+        source_mode="FORWARD_SHADOW",
+        production_capture_identity_hash="b" * 64,
+        production_captured_at=NOW,
+    )
+
+    assert delayed["feature_as_of"] == NOW
+    assert delayed["computed_at"] == NOW + timedelta(hours=12)
+    with pytest.raises(ValueError, match="COMPUTED_BEFORE_CAPTURE"):
+        factor_shadow_forecast_contract(
+            fixture_id="api_football:1570351",
+            model_family="w2.factor-shadow",
+            model_version="factor-model-v2.unfitted",
+            feature_registry_version="factor-model-v2.v1.unadmitted",
+            calibration_version="factor-model-v2.unfitted",
+            pit_input_identity_hash="a" * 64,
+            captured_at=NOW,
+            feature_as_of=NOW,
+            computed_at=NOW - timedelta(seconds=1),
+            source_mode="FORWARD_SHADOW",
+            production_capture_identity_hash="b" * 64,
+            production_captured_at=NOW,
+        )
+
+
 def test_historical_replay_cannot_bind_production_capture() -> None:
     with pytest.raises(ValueError, match="HISTORY_PRODUCTION_CAPTURE_FORBIDDEN"):
         factor_shadow_forecast_contract(
@@ -186,6 +221,7 @@ def test_v2_migration_revokes_official_table_writes() -> None:
 
     assert "ON ALL TABLES IN SCHEMA public FROM {V2_ROLE}" in migration
     assert "GRANT INSERT, SELECT ON {', '.join(V2_TABLES)}" in migration
+    assert "GRANT SELECT ON ALL TABLES" not in migration
 
 
 def _history_pair(

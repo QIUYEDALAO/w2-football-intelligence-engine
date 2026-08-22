@@ -71,6 +71,7 @@ def upgrade() -> None:
         sa.Column("kickoff_utc", sa.DateTime(timezone=True), nullable=False),
         sa.Column("captured_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("feature_as_of", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("computed_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("source_mode", sa.String(32), nullable=False),
         sa.Column("model_family", sa.String(64), nullable=False),
         sa.Column("model_version", sa.String(128), nullable=False),
@@ -101,6 +102,13 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "probability_method = 'EXACT_MATRIX' and sampling_used = false",
             name="ck_factor_shadow_forecast_exact_matrix",
+        ),
+        sa.CheckConstraint(
+            "(source_mode = 'FORWARD_SHADOW' and feature_as_of = captured_at "
+            "and computed_at >= captured_at) or "
+            "(source_mode = 'HISTORICAL_REPLAY' and feature_as_of <= captured_at "
+            "and computed_at >= feature_as_of)",
+            name="ck_factor_shadow_forecast_delayed_pit_time",
         ),
     )
     op.create_index(
@@ -288,18 +296,30 @@ def _grant_factor_shadow_role() -> None:
                 SELECT 1 FROM pg_roles WHERE rolname = 'w2_factor_shadow_v2_writer'
               ) THEN
                 CREATE ROLE w2_factor_shadow_v2_writer
-                  NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+                  NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
+                  NOREPLICATION NOBYPASSRLS;
               END IF;
             END
             $$
             """
         )
     )
-    op.execute(sa.text(f"GRANT USAGE ON SCHEMA public TO {V2_ROLE}"))
-    op.execute(sa.text(f"GRANT SELECT ON ALL TABLES IN SCHEMA public TO {V2_ROLE}"))
     op.execute(
         sa.text(
-            f"REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER "
+            f"ALTER ROLE {V2_ROLE} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE "
+            "NOINHERIT NOREPLICATION NOBYPASSRLS"
+        )
+    )
+    op.execute(sa.text(f"GRANT USAGE ON SCHEMA public TO {V2_ROLE}"))
+    op.execute(
+        sa.text(
+            f"GRANT {V2_ROLE} TO CURRENT_USER "
+            "WITH ADMIN FALSE, INHERIT FALSE, SET TRUE"
+        )
+    )
+    op.execute(
+        sa.text(
+            f"REVOKE SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER "
             f"ON ALL TABLES IN SCHEMA public FROM {V2_ROLE}"
         )
     )
@@ -313,9 +333,10 @@ def _grant_factor_shadow_role() -> None:
 def _revoke_factor_shadow_role() -> None:
     if op.get_bind().dialect.name != "postgresql":
         return
+    op.execute(sa.text(f"REVOKE {V2_ROLE} FROM CURRENT_USER"))
     op.execute(
         sa.text(
-            f"REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER "
+            f"REVOKE SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER "
             f"ON {', '.join(V2_TABLES)} FROM {V2_ROLE}"
         )
     )

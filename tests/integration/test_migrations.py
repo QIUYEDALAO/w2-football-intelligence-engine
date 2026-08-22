@@ -98,6 +98,7 @@ def test_0070_adds_isolated_v2_tables_without_rewriting_v1_capture(tmp_path: Pat
     forecast_columns = {
         column["name"] for column in inspect(engine).get_columns("factor_shadow_forecast_capture")
     }
+    assert {"captured_at", "feature_as_of", "computed_at"} <= forecast_columns
     assert {"market", "checkpoint", "quote_identity_hash"}.isdisjoint(forecast_columns)
 
 
