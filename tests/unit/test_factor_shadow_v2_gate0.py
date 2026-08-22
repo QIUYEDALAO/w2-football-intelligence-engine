@@ -275,6 +275,40 @@ def test_pit_history_manifest_includes_only_results_known_before_target() -> Non
     }
 
 
+def test_pit_immutable_fact_backfill_uses_target_kickoff_not_raw_capture_time() -> None:
+    prior_backfill = _history_pair(
+        "api_football:prior",
+        kickoff=NOW - timedelta(days=2),
+        captured_at=NOW + timedelta(days=30),
+    )
+    same_kickoff = _history_pair(
+        "api_football:same",
+        kickoff=NOW,
+        captured_at=NOW + timedelta(days=30),
+    )
+
+    manifest = build_pit_history_manifest(
+        prior_backfill + same_kickoff,
+        target_fixture_id="api_football:target",
+        target_kickoff=NOW,
+        feature_as_of=NOW,
+        team_identity_namespace=TEAM_NS,
+        immutable_fact_backfill=True,
+    )
+
+    assert [row["fixture_id"] for row in manifest["source_fixtures"]] == [
+        "api_football:prior"
+    ]
+    assert manifest["excluded_fixture_counts"] == {
+        "NOT_BEFORE_TARGET_KICKOFF": 1,
+    }
+    assert manifest["visibility_policy"] == (
+        "IMMUTABLE_FACTS_STRICT_SOURCE_KICKOFF_BEFORE_FEATURE_AS_OF"
+    )
+    assert "result_capture_delay_seconds" not in manifest["source_fixtures"][0]
+    assert "result_first_captured_at" not in manifest["source_fixtures"][0]
+
+
 def test_pit_history_manifest_rejects_incomplete_and_conflicting_identities() -> None:
     incomplete = _history_pair(
         "api_football:incomplete",

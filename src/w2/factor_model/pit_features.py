@@ -94,6 +94,19 @@ def verify_pit_feature_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("PIT_FEATURE_SNAPSHOT_SCHEMA_INVALID")
     expected = snapshot.get("feature_snapshot_sha256")
     body = {key: value for key, value in snapshot.items() if key != "feature_snapshot_sha256"}
+    body["target_kickoff"] = _utc(body["target_kickoff"])
+    body["feature_as_of"] = _utc(body["feature_as_of"])
+    body["factors"] = {
+        factor_id: {
+            **factor,
+            **{
+                field: _utc(factor[field])
+                for field in ("home_observed_at", "away_observed_at")
+                if factor.get(field) is not None
+            },
+        }
+        for factor_id, factor in body["factors"].items()
+    }
     actual = canonical_sha256(
         {"identity_type": "FACTOR_MODEL_PIT_FEATURE_SNAPSHOT", **body},
         domain=HashDomain.PREMATCH_READ_MODEL_GENERIC,
@@ -108,6 +121,21 @@ def _verified_fixtures(manifest: dict[str, Any]) -> list[dict[str, Any]]:
         raise ValueError("PIT_HISTORY_MANIFEST_SCHEMA_INVALID")
     expected = manifest.get("manifest_sha256")
     body = {key: value for key, value in manifest.items() if key != "manifest_sha256"}
+    body["target_kickoff"] = _utc(body["target_kickoff"])
+    body["feature_as_of"] = _utc(body["feature_as_of"])
+    body["source_fixtures"] = [
+        {
+            **fixture,
+            "kickoff_utc": _utc(fixture["kickoff_utc"]),
+            "raw_captured_at": _utc(fixture["raw_captured_at"]),
+            **(
+                {"result_first_captured_at": _utc(fixture["result_first_captured_at"])}
+                if fixture.get("result_first_captured_at") is not None
+                else {}
+            ),
+        }
+        for fixture in body["source_fixtures"]
+    ]
     actual = canonical_sha256(
         {"identity_type": "FACTOR_MODEL_PIT_HISTORY_MANIFEST", **body},
         domain=HashDomain.PREMATCH_READ_MODEL_GENERIC,

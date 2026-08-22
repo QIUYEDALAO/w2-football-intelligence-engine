@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 
 from w2.factor_model.history import API_FOOTBALL_TEAM_ID_NAMESPACE, build_pit_history_manifest
-from w2.factor_model.pit_features import RecursiveRatingPolicy, build_pit_feature_snapshot
+from w2.factor_model.pit_features import (
+    RecursiveRatingPolicy,
+    build_pit_feature_snapshot,
+    verify_pit_feature_snapshot,
+)
 
 TARGET = datetime(2026, 8, 21, 12, tzinfo=UTC)
 POLICY = RecursiveRatingPolicy(
@@ -179,3 +184,29 @@ def test_recursive_rating_is_order_independent_within_same_kickoff_batch() -> No
         team_identity_namespace=TEAM_NS,
         rating_policy=POLICY,
     )
+
+
+def test_pit_manifest_and_feature_snapshot_verify_after_json_round_trip() -> None:
+    manifest = json.loads(
+        json.dumps(
+            _manifest(),
+            default=lambda value: value.isoformat().replace("+00:00", "Z"),
+        )
+    )
+    snapshot = build_pit_feature_snapshot(
+        manifest,
+        home_team_id="team:home",
+        away_team_id="team:away",
+        team_identity_namespace=TEAM_NS,
+        rating_policy=POLICY,
+    )
+    serialized = json.loads(
+        json.dumps(
+            snapshot,
+            default=lambda value: value.isoformat().replace("+00:00", "Z"),
+        )
+    )
+
+    assert verify_pit_feature_snapshot(serialized)["feature_snapshot_sha256"] == snapshot[
+        "feature_snapshot_sha256"
+    ]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -14,7 +15,10 @@ from w2.factor_model.pit_dataset import (
     fit_train_only_preprocessing,
     normalize_pit_feature_snapshot,
 )
-from w2.factor_model.pit_features import PIT_FEATURE_SNAPSHOT_SCHEMA_VERSION
+from w2.factor_model.pit_features import (
+    PIT_FEATURE_SNAPSHOT_SCHEMA_VERSION,
+    verify_pit_feature_snapshot,
+)
 
 START = datetime(2023, 1, 1, tzinfo=UTC)
 POLICY = TemporalSplitPolicy(
@@ -132,3 +136,24 @@ def test_duplicate_fixture_with_different_snapshot_fails_closed() -> None:
 
     with pytest.raises(ValueError, match="TEMPORAL_SPLIT_FIXTURE_CONFLICT"):
         build_temporal_split_manifest([first, second], policy=POLICY)
+
+
+def test_split_and_snapshot_hashes_verify_after_json_round_trip() -> None:
+    snapshot = _snapshot("train", START + timedelta(days=1), 1.0)
+    split = build_temporal_split_manifest([snapshot], policy=POLICY)
+    serialized_snapshot = json.loads(
+        json.dumps(
+            snapshot,
+            default=lambda value: value.isoformat().replace("+00:00", "Z"),
+        )
+    )
+    serialized_split = json.loads(
+        json.dumps(
+            split,
+            default=lambda value: value.isoformat().replace("+00:00", "Z"),
+        )
+    )
+
+    verify_pit_feature_snapshot(serialized_snapshot)
+    artifact = fit_train_only_preprocessing(serialized_split, [serialized_snapshot])
+    assert artifact["fit_split"] == "TRAIN"

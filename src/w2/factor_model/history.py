@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from string import hexdigits
@@ -186,18 +186,21 @@ def materialize_factor_history_from_persisted_raw(
 
 
 def build_pit_history_manifest(
-    rows: list[Mapping[str, Any]],
+    rows: Sequence[Mapping[str, Any]],
     *,
     target_fixture_id: str,
     target_kickoff: datetime,
     feature_as_of: datetime,
     team_identity_namespace: str,
+    immutable_fact_backfill: bool = False,
 ) -> dict[str, Any]:
     """Select fixture-level history known strictly before a target feature time."""
     target_time = _aware_utc(target_kickoff, "target_kickoff")
     as_of = _aware_utc(feature_as_of, "feature_as_of")
     if as_of > target_time:
         raise ValueError("PIT_HISTORY_FEATURE_ASOF_AFTER_TARGET_KICKOFF")
+    if immutable_fact_backfill and as_of != target_time:
+        raise ValueError("PIT_HISTORY_IMMUTABLE_FACT_ASOF_MUST_EQUAL_TARGET_KICKOFF")
     if not team_identity_namespace:
         raise ValueError("PIT_HISTORY_TEAM_IDENTITY_NAMESPACE_REQUIRED")
 
@@ -222,6 +225,7 @@ def build_pit_history_manifest(
             target_kickoff=target_time,
             feature_as_of=as_of,
             team_identity_namespace=team_identity_namespace,
+            immutable_fact_backfill=immutable_fact_backfill,
         )
         if reason:
             excluded[reason] = excluded.get(reason, 0) + 1
@@ -240,6 +244,26 @@ def build_pit_history_manifest(
         "source_fixtures": included,
         "excluded_fixture_counts": dict(sorted(excluded.items())),
     }
+    if immutable_fact_backfill:
+        body.update(
+            {
+                "visibility_policy": (
+                    "IMMUTABLE_FACTS_STRICT_SOURCE_KICKOFF_BEFORE_FEATURE_AS_OF"
+                ),
+                "immutable_fact_fields": [
+                    "kickoff_utc",
+                    "home_team_id",
+                    "away_team_id",
+                    "home_goals",
+                    "away_goals",
+                ],
+                "excluded_from_feature_inputs": [
+                    "raw_captured_at",
+                    "result_first_captured_at",
+                    "result_capture_delay_seconds",
+                ],
+            }
+        )
     return {
         **body,
         "manifest_sha256": canonical_sha256(
@@ -256,6 +280,7 @@ def _pit_fixture(
     target_kickoff: datetime,
     feature_as_of: datetime,
     team_identity_namespace: str,
+    immutable_fact_backfill: bool,
 ) -> tuple[str | None, dict[str, Any] | None]:
     if str(rows[0].get("fixture_id")) == target_fixture_id:
         return "TARGET_FIXTURE", None
@@ -282,7 +307,9 @@ def _pit_fixture(
     kickoff = next(iter(kickoffs))
     if kickoff >= target_kickoff:
         return "NOT_BEFORE_TARGET_KICKOFF", None
-    if any(captured_at >= feature_as_of for captured_at in captures):
+    if not immutable_fact_backfill and any(
+        captured_at >= feature_as_of for captured_at in captures
+    ):
         return "RESULT_NOT_KNOWN_AT_ASOF", None
 
     by_side: dict[str, Mapping[str, Any]] = {}
@@ -302,7 +329,7 @@ def _pit_fixture(
     if not _coherent_pair(home, away):
         return "IDENTITY_CONFLICT", None
 
-    return None, {
+    fixture = {
         "fixture_id": str(home["fixture_id"]),
         "provider": str(home["provider"]),
         "provider_fixture_id": str(home["provider_fixture_id"]),
@@ -317,8 +344,6 @@ def _pit_fixture(
         "away_goals": int(away["goals_for"]),
         "result_identity_hash": str(home["result_identity_hash"]),
         "raw_captured_at": max(captures),
-        "result_first_captured_at": home.get("result_first_captured_at"),
-        "result_capture_delay_seconds": home.get("result_capture_delay_seconds"),
         "source_history_hashes": sorted(
             {str(row["history_hash"]) for row in by_side.values()}
         ),
@@ -326,6 +351,14 @@ def _pit_fixture(
             {str(row["raw_payload_sha256"]) for row in by_side.values()}
         ),
     }
+    if not immutable_fact_backfill:
+        fixture.update(
+            {
+                "result_first_captured_at": home.get("result_first_captured_at"),
+                "result_capture_delay_seconds": home.get("result_capture_delay_seconds"),
+            }
+        )
+    return None, fixture
 
 
 def _history_identity(row: Mapping[str, Any]) -> tuple[Any, ...]:

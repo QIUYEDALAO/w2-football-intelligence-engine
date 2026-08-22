@@ -206,6 +206,12 @@ def _verify_split_manifest(manifest: dict[str, Any]) -> None:
     if manifest.get("schema_version") != TEMPORAL_SPLIT_MANIFEST_SCHEMA_VERSION:
         raise ValueError("TEMPORAL_SPLIT_MANIFEST_SCHEMA_INVALID")
     body = {key: value for key, value in manifest.items() if key != "split_manifest_sha256"}
+    body["boundaries"] = {
+        key: _utc(value) for key, value in body["boundaries"].items()
+    }
+    body["targets"] = [
+        {**row, "kickoff": _utc(row["kickoff"])} for row in body["targets"]
+    ]
     if manifest.get("split_manifest_sha256") != _hash("TEMPORAL_SPLIT_MANIFEST", body):
         raise ValueError("TEMPORAL_SPLIT_MANIFEST_HASH_MISMATCH")
 
