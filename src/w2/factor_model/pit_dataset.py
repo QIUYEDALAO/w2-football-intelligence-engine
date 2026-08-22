@@ -8,8 +8,8 @@ from typing import Any
 from w2.domain.canonical_serialization import HashDomain, canonical_sha256
 from w2.factor_model.pit_features import verify_pit_feature_snapshot
 
-TEMPORAL_SPLIT_MANIFEST_SCHEMA_VERSION = "w2.factor_model.temporal_split_manifest.v1"
-TRAIN_PREPROCESSING_SCHEMA_VERSION = "w2.factor_model.train_preprocessing.v1"
+TEMPORAL_SPLIT_MANIFEST_SCHEMA_VERSION = "w2.factor_model.temporal_split_manifest.v2"
+TRAIN_PREPROCESSING_SCHEMA_VERSION = "w2.factor_model.train_preprocessing.v2"
 NORMALIZED_FEATURE_SCHEMA_VERSION = "w2.factor_model.normalized_features.v1"
 
 
@@ -67,6 +67,8 @@ def build_temporal_split_manifest(
     body = {
         "schema_version": TEMPORAL_SPLIT_MANIFEST_SCHEMA_VERSION,
         "policy_version": policy.version,
+        "historical_replay_cutoff": _utc(policy.holdout_end),
+        "post_cutoff_assignment": "FORWARD_ONLY_EXCLUDED_FROM_HISTORICAL_SPLITS",
         "boundaries": {
             "train_start": _utc(policy.train_start),
             "train_end": _utc(policy.train_end),
@@ -88,8 +90,12 @@ def fit_train_only_preprocessing(
     snapshots: list[dict[str, Any]],
     *,
     factor_ids: tuple[str, ...] = ("F3_REST_FITNESS", "F6_H2H", "F7_STRENGTH_FORM"),
+    blocked_factor_ids: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     _verify_split_manifest(split_manifest)
+    blocked = set(blocked_factor_ids)
+    if not blocked <= set(factor_ids):
+        raise ValueError("TRAIN_PREPROCESSING_BLOCKED_FACTOR_INVALID")
     by_fixture: dict[str, dict[str, Any]] = {}
     for snapshot in snapshots:
         verified = verify_pit_feature_snapshot(snapshot)
@@ -121,13 +127,30 @@ def fit_train_only_preprocessing(
             else:
                 observed.append((fixture_id, float(raw)))
         values = [value for _, value in observed]
+        blocked_by_policy = factor_id in blocked
         parameters[factor_id] = {
-            "status": "FITTED" if values else "UNFITTED_NO_TRAIN_VALUES",
-            "mean": fmean(values) if values else None,
-            "standard_deviation": pstdev(values) if len(values) > 1 else 0.0 if values else None,
+            "status": (
+                "BLOCKED_BY_POLICY"
+                if blocked_by_policy
+                else "FITTED"
+                if values
+                else "UNFITTED_NO_TRAIN_VALUES"
+            ),
+            "mean": None if blocked_by_policy else fmean(values) if values else None,
+            "standard_deviation": (
+                None
+                if blocked_by_policy
+                else pstdev(values)
+                if len(values) > 1
+                else 0.0
+                if values
+                else None
+            ),
             "observed_count": len(values),
             "missing_count": missing_count,
-            "training_fixture_ids": [fixture_id for fixture_id, _ in observed],
+            "training_fixture_ids": (
+                [] if blocked_by_policy else [fixture_id for fixture_id, _ in observed]
+            ),
         }
 
     body = {
@@ -135,6 +158,7 @@ def fit_train_only_preprocessing(
         "split_manifest_sha256": str(split_manifest["split_manifest_sha256"]),
         "fit_split": "TRAIN",
         "factor_ids": list(factor_ids),
+        "blocked_factor_ids": sorted(blocked),
         "missing_strategy": "TRAIN_MEAN_PLUS_MISSING_INDICATOR",
         "parameters": parameters,
     }
@@ -206,6 +230,7 @@ def _verify_split_manifest(manifest: dict[str, Any]) -> None:
     if manifest.get("schema_version") != TEMPORAL_SPLIT_MANIFEST_SCHEMA_VERSION:
         raise ValueError("TEMPORAL_SPLIT_MANIFEST_SCHEMA_INVALID")
     body = {key: value for key, value in manifest.items() if key != "split_manifest_sha256"}
+    body["historical_replay_cutoff"] = _utc(body["historical_replay_cutoff"])
     body["boundaries"] = {
         key: _utc(value) for key, value in body["boundaries"].items()
     }

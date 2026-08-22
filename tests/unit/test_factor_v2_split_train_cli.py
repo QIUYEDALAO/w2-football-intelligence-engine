@@ -50,7 +50,7 @@ def _pair(index: int, kickoff: datetime) -> list[dict[str, Any]]:
 
 
 def _corpus() -> dict[str, Any]:
-    snapshot = datetime(2026, 12, 31, tzinfo=UTC)
+    snapshot = cli.EXPECTED_CORPUS_SNAPSHOT_AS_OF
     body = {
         "schema_version": RAW_HISTORY_CORPUS_SCHEMA_VERSION,
         "provider": "api_football",
@@ -60,7 +60,8 @@ def _corpus() -> dict[str, Any]:
         "kickoff_to": snapshot,
         "seasons": ["2024", "2025", "2026"],
         "history_rows": (
-            _pair(1, datetime(2024, 6, 1, tzinfo=UTC))
+            _pair(0, datetime(2024, 5, 1, tzinfo=UTC))
+            + _pair(1, datetime(2024, 6, 1, tzinfo=UTC))
             + _pair(2, datetime(2025, 6, 1, tzinfo=UTC))
             + _pair(3, datetime(2026, 6, 1, tzinfo=UTC))
         ),
@@ -76,7 +77,7 @@ def test_split_train_report_separates_snapshot_and_feature_times(
 ) -> None:
     corpus = _corpus()
     monkeypatch.setattr(cli, "EXPECTED_CORPUS_SHA256", corpus["corpus_sha256"])
-    monkeypatch.setattr(cli, "EXPECTED_CORPUS_SNAPSHOT_AS_OF", corpus["snapshot_as_of"])
+    monkeypatch.setattr(cli, "WARMUP_MINIMUM_FEATURE_SCOPE_HISTORY_ROWS", 2)
 
     artifacts = cli.build_artifacts(corpus)
     report = artifacts["report"]
@@ -90,15 +91,17 @@ def test_split_train_report_separates_snapshot_and_feature_times(
         "VALIDATION": 1,
         "HOLDOUT": 1,
     }
+    assert report["split_policy"]["historical_replay_cutoff"] == corpus["snapshot_as_of"]
+    assert report["split_policy"]["historical_replay_cutoff_in_split_manifest_hash"] is True
     assert report["feature_time_contract"][
         "source_kickoff_gte_feature_as_of_violation_count"
     ] == 0
     assert report["missing_feature_contract"][
         "zero_feature_scope_visible_history_fixture_ids"
-    ] == ["api_football:1"]
+    ] == ["api_football:0"]
     assert report["missing_feature_contract"]["full_corpus_mean_imputation_used"] is False
     assert report["late_result_policy"] == {
-        "backfilled_fixture_count_over_36h": 3,
+        "backfilled_fixture_count_over_36h": 4,
         "provider_sla_interpretation": False,
         "included_in_feature_values": False,
         "used_for_visibility_or_timeliness_decisions": False,
@@ -106,6 +109,10 @@ def test_split_train_report_separates_snapshot_and_feature_times(
     }
     assert report["train_calibration"]["fit_split"] == "TRAIN"
     assert report["train_calibration"]["validation_or_holdout_used_for_fit"] is False
+    assert report["f6_owner_decision"]["status"] == "BLOCKED_OWNER_DECISION_REQUIRED"
+    assert report["f6_owner_decision"]["selected_option"] is None
+    assert report["f6_owner_decision"]["defaults_or_priors_applied"] is False
+    assert report["contracts"]["ablation_scoring_executed"] is False
 
     output = tmp_path / "artifacts"
     cli.write_artifacts(output, artifacts)

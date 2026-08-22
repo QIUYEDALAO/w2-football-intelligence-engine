@@ -30,11 +30,11 @@ from w2.factor_model.pit_features import RecursiveRatingPolicy, build_pit_featur
 EXPECTED_CORPUS_SHA256 = "2f2075104989d07977acec40106084744f181510e44caa8ac7201000d98c00c5"
 EXPECTED_CORPUS_SNAPSHOT_AS_OF = datetime(2026, 8, 21, 19, 18, 10, 674088, tzinfo=UTC)
 SPLIT_POLICY = TemporalSplitPolicy(
-    version="factor-v2.calendar-years-2024-2026.v1",
+    version="factor-v2.calendar-years-2024-2026.warmup-200.cutoff-snapshot.v2",
     train_start=datetime(2024, 1, 1, tzinfo=UTC),
     train_end=datetime(2025, 1, 1, tzinfo=UTC),
     validation_end=datetime(2026, 1, 1, tzinfo=UTC),
-    holdout_end=datetime(2027, 1, 1, tzinfo=UTC),
+    holdout_end=EXPECTED_CORPUS_SNAPSHOT_AS_OF,
 )
 RATING_POLICY = RecursiveRatingPolicy(
     version="factor-v2.elo-1500-k20-ha60-r400.v1",
@@ -45,6 +45,8 @@ RATING_POLICY = RecursiveRatingPolicy(
 )
 SPLITS = ("TRAIN", "VALIDATION", "HOLDOUT")
 FACTOR_IDS = ("F3_REST_FITNESS", "F6_H2H", "F7_STRENGTH_FORM")
+WARMUP_MINIMUM_FEATURE_SCOPE_HISTORY_ROWS = 200
+F6_BLOCKED_FACTOR_IDS = ("F6_H2H",)
 FORBIDDEN_TIMING_FIELDS = frozenset(
     {"result_first_captured_at", "result_capture_delay_seconds", "late_result_fixture_count"}
 )
@@ -239,40 +241,128 @@ def build_artifacts(corpus_payload: Mapping[str, Any]) -> dict[str, Any]:
                 "feature_scope_total_history_row_count": target_count_by_league[league_id]
                 * 2,
                 "feature_history_missing": feature_missing,
+                "historical_replay_eligible": (
+                    feature_visible >= WARMUP_MINIMUM_FEATURE_SCOPE_HISTORY_ROWS
+                ),
+                "historical_replay_exclusion_reason": (
+                    None
+                    if feature_visible >= WARMUP_MINIMUM_FEATURE_SCOPE_HISTORY_ROWS
+                    else "WARMUP_INSUFFICIENT_SAME_LEAGUE_HISTORY"
+                ),
             }
         )
 
-    split_manifest = build_temporal_split_manifest(snapshots, policy=SPLIT_POLICY)
-    preprocessing = fit_train_only_preprocessing(split_manifest, snapshots)
+    eligible_fixture_ids = {
+        row["fixture_id"] for row in visibility if row["historical_replay_eligible"]
+    }
+    eligible_snapshots = [
+        snapshot
+        for snapshot in snapshots
+        if str(snapshot["target_fixture_id"]) in eligible_fixture_ids
+    ]
+    split_manifest = build_temporal_split_manifest(
+        eligible_snapshots, policy=SPLIT_POLICY
+    )
+    preprocessing = fit_train_only_preprocessing(
+        split_manifest,
+        eligible_snapshots,
+        blocked_factor_ids=F6_BLOCKED_FACTOR_IDS,
+    )
     normalized_features = [
-        normalize_pit_feature_snapshot(snapshot, preprocessing) for snapshot in snapshots
+        normalize_pit_feature_snapshot(snapshot, preprocessing)
+        for snapshot in eligible_snapshots
     ]
     normalized_by_fixture = {
         str(row["target_fixture_id"]): row for row in normalized_features
     }
     for fixture_id in zero_feature_history_fixture_ids:
-        vector = normalized_by_fixture[fixture_id]
-        if any(
-            vector["factors"][factor]["raw_value"] is not None
-            or vector["factors"][factor]["missing_indicator"] != 1
-            for factor in FACTOR_IDS
-        ):
-            raise ValueError("FACTOR_V2_ZERO_VISIBLE_HISTORY_IMPUTATION_CONTRACT_INVALID")
+        if fixture_id in normalized_by_fixture:
+            raise ValueError("FACTOR_V2_ZERO_VISIBLE_HISTORY_WARMUP_ADMISSION_INVALID")
 
-    by_split = {
+    by_split_before = {
         split: [row for row in visibility if row["split"] == split] for split in SPLITS
     }
+    by_split_after = {
+        split: [row for row in by_split_before[split] if row["historical_replay_eligible"]]
+        for split in SPLITS
+    }
+    snapshots_by_fixture = {
+        str(snapshot["target_fixture_id"]): snapshot for snapshot in snapshots
+    }
+
+    def factor_observed(rows_for_split: list[dict[str, Any]]) -> dict[str, int]:
+        return {
+            factor: sum(
+                snapshots_by_fixture[row["fixture_id"]]["factors"][factor]["missing"]
+                is not True
+                for row in rows_for_split
+            )
+            for factor in FACTOR_IDS
+        }
+
     factor_missing_by_split = {
         split: {
             factor: sum(
-                snapshot["factors"][factor]["missing"] is True
-                for snapshot, row in zip(snapshots, visibility, strict=True)
-                if row["split"] == split
+                snapshots_by_fixture[row["fixture_id"]]["factors"][factor]["missing"]
+                is True
+                for row in by_split_after[split]
             )
             for factor in FACTOR_IDS
         }
         for split in SPLITS
     }
+    warmup_candidates = []
+    train_before = by_split_before["TRAIN"]
+    for threshold in (100, 200, 300, 400):
+        retained = [
+            row
+            for row in train_before
+            if row["feature_scope_visible_history_row_count"] >= threshold
+        ]
+        warmup_candidates.append(
+            {
+                "minimum_feature_scope_history_row_count": threshold,
+                "retained_train_fixture_count": len(retained),
+                "retained_provider_league_count": len(
+                    {row["provider_league_id"] for row in retained}
+                ),
+            }
+        )
+    train_retention_by_provider_league = []
+    for league_id in sorted({row["provider_league_id"] for row in train_before}, key=int):
+        before_count = sum(row["provider_league_id"] == league_id for row in train_before)
+        after_count = sum(
+            row["provider_league_id"] == league_id for row in by_split_after["TRAIN"]
+        )
+        train_retention_by_provider_league.append(
+            {
+                "provider_league_id": league_id,
+                "before_fixture_count": before_count,
+                "after_fixture_count": after_count,
+            }
+        )
+
+    def p50(rows_for_split: list[dict[str, Any]], field: str) -> float:
+        return _nearest_rank([float(row[field]) for row in rows_for_split], 0.5)
+
+    train_global_p50_before = p50(train_before, "global_visible_history_row_count")
+    train_global_p50_after = p50(
+        by_split_after["TRAIN"], "global_visible_history_row_count"
+    )
+    holdout_global_p50 = p50(
+        by_split_after["HOLDOUT"], "global_visible_history_row_count"
+    )
+    train_scope_p50_before = p50(train_before, "feature_scope_visible_history_row_count")
+    train_scope_p50_after = p50(
+        by_split_after["TRAIN"], "feature_scope_visible_history_row_count"
+    )
+    holdout_scope_p50 = p50(
+        by_split_after["HOLDOUT"], "feature_scope_visible_history_row_count"
+    )
+
+    def ratio(numerator: float, denominator: float) -> float | None:
+        return round(numerator / denominator, 4) if denominator else None
+
     late_fixture_ids = {
         str(row["fixture_id"])
         for row in rows
@@ -302,23 +392,93 @@ def build_artifacts(corpus_payload: Mapping[str, Any]) -> dict[str, Any]:
             "train_end": SPLIT_POLICY.train_end,
             "validation_end": SPLIT_POLICY.validation_end,
             "holdout_end": SPLIT_POLICY.holdout_end,
+            "historical_replay_cutoff": SPLIT_POLICY.holdout_end,
+            "post_cutoff_assignment": (
+                "FORWARD_ONLY_EXCLUDED_FROM_HISTORICAL_SPLITS"
+            ),
+            "historical_replay_cutoff_in_split_manifest_hash": True,
             "counts": split_manifest["counts"],
             "split_manifest_sha256": split_manifest["split_manifest_sha256"],
         },
         "visibility_distribution_by_split": {
             split: {
+                "population": "BEFORE_WARMUP",
                 "global_corpus": _distribution(
-                    by_split[split],
+                    by_split_before[split],
                     "global_visible_history_row_count",
                     "global_total_history_row_count",
                 ),
                 "feature_scope_same_provider_league": _distribution(
-                    by_split[split],
+                    by_split_before[split],
                     "feature_scope_visible_history_row_count",
                     "feature_scope_total_history_row_count",
                 ),
             }
             for split in SPLITS
+        },
+        "warmup_policy": {
+            "status": "FROZEN_INPUT_COVERAGE_RULE",
+            "minimum_feature_scope_history_row_count": (
+                WARMUP_MINIMUM_FEATURE_SCOPE_HISTORY_ROWS
+            ),
+            "history_row_semantics": "TWO_TEAM_ROWS_PER_SOURCE_FIXTURE",
+            "selection_basis": (
+                "HIGHEST_ROUND_HUNDRED_CANDIDATE_RETAINING_ALL_13_PROVIDER_LEAGUES;"
+                "NO_OUTCOME_OR_ABLATION_METRIC_USED"
+            ),
+            "candidate_threshold_evidence": warmup_candidates,
+            "train_retention_by_provider_league": train_retention_by_provider_league,
+            "residual_distribution_shift": {
+                "status": "MITIGATED_NOT_ELIMINATED",
+                "global_p50_holdout_to_train_before": ratio(
+                    holdout_global_p50, train_global_p50_before
+                ),
+                "global_p50_holdout_to_train_after": ratio(
+                    holdout_global_p50, train_global_p50_after
+                ),
+                "feature_scope_p50_holdout_to_train_before": ratio(
+                    holdout_scope_p50, train_scope_p50_before
+                ),
+                "feature_scope_p50_holdout_to_train_after": ratio(
+                    holdout_scope_p50, train_scope_p50_after
+                ),
+                "future_ablation_reporting_requirement": (
+                    "STRATIFY_BY_FEATURE_SCOPE_VISIBLE_HISTORY_DEPTH"
+                ),
+            },
+            "before_after_by_split": {
+                split: {
+                    "excluded_fixture_count": len(by_split_before[split])
+                    - len(by_split_after[split]),
+                    "before": {
+                        "global_corpus": _distribution(
+                            by_split_before[split],
+                            "global_visible_history_row_count",
+                            "global_total_history_row_count",
+                        ),
+                        "feature_scope_same_provider_league": _distribution(
+                            by_split_before[split],
+                            "feature_scope_visible_history_row_count",
+                            "feature_scope_total_history_row_count",
+                        ),
+                        "factor_observed_count": factor_observed(by_split_before[split]),
+                    },
+                    "after": {
+                        "global_corpus": _distribution(
+                            by_split_after[split],
+                            "global_visible_history_row_count",
+                            "global_total_history_row_count",
+                        ),
+                        "feature_scope_same_provider_league": _distribution(
+                            by_split_after[split],
+                            "feature_scope_visible_history_row_count",
+                            "feature_scope_total_history_row_count",
+                        ),
+                        "factor_observed_count": factor_observed(by_split_after[split]),
+                    },
+                }
+                for split in SPLITS
+            },
         },
         "missing_feature_contract": {
             "zero_feature_scope_visible_history_fixture_count": len(
@@ -327,6 +487,7 @@ def build_artifacts(corpus_payload: Mapping[str, Any]) -> dict[str, Any]:
             "zero_feature_scope_visible_history_fixture_ids": sorted(
                 zero_feature_history_fixture_ids
             ),
+            "zero_feature_scope_visible_history_admitted_count": 0,
             "raw_feature_value_preserved_as_missing": True,
             "full_corpus_mean_imputation_used": False,
             "normalization_imputation_source": "TRAIN_OBSERVED_MEAN_ONLY",
@@ -370,10 +531,29 @@ def build_artifacts(corpus_payload: Mapping[str, Any]) -> dict[str, Any]:
             "preprocessing_sha256": preprocessing["preprocessing_sha256"],
             "missing_strategy": preprocessing["missing_strategy"],
             "parameters": preprocessing["parameters"],
+            "blocked_factor_ids": list(F6_BLOCKED_FACTOR_IDS),
             "factor_effect_coefficients_fitted": False,
             "factor_effect_coefficients_status": (
                 "DEFERRED_UNTIL_BASELINE_RESIDUAL_INPUTS_ARE_ASOF_JUSTIFIED"
             ),
+        },
+        "f6_owner_decision": {
+            "status": "BLOCKED_OWNER_DECISION_REQUIRED",
+            "selected_option": None,
+            "before_warmup_observed_count": factor_observed(train_before)["F6_H2H"],
+            "before_warmup_train_fixture_count": len(train_before),
+            "after_warmup_observed_count": factor_observed(by_split_after["TRAIN"])[
+                "F6_H2H"
+            ],
+            "after_warmup_train_fixture_count": len(by_split_after["TRAIN"]),
+            "defaults_or_priors_applied": False,
+            "preprocessing_status": preprocessing["parameters"]["F6_H2H"]["status"],
+            "permitted_owner_options": {
+                "A": "EXCLUDE_F6_FROM_GATE1_AND_RUN_F3_F7_ONLY",
+                "B": (
+                    "BACKFILL_2022_2023_WITH_SEPARATE_PROVIDER_AND_QUOTA_AUTHORIZATION"
+                ),
+            },
         },
         "rating_policy": {
             "version": RATING_POLICY.version,
@@ -389,6 +569,7 @@ def build_artifacts(corpus_payload: Mapping[str, Any]) -> dict[str, Any]:
             "training_source_split": "TRAIN",
             "validation_scoring_executed": False,
             "holdout_scoring_executed": False,
+            "ablation_scoring_executed": False,
             "deployment_executed": False,
             "forward_shadow_enabled": False,
         },
@@ -414,34 +595,57 @@ def _json(value: Any) -> str:
 
 
 def _markdown(report: Mapping[str, Any]) -> str:
+    residual_shift = report["warmup_policy"]["residual_distribution_shift"]
     lines = [
         "# Gate 1 split freeze + TRAIN preprocessing calibration",
         "",
         f"- corpus_snapshot_as_of: `{_json(report['corpus_binding']['corpus_snapshot_as_of'])}`",
         "- feature_as_of: `each target fixture kickoff_utc`",
+        "- historical_replay_cutoff: "
+        f"`{_json(report['split_policy']['historical_replay_cutoff'])}`",
         f"- split counts: `{report['split_policy']['counts']}`",
+        "- post-cutoff fixtures: `forward-only; excluded from historical splits`",
         "- Provider calls / database writes / deployment: `0 / 0 / false`",
         "",
-        "| split | targets | global visible rows min/p50/p90/max | "
-        "feature-scope visible rows min/p50/p90/max | zero feature-scope |",
-        "|---|---:|---|---|---:|",
+        "## Warmup before / after",
+        "",
+        "- Rule: require at least "
+        f"`{report['warmup_policy']['minimum_feature_scope_history_row_count']}` "
+        "visible same-provider-league history rows "
+        f"(`{report['warmup_policy']['minimum_feature_scope_history_row_count'] // 2}` "
+        "source fixtures).",
+        "- Selection: highest tested round-hundred threshold retaining all 13 leagues; "
+        "no outcome or ablation metric was used.",
+        "",
+        "| split | stage | targets | global visible rows min/p50/p90/max | "
+        "feature-scope visible rows min/p50/p90/max |",
+        "|---|---|---:|---|---|",
     ]
     for split in SPLITS:
-        row = report["visibility_distribution_by_split"][split]
-        global_counts = row["global_corpus"]["visible_history_row_count"]
-        scope_counts = row["feature_scope_same_provider_league"][
-            "visible_history_row_count"
-        ]
-        lines.append(
-            f"| {split} | {row['global_corpus']['target_fixture_count']} | "
-            f"{global_counts['min']}/{global_counts['p50']}/"
-            f"{global_counts['p90']}/{global_counts['max']} | "
-            f"{scope_counts['min']}/{scope_counts['p50']}/"
-            f"{scope_counts['p90']}/{scope_counts['max']} | "
-            f"{scope_counts['zero_count']} |"
-        )
+        comparison = report["warmup_policy"]["before_after_by_split"][split]
+        for stage in ("before", "after"):
+            row = comparison[stage]
+            global_counts = row["global_corpus"]["visible_history_row_count"]
+            scope_counts = row["feature_scope_same_provider_league"][
+                "visible_history_row_count"
+            ]
+            lines.append(
+                f"| {split} | {stage} | "
+                f"{row['global_corpus']['target_fixture_count']} | "
+                f"{global_counts['min']}/{global_counts['p50']}/"
+                f"{global_counts['p90']}/{global_counts['max']} | "
+                f"{scope_counts['min']}/{scope_counts['p50']}/"
+                f"{scope_counts['p90']}/{scope_counts['max']} |"
+            )
     lines.extend(
         (
+            "",
+            "- Residual HOLDOUT/TRAIN p50 ratios after warmup: global corpus "
+            f"`{residual_shift['global_p50_holdout_to_train_after']}`; "
+            "same-league feature scope "
+            f"`{residual_shift['feature_scope_p50_holdout_to_train_after']}`.",
+            "- The shift is mitigated, not eliminated; any later ablation report must "
+            "stratify by feature-scope visible-history depth.",
             "",
             "## Leakage and field policy",
             "",
@@ -454,6 +658,8 @@ def _markdown(report: Mapping[str, Any]) -> str:
             "normalization may only use TRAIN observed means plus a missing indicator.",
             "- Factor-effect coefficients remain deferred until baseline residual "
             "inputs have a separate AS-OF justification.",
+            "- F6 remains `BLOCKED_OWNER_DECISION_REQUIRED`; no default, prior, "
+            "mean, coefficient, or ablation value is applied.",
         )
     )
     return "\n".join(lines) + "\n"

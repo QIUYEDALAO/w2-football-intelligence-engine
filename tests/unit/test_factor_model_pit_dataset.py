@@ -82,6 +82,10 @@ def test_temporal_split_boundaries_are_half_open_and_deterministic() -> None:
     ]
     assert manifest["counts"] == {"TRAIN": 1, "VALIDATION": 1, "HOLDOUT": 1}
     assert manifest["excluded_out_of_range"] == 1
+    assert manifest["historical_replay_cutoff"] == POLICY.holdout_end
+    assert manifest["post_cutoff_assignment"] == (
+        "FORWARD_ONLY_EXCLUDED_FROM_HISTORICAL_SPLITS"
+    )
 
 
 def test_preprocessing_fits_train_only_and_ignores_validation_extreme() -> None:
@@ -117,6 +121,28 @@ def test_missing_value_uses_train_mean_and_separate_indicator() -> None:
     assert normalized["numeric_effect_enabled"] is False
 
 
+def test_policy_blocked_factor_is_not_fitted_or_imputed() -> None:
+    observed = _snapshot("train-1", START + timedelta(days=1), 2.0)
+    split = build_temporal_split_manifest([observed], policy=POLICY)
+    artifact = fit_train_only_preprocessing(
+        split, [observed], blocked_factor_ids=("F6_H2H",)
+    )
+
+    f6 = artifact["parameters"]["F6_H2H"]
+    assert f6["status"] == "BLOCKED_BY_POLICY"
+    assert f6["observed_count"] == 1
+    assert f6["mean"] is None
+    assert f6["standard_deviation"] is None
+    assert f6["training_fixture_ids"] == []
+    assert normalize_pit_feature_snapshot(observed, artifact)["factors"]["F6_H2H"] == {
+        "status": "UNAVAILABLE",
+        "raw_value": 0.5,
+        "normalized_value": None,
+        "missing_indicator": 0,
+        "imputation_applied": False,
+    }
+
+
 def test_tampered_snapshot_and_split_artifact_fail_closed() -> None:
     snapshot = _snapshot("train", START + timedelta(days=1), 1.0)
     tampered = deepcopy(snapshot)
@@ -128,6 +154,11 @@ def test_tampered_snapshot_and_split_artifact_fail_closed() -> None:
     split["counts"]["TRAIN"] = 99
     with pytest.raises(ValueError, match="SPLIT_MANIFEST_HASH_MISMATCH"):
         fit_train_only_preprocessing(split, [snapshot])
+
+    cutoff_tampered = build_temporal_split_manifest([snapshot], policy=POLICY)
+    cutoff_tampered["historical_replay_cutoff"] = POLICY.holdout_end + timedelta(days=1)
+    with pytest.raises(ValueError, match="SPLIT_MANIFEST_HASH_MISMATCH"):
+        fit_train_only_preprocessing(cutoff_tampered, [snapshot])
 
 
 def test_duplicate_fixture_with_different_snapshot_fails_closed() -> None:
