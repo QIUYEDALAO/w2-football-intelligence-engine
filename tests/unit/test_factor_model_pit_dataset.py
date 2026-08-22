@@ -11,6 +11,7 @@ from w2.domain.canonical_serialization import HashDomain, canonical_sha256
 from w2.factor_model.history import API_FOOTBALL_TEAM_ID_NAMESPACE
 from w2.factor_model.pit_dataset import (
     TemporalSplitPolicy,
+    XgPointInTimePolicy,
     build_temporal_split_manifest,
     fit_train_only_preprocessing,
     normalize_pit_feature_snapshot,
@@ -27,6 +28,14 @@ POLICY = TemporalSplitPolicy(
     train_end=START + timedelta(days=100),
     validation_end=START + timedelta(days=200),
     holdout_end=START + timedelta(days=300),
+)
+XG_POLICY = XgPointInTimePolicy(
+    requested_semantics="SOURCE_KICKOFF_ONLY",
+    method_version="api-football.expected-goals.statistics.v1",
+    source_fixture_only=True,
+    uniform_method_version=True,
+    method_uses_no_future_information=True,
+    target_fixture_excluded=True,
 )
 
 
@@ -73,7 +82,9 @@ def test_temporal_split_boundaries_are_half_open_and_deterministic() -> None:
         _snapshot("excluded", POLICY.holdout_end, 4.0),
     ]
 
-    manifest = build_temporal_split_manifest(snapshots, policy=POLICY)
+    manifest = build_temporal_split_manifest(
+        snapshots, policy=POLICY, xg_pit_policy=XG_POLICY
+    )
 
     assert [(row["fixture_id"], row["split"]) for row in manifest["targets"]] == [
         ("train", "TRAIN"),
@@ -86,6 +97,27 @@ def test_temporal_split_boundaries_are_half_open_and_deterministic() -> None:
     assert manifest["post_cutoff_assignment"] == (
         "FORWARD_ONLY_EXCLUDED_FROM_HISTORICAL_SPLITS"
     )
+    assert manifest["xg_pit_semantics"] == "SOURCE_KICKOFF_ONLY"
+    assert manifest["xg_method_version"] == XG_POLICY.method_version
+
+
+def test_source_kickoff_xg_policy_falls_back_when_any_prerequisite_fails() -> None:
+    snapshot = _snapshot("train", POLICY.train_start, 1.0)
+    policy = XgPointInTimePolicy(
+        requested_semantics="SOURCE_KICKOFF_ONLY",
+        method_version=XG_POLICY.method_version,
+        source_fixture_only=True,
+        uniform_method_version=False,
+        method_uses_no_future_information=True,
+        target_fixture_excluded=True,
+    )
+
+    manifest = build_temporal_split_manifest(
+        [snapshot], policy=POLICY, xg_pit_policy=policy
+    )
+
+    assert manifest["xg_pit_semantics"] == "STRICT_CAPTURED_AT"
+    assert manifest["xg_pit_contract"]["fallback_semantics"] == "STRICT_CAPTURED_AT"
 
 
 def test_preprocessing_fits_train_only_and_ignores_validation_extreme() -> None:
@@ -93,7 +125,7 @@ def test_preprocessing_fits_train_only_and_ignores_validation_extreme() -> None:
     train_two = _snapshot("train-2", START + timedelta(days=2), 3.0)
     validation = _snapshot("validation", POLICY.train_end, 1000.0)
     snapshots = [train_one, train_two, validation]
-    split = build_temporal_split_manifest(snapshots, policy=POLICY)
+    split = build_temporal_split_manifest(snapshots, policy=POLICY, xg_pit_policy=XG_POLICY)
 
     artifact = fit_train_only_preprocessing(split, snapshots)
 
@@ -108,7 +140,7 @@ def test_missing_value_uses_train_mean_and_separate_indicator() -> None:
     observed = _snapshot("train-1", START + timedelta(days=1), 2.0)
     missing = _snapshot("validation", POLICY.train_end, None)
     snapshots = [observed, missing]
-    split = build_temporal_split_manifest(snapshots, policy=POLICY)
+    split = build_temporal_split_manifest(snapshots, policy=POLICY, xg_pit_policy=XG_POLICY)
     artifact = fit_train_only_preprocessing(split, snapshots)
 
     normalized = normalize_pit_feature_snapshot(missing, artifact)
@@ -121,15 +153,21 @@ def test_missing_value_uses_train_mean_and_separate_indicator() -> None:
     assert normalized["numeric_effect_enabled"] is False
 
 
-def test_policy_blocked_factor_is_not_fitted_or_imputed() -> None:
+def test_threshold_excluded_factor_is_not_fitted_or_imputed() -> None:
     observed = _snapshot("train-1", START + timedelta(days=1), 2.0)
-    split = build_temporal_split_manifest([observed], policy=POLICY)
+    split = build_temporal_split_manifest(
+        [observed], policy=POLICY, xg_pit_policy=XG_POLICY
+    )
     artifact = fit_train_only_preprocessing(
-        split, [observed], blocked_factor_ids=("F6_H2H",)
+        split,
+        [observed],
+        excluded_factor_statuses={
+            "F6_H2H": "EXCLUDED_BY_PREREGISTERED_THRESHOLD"
+        },
     )
 
     f6 = artifact["parameters"]["F6_H2H"]
-    assert f6["status"] == "BLOCKED_BY_POLICY"
+    assert f6["status"] == "EXCLUDED_BY_PREREGISTERED_THRESHOLD"
     assert f6["observed_count"] == 1
     assert f6["mean"] is None
     assert f6["standard_deviation"] is None
@@ -148,14 +186,20 @@ def test_tampered_snapshot_and_split_artifact_fail_closed() -> None:
     tampered = deepcopy(snapshot)
     tampered["factors"]["F3_REST_FITNESS"]["raw_value"] = 99.0
     with pytest.raises(ValueError, match="SNAPSHOT_HASH_MISMATCH"):
-        build_temporal_split_manifest([tampered], policy=POLICY)
+        build_temporal_split_manifest(
+            [tampered], policy=POLICY, xg_pit_policy=XG_POLICY
+        )
 
-    split = build_temporal_split_manifest([snapshot], policy=POLICY)
+    split = build_temporal_split_manifest(
+        [snapshot], policy=POLICY, xg_pit_policy=XG_POLICY
+    )
     split["counts"]["TRAIN"] = 99
     with pytest.raises(ValueError, match="SPLIT_MANIFEST_HASH_MISMATCH"):
         fit_train_only_preprocessing(split, [snapshot])
 
-    cutoff_tampered = build_temporal_split_manifest([snapshot], policy=POLICY)
+    cutoff_tampered = build_temporal_split_manifest(
+        [snapshot], policy=POLICY, xg_pit_policy=XG_POLICY
+    )
     cutoff_tampered["historical_replay_cutoff"] = POLICY.holdout_end + timedelta(days=1)
     with pytest.raises(ValueError, match="SPLIT_MANIFEST_HASH_MISMATCH"):
         fit_train_only_preprocessing(cutoff_tampered, [snapshot])
@@ -166,12 +210,16 @@ def test_duplicate_fixture_with_different_snapshot_fails_closed() -> None:
     second = _snapshot("same", START - timedelta(days=1), 1.0)
 
     with pytest.raises(ValueError, match="TEMPORAL_SPLIT_FIXTURE_CONFLICT"):
-        build_temporal_split_manifest([first, second], policy=POLICY)
+        build_temporal_split_manifest(
+            [first, second], policy=POLICY, xg_pit_policy=XG_POLICY
+        )
 
 
 def test_split_and_snapshot_hashes_verify_after_json_round_trip() -> None:
     snapshot = _snapshot("train", START + timedelta(days=1), 1.0)
-    split = build_temporal_split_manifest([snapshot], policy=POLICY)
+    split = build_temporal_split_manifest(
+        [snapshot], policy=POLICY, xg_pit_policy=XG_POLICY
+    )
     serialized_snapshot = json.loads(
         json.dumps(
             snapshot,

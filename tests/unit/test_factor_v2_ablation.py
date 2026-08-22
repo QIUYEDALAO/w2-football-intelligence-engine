@@ -7,6 +7,7 @@ import pytest
 from w2.backtest.factor_v2_ablation import (
     build_b0_b1_b2_ablation,
     factor_calibration_artifact,
+    fit_poisson_factor_coefficients,
 )
 from w2.domain.canonical_serialization import HashDomain, canonical_sha256
 from w2.factor_model.pit_dataset import NORMALIZED_FEATURE_SCHEMA_VERSION
@@ -70,9 +71,9 @@ def _ablation(calibration: dict[str, object]) -> dict[str, object]:
         home_xg_against=1.1,
         away_xg_for=1.2,
         away_xg_against=1.4,
-        production_lambda_home=1.72,
-        production_lambda_away=1.08,
-        production_capture_identity_hash="d" * 64,
+        b1_lambda_home=1.72,
+        b1_lambda_away=1.08,
+        b1_input_identity_hash="d" * 64,
         normalized_features=_normalized(),
         factor_calibration=calibration,
     )
@@ -133,3 +134,81 @@ def test_calibration_and_normalized_features_must_share_preprocessing() -> None:
 
     with pytest.raises(ValueError, match="PREPROCESSING_MISMATCH"):
         _ablation(mismatched)
+
+
+def test_recomputed_b1_is_labeled_without_claiming_current_production() -> None:
+    result = build_b0_b1_b2_ablation(
+        fixture_id="api_football:target",
+        home_xg_for=1.5,
+        home_xg_against=1.1,
+        away_xg_for=1.2,
+        away_xg_against=1.4,
+        b1_lambda_home=1.72,
+        b1_lambda_away=1.08,
+        b1_input_identity_hash="d" * 64,
+        normalized_features=_normalized(),
+        factor_calibration=_calibration(),
+        b1_track_id="B1_RECOMPUTED",
+    )
+
+    assert result["b1_track_id"] == "B1_RECOMPUTED"
+    assert "B1_RECOMPUTED" in result["tracks"]
+    assert "B1_CURRENT_PRODUCTION" not in result["tracks"]
+
+
+def test_scoring_clips_factor_values_to_train_fit_support() -> None:
+    calibration = factor_calibration_artifact(
+        calibration_version="factor-v2.test",
+        split_manifest_sha256="c" * 64,
+        preprocessing_sha256="b" * 64,
+        relative_coefficients={"F7_STRENGTH_FORM.value": 0.4},
+        total_coefficients={},
+        feature_bounds={
+            "F7_STRENGTH_FORM.value": {"minimum": -0.25, "maximum": 0.25},
+            "F7_STRENGTH_FORM.missing": {"minimum": 0.0, "maximum": 1.0},
+        },
+        admitted_for_historical_replay=True,
+    )
+
+    result = _ablation(calibration)
+
+    assert result["design_vector"]["F7_STRENGTH_FORM.value"] == 0.25
+    assert result["feature_bound_clip_count"] == 1
+
+
+def test_train_only_poisson_factor_fit_recovers_relative_direction() -> None:
+    rows = []
+    for value, home_goals, away_goals in ((-1.0, 0, 2), (1.0, 2, 0)):
+        normalized = deepcopy(_normalized())
+        normalized["factors"]["F7_STRENGTH_FORM"]["normalized_value"] = value
+        body = {
+            key: item
+            for key, item in normalized.items()
+            if key != "normalized_features_sha256"
+        }
+        normalized["normalized_features_sha256"] = canonical_sha256(
+            {"identity_type": "NORMALIZED_FEATURES", **body},
+            domain=HashDomain.PREMATCH_READ_MODEL_GENERIC,
+        )
+        rows.extend(
+            {
+                "normalized_features": normalized,
+                "baseline_lambda_home": 1.0,
+                "baseline_lambda_away": 1.0,
+                "home_goals": home_goals,
+                "away_goals": away_goals,
+            }
+            for _ in range(20)
+        )
+
+    result = fit_poisson_factor_coefficients(
+        rows, active_factor_ids=("F7_STRENGTH_FORM",)
+    )
+
+    assert result["diagnostics"]["fit_split"] == "TRAIN"
+    assert result["diagnostics"]["converged"] is True
+    assert result["relative_coefficients"]["F7_STRENGTH_FORM.value"] > 0
+    assert result["feature_bounds"]["F7_STRENGTH_FORM.value"] == {
+        "minimum": -1.0,
+        "maximum": 1.0,
+    }

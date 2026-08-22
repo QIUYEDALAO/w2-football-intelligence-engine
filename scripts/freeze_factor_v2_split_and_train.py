@@ -20,22 +20,33 @@ from w2.factor_model.history import (
     build_pit_history_manifest,
 )
 from w2.factor_model.pit_dataset import (
+    XG_PIT_SOURCE_KICKOFF_ONLY,
     TemporalSplitPolicy,
+    XgPointInTimePolicy,
     build_temporal_split_manifest,
     fit_train_only_preprocessing,
     normalize_pit_feature_snapshot,
 )
 from w2.factor_model.pit_features import RecursiveRatingPolicy, build_pit_feature_snapshot
+from w2.features.xg_materialization import XG_METHOD_VERSION
 
-EXPECTED_CORPUS_SHA256 = "2f2075104989d07977acec40106084744f181510e44caa8ac7201000d98c00c5"
-EXPECTED_CORPUS_SNAPSHOT_AS_OF = datetime(2026, 8, 21, 19, 18, 10, 674088, tzinfo=UTC)
+EXPECTED_CORPUS_SHA256 = "d19b217afe159c87dbf8d0dea87c260374ac9d18ffd8bb97581cfffe858cedc5"
+EXPECTED_CORPUS_SNAPSHOT_AS_OF = datetime(2026, 8, 22, 5, 50, 41, 929427, tzinfo=UTC)
 HISTORICAL_REPLAY_CUTOFF = datetime(2026, 8, 21, 19, 18, 10, 674088, tzinfo=UTC)
 SPLIT_POLICY = TemporalSplitPolicy(
-    version="factor-v2.calendar-years-2024-2026.warmup-200.fixed-cutoff.v3",
+    version="factor-v2.calendar-years-2024-2026.warmup-200.fixed-cutoff.xg-pit-v4",
     train_start=datetime(2024, 1, 1, tzinfo=UTC),
     train_end=datetime(2025, 1, 1, tzinfo=UTC),
     validation_end=datetime(2026, 1, 1, tzinfo=UTC),
     holdout_end=HISTORICAL_REPLAY_CUTOFF,
+)
+XG_PIT_POLICY = XgPointInTimePolicy(
+    requested_semantics=XG_PIT_SOURCE_KICKOFF_ONLY,
+    method_version=XG_METHOD_VERSION,
+    source_fixture_only=True,
+    uniform_method_version=True,
+    method_uses_no_future_information=True,
+    target_fixture_excluded=True,
 )
 RATING_POLICY = RecursiveRatingPolicy(
     version="factor-v2.elo-1500-k20-ha60-r400.v1",
@@ -48,7 +59,12 @@ SPLITS = ("TRAIN", "VALIDATION", "HOLDOUT")
 TARGET_SEASONS = frozenset({"2024", "2025", "2026"})
 FACTOR_IDS = ("F3_REST_FITNESS", "F6_H2H", "F7_STRENGTH_FORM")
 WARMUP_MINIMUM_FEATURE_SCOPE_HISTORY_ROWS = 200
-F6_BLOCKED_FACTOR_IDS = ("F6_H2H",)
+F6_EXCLUDED_FACTOR_STATUSES = {
+    "F6_H2H": "EXCLUDED_BY_PREREGISTERED_THRESHOLD"
+}
+F6_MINIMUM_SPLIT_OBSERVED_RATE = 0.70
+F6_MINIMUM_TRAIN_LEAGUE_OBSERVED_RATE = 0.50
+F6_MAXIMUM_SPLIT_RATE_DRIFT = 0.10
 FORBIDDEN_TIMING_FIELDS = frozenset(
     {"result_first_captured_at", "result_capture_delay_seconds", "late_result_fixture_count"}
 )
@@ -284,12 +300,14 @@ def build_artifacts(
         if str(snapshot["target_fixture_id"]) in eligible_fixture_ids
     ]
     split_manifest = build_temporal_split_manifest(
-        eligible_snapshots, policy=SPLIT_POLICY
+        eligible_snapshots,
+        policy=SPLIT_POLICY,
+        xg_pit_policy=XG_PIT_POLICY,
     )
     preprocessing = fit_train_only_preprocessing(
         split_manifest,
         eligible_snapshots,
-        blocked_factor_ids=F6_BLOCKED_FACTOR_IDS,
+        excluded_factor_statuses=F6_EXCLUDED_FACTOR_STATUSES,
     )
     normalized_features = [
         normalize_pit_feature_snapshot(snapshot, preprocessing)
@@ -333,6 +351,44 @@ def build_artifacts(
             for factor in FACTOR_IDS
         }
         for split in SPLITS
+    }
+    f6_coverage_by_split = {
+        split: {
+            "observed_count": factor_observed(by_split_after[split])["F6_H2H"],
+            "target_fixture_count": len(by_split_after[split]),
+            "observed_rate": (
+                factor_observed(by_split_after[split])["F6_H2H"]
+                / len(by_split_after[split])
+            ),
+        }
+        for split in SPLITS
+    }
+    f6_train_coverage_by_provider_league = []
+    for league_id in sorted(
+        {row["provider_league_id"] for row in by_split_after["TRAIN"]}, key=int
+    ):
+        league_rows = [
+            row
+            for row in by_split_after["TRAIN"]
+            if row["provider_league_id"] == league_id
+        ]
+        observed = factor_observed(league_rows)["F6_H2H"]
+        f6_train_coverage_by_provider_league.append(
+            {
+                "provider_league_id": league_id,
+                "observed_count": observed,
+                "target_fixture_count": len(league_rows),
+                "observed_rate": observed / len(league_rows),
+                "passes_minimum": (
+                    observed / len(league_rows)
+                    >= F6_MINIMUM_TRAIN_LEAGUE_OBSERVED_RATE
+                ),
+            }
+        )
+    f6_train_rate = f6_coverage_by_split["TRAIN"]["observed_rate"]
+    f6_split_rate_drift = {
+        split: abs(f6_coverage_by_split[split]["observed_rate"] - f6_train_rate)
+        for split in ("VALIDATION", "HOLDOUT")
     }
     warmup_candidates = []
     train_before = by_split_before["TRAIN"]
@@ -407,6 +463,9 @@ def build_artifacts(
                 "IMMUTABLE_FACTS_STRICT_SOURCE_KICKOFF_BEFORE_FEATURE_AS_OF"
             ),
             "source_kickoff_gte_feature_as_of_violation_count": leakage_violation_count,
+            "xg_pit_semantics": split_manifest["xg_pit_semantics"],
+            "xg_method_version": split_manifest["xg_method_version"],
+            "xg_pit_contract": split_manifest["xg_pit_contract"],
         },
         "split_policy": {
             "policy_version": SPLIT_POLICY.version,
@@ -423,6 +482,7 @@ def build_artifacts(
                 "FORWARD_ONLY_EXCLUDED_FROM_HISTORICAL_SPLITS"
             ),
             "historical_replay_cutoff_in_split_manifest_hash": True,
+            "xg_pit_semantics_and_method_version_in_split_manifest_hash": True,
             "counts": split_manifest["counts"],
             "split_manifest_sha256": split_manifest["split_manifest_sha256"],
         },
@@ -557,14 +617,14 @@ def build_artifacts(
             "preprocessing_sha256": preprocessing["preprocessing_sha256"],
             "missing_strategy": preprocessing["missing_strategy"],
             "parameters": preprocessing["parameters"],
-            "blocked_factor_ids": list(F6_BLOCKED_FACTOR_IDS),
+            "excluded_factor_statuses": dict(F6_EXCLUDED_FACTOR_STATUSES),
             "factor_effect_coefficients_fitted": False,
             "factor_effect_coefficients_status": (
                 "DEFERRED_UNTIL_BASELINE_RESIDUAL_INPUTS_ARE_ASOF_JUSTIFIED"
             ),
         },
         "f6_owner_decision": {
-            "status": "OPTION_B_APPROVED_BACKFILL_COVERAGE_REVIEW_PENDING",
+            "status": "EXCLUDED_BY_PREREGISTERED_THRESHOLD",
             "selected_option": "B",
             "before_warmup_observed_count": factor_observed(train_before)["F6_H2H"],
             "before_warmup_train_fixture_count": len(train_before),
@@ -582,9 +642,49 @@ def build_artifacts(
             "defaults_or_priors_applied": False,
             "preprocessing_status": preprocessing["parameters"]["F6_H2H"]["status"],
             "approved_backfill_seasons": ["2022", "2023"],
-            "fallback_if_still_below_usable_coverage": (
-                "OPTION_A_EXCLUDE_F6_WITHOUT_DEFAULT_OR_PRIOR"
+            "preregistered_thresholds": {
+                "minimum_observed_rate_each_split": F6_MINIMUM_SPLIT_OBSERVED_RATE,
+                "minimum_observed_rate_each_train_league": (
+                    F6_MINIMUM_TRAIN_LEAGUE_OBSERVED_RATE
+                ),
+                "maximum_absolute_validation_or_holdout_drift_from_train": (
+                    F6_MAXIMUM_SPLIT_RATE_DRIFT
+                ),
+                "report_all_targets_and_f6_observed_cohort": True,
+            },
+            "coverage_by_split": f6_coverage_by_split,
+            "train_coverage_by_provider_league": (
+                f6_train_coverage_by_provider_league
             ),
+            "absolute_split_rate_drift_from_train": f6_split_rate_drift,
+            "failed_checks": [
+                *(
+                    ["MINIMUM_OBSERVED_RATE_EACH_SPLIT"]
+                    if any(
+                        row["observed_rate"] < F6_MINIMUM_SPLIT_OBSERVED_RATE
+                        for row in f6_coverage_by_split.values()
+                    )
+                    else []
+                ),
+                *(
+                    ["MINIMUM_OBSERVED_RATE_EACH_TRAIN_LEAGUE"]
+                    if any(
+                        not row["passes_minimum"]
+                        for row in f6_train_coverage_by_provider_league
+                    )
+                    else []
+                ),
+                *(
+                    ["MAXIMUM_SPLIT_RATE_DRIFT_FROM_TRAIN"]
+                    if any(
+                        drift > F6_MAXIMUM_SPLIT_RATE_DRIFT
+                        for drift in f6_split_rate_drift.values()
+                    )
+                    else []
+                ),
+            ],
+            "threshold_result": "FAIL",
+            "future_gate_action": "EVALUATE_F6_SEPARATELY_ON_DEEPER_CORPUS",
         },
         "rating_policy": {
             "version": RATING_POLICY.version,
@@ -687,11 +787,12 @@ def _markdown(report: Mapping[str, Any]) -> str:
             "feature nor a timing decision.",
             "- Zero visible feature-scope history remains raw-feature missing; "
             "normalization may only use TRAIN observed means plus a missing indicator.",
-            "- Factor-effect coefficients remain deferred until baseline residual "
-            "inputs have a separate AS-OF justification.",
-            "- F6 option B backfill coverage is measured, but remains "
-            "preprocessing-blocked until Owner rules whether it is usable; no "
-            "default, prior, mean, "
+            "- Historical xG uses `SOURCE_KICKOFF_ONLY` under method "
+            f"`{report['feature_time_contract']['xg_method_version']}`; the source "
+            "fixture itself is excluded from its target input, and any failed "
+            "method prerequisite falls back to strict captured-at semantics.",
+            "- F6 failed the preregistered coverage/stability thresholds and is "
+            "`EXCLUDED_BY_PREREGISTERED_THRESHOLD`; no default, prior, mean, "
             "coefficient, or ablation value is applied.",
         )
     )

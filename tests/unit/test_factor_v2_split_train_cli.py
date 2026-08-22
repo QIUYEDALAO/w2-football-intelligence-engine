@@ -123,11 +123,12 @@ def test_split_train_report_separates_snapshot_and_feature_times(tmp_path: Path)
     assert report["train_calibration"]["fit_split"] == "TRAIN"
     assert report["train_calibration"]["validation_or_holdout_used_for_fit"] is False
     assert report["f6_owner_decision"]["status"] == (
-        "OPTION_B_APPROVED_BACKFILL_COVERAGE_REVIEW_PENDING"
+        "EXCLUDED_BY_PREREGISTERED_THRESHOLD"
     )
     assert report["f6_owner_decision"]["selected_option"] == "B"
     assert report["f6_owner_decision"]["after_warmup_observed_rate"] is not None
     assert report["f6_owner_decision"]["defaults_or_priors_applied"] is False
+    assert report["f6_owner_decision"]["threshold_result"] == "FAIL"
     assert report["contracts"]["ablation_scoring_executed"] is False
 
     output = tmp_path / "artifacts"
