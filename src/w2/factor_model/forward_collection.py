@@ -45,6 +45,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 from w2.infrastructure.persistence.model_forecast_models import (
     ModelForecastCaptureModel,
     ModelForecastOutcomeModel,
+    canonical_model_forecast_fixture_id_sql,
     model_forecast_fixture_aliases,
 )
 from w2.infrastructure.persistence.models import ResultModel
@@ -52,19 +53,36 @@ from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerMod
 from w2.matchday.intake_v2 import REQUIRED_MATCHDAY_COMPETITIONS
 
 FORWARD_COLLECTION_SCHEMA_VERSION = "w2.factor_model.forward_collection_run.v1"
-FORWARD_COLLECTION_ARTIFACT_SCHEMA_VERSION = (
-    "w2.factor_model.forward_collection_artifact.v1"
-)
+FORWARD_COLLECTION_ARTIFACT_SCHEMA_VERSION = "w2.factor_model.forward_collection_artifact.v1"
 FORWARD_COLLECTION_ROLE = "w2_factor_shadow_v2_writer"
 FORWARD_MODEL_FAMILY = "factor_model_v2"
 FORWARD_MODEL_VERSION = "factor-v2.f3-f7.forward-collection.v1"
 ACTIVE_FACTORS = ("F3_REST_FITNESS", "F7_STRENGTH_FORM")
+EXPECTED_PREREGISTRATION_FILE_SHA256 = (
+    "ffc491caf4fe10d47646b1ba2f383eca74d2a99a16a7423489cb99629ccbb662"
+)
+EXPECTED_COLLECTION_ARTIFACT_FILE_SHA256 = (
+    "185a24a0a1a9e7b8206fc4f4791fa91eccfa43a93967ac51c8557ca074fbb1ce"
+)
+EXPECTED_COLLECTION_ARTIFACT_SHA256 = (
+    "8710a75cd635024092e3276622270125708b050afbf4b7de461e97d0fbaf51fb"
+)
+MODEL_FORECAST_CAPTURE_HASH_DOMAIN = HashDomain.FUTURE_REFRESH_EVIDENCE
+MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN = HashDomain.FUTURE_REFRESH_FIXTURE_IDENTITY
+EXPECTED_DATA_EXCLUSIONS = frozenset(
+    {
+        "FORWARD_CAPTURE_PROVIDER_IDENTITY_MISSING",
+        "FORWARD_CAPTURE_FOUR_FIELD_XG_MISSING",
+        "FORWARD_XG_COMPONENTS_MISSING",
+    }
+)
 NEAR_CHECKPOINTS = (
     "T60_ODDS",
     "T45_ODDS",
     "T-30m_VALIDATION_LOCK",
     "T15_ODDS",
 )
+TERMINAL_RESULT_STATUSES = ("FT", "AET", "PEN")
 V2_WRITABLE_TABLES = frozenset(
     {
         "factor_shadow_forecast_capture",
@@ -109,8 +127,7 @@ class ForwardCollectionConfig:
     def from_environment(cls) -> ForwardCollectionConfig:
         root = Path(__file__).resolve().parents[3]
         return cls(
-            enabled=os.getenv("W2_FACTOR_V2_FORWARD_COLLECTION_ENABLED", "false").lower()
-            == "true",
+            enabled=os.getenv("W2_FACTOR_V2_FORWARD_COLLECTION_ENABLED", "false").lower() == "true",
             control_file=Path(
                 os.getenv(
                     "W2_FACTOR_V2_FORWARD_COLLECTION_CONTROL_FILE",
@@ -121,8 +138,7 @@ class ForwardCollectionConfig:
                 os.getenv(
                     "W2_FACTOR_V2_FORWARD_COLLECTION_ARTIFACT",
                     str(
-                        root
-                        / "config/calibration/"
+                        root / "config/calibration/"
                         "factor_model_v2.f3_f7.forward_collection_only.json"
                     ),
                 )
@@ -131,8 +147,7 @@ class ForwardCollectionConfig:
                 os.getenv(
                     "W2_FACTOR_V2_FORWARD_PREREGISTRATION",
                     str(
-                        root
-                        / "docs/operations/"
+                        root / "docs/operations/"
                         "FACTOR_V2_FORWARD_COLLECTION_PREREGISTRATION_20260822.json"
                     ),
                 )
@@ -149,9 +164,7 @@ class ForwardCollectionConfig:
                     "/app/runtime/factor-v2/last-success-utc-date",
                 )
             ),
-            quiet_horizon_seconds=int(
-                os.getenv("W2_FACTOR_V2_QUIET_HORIZON_SECONDS", "3600")
-            ),
+            quiet_horizon_seconds=int(os.getenv("W2_FACTOR_V2_QUIET_HORIZON_SECONDS", "3600")),
         )
 
 
@@ -176,7 +189,10 @@ def run_forward_collection(
     preregistration, preregistration_file_sha256 = _load_preregistration(
         resolved.preregistration_path
     )
-    artifact = _load_collection_artifact(resolved.artifact_path)
+    artifact, artifact_file_sha256 = _load_collection_artifact(
+        resolved.artifact_path,
+        preregistration=preregistration,
+    )
     switch = _switch_state(resolved)
     base = {
         "schema_version": FORWARD_COLLECTION_SCHEMA_VERSION,
@@ -185,6 +201,9 @@ def run_forward_collection(
         "feature_as_of_semantics": "EXACT_V1_PRODUCTION_CAPTURE_TIMESTAMP",
         "preregistration_file_sha256": preregistration_file_sha256,
         "collection_artifact_sha256": artifact["artifact_sha256"],
+        "collection_artifact_file_sha256": artifact_file_sha256,
+        "runtime_release_identity": _runtime_release_identity(),
+        "provider_isolation": _provider_isolation_audit(required=False),
         "provider_calls": 0,
         "production_worker_used": False,
         "candidate_output_count": 0,
@@ -198,12 +217,56 @@ def run_forward_collection(
         return {**base, "status": "ALREADY_COLLECTED_TODAY", "database_writes": 0}
 
     reader_engine = engine or create_engine()
+    runtime_identity_audit = _runtime_release_identity_audit(
+        base["runtime_release_identity"],
+        required=write_db and reader_engine.dialect.name == "postgresql",
+    )
+    if not runtime_identity_audit["pass"]:
+        _disable_switch(resolved.control_file)
+        return {
+            **base,
+            "status": "RUNTIME_IDENTITY_FAILED_COLLECTION_DISABLED",
+            "database_writes": 0,
+            "runtime_release_identity_audit": runtime_identity_audit,
+        }
+    provider_isolation = _provider_isolation_audit(
+        required=write_db and reader_engine.dialect.name == "postgresql"
+    )
+    base = {**base, "provider_isolation": provider_isolation}
+    if not provider_isolation["pass"]:
+        _disable_switch(resolved.control_file)
+        return {
+            **base,
+            "status": "PROVIDER_ISOLATION_FAILED_COLLECTION_DISABLED",
+            "database_writes": 0,
+            "runtime_release_identity_audit": runtime_identity_audit,
+        }
+
+    _install_read_only_session(reader_engine)
+    with Session(reader_engine) as session:
+        quiet_window = _quiet_window_audit(
+            session,
+            now=now,
+            horizon=timedelta(seconds=resolved.quiet_horizon_seconds),
+        )
+    if not quiet_window["pass"]:
+        return {
+            **base,
+            "status": "DEFERRED_FOR_V1_CHECKPOINT_SLOT",
+            "database_writes": 0,
+            "role_audit": {
+                "live_verified": False,
+                "reason": "NOT_RUN_DURING_V1_CHECKPOINT_SLOT",
+            },
+            "quiet_window": quiet_window,
+            "runtime_release_identity_audit": runtime_identity_audit,
+        }
+
     restricted_writer_engine = writer_engine or (
         reader_engine
         if reader_engine.dialect.name != "postgresql"
         else sqlalchemy_create_engine(reader_engine.url, pool_pre_ping=True)
     )
-    _install_read_only_session(reader_engine)
     _install_restricted_role(restricted_writer_engine)
     role_audit = _role_audit(restricted_writer_engine)
     if not role_audit["pass"]:
@@ -213,29 +276,14 @@ def run_forward_collection(
             "status": "ROLE_ISOLATION_FAILED_COLLECTION_DISABLED",
             "database_writes": 0,
             "role_audit": role_audit,
+            "quiet_window": quiet_window,
+            "runtime_release_identity_audit": runtime_identity_audit,
         }
-
-    with Session(reader_engine) as session:
-        quiet_window = _quiet_window_audit(
-            session,
-            now=now,
-            horizon=timedelta(seconds=resolved.quiet_horizon_seconds),
-        )
-        if not quiet_window["pass"]:
-            return {
-                **base,
-                "status": "DEFERRED_FOR_V1_CHECKPOINT_SLOT",
-                "database_writes": 0,
-                "role_audit": role_audit,
-                "quiet_window": quiet_window,
-            }
 
     provider_league_authority = _provider_league_authority(reader_engine)
     base = {
         **base,
-        "provider_league_authority_sha256": provider_league_authority[
-            "authority_sha256"
-        ],
+        "provider_league_authority_sha256": provider_league_authority["authority_sha256"],
     }
     with Session(reader_engine) as session:
         before = _daily_self_attestation(session, now=now)
@@ -243,9 +291,7 @@ def run_forward_collection(
             session,
             computed_at=now,
             not_before=_utc(
-                preregistration["forward_cohort"][
-                    "production_capture_captured_at_not_before"
-                ],
+                preregistration["forward_cohort"]["production_capture_captured_at_not_before"],
                 "production_capture_captured_at_not_before",
             ),
             historical_replay_cutoff=_utc(
@@ -273,10 +319,24 @@ def run_forward_collection(
     leakage_violation_count = 0
     written = 0
     stopped_by_switch = False
+    stopped_for_v1_checkpoint = False
     write_error_type: str | None = None
+    critical_exclusion_reasons: set[str] = set()
+    quiet_window_recheck_count = 0
+    final_quiet_window = quiet_window
     for capture in captures:
         if not _switch_state(resolved)["enabled"]:
             stopped_by_switch = True
+            break
+        with Session(reader_engine) as session:
+            final_quiet_window = _quiet_window_audit(
+                session,
+                now=datetime.now(UTC),
+                horizon=timedelta(seconds=resolved.quiet_horizon_seconds),
+            )
+        quiet_window_recheck_count += 1
+        if not final_quiet_window["pass"]:
+            stopped_for_v1_checkpoint = True
             break
         try:
             forecast = _build_forward_forecast(
@@ -292,9 +352,53 @@ def run_forward_collection(
             exclusions[reason] = exclusions.get(reason, 0) + 1
             if "LEAKAGE" in reason or "AFTER_FEATURE_ASOF" in reason:
                 leakage_violation_count += 1
+            if reason not in EXPECTED_DATA_EXCLUSIONS:
+                critical_exclusion_reasons.add(reason)
             continue
         forecasts.append(forecast)
-        if write_db:
+
+    prewrite_anomalies = [
+        f"CRITICAL_INPUT_EXCLUSION:{reason}" for reason in sorted(critical_exclusion_reasons)
+    ]
+    if leakage_violation_count:
+        prewrite_anomalies.append("POINT_IN_TIME_LEAKAGE_VIOLATION")
+    if captures and not forecasts and not stopped_by_switch and not stopped_for_v1_checkpoint:
+        prewrite_anomalies.append("ALL_ELIGIBLE_CAPTURES_EXCLUDED")
+
+    if (
+        not prewrite_anomalies
+        and write_db
+        and not stopped_by_switch
+        and not stopped_for_v1_checkpoint
+    ):
+        with Session(reader_engine) as session:
+            final_quiet_window = _quiet_window_audit(
+                session,
+                now=datetime.now(UTC),
+                horizon=timedelta(seconds=resolved.quiet_horizon_seconds),
+            )
+        quiet_window_recheck_count += 1
+        stopped_for_v1_checkpoint = not final_quiet_window["pass"]
+    if (
+        not prewrite_anomalies
+        and write_db
+        and not stopped_by_switch
+        and not stopped_for_v1_checkpoint
+    ):
+        for forecast in forecasts:
+            if not _switch_state(resolved)["enabled"]:
+                stopped_by_switch = True
+                break
+            with Session(reader_engine) as session:
+                final_quiet_window = _quiet_window_audit(
+                    session,
+                    now=datetime.now(UTC),
+                    horizon=timedelta(seconds=resolved.quiet_horizon_seconds),
+                )
+            quiet_window_recheck_count += 1
+            if not final_quiet_window["pass"]:
+                stopped_for_v1_checkpoint = True
+                break
             try:
                 with Session(restricted_writer_engine) as session:
                     session.add(_forecast_model(forecast))
@@ -306,9 +410,7 @@ def run_forward_collection(
 
     with Session(reader_engine) as session:
         after = _daily_self_attestation(session, now=now)
-    anomalies = _attestation_anomalies(before, after)
-    if leakage_violation_count:
-        anomalies.append("POINT_IN_TIME_LEAKAGE_VIOLATION")
+    anomalies = [*prewrite_anomalies, *_attestation_anomalies(before, after)]
     if write_error_type:
         anomalies.append(f"V2_WRITE_FAILED:{write_error_type}")
     if anomalies:
@@ -316,6 +418,8 @@ def run_forward_collection(
     status = (
         "ANOMALY_COLLECTION_DISABLED"
         if anomalies
+        else "DEFERRED_DURING_BATCH_FOR_V1_CHECKPOINT_SLOT"
+        if stopped_for_v1_checkpoint
         else "COLLECTION_STOPPED_BY_SWITCH"
         if stopped_by_switch
         else "PASS"
@@ -333,9 +437,14 @@ def run_forward_collection(
         "exclusions": dict(sorted(exclusions.items())),
         "point_in_time_leakage_violation_count": leakage_violation_count,
         "stopped_by_switch": stopped_by_switch,
+        "stopped_for_v1_checkpoint": stopped_for_v1_checkpoint,
         "write_error_type": write_error_type,
+        "critical_exclusion_reasons": sorted(critical_exclusion_reasons),
         "role_audit": role_audit,
         "quiet_window": quiet_window,
+        "quiet_window_final": final_quiet_window,
+        "quiet_window_recheck_count": quiet_window_recheck_count,
+        "runtime_release_identity_audit": runtime_identity_audit,
         "daily_self_attestation_before": before,
         "daily_self_attestation_after": after,
         "anomalies": anomalies,
@@ -351,8 +460,7 @@ def _eligible_captures(
     historical_replay_cutoff: datetime,
 ) -> list[ModelForecastCaptureModel]:
     existing = select(FactorShadowForecastCaptureModel.production_capture_identity_hash).where(
-        FactorShadowForecastCaptureModel.source_mode
-        == FactorShadowSourceMode.FORWARD_SHADOW.value,
+        FactorShadowForecastCaptureModel.source_mode == FactorShadowSourceMode.FORWARD_SHADOW.value,
         FactorShadowForecastCaptureModel.production_capture_identity_hash.is_not(None),
     )
     return list(
@@ -363,6 +471,9 @@ def _eligible_captures(
                 ModelForecastCaptureModel.captured_at <= computed_at,
                 ModelForecastCaptureModel.kickoff_utc >= historical_replay_cutoff,
                 ModelForecastCaptureModel.captured_at < ModelForecastCaptureModel.kickoff_utc,
+                ModelForecastCaptureModel.competition_id.in_(
+                    tuple(sorted(REQUIRED_MATCHDAY_COMPETITIONS))
+                ),
                 ModelForecastCaptureModel.capture_identity_hash.not_in(existing),
             )
             .order_by(
@@ -371,6 +482,71 @@ def _eligible_captures(
             )
         )
     )
+
+
+def _verify_production_capture(capture: ModelForecastCaptureModel) -> None:
+    try:
+        payload = dict(capture.payload)
+        xg_identity = _mapping(payload["four_field_xg_identity"])
+        xg_hash = str(xg_identity["identity_hash"])
+        xg_body = {key: value for key, value in xg_identity.items() if key != "identity_hash"}
+        identity_payload = {
+            key: value for key, value in payload.items() if key != "capture_identity_hash"
+        }
+        fixture_identity = _mapping(payload["fixture_identity"])
+        competition_identity = _mapping(payload["competition_identity"])
+        source_hashes = _mapping(payload["source_artifact_hashes"])
+        kickoff = _utc(payload["kickoff_utc"], "production_capture_kickoff_utc")
+        captured_at = _utc(payload["captured_at"], "production_capture_captured_at")
+        capture_policy = str(payload.get("capture_policy") or "")
+        if not capture_policy and payload.get("schema_version") == "w2.model_forecast_capture.v1":
+            capture_policy = "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"
+        valid = (
+            capture.payload_sha256
+            == canonical_sha256(payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN)
+            and capture.capture_identity_hash == payload["capture_identity_hash"]
+            and capture.capture_identity_hash
+            == canonical_sha256(
+                identity_payload,
+                domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN,
+            )
+            and str(fixture_identity["fixture_id"]) == capture.fixture_id
+            and str(competition_identity["competition_id"]) == capture.competition_id
+            and kickoff == _db_utc(capture.kickoff_utc, "kickoff_utc")
+            and captured_at == _db_utc(capture.captured_at, "captured_at")
+            and captured_at < kickoff
+            and capture.lead_time_seconds == int((kickoff - captured_at).total_seconds())
+            and capture.lead_time_bucket == payload["lead_time_bucket"]
+            and capture.model_family == payload["model_family"]
+            and capture.model_version == payload["model_version"]
+            and capture.capture_policy == capture_policy
+            and capture.horizon_id == "NONE"
+            and capture.model_input_manifest_hash == payload["model_input_manifest_hash"]
+            and capture.score_matrix_hash == payload["score_matrix_hash"]
+            and capture.four_field_xg_identity_hash == xg_hash
+            and source_hashes["four_field_xg_identity_hash"] == xg_hash
+            and xg_hash
+            == canonical_sha256(
+                xg_body,
+                domain=MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN,
+            )
+            and payload["candidate_required"] is False
+            and payload["exact_quote_required"] is False
+        )
+        for side in ("home", "away"):
+            side_identity = _mapping(xg_identity[side])
+            side_hash = str(side_identity["identity_hash"])
+            side_body = {
+                key: value for key, value in side_identity.items() if key != "identity_hash"
+            }
+            valid = valid and side_hash == canonical_sha256(
+                side_body,
+                domain=MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN,
+            )
+    except (KeyError, TypeError, ValueError):
+        valid = False
+    if not valid:
+        raise ValueError("FORWARD_PRODUCTION_CAPTURE_INTEGRITY_INVALID")
 
 
 def _build_forward_forecast(
@@ -382,6 +558,7 @@ def _build_forward_forecast(
     preregistration_file_sha256: str,
     computed_at: datetime,
 ) -> dict[str, Any]:
+    _verify_production_capture(capture)
     payload = dict(capture.payload)
     xg_identity = _mapping(payload.get("four_field_xg_identity"))
     fixture_identity = _mapping(xg_identity.get("fixture_identity"))
@@ -398,7 +575,7 @@ def _build_forward_forecast(
     provider_league_id = provider_league_identity["provider_league_id"]
     if not home_team_id or not away_team_id or not provider_league_id:
         raise ValueError("FORWARD_CAPTURE_PROVIDER_IDENTITY_MISSING")
-    _verify_xg_components(
+    effective_xg_pit_semantics = _verify_xg_components(
         xg_identity,
         target_fixture_id=capture.fixture_id,
         target_kickoff=_db_utc(capture.kickoff_utc, "kickoff_utc"),
@@ -468,9 +645,7 @@ def _build_forward_forecast(
             "feature_snapshot_sha256": snapshot["feature_snapshot_sha256"],
             "normalized_features_sha256": normalized["normalized_features_sha256"],
             "xg_identity_hash": xg_identity.get("identity_hash"),
-            "provider_league_identity_sha256": provider_league_identity[
-                "identity_sha256"
-            ],
+            "provider_league_identity_sha256": provider_league_identity["identity_sha256"],
             "collection_artifact_sha256": artifact["artifact_sha256"],
             "preregistration_file_sha256": preregistration_file_sha256,
         },
@@ -490,34 +665,37 @@ def _build_forward_forecast(
         production_capture_identity_hash=capture.capture_identity_hash,
         production_captured_at=feature_as_of,
     )
-    body = _json_safe({
-        **contract,
-        "competition_id": capture.competition_id,
-        "kickoff_utc": kickoff,
-        "lambda_home": b2["lambda_home"],
-        "lambda_away": b2["lambda_away"],
-        "score_matrix_hash": b2["score_matrix_sha256"],
-        "tracks": baseline["tracks"],
-        "feature_snapshot": snapshot,
-        "normalized_features": normalized,
-        "pit_history_manifest_sha256": manifest["manifest_sha256"],
-        "pit_source_fixture_count": manifest["source_fixture_count"],
-        "pit_excluded_fixture_counts": manifest["excluded_fixture_counts"],
-        "provider_league_identity": provider_league_identity,
-        "collection_only": True,
-        "gate1_status": "FAIL",
-        "gate2_status": "CLOSED",
-        "candidate_eligible": False,
-        "notification_eligible": False,
-        "official_profit_and_loss_eligible": False,
-        "preregistration_file_sha256": preregistration_file_sha256,
-        "collection_artifact_sha256": artifact["artifact_sha256"],
-    })
+    body = _json_safe(
+        {
+            **contract,
+            "competition_id": capture.competition_id,
+            "kickoff_utc": kickoff,
+            "lambda_home": b2["lambda_home"],
+            "lambda_away": b2["lambda_away"],
+            "score_matrix_hash": b2["score_matrix_sha256"],
+            "tracks": baseline["tracks"],
+            "feature_snapshot": snapshot,
+            "normalized_features": normalized,
+            "pit_history_manifest_sha256": manifest["manifest_sha256"],
+            "pit_source_fixture_count": manifest["source_fixture_count"],
+            "pit_excluded_fixture_counts": manifest["excluded_fixture_counts"],
+            "provider_league_identity": provider_league_identity,
+            "xg_pit_semantics_registered": artifact["xg_pit_semantics"],
+            "xg_pit_semantics_effective": effective_xg_pit_semantics,
+            "xg_method_version": artifact["xg_method_version"],
+            "collection_only": True,
+            "gate1_status": "FAIL",
+            "gate2_status": "CLOSED",
+            "candidate_eligible": False,
+            "notification_eligible": False,
+            "official_profit_and_loss_eligible": False,
+            "preregistration_file_sha256": preregistration_file_sha256,
+            "collection_artifact_sha256": artifact["artifact_sha256"],
+        }
+    )
     return {
         **body,
-        "payload_sha256": canonical_sha256(
-            body, domain=HashDomain.PREMATCH_READ_MODEL_GENERIC
-        ),
+        "payload_sha256": canonical_sha256(body, domain=HashDomain.PREMATCH_READ_MODEL_GENERIC),
     }
 
 
@@ -592,10 +770,7 @@ def _provider_league_authority(engine: Engine) -> dict[str, Any]:
     }
     return {
         **body,
-        "mapping": {
-            str(row["competition_id"]): str(row["provider_league_id"])
-            for row in rows
-        },
+        "mapping": {str(row["competition_id"]): str(row["provider_league_id"]) for row in rows},
         "authority_sha256": canonical_sha256(
             {"identity_type": "FORWARD_PROVIDER_LEAGUE_AUTHORITY", **body},
             domain=HashDomain.PREMATCH_READ_MODEL_GENERIC,
@@ -641,7 +816,7 @@ def _verify_xg_components(
     target_fixture_id: str,
     target_kickoff: datetime,
     feature_as_of: datetime,
-) -> None:
+) -> str:
     target_aliases = set(model_forecast_fixture_aliases(target_fixture_id))
     for side in ("home", "away"):
         components = _mapping(identity.get(side)).get("component_team_xg_matches")
@@ -656,6 +831,7 @@ def _verify_xg_components(
                 raise ValueError("FORWARD_XG_KICKOFF_LEAKAGE")
             if _utc(row.get("captured_at"), "xg_captured_at") >= feature_as_of:
                 raise ValueError("FORWARD_XG_CAPTURE_AFTER_FEATURE_ASOF")
+    return "STRICT_CAPTURED_AT"
 
 
 def _forecast_model(payload: dict[str, Any]) -> FactorShadowForecastCaptureModel:
@@ -726,24 +902,27 @@ def _daily_self_attestation(session: Session, *, now: datetime) -> dict[str, Any
     )
     completed_pairs = int(
         session.scalar(
-            select(func.count())
+            select(
+                func.count(
+                    func.distinct(
+                        canonical_model_forecast_fixture_id_sql(
+                            FactorShadowForecastCaptureModel.fixture_id
+                        )
+                    )
+                )
+            )
             .select_from(FactorShadowForecastCaptureModel)
             .join(
                 ResultModel,
-                or_(
-                    ResultModel.fixture_id
-                    == FactorShadowForecastCaptureModel.fixture_id,
-                    ResultModel.fixture_id
-                    == func.replace(
-                        FactorShadowForecastCaptureModel.fixture_id,
-                        "api_football:",
-                        "",
-                    ),
+                canonical_model_forecast_fixture_id_sql(ResultModel.fixture_id)
+                == canonical_model_forecast_fixture_id_sql(
+                    FactorShadowForecastCaptureModel.fixture_id
                 ),
             )
             .where(
                 FactorShadowForecastCaptureModel.source_mode
-                == FactorShadowSourceMode.FORWARD_SHADOW.value
+                == FactorShadowSourceMode.FORWARD_SHADOW.value,
+                ResultModel.result_status.in_(TERMINAL_RESULT_STATUSES),
             )
         )
         or 0
@@ -775,9 +954,7 @@ def _attestation_anomalies(before: dict[str, Any], after: dict[str, Any]) -> lis
     return anomalies
 
 
-def _quiet_window_audit(
-    session: Session, *, now: datetime, horizon: timedelta
-) -> dict[str, Any]:
+def _quiet_window_audit(session: Session, *, now: datetime, horizon: timedelta) -> dict[str, Any]:
     rows = list(
         session.execute(
             select(
@@ -791,9 +968,7 @@ def _quiet_window_audit(
                 MatchdayCheckpointPlanModel.test_only.is_(False),
                 MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE")),
                 or_(
-                    MatchdayCheckpointPlanModel.scheduled_at.between(
-                        now, now + horizon
-                    ),
+                    MatchdayCheckpointPlanModel.scheduled_at.between(now, now + horizon),
                     (
                         (MatchdayCheckpointPlanModel.window_start <= now + horizon)
                         & (MatchdayCheckpointPlanModel.window_end >= now)
@@ -807,9 +982,7 @@ def _quiet_window_audit(
         "checked_from": _iso(now),
         "checked_to": _iso(now + horizon),
         "formal_checkpoint_slot_count": len(rows),
-        "near_checkpoint_slot_count": sum(
-            str(row.checkpoint) in NEAR_CHECKPOINTS for row in rows
-        ),
+        "near_checkpoint_slot_count": sum(str(row.checkpoint) in NEAR_CHECKPOINTS for row in rows),
         "formal_checkpoint_slots": [
             {
                 "fixture_id": str(row.fixture_id),
@@ -847,26 +1020,34 @@ def _role_audit(engine: Engine) -> dict[str, Any]:
         return {"pass": True, "dialect": engine.dialect.name, "live_verified": False}
     with engine.connect() as connection:
         current_role = str(connection.scalar(text("select current_user")))
-        role_attributes = connection.execute(
-            text(
-                "select rolcanlogin, rolsuper, rolcreatedb, rolcreaterole, "
-                "rolreplication, rolbypassrls "
-                "from pg_roles where rolname = :role"
-            ),
-            {"role": FORWARD_COLLECTION_ROLE},
-        ).mappings().one_or_none()
-        membership = connection.execute(
-            text(
-                "select membership.inherit_option, membership.set_option, "
-                "membership.admin_option "
-                "from pg_auth_members membership "
-                "join pg_roles granted_role on granted_role.oid = membership.roleid "
-                "join pg_roles member_role on member_role.oid = membership.member "
-                "where granted_role.rolname = :role "
-                "and member_role.rolname = session_user"
-            ),
-            {"role": FORWARD_COLLECTION_ROLE},
-        ).mappings().one_or_none()
+        role_attributes = (
+            connection.execute(
+                text(
+                    "select rolcanlogin, rolsuper, rolcreatedb, rolcreaterole, "
+                    "rolreplication, rolbypassrls "
+                    "from pg_roles where rolname = :role"
+                ),
+                {"role": FORWARD_COLLECTION_ROLE},
+            )
+            .mappings()
+            .one_or_none()
+        )
+        membership = (
+            connection.execute(
+                text(
+                    "select membership.inherit_option, membership.set_option, "
+                    "membership.admin_option "
+                    "from pg_auth_members membership "
+                    "join pg_roles granted_role on granted_role.oid = membership.roleid "
+                    "join pg_roles member_role on member_role.oid = membership.member "
+                    "where granted_role.rolname = :role "
+                    "and member_role.rolname = session_user"
+                ),
+                {"role": FORWARD_COLLECTION_ROLE},
+            )
+            .mappings()
+            .one_or_none()
+        )
         tables = inspect(connection).get_table_names(schema="public")
         violations: list[str] = []
         if role_attributes is None or any(role_attributes.values()):
@@ -909,8 +1090,16 @@ def _role_audit(engine: Engine) -> dict[str, Any]:
         }
 
 
-def _load_collection_artifact(path: Path) -> dict[str, Any]:
-    loaded: object = json.loads(path.read_text(encoding="utf-8"))
+def _load_collection_artifact(
+    path: Path,
+    *,
+    preregistration: dict[str, Any],
+) -> tuple[dict[str, Any], str]:
+    raw = path.read_bytes()
+    file_sha256 = hashlib.sha256(raw).hexdigest()
+    if file_sha256 != EXPECTED_COLLECTION_ARTIFACT_FILE_SHA256:
+        raise ValueError("FORWARD_COLLECTION_ARTIFACT_FILE_HASH_MISMATCH")
+    loaded: object = json.loads(raw.decode("utf-8"))
     if not isinstance(loaded, dict):
         raise ValueError("FORWARD_COLLECTION_ARTIFACT_INVALID")
     artifact: dict[str, Any] = loaded
@@ -923,24 +1112,134 @@ def _load_collection_artifact(path: Path) -> dict[str, Any]:
     )
     if artifact.get("artifact_sha256") != expected:
         raise ValueError("FORWARD_COLLECTION_ARTIFACT_HASH_MISMATCH")
-    if artifact.get("influence_eligible") is not False:
+    if artifact.get("artifact_sha256") != EXPECTED_COLLECTION_ARTIFACT_SHA256:
+        raise ValueError("FORWARD_COLLECTION_ARTIFACT_NOT_FROZEN")
+    if any(
+        artifact.get(field) is not False
+        for field in (
+            "influence_eligible",
+            "candidate_eligible",
+            "notification_eligible",
+            "official_profit_and_loss_eligible",
+        )
+    ):
         raise ValueError("FORWARD_COLLECTION_INFLUENCE_MUST_BE_FALSE")
     if (
         artifact.get("xg_pit_semantics") != "SOURCE_KICKOFF_ONLY"
         or artifact.get("xg_method_version") != XG_METHOD_VERSION
     ):
         raise ValueError("FORWARD_COLLECTION_XG_METHOD_CONTRACT_INVALID")
-    return artifact
+    frozen = _mapping(preregistration.get("frozen_gate1_inputs"))
+    preprocessing = _mapping(artifact.get("preprocessing"))
+    calibration = _mapping(artifact.get("factor_calibration"))
+    if (
+        artifact.get("status") != "COLLECTION_ONLY_GATE1_FAILED_GATE2_CLOSED"
+        or list(calibration.get("active_factor_ids") or []) != list(ACTIVE_FACTORS)
+        or calibration.get("admitted_for_forward_shadow") is not False
+        or _mapping(calibration.get("excluded_factor_statuses")).get("F6_H2H")
+        != "EXCLUDED_BY_PREREGISTERED_THRESHOLD"
+        or artifact.get("source_ablation_results_sha256") != frozen.get("ablation_results_sha256")
+        or preprocessing.get("preprocessing_sha256") != frozen.get("preprocessing_sha256")
+        or calibration.get("preprocessing_sha256") != frozen.get("preprocessing_sha256")
+        or calibration.get("calibration_sha256") != frozen.get("factor_calibration_sha256")
+        or calibration.get("split_manifest_sha256") != frozen.get("split_manifest_sha256")
+    ):
+        raise ValueError("FORWARD_COLLECTION_ARTIFACT_PREREGISTRATION_MISMATCH")
+    return artifact, file_sha256
 
 
 def _load_preregistration(path: Path) -> tuple[dict[str, Any], str]:
-    loaded: object = json.loads(path.read_text(encoding="utf-8"))
+    raw = path.read_bytes()
+    file_sha256 = hashlib.sha256(raw).hexdigest()
+    if file_sha256 != EXPECTED_PREREGISTRATION_FILE_SHA256:
+        raise ValueError("FORWARD_COLLECTION_PREREGISTRATION_HASH_MISMATCH")
+    loaded: object = json.loads(raw.decode("utf-8"))
     if not isinstance(loaded, dict):
         raise ValueError("FORWARD_COLLECTION_PREREGISTRATION_INVALID")
     payload: dict[str, Any] = loaded
-    if payload.get("owner_decision") != "COLLECTION_APPROVED_INFLUENCE_FORBIDDEN":
+    if (
+        payload.get("schema_version") != "w2.factor_model.forward_collection_preregistration.v1"
+        or payload.get("owner_decision") != "COLLECTION_APPROVED_INFLUENCE_FORBIDDEN"
+    ):
         raise ValueError("FORWARD_COLLECTION_PREREGISTRATION_INVALID")
-    return payload, hashlib.sha256(path.read_bytes()).hexdigest()
+    return payload, file_sha256
+
+
+def _runtime_release_identity() -> dict[str, str]:
+    return {
+        "git_sha": os.getenv("W2_GIT_SHA", "UNKNOWN"),
+        "build_time": os.getenv("W2_BUILD_TIME", "UNKNOWN"),
+        "release_id": os.getenv("W2_RELEASE_ID", "UNKNOWN"),
+        "image_id": os.getenv("W2_IMAGE_ID", "UNAVAILABLE"),
+        "oci_digest": os.getenv("W2_OCI_DIGEST", "UNAVAILABLE"),
+        "registry_digest": os.getenv("W2_REGISTRY_DIGEST", "UNAVAILABLE"),
+    }
+
+
+def _runtime_release_identity_audit(
+    identity: object,
+    *,
+    required: bool,
+) -> dict[str, Any]:
+    values = _mapping(identity)
+    required_fields = (
+        "git_sha",
+        "build_time",
+        "release_id",
+        "image_id",
+        "oci_digest",
+        "registry_digest",
+    )
+    missing = [
+        field
+        for field in required_fields
+        if str(values.get(field) or "").strip() in {"", "UNKNOWN", "UNAVAILABLE"}
+    ]
+    digests = [str(values.get(field) or "") for field in required_fields[-3:]]
+    invalid_format: list[str] = []
+    git_sha = str(values.get("git_sha") or "")
+    if len(git_sha) != 40 or any(character not in "0123456789abcdef" for character in git_sha):
+        invalid_format.append("git_sha")
+    for field, digest in zip(required_fields[-3:], digests, strict=True):
+        raw_digest = digest.removeprefix("sha256:")
+        if len(raw_digest) != 64 or any(
+            character not in "0123456789abcdef" for character in raw_digest
+        ):
+            invalid_format.append(field)
+    try:
+        _utc(values.get("build_time"), "build_time")
+    except ValueError:
+        invalid_format.append("build_time")
+    digest_mismatch = len(set(digests)) > 1
+    return {
+        "pass": not required or not (missing or invalid_format or digest_mismatch),
+        "required": required,
+        "required_fields": list(required_fields),
+        "missing_or_placeholder_fields": missing,
+        "invalid_format_fields": sorted(set(invalid_format)),
+        "image_digest_mismatch": digest_mismatch,
+    }
+
+
+def _provider_isolation_audit(*, required: bool) -> dict[str, Any]:
+    api_key_present = bool(os.getenv("W2_API_FOOTBALL_API_KEY", "").strip())
+    calls_disabled = os.getenv("W2_PROVIDER_CALLS_DISABLED", "false").lower() == "true"
+    scheduler_enabled = os.getenv("W2_PROVIDER_SCHEDULER_ENABLED", "false").lower() == "true"
+    violations = []
+    if api_key_present:
+        violations.append("API_FOOTBALL_KEY_PRESENT")
+    if not calls_disabled:
+        violations.append("PROVIDER_CALLS_NOT_DISABLED")
+    if scheduler_enabled:
+        violations.append("PROVIDER_SCHEDULER_ENABLED")
+    return {
+        "pass": not required or not violations,
+        "required": required,
+        "api_football_key_present": api_key_present,
+        "provider_calls_disabled": calls_disabled,
+        "provider_scheduler_enabled": scheduler_enabled,
+        "violations": violations,
+    }
 
 
 def _switch_state(config: ForwardCollectionConfig) -> dict[str, Any]:

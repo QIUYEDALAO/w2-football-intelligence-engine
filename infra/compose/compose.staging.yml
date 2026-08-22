@@ -133,6 +133,12 @@ services:
       - /opt/w2/shared/runtime/factor-v2:/app/runtime/factor-v2
     environment:
       W2_ENVIRONMENT: staging
+      W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
+      W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
+      W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
+      W2_IMAGE_ID: ${W2_API_IMAGE_ID:-UNAVAILABLE}
+      W2_OCI_DIGEST: ${W2_API_OCI_DIGEST:-UNAVAILABLE}
+      W2_REGISTRY_DIGEST: ${W2_API_REGISTRY_DIGEST:-UNAVAILABLE}
       W2_DATABASE_URL: postgresql+psycopg://w2_user:${POSTGRES_PASSWORD}@postgres:5432/w2
       W2_PROVIDER_CALLS_DISABLED: "true"
       W2_PROVIDER_SCHEDULER_ENABLED: "false"
