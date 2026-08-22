@@ -50,20 +50,21 @@ def _pair(index: int, kickoff: datetime) -> list[dict[str, Any]]:
 
 
 def _corpus() -> dict[str, Any]:
-    snapshot = cli.EXPECTED_CORPUS_SNAPSHOT_AS_OF
+    snapshot = datetime(2026, 8, 24, tzinfo=UTC)
     body = {
         "schema_version": RAW_HISTORY_CORPUS_SCHEMA_VERSION,
         "provider": "api_football",
         "team_identity_namespace": "api_football.provider_team_id.v1",
         "snapshot_as_of": snapshot,
-        "kickoff_from": datetime(2024, 1, 1, tzinfo=UTC),
+        "kickoff_from": datetime(2023, 1, 1, tzinfo=UTC),
         "kickoff_to": snapshot,
-        "seasons": ["2024", "2025", "2026"],
+        "seasons": ["2023", "2024", "2025", "2026"],
         "history_rows": (
-            _pair(0, datetime(2024, 5, 1, tzinfo=UTC))
-            + _pair(1, datetime(2024, 6, 1, tzinfo=UTC))
-            + _pair(2, datetime(2025, 6, 1, tzinfo=UTC))
-            + _pair(3, datetime(2026, 6, 1, tzinfo=UTC))
+            _pair(0, datetime(2023, 5, 1, tzinfo=UTC))
+            + _pair(1, datetime(2024, 5, 1, tzinfo=UTC))
+            + _pair(2, datetime(2024, 6, 1, tzinfo=UTC))
+            + _pair(3, datetime(2025, 6, 1, tzinfo=UTC))
+            + _pair(4, datetime(2026, 6, 1, tzinfo=UTC))
         ),
     }
     return {
@@ -72,14 +73,15 @@ def _corpus() -> dict[str, Any]:
     }
 
 
-def test_split_train_report_separates_snapshot_and_feature_times(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_split_train_report_separates_snapshot_and_feature_times(tmp_path: Path) -> None:
     corpus = _corpus()
-    monkeypatch.setattr(cli, "EXPECTED_CORPUS_SHA256", corpus["corpus_sha256"])
-    monkeypatch.setattr(cli, "WARMUP_MINIMUM_FEATURE_SCOPE_HISTORY_ROWS", 2)
 
-    artifacts = cli.build_artifacts(corpus)
+    artifacts = cli.build_artifacts(
+        corpus,
+        expected_corpus_sha256=corpus["corpus_sha256"],
+        expected_snapshot_as_of=corpus["snapshot_as_of"],
+        warmup_minimum_feature_scope_history_rows=2,
+    )
     report = artifacts["report"]
 
     assert report["corpus_binding"]["corpus_snapshot_as_of"] == corpus["snapshot_as_of"]
@@ -87,21 +89,27 @@ def test_split_train_report_separates_snapshot_and_feature_times(
         "TARGET_FIXTURE_KICKOFF_UTC"
     )
     assert report["split_policy"]["counts"] == {
-        "TRAIN": 1,
+        "TRAIN": 2,
         "VALIDATION": 1,
         "HOLDOUT": 1,
     }
-    assert report["split_policy"]["historical_replay_cutoff"] == corpus["snapshot_as_of"]
+    assert report["corpus_binding"]["total_source_fixture_count"] == 5
+    assert report["corpus_binding"]["total_fixture_count"] == 4
+    assert artifacts["visibility"][0]["global_visible_history_row_count"] == 2
+    assert report["split_policy"]["historical_replay_cutoff"] == (
+        cli.HISTORICAL_REPLAY_CUTOFF
+    )
+    assert report["split_policy"]["historical_replay_cutoff"] < corpus["snapshot_as_of"]
     assert report["split_policy"]["historical_replay_cutoff_in_split_manifest_hash"] is True
     assert report["feature_time_contract"][
         "source_kickoff_gte_feature_as_of_violation_count"
     ] == 0
     assert report["missing_feature_contract"][
         "zero_feature_scope_visible_history_fixture_ids"
-    ] == ["api_football:0"]
+    ] == []
     assert report["missing_feature_contract"]["full_corpus_mean_imputation_used"] is False
     assert report["late_result_policy"] == {
-        "backfilled_fixture_count_over_36h": 4,
+        "backfilled_fixture_count_over_36h": 5,
         "provider_sla_interpretation": False,
         "included_in_feature_values": False,
         "used_for_visibility_or_timeliness_decisions": False,
@@ -109,8 +117,11 @@ def test_split_train_report_separates_snapshot_and_feature_times(
     }
     assert report["train_calibration"]["fit_split"] == "TRAIN"
     assert report["train_calibration"]["validation_or_holdout_used_for_fit"] is False
-    assert report["f6_owner_decision"]["status"] == "BLOCKED_OWNER_DECISION_REQUIRED"
-    assert report["f6_owner_decision"]["selected_option"] is None
+    assert report["f6_owner_decision"]["status"] == (
+        "OPTION_B_APPROVED_BACKFILL_COVERAGE_REVIEW_PENDING"
+    )
+    assert report["f6_owner_decision"]["selected_option"] == "B"
+    assert report["f6_owner_decision"]["after_warmup_observed_rate"] is not None
     assert report["f6_owner_decision"]["defaults_or_priors_applied"] is False
     assert report["contracts"]["ablation_scoring_executed"] is False
 

@@ -29,12 +29,13 @@ from w2.factor_model.pit_features import RecursiveRatingPolicy, build_pit_featur
 
 EXPECTED_CORPUS_SHA256 = "2f2075104989d07977acec40106084744f181510e44caa8ac7201000d98c00c5"
 EXPECTED_CORPUS_SNAPSHOT_AS_OF = datetime(2026, 8, 21, 19, 18, 10, 674088, tzinfo=UTC)
+HISTORICAL_REPLAY_CUTOFF = datetime(2026, 8, 21, 19, 18, 10, 674088, tzinfo=UTC)
 SPLIT_POLICY = TemporalSplitPolicy(
-    version="factor-v2.calendar-years-2024-2026.warmup-200.cutoff-snapshot.v2",
+    version="factor-v2.calendar-years-2024-2026.warmup-200.fixed-cutoff.v3",
     train_start=datetime(2024, 1, 1, tzinfo=UTC),
     train_end=datetime(2025, 1, 1, tzinfo=UTC),
     validation_end=datetime(2026, 1, 1, tzinfo=UTC),
-    holdout_end=EXPECTED_CORPUS_SNAPSHOT_AS_OF,
+    holdout_end=HISTORICAL_REPLAY_CUTOFF,
 )
 RATING_POLICY = RecursiveRatingPolicy(
     version="factor-v2.elo-1500-k20-ha60-r400.v1",
@@ -67,7 +68,12 @@ def _hash(identity_type: str, payload: Mapping[str, Any]) -> str:
     )
 
 
-def _normalized_corpus(payload: Mapping[str, Any]) -> dict[str, Any]:
+def _normalized_corpus(
+    payload: Mapping[str, Any],
+    *,
+    expected_corpus_sha256: str,
+    expected_snapshot_as_of: datetime,
+) -> dict[str, Any]:
     if payload.get("schema_version") != RAW_HISTORY_CORPUS_SCHEMA_VERSION:
         raise ValueError("FACTOR_V2_TRAIN_CORPUS_SCHEMA_INVALID")
     rows = payload.get("history_rows")
@@ -93,9 +99,9 @@ def _normalized_corpus(payload: Mapping[str, Any]) -> dict[str, Any]:
         "FACTOR_MODEL_GATE1_RAW_HISTORY_CORPUS", body
     ):
         raise ValueError("FACTOR_V2_TRAIN_CORPUS_HASH_MISMATCH")
-    if normalized["corpus_sha256"] != EXPECTED_CORPUS_SHA256:
+    if normalized["corpus_sha256"] != expected_corpus_sha256:
         raise ValueError("FACTOR_V2_TRAIN_CORPUS_NOT_FROZEN_INPUT")
-    if normalized["snapshot_as_of"] != EXPECTED_CORPUS_SNAPSHOT_AS_OF:
+    if normalized["snapshot_as_of"] != expected_snapshot_as_of:
         raise ValueError("FACTOR_V2_TRAIN_CORPUS_SNAPSHOT_NOT_FROZEN_INPUT")
     return normalized
 
@@ -177,17 +183,33 @@ def _contains_forbidden_field(value: Any) -> bool:
     return False
 
 
-def build_artifacts(corpus_payload: Mapping[str, Any]) -> dict[str, Any]:
-    corpus = _normalized_corpus(corpus_payload)
+def build_artifacts(
+    corpus_payload: Mapping[str, Any],
+    *,
+    expected_corpus_sha256: str = EXPECTED_CORPUS_SHA256,
+    expected_snapshot_as_of: datetime = EXPECTED_CORPUS_SNAPSHOT_AS_OF,
+    warmup_minimum_feature_scope_history_rows: int = (
+        WARMUP_MINIMUM_FEATURE_SCOPE_HISTORY_ROWS
+    ),
+) -> dict[str, Any]:
+    corpus = _normalized_corpus(
+        corpus_payload,
+        expected_corpus_sha256=expected_corpus_sha256,
+        expected_snapshot_as_of=expected_snapshot_as_of,
+    )
     rows = list(corpus["history_rows"])
-    targets = _targets(rows)
+    source_fixtures = _targets(rows)
+    targets = [
+        target
+        for target in source_fixtures
+        if SPLIT_POLICY.train_start
+        <= target["kickoff_utc"]
+        < SPLIT_POLICY.holdout_end
+    ]
     rows_by_league: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    target_count_by_league: dict[str, int] = defaultdict(int)
     for row in rows:
         rows_by_league[str(row["provider_league_id"])].append(row)
-    for target in targets:
-        target_count_by_league[str(target["provider_league_id"])] += 1
-    kickoff_index = sorted(target["kickoff_utc"] for target in targets)
+    kickoff_index = sorted(target["kickoff_utc"] for target in source_fixtures)
 
     snapshots: list[dict[str, Any]] = []
     visibility: list[dict[str, Any]] = []
@@ -238,15 +260,14 @@ def build_artifacts(corpus_payload: Mapping[str, Any]) -> dict[str, Any]:
                 "global_visible_history_row_count": global_visible,
                 "global_total_history_row_count": len(rows),
                 "feature_scope_visible_history_row_count": feature_visible,
-                "feature_scope_total_history_row_count": target_count_by_league[league_id]
-                * 2,
+                "feature_scope_total_history_row_count": len(rows_by_league[league_id]),
                 "feature_history_missing": feature_missing,
                 "historical_replay_eligible": (
-                    feature_visible >= WARMUP_MINIMUM_FEATURE_SCOPE_HISTORY_ROWS
+                    feature_visible >= warmup_minimum_feature_scope_history_rows
                 ),
                 "historical_replay_exclusion_reason": (
                     None
-                    if feature_visible >= WARMUP_MINIMUM_FEATURE_SCOPE_HISTORY_ROWS
+                    if feature_visible >= warmup_minimum_feature_scope_history_rows
                     else "WARMUP_INSUFFICIENT_SAME_LEAGUE_HISTORY"
                 ),
             }
@@ -313,7 +334,7 @@ def build_artifacts(corpus_payload: Mapping[str, Any]) -> dict[str, Any]:
     }
     warmup_candidates = []
     train_before = by_split_before["TRAIN"]
-    for threshold in (100, 200, 300, 400):
+    for threshold in (0, 100, 200, 300, 400, 600, 800, 1000):
         retained = [
             row
             for row in train_before
@@ -369,11 +390,12 @@ def build_artifacts(corpus_payload: Mapping[str, Any]) -> dict[str, Any]:
         if int(row.get("result_capture_delay_seconds") or 0) > 36 * 60 * 60
     }
     report_body = {
-        "schema_version": "w2.factor_model.gate1_split_train_report.v1",
+        "schema_version": "w2.factor_model.gate1_split_train_report.v2",
         "corpus_binding": {
             "corpus_snapshot_as_of": corpus["snapshot_as_of"],
             "corpus_sha256": str(corpus["corpus_sha256"]),
             "total_fixture_count": len(targets),
+            "total_source_fixture_count": len(source_fixtures),
             "total_history_row_count": len(rows),
         },
         "feature_time_contract": {
@@ -419,12 +441,12 @@ def build_artifacts(corpus_payload: Mapping[str, Any]) -> dict[str, Any]:
         "warmup_policy": {
             "status": "FROZEN_INPUT_COVERAGE_RULE",
             "minimum_feature_scope_history_row_count": (
-                WARMUP_MINIMUM_FEATURE_SCOPE_HISTORY_ROWS
+                warmup_minimum_feature_scope_history_rows
             ),
             "history_row_semantics": "TWO_TEAM_ROWS_PER_SOURCE_FIXTURE",
             "selection_basis": (
-                "HIGHEST_ROUND_HUNDRED_CANDIDATE_RETAINING_ALL_13_PROVIDER_LEAGUES;"
-                "NO_OUTCOME_OR_ABLATION_METRIC_USED"
+                "FROZEN_PRE_BACKFILL_INPUT_COVERAGE_GUARD;"
+                "REEVALUATE_WITHOUT_OUTCOME_OR_ABLATION_METRICS"
             ),
             "candidate_threshold_evidence": warmup_candidates,
             "train_retention_by_provider_league": train_retention_by_provider_league,
@@ -538,22 +560,27 @@ def build_artifacts(corpus_payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         },
         "f6_owner_decision": {
-            "status": "BLOCKED_OWNER_DECISION_REQUIRED",
-            "selected_option": None,
+            "status": "OPTION_B_APPROVED_BACKFILL_COVERAGE_REVIEW_PENDING",
+            "selected_option": "B",
             "before_warmup_observed_count": factor_observed(train_before)["F6_H2H"],
             "before_warmup_train_fixture_count": len(train_before),
+            "before_warmup_observed_rate": ratio(
+                factor_observed(train_before)["F6_H2H"], len(train_before)
+            ),
             "after_warmup_observed_count": factor_observed(by_split_after["TRAIN"])[
                 "F6_H2H"
             ],
             "after_warmup_train_fixture_count": len(by_split_after["TRAIN"]),
+            "after_warmup_observed_rate": ratio(
+                factor_observed(by_split_after["TRAIN"])["F6_H2H"],
+                len(by_split_after["TRAIN"]),
+            ),
             "defaults_or_priors_applied": False,
             "preprocessing_status": preprocessing["parameters"]["F6_H2H"]["status"],
-            "permitted_owner_options": {
-                "A": "EXCLUDE_F6_FROM_GATE1_AND_RUN_F3_F7_ONLY",
-                "B": (
-                    "BACKFILL_2022_2023_WITH_SEPARATE_PROVIDER_AND_QUOTA_AUTHORIZATION"
-                ),
-            },
+            "approved_backfill_seasons": ["2022", "2023"],
+            "fallback_if_still_below_usable_coverage": (
+                "OPTION_A_EXCLUDE_F6_WITHOUT_DEFAULT_OR_PRIOR"
+            ),
         },
         "rating_policy": {
             "version": RATING_POLICY.version,
@@ -614,8 +641,8 @@ def _markdown(report: Mapping[str, Any]) -> str:
         "visible same-provider-league history rows "
         f"(`{report['warmup_policy']['minimum_feature_scope_history_row_count'] // 2}` "
         "source fixtures).",
-        "- Selection: highest tested round-hundred threshold retaining all 13 leagues; "
-        "no outcome or ablation metric was used.",
+        "- Selection: preserve the frozen pre-backfill input-coverage guard, then "
+        "re-evaluate candidate thresholds without outcome or ablation metrics.",
         "",
         "| split | stage | targets | global visible rows min/p50/p90/max | "
         "feature-scope visible rows min/p50/p90/max |",
@@ -658,8 +685,9 @@ def _markdown(report: Mapping[str, Any]) -> str:
             "normalization may only use TRAIN observed means plus a missing indicator.",
             "- Factor-effect coefficients remain deferred until baseline residual "
             "inputs have a separate AS-OF justification.",
-            "- F6 remains `BLOCKED_OWNER_DECISION_REQUIRED`; no default, prior, "
-            "mean, coefficient, or ablation value is applied.",
+            "- F6 option B is approved, but remains preprocessing-blocked until the "
+            "2022/2023 backfill coverage review; no default, prior, mean, "
+            "coefficient, or ablation value is applied.",
         )
     )
     return "\n".join(lines) + "\n"
@@ -696,11 +724,28 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--expected-corpus-sha256", default=EXPECTED_CORPUS_SHA256)
+    parser.add_argument(
+        "--expected-corpus-snapshot-as-of",
+        default=_json(EXPECTED_CORPUS_SNAPSHOT_AS_OF),
+    )
+    parser.add_argument(
+        "--warmup-minimum-feature-scope-history-rows",
+        type=int,
+        default=WARMUP_MINIMUM_FEATURE_SCOPE_HISTORY_ROWS,
+    )
     args = parser.parse_args()
     corpus = json.loads(args.corpus.read_text(encoding="utf-8"))
     if not isinstance(corpus, Mapping):
         raise ValueError("FACTOR_V2_TRAIN_CORPUS_JSON_INVALID")
-    artifacts = build_artifacts(corpus)
+    artifacts = build_artifacts(
+        corpus,
+        expected_corpus_sha256=args.expected_corpus_sha256,
+        expected_snapshot_as_of=_utc(args.expected_corpus_snapshot_as_of),
+        warmup_minimum_feature_scope_history_rows=(
+            args.warmup_minimum_feature_scope_history_rows
+        ),
+    )
     write_artifacts(args.output_dir, artifacts)
     report = artifacts["report"]
     print(
