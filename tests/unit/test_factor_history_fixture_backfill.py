@@ -119,6 +119,14 @@ def test_plan_is_exact_26_and_provider_zero() -> None:
 
     assert report["scope_count"] == BACKFILL_LOGICAL_REQUEST_CAP == 26
     assert report["endpoint_allowlist"] == ["fixtures"]
+    assert report["protected_near_match_checkpoints"] == [
+        "T60_ODDS_LINEUPS",
+        "T45_ODDS",
+        "T45_LINEUPS_RETRY",
+        "T-30m_VALIDATION_LOCK",
+        "T30_LINEUPS_RETRY",
+        "T15_ODDS",
+    ]
     assert report["worst_case_pending_seconds"] == 2417
     assert report["quiet_window_reserve_seconds"] == 1183
     assert report["provider_calls"] == 0
@@ -139,6 +147,27 @@ def test_weekend_live_execution_is_hard_blocked() -> None:
     assert report["blockers"] == ["WEEKEND_BACKFILL_FORBIDDEN"]
     assert client.calls == []
     assert repository.rows == []
+
+
+def test_owner_authorized_quiet_window_is_limited_to_august_22_before_09z() -> None:
+    repository = _Repository()
+    client = _Client()
+
+    report = _service(
+        repository=repository,
+        client=client,
+        current=datetime(2026, 8, 22, 5, 45, tzinfo=UTC),
+    ).run(live=True, owner_authorized_2026_08_22_quiet_window=True)
+
+    assert report["blockers"] == []
+    assert report["logical_request_count"] == 26
+
+    blocked = _service(
+        repository=_Repository(),
+        client=_Client(),
+        current=datetime(2026, 8, 22, 9, tzinfo=UTC),
+    ).run(live=True, owner_authorized_2026_08_22_quiet_window=True)
+    assert blocked["blockers"] == ["WEEKEND_BACKFILL_FORBIDDEN"]
 
 
 def test_active_matchday_window_blocks_before_provider_call() -> None:

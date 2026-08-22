@@ -45,6 +45,7 @@ RATING_POLICY = RecursiveRatingPolicy(
     rating_scale=400.0,
 )
 SPLITS = ("TRAIN", "VALIDATION", "HOLDOUT")
+TARGET_SEASONS = frozenset({"2024", "2025", "2026"})
 FACTOR_IDS = ("F3_REST_FITNESS", "F6_H2H", "F7_STRENGTH_FORM")
 WARMUP_MINIMUM_FEATURE_SCOPE_HISTORY_ROWS = 200
 F6_BLOCKED_FACTOR_IDS = ("F6_H2H",)
@@ -202,7 +203,8 @@ def build_artifacts(
     targets = [
         target
         for target in source_fixtures
-        if SPLIT_POLICY.train_start
+        if target["season"] in TARGET_SEASONS
+        and SPLIT_POLICY.train_start
         <= target["kickoff_utc"]
         < SPLIT_POLICY.holdout_end
     ]
@@ -409,6 +411,8 @@ def build_artifacts(
         "split_policy": {
             "policy_version": SPLIT_POLICY.version,
             "assignment_field": "target_fixture_kickoff_utc",
+            "target_seasons": sorted(TARGET_SEASONS),
+            "backfill_seasons_are_history_only": True,
             "interval_semantics": "HALF_OPEN",
             "train_start": SPLIT_POLICY.train_start,
             "train_end": SPLIT_POLICY.train_end,
@@ -685,8 +689,9 @@ def _markdown(report: Mapping[str, Any]) -> str:
             "normalization may only use TRAIN observed means plus a missing indicator.",
             "- Factor-effect coefficients remain deferred until baseline residual "
             "inputs have a separate AS-OF justification.",
-            "- F6 option B is approved, but remains preprocessing-blocked until the "
-            "2022/2023 backfill coverage review; no default, prior, mean, "
+            "- F6 option B backfill coverage is measured, but remains "
+            "preprocessing-blocked until Owner rules whether it is usable; no "
+            "default, prior, mean, "
             "coefficient, or ablation value is applied.",
         )
     )

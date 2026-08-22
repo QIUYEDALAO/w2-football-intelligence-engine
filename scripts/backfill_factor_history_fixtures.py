@@ -32,9 +32,19 @@ from w2.providers.quota import parse_api_football_quota, provider_daily_hard_cap
 BACKFILL_SEASONS = ("2022", "2023")
 BACKFILL_LOGICAL_REQUEST_CAP = len(REQUIRED_MATCHDAY_COMPETITIONS) * len(BACKFILL_SEASONS)
 BLOCKED_UTC_DATES = frozenset({date(2026, 8, 22), date(2026, 8, 23)})
+AUTHORIZED_QUIET_WINDOW_DATE = date(2026, 8, 22)
+AUTHORIZED_QUIET_WINDOW_LATEST_START = datetime(2026, 8, 22, 9, tzinfo=UTC)
 QUIET_LOOKBACK = timedelta(minutes=15)
 QUIET_HORIZON = timedelta(minutes=60)
 ACTIVE_PLAN_STATUSES = ("PLANNED", "DUE")
+NEAR_MATCH_CHECKPOINTS = (
+    "T60_ODDS_LINEUPS",
+    "T45_ODDS",
+    "T45_LINEUPS_RETRY",
+    "T-30m_VALIDATION_LOCK",
+    "T30_LINEUPS_RETRY",
+    "T15_ODDS",
+)
 
 
 class HistoricalFixtureBackfillError(RuntimeError):
@@ -185,6 +195,7 @@ def blocking_checkpoint_plans(
                 select(plans)
                 .where(
                     plans.test_only.is_(False),
+                    plans.checkpoint.in_(NEAR_MATCH_CHECKPOINTS),
                     plans.window_end >= start,
                     plans.window_start <= end,
                     or_(
@@ -306,7 +317,9 @@ class HistoricalFixtureBackfillService:
         self.quiet_guard = quiet_guard
         self.runtime_hardening_guard = runtime_hardening_guard
 
-    def run(self, *, live: bool) -> dict[str, Any]:
+    def run(
+        self, *, live: bool, owner_authorized_2026_08_22_quiet_window: bool = False
+    ) -> dict[str, Any]:
         started_at = self.now().astimezone(UTC)
         raw_rows = self.repository.raw_payloads("fixtures")
         cached = _cached_scopes(raw_rows, self.scopes)
@@ -353,6 +366,7 @@ class HistoricalFixtureBackfillService:
             ),
             "quiet_window_lookback_minutes": int(QUIET_LOOKBACK.total_seconds() / 60),
             "quiet_window_horizon_minutes": int(QUIET_HORIZON.total_seconds() / 60),
+            "protected_near_match_checkpoints": list(NEAR_MATCH_CHECKPOINTS),
             "scheduler_used": False,
             "provider_calls": 0,
             "logical_request_count": 0,
@@ -363,10 +377,18 @@ class HistoricalFixtureBackfillService:
             "blockers": [],
             "scope_results": scope_results,
             "live": live,
+            "owner_authorized_2026_08_22_quiet_window": (
+                owner_authorized_2026_08_22_quiet_window
+            ),
         }
         if not live or not pending:
             return report
-        if started_at.date() in BLOCKED_UTC_DATES:
+        authorized_quiet_window = (
+            owner_authorized_2026_08_22_quiet_window
+            and started_at.date() == AUTHORIZED_QUIET_WINDOW_DATE
+            and started_at < AUTHORIZED_QUIET_WINDOW_LATEST_START
+        )
+        if started_at.date() in BLOCKED_UTC_DATES and not authorized_quiet_window:
             report["blockers"] = ["WEEKEND_BACKFILL_FORBIDDEN"]
             return report
         self.runtime_hardening_guard()
@@ -510,6 +532,11 @@ def main() -> int:
         description="Exact-13 x 2022/2023 fixtures-only Gate 1 history backfill."
     )
     parser.add_argument("--live", action="store_true")
+    parser.add_argument(
+        "--owner-authorized-2026-08-22-quiet-window",
+        action="store_true",
+        help="One-time Owner override; valid only before 2026-08-22T09:00Z.",
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
     engine = create_engine()
@@ -525,7 +552,12 @@ def main() -> int:
         quiet_guard=lambda as_of: blocking_checkpoint_plans(engine, as_of=as_of),
         runtime_hardening_guard=_runtime_hardening_guard,
     )
-    report = service.run(live=args.live)
+    report = service.run(
+        live=args.live,
+        owner_authorized_2026_08_22_quiet_window=(
+            args.owner_authorized_2026_08_22_quiet_window
+        ),
+    )
     args.output_dir.mkdir(parents=True, exist_ok=False)
     write_json_atomic(args.output_dir / "fixture_backfill_report.json", report)
     print(json.dumps(report, sort_keys=True, default=_json_default))

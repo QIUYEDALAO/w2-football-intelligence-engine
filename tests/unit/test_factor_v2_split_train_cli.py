@@ -9,7 +9,9 @@ import scripts.freeze_factor_v2_split_and_train as cli
 from w2.factor_model.history import RAW_HISTORY_CORPUS_SCHEMA_VERSION
 
 
-def _pair(index: int, kickoff: datetime) -> list[dict[str, Any]]:
+def _pair(
+    index: int, kickoff: datetime, *, season: str | None = None
+) -> list[dict[str, Any]]:
     fixture_id = f"api_football:{index}"
     captured_at = kickoff + timedelta(days=40)
     common = {
@@ -17,7 +19,7 @@ def _pair(index: int, kickoff: datetime) -> list[dict[str, Any]]:
         "provider": "api_football",
         "provider_fixture_id": str(index),
         "provider_league_id": "140",
-        "season": str(kickoff.year),
+        "season": season or str(kickoff.year),
         "kickoff_utc": kickoff,
         "fixture_status": "FT",
         "team_identity_namespace": "api_football.provider_team_id.v1",
@@ -61,6 +63,7 @@ def _corpus() -> dict[str, Any]:
         "seasons": ["2023", "2024", "2025", "2026"],
         "history_rows": (
             _pair(0, datetime(2023, 5, 1, tzinfo=UTC))
+            + _pair(5, datetime(2024, 1, 15, tzinfo=UTC), season="2023")
             + _pair(1, datetime(2024, 5, 1, tzinfo=UTC))
             + _pair(2, datetime(2024, 6, 1, tzinfo=UTC))
             + _pair(3, datetime(2025, 6, 1, tzinfo=UTC))
@@ -93,9 +96,11 @@ def test_split_train_report_separates_snapshot_and_feature_times(tmp_path: Path)
         "VALIDATION": 1,
         "HOLDOUT": 1,
     }
-    assert report["corpus_binding"]["total_source_fixture_count"] == 5
+    assert report["corpus_binding"]["total_source_fixture_count"] == 6
     assert report["corpus_binding"]["total_fixture_count"] == 4
-    assert artifacts["visibility"][0]["global_visible_history_row_count"] == 2
+    assert artifacts["visibility"][0]["global_visible_history_row_count"] == 4
+    assert report["split_policy"]["target_seasons"] == ["2024", "2025", "2026"]
+    assert report["split_policy"]["backfill_seasons_are_history_only"] is True
     assert report["split_policy"]["historical_replay_cutoff"] == (
         cli.HISTORICAL_REPLAY_CUTOFF
     )
@@ -109,7 +114,7 @@ def test_split_train_report_separates_snapshot_and_feature_times(tmp_path: Path)
     ] == []
     assert report["missing_feature_contract"]["full_corpus_mean_imputation_used"] is False
     assert report["late_result_policy"] == {
-        "backfilled_fixture_count_over_36h": 5,
+        "backfilled_fixture_count_over_36h": 6,
         "provider_sla_interpretation": False,
         "included_in_feature_values": False,
         "used_for_visibility_or_timeliness_decisions": False,
