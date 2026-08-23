@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -118,6 +119,11 @@ class CandidateNotificationOutboxModel(Base):
             "ix_candidate_notification_opportunity",
             "opportunity_identity_hash",
             "created_at",
+        ),
+        CheckConstraint(
+            "delivery_status in ('PENDING', 'RETRY_PENDING', 'DELIVERED', 'FAILED', "
+            "'DIGEST_PENDING', 'DIGESTED', 'SUPPRESSED')",
+            name="ck_candidate_notification_delivery_status",
         ),
     )
 

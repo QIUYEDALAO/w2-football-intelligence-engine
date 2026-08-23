@@ -761,6 +761,55 @@ def test_an_unrelated_market_on_a_locked_fixture_is_not_pushed() -> None:
     assert (route, reason) == ("SUPPRESS", "NO_LOCK_PUSHED_FOR_THIS_MARKET")
 
 
+def _lock_then_change(engine) -> None:  # type: ignore[no-untyped-def]
+    repository = DynamicPrematchRepository(engine)
+    repository.append_evaluation(_attempt("T3_ODDS", "a"))
+    repository.append_evaluation(_attempt("T60_ODDS_LINEUPS", "bb", line=-0.5))
+    repository.append_evaluation(_attempt("T-30m_VALIDATION_LOCK", "ddd", line=-0.5))
+    repository.append_evaluation(_attempt("T15_ODDS", "eeee", line=-0.75))
+
+
+def test_change_is_suppressed_when_the_lock_push_failed(monkeypatch) -> None:
+    engine = _engine()
+    _lock_then_change(engine)
+    monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app")
+    monkeypatch.setenv("W2_BARK_DEVICE_KEY", "owner-device-test-key")
+    sent: list[str] = []
+
+    def fail_lock(payload) -> None:  # type: ignore[no-untyped-def]
+        sent.append(str(payload["event_type"]))
+        if payload["event_type"] == CANDIDATE_T30_CONFIRMED:
+            raise TimeoutError
+
+    deliver_pending_notifications(now=NOW + timedelta(minutes=10), engine=engine, sender=fail_lock)
+
+    assert sent == [CANDIDATE_T30_CONFIRMED]
+    events = _events(engine)
+    lock = next(row for row in events if row.event_type == CANDIDATE_T30_CONFIRMED)
+    changes = [row for row in events if row.event_type == CANDIDATE_MATERIAL_CHANGE]
+    assert lock.delivery_status == RETRY_PENDING
+    assert changes[-1].delivery_status == candidate_notifications.SUPPRESSED
+
+
+def test_successful_lock_unlocks_a_later_change_in_the_same_batch(monkeypatch) -> None:
+    engine = _engine()
+    _lock_then_change(engine)
+    monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app")
+    monkeypatch.setenv("W2_BARK_DEVICE_KEY", "owner-device-test-key")
+    sent: list[dict[str, object]] = []
+
+    deliver_pending_notifications(
+        now=NOW + timedelta(minutes=10),
+        engine=engine,
+        sender=sent.append,
+    )
+
+    assert [payload["event_type"] for payload in sent] == [
+        CANDIDATE_T30_CONFIRMED,
+        CANDIDATE_MATERIAL_CHANGE,
+    ]
+
+
 def test_brewing_digest_waits_for_its_window_to_close() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)

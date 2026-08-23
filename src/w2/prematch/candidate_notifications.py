@@ -409,7 +409,8 @@ def _confirmed_at_by_key(session: Session) -> dict[tuple[str, str], datetime]:
     confirmed: dict[tuple[str, str], datetime] = {}
     for row in session.scalars(
         select(CandidateNotificationOutboxModel).where(
-            CandidateNotificationOutboxModel.event_type == CANDIDATE_T30_CONFIRMED
+            CandidateNotificationOutboxModel.event_type == CANDIDATE_T30_CONFIRMED,
+            CandidateNotificationOutboxModel.delivery_status == DELIVERED,
         )
     ):
         key = _fixture_market_key(row.payload)
@@ -544,8 +545,15 @@ def deliver_pending_notifications(
             else:
                 delivered_count += 1
                 key = _fixture_market_key(row.payload)
-                if key is not None and str(row.event_type) == CANDIDATE_WITHDRAWN:
-                    withdrawals_pushed.add(key)
+                event_type = str(row.event_type)
+                if key is not None:
+                    if event_type == CANDIDATE_T30_CONFIRMED:
+                        confirmed_at[key] = min(
+                            confirmed_at.get(key, _aware(row.created_at)),
+                            _aware(row.created_at),
+                        )
+                    elif event_type == CANDIDATE_WITHDRAWN:
+                        withdrawals_pushed.add(key)
                 record_delivery_result_in_session(
                     session,
                     notification_event_id=row.notification_event_id,
