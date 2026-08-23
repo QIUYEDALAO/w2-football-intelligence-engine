@@ -1,0 +1,78 @@
+{
+  "schema_version": "w2.ev_se.offline_preregistration_evidence.v1",
+  "status": "PRE_MODEL_DIAGNOSTIC_PASS_PARAMETER_GATE_OPEN",
+  "observed_at": "2026-08-23T12:00:50Z",
+  "production": {
+    "release_id": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1",
+    "schema": "0070_notification_delivery_routing",
+    "provider_calls": 0,
+    "database_writes": 0,
+    "outcomes_read": 0
+  },
+  "age_falsification": {
+    "usable_evaluations": 2603,
+    "distinct_fixtures": 162,
+    "ev_se": {
+      "min": 0.028387,
+      "mean": 0.053626,
+      "max": 0.121181
+    },
+    "raw_latest_age_ev_se_correlation": -0.029046,
+    "raw_min_n_ev_se_correlation": -0.787364,
+    "fixed_effect_age_ev_se_correlation": 0.002498,
+    "fixed_effect_strata": [
+      "home_n",
+      "away_n",
+      "market",
+      "selection"
+    ],
+    "fixed_effect_rows": 2582,
+    "n20_n20": {
+      "evaluations": 2293,
+      "fixtures": 139,
+      "age_median_days": 14.0,
+      "age_ev_se_correlation": -0.004335,
+      "fresh_age_mean_days": 9.156,
+      "fresh_ev_se_mean": 0.0491,
+      "old_age_mean_days": 71.219,
+      "old_ev_se_mean": 0.050651
+    }
+  },
+  "coefficient_propagation": {
+    "interior_lambda_jacobian_per_xg_mean": 0.5,
+    "frozen_model_captures": 157,
+    "base_total_inside_1_35_4_40": 156,
+    "base_total_above_4_40": 1,
+    "base_total_below_1_35": 0,
+    "ev_se_node_weight_effective_sigma_multiplier": 0.7071067812,
+    "simulation_node_weight_effective_sigma_multiplier": 0.5633027605,
+    "shared_sigma_semantics": "UNRESOLVED"
+  },
+  "coverage_denominator": {
+    "runtime_canonical_team_match_history_rows": 102,
+    "runtime_active_competition_rows": 0,
+    "offline_corpus": {
+      "snapshot_as_of": "2026-08-22T05:50:41.929427Z",
+      "corpus_sha256": "d19b217afe159c87dbf8d0dea87c260374ac9d18ffd8bb97581cfffe858cedc5",
+      "history_rows": 38706,
+      "team_identity_namespace": "api_football.provider_team_id.v1"
+    },
+    "active_11_competitions": {
+      "evaluations": 2265,
+      "both_sides_full_expected_latest20_coverage": 897,
+      "legacy_n20_both_but_expected_latest20_missing": 1274,
+      "false_full_share_at_legacy_n20_both": 0.586826,
+      "side_rows_with_missing_expected_xg": 2379,
+      "side_coverage_min": 0.2,
+      "side_coverage_median": 0.95,
+      "side_coverage_mean": 0.858355
+    }
+  },
+  "forbidden_uses": [
+    "CURRENT_65_PICK_PROFIT_TUNING",
+    "AGE_CUTOFF_BACKTEST_SELECTION",
+    "EV_CAP_BACKTEST_SELECTION",
+    "STALE_XG_CAUSES_HIGH_EV_CLAIM",
+    "PRODUCTION_PARAMETER_CHANGE_WITHOUT_OWNER_APPROVAL"
+  ]
+}
