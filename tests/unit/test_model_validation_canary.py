@@ -20,6 +20,7 @@ from w2.infrastructure.persistence.future_refresh_models import (
     RawStatisticsRetentionModel,
     TeamXgMatchModel,
 )
+from w2.infrastructure.persistence.league_models import LeagueSeasonModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayFixtureIdentityModel,
@@ -81,8 +82,9 @@ def test_canary_passes_valid_independent_ledger_and_unlocks_packet(
     }
     assert report["model_forecast_ledger_integrity"]["invalid_capture_count"] == 0
     assert (
-        report["probability_metrics_by_data_version_and_lead_time"]
-        ["TEAM_XG_MATCH_ROWS_2"]["lead_time_buckets"]["LT_6H"]["sample_count"]
+        report["probability_metrics_by_data_version_and_lead_time"]["TEAM_XG_MATCH_ROWS_2"][
+            "lead_time_buckets"
+        ]["LT_6H"]["sample_count"]
         == 1
     )
     packet = tmp_path / "PRO_REOPEN_OWNER_DECISION_PACKET.md"
@@ -222,6 +224,18 @@ def _engine(tmp_path: Path):  # type: ignore[no-untyped-def]
     ModelForecastOutcomeModel.__table__.create(engine)
     OutcomeLedgerModel.__table__.create(engine)
     ResultModel.__table__.create(engine)
+    LeagueSeasonModel.__table__.create(engine)
+    with Session(engine) as session:
+        session.add(
+            LeagueSeasonModel(
+                id="season-allsvenskan-2026",
+                competition_id="allsvenskan",
+                season="2026",
+                lifecycle="ACTIVE",
+                payload={"enabled": True, "environment": "local"},
+            )
+        )
+        session.commit()
     return engine
 
 

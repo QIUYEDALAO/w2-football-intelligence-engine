@@ -66,6 +66,7 @@ from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamModel,
 )
 from w2.infrastructure.persistence.future_refresh_models import TeamXgMatchModel
+from w2.infrastructure.persistence.league_models import LeagueSeasonModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
@@ -478,8 +479,18 @@ def _official_funnel_recommendations(
     fixtures: Mapping[str, MatchdayFixtureIdentityModel],
     results: Mapping[str, ResultModel],
     public_team_labels: Mapping[str, Mapping[str, Mapping[str, Any]]],
+    active_competitions: frozenset[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Project picks whose last opportunity with a real evaluation is a candidate."""
+    """Project picks whose last opportunity with a real evaluation is a candidate.
+
+    A competition withdrawn from the whitelist keeps its rows -- the ledgers are
+    append-only and the corpus is frozen against them -- but its picks stop
+    counting towards the record, because the record is meant to describe the
+    system as it currently stands. Chinese Super League and Allsvenskan were
+    withdrawn on 2026-08-23: the Provider returns their fixture statistics with
+    expected_goals null, so the four-field xG gate was being satisfied by
+    evidence that could never be refreshed.
+    """
 
     evaluated_attempts = evaluated_attempt_identities(evaluations)
     final_opportunities = final_official_opportunities(
@@ -516,6 +527,12 @@ def _official_funnel_recommendations(
         final = final_opportunities[(fixture_id, market)]
         payload = row.payload
         fixture = fixtures.get(fixture_id)
+        if (
+            active_competitions is not None
+            and fixture is not None
+            and str(fixture.competition_id) not in active_competitions
+        ):
+            continue
         canonical_fixture_id = (
             str(fixture.fixture_id) if fixture is not None else f"api_football:{fixture_id}"
         )
@@ -1642,9 +1659,7 @@ class ReadModelRepository:
                     payload["original_state"] = evaluation_row.original_state
                     payload["bookmaker_count"] = evaluation_row.bookmaker_count
                     payload["first_failed_gate"] = evaluation_row.first_failed_gate
-                    payload["all_failed_gates"] = list(
-                        evaluation_row.all_failed_gates or []
-                    )
+                    payload["all_failed_gates"] = list(evaluation_row.all_failed_gates or [])
                     payload["gate_results"] = dict(evaluation_row.gate_results or {})
                     supersession = supersessions.get(evaluation_row.evaluation_id)
                     if supersession is not None:
@@ -1882,6 +1897,11 @@ class ReadModelRepository:
                         OutcomeLedgerModel.capture_identity_hash.in_(current_flow_capture_hashes),
                     )
                 )
+                active_competitions = frozenset(
+                    str(row.competition_id)
+                    for row in session.scalars(select(LeagueSeasonModel))
+                    if isinstance(row.payload, dict) and row.payload.get("enabled") is True
+                )
             candidate_team_labels = self.public_team_labels_for_fixtures(
                 sorted(candidate_fixture_ids)
             )
@@ -1900,6 +1920,7 @@ class ReadModelRepository:
             {row.provider_fixture_id: row for row in candidate_fixtures},
             {row.fixture_id: row for row in candidate_results},
             candidate_team_labels,
+            active_competitions=active_competitions,
         )
         ever_formed_candidate_count = len(
             {

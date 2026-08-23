@@ -18,7 +18,10 @@
 # look current while thirty of its neighbours carry no xG at all.
 set -uo pipefail
 
-COMPS=${W2_XG_REFRESH_COMPETITIONS:-"premier_league la_liga bundesliga serie_a ligue_1 brasileirao_serie_a argentina_primera mls chinese_super_league allsvenskan eliteserien eredivisie primeira_liga"}
+# Chinese Super League and Allsvenskan were withdrawn on 2026-08-23: the
+# Provider returns their fixture statistics with expected_goals null, so no
+# amount of fetching brings their xG current.
+COMPS=${W2_XG_REFRESH_COMPETITIONS:-"premier_league la_liga bundesliga serie_a ligue_1 brasileirao_serie_a argentina_primera mls eliteserien eredivisie primeira_liga"}
 BUDGET=${W2_XG_REFRESH_BUDGET_PER_COMPETITION:-80}
 GUARD_MINUTES=${W2_XG_REFRESH_PREMATCH_GUARD_MINUTES:-45}
 MIN_COVERAGE=${W2_XG_REFRESH_MIN_COVERAGE_PERCENT:-70}
