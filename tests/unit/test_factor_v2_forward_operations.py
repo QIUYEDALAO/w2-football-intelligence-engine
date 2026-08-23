@@ -12,7 +12,7 @@ def test_forward_preregistration_is_frozen_before_collection() -> None:
     payload = json.loads(path.read_text(encoding="utf-8"))
 
     assert hashlib.sha256(path.read_bytes()).hexdigest() == (
-        "ffc491caf4fe10d47646b1ba2f383eca74d2a99a16a7423489cb99629ccbb662"
+        "cad4b549bc8a00d56ad29f1913bc8ebd582a21ee8524b86a4fb7e24480f936c1"
     )
     assert payload["owner_decision"] == "COLLECTION_APPROVED_INFLUENCE_FORBIDDEN"
     assert payload["historical_replay_cutoff"] == "2026-08-21T19:18:10.674088Z"

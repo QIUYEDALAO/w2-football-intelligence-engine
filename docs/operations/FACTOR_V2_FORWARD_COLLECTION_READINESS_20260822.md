@@ -20,7 +20,7 @@
 ## 预注册
 
 - 文件：`docs/operations/FACTOR_V2_FORWARD_COLLECTION_PREREGISTRATION_20260822.json`
-- 文件 SHA-256：`ffc491caf4fe10d47646b1ba2f383eca74d2a99a16a7423489cb99629ccbb662`
+- 文件 SHA-256：`cad4b549bc8a00d56ad29f1913bc8ebd582a21ee8524b86a4fb7e24480f936c1`
 - 冻结时刻：`2026-08-22T09:05:33Z`
 - 历史 replay cutoff：`2026-08-21T19:18:10.674088Z`
 - 第一次且仅一次评估日期：`2028-02-01T00:05:00Z`

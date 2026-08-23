@@ -93,5 +93,38 @@
     "writes_to_v1_evaluation": true,
     "writes_to_v1_outbox": true,
     "writes_to_v1_outcome_ledger": true
+  },
+  "attrition_and_missingness": {
+    "amendment_index": 1,
+    "amended_at": "2026-08-23T06:36:44Z",
+    "amended_before_first_forward_sample": true,
+    "forward_sample_count_at_amendment": 0,
+    "supersedes_file_sha256": "ffc491caf4fe10d47646b1ba2f383eca74d2a99a16a7423489cb99629ccbb662",
+    "reason": "The collector's sample universe is V1 model_forecast_capture rows. A target fixture whose V1 prematch checkpoint is MISSED produces no capture, so it never enters the collector loop and its absence is invisible to the existing exclusion tally. Production MISSED checkpoints are not random: on 2026-08-22, 33 of them concentrated in the highest-density kickoff slots (22 and 20 plans due in single 15-minute windows) while slots at or below 14 lost nothing. Composition drift of exactly this kind is why F6 was excluded from Gate 1.",
+    "reconstruction_required": true,
+    "reconstruction_source": "matchday_checkpoint_plans",
+    "funnel_must_be_reported": [
+      "fixtures_kicking_off_in_cohort_window",
+      "fixtures_with_complete_v1_prematch_ladder",
+      "fixtures_with_paired_v1_production_capture",
+      "fixtures_with_v2_forward_forecast",
+      "fixtures_with_completed_result"
+    ],
+    "drop_reasons_must_be_itemised": true,
+    "missingness_covariates_to_report": [
+      "competition_id",
+      "kickoff_utc_hour",
+      "checkpoint",
+      "plans_due_in_same_15_minute_window"
+    ],
+    "sensitivity_analysis": {
+      "required": true,
+      "complete_ladder_cohort_definition": "target fixtures whose T60_ODDS_LINEUPS, T45_ODDS, T45_LINEUPS_RETRY, T30_LINEUPS_RETRY, T-30m_VALIDATION_LOCK and T15_ODDS plans all reached a terminal status other than MISSED",
+      "report_primary_comparison_on_both_cohorts": true,
+      "sign_disagreement_is_a_declared_caution_flag": true,
+      "sign_disagreement_does_not_automatically_void": true
+    },
+    "relaxation_forbidden_after_first_sample": true,
+    "reporting_is_mandatory_regardless_of_outcome": true
   }
 }

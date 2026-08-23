@@ -34,7 +34,7 @@
 2. 确认未来 60 分钟没有正式临场档位。
 3. 保存 V1 上线前快照：四容器状态、当天临场 `CAPTURED/matured`、V1 权威表行数。
 4. 验证预注册文件 SHA-256 与 Obsidian《重要决定》完全一致。
-   - prereg 文件 SHA：`ffc491caf4fe10d47646b1ba2f383eca74d2a99a16a7423489cb99629ccbb662`
+   - prereg 文件 SHA：`cad4b549bc8a00d56ad29f1913bc8ebd582a21ee8524b86a4fb7e24480f936c1`
    - collection artifact 文件 SHA：`185a24a0a1a9e7b8206fc4f4791fa91eccfa43a93967ac51c8557ca074fbb1ce`
    - collection artifact canonical SHA：`8710a75cd635024092e3276622270125708b050afbf4b7de461e97d0fbaf51fb`
 5. 执行 migration 0070；确认 schema 仅从 0069 前进到 0070，六张新增表存在，既有 V1 表行数不变。
