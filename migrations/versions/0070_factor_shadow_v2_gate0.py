@@ -1,7 +1,7 @@
 """isolate raw fixture scopes and factor shadow v2 ledgers
 
 Revision ID: 0070_factor_shadow_v2_gate0
-Revises: 0069_outcome_ledger_run_state
+Revises: 0070_notification_delivery_routing
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0070_factor_shadow_v2_gate0"
-down_revision: str | None = "0069_outcome_ledger_run_state"
+down_revision: str | None = "0070_notification_delivery_routing"
 branch_labels: str | None = None
 depends_on: str | None = None
 
