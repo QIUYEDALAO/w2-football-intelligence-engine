@@ -58,6 +58,15 @@ PENDING = "PENDING"
 RETRY_PENDING = "RETRY_PENDING"
 DELIVERED = "DELIVERED"
 FAILED = "FAILED"
+# Routed to the periodic brewing digest instead of an individual push, then
+# marked DIGESTED once a digest carrying it has been enqueued.
+DIGEST_PENDING = "DIGEST_PENDING"
+DIGESTED = "DIGESTED"
+# Recorded in the outbox for audit but deliberately not pushed.
+SUPPRESSED = "SUPPRESSED"
+
+CANDIDATE_BREWING_DIGEST = "CANDIDATE_BREWING_DIGEST"
+BREWING_DIGEST_PERIOD_SECONDS = 2 * 60 * 60
 
 BARK_CHANNEL = "bark"
 AT_LEAST_ONCE = "AT_LEAST_ONCE"
@@ -212,8 +221,7 @@ def enqueue_closeout_withdrawal_in_session(
             DynamicPrematchEvaluationModel.market == market,
             DynamicPrematchEvaluationModel.model_forecast_capture_identity_hash
             == model_forecast_capture_identity_hash,
-            DynamicPrematchEvaluationModel.evaluation_policy_version
-            == evaluation_policy_version,
+            DynamicPrematchEvaluationModel.evaluation_policy_version == evaluation_policy_version,
             DynamicPrematchEvaluationModel.official_funnel_eligible.is_(True),
             DynamicPrematchEvaluationModel.measurement_semantics
             == CHECKPOINT_OPPORTUNITY_SEMANTICS,
@@ -278,9 +286,7 @@ def notification_health_in_session(session: Session, *, now: datetime) -> dict[s
         if delivery_latencies
         else None
     )
-    pending_over_target = [
-        row for row in pending if _seconds(now - _utc(row.created_at)) > 30
-    ]
+    pending_over_target = [row for row in pending if _seconds(now - _utc(row.created_at)) > 30]
     status = (
         "CHANNEL_NOT_CONFIGURED"
         if not configured and configuration_error is None
@@ -372,15 +378,105 @@ def record_delivery_result_in_session(
         if retry:
             delivery["next_attempt_at"] = _iso(
                 attempted_at
-                + timedelta(
-                    seconds=RETRY_BACKOFF_SECONDS[row.delivery_attempt_count - 1]
-                )
+                + timedelta(seconds=RETRY_BACKOFF_SECONDS[row.delivery_attempt_count - 1])
             )
         else:
             delivery.pop("next_attempt_at", None)
     payload["_delivery"] = delivery
     row.payload = payload
     session.flush()
+
+
+def _aware(moment: datetime) -> datetime:
+    """SQLite hands back naive datetimes; production Postgres does not."""
+
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
+
+
+def _fixture_market_key(payload: Mapping[str, Any] | None) -> tuple[str, str] | None:
+    if not isinstance(payload, Mapping):
+        return None
+    fixture_id = str(payload.get("fixture_id") or "").removeprefix("api_football:")
+    market = str(payload.get("market") or "")
+    if not fixture_id or not market:
+        return None
+    return fixture_id, market
+
+
+def _confirmed_at_by_key(session: Session) -> dict[tuple[str, str], datetime]:
+    """Earliest T-30m confirmation per fixture and market."""
+
+    confirmed: dict[tuple[str, str], datetime] = {}
+    for row in session.scalars(
+        select(CandidateNotificationOutboxModel).where(
+            CandidateNotificationOutboxModel.event_type == CANDIDATE_T30_CONFIRMED
+        )
+    ):
+        key = _fixture_market_key(row.payload)
+        if key is None:
+            continue
+        seen = confirmed.get(key)
+        created_at = _aware(row.created_at)
+        if seen is None or created_at < seen:
+            confirmed[key] = created_at
+    return confirmed
+
+
+def _withdrawals_already_pushed(session: Session) -> set[tuple[str, str]]:
+    pushed: set[tuple[str, str]] = set()
+    for row in session.scalars(
+        select(CandidateNotificationOutboxModel).where(
+            CandidateNotificationOutboxModel.event_type == CANDIDATE_WITHDRAWN,
+            CandidateNotificationOutboxModel.delivery_status == DELIVERED,
+        )
+    ):
+        key = _fixture_market_key(row.payload)
+        if key is not None:
+            pushed.add(key)
+    return pushed
+
+
+_ALWAYS_PUSH = frozenset(
+    {
+        CANDIDATE_T30_CONFIRMED,
+        CANDIDATE_BREWING_DIGEST,
+        PLAN_SUMMARY,
+        DAY_CLOSEOUT_SUMMARY,
+        TEST_MESSAGE,
+    }
+)
+
+
+def delivery_route(
+    row: CandidateNotificationOutboxModel,
+    *,
+    confirmed_at: Mapping[tuple[str, str], datetime],
+    withdrawals_pushed: set[tuple[str, str]],
+) -> tuple[str, str]:
+    """Decide whether an outbox row reaches the phone.
+
+    Every event stays in the outbox for audit; this only governs delivery.
+    A push is warranted when the Owner can act on it: the T-30m lock is the
+    recommendation itself and carries a 15 minute validity window, and a
+    change or withdrawal matters once a lock has already been pushed. A
+    candidate still forming hours before kickoff is information, not an
+    interruption, so it goes to the periodic digest instead.
+    """
+
+    event_type = str(row.event_type)
+    if event_type in _ALWAYS_PUSH:
+        return "SEND", "ACTIONABLE"
+    if event_type == CANDIDATE_FORMED:
+        return "DIGEST", "BREWING_NOT_TIME_CRITICAL"
+    key = _fixture_market_key(row.payload)
+    if key is None:
+        return "SEND", "UNKEYED_EVENT"
+    locked_at = confirmed_at.get(key)
+    if locked_at is None or _aware(row.created_at) < locked_at:
+        return "SUPPRESS", "NO_LOCK_PUSHED_FOR_THIS_MARKET"
+    if event_type == CANDIDATE_WITHDRAWN and key in withdrawals_pushed:
+        return "SUPPRESS", "WITHDRAWAL_ALREADY_PUSHED"
+    return "SEND", "AFTER_LOCK"
 
 
 def deliver_pending_notifications(
@@ -396,9 +492,7 @@ def deliver_pending_notifications(
     configured, configuration_error = _bark_configuration()
     if not configured:
         return {
-            "status": "CHANNEL_NOT_CONFIGURED"
-            if configuration_error is None
-            else "DEGRADED",
+            "status": "CHANNEL_NOT_CONFIGURED" if configuration_error is None else "DEGRADED",
             "channel": BARK_CHANNEL,
             "delivered": 0,
             "failed_attempts": 0,
@@ -406,20 +500,36 @@ def deliver_pending_notifications(
     send = sender or _send_bark
     delivered_count = 0
     failed_count = 0
+    digest_pending_count = 0
+    suppressed_count = 0
     with Session(engine or create_engine()) as session:
         rows = list(
             session.scalars(
                 select(CandidateNotificationOutboxModel)
                 .where(
-                    CandidateNotificationOutboxModel.delivery_status.in_(
-                        (PENDING, RETRY_PENDING)
-                    )
+                    CandidateNotificationOutboxModel.delivery_status.in_((PENDING, RETRY_PENDING))
                 )
                 .order_by(CandidateNotificationOutboxModel.created_at)
             )
         )
+        confirmed_at = _confirmed_at_by_key(session)
+        withdrawals_pushed = _withdrawals_already_pushed(session)
         due_rows = [row for row in rows if _delivery_due(row, resolved_now)][: max(limit, 1)]
         for row in due_rows:
+            route, reason = delivery_route(
+                row,
+                confirmed_at=confirmed_at,
+                withdrawals_pushed=withdrawals_pushed,
+            )
+            if route != "SEND":
+                row.delivery_status = DIGEST_PENDING if route == "DIGEST" else SUPPRESSED
+                row.last_error = reason[:512]
+                if route == "DIGEST":
+                    digest_pending_count += 1
+                else:
+                    suppressed_count += 1
+                session.commit()
+                continue
             try:
                 send(row.payload)
             except Exception as exc:  # sender boundary; persist only a safe class name
@@ -433,6 +543,9 @@ def deliver_pending_notifications(
                 )
             else:
                 delivered_count += 1
+                key = _fixture_market_key(row.payload)
+                if key is not None and str(row.event_type) == CANDIDATE_WITHDRAWN:
+                    withdrawals_pushed.add(key)
                 record_delivery_result_in_session(
                     session,
                     notification_event_id=row.notification_event_id,
@@ -445,11 +558,123 @@ def deliver_pending_notifications(
         if delivered_count
         else "RETRY_SCHEDULED"
         if failed_count
+        else "ROUTED"
+        if digest_pending_count or suppressed_count
         else "IDLE",
         "channel": BARK_CHANNEL,
         "delivered": delivered_count,
         "failed_attempts": failed_count,
+        "digest_pending": digest_pending_count,
+        "suppressed": suppressed_count,
     }
+
+
+def _brewing_bucket_start(moment: datetime) -> datetime:
+    local = moment.astimezone(BEIJING)
+    period_hours = BREWING_DIGEST_PERIOD_SECONDS // 3600
+    floored = local.replace(
+        hour=(local.hour // period_hours) * period_hours,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+    return floored.astimezone(UTC)
+
+
+def enqueue_brewing_digest_in_session(session: Session, *, now: datetime) -> list[str]:
+    """Fold candidates that formed during the last closed window into one push.
+
+    The digest is emitted only after its window has closed, so a candidate
+    forming early in a window still waits for the rest of that window rather
+    than arriving alone. A candidate reaches the phone at most one period
+    after it forms; the T-30m lock is never routed here and stays immediate.
+    """
+
+    current_start = _brewing_bucket_start(now)
+    window_start = current_start - timedelta(seconds=BREWING_DIGEST_PERIOD_SECONDS)
+    rows = [
+        row
+        for row in session.scalars(
+            select(CandidateNotificationOutboxModel)
+            .where(CandidateNotificationOutboxModel.delivery_status == DIGEST_PENDING)
+            .order_by(CandidateNotificationOutboxModel.created_at)
+        )
+        if _aware(row.created_at) < current_start
+    ]
+    if not rows:
+        return []
+    event_id = _event_id(window_start.isoformat(), CANDIDATE_BREWING_DIGEST)
+
+    fixtures: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        payload = row.payload if isinstance(row.payload, Mapping) else {}
+        fixture_id = str(payload.get("fixture_id") or "").removeprefix("api_football:")
+        if not fixture_id:
+            continue
+        match = _as_mapping(payload.get("match"))
+        entry = fixtures.setdefault(
+            fixture_id,
+            {
+                "fixture_id": fixture_id,
+                "home": str(match.get("home") or "主队"),
+                "away": str(match.get("away") or "客队"),
+                "kickoff_local": payload.get("kickoff_local"),
+                "markets": [],
+            },
+        )
+        entry["markets"].append(
+            {
+                "market": payload.get("market"),
+                "line": payload.get("line"),
+                "direction": payload.get("direction"),
+                "decimal_odds": payload.get("decimal_odds"),
+                "current_ev": payload.get("current_ev"),
+            }
+        )
+
+    ordered = sorted(
+        fixtures.values(),
+        key=lambda item: (str(item.get("kickoff_local") or ""), item["fixture_id"]),
+    )
+    inserted = _insert(
+        session,
+        event_id=event_id,
+        opportunity_identity_hash=None,
+        attempt_identity_hash=None,
+        event_type=CANDIDATE_BREWING_DIGEST,
+        previous_state=None,
+        current_state="BREWING",
+        payload={
+            "event_type": CANDIDATE_BREWING_DIGEST,
+            "schema_version": "w2.candidate_notification.v1",
+            "window_start": window_start.isoformat().replace("+00:00", "Z"),
+            "window_end": current_start.isoformat().replace("+00:00", "Z"),
+            "fixture_count": len(ordered),
+            "candidate_count": sum(len(item["markets"]) for item in ordered),
+            "fixtures": ordered,
+            "dashboard_url": _dashboard_day_url(
+                football_day_for_kickoff(current_start).isoformat()
+            ),
+        },
+        created_at=now,
+    )
+    if not inserted:
+        return []
+    for row in rows:
+        row.delivery_status = DIGESTED
+        row.delivered_at = now
+    session.flush()
+    return [event_id]
+
+
+def enqueue_brewing_digest(
+    *, now: datetime | None = None, engine: Engine | None = None
+) -> list[str]:
+    resolved_now = now or datetime.now(UTC)
+    with Session(engine or create_engine()) as session:
+        inserted = enqueue_brewing_digest_in_session(session, now=resolved_now)
+        session.commit()
+    return inserted
 
 
 def enqueue_test_message_in_session(
@@ -540,16 +765,12 @@ def enqueue_operational_summaries_in_session(
             )
         )
     )
-    track_fixture_ids = {
-        row.fixture_id.removeprefix("api_football:") for row in tracks
-    }
+    track_fixture_ids = {row.fixture_id.removeprefix("api_football:") for row in tracks}
     track_count_by_fixture: dict[str, int] = {}
     for row in tracks:
         fixture_id = row.fixture_id.removeprefix("api_football:")
         track_count_by_fixture[fixture_id] = track_count_by_fixture.get(fixture_id, 0) + 1
-    plan_fixture_ids = {
-        row.fixture_id.removeprefix("api_football:") for row in evaluation_plans
-    }
+    plan_fixture_ids = {row.fixture_id.removeprefix("api_football:") for row in evaluation_plans}
     candidate_track_fixture_ids = track_fixture_ids & plan_fixture_ids
     candidate_track_matches = [
         _summary_fixture(identity)
@@ -590,14 +811,10 @@ def enqueue_operational_summaries_in_session(
                 "candidate_track_fixture_count": len(candidate_track_fixture_ids),
                 "candidate_track_matches": candidate_track_matches,
                 "planned_evaluation_opportunity_count": planned_opportunities,
-                "first_evaluation_at": _iso(
-                    min(_utc(row.scheduled_at) for row in evaluation_plans)
-                )
+                "first_evaluation_at": _iso(min(_utc(row.scheduled_at) for row in evaluation_plans))
                 if evaluation_plans
                 else None,
-                "last_evaluation_at": _iso(
-                    max(_utc(row.scheduled_at) for row in evaluation_plans)
-                )
+                "last_evaluation_at": _iso(max(_utc(row.scheduled_at) for row in evaluation_plans))
                 if evaluation_plans
                 else None,
                 "dashboard_url": _dashboard_day_url(window.operational_day_key),
@@ -610,9 +827,7 @@ def enqueue_operational_summaries_in_session(
     results = list(
         session.scalars(select(ResultModel).where(ResultModel.fixture_id.in_(fixture_aliases)))
     )
-    results_by_fixture = {
-        row.fixture_id.removeprefix("api_football:"): row for row in results
-    }
+    results_by_fixture = {row.fixture_id.removeprefix("api_football:"): row for row in results}
     closed_evidence = [
         _fixture_closeout_time(identity, results_by_fixture.get(identity.provider_fixture_id))
         for identity in identities
@@ -724,9 +939,7 @@ def _zero_candidate_reasons(
     attempts: list[DynamicPrematchEvaluationModel],
 ) -> dict[str, dict[str, Any]]:
     attempts_by_opportunity = {
-        row.opportunity_identity_hash: row
-        for row in attempts
-        if row.opportunity_identity_hash
+        row.opportunity_identity_hash: row for row in attempts if row.opportunity_identity_hash
     }
     result: dict[str, dict[str, Any]] = {}
     for market in ("ASIAN_HANDICAP", "TOTALS"):
@@ -1043,7 +1256,7 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
     ev = _format_ev(payload.get("current_ev"))
 
     if event_type == CANDIDATE_FORMED:
-        title = f"[阵容] {teams} {kickoff_hm} {market}{line} {direction} @{odds}"
+        title = f"[酝酿] {teams} {kickoff_hm} {market}{line} {direction} @{odds}"
     elif event_type == CANDIDATE_MATERIAL_CHANGE:
         if payload.get("reformed_after_state"):
             title = f"[恢复] {teams} {market}{line} {direction} @{odds}"
@@ -1089,6 +1302,11 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
         title = (
             f"[当日收官] {payload.get('operational_football_day') or ''} "
             f"推荐 {len(list(payload.get('recommendations') or []))} 条"
+        )
+    elif event_type == CANDIDATE_BREWING_DIGEST:
+        title = (
+            f"[酝酿] {payload.get('fixture_count', 0)} 场 "
+            f"{payload.get('candidate_count', 0)} 个候选"
         )
     elif event_type == TEST_MESSAGE:
         title = "[测试] W2 Bark 通道"
@@ -1192,6 +1410,26 @@ def _safe_error(error: str | None) -> str:
 
 def _message_body(payload: Mapping[str, Any]) -> str:
     event_type = str(payload.get("event_type") or "")
+    if event_type == CANDIDATE_BREWING_DIGEST:
+        lines: list[str] = []
+        for item in payload.get("fixtures") or []:
+            if not isinstance(item, Mapping):
+                continue
+            kickoff = _parse_time(item.get("kickoff_local"))
+            hm = kickoff.astimezone(BEIJING).strftime("%H:%M") if kickoff else "--:--"
+            legs = " / ".join(
+                "{market}{line} {direction} @{odds}".format(
+                    market=_market_label(leg.get("market")),
+                    line=_format_line(leg.get("line")),
+                    direction=_direction_label(leg.get("direction")),
+                    odds=_format_odds(leg.get("decimal_odds")),
+                )
+                for leg in item.get("markets") or []
+                if isinstance(leg, Mapping)
+            )
+            lines.append(f"{hm} {item.get('home', '主队')} vs {item.get('away', '客队')}  {legs}")
+        lines.append("尚未锁定，T-30m 确认后单独推送")
+        return "\n".join(lines)
     if event_type == PLAN_SUMMARY:
         matches = list(payload.get("candidate_track_matches") or [])
         lines = [
@@ -1430,9 +1668,7 @@ def _change_details(previous: Mapping[str, Any], current: Mapping[str, Any]) -> 
         material.append("decimal_odds")
     old_ev = _float(previous.get("current_ev"))
     new_ev = _float(current.get("current_ev"))
-    ev_change = (
-        abs(new_ev - old_ev) if old_ev is not None and new_ev is not None else None
-    )
+    ev_change = abs(new_ev - old_ev) if old_ev is not None and new_ev is not None else None
     if ev_change is not None and ev_change >= EV_CHANGE_THRESHOLD:
         material.append("current_ev")
     return {
@@ -1500,15 +1736,11 @@ def _opportunity_state(row: DynamicPrematchEvaluationModel | None) -> str | None
     )
 
 
-def _fixture_identity(
-    session: Session, fixture_id: str
-) -> MatchdayFixtureIdentityModel | None:
+def _fixture_identity(session: Session, fixture_id: str) -> MatchdayFixtureIdentityModel | None:
     return session.scalar(
         select(MatchdayFixtureIdentityModel)
         .where(
-            MatchdayFixtureIdentityModel.fixture_id.in_(
-                (fixture_id, f"api_football:{fixture_id}")
-            )
+            MatchdayFixtureIdentityModel.fixture_id.in_((fixture_id, f"api_football:{fixture_id}"))
         )
         .order_by(MatchdayFixtureIdentityModel.captured_at.desc())
         .limit(1)
@@ -1518,17 +1750,20 @@ def _fixture_identity(
 def _bookmaker_name(session: Session, fixture_id: str, bookmaker_id: str | None) -> str | None:
     if not bookmaker_id:
         return None
-    return session.scalar(
-        select(MatchdayMarketObservationModel.bookmaker_name)
-        .where(
-            MatchdayMarketObservationModel.fixture_id.in_(
-                (fixture_id, f"api_football:{fixture_id}")
-            ),
-            MatchdayMarketObservationModel.bookmaker_id == bookmaker_id,
+    return (
+        session.scalar(
+            select(MatchdayMarketObservationModel.bookmaker_name)
+            .where(
+                MatchdayMarketObservationModel.fixture_id.in_(
+                    (fixture_id, f"api_football:{fixture_id}")
+                ),
+                MatchdayMarketObservationModel.bookmaker_id == bookmaker_id,
+            )
+            .order_by(MatchdayMarketObservationModel.captured_at.desc())
+            .limit(1)
         )
-        .order_by(MatchdayMarketObservationModel.captured_at.desc())
-        .limit(1)
-    ) or bookmaker_id
+        or bookmaker_id
+    )
 
 
 def _next_review_at(
@@ -1544,9 +1779,7 @@ def _next_review_at(
     rows = session.scalars(
         select(MatchdayCheckpointPlanModel)
         .where(
-            MatchdayCheckpointPlanModel.fixture_id.in_(
-                (fixture_id, f"api_football:{fixture_id}")
-            ),
+            MatchdayCheckpointPlanModel.fixture_id.in_((fixture_id, f"api_football:{fixture_id}")),
             MatchdayCheckpointPlanModel.policy_version == "w2.matchday_intake_policy.v2",
             MatchdayCheckpointPlanModel.scheduled_at > after,
         )

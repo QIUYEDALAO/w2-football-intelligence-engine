@@ -80,13 +80,20 @@ def forward_outcome_ledger_enabled() -> bool:
 
 
 def candidate_notification_summary_tick() -> dict[str, object]:
-    from w2.prematch.candidate_notifications import enqueue_operational_summaries
+    from w2.prematch.candidate_notifications import (
+        enqueue_brewing_digest,
+        enqueue_operational_summaries,
+    )
 
     inserted = enqueue_operational_summaries()
+    # Brewing candidates are batched into one push per closed window; the
+    # T-30m lock stays on the immediate path and is never routed here.
+    digest = enqueue_brewing_digest()
     return {
-        "status": "ENQUEUED" if inserted else "NO_SUMMARY_DUE",
-        "outbox_event_ids": inserted,
-        "db_writes": len(inserted),
+        "status": "ENQUEUED" if inserted or digest else "NO_SUMMARY_DUE",
+        "outbox_event_ids": inserted + digest,
+        "brewing_digest_ids": digest,
+        "db_writes": len(inserted) + len(digest),
         "provider_calls": 0,
     }
 

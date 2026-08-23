@@ -167,9 +167,7 @@ def test_missed_closeout_withdrawal_uses_opportunity_identity_without_fake_attem
         blocker="CHECKPOINT_WINDOW_MISSED",
     )
 
-    event = next(
-        row for row in _events(engine) if row.event_type == CANDIDATE_WITHDRAWN
-    )
+    event = next(row for row in _events(engine) if row.event_type == CANDIDATE_WITHDRAWN)
     assert event.event_type == CANDIDATE_WITHDRAWN
     assert event.attempt_identity_hash is None
     assert event.current_state == "MISSED_CHECKPOINT"
@@ -343,9 +341,7 @@ def test_operational_summaries_use_football_day_and_split_zero_candidate_reasons
 
     repository = DynamicPrematchRepository(engine)
     repository.append_evaluation(_attempt("T3_ODDS", "a", depth=0))
-    repository.append_evaluation(
-        _attempt("T3_ODDS", "b", market="TOTALS", ev=-0.01)
-    )
+    repository.append_evaluation(_attempt("T3_ODDS", "b", market="TOTALS", ev=-0.01))
     result_confirmed_at = kickoff + timedelta(hours=2)
     with Session(engine) as session:
         session.add(
@@ -401,7 +397,7 @@ def test_bark_titles_are_executable_and_keep_fixture_deep_link() -> None:
     }
 
     formed = render_bark_message({**base, "event_type": CANDIDATE_FORMED})
-    assert formed["title"] == "[阵容] 上海海港 vs 大连英博 20:30 让球-0.5 主 @1.92"
+    assert formed["title"] == "[酝酿] 上海海港 vs 大连英博 20:30 让球-0.5 主 @1.92"
     assert formed["url"].endswith("fixture_id=1523202")
     assert formed["url"] not in formed["body"]
     assert "报价年龄：1 分 0 秒" in formed["body"]
@@ -646,12 +642,9 @@ def test_closeout_waits_for_result_materialization_after_terminal_fixture() -> N
     result = SimpleNamespace(confirmed_at=NOW + timedelta(seconds=2))
 
     assert candidate_notifications._fixture_closeout_time(identity, None) == (
-        NOW
-        + timedelta(seconds=candidate_notifications.CLOSEOUT_RESULT_GRACE_SECONDS)
+        NOW + timedelta(seconds=candidate_notifications.CLOSEOUT_RESULT_GRACE_SECONDS)
     )
-    assert candidate_notifications._fixture_closeout_time(identity, result) == (
-        result.confirmed_at
-    )
+    assert candidate_notifications._fixture_closeout_time(identity, result) == (result.confirmed_at)
 
 
 def test_closeout_copy_prioritizes_recommendations_and_marks_missing_result() -> None:
@@ -697,11 +690,144 @@ def test_closeout_copy_prioritizes_recommendations_and_marks_missing_result() ->
 def test_notification_raw_values_are_humanized() -> None:
     assert candidate_notifications._format_duration(2024.05) == "33 分钟"
     assert candidate_notifications._format_duration(149.112) == "2 分 29 秒"
-    assert (
-        candidate_notifications._opportunity_state_label("MISSED_CHECKPOINT")
-        == "检查点错过"
+    assert candidate_notifications._opportunity_state_label("MISSED_CHECKPOINT") == "检查点错过"
+    assert candidate_notifications._opportunity_state_label("EVALUATED_CANDIDATE") == "已形成候选"
+
+
+def _routing_row(
+    event_type: str,
+    *,
+    fixture_id: str = "1550092",
+    market: str = "ASIAN_HANDICAP",
+    created_at: datetime,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        event_type=event_type,
+        created_at=created_at,
+        payload={"fixture_id": fixture_id, "market": market, "event_type": event_type},
     )
-    assert (
-        candidate_notifications._opportunity_state_label("EVALUATED_CANDIDATE")
-        == "已形成候选"
+
+
+def test_only_actionable_events_reach_the_phone() -> None:
+    lock_at = datetime(2026, 8, 22, 16, 7, tzinfo=UTC)
+    confirmed = {("1550092", "ASIAN_HANDICAP"): lock_at}
+    pushed: set[tuple[str, str]] = set()
+
+    def route(event_type: str, *, offset_minutes: int) -> tuple[str, str]:
+        return candidate_notifications.delivery_route(
+            _routing_row(event_type, created_at=lock_at + timedelta(minutes=offset_minutes)),
+            confirmed_at=confirmed,
+            withdrawals_pushed=pushed,
+        )
+
+    # The lock is the recommendation and carries a 15 minute validity window.
+    assert route(CANDIDATE_T30_CONFIRMED, offset_minutes=0)[0] == "SEND"
+    # A candidate still forming hours out is information, not an interruption.
+    assert route(CANDIDATE_FORMED, offset_minutes=-120) == (
+        "DIGEST",
+        "BREWING_NOT_TIME_CRITICAL",
     )
+    # Nothing to act on yet, so a pre-lock change stays out of the push channel.
+    assert route(CANDIDATE_MATERIAL_CHANGE, offset_minutes=-30) == (
+        "SUPPRESS",
+        "NO_LOCK_PUSHED_FOR_THIS_MARKET",
+    )
+    # After the lock the Owner is holding a position, so both matter.
+    assert route(CANDIDATE_MATERIAL_CHANGE, offset_minutes=5)[0] == "SEND"
+    assert route(CANDIDATE_WITHDRAWN, offset_minutes=5)[0] == "SEND"
+
+
+def test_a_withdrawal_is_pushed_at_most_once_per_market() -> None:
+    lock_at = datetime(2026, 8, 22, 16, 7, tzinfo=UTC)
+    confirmed = {("1550092", "ASIAN_HANDICAP"): lock_at}
+    pushed = {("1550092", "ASIAN_HANDICAP")}
+    assert candidate_notifications.delivery_route(
+        _routing_row(CANDIDATE_WITHDRAWN, created_at=lock_at + timedelta(minutes=20)),
+        confirmed_at=confirmed,
+        withdrawals_pushed=pushed,
+    ) == ("SUPPRESS", "WITHDRAWAL_ALREADY_PUSHED")
+
+
+def test_an_unrelated_market_on_a_locked_fixture_is_not_pushed() -> None:
+    lock_at = datetime(2026, 8, 22, 16, 7, tzinfo=UTC)
+    confirmed = {("1550092", "ASIAN_HANDICAP"): lock_at}
+    route, reason = candidate_notifications.delivery_route(
+        _routing_row(
+            CANDIDATE_WITHDRAWN, market="TOTALS", created_at=lock_at + timedelta(minutes=5)
+        ),
+        confirmed_at=confirmed,
+        withdrawals_pushed=set(),
+    )
+    assert (route, reason) == ("SUPPRESS", "NO_LOCK_PUSHED_FOR_THIS_MARKET")
+
+
+def test_brewing_digest_waits_for_its_window_to_close() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    formed_at = datetime(2026, 8, 22, 16, 30, tzinfo=UTC)
+    with Session(engine) as session:
+        for index, market in enumerate(("ASIAN_HANDICAP", "TOTALS")):
+            session.add(
+                CandidateNotificationOutboxModel(
+                    notification_event_id=f"formed-{index}",
+                    opportunity_identity_hash=None,
+                    attempt_identity_hash=None,
+                    event_type=CANDIDATE_FORMED,
+                    previous_state=None,
+                    current_state="EVALUATED_CANDIDATE",
+                    payload={
+                        "fixture_id": "1550092",
+                        "market": market,
+                        "event_type": CANDIDATE_FORMED,
+                        "match": {"home": "国际米兰", "away": "蒙扎"},
+                        "kickoff_local": "2026-08-23T00:30:00+08:00",
+                        "line": 2.0,
+                        "direction": "AWAY",
+                        "decimal_odds": 1.92,
+                    },
+                    created_at=formed_at,
+                    delivered_at=None,
+                    delivery_status=candidate_notifications.DIGEST_PENDING,
+                    delivery_attempt_count=0,
+                    last_error=None,
+                )
+            )
+        session.commit()
+
+        # Still inside the window the candidates formed in: nothing is emitted,
+        # so an early candidate waits for the rest of its window.
+        assert (
+            candidate_notifications.enqueue_brewing_digest_in_session(
+                session, now=formed_at + timedelta(minutes=30)
+            )
+            == []
+        )
+
+        emitted = candidate_notifications.enqueue_brewing_digest_in_session(
+            session, now=formed_at + timedelta(hours=2)
+        )
+        session.commit()
+        assert len(emitted) == 1
+
+        digest = session.get(CandidateNotificationOutboxModel, emitted[0])
+        assert digest is not None
+        # Both markets of one fixture arrive as a single line, not two pushes.
+        assert digest.payload["fixture_count"] == 1
+        assert digest.payload["candidate_count"] == 2
+        assert all(
+            session.get(CandidateNotificationOutboxModel, f"formed-{index}").delivery_status
+            == candidate_notifications.DIGESTED
+            for index in range(2)
+        )
+
+        rendered = candidate_notifications.render_bark_message(digest.payload)
+        assert rendered["title"] == "[酝酿] 1 场 2 个候选"
+        assert "国际米兰 vs 蒙扎" in rendered["body"]
+
+        # A second call in the same window must not re-emit the digest.
+        assert (
+            candidate_notifications.enqueue_brewing_digest_in_session(
+                session, now=formed_at + timedelta(hours=2, minutes=10)
+            )
+            == []
+        )
