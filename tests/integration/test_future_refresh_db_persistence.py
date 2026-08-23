@@ -1882,6 +1882,75 @@ def test_scoped_raw_payload_and_xg_readers_enforce_fixed_limits(
     assert {row["team_id"] for row in xg} == {"home", "away"}
 
 
+def test_team_xg_match_preserves_first_visible_evidence(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    first = {
+        "id": "fixture-1:home",
+        "fixture_id": "fixture-1",
+        "team_id": "home",
+        "opponent_team_id": "away",
+        "kickoff_at": NOW - timedelta(days=2),
+        "captured_at": NOW - timedelta(days=1),
+        "xg_for": 1.25,
+        "xg_against": 0.75,
+        "goals_for": 1,
+        "goals_against": 0,
+        "raw_payload_sha256": "a" * 64,
+        "source_system": "api_football_statistics",
+    }
+
+    assert repository.upsert_team_xg_matches([first]) == 1
+    assert repository.upsert_team_xg_matches(
+        [
+            {
+                **first,
+                "captured_at": NOW,
+                "raw_payload_sha256": "b" * 64,
+            }
+        ]
+    ) == 0
+
+    row = repository.team_xg_matches()[0]
+    assert row["captured_at"] == "2026-06-22T10:00:00Z"
+    assert row["raw_payload_sha256"] == "a" * 64
+
+
+def test_team_xg_match_rejects_conflicting_republication(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    first = {
+        "id": "fixture-2:home",
+        "fixture_id": "fixture-2",
+        "team_id": "home",
+        "opponent_team_id": "away",
+        "kickoff_at": NOW - timedelta(days=2),
+        "captured_at": NOW - timedelta(days=1),
+        "xg_for": 1.25,
+        "xg_against": 0.75,
+        "goals_for": 1,
+        "goals_against": 0,
+        "raw_payload_sha256": "a" * 64,
+        "source_system": "api_football_statistics",
+    }
+    repository.upsert_team_xg_matches([first])
+
+    with pytest.raises(
+        FutureRefreshPersistenceError,
+        match="TEAM_XG_MATCH_IMMUTABLE_CONFLICT:fixture-2:home",
+    ):
+        repository.upsert_team_xg_matches([{**first, "xg_for": 1.5}])
+
+    row = repository.team_xg_matches()[0]
+    assert row["xg_for"] == 1.25
+
+
 def test_raw_payload_inserted_at_is_first_insert_authority(
     tmp_path: Path,
     monkeypatch: Any,

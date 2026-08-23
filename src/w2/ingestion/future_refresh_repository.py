@@ -2750,27 +2750,59 @@ class FutureRefreshDbRepository:
     def upsert_team_xg_matches(self, matches: list[dict[str, Any]]) -> int:
         upserted = 0
         with Session(self.engine) as session:
-            for row in matches:
-                model = TeamXgMatchModel(
-                    id=str(row["id"]),
-                    fixture_id=str(row["fixture_id"]),
-                    team_id=str(row["team_id"]),
-                    opponent_team_id=str(row["opponent_team_id"]),
-                    kickoff_at=parse_db_datetime(row["kickoff_at"]),
-                    captured_at=parse_db_datetime(row["captured_at"]),
-                    xg_for=float(row["xg_for"]),
-                    xg_against=float(row["xg_against"]),
-                    goals_for=int(row["goals_for"]),
-                    goals_against=int(row["goals_against"]),
-                    raw_payload_sha256=str(row["raw_payload_sha256"]),
-                    source_system=str(row["source_system"]),
-                    candidate=False,
-                    formal_recommendation=False,
-                )
-                session.merge(model)
-                upserted += 1
             try:
+                for row in matches:
+                    row_id = str(row["id"])
+                    existing = session.get(TeamXgMatchModel, row_id)
+                    if existing is not None:
+                        existing_evidence = (
+                            existing.fixture_id,
+                            existing.team_id,
+                            existing.opponent_team_id,
+                            parse_db_datetime(existing.kickoff_at),
+                            existing.xg_for,
+                            existing.xg_against,
+                            existing.goals_for,
+                            existing.goals_against,
+                            existing.source_system,
+                        )
+                        incoming_evidence = (
+                            str(row["fixture_id"]),
+                            str(row["team_id"]),
+                            str(row["opponent_team_id"]),
+                            parse_db_datetime(row["kickoff_at"]),
+                            float(row["xg_for"]),
+                            float(row["xg_against"]),
+                            int(row["goals_for"]),
+                            int(row["goals_against"]),
+                            str(row["source_system"]),
+                        )
+                        if existing_evidence != incoming_evidence:
+                            raise ValueError(f"TEAM_XG_MATCH_IMMUTABLE_CONFLICT:{row_id}")
+                        continue
+                    session.add(
+                        TeamXgMatchModel(
+                            id=row_id,
+                            fixture_id=str(row["fixture_id"]),
+                            team_id=str(row["team_id"]),
+                            opponent_team_id=str(row["opponent_team_id"]),
+                            kickoff_at=parse_db_datetime(row["kickoff_at"]),
+                            captured_at=parse_db_datetime(row["captured_at"]),
+                            xg_for=float(row["xg_for"]),
+                            xg_against=float(row["xg_against"]),
+                            goals_for=int(row["goals_for"]),
+                            goals_against=int(row["goals_against"]),
+                            raw_payload_sha256=str(row["raw_payload_sha256"]),
+                            source_system=str(row["source_system"]),
+                            candidate=False,
+                            formal_recommendation=False,
+                        )
+                    )
+                    upserted += 1
                 session.commit()
+            except ValueError as exc:
+                session.rollback()
+                raise FutureRefreshPersistenceError(str(exc)) from exc
             except Exception as exc:
                 session.rollback()
                 raise FutureRefreshPersistenceError("TEAM_XG_MATCH_WRITE_FAILED") from exc

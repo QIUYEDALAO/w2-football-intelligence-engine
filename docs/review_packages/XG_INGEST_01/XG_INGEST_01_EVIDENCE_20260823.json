@@ -511,6 +511,7 @@
   "prevention": {
     "collector_change": "ONLY_TWO_SIDED_NUMERIC_XG_MAY_SATISFY_THE_STATISTICS_CACHE;_NULL_OR_ABSENT_XG_REMAINS_RETRYABLE",
     "implementation_state": "LOCAL_ONLY_NOT_DEPLOYED",
+    "point_in_time_evidence": "TEAM_XG_MATCH_IS_FIRST_WRITE_WINS;_REPUBLICATION_MAY_NOT_OVERWRITE_CAPTURED_AT_VALUES_OR_SOURCE_HASH",
     "alarm": "FAIL_WHEN_TWO_SIDED_NUMERIC_SAVED_RAW_LACKS_EXACTLY_TWO_NON_NULL_TEAM_XG_MATCH_ROWS",
     "provider_pending_separate": true,
     "no_age_or_model_threshold": true,
