@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Fetch xG for matches that finished since the last run, one competition at a
+# time, and report how well covered each competition actually is.
+#
+# w2-xg-materialize recomputes snapshots from evidence already stored; nothing
+# fetched the evidence itself.  W2_XG_BACKFILL_ENABLED is false by design so a
+# single run cannot sweep every competition at once, which left no path at all
+# for keeping xG current: team_xg_match sat at 18,696 while 144 finished
+# matches carried a result and no xG, and the rolling five-match window kept
+# reaching further back until the restarted European leagues priced August
+# fixtures off May evidence.  This walks the whitelist one competition per
+# call, which is the shape that guardrail permits.
+#
+# Health is measured as coverage of recently finished matches, not agreement
+# between snapshots and stored matches.  The old stale_teams counter compared
+# those two and read zero throughout, because both sides were equally old.
+# Recency alone is not enough either: one fetched match makes a competition
+# look current while thirty of its neighbours carry no xG at all.
+set -uo pipefail
+
+COMPS=${W2_XG_REFRESH_COMPETITIONS:-"premier_league la_liga bundesliga serie_a ligue_1 brasileirao_serie_a argentina_primera mls chinese_super_league allsvenskan eliteserien eredivisie primeira_liga"}
+BUDGET=${W2_XG_REFRESH_BUDGET_PER_COMPETITION:-80}
+GUARD_MINUTES=${W2_XG_REFRESH_PREMATCH_GUARD_MINUTES:-45}
+MIN_COVERAGE=${W2_XG_REFRESH_MIN_COVERAGE_PERCENT:-70}
+PSQL="docker exec -i w2-staging-postgres-1 psql -XAt -U w2_user -d w2"
+
+docker inspect w2-staging-scheduler-1 >/dev/null 2>&1 || { echo "XG_REFRESH_SKIPPED_SCHEDULER_ABSENT"; exit 0; }
+
+# A checkpoint window that closes unserved cannot be reopened, so live
+# collection keeps the Provider to itself.
+due=$($PSQL -c "SELECT count(*) FROM matchday_checkpoint_plans
+  WHERE status IN ('PLANNED','DUE') AND window_end > now()
+    AND window_start < now() + interval '$GUARD_MINUTES minutes'
+    AND checkpoint IN ('T60_ODDS_LINEUPS','T45_ODDS','T45_LINEUPS_RETRY',
+                       'T30_LINEUPS_RETRY','T-30m_VALIDATION_LOCK','T15_ODDS');" 2>/dev/null | tr -d ' ')
+if [ "${due:-1}" != "0" ]; then echo "XG_REFRESH_DEFERRED_PREMATCH_DUE=$due"; exit 0; fi
+
+TMP=$(mktemp)
+trap 'rm -f "$TMP"' EXIT
+before=$($PSQL -c "SELECT count(*) FROM team_xg_match;" 2>/dev/null | tr -d ' ')
+calls=0
+for comp in $COMPS; do
+  out=""
+  for attempt in 1 2; do
+    docker exec -e W2_XG_BACKFILL_COMPETITION_ID="$comp" \
+      -e W2_XG_BACKFILL_REQUEST_BUDGET="$BUDGET" w2-staging-scheduler-1 \
+      python -c 'from w2.ingestion.xg_backfill import run_xg_history_backfill
+d = run_xg_history_backfill().__dict__
+print("OK %s %s %s" % (d["statistics_request_count"], d["team_xg_match_rows"], ",".join(d["blockers"]) or "-"))' >"$TMP" 2>&1
+    out=$(grep '^OK ' "$TMP" | tail -1)
+    [ -n "$out" ] && break
+  done
+  if [ -z "$out" ]; then
+    echo "  $comp FETCH_FAILED: $(tail -c 160 "$TMP" | tr '\n' ' ')"; continue
+  fi
+  set -- $out
+  calls=$((calls + $2))
+  [ "$2" != "0" ] && echo "  $comp statistics=$2 rows=$3 blockers=$4"
+done
+after=$($PSQL -c "SELECT count(*) FROM team_xg_match;" 2>/dev/null | tr -d ' ')
+echo "XG_REFRESH_OK team_xg_match=${before}->${after} statistics_calls=$calls"
+
+# Coverage over matches that have actually finished recently.  A competition
+# whose season has not started yet reports IDLE rather than an alarm: absent
+# evidence it could not have is not the same failure as evidence gone stale.
+$PSQL -F'|' -c "
+  SELECT f.competition_id,
+         count(*) FILTER (WHERE r.fixture_id IS NOT NULL),
+         count(*) FILTER (WHERE r.fixture_id IS NOT NULL AND x.fixture_id IS NOT NULL),
+         coalesce(EXTRACT(day FROM now() - max(x.kickoff_at))::int, -1)
+  FROM matchday_fixture_identities f
+  LEFT JOIN results r ON r.fixture_id = f.fixture_id AND r.result_status IN ('FT','AET','PEN')
+  LEFT JOIN (SELECT fixture_id, max(kickoff_at) AS kickoff_at FROM team_xg_match GROUP BY fixture_id) x
+    ON x.fixture_id = f.provider_fixture_id
+  WHERE f.kickoff_utc > now() - interval '30 days' AND f.kickoff_utc < now()
+  GROUP BY f.competition_id ORDER BY f.competition_id;" 2>/dev/null | while IFS='|' read -r comp done_n cov_n age; do
+    [ -z "$comp" ] && continue
+    if [ "${done_n:-0}" -eq 0 ]; then
+      printf '  idle  %-22s no finished match in 30d\n' "$comp"; continue
+    fi
+    pct=$(( cov_n * 100 / done_n ))
+    if [ "$pct" -lt "$MIN_COVERAGE" ]; then
+      printf '  ALARM %-22s coverage=%s%% (%s/%s) newest=%sd\n' "$comp" "$pct" "$cov_n" "$done_n" "$age"
+      logger -t w2-xg-refresh "$comp coverage=$pct% ($cov_n/$done_n) newest=${age}d"
+    else
+      printf '  ok    %-22s coverage=%s%% (%s/%s) newest=%sd\n' "$comp" "$pct" "$cov_n" "$done_n" "$age"
+    fi
+  done
+exit 0

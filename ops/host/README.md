@@ -12,12 +12,36 @@ here so a new host can be brought up without reconstructing it from memory.
 | `w2-registry-gc` | `/usr/local/bin/` | Registry retention and collection, weekly |
 | `w2-xg-materialize` | `/usr/local/bin/` | Rolling xG snapshot recompute, every six hours |
 | `w2-xg-materialize.service` / `.timer` | `/etc/systemd/system/` | Runs the recompute |
+| `w2-xg-refresh` | `/usr/local/bin/` | Fetch xG for recently finished matches, twice daily |
+| `w2-xg-refresh.service` / `.timer` | `/etc/systemd/system/` | Runs the fetch |
+| `w2-totals-calibration` | `/opt/w2/deploy/` | Totals calibration snapshot, read-only |
 | `w2-registry-gc.service` / `.timer` | `/etc/systemd/system/` | Runs the collection |
 | `w2-release-preflight` | `/usr/local/bin/` | Space, base image and layer count before a release |
 | `registry-config.yml` | `/opt/w2/deploy/registry/` | Registry with manifest deletion enabled |
 | `journald-w2-retention.conf` | `/etc/systemd/journald.conf.d/` | Journal size cap |
 
 ## Why each exists
+
+**xG refresh.** `w2-xg-materialize` recomputes snapshots from evidence already
+stored; until now nothing fetched the evidence itself. `W2_XG_BACKFILL_ENABLED`
+is false by design so one run cannot sweep every competition at once, which
+left no path for keeping xG current: `team_xg_match` sat at 18,696 while 144
+finished matches carried a result and no xG, and the rolling five-match window
+kept reaching further back until the restarted European leagues priced August
+fixtures off May evidence. `w2-xg-refresh` walks the whitelist one competition
+per call, which is the shape that guardrail permits, and defers itself when a
+prematch checkpoint is within 45 minutes because a checkpoint window that
+closes unserved cannot be reopened.
+
+Its health metric is coverage of matches finished in the last 30 days, not the
+`stale_teams` counter the materializer reports. That counter compares snapshots
+against stored matches and so read zero throughout the outage, both sides being
+equally old. Recency alone is not enough either: one fetched match makes a
+competition look current while thirty of its neighbours carry no xG. Chinese
+Super League and Allsvenskan sit at 15% and 25% coverage while their newest
+match is days old, because the Provider returns statistics for them with
+`expected_goals` null.
+
 
 **Disk guard.** The disk reached 83% while a 914-layer image lineage, three
 separate directories of database backups and an orphan PostgreSQL install

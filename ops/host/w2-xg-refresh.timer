@@ -1,0 +1,13 @@
+[Unit]
+Description=Refresh xG twice daily in the quiet window
+[Timer]
+# Both firings sit in the lull after the European card settles and before the
+# next one opens. The script defers itself when a prematch checkpoint is within
+# 45 minutes, so the second attempt leaves a chance if the first lands on a
+# fixture that drifted into the window.
+OnCalendar=*-*-* 05:20:00 UTC
+OnCalendar=*-*-* 09:20:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+[Install]
+WantedBy=timers.target

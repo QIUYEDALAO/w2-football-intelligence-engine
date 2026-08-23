@@ -1,0 +1,5 @@
+[Unit]
+Description=W2 xG refresh: fetch xG for recently finished matches, per competition
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/w2-xg-refresh
