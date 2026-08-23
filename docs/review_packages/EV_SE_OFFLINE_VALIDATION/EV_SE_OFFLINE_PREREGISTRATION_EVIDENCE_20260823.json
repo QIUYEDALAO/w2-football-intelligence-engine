@@ -1,6 +1,6 @@
 {
-  "schema_version": "w2.ev_se.offline_preregistration_evidence.v1",
-  "status": "PRE_MODEL_DIAGNOSTIC_PASS_PARAMETER_GATE_OPEN",
+  "schema_version": "w2.ev_se.offline_preregistration_evidence.v2",
+  "status": "PRE_MODEL_DIAGNOSTIC_PASS_REPRODUCIBLE_PARAMETER_GATE_REVIEW_READY",
   "observed_at": "2026-08-23T12:00:50Z",
   "production": {
     "release_id": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1",
@@ -8,6 +8,41 @@
     "provider_calls": 0,
     "database_writes": 0,
     "outcomes_read": 0
+  },
+  "reproducibility": {
+    "float_tolerance": 1e-06,
+    "frozen_row_time_expression": "COALESCE(recorded_at, evaluated_at)",
+    "frozen_row_cutoff_inclusive": "2026-08-23T12:00:50Z",
+    "usable_predicate": [
+      "current_ev IS NOT NULL",
+      "current_ev_minus_se IS NOT NULL",
+      "current_ev - current_ev_minus_se >= 0",
+      "COALESCE(recorded_at, evaluated_at) <= 2026-08-23T12:00:50Z",
+      "api_football fixture identity resolves",
+      "kickoff_at < evaluated_at",
+      "captured_at <= evaluated_at",
+      "latest visible xG rows per side capped at 20",
+      "home_n >= 3 AND away_n >= 3",
+      "age, sigma_home, and sigma_away are non-null"
+    ],
+    "row_count_lineage": {
+      "handoff_ev_se_values": 2564,
+      "handoff_age_correlation_subset": 2528,
+      "frozen_baseline_usable": 2603,
+      "owner_live_recount": 2653,
+      "owner_live_recount_added_after_frozen_cutoff": 50,
+      "frozen_row_2603_max_recorded_at": "2026-08-23T11:50:02.966096Z",
+      "first_post_cutoff_row_recorded_at": "2026-08-23T12:01:12.133049Z",
+      "owner_live_row_2653_recorded_at": "2026-08-23T12:38:09.196654Z"
+    },
+    "minimum_lineage": {
+      "handoff_min_exact": 0.029576,
+      "handoff_min_reported_4dp": 0.0296,
+      "frozen_min_exact": 0.028387,
+      "new_min_evaluated_at": "2026-08-23T11:48:53Z",
+      "new_min_recorded_at": "2026-08-23T11:49:13.927694Z",
+      "cause": "NEW_EVALUATION_ENTERED_AFTER_HANDOFF_SNAPSHOT"
+    }
   },
   "age_falsification": {
     "usable_evaluations": 2603,
@@ -26,6 +61,7 @@
       "market",
       "selection"
     ],
+    "fixed_effect_minimum_stratum_rows": 4,
     "fixed_effect_rows": 2582,
     "n20_n20": {
       "evaluations": 2293,
@@ -46,20 +82,41 @@
     "base_total_below_1_35": 0,
     "ev_se_node_weight_effective_sigma_multiplier": 0.7071067812,
     "simulation_node_weight_effective_sigma_multiplier": 0.5633027605,
-    "shared_sigma_semantics": "UNRESOLVED"
+    "effective_sigma_multiplier_ratio": 1.2552872642,
+    "lower_node_floor": 0.01,
+    "shared_sigma_semantics": "OWNER_DECISION_REQUIRED_THREE_WAY"
   },
   "coverage_denominator": {
     "runtime_canonical_team_match_history_rows": 102,
     "runtime_active_competition_rows": 0,
+    "runtime_competition_ids": [
+      "allsvenskan"
+    ],
     "offline_corpus": {
       "snapshot_as_of": "2026-08-22T05:50:41.929427Z",
       "corpus_sha256": "d19b217afe159c87dbf8d0dea87c260374ac9d18ffd8bb97581cfffe858cedc5",
+      "file_sha256": "80e49d1a32b5dd9653d41826e87415acff0d32a6804dea408f3b99737a6ab5e2",
       "history_rows": 38706,
-      "team_identity_namespace": "api_football.provider_team_id.v1"
+      "team_identity_namespace": "api_football.provider_team_id.v1",
+      "materializer_commit": "0c77c086"
     },
     "active_11_competitions": {
+      "competition_ids": [
+        "argentina_primera",
+        "brasileirao_serie_a",
+        "bundesliga",
+        "eliteserien",
+        "eredivisie",
+        "la_liga",
+        "ligue_1",
+        "mls",
+        "premier_league",
+        "primeira_liga",
+        "serie_a"
+      ],
       "evaluations": 2265,
       "both_sides_full_expected_latest20_coverage": 897,
+      "legacy_n20_both_evaluations": 2171,
       "legacy_n20_both_but_expected_latest20_missing": 1274,
       "false_full_share_at_legacy_n20_both": 0.586826,
       "side_rows_with_missing_expected_xg": 2379,

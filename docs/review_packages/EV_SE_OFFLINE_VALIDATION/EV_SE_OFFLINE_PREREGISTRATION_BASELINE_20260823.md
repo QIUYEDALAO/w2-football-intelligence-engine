@@ -1,18 +1,16 @@
 # EV SE offline preregistration baseline — 2026-08-23
 
-Status: `PRE_MODEL_DIAGNOSTIC_PASS / PARAMETER_GATE_OPEN / NO_MODEL_CHANGE`
+Status: `PRE_MODEL_DIAGNOSTIC_PASS / REPRODUCIBLE / PARAMETER_GATE_REVIEW_READY`
 
 ## Execution boundary
 
 - Exact production release observed: `d05ab74217e37af2e85732ac3a63ee4d9e214aa1`.
 - Exact production schema: `0070_notification_delivery_routing`.
 - Evidence observed at: `2026-08-23T12:00:50Z`.
-- Provider calls: `0`.
-- Production database writes: `0` (all SQL ran in `BEGIN READ ONLY ... ROLLBACK`).
-- Outcomes and the current 65 settled picks were not read.
+- Provider calls / production database writes / outcomes read: `0 / 0 / 0`.
 - No model, threshold, Scheduler, notification, deployment, or runtime configuration changed.
 
-This document preregisters the problem and behavioral acceptance conditions. It does not approve a formula, coefficient, implementation, or release.
+This document preregisters the problem and behavioral acceptance conditions. It does not approve a formula, coefficient, implementation, or release. Reproduction is defined in `README.md`; every numeric field below is rendered by `scripts/audit_ev_se_offline_preregistration.py`.
 
 ## Binding non-claims
 
@@ -20,6 +18,19 @@ This document preregisters the problem and behavioral acceptance conditions. It 
 - Do not use profit, loss, hit rate, or the current 65 settled picks to choose an uncertainty coefficient.
 - Do not introduce or backtest-select an age cutoff or EV ceiling.
 - The target is epistemic: `ev_se` claims to express uncertainty about the current match lambdas. The current formula treats old and recent source matches as exchangeable conditional on observed values and sample size; that stationarity assumption requires an explicit test and policy.
+
+## Reproduction predicate and row-count lineage
+
+`usable` means: both EV fields are numeric, `ev_se >= 0`, `COALESCE(recorded_at, evaluated_at) <= 2026-08-23T12:00:50Z`, the API-Football fixture identity resolves, both xG sides obey `kickoff_at < evaluated_at` and `captured_at <= evaluated_at`, visible rows are capped at 20, both sides have `n >= 3`, and age plus both reconstructed sigmas are non-null.
+
+The four counts are different cohorts:
+
+- `2564`: handoff snapshot rows with an `ev_se` value.
+- `2528`: the handoff's age-correlation subset; it is not the handoff EV-SE count and cannot be compared as if it were.
+- `2603`: this preregistration's frozen usable cohort at `2026-08-23T12:00:50Z`.
+- `2653`: Owner's later unbounded live recount. Its extra `50` rows arrived after the frozen cutoff; row 2604 was recorded at `2026-08-23T12:01:12.133049Z` and row 2653 at `2026-08-23T12:38:09.196654Z`.
+
+The handoff minimum `0.0296` was `0.029576` rounded to four decimals. The new `0.028387` row was evaluated at `2026-08-23T11:48:53Z` and recorded at `2026-08-23T11:49:13.927694Z`. The minimum changed because a new evaluation entered after the handoff snapshot, not because the filter changed.
 
 ## Code facts frozen before model design
 
@@ -52,20 +63,17 @@ sigma_away = 0.5 * sqrt(SE(away attack)^2 + SE(home defence)^2)
 
 Conclusion: `0.5` is not an arbitrary gate discount in the unclamped interior. It is the derivative of the existing arithmetic-mean lambda estimator. The July design document recorded this formula but did not record the derivation.
 
-The coefficient is only piecewise valid. A total clamp or final-lambda clamp changes the Jacobian. In the 157 frozen model captures, 156 base totals were inside `[1.35, 4.40]`; one was above `4.40`. Any future uncertainty implementation must propagate through the actual piecewise calibration path rather than silently applying one global coefficient at clamp boundaries.
+The coefficient is only piecewise valid. A total clamp or final-lambda clamp changes the Jacobian. In the `157` frozen model captures, `156` base totals were inside `[1.35, 4.40]`; `1` was above `4.40` and `0` was below `1.35`. Any future uncertainty implementation must propagate through the actual piecewise calibration path rather than silently applying one global coefficient at clamp boundaries.
 
-### 2. `lambda_sigma` has two inconsistent downstream probability meanings
+### 2. Owner decision 1 is a three-way semantic choice
 
-The `ev_se` path evaluates nodes `mu-sigma`, `mu`, and `mu+sigma` with weights `0.25 / 0.50 / 0.25`. The weighted node standard deviation is `sqrt(0.5) * sigma`, approximately `0.7071 * sigma`.
+The EV-SE nodes use `0.25 / 0.50 / 0.25`, so effective SD is `0.7071 sigma`. Simulation uses `0.158655 / 0.68269 / 0.158655`, so effective SD is `0.5633 sigma`; their ratio is `1.2553`. Both paths also floor the lower node at `max(mu - sigma, 0.01)`, which further compresses dispersion as `mu - sigma` approaches zero.
 
-The main simulation path evaluates the same nodes with weights `0.158655 / 0.68269 / 0.158655`. Its weighted node standard deviation is approximately `0.5633 * sigma`.
+Owner must choose one:
 
-No repository document was found that declares whether `lambda_sigma` is intended to be:
-
-- the true standard deviation of the lambda distribution; or
-- only the distance from the centre node to the outer scenario nodes.
-
-This semantic mismatch must be resolved before selecting any new age or coverage adjustment. Otherwise a correct upstream uncertainty can still be contracted differently by the two consumers.
+1. **True standard deviation.** Both current weight sets are wrong and both consumers must change; neither is a reference implementation.
+2. **Outer-node distance.** The two consumers may retain different probability weights only after their probability meanings and the `1.2553` contraction ratio receive an explicit source and approval.
+3. **Retain current behavior.** Record that EV-SE and the main simulation intentionally apply different risk measures to the same `lambda_sigma`, including the lower-node floor compression.
 
 ### 3. Existing point-in-time and hard sample boundaries remain binding
 
@@ -74,7 +82,7 @@ This semantic mismatch must be resolved before selecting any new age or coverage
 - `limit_per_team = 20`.
 - Each attack/defence sample group requires `n >= 3`.
 
-No replacement PIT subsystem is proposed. Historical reconstruction additionally restricted xG rows to `captured_at <= evaluated_at` so later backfill could not appear in an earlier evaluation.
+No replacement PIT subsystem is proposed. Historical reconstruction additionally restricted xG rows to `captured_at <= evaluated_at` so later backfill could not appear in an earlier evaluation. It applies point-in-time visibility before the latest-20 cap so a later backfill cannot displace an older row that was visible at the frozen evaluation time.
 
 ### 4. Coverage is partially represented by `n`, but missingness is not identified
 
@@ -89,7 +97,7 @@ are identical after `_xg_uncertainty_rows` if only the five observed rows are pr
 
 ## Falsification test A — does age retain an effect after fixing n?
 
-The live read-only reconstruction produced 2,603 usable evaluations across 162 fixtures. This is slightly newer than the 2,528-row handoff snapshot.
+The frozen read-only reconstruction produced `2,603` usable evaluations across `162` fixtures. Fixed effects retain only exact `(home_n, away_n, market, selection)` strata with at least four rows.
 
 | Measurement | Result |
 |---|---:|
@@ -115,16 +123,17 @@ This is an epistemic formula diagnosis, not evidence that stale xG biases EV upw
 
 ## Falsification test B — can an expected-match denominator vary independently of n?
 
-The production `canonical_team_match_history` table cannot currently serve the active runtime: it contains 102 rows, all from Allsvenskan, and has zero coverage for the active 11 competitions.
+The production `canonical_team_match_history` table cannot currently serve the active runtime: it contains `102` rows, all from Allsvenskan, and has `0` coverage rows for the active 11 competitions.
 
 Offline denominator feasibility was tested with the already frozen saved-raw Gate 1 corpus:
 
 - snapshot: `2026-08-22T05:50:41.929427Z`;
-- corpus SHA-256: `d19b217afe159c87dbf8d0dea87c260374ac9d18ffd8bb97581cfffe858cedc5`;
+- canonical corpus fingerprint: `d19b217afe159c87dbf8d0dea87c260374ac9d18ffd8bb97581cfffe858cedc5`;
+- file SHA-256: `80e49d1a32b5dd9653d41826e87415acff0d32a6804dea408f3b99737a6ab5e2`;
 - team-history rows: `38,706`;
 - identity namespace: `api_football.provider_team_id.v1`.
 
-For each evaluation and team, the expected set was the latest 20 finished canonical fixtures strictly before the target kickoff. Coverage was the intersection of that set with xG rows visible by the evaluation time.
+For each evaluation and team, the expected set was the latest 20 finished canonical fixtures from the same provider league strictly before the target kickoff. Coverage was the intersection of that set with xG rows visible by the evaluation time. Evaluations at or after kickoff were excluded.
 
 Active 11-competition result:
 
@@ -132,11 +141,12 @@ Active 11-competition result:
 |---|---:|
 | evaluations with both expected denominators `>=3` | `2,265` |
 | both teams fully covered in their expected latest 20 | `897` |
+| old algorithm reports `n=20` for both teams | `2,171` |
 | old algorithm reports `n=20` for both teams but expected latest-20 coverage is incomplete | `1,274` |
 | side rows missing at least one expected xG fixture | `2,379` |
 | side coverage min / median / mean | `0.20 / 0.95 / 0.858355` |
 
-Among evaluations for which the old algorithm reports `n=20` on both teams, `1,274 / (1,274 + 897) = 58.68%` still have at least one recent expected-match coverage gap. Thus fixture-level coverage has substantial independent variation at fixed `n=20`; it is identifiable and not merely a duplicate transform of n.
+Among evaluations for which the old algorithm reports `n=20` on both teams, `1,274 / (1,274 + 897) = 0.586826` still have at least one recent expected-match coverage gap. Thus fixture-level coverage has substantial independent variation at fixed `n=20`; it is identifiable and not merely a duplicate transform of n.
 
 The frozen corpus is sufficient to prove offline identifiability. It is not itself a production runtime authority. A runtime implementation requires an approved, point-in-time available expected-fixture denominator for the active 11 competitions.
 
@@ -154,14 +164,14 @@ Additional structural requirements:
 
 - The `0.5` interior coefficient is defined by the lambda Jacobian, not tuned from outcomes.
 - Clamp-boundary propagation must use the actual piecewise lambda function.
-- `lambda_sigma` must have one declared probability meaning shared by the simulation and `ev_se` paths.
+- `lambda_sigma` must follow the Owner-approved probability meaning and consequences for both consumers.
 - Expected fixtures and observed xG fixtures must be compared by canonical provider fixture identity.
 - The latest-20 cap and `n>=3` lower bound remain unchanged unless separately approved.
 
 ## Owner decisions required before implementation
 
-1. Declare whether `lambda_sigma` is a true standard deviation or a scenario-node distance, and approve one consistent propagation contract for both consumers.
+1. Choose one of the three `lambda_sigma` semantic contracts above and approve its consequences for both consumers and the `0.01` floor.
 2. Approve the runtime expected-match denominator authority and its point-in-time availability contract for the active 11 competitions.
 3. Approve a formula family for recency and missing-coverage uncertainty. Coefficients remain unset at this gate.
 
-Until those decisions are recorded, the correct state is `OFFLINE_DIAGNOSTIC_COMPLETE / MODEL_PARAMETER_CHANGE_NOT_AUTHORIZED`.
+Until those decisions are recorded, the correct state is `OFFLINE_DIAGNOSTIC_REPRODUCIBLE / MODEL_PARAMETER_CHANGE_NOT_AUTHORIZED`.
