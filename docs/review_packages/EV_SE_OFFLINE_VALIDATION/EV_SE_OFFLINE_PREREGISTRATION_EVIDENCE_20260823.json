@@ -1,6 +1,6 @@
 {
-  "schema_version": "w2.ev_se.offline_preregistration_evidence.v3",
-  "status": "OWNER_CONTRACT1_SEMANTICS_APPROVED_OFFLINE_GH3_IMPACT_REPRODUCIBLE_PRODUCTION_CHANGE_GATED",
+  "schema_version": "w2.ev_se.offline_preregistration_evidence.v4",
+  "status": "OWNER_CONTRACT1_SEMANTICS_APPROVED_OFFLINE_GH3_IMPACT_PRICE_SOURCE_STRATIFIED_PRODUCTION_CHANGE_GATED",
   "observed_at": "2026-08-23T12:00:50Z",
   "production": {
     "release_id": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1",
@@ -162,6 +162,22 @@
       "price_source_counts": {
         "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION": 478,
         "PAYLOAD_DECIMAL_ODDS": 2106
+      },
+      "price_source_baseline_gate_lineage": {
+        "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION": {
+          "attempted_identifiable_evaluations": 492,
+          "accepted_evaluations": 478,
+          "excluded_evaluations": 14,
+          "failure_rate_among_attempted": 0.028455,
+          "excluded_to_accepted_ratio": 0.029289
+        },
+        "PAYLOAD_DECIMAL_ODDS": {
+          "attempted_identifiable_evaluations": 2106,
+          "accepted_evaluations": 2106,
+          "excluded_evaluations": 0,
+          "failure_rate_among_attempted": 0.0,
+          "excluded_to_accepted_ratio": 0.0
+        }
       }
     },
     "lambda_reconstruction": {
@@ -502,6 +518,256 @@
         "max_absolute": 0.006423
       },
       "settlement_probability_rounding_decimals": 6
+    },
+    "price_source_stratified_comparison": {
+      "strata": {
+        "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION": {
+          "n": 478,
+          "reported_point_ev_delta": {
+            "n": 478,
+            "min": 0.0,
+            "p05": 0.0,
+            "p25": 0.0,
+            "median": 0.0,
+            "mean": 0.0,
+            "p75": 0.0,
+            "p95": 0.0,
+            "max": 0.0,
+            "max_absolute": 0.0
+          },
+          "internal_quadrature_mean_ev_delta_gh3_minus_old": {
+            "n": 478,
+            "min": -0.004681,
+            "p05": -0.003386,
+            "p25": -0.000961,
+            "median": -0.00032,
+            "mean": -0.000412,
+            "p75": 0.000486,
+            "p95": 0.002253,
+            "max": 0.002518,
+            "max_absolute": 0.004681
+          },
+          "ev_se_delta_gh3_minus_old": {
+            "n": 478,
+            "min": 0.015113,
+            "p05": 0.017721,
+            "p25": 0.019871,
+            "median": 0.023259,
+            "mean": 0.027423,
+            "p75": 0.036258,
+            "p95": 0.043939,
+            "max": 0.049328,
+            "max_absolute": 0.049328
+          },
+          "mixed_score_matrix_ev_delta_gh3_minus_old": {
+            "n": 478,
+            "min": -0.006423,
+            "p05": -0.004631,
+            "p25": -0.001313,
+            "median": -0.000436,
+            "mean": -0.000561,
+            "p75": 0.000665,
+            "p95": 0.003135,
+            "max": 0.003496,
+            "max_absolute": 0.006423
+          },
+          "pure_sqrt_2_linear_rescaling_reference": {
+            "basis": "FORWARD_RECONSTRUCTED_OLD_EV_SE_TIMES_SQRT_2_MINUS_1;_NO_HISTORICAL_SIGMA_BACKSOLVE",
+            "predicted_ev_se_delta": {
+              "n": 478,
+              "min": 0.015133,
+              "p05": 0.017754,
+              "p25": 0.020019,
+              "median": 0.023435,
+              "mean": 0.027685,
+              "p75": 0.036433,
+              "p95": 0.045091,
+              "max": 0.050195,
+              "max_absolute": 0.050195
+            },
+            "actual_minus_predicted_ev_se_delta": {
+              "n": 478,
+              "min": -0.001799,
+              "p05": -0.001336,
+              "p25": -0.000309,
+              "median": -0.000113,
+              "mean": -0.000262,
+              "p75": -4.3e-05,
+              "p95": 0.000105,
+              "max": 0.000472,
+              "max_absolute": 0.001799
+            },
+            "actual_mean": 0.027423,
+            "predicted_mean": 0.027685,
+            "absolute_relative_mean_gap": 0.009465
+          }
+        },
+        "PAYLOAD_DECIMAL_ODDS": {
+          "n": 2106,
+          "reported_point_ev_delta": {
+            "n": 2106,
+            "min": 0.0,
+            "p05": 0.0,
+            "p25": 0.0,
+            "median": 0.0,
+            "mean": 0.0,
+            "p75": 0.0,
+            "p95": 0.0,
+            "max": 0.0,
+            "max_absolute": 0.0
+          },
+          "internal_quadrature_mean_ev_delta_gh3_minus_old": {
+            "n": 2106,
+            "min": -0.00277,
+            "p05": -0.001261,
+            "p25": -0.000687,
+            "median": -0.000237,
+            "mean": -0.000299,
+            "p75": 0.000127,
+            "p95": 0.000609,
+            "max": 0.001044,
+            "max_absolute": 0.00277
+          },
+          "ev_se_delta_gh3_minus_old": {
+            "n": 2106,
+            "min": 0.011775,
+            "p05": 0.016311,
+            "p25": 0.018628,
+            "median": 0.020617,
+            "mean": 0.020838,
+            "p75": 0.02263,
+            "p95": 0.026168,
+            "max": 0.034009,
+            "max_absolute": 0.034009
+          },
+          "mixed_score_matrix_ev_delta_gh3_minus_old": {
+            "n": 2106,
+            "min": -0.003793,
+            "p05": -0.001725,
+            "p25": -0.00094,
+            "median": -0.000323,
+            "mean": -0.000408,
+            "p75": 0.000174,
+            "p95": 0.000836,
+            "max": 0.001428,
+            "max_absolute": 0.003793
+          },
+          "pure_sqrt_2_linear_rescaling_reference": {
+            "basis": "FORWARD_RECONSTRUCTED_OLD_EV_SE_TIMES_SQRT_2_MINUS_1;_NO_HISTORICAL_SIGMA_BACKSOLVE",
+            "predicted_ev_se_delta": {
+              "n": 2106,
+              "min": 0.011758,
+              "p05": 0.016313,
+              "p25": 0.018645,
+              "median": 0.020699,
+              "mean": 0.020927,
+              "p75": 0.022859,
+              "p95": 0.026432,
+              "max": 0.03393,
+              "max_absolute": 0.03393
+            },
+            "actual_minus_predicted_ev_se_delta": {
+              "n": 2106,
+              "min": -0.001077,
+              "p05": -0.000245,
+              "p25": -0.000132,
+              "median": -7.9e-05,
+              "mean": -8.8e-05,
+              "p75": -3.3e-05,
+              "p95": 4e-05,
+              "max": 0.000308,
+              "max_absolute": 0.001077
+            },
+            "actual_mean": 0.020838,
+            "predicted_mean": 0.020927,
+            "absolute_relative_mean_gap": 0.004227
+          }
+        }
+      },
+      "distribution_difference_assessments": {
+        "reported_point_ev_delta": {
+          "criterion": "MATERIAL_IF_ABSOLUTE_STANDARDIZED_MEAN_GAP_OR_MAX_P05_P25_MEDIAN_P75_P95_GAP_IS_AT_LEAST_0_20_POOLED_WITHIN_SOURCE_SD",
+          "criterion_purpose": "DESCRIPTIVE_REPORTING_ONLY_NOT_A_MODEL_GATE_OR_PARAMETER",
+          "threshold": 0.2,
+          "pooled_within_source_sd": 0.0,
+          "absolute_mean_gap": 0.0,
+          "absolute_standardized_mean_gap": 0.0,
+          "largest_central_quantile_gap": "p05",
+          "absolute_largest_central_quantile_gap": 0.0,
+          "absolute_standardized_largest_central_quantile_gap": 0.0,
+          "material_difference": false,
+          "classification": "NO_MATERIAL_PRICE_SOURCE_DIFFERENCE",
+          "pooled_statistic_may_be_sole_reporting_granularity": true
+        },
+        "internal_quadrature_mean_ev_delta_gh3_minus_old": {
+          "criterion": "MATERIAL_IF_ABSOLUTE_STANDARDIZED_MEAN_GAP_OR_MAX_P05_P25_MEDIAN_P75_P95_GAP_IS_AT_LEAST_0_20_POOLED_WITHIN_SOURCE_SD",
+          "criterion_purpose": "DESCRIPTIVE_REPORTING_ONLY_NOT_A_MODEL_GATE_OR_PARAMETER",
+          "threshold": 0.2,
+          "pooled_within_source_sd": 0.000839,
+          "absolute_mean_gap": 0.000113,
+          "absolute_standardized_mean_gap": 0.135036,
+          "largest_central_quantile_gap": "p05",
+          "absolute_largest_central_quantile_gap": 0.002125,
+          "absolute_standardized_largest_central_quantile_gap": 2.532142,
+          "material_difference": true,
+          "classification": "MATERIAL_PRICE_SOURCE_DIFFERENCE",
+          "pooled_statistic_may_be_sole_reporting_granularity": false
+        },
+        "ev_se_delta_gh3_minus_old": {
+          "criterion": "MATERIAL_IF_ABSOLUTE_STANDARDIZED_MEAN_GAP_OR_MAX_P05_P25_MEDIAN_P75_P95_GAP_IS_AT_LEAST_0_20_POOLED_WITHIN_SOURCE_SD",
+          "criterion_purpose": "DESCRIPTIVE_REPORTING_ONLY_NOT_A_MODEL_GATE_OR_PARAMETER",
+          "threshold": 0.2,
+          "pooled_within_source_sd": 0.004879,
+          "absolute_mean_gap": 0.006585,
+          "absolute_standardized_mean_gap": 1.349489,
+          "largest_central_quantile_gap": "p95",
+          "absolute_largest_central_quantile_gap": 0.017771,
+          "absolute_standardized_largest_central_quantile_gap": 3.642091,
+          "material_difference": true,
+          "classification": "MATERIAL_PRICE_SOURCE_DIFFERENCE",
+          "pooled_statistic_may_be_sole_reporting_granularity": false
+        },
+        "mixed_score_matrix_ev_delta_gh3_minus_old": {
+          "criterion": "MATERIAL_IF_ABSOLUTE_STANDARDIZED_MEAN_GAP_OR_MAX_P05_P25_MEDIAN_P75_P95_GAP_IS_AT_LEAST_0_20_POOLED_WITHIN_SOURCE_SD",
+          "criterion_purpose": "DESCRIPTIVE_REPORTING_ONLY_NOT_A_MODEL_GATE_OR_PARAMETER",
+          "threshold": 0.2,
+          "pooled_within_source_sd": 0.001152,
+          "absolute_mean_gap": 0.000153,
+          "absolute_standardized_mean_gap": 0.132682,
+          "largest_central_quantile_gap": "p05",
+          "absolute_largest_central_quantile_gap": 0.002906,
+          "absolute_standardized_largest_central_quantile_gap": 2.522429,
+          "material_difference": true,
+          "classification": "MATERIAL_PRICE_SOURCE_DIFFERENCE",
+          "pooled_statistic_may_be_sole_reporting_granularity": false
+        }
+      },
+      "ev_se_pooled_mean_question": {
+        "pooled_mean": 0.022056,
+        "answer": "YES_MIXTURE_OF_MATERIALLY_DIFFERENT_PRICE_SOURCE_DISTRIBUTIONS",
+        "pooled_mean_must_not_be_the_only_reporting_granularity": true,
+        "criterion_reference": "MATERIAL_IF_ABSOLUTE_STANDARDIZED_MEAN_GAP_OR_MAX_P05_P25_MEDIAN_P75_P95_GAP_IS_AT_LEAST_0_20_POOLED_WITHIN_SOURCE_SD"
+      },
+      "pure_sqrt_2_linear_rescaling_reference": {
+        "basis": "FORWARD_RECONSTRUCTED_OLD_EV_SE_TIMES_SQRT_2_MINUS_1;_NO_HISTORICAL_SIGMA_BACKSOLVE",
+        "predicted_ev_se_delta": {
+          "n": 2584,
+          "min": 0.011758,
+          "p05": 0.016624,
+          "p25": 0.018912,
+          "median": 0.020862,
+          "mean": 0.022177,
+          "p75": 0.023343,
+          "p95": 0.035506,
+          "max": 0.050195,
+          "max_absolute": 0.050195
+        },
+        "actual_mean": 0.022056,
+        "recomputed_predicted_mean": 0.022177,
+        "absolute_relative_mean_gap_to_recomputed_prediction": 0.005437,
+        "reviewer_supplied_predicted_mean": 0.022213,
+        "absolute_relative_mean_gap_to_reviewer_reference": 0.007054
+      }
     },
     "lower_node_floor": {
       "floor": 0.01,

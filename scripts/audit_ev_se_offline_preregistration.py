@@ -34,6 +34,16 @@ CORPUS_ROWS = 38_706
 FLOAT_TOLERANCE = 0.000001
 GH3_DISTANCE = math.sqrt(3.0)
 GH3_WEIGHTS = (1.0 / 6.0, 2.0 / 3.0, 1.0 / 6.0)
+PAYLOAD_PRICE_SOURCE = "PAYLOAD_DECIMAL_ODDS"
+DERIVED_PRICE_SOURCE = "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION"
+STANDARDIZED_EFFECT_MATERIALITY_THRESHOLD = 0.20
+REVIEWER_SQRT2_POOLED_DELTA_REFERENCE = 0.022213
+PRICE_SOURCE_COMPARISON_FIELDS = {
+    "reported_point_ev_delta": "reported_point_ev_delta",
+    "internal_quadrature_mean_ev_delta_gh3_minus_old": "analysis_mean_delta",
+    "ev_se_delta_gh3_minus_old": "analysis_se_delta",
+    "mixed_score_matrix_ev_delta_gh3_minus_old": "simulation_ev_delta",
+}
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_JSON = ROOT / (
@@ -843,6 +853,78 @@ def _distribution_summary(values: list[float]) -> dict[str, Any]:
     }
 
 
+def _distribution_difference_assessment(
+    first: list[float], second: list[float]
+) -> dict[str, Any]:
+    if not first or not second:
+        raise ValueError("EV_SE_PRICE_SOURCE_STRATUM_EMPTY")
+    degrees_of_freedom = len(first) + len(second) - 2
+    pooled_sd = (
+        math.sqrt(
+            (
+                (len(first) - 1) * statistics.variance(first)
+                + (len(second) - 1) * statistics.variance(second)
+            )
+            / degrees_of_freedom
+        )
+        if len(first) > 1 and len(second) > 1 and degrees_of_freedom > 0
+        else 0.0
+    )
+    mean_gap = abs(statistics.fmean(first) - statistics.fmean(second))
+    central_quantiles = {
+        "p05": 0.05,
+        "p25": 0.25,
+        "median": 0.50,
+        "p75": 0.75,
+        "p95": 0.95,
+    }
+    quantile_gaps = {
+        name: abs(_percentile(first, probability) - _percentile(second, probability))
+        for name, probability in central_quantiles.items()
+    }
+    largest_quantile = max(quantile_gaps, key=quantile_gaps.get)
+    if pooled_sd == 0.0:
+        standardized_mean_gap = 0.0 if mean_gap == 0.0 else math.inf
+        standardized_quantile_gap = (
+            0.0 if quantile_gaps[largest_quantile] == 0.0 else math.inf
+        )
+    else:
+        standardized_mean_gap = mean_gap / pooled_sd
+        standardized_quantile_gap = quantile_gaps[largest_quantile] / pooled_sd
+    material = (
+        max(standardized_mean_gap, standardized_quantile_gap)
+        >= STANDARDIZED_EFFECT_MATERIALITY_THRESHOLD
+    )
+    return {
+        "criterion": "MATERIAL_IF_ABSOLUTE_STANDARDIZED_MEAN_GAP_OR_MAX_P05_P25_MEDIAN_P75_P95_GAP_IS_AT_LEAST_0_20_POOLED_WITHIN_SOURCE_SD",
+        "criterion_purpose": "DESCRIPTIVE_REPORTING_ONLY_NOT_A_MODEL_GATE_OR_PARAMETER",
+        "threshold": STANDARDIZED_EFFECT_MATERIALITY_THRESHOLD,
+        "pooled_within_source_sd": _round(pooled_sd),
+        "absolute_mean_gap": _round(mean_gap),
+        "absolute_standardized_mean_gap": (
+            _round(standardized_mean_gap)
+            if math.isfinite(standardized_mean_gap)
+            else "INFINITE"
+        ),
+        "largest_central_quantile_gap": largest_quantile,
+        "absolute_largest_central_quantile_gap": _round(
+            quantile_gaps[largest_quantile]
+        ),
+        "absolute_standardized_largest_central_quantile_gap": (
+            _round(standardized_quantile_gap)
+            if math.isfinite(standardized_quantile_gap)
+            else "INFINITE"
+        ),
+        "material_difference": material,
+        "classification": (
+            "MATERIAL_PRICE_SOURCE_DIFFERENCE"
+            if material
+            else "NO_MATERIAL_PRICE_SOURCE_DIFFERENCE"
+        ),
+        "pooled_statistic_may_be_sole_reporting_granularity": not material,
+    }
+
+
 def _computed_distribution(
     matrix: Mapping[tuple[int, int], float], row: Mapping[str, Any]
 ) -> dict[str, float]:
@@ -985,7 +1067,7 @@ def _ev_from_distribution(distribution: Mapping[str, float], price: float) -> fl
 def _price(row: Mapping[str, Any]) -> tuple[float, str]:
     raw = row.get("decimal_odds")
     if raw is not None and float(raw) > 1.0:
-        return float(raw), "PAYLOAD_DECIMAL_ODDS"
+        return float(raw), PAYLOAD_PRICE_SOURCE
     distribution = _stored_distribution(row)
     gain = distribution["WIN"] + 0.5 * distribution["HALF_WIN"]
     loss = distribution["LOSS"] + 0.5 * distribution["HALF_LOSS"]
@@ -994,7 +1076,7 @@ def _price(row: Mapping[str, Any]) -> tuple[float, str]:
     price = 1.0 + (float(row["current_ev"]) + loss) / gain
     if price <= 1.0:
         raise ValueError(f"EV_SE_PRICE_INVALID:{row['evaluation_id']}")
-    return price, "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION"
+    return price, DERIVED_PRICE_SOURCE
 
 
 def _scenario_ev_stats(
@@ -1133,8 +1215,10 @@ def _contract1_metrics(source_rows: list[dict[str, Any]]) -> dict[str, Any]:
                     "model_input_hash": key,
                     "evaluation_id": str(row["evaluation_id"]),
                     "price_source": price_source,
+                    "reported_point_ev_delta": 0.0,
                     "analysis_mean_delta": gh3_mean - old_mean,
                     "analysis_se_delta": gh3_se - old_se,
+                    "reconstructed_old_ev_se": old_se,
                     "old_se_residual": old_se_residual,
                     "point_ev_residual": point_ev_residual,
                     "simulation_ev_delta": _mixed_ev(gh3, row, price)
@@ -1178,6 +1262,11 @@ def _contract1_metrics(source_rows: list[dict[str, Any]]) -> dict[str, Any]:
         for row in replay_records
         if str(row["model_input_hash"]) not in nonreproducible_groups
     ]
+    excluded_nonreproducible_records = [
+        row
+        for row in replay_records
+        if str(row["model_input_hash"]) in nonreproducible_groups
+    ]
     analysis_mean_deltas = [
         float(row["analysis_mean_delta"]) for row in reproducible_records
     ]
@@ -1197,6 +1286,106 @@ def _contract1_metrics(source_rows: list[dict[str, Any]]) -> dict[str, Any]:
     for row in reproducible_records:
         price_sources[str(row["price_source"])] += 1
     evaluation_count = len(reproducible_records)
+    expected_price_sources = {PAYLOAD_PRICE_SOURCE, DERIVED_PRICE_SOURCE}
+    if set(price_sources) != expected_price_sources:
+        raise ValueError(f"EV_SE_PRICE_SOURCE_SET_INVALID:{sorted(price_sources)}")
+
+    attempted_price_sources: dict[str, int] = defaultdict(int)
+    excluded_price_sources: dict[str, int] = defaultdict(int)
+    for row in replay_records:
+        attempted_price_sources[str(row["price_source"])] += 1
+    for row in excluded_nonreproducible_records:
+        excluded_price_sources[str(row["price_source"])] += 1
+
+    price_source_strata: dict[str, Any] = {}
+    for price_source in sorted(expected_price_sources):
+        stratum = [
+            row
+            for row in reproducible_records
+            if str(row["price_source"]) == price_source
+        ]
+        predicted_linear_deltas = [
+            float(row["reconstructed_old_ev_se"]) * (math.sqrt(2.0) - 1.0)
+            for row in stratum
+        ]
+        actual_ev_se_deltas = [float(row["analysis_se_delta"]) for row in stratum]
+        predicted_mean = statistics.fmean(predicted_linear_deltas)
+        actual_mean = statistics.fmean(actual_ev_se_deltas)
+        price_source_strata[price_source] = {
+            "n": len(stratum),
+            **{
+                output_field: _distribution_summary(
+                    [float(row[record_field]) for row in stratum]
+                )
+                for output_field, record_field in PRICE_SOURCE_COMPARISON_FIELDS.items()
+            },
+            "pure_sqrt_2_linear_rescaling_reference": {
+                "basis": "FORWARD_RECONSTRUCTED_OLD_EV_SE_TIMES_SQRT_2_MINUS_1;_NO_HISTORICAL_SIGMA_BACKSOLVE",
+                "predicted_ev_se_delta": _distribution_summary(
+                    predicted_linear_deltas
+                ),
+                "actual_minus_predicted_ev_se_delta": _distribution_summary(
+                    [
+                        actual - predicted
+                        for actual, predicted in zip(
+                            actual_ev_se_deltas,
+                            predicted_linear_deltas,
+                            strict=True,
+                        )
+                    ]
+                ),
+                "actual_mean": _round(actual_mean),
+                "predicted_mean": _round(predicted_mean),
+                "absolute_relative_mean_gap": _round(
+                    abs(actual_mean - predicted_mean) / abs(predicted_mean)
+                ),
+            },
+        }
+
+    distribution_difference_assessments = {
+        output_field: _distribution_difference_assessment(
+            [
+                float(row[record_field])
+                for row in reproducible_records
+                if str(row["price_source"]) == DERIVED_PRICE_SOURCE
+            ],
+            [
+                float(row[record_field])
+                for row in reproducible_records
+                if str(row["price_source"]) == PAYLOAD_PRICE_SOURCE
+            ],
+        )
+        for output_field, record_field in PRICE_SOURCE_COMPARISON_FIELDS.items()
+    }
+    ev_se_difference = distribution_difference_assessments[
+        "ev_se_delta_gh3_minus_old"
+    ]
+    pooled_linear_predictions = [
+        float(row["reconstructed_old_ev_se"]) * (math.sqrt(2.0) - 1.0)
+        for row in reproducible_records
+    ]
+    pooled_linear_prediction_mean = statistics.fmean(pooled_linear_predictions)
+    pooled_actual_ev_se_delta_mean = statistics.fmean(analysis_se_deltas)
+    pooled_reference = {
+        "basis": "FORWARD_RECONSTRUCTED_OLD_EV_SE_TIMES_SQRT_2_MINUS_1;_NO_HISTORICAL_SIGMA_BACKSOLVE",
+        "predicted_ev_se_delta": _distribution_summary(
+            pooled_linear_predictions
+        ),
+        "actual_mean": _round(pooled_actual_ev_se_delta_mean),
+        "recomputed_predicted_mean": _round(pooled_linear_prediction_mean),
+        "absolute_relative_mean_gap_to_recomputed_prediction": _round(
+            abs(pooled_actual_ev_se_delta_mean - pooled_linear_prediction_mean)
+            / abs(pooled_linear_prediction_mean)
+        ),
+        "reviewer_supplied_predicted_mean": REVIEWER_SQRT2_POOLED_DELTA_REFERENCE,
+        "absolute_relative_mean_gap_to_reviewer_reference": _round(
+            abs(
+                pooled_actual_ev_se_delta_mean
+                - REVIEWER_SQRT2_POOLED_DELTA_REFERENCE
+            )
+            / REVIEWER_SQRT2_POOLED_DELTA_REFERENCE
+        ),
+    }
 
     floor_samples = []
     old_floor_sides = 0
@@ -1282,6 +1471,24 @@ def _contract1_metrics(source_rows: list[dict[str, Any]]) -> dict[str, Any]:
             "excluded_unidentifiable_single_market_evaluations": len(excluded),
             "excluded_evaluation_ids": excluded,
             "price_source_counts": dict(sorted(price_sources.items())),
+            "price_source_baseline_gate_lineage": {
+                price_source: {
+                    "attempted_identifiable_evaluations": attempted_price_sources[
+                        price_source
+                    ],
+                    "accepted_evaluations": price_sources[price_source],
+                    "excluded_evaluations": excluded_price_sources[price_source],
+                    "failure_rate_among_attempted": _round(
+                        excluded_price_sources[price_source]
+                        / attempted_price_sources[price_source]
+                    ),
+                    "excluded_to_accepted_ratio": _round(
+                        excluded_price_sources[price_source]
+                        / price_sources[price_source]
+                    ),
+                }
+                for price_source in sorted(expected_price_sources)
+            },
         },
         "lambda_reconstruction": {
             "method": "DETERMINISTIC_TWO_DIMENSION_PATTERN_SEARCH_AGAINST_FROZEN_FIVE_STATE_DISTRIBUTIONS",
@@ -1316,6 +1523,23 @@ def _contract1_metrics(source_rows: list[dict[str, Any]]) -> dict[str, Any]:
                 simulation_ev_deltas
             ),
             "settlement_probability_rounding_decimals": 6,
+        },
+        "price_source_stratified_comparison": {
+            "strata": price_source_strata,
+            "distribution_difference_assessments": distribution_difference_assessments,
+            "ev_se_pooled_mean_question": {
+                "pooled_mean": _round(pooled_actual_ev_se_delta_mean),
+                "answer": (
+                    "YES_MIXTURE_OF_MATERIALLY_DIFFERENT_PRICE_SOURCE_DISTRIBUTIONS"
+                    if ev_se_difference["material_difference"]
+                    else "MATHEMATICAL_MIXTURE_BUT_NO_MATERIAL_PRICE_SOURCE_DISTRIBUTION_DIFFERENCE"
+                ),
+                "pooled_mean_must_not_be_the_only_reporting_granularity": bool(
+                    ev_se_difference["material_difference"]
+                ),
+                "criterion_reference": ev_se_difference["criterion"],
+            },
+            "pure_sqrt_2_linear_rescaling_reference": pooled_reference,
         },
         "lower_node_floor": {
             "floor": 0.01,
@@ -1449,9 +1673,68 @@ def build_evidence(source_rows: list[dict[str, Any]], corpus: Mapping[str, Any])
         > FLOAT_TOLERANCE
     ):
         raise ValueError("EV_SE_CONTRACT1_BASELINE_REPRODUCTION_FAILED")
+    stratified = contract1["price_source_stratified_comparison"]
+    strata = stratified["strata"]
+    expected_price_sources = {PAYLOAD_PRICE_SOURCE, DERIVED_PRICE_SOURCE}
+    if set(strata) != expected_price_sources:
+        raise ValueError("EV_SE_CONTRACT1_PRICE_SOURCE_STRATA_MISSING")
+    if sum(int(stratum["n"]) for stratum in strata.values()) != int(
+        cohort["baseline_reproducible_evaluations"]
+    ):
+        raise ValueError("EV_SE_CONTRACT1_PRICE_SOURCE_STRATA_COUNT_MISMATCH")
+    pooled_summaries = {
+        "reported_point_ev_delta": contract1["analysis_evidence_consumer"][
+            "reported_point_ev_delta"
+        ],
+        "internal_quadrature_mean_ev_delta_gh3_minus_old": contract1[
+            "analysis_evidence_consumer"
+        ]["internal_quadrature_mean_ev_delta_gh3_minus_old"],
+        "ev_se_delta_gh3_minus_old": contract1["analysis_evidence_consumer"][
+            "ev_se_delta_gh3_minus_old"
+        ],
+        "mixed_score_matrix_ev_delta_gh3_minus_old": contract1[
+            "simulation_consumer"
+        ]["mixed_score_matrix_ev_delta_gh3_minus_old"],
+    }
+    required_summary_fields = {
+        "n",
+        "min",
+        "p05",
+        "p25",
+        "median",
+        "mean",
+        "p75",
+        "p95",
+        "max",
+        "max_absolute",
+    }
+    for metric, pooled_summary in pooled_summaries.items():
+        weighted_mean = 0.0
+        for stratum in strata.values():
+            summary = stratum[metric]
+            if set(summary) != required_summary_fields or int(summary["n"]) != int(
+                stratum["n"]
+            ):
+                raise ValueError(
+                    f"EV_SE_CONTRACT1_PRICE_SOURCE_SUMMARY_INVALID:{metric}"
+                )
+            weighted_mean += float(summary["mean"]) * int(stratum["n"])
+        weighted_mean /= int(cohort["baseline_reproducible_evaluations"])
+        if abs(weighted_mean - float(pooled_summary["mean"])) > 2 * FLOAT_TOLERANCE:
+            raise ValueError(
+                f"EV_SE_CONTRACT1_PRICE_SOURCE_WEIGHTED_MEAN_MISMATCH:{metric}"
+            )
+    gate_lineage = cohort["price_source_baseline_gate_lineage"]
+    if any(
+        int(gate_lineage[source]["accepted_evaluations"])
+        + int(gate_lineage[source]["excluded_evaluations"])
+        != int(gate_lineage[source]["attempted_identifiable_evaluations"])
+        for source in expected_price_sources
+    ):
+        raise ValueError("EV_SE_CONTRACT1_PRICE_SOURCE_GATE_LINEAGE_MISMATCH")
     return {
-        "schema_version": "w2.ev_se.offline_preregistration_evidence.v3",
-        "status": "OWNER_CONTRACT1_SEMANTICS_APPROVED_OFFLINE_GH3_IMPACT_REPRODUCIBLE_PRODUCTION_CHANGE_GATED",
+        "schema_version": "w2.ev_se.offline_preregistration_evidence.v4",
+        "status": "OWNER_CONTRACT1_SEMANTICS_APPROVED_OFFLINE_GH3_IMPACT_PRICE_SOURCE_STRATIFIED_PRODUCTION_CHANGE_GATED",
         "observed_at": OBSERVED_AT,
         "production": {
             "release_id": RELEASE_ID,
@@ -1632,6 +1915,12 @@ def _render_markdown(evidence: Mapping[str, Any]) -> str:
     reconstruction = contract["lambda_reconstruction"]
     analysis_consumer = contract["analysis_evidence_consumer"]
     simulation_consumer = contract["simulation_consumer"]
+    stratified = contract["price_source_stratified_comparison"]
+    price_strata = stratified["strata"]
+    ev_se_source_assessment = stratified["distribution_difference_assessments"][
+        "ev_se_delta_gh3_minus_old"
+    ]
+    pooled_sqrt2 = stratified["pure_sqrt_2_linear_rescaling_reference"]
     floor = contract["lower_node_floor"]
     coverage = evidence["coverage_denominator"]
     scope = coverage["enabled_scope_feasibility"]
@@ -1664,6 +1953,45 @@ def _render_markdown(evidence: Mapping[str, Any]) -> str:
         f"{floor['gh3_effective_sd_over_sigma_on_triggered_sides']['max']:.6f}"
         if floor["gh3_triggered_lambda_sides"]
         else "not observed (0 triggered sides)"
+    )
+    metric_labels = {
+        "reported_point_ev_delta": "reported point EV delta",
+        "internal_quadrature_mean_ev_delta_gh3_minus_old": "internal quadrature mean EV delta",
+        "ev_se_delta_gh3_minus_old": "ev_se delta",
+        "mixed_score_matrix_ev_delta_gh3_minus_old": "mixed-score-matrix EV delta",
+    }
+    price_source_rows = "\n".join(
+        "| `{source}` | {metric} | `{n}` | `{min:+.6f}` | `{p05:+.6f}` | "
+        "`{p25:+.6f}` | `{median:+.6f}` | `{mean:+.6f}` | `{p75:+.6f}` | "
+        "`{p95:+.6f}` | `{max:+.6f}` | `{max_absolute:.6f}` |".format(
+            source=source,
+            metric=metric_labels[metric],
+            **price_strata[source][metric],
+        )
+        for source in (DERIVED_PRICE_SOURCE, PAYLOAD_PRICE_SOURCE)
+        for metric in PRICE_SOURCE_COMPARISON_FIELDS
+    )
+    sqrt2_source_rows = "\n".join(
+        "| `{source}` | `{n}` | `{actual:+.6f}` | `{predicted:+.6f}` | "
+        "`{gap:.4%}` |".format(
+            source=source,
+            n=price_strata[source]["n"],
+            actual=price_strata[source]["pure_sqrt_2_linear_rescaling_reference"][
+                "actual_mean"
+            ],
+            predicted=price_strata[source][
+                "pure_sqrt_2_linear_rescaling_reference"
+            ]["predicted_mean"],
+            gap=price_strata[source]["pure_sqrt_2_linear_rescaling_reference"][
+                "absolute_relative_mean_gap"
+            ],
+        )
+        for source in (DERIVED_PRICE_SOURCE, PAYLOAD_PRICE_SOURCE)
+    )
+    ev_se_mixture_text = (
+        "The price-source layers meet the preregistered descriptive materiality criterion. The pooled mean must therefore not be the only reporting granularity."
+        if ev_se_source_assessment["material_difference"]
+        else "The pooled cohort is mathematically a mixture of two price-source layers, but their `ev_se` delta distributions do not meet the preregistered descriptive materiality criterion; the pooled mean remains a valid compact summary when the two layer summaries accompany it."
     )
     return f"""# EV SE offline preregistration baseline — 2026-08-23
 
@@ -1756,6 +2084,25 @@ Lambda reconstruction is outcome-free. It fits the two point lambdas to the froz
 | simulation mixed-score EV | `{simulation_consumer['mixed_score_matrix_ev_delta_gh3_minus_old']['mean']:+.6f}` | `{simulation_consumer['mixed_score_matrix_ev_delta_gh3_minus_old']['p05']:+.6f} / {simulation_consumer['mixed_score_matrix_ev_delta_gh3_minus_old']['median']:+.6f} / {simulation_consumer['mixed_score_matrix_ev_delta_gh3_minus_old']['p95']:+.6f}` | `{simulation_consumer['mixed_score_matrix_ev_delta_gh3_minus_old']['min']:+.6f} / {simulation_consumer['mixed_score_matrix_ev_delta_gh3_minus_old']['max']:+.6f}` | `{simulation_consumer['mixed_score_matrix_ev_delta_gh3_minus_old']['max_absolute']:.6f}` |
 
 The reported analysis-evidence point EV stays unchanged because `_lambda_scenarios` only computes `ev_se`; the internal quadrature mean is reported separately so the weighting effect is still visible.
+
+## EV-SE-EXEC-06 — price-source stratification
+
+The baseline gate lineage is source-specific. `{DERIVED_PRICE_SOURCE}` has `{cohort['price_source_baseline_gate_lineage'][DERIVED_PRICE_SOURCE]['attempted_identifiable_evaluations']}` attempted identifiable evaluations, `{cohort['price_source_baseline_gate_lineage'][DERIVED_PRICE_SOURCE]['accepted_evaluations']}` accepted, and `{cohort['price_source_baseline_gate_lineage'][DERIVED_PRICE_SOURCE]['excluded_evaluations']}` excluded. Its true failure rate among attempted rows is `{cohort['price_source_baseline_gate_lineage'][DERIVED_PRICE_SOURCE]['failure_rate_among_attempted']:.4%}`; `14 / 478 = {cohort['price_source_baseline_gate_lineage'][DERIVED_PRICE_SOURCE]['excluded_to_accepted_ratio']:.4%}` is the excluded-to-accepted ratio, not the attempted-row failure rate. `{PAYLOAD_PRICE_SOURCE}` has `{cohort['price_source_baseline_gate_lineage'][PAYLOAD_PRICE_SOURCE]['attempted_identifiable_evaluations']}` attempted, `{cohort['price_source_baseline_gate_lineage'][PAYLOAD_PRICE_SOURCE]['accepted_evaluations']}` accepted, and `{cohort['price_source_baseline_gate_lineage'][PAYLOAD_PRICE_SOURCE]['excluded_evaluations']}` excluded. This records the observed concentration without changing any of the 14 exclusions.
+
+| price source | comparison measurement | n | min | p05 | p25 | median | mean | p75 | p95 | max | max absolute |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+{price_source_rows}
+
+The reporting-only materiality rule is fixed before interpreting the layers: a difference is material when either the absolute mean gap or the largest absolute `p05/p25/median/p75/p95` gap is at least `{ev_se_source_assessment['threshold']:.2f}` pooled within-source SD. This is a descriptive reporting criterion, not a model gate, coefficient, or outcome-derived threshold. For `ev_se_delta_gh3_minus_old`, the absolute standardized mean gap is `{ev_se_source_assessment['absolute_standardized_mean_gap']:.6f}` and the largest standardized central-quantile gap is `{ev_se_source_assessment['absolute_standardized_largest_central_quantile_gap']:.6f}` at `{ev_se_source_assessment['largest_central_quantile_gap']}`. Classification: `{ev_se_source_assessment['classification']}`. {ev_se_mixture_text}
+
+The pure linear-rescaling reference uses each accepted row's forward-reconstructed old `ev_se * (sqrt(2) - 1)`; it does not infer or back-solve historical sigma.
+
+| price source | n | actual mean `ev_se` delta | pure `sqrt(2)` predicted mean | absolute relative gap |
+|---|---:|---:|---:|---:|
+{sqrt2_source_rows}
+| pooled | `{cohort['baseline_reproducible_evaluations']}` | `{pooled_sqrt2['actual_mean']:+.6f}` | `{pooled_sqrt2['recomputed_predicted_mean']:+.6f}` | `{pooled_sqrt2['absolute_relative_mean_gap_to_recomputed_prediction']:.4%}` |
+
+The independently supplied pooled prediction was `{pooled_sqrt2['reviewer_supplied_predicted_mean']:+.6f}`; the observed pooled `{pooled_sqrt2['actual_mean']:+.6f}` differs by `{pooled_sqrt2['absolute_relative_mean_gap_to_reviewer_reference']:.4%}`. The layer rows show whether that near-`sqrt(2)` behavior is shared across both price sources rather than being only a pooled artifact.
 
 ### `0.01` lower-node floor
 
@@ -1926,6 +2273,26 @@ def _self_check() -> None:
         ),
         3.0,
     )
+    identical = _distribution_difference_assessment(
+        [0.0, 1.0, 2.0], [0.0, 1.0, 2.0]
+    )
+    shifted = _distribution_difference_assessment(
+        [0.0, 1.0, 2.0], [1.0, 2.0, 3.0]
+    )
+    assert identical["classification"] == "NO_MATERIAL_PRICE_SOURCE_DIFFERENCE"
+    assert shifted["classification"] == "MATERIAL_PRICE_SOURCE_DIFFERENCE"
+    assert set(_distribution_summary([1.0])) == {
+        "n",
+        "min",
+        "p05",
+        "p25",
+        "median",
+        "mean",
+        "p75",
+        "p95",
+        "max",
+        "max_absolute",
+    }
 
 
 def main() -> None:

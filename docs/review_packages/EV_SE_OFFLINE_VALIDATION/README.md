@@ -1,6 +1,6 @@
 # EV-SE offline preregistration reproduction
 
-This package reproduces the preregistration baseline, the Owner-approved Contract 1 semantic specification, the frozen GH-3 counterfactual, and the item-2 denominator-authority feasibility evidence. It makes no Provider calls, production database writes, or outcome reads. The audit uses repeatable-read PostgreSQL `BEGIN ... READ ONLY` transactions, reads the frozen evaluation cohort and xG source separately, and rolls both back.
+This package reproduces the preregistration baseline, the Owner-approved Contract 1 semantic specification, the frozen GH-3 counterfactual, its `price_source`-stratified impact, and the item-2 denominator-authority feasibility evidence. It makes no Provider calls, production database writes, or outcome reads. The audit uses repeatable-read PostgreSQL `BEGIN ... READ ONLY` transactions, reads the frozen evaluation cohort and xG source separately, and rolls both back.
 
 Contract 1 approval is semantic only: `lambda_sigma` means a true standard deviation. The package does not authorize a coefficient, an SE formula, a production implementation, or a release. Formula-family item 3 remains frozen pending the Owner's item-2 denominator decision.
 
@@ -90,6 +90,8 @@ The expected result is `{"reproduction": "PASS"}`. `--check` regenerates both ar
 
 Exact rendered equality is stronger than the preregistered floating tolerance of `0.000001`. To inspect a proposed regeneration without overwriting the package, pass temporary `--output-json` and `--output-markdown` paths without `--check`, then use `diff -u`.
 
+`--check` is intentionally mutation-sensitive. To prove the failure path without touching the committed evidence, copy both expected artifacts to a temporary directory, change one numeric byte in either copy, and pass the copies through `--output-json` and `--output-markdown`; the command must exit non-zero with `EV_SE_EVIDENCE_JSON_DIFF` or `EV_SE_BASELINE_MARKDOWN_DIFF`.
+
 ## Frozen cohort predicate
 
 The script contains the authoritative SQL. In compact form, `usable` requires:
@@ -110,5 +112,9 @@ AND age, sigma_home, sigma_away are non-null
 Coverage-denominator reconstruction additionally requires `evaluated_at < target kickoff` and both expected same-league denominators `>=3`. Its competition scope is read from `league_season.payload.enabled`; the script has no fixed league count or league-name list. The evidence reports every league separately and deliberately computes no overall coverage average.
 
 For the Contract 1 comparison, both AH and TOTALS must exist for a model-input group so the point lambdas can be identified from the frozen five-state distributions. A whole group enters the old-versus-GH-3 comparison only when the reconstructed old `ev_se` matches the persisted value within `0.000001`. The JSON records every excluded group and row. The script never back-solves a missing historical sigma from persisted `ev_se`.
+
+The accepted Contract 1 cohort is then partitioned by the exact `price_source` value. Each source gets `n/min/p05/p25/median/mean/p75/p95/max/max_absolute` for all four required deltas. The script also records attempted, accepted, and excluded counts per source, so excluded-to-accepted ratio is not mislabeled as attempted-row failure rate. The pooled `ev_se` delta is compared with a forward reconstruction of `old_ev_se * (sqrt(2) - 1)`; no historical sigma is inferred.
+
+The reporting-only materiality rule is fixed in the script: source distributions differ materially when either the absolute mean gap or the largest absolute `p05/p25/median/p75/p95` gap reaches `0.20` pooled within-source SD. This criterion controls whether a pooled number may stand as the only reporting granularity. It is not a model gate, coefficient, SE formula, or outcome-derived threshold.
 
 The evidence JSON records the definitions and relationships of `2,564`, `2,528`, `2,603`, and `2,653`, plus the exact provenance of the minimum change.

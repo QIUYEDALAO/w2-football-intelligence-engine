@@ -90,6 +90,33 @@ Lambda reconstruction is outcome-free. It fits the two point lambdas to the froz
 
 The reported analysis-evidence point EV stays unchanged because `_lambda_scenarios` only computes `ev_se`; the internal quadrature mean is reported separately so the weighting effect is still visible.
 
+## EV-SE-EXEC-06 — price-source stratification
+
+The baseline gate lineage is source-specific. `DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION` has `492` attempted identifiable evaluations, `478` accepted, and `14` excluded. Its true failure rate among attempted rows is `2.8455%`; `14 / 478 = 2.9289%` is the excluded-to-accepted ratio, not the attempted-row failure rate. `PAYLOAD_DECIMAL_ODDS` has `2106` attempted, `2106` accepted, and `0` excluded. This records the observed concentration without changing any of the 14 exclusions.
+
+| price source | comparison measurement | n | min | p05 | p25 | median | mean | p75 | p95 | max | max absolute |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION` | reported point EV delta | `478` | `+0.000000` | `+0.000000` | `+0.000000` | `+0.000000` | `+0.000000` | `+0.000000` | `+0.000000` | `+0.000000` | `0.000000` |
+| `DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION` | internal quadrature mean EV delta | `478` | `-0.004681` | `-0.003386` | `-0.000961` | `-0.000320` | `-0.000412` | `+0.000486` | `+0.002253` | `+0.002518` | `0.004681` |
+| `DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION` | ev_se delta | `478` | `+0.015113` | `+0.017721` | `+0.019871` | `+0.023259` | `+0.027423` | `+0.036258` | `+0.043939` | `+0.049328` | `0.049328` |
+| `DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION` | mixed-score-matrix EV delta | `478` | `-0.006423` | `-0.004631` | `-0.001313` | `-0.000436` | `-0.000561` | `+0.000665` | `+0.003135` | `+0.003496` | `0.006423` |
+| `PAYLOAD_DECIMAL_ODDS` | reported point EV delta | `2106` | `+0.000000` | `+0.000000` | `+0.000000` | `+0.000000` | `+0.000000` | `+0.000000` | `+0.000000` | `+0.000000` | `0.000000` |
+| `PAYLOAD_DECIMAL_ODDS` | internal quadrature mean EV delta | `2106` | `-0.002770` | `-0.001261` | `-0.000687` | `-0.000237` | `-0.000299` | `+0.000127` | `+0.000609` | `+0.001044` | `0.002770` |
+| `PAYLOAD_DECIMAL_ODDS` | ev_se delta | `2106` | `+0.011775` | `+0.016311` | `+0.018628` | `+0.020617` | `+0.020838` | `+0.022630` | `+0.026168` | `+0.034009` | `0.034009` |
+| `PAYLOAD_DECIMAL_ODDS` | mixed-score-matrix EV delta | `2106` | `-0.003793` | `-0.001725` | `-0.000940` | `-0.000323` | `-0.000408` | `+0.000174` | `+0.000836` | `+0.001428` | `0.003793` |
+
+The reporting-only materiality rule is fixed before interpreting the layers: a difference is material when either the absolute mean gap or the largest absolute `p05/p25/median/p75/p95` gap is at least `0.20` pooled within-source SD. This is a descriptive reporting criterion, not a model gate, coefficient, or outcome-derived threshold. For `ev_se_delta_gh3_minus_old`, the absolute standardized mean gap is `1.349489` and the largest standardized central-quantile gap is `3.642091` at `p95`. Classification: `MATERIAL_PRICE_SOURCE_DIFFERENCE`. The price-source layers meet the preregistered descriptive materiality criterion. The pooled mean must therefore not be the only reporting granularity.
+
+The pure linear-rescaling reference uses each accepted row's forward-reconstructed old `ev_se * (sqrt(2) - 1)`; it does not infer or back-solve historical sigma.
+
+| price source | n | actual mean `ev_se` delta | pure `sqrt(2)` predicted mean | absolute relative gap |
+|---|---:|---:|---:|---:|
+| `DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION` | `478` | `+0.027423` | `+0.027685` | `0.9465%` |
+| `PAYLOAD_DECIMAL_ODDS` | `2106` | `+0.020838` | `+0.020927` | `0.4227%` |
+| pooled | `2584` | `+0.022056` | `+0.022177` | `0.5437%` |
+
+The independently supplied pooled prediction was `+0.022213`; the observed pooled `+0.022056` differs by `0.7054%`. The layer rows show whether that near-`sqrt(2)` behavior is shared across both price sources rather than being only a pooled artifact.
+
 ### `0.01` lower-node floor
 
 | Measurement | old `mu-sigma` | GH-3 `mu-sqrt(3)sigma` |
