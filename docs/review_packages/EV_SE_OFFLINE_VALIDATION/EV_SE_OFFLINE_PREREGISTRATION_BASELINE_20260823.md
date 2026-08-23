@@ -1,6 +1,6 @@
 # EV SE offline preregistration baseline — 2026-08-23
 
-Status: `PRE_MODEL_DIAGNOSTIC_PASS / REPRODUCIBLE / PARAMETER_GATE_REVIEW_READY`
+Status: `CONTRACT_1_SEMANTICS_APPROVED / OFFLINE_GH3_IMPACT_REPRODUCIBLE / PRODUCTION_IMPLEMENTATION_GATED / SE_FORMULA_FROZEN`
 
 ## Execution boundary
 
@@ -10,7 +10,7 @@ Status: `PRE_MODEL_DIAGNOSTIC_PASS / REPRODUCIBLE / PARAMETER_GATE_REVIEW_READY`
 - Provider calls / production database writes / outcomes read: `0 / 0 / 0`.
 - No model, threshold, Scheduler, notification, deployment, or runtime configuration changed.
 
-This document preregisters the problem and behavioral acceptance conditions. It does not approve a formula, coefficient, implementation, or release. Reproduction is defined in `README.md`; every numeric field below is rendered by `scripts/audit_ev_se_offline_preregistration.py`.
+This document preregisters the problem and behavioral acceptance conditions and records the Owner's Contract 1 semantic decision. The approval defines what `lambda_sigma` means; it does not approve any coefficient, SE formula, production implementation, or release. Reproduction is defined in `README.md`; every numeric field below is rendered by `scripts/audit_ev_se_offline_preregistration.py`.
 
 ## Binding non-claims
 
@@ -65,15 +65,43 @@ Conclusion: `0.5` is not an arbitrary gate discount in the unclamped interior. I
 
 The coefficient is only piecewise valid. A total clamp or final-lambda clamp changes the Jacobian. In the `157` frozen model captures, `156` base totals were inside `[1.35, 4.40]`; `1` was above `4.40` and `0` was below `1.35`. Any future uncertainty implementation must propagate through the actual piecewise calibration path rather than silently applying one global coefficient at clamp boundaries.
 
-### 2. Owner decision 1 is a three-way semantic choice
+### 2. Owner decision 1 — Contract 1 is approved as a semantic contract
 
 The EV-SE nodes use `0.25 / 0.50 / 0.25`, so effective SD is `0.7071 sigma`. Simulation uses `0.158655 / 0.68269 / 0.158655`, so effective SD is `0.5633 sigma`; their ratio is `1.2553`. Both paths also floor the lower node at `max(mu - sigma, 0.01)`, which further compresses dispersion as `mu - sigma` approaches zero.
 
-Owner must choose one:
+Owner selected **Contract 1: `lambda_sigma` is the true standard deviation of the lambda distribution**. This approval is semantic only. It does not approve the current SE formula, any coefficient, production code, or release.
 
-1. **True standard deviation.** Both current weight sets are wrong and both consumers must change; neither is a reference implementation.
-2. **Outer-node distance.** The two consumers may retain different probability weights only after their probability meanings and the `1.2553` contraction ratio receive an explicit source and approval.
-3. **Retain current behavior.** Record that EV-SE and the main simulation intentionally apply different risk measures to the same `lambda_sigma`, including the lower-node floor compression.
+The reference discretization is GH-3: standardized nodes `-sqrt(3), 0, +sqrt(3)` and weights `1/6, 2/3, 1/6`. Its discrete moments are `m0=1, m1=0, m2=1, m3=0, m4=3`, matching a standard normal through degree four. At an interior point where the `0.01` floor does not fire, its effective SD is therefore exactly `sigma`. The old paths match neither the required second moment nor each other.
+
+## EV-SE-EXEC-05 — frozen GH-3 impact
+
+Of the `2,603` usable evaluations, `5` were excluded because their model-input group contains only one market, so both point lambdas cannot be identified from the frozen five-state distributions. That leaves `2,598` identifiable evaluations in `1,068` groups before the baseline-reproduction gate.
+
+The frozen dynamic read model does not retain the original lambda sigmas. Current PIT input reconstruction failed to reproduce old reported `ev_se` within `0.000001` for `14` evaluations / `7` whole model-input groups across `4` fixtures. The script excludes those groups instead of back-solving sigma from the answer. Their exact evaluation IDs, timestamps, inputs, reported values, reconstructed values, and residuals remain in the JSON. The actual old-versus-GH-3 comparison therefore uses the same `2,584` evaluations in `1,061` groups on both sides. Prices came from the payload for `2,106` comparison rows and were algebraically recovered from current EV plus the five-state distribution for `478` rows.
+
+Lambda reconstruction is outcome-free. It fits the two point lambdas to the frozen AH/TOTALS five-state distributions with `rho=0` and the existing 13x13 matrix. Maximum absolute distribution-probability error is `0.000000`; maximum point-EV reconstruction residual is `0.000001`. Before the baseline gate, maximum old reported `ev_se` reconstruction residual is `0.057594`; inside the accepted comparison cohort it is `0.000001`.
+
+| Consumer / measurement | mean delta GH-3 minus old | p05 / median / p95 | min / max | max absolute |
+|---|---:|---:|---:|---:|
+| analysis-evidence reported point EV | `+0.000000` | `+0.000000 / +0.000000 / +0.000000` | `+0.000000 / +0.000000` | `0.000000` |
+| analysis-evidence internal quadrature mean EV | `-0.000320` | `-0.001760 / -0.000251 / +0.000679` | `-0.004681 / +0.002518` | `0.004681` |
+| analysis-evidence `ev_se` | `+0.022056` | `+0.016598 / +0.020762 / +0.035729` | `+0.011775 / +0.049328` | `0.049328` |
+| simulation mixed-score EV | `-0.000437` | `-0.002405 / -0.000343 / +0.000931` | `-0.006423 / +0.003496` | `0.006423` |
+
+The reported analysis-evidence point EV stays unchanged because `_lambda_scenarios` only computes `ev_se`; the internal quadrature mean is reported separately so the weighting effect is still visible.
+
+### `0.01` lower-node floor
+
+| Measurement | old `mu-sigma` | GH-3 `mu-sqrt(3)sigma` |
+|---|---:|---:|
+| triggered lambda sides / side inputs | `0 / 2122` | `0 / 2122` |
+| trigger rate | `0.000000` | `0.000000` |
+| affected model-input groups | `0` | `0` |
+| affected evaluations | `0` | `0` |
+
+GH-3 newly affects `0` model-input groups / `0` evaluations. The closest unfloored lower nodes are `0.534679` under the old path and `0.468176` under GH-3, both still well above `0.01`; this is why the observed trigger counts are zero rather than the anticipated increase. For the `0` triggered lambda sides, actual effective SD is `not observed (0 triggered sides)` (min / median / max), or `not observed (0 triggered sides)` times input `sigma`. The JSON contains every affected model-input hash, fixture, side, evaluation ID, `mu`, `sigma`, actual SD, and collapse ratio; when the trigger count is zero the affected-sample list is correctly empty and effective-SD collapse is `N/A` for this frozen cohort.
+
+Therefore Contract 1 has one explicit exception under the current positivity treatment: once the floor fires, the actual discrete-node SD is less than `sigma`. Production implementation requires a separate gate that either accepts and documents this exception or separately approves a positivity-preserving distribution; this offline package does neither.
 
 ### 3. Existing point-in-time and hard sample boundaries remain binding
 
@@ -123,7 +151,7 @@ This is an epistemic formula diagnosis, not evidence that stale xG biases EV upw
 
 ## Falsification test B — can an expected-match denominator vary independently of n?
 
-The production `canonical_team_match_history` table cannot currently serve the active runtime: it contains `102` rows, all from Allsvenskan, and has `0` coverage rows for the active 11 competitions.
+The production `canonical_team_match_history` table cannot currently serve the enabled runtime scope: it contains `102` rows, all from Allsvenskan, and has `0` rows for the enabled competitions.
 
 Offline denominator feasibility was tested with the already frozen saved-raw Gate 1 corpus:
 
@@ -135,20 +163,31 @@ Offline denominator feasibility was tested with the already frozen saved-raw Gat
 
 For each evaluation and team, the expected set was the latest 20 finished canonical fixtures from the same provider league strictly before the target kickoff. Coverage was the intersection of that set with xG rows visible by the evaluation time. Evaluations at or after kickoff were excluded.
 
-Active 11-competition result:
+The enabled scope is read from `league_season.payload.enabled`; the script neither assumes a fixed league count nor divides by one. The frozen observation contains `11` enabled competitions. Coverage is reported per league only; no overall coverage average is computed.
 
-| Measurement | Result |
-|---|---:|
-| evaluations with both expected denominators `>=3` | `2,265` |
-| both teams fully covered in their expected latest 20 | `897` |
-| old algorithm reports `n=20` for both teams | `2,171` |
-| old algorithm reports `n=20` for both teams but expected latest-20 coverage is incomplete | `1,274` |
-| side rows missing at least one expected xG fixture | `2,379` |
-| side coverage min / median / mean | `0.20 / 0.95 / 0.858355` |
+| competition | evaluable rows | frozen finished fixtures | offline structural xG coverage | PIT denominator available rows | PIT xG coverage | runtime canonical fixtures / identity fixtures |
+|---|---:|---:|---:|---:|---:|---:|
+| `argentina_primera` | `356` | `2178` | `0.254916` | `356` | `0.254916` | `0` / `53` |
+| `brasileirao_serie_a` | `176` | `1744` | `0.966477` | `176` | `0.966477` | `0` / `47` |
+| `bundesliga` | `8` | `1232` | `1.0` | `8` | `1.0` | `0` / `20` |
+| `eliteserien` | `4` | `1103` | `0.975` | `4` | `0.975` | `0` / `34` |
+| `eredivisie` | `149` | `1293` | `0.974329` | `149` | `0.974329` | `0` / `32` |
+| `la_liga` | `198` | `1528` | `0.996465` | `184` | `0.998098` | `0` / `28` |
+| `ligue_1` | `154` | `1304` | `0.991558` | `154` | `0.991558` | `0` / `20` |
+| `mls` | `738` | `2371` | `0.942412` | `706` | `0.943768` | `0` / `55` |
+| `premier_league` | `184` | `1521` | `1.0` | `184` | `1.0` | `0` / `20` |
+| `primeira_liga` | `120` | `1249` | `0.989583` | `120` | `0.989583` | `0` / `31` |
+| `serie_a` | `178` | `1521` | `1.0` | `178` | `1.0` | `0` / `20` |
 
-Among evaluations for which the old algorithm reports `n=20` on both teams, `1,274 / (1,274 + 897) = 0.586826` still have at least one recent expected-match coverage gap. Thus fixture-level coverage has substantial independent variation at fixed `n=20`; it is identifiable and not merely a duplicate transform of n.
+Across the enabled rows, count-only lineage remains `2,265` evaluable, `897` fully covered, and `1,274` false-full evaluations inside `2,171` legacy `n=20/n=20` evaluations. These are counts, not an overall coverage estimate. They retain the prior proof that fixture-level missingness varies independently at fixed `n`.
 
-The frozen corpus is sufficient to prove offline identifiability. It is not itself a production runtime authority. A runtime implementation requires an approved, point-in-time available expected-fixture denominator for the active 11 competitions.
+The frozen corpus is sufficient to prove offline identifiability. It is not itself a production runtime authority. `result_first_captured_at <= evaluated_at` is used to show where the full structural latest-20 denominator was actually visible at evaluation time; the gap between the two columns is evidence that kickoff-only hindsight cannot be silently called runtime PIT availability.
+
+Authority feasibility facts, not an Owner decision:
+
+- `canonical_team_match_history`: current enabled-scope coverage is insufficient.
+- `matchday_fixture_identities`: useful identity routing, but it has no finished status, result, or first-result visibility time and cannot alone define the denominator.
+- persisted saved-raw fixtures: the frozen corpus proves that fixture identity, league, kickoff, finished result, and first-result visibility can be derived. A production use would require an approved, PIT-preserving runtime materialization rather than direct unbounded raw scans.
 
 ## Preregistered behavioral invariants
 
@@ -168,10 +207,10 @@ Additional structural requirements:
 - Expected fixtures and observed xG fixtures must be compared by canonical provider fixture identity.
 - The latest-20 cap and `n>=3` lower bound remain unchanged unless separately approved.
 
-## Owner decisions required before implementation
+## Gate state and remaining Owner decisions
 
-1. Choose one of the three `lambda_sigma` semantic contracts above and approve its consequences for both consumers and the `0.01` floor.
-2. Approve the runtime expected-match denominator authority and its point-in-time availability contract for the active 11 competitions.
-3. Approve a formula family for recency and missing-coverage uncertainty. Coefficients remain unset at this gate.
+1. **Decided:** Contract 1 defines `lambda_sigma` as a true standard deviation. GH-3 is the reference offline specification. This is not production implementation approval.
+2. **Open:** approve the runtime expected-match denominator authority and its point-in-time availability contract. The evidence above does not self-approve one.
+3. **Frozen:** formula-family selection remains closed until item 2 is decided. Coefficients remain unset.
 
-Until those decisions are recorded, the correct state is `OFFLINE_DIAGNOSTIC_REPRODUCIBLE / MODEL_PARAMETER_CHANGE_NOT_AUTHORIZED`.
+Contract 1 production implementation must be an independent change with its own Gate and must precede any SE-formula change. Bundling the two would make attribution impossible: a changed result could come from repairing the quadrature scale, changing the SE formula, or both. The current state is `CONTRACT_1_SEMANTICS_APPROVED / CONTRACT_1_PRODUCTION_IMPLEMENTATION_NOT_AUTHORIZED / ITEM_2_OWNER_DECISION_REQUIRED / ITEM_3_FROZEN`.

@@ -1,6 +1,8 @@
 # EV-SE offline preregistration reproduction
 
-This package is reproducible without Provider calls or production database writes. The audit uses repeatable-read PostgreSQL `BEGIN ... READ ONLY` transactions, reads the frozen evaluation cohort and xG source separately, and rolls both back. It never reads outcomes.
+This package reproduces the preregistration baseline, the Owner-approved Contract 1 semantic specification, the frozen GH-3 counterfactual, and the item-2 denominator-authority feasibility evidence. It makes no Provider calls, production database writes, or outcome reads. The audit uses repeatable-read PostgreSQL `BEGIN ... READ ONLY` transactions, reads the frozen evaluation cohort and xG source separately, and rolls both back.
+
+Contract 1 approval is semantic only: `lambda_sigma` means a true standard deviation. The package does not authorize a coefficient, an SE formula, a production implementation, or a release. Formula-family item 3 remains frozen pending the Owner's item-2 denominator decision.
 
 ## 1. Checkout and self-check
 
@@ -105,6 +107,8 @@ AND home_n >= 3 AND away_n >= 3
 AND age, sigma_home, sigma_away are non-null
 ```
 
-Coverage-denominator reconstruction additionally requires `evaluated_at < target kickoff`, both expected same-league denominators `>=3`, and membership in the 11-competition set frozen from `league_season.payload.enabled` at the evidence snapshot.
+Coverage-denominator reconstruction additionally requires `evaluated_at < target kickoff` and both expected same-league denominators `>=3`. Its competition scope is read from `league_season.payload.enabled`; the script has no fixed league count or league-name list. The evidence reports every league separately and deliberately computes no overall coverage average.
+
+For the Contract 1 comparison, both AH and TOTALS must exist for a model-input group so the point lambdas can be identified from the frozen five-state distributions. A whole group enters the old-versus-GH-3 comparison only when the reconstructed old `ev_se` matches the persisted value within `0.000001`. The JSON records every excluded group and row. The script never back-solves a missing historical sigma from persisted `ev_se`.
 
 The evidence JSON records the definitions and relationships of `2,564`, `2,528`, `2,603`, and `2,653`, plus the exact provenance of the minimum change.
