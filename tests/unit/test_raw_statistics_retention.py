@@ -63,3 +63,36 @@ def test_non_statistics_raw_does_not_create_statistics_manifest(tmp_path: Path) 
 
     with Session(engine) as session:
         assert session.scalar(select(RawStatisticsRetentionModel.raw_payload_sha256)) is None
+
+
+def test_statistics_cache_requires_two_sided_numeric_xg(tmp_path: Path) -> None:
+    engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'complete-xg.db'}")
+    RawPayloadModel.__table__.create(engine)
+    RawStatisticsRetentionModel.__table__.create(engine)
+    repository = FutureRefreshDbRepository(engine=engine)
+    for fixture_id, home_xg, away_xg in (
+        ("complete", "1.2", "0.8"),
+        ("null", None, None),
+        ("one-sided", "1.0", None),
+    ):
+        payload = {
+            "parameters": {"fixture": fixture_id},
+            "response": [
+                {
+                    "team": {"id": 10},
+                    "statistics": [{"type": "expected_goals", "value": home_xg}],
+                },
+                {
+                    "team": {"id": 20},
+                    "statistics": [{"type": "expected_goals", "value": away_xg}],
+                },
+            ],
+        }
+        repository.save_raw_payload(
+            sha256=sha256_payload(payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD),
+            endpoint="statistics",
+            captured_at=datetime(2026, 8, 23, tzinfo=UTC),
+            payload=payload,
+        )
+
+    assert repository.raw_statistics_fixture_ids() == {"complete"}

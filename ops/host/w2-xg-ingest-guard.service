@@ -1,0 +1,8 @@
+[Unit]
+Description=W2 numeric saved-raw xG ingestion guard
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/w2-xg-ingest-guard

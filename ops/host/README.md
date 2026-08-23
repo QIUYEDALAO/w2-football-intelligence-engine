@@ -12,6 +12,8 @@ here so a new host can be brought up without reconstructing it from memory.
 | `w2-registry-gc` | `/usr/local/bin/` | Registry retention and collection, weekly |
 | `w2-xg-materialize` | `/usr/local/bin/` | Rolling xG snapshot recompute, every six hours |
 | `w2-xg-materialize.service` / `.timer` | `/etc/systemd/system/` | Runs the recompute |
+| `w2-xg-ingest-guard` | `/usr/local/bin/` | Read-only numeric saved-raw to `team_xg_match` loss alarm |
+| `w2-xg-ingest-guard.service` / `.timer` | `/etc/systemd/system/` | Runs the guard hourly |
 | `w2-xg-refresh` | `/usr/local/bin/` | Fetch xG for recently finished matches, twice daily |
 | `w2-xg-refresh.service` / `.timer` | `/etc/systemd/system/` | Runs the fetch |
 | `w2-totals-calibration` | `/opt/w2/deploy/` | Totals calibration snapshot, read-only |
@@ -19,6 +21,13 @@ here so a new host can be brought up without reconstructing it from memory.
 | `w2-release-preflight` | `/usr/local/bin/` | Space, base image and layer count before a release |
 | `registry-config.yml` | `/opt/w2/deploy/registry/` | Registry with manifest deletion enabled |
 | `journald-w2-retention.conf` | `/etc/systemd/journald.conf.d/` | Journal size cap |
+
+`w2-xg-ingest-guard` is deliberately narrower than xG freshness monitoring. It
+alarms only when saved raw contains numeric xG for both teams but
+`team_xg_match` does not contain exactly two non-null team rows. Provider-null,
+not-yet-published, and disabled-competition fixtures do not trigger this guard.
+The query is read-only and discovers the enabled set from
+`league_season.payload.enabled` at runtime.
 
 ## Why each exists
 

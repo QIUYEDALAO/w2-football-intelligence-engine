@@ -18,6 +18,7 @@ from w2.domain.canonical_serialization import (
     SerializerVersion,
     canonical_sha256,
 )
+from w2.features.xg_materialization import statistics_xg_by_team
 from w2.identity import CanonicalIdentityRepository
 from w2.identity.canonical_identity_repository import (
     PROVIDER_PRIMARY_READY,
@@ -2661,6 +2662,7 @@ class FutureRefreshDbRepository:
             )
 
     def raw_statistics_fixture_ids(self) -> set[str]:
+        """Return only fixtures with complete, numeric two-sided xG evidence."""
         fixture_ids: set[str] = set()
         with Session(self.engine) as session:
             rows = session.execute(
@@ -2675,7 +2677,7 @@ class FutureRefreshDbRepository:
                     if isinstance(parameters, dict)
                     else ""
                 )
-                if fixture_id:
+                if fixture_id and len(statistics_xg_by_team(payload)) == 2:
                     fixture_ids.add(fixture_id)
         return fixture_ids
 

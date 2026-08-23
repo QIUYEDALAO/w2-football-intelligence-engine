@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Alert only when numeric two-sided saved xG failed to become one complete fixture.
+# Provider-null and not-yet-published responses are intentionally a separate state.
+set -uo pipefail
+
+PSQL=(docker exec -i w2-staging-postgres-1 psql -XqAt '-F|' -U w2_user -d w2)
+result=$("${PSQL[@]}" -c "
+BEGIN READ ONLY;
+WITH enabled AS (
+  SELECT coalesce(payload->>'provider_league_id',payload#>>'{provider_mapping,league_id}') league_id
+  FROM league_season WHERE (payload->>'enabled')::boolean IS TRUE
+), fixtures AS (
+  SELECT DISTINCT ON (item#>>'{fixture,id}') item#>>'{fixture,id}' fixture_id,
+         item#>>'{league,id}' league_id
+  FROM raw_payload r CROSS JOIN LATERAL json_array_elements(r.payload->'response') item
+  WHERE r.endpoint='fixtures' ORDER BY item#>>'{fixture,id}',r.captured_at DESC
+), numeric_raw AS (
+  SELECT r.payload#>>'{parameters,fixture}' fixture_id
+  FROM raw_payload r LEFT JOIN LATERAL json_array_elements(r.payload->'response') item ON true
+  WHERE r.endpoint='statistics'
+  GROUP BY r.sha256,r.payload#>>'{parameters,fixture}'
+  HAVING count(DISTINCT item#>>'{team,id}') FILTER (WHERE EXISTS (
+    SELECT 1 FROM json_array_elements(item->'statistics') s
+    WHERE lower(replace(s->>'type',' ','_'))='expected_goals'
+      AND s->>'value' IS NOT NULL
+  )) = 2
+), persisted AS (
+  SELECT fixture_id,count(*) rows,count(DISTINCT team_id) teams,
+         count(*) FILTER (WHERE xg_for IS NULL OR xg_against IS NULL) null_rows
+  FROM team_xg_match GROUP BY fixture_id
+), broken AS (
+  SELECT DISTINCT n.fixture_id
+  FROM numeric_raw n JOIN fixtures f USING(fixture_id) JOIN enabled e USING(league_id)
+  LEFT JOIN persisted p USING(fixture_id)
+  WHERE coalesce(p.rows,0)<>2 OR coalesce(p.teams,0)<>2 OR coalesce(p.null_rows,0)<>0
+)
+SELECT count(*),coalesce((
+  SELECT string_agg(fixture_id,',' ORDER BY fixture_id)
+  FROM (SELECT fixture_id FROM broken ORDER BY fixture_id LIMIT 10) samples
+),'') FROM broken;
+ROLLBACK;" 2>/dev/null) || {
+  echo "XG_INGEST_GUARD_QUERY_FAILED"
+  logger -t w2-xg-ingest-guard "read-only audit query failed"
+  exit 2
+}
+
+IFS='|' read -r broken samples <<<"$result"
+if [ "${broken:-1}" -ne 0 ]; then
+  echo "XG_INGEST_ALARM numeric_raw_not_materialized=$broken samples=$samples"
+  logger -t w2-xg-ingest-guard "numeric_raw_not_materialized=$broken samples=$samples"
+  exit 2
+fi
+echo "XG_INGEST_OK numeric_raw_not_materialized=0"

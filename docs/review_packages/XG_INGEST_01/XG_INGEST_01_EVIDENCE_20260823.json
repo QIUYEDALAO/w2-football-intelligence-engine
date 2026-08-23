@@ -1,0 +1,519 @@
+{
+  "schema_version": "w2.xg_ingest_01.evidence.v1",
+  "status": "ROOT_CAUSE_CONFIRMED_PROVIDER_ZERO_REPLAY_BLOCKED_NO_NUMERIC_RAW_PRODUCTION_CHANGE_NOT_AUTHORIZED",
+  "observed_at": "2026-08-23T15:40:00Z",
+  "production": {
+    "release_id": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1",
+    "schema": "0070_notification_delivery_routing",
+    "provider_calls": 0,
+    "database_writes": 0,
+    "outcomes_read": 0
+  },
+  "scope": {
+    "source": "league_season.payload.enabled",
+    "enabled_competition_count_observed": 11,
+    "kickoff_from": "2025-01-01T00:00:00Z",
+    "post_backfill_kickoff_from": "2026-08-18T00:00:00Z",
+    "coverage_average_computed": false
+  },
+  "root_cause": {
+    "classification": "NULL_STATISTICS_CAPTURE_TREATED_AS_TERMINAL_CACHE_HIT",
+    "reproducible_predicate": [
+      "finished fixture in enabled league",
+      "both Provider team blocks contain expected_goals field",
+      "both expected_goals values are JSON null",
+      "no later numeric saved-raw capture exists",
+      "raw_statistics_fixture_ids nevertheless marks fixture cached by parameters.fixture",
+      "parse_team_xg_matches returns zero rows before persistence"
+    ],
+    "null_cached_retry_required_fixtures": 529,
+    "numeric_saved_raw_not_materialized_fixtures": 0,
+    "identity_filter_or_transaction_rollback": false,
+    "write_path_reached_for_529": false,
+    "production_release_source_code_chain": [
+      "src/w2/features/xg_materialization.py:_stat_value rejects null",
+      "src/w2/features/xg_materialization.py:parse_team_xg_matches requires both teams",
+      "production release d05ab742 raw_statistics_fixture_ids ignores xG completeness",
+      "src/w2/ingestion/xg_backfill.py skips every fixture in that cache set"
+    ],
+    "samples": [
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334277",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-23T22:00:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:00.066363+00:00",
+        "last_captured_at": "2026-08-16T19:04:00.066363+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334278",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-23T22:00:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:01.99507+00:00",
+        "last_captured_at": "2026-08-16T19:04:01.99507+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334279",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-24T00:30:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:03.971209+00:00",
+        "last_captured_at": "2026-08-16T19:04:03.971209+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334280",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-24T00:30:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:05.758052+00:00",
+        "last_captured_at": "2026-08-16T19:04:05.758052+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334281",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-24T20:00:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:08.9515+00:00",
+        "last_captured_at": "2026-08-16T19:04:08.9515+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334282",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-24T00:30:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:07.349243+00:00",
+        "last_captured_at": "2026-08-16T19:04:07.349243+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334283",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-24T22:15:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:11.960151+00:00",
+        "last_captured_at": "2026-08-16T19:04:11.960151+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334284",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-25T00:00:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:16.111919+00:00",
+        "last_captured_at": "2026-08-16T19:04:16.111919+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334285",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-25T00:30:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:17.674285+00:00",
+        "last_captured_at": "2026-08-16T19:04:17.674285+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334286",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-25T20:00:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:20.6066+00:00",
+        "last_captured_at": "2026-08-16T19:04:20.6066+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334287",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-25T22:15:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:22.187008+00:00",
+        "last_captured_at": "2026-08-16T19:04:22.187008+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334288",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-25T22:15:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:24.768625+00:00",
+        "last_captured_at": "2026-08-16T19:04:24.768625+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334289",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-26T00:30:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:26.332043+00:00",
+        "last_captured_at": "2026-08-16T19:04:26.332043+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334290",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-26T22:00:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:29.803793+00:00",
+        "last_captured_at": "2026-08-16T19:04:29.803793+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334291",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-27T00:00:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:31.386739+00:00",
+        "last_captured_at": "2026-08-16T19:04:31.386739+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334292",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-27T23:00:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:32.976412+00:00",
+        "last_captured_at": "2026-08-16T19:04:32.976412+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334293",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-28T20:00:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:36.805795+00:00",
+        "last_captured_at": "2026-08-16T19:04:36.805795+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334294",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-28T22:15:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:38.368879+00:00",
+        "last_captured_at": "2026-08-16T19:04:38.368879+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334295",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-28T22:15:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:40.007078+00:00",
+        "last_captured_at": "2026-08-16T19:04:40.007078+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      },
+      {
+        "kind": "null_cached_sample",
+        "fixture_id": "1334296",
+        "competition_id": "argentina_primera",
+        "kickoff": "2025-01-29T00:30:00+00:00",
+        "first_captured_at": "2026-08-16T19:04:41.885426+00:00",
+        "last_captured_at": "2026-08-16T19:04:41.885426+00:00",
+        "field_teams": 2,
+        "value_teams": 0,
+        "persisted_rows": 0
+      }
+    ]
+  },
+  "whole_fixture_invariant": {
+    "source": "VERIFIER_CONFIRMED_SKIP_RECOMPUTE_PER_OWNER_PATCH",
+    "team_xg_match_fixtures": 9423,
+    "team_xg_match_rows": 18846,
+    "rows_per_fixture": 2,
+    "partial_fixture_count": 0,
+    "null_xg_for_rows": 0,
+    "null_xg_against_rows": 0,
+    "original_869_is_exact_not_lower_bound": true
+  },
+  "capture_day_lineage": [
+    {
+      "kind": "daily_capture",
+      "captured_date": "2026-07-21",
+      "statistics_payloads": 103,
+      "expected_goals_field_two_sides": 102,
+      "numeric_xg_two_sides": 52,
+      "materialized_fixtures": 52,
+      "null_value_responses": 50
+    },
+    {
+      "kind": "daily_capture",
+      "captured_date": "2026-08-04",
+      "statistics_payloads": 38,
+      "expected_goals_field_two_sides": 31,
+      "numeric_xg_two_sides": 18,
+      "materialized_fixtures": 18,
+      "null_value_responses": 13
+    },
+    {
+      "kind": "daily_capture",
+      "captured_date": "2026-08-16",
+      "statistics_payloads": 5500,
+      "expected_goals_field_two_sides": 5489,
+      "numeric_xg_two_sides": 4719,
+      "materialized_fixtures": 4719,
+      "null_value_responses": 770
+    },
+    {
+      "kind": "daily_capture",
+      "captured_date": "2026-08-17",
+      "statistics_payloads": 4584,
+      "expected_goals_field_two_sides": 4583,
+      "numeric_xg_two_sides": 4554,
+      "materialized_fixtures": 4554,
+      "null_value_responses": 29
+    },
+    {
+      "kind": "daily_capture",
+      "captured_date": "2026-08-18",
+      "statistics_payloads": 5,
+      "expected_goals_field_two_sides": 5,
+      "numeric_xg_two_sides": 5,
+      "materialized_fixtures": 5,
+      "null_value_responses": 0
+    },
+    {
+      "kind": "daily_capture",
+      "captured_date": "2026-08-23",
+      "statistics_payloads": 95,
+      "expected_goals_field_two_sides": 82,
+      "numeric_xg_two_sides": 75,
+      "materialized_fixtures": 75,
+      "null_value_responses": 7
+    }
+  ],
+  "provider_publication_latency": {
+    "kind": "provider_publication_latency",
+    "kickoff_from": "2026-08-18T00:00:00Z",
+    "n": 56,
+    "p50_hours": 18.2,
+    "p90_hours": 80.8,
+    "max_hours": 127.8,
+    "scope": "ALL_MATERIALIZED_MATCHES_NOT_ENABLED_COVERAGE_SCOPE",
+    "enabled_post_backfill_published_fixtures": 54,
+    "outside_current_enabled_scope_fixtures": 2
+  },
+  "per_competition": [
+    {
+      "kind": "competition",
+      "competition_id": "argentina_primera",
+      "finished_fixtures": 847,
+      "persisted_fixtures": 347,
+      "numeric_raw_not_persisted": 0,
+      "null_cached_retry_required": 494,
+      "source_absent_not_replayable": 3,
+      "provider_pending": 3,
+      "post_backfill_published": 5,
+      "coverage_before": 0.409681,
+      "provider_zero_replay_additions": 0,
+      "coverage_after_provider_zero_replay": 0.409681
+    },
+    {
+      "kind": "competition",
+      "competition_id": "brasileirao_serie_a",
+      "finished_fixtures": 608,
+      "persisted_fixtures": 604,
+      "numeric_raw_not_persisted": 0,
+      "null_cached_retry_required": 0,
+      "source_absent_not_replayable": 2,
+      "provider_pending": 2,
+      "post_backfill_published": 1,
+      "coverage_before": 0.993421,
+      "provider_zero_replay_additions": 0,
+      "coverage_after_provider_zero_replay": 0.993421
+    },
+    {
+      "kind": "competition",
+      "competition_id": "bundesliga",
+      "finished_fixtures": 481,
+      "persisted_fixtures": 477,
+      "numeric_raw_not_persisted": 0,
+      "null_cached_retry_required": 4,
+      "source_absent_not_replayable": 0,
+      "provider_pending": 0,
+      "post_backfill_published": 0,
+      "coverage_before": 0.991684,
+      "provider_zero_replay_additions": 0,
+      "coverage_after_provider_zero_replay": 0.991684
+    },
+    {
+      "kind": "competition",
+      "competition_id": "eliteserien",
+      "finished_fixtures": 377,
+      "persisted_fixtures": 371,
+      "numeric_raw_not_persisted": 0,
+      "null_cached_retry_required": 6,
+      "source_absent_not_replayable": 0,
+      "provider_pending": 0,
+      "post_backfill_published": 0,
+      "coverage_before": 0.984085,
+      "provider_zero_replay_additions": 0,
+      "coverage_after_provider_zero_replay": 0.984085
+    },
+    {
+      "kind": "competition",
+      "competition_id": "eredivisie",
+      "finished_fixtures": 501,
+      "persisted_fixtures": 482,
+      "numeric_raw_not_persisted": 0,
+      "null_cached_retry_required": 17,
+      "source_absent_not_replayable": 0,
+      "provider_pending": 2,
+      "post_backfill_published": 3,
+      "coverage_before": 0.962076,
+      "provider_zero_replay_additions": 0,
+      "coverage_after_provider_zero_replay": 0.962076
+    },
+    {
+      "kind": "competition",
+      "competition_id": "la_liga",
+      "finished_fixtures": 590,
+      "persisted_fixtures": 590,
+      "numeric_raw_not_persisted": 0,
+      "null_cached_retry_required": 0,
+      "source_absent_not_replayable": 0,
+      "provider_pending": 0,
+      "post_backfill_published": 6,
+      "coverage_before": 1.0,
+      "provider_zero_replay_additions": 0,
+      "coverage_after_provider_zero_replay": 1.0
+    },
+    {
+      "kind": "competition",
+      "competition_id": "ligue_1",
+      "finished_fixtures": 485,
+      "persisted_fixtures": 481,
+      "numeric_raw_not_persisted": 0,
+      "null_cached_retry_required": 4,
+      "source_absent_not_replayable": 0,
+      "provider_pending": 0,
+      "post_backfill_published": 6,
+      "coverage_before": 0.991753,
+      "provider_zero_replay_additions": 0,
+      "coverage_after_provider_zero_replay": 0.991753
+    },
+    {
+      "kind": "competition",
+      "competition_id": "mls",
+      "finished_fixtures": 852,
+      "persisted_fixtures": 839,
+      "numeric_raw_not_persisted": 0,
+      "null_cached_retry_required": 0,
+      "source_absent_not_replayable": 5,
+      "provider_pending": 8,
+      "post_backfill_published": 20,
+      "coverage_before": 0.984742,
+      "provider_zero_replay_additions": 0,
+      "coverage_after_provider_zero_replay": 0.984742
+    },
+    {
+      "kind": "competition",
+      "competition_id": "premier_league",
+      "finished_fixtures": 578,
+      "persisted_fixtures": 578,
+      "numeric_raw_not_persisted": 0,
+      "null_cached_retry_required": 0,
+      "source_absent_not_replayable": 0,
+      "provider_pending": 0,
+      "post_backfill_published": 6,
+      "coverage_before": 1.0,
+      "provider_zero_replay_additions": 0,
+      "coverage_after_provider_zero_replay": 1.0
+    },
+    {
+      "kind": "competition",
+      "competition_id": "primeira_liga",
+      "finished_fixtures": 492,
+      "persisted_fixtures": 488,
+      "numeric_raw_not_persisted": 0,
+      "null_cached_retry_required": 4,
+      "source_absent_not_replayable": 0,
+      "provider_pending": 0,
+      "post_backfill_published": 3,
+      "coverage_before": 0.99187,
+      "provider_zero_replay_additions": 0,
+      "coverage_after_provider_zero_replay": 0.99187
+    },
+    {
+      "kind": "competition",
+      "competition_id": "serie_a",
+      "finished_fixtures": 586,
+      "persisted_fixtures": 585,
+      "numeric_raw_not_persisted": 0,
+      "null_cached_retry_required": 0,
+      "source_absent_not_replayable": 1,
+      "provider_pending": 0,
+      "post_backfill_published": 4,
+      "coverage_before": 0.998294,
+      "provider_zero_replay_additions": 0,
+      "coverage_after_provider_zero_replay": 0.998294
+    }
+  ],
+  "classification_totals_without_coverage_average": {
+    "numeric_raw_not_persisted": 0,
+    "null_cached_retry_required": 529,
+    "source_absent_not_replayable": 11,
+    "provider_pending": 15,
+    "post_backfill_published": 54,
+    "provider_zero_replay_additions": 0
+  },
+  "provider_zero_replay": {
+    "status": "BLOCKED_NO_NUMERIC_SAVED_RAW_FOR_THE_529",
+    "recoverable_fixtures": 0,
+    "reason": "THE_529_SAVED_RESPONSES_CONTAIN_EXPECTED_GOALS_KEYS_WITH_JSON_NULL_VALUES;_TEAM_XG_MATCH_REQUIRES_NUMERIC_NON_NULL_VALUES",
+    "production_write_executed": false,
+    "provider_call_executed": false,
+    "next_decision_required": "OWNER_MUST_SEPARATELY_AUTHORIZE_BOUNDED_PROVIDER_RETRY_AND_PRODUCTION_WRITE"
+  },
+  "prevention": {
+    "collector_change": "ONLY_TWO_SIDED_NUMERIC_XG_MAY_SATISFY_THE_STATISTICS_CACHE;_NULL_OR_ABSENT_XG_REMAINS_RETRYABLE",
+    "implementation_state": "LOCAL_ONLY_NOT_DEPLOYED",
+    "alarm": "FAIL_WHEN_TWO_SIDED_NUMERIC_SAVED_RAW_LACKS_EXACTLY_TWO_NON_NULL_TEAM_XG_MATCH_ROWS",
+    "provider_pending_separate": true,
+    "no_age_or_model_threshold": true,
+    "deployment_executed": false
+  }
+}

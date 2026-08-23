@@ -88,7 +88,7 @@ def parse_team_xg_matches(
     away_goals = _int_or_zero(goals.get("away") if isinstance(goals, dict) else None)
     if not fixture_id or kickoff is None or not home_id or not away_id:
         return []
-    xg_by_team = _xg_by_team(statistics_payload)
+    xg_by_team = statistics_xg_by_team(statistics_payload)
     if home_id not in xg_by_team or away_id not in xg_by_team:
         return []
     return [
@@ -170,7 +170,8 @@ def materialize_rolling_xg(
     )
 
 
-def _xg_by_team(payload: dict[str, Any]) -> dict[str, float]:
+def statistics_xg_by_team(payload: dict[str, Any]) -> dict[str, float]:
+    """Return only Provider teams whose expected_goals value is numeric."""
     response = payload.get("response")
     if not isinstance(response, list):
         return {}
