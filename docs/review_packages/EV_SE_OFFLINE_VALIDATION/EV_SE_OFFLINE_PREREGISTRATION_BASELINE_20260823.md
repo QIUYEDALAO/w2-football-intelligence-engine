@@ -1,6 +1,6 @@
 # EV SE offline preregistration baseline — 2026-08-23
 
-Status: `CONTRACT_1_SEMANTICS_APPROVED / OFFLINE_GH3_IMPACT_REPRODUCIBLE / PRODUCTION_IMPLEMENTATION_GATED / SE_FORMULA_FROZEN`
+Status: `OWNER_ITEMS_1_2_DECIDED / ITEM_3_FORMULA_FAMILY_DRAFTED / COEFFICIENTS_UNSET / PRODUCTION_IMPLEMENTATION_GATED`
 
 ## Execution boundary
 
@@ -10,7 +10,7 @@ Status: `CONTRACT_1_SEMANTICS_APPROVED / OFFLINE_GH3_IMPACT_REPRODUCIBLE / PRODU
 - Provider calls / production database writes / outcomes read: `0 / 0 / 0`.
 - No model, threshold, Scheduler, notification, deployment, or runtime configuration changed.
 
-This document preregisters the problem and behavioral acceptance conditions and records the Owner's Contract 1 semantic decision. The approval defines what `lambda_sigma` means; it does not approve any coefficient, SE formula, production implementation, or release. Reproduction is defined in `README.md`; every numeric field below is rendered by `scripts/audit_ev_se_offline_preregistration.py`.
+This document preregisters the problem and behavioral acceptance conditions and records the Owner's Contract 1 semantic decision plus the approved persisted-saved-raw denominator authority. Item 3 is thawed only far enough to draft a coefficient-free formula family. No coefficient, final SE formula, production implementation, or release is approved. Reproduction is defined in `README.md`; every numeric field below is rendered by `scripts/audit_ev_se_offline_preregistration.py`.
 
 ## Binding non-claims
 
@@ -75,6 +75,8 @@ The reference discretization is GH-3: standardized nodes `-sqrt(3), 0, +sqrt(3)`
 
 ## EV-SE-EXEC-05 — frozen GH-3 impact
 
+The approved Contract 1 comparison is pinned to local Git object `3fb17ced5dbefa6201bad164556940d8894bb9b2` / `docs/review_packages/EV_SE_OFFLINE_VALIDATION/EV_SE_OFFLINE_PREREGISTRATION_EVIDENCE_20260823.json` with SHA-256 `62e4c0baed196b865d468e3d0a9f34351bef3f187db5b4607e178d6e8412e55f`. The old mutable `team_xg_match` merge path later changed the current reconstruction to `2576` accepted rows and added `8` exclusions. Those IDs are recorded in JSON. The script preserves the approved cohort instead of choosing a historical raw capture by fitting reported `ev_se`.
+
 Of the `2,603` usable evaluations, `5` were excluded because their model-input group contains only one market, so both point lambdas cannot be identified from the frozen five-state distributions. That leaves `2,598` identifiable evaluations in `1,068` groups before the baseline-reproduction gate.
 
 The frozen dynamic read model does not retain the original lambda sigmas. Current PIT input reconstruction failed to reproduce old reported `ev_se` within `0.000001` for `14` evaluations / `7` whole model-input groups across `4` fixtures. The script excludes those groups instead of back-solving sigma from the answer. Their exact evaluation IDs, timestamps, inputs, reported values, reconstructed values, and residuals remain in the JSON. The actual old-versus-GH-3 comparison therefore uses the same `2,584` evaluations in `1,061` groups on both sides. Prices came from the payload for `2,106` comparison rows and were algebraically recovered from current EV plus the five-state distribution for `478` rows.
@@ -128,7 +130,7 @@ The independently supplied pooled prediction was `+0.022213`; the observed poole
 
 GH-3 newly affects `0` model-input groups / `0` evaluations. The closest unfloored lower nodes are `0.534679` under the old path and `0.468176` under GH-3, both still well above `0.01`; this is why the observed trigger counts are zero rather than the anticipated increase. For the `0` triggered lambda sides, actual effective SD is `not observed (0 triggered sides)` (min / median / max), or `not observed (0 triggered sides)` times input `sigma`. The JSON contains every affected model-input hash, fixture, side, evaluation ID, `mu`, `sigma`, actual SD, and collapse ratio; when the trigger count is zero the affected-sample list is correctly empty and effective-SD collapse is `N/A` for this frozen cohort.
 
-Therefore Contract 1 has one explicit exception under the current positivity treatment: once the floor fires, the actual discrete-node SD is less than `sigma`. Production implementation requires a separate gate that either accepts and documents this exception or separately approves a positivity-preserving distribution; this offline package does neither.
+Therefore Contract 1 has one explicit exception under the current positivity treatment: once the floor fires, the actual discrete-node SD is less than `sigma`. The combined Contract 1 + SE formula production Gate must either accept and document this exception or separately approve a positivity-preserving distribution; this offline package does neither.
 
 ### 3. Existing point-in-time and hard sample boundaries remain binding
 
@@ -198,23 +200,63 @@ The enabled scope is read from `league_season.payload.enabled`; the script neith
 | `brasileirao_serie_a` | `176` | `1744` | `0.966477` | `176` | `0.966477` | `0` / `47` |
 | `bundesliga` | `8` | `1232` | `1.0` | `8` | `1.0` | `0` / `20` |
 | `eliteserien` | `4` | `1103` | `0.975` | `4` | `0.975` | `0` / `34` |
-| `eredivisie` | `149` | `1293` | `0.974329` | `149` | `0.974329` | `0` / `32` |
+| `eredivisie` | `149` | `1293` | `0.974329` | `149` | `0.974329` | `0` / `31` |
 | `la_liga` | `198` | `1528` | `0.996465` | `184` | `0.998098` | `0` / `28` |
-| `ligue_1` | `154` | `1304` | `0.991558` | `154` | `0.991558` | `0` / `20` |
+| `ligue_1` | `154` | `1304` | `0.991558` | `154` | `0.991558` | `0` / `19` |
 | `mls` | `738` | `2371` | `0.942412` | `706` | `0.943768` | `0` / `55` |
-| `premier_league` | `184` | `1521` | `1.0` | `184` | `1.0` | `0` / `20` |
+| `premier_league` | `184` | `1521` | `1.0` | `184` | `1.0` | `0` / `18` |
 | `primeira_liga` | `120` | `1249` | `0.989583` | `120` | `0.989583` | `0` / `31` |
 | `serie_a` | `178` | `1521` | `1.0` | `178` | `1.0` | `0` / `20` |
 
+Canonical Provider fixture identity is validated separately from xG coverage. The join key is `(provider_fixture_id, provider_team_id)`; failure samples are bounded to five per league. No overall identity or coverage mean is computed.
+
+| competition | eligible team-history rows | canonical ID shape success | xG identity join success | bounded failure samples |
+|---|---:|---:|---:|---|
+| `argentina_primera` | `4356` | `1.0` | `0.430211` | `[{"canonical_fixture_id":"api_football:831664","provider_fixture_id":"831664","provider_team_id":"458"},{"canonical_fixture_id":"api_football:831664","provider_fixture_id":"831664","provider_team_id":"444"},{"canonical_fixture_id":"api_football:831665","provider_fixture_id":"831665","provider_team_id":"455"},{"canonical_fixture_id":"api_football:831665","provider_fixture_id":"831665","provider_team_id":"474"},{"canonical_fixture_id":"api_football:831666","provider_fixture_id":"831666","provider_team_id":"442"}]` |
+| `brasileirao_serie_a` | `3488` | `1.0` | `0.563647` | `[{"canonical_fixture_id":"api_football:837992","provider_fixture_id":"837992","provider_team_id":"128"},{"canonical_fixture_id":"api_football:837992","provider_fixture_id":"837992","provider_team_id":"124"},{"canonical_fixture_id":"api_football:837998","provider_fixture_id":"837998","provider_team_id":"127"},{"canonical_fixture_id":"api_football:837998","provider_fixture_id":"837998","provider_team_id":"144"},{"canonical_fixture_id":"api_football:837994","provider_fixture_id":"837994","provider_team_id":"129"}]` |
+| `bundesliga` | `2464` | `1.0` | `0.496753` | `[{"canonical_fixture_id":"api_football:871164","provider_fixture_id":"871164","provider_team_id":"157"},{"canonical_fixture_id":"api_football:871164","provider_fixture_id":"871164","provider_team_id":"169"},{"canonical_fixture_id":"api_football:871166","provider_fixture_id":"871166","provider_team_id":"159"},{"canonical_fixture_id":"api_football:871166","provider_fixture_id":"871166","provider_team_id":"182"},{"canonical_fixture_id":"api_football:871168","provider_fixture_id":"871168","provider_team_id":"167"}]` |
+| `eliteserien` | `2206` | `1.0` | `0.516772` | `[{"canonical_fixture_id":"api_football:831004","provider_fixture_id":"831004","provider_team_id":"321"},{"canonical_fixture_id":"api_football:831004","provider_fixture_id":"831004","provider_team_id":"2159"},{"canonical_fixture_id":"api_football:831005","provider_fixture_id":"831005","provider_team_id":"326"},{"canonical_fixture_id":"api_football:831005","provider_fixture_id":"831005","provider_team_id":"329"},{"canonical_fixture_id":"api_football:831006","provider_fixture_id":"831006","provider_team_id":"320"}]` |
+| `eredivisie` | `2586` | `1.0` | `0.490333` | `[{"canonical_fixture_id":"api_football:872224","provider_fixture_id":"872224","provider_team_id":"426"},{"canonical_fixture_id":"api_football:872224","provider_fixture_id":"872224","provider_team_id":"210"},{"canonical_fixture_id":"api_football:872225","provider_fixture_id":"872225","provider_team_id":"194"},{"canonical_fixture_id":"api_football:872225","provider_fixture_id":"872225","provider_team_id":"205"},{"canonical_fixture_id":"api_football:872226","provider_fixture_id":"872226","provider_team_id":"196"}]` |
+| `la_liga` | `3056` | `1.0` | `0.502618` | `[{"canonical_fixture_id":"api_football:877947","provider_fixture_id":"877947","provider_team_id":"536"},{"canonical_fixture_id":"api_football:877947","provider_fixture_id":"877947","provider_team_id":"727"},{"canonical_fixture_id":"api_football:877945","provider_fixture_id":"877945","provider_team_id":"540"},{"canonical_fixture_id":"api_football:877945","provider_fixture_id":"877945","provider_team_id":"538"},{"canonical_fixture_id":"api_football:877950","provider_fixture_id":"877950","provider_team_id":"533"}]` |
+| `ligue_1` | `2608` | `1.0` | `0.470092` | `[{"canonical_fixture_id":"api_football:871474","provider_fixture_id":"871474","provider_team_id":"98"},{"canonical_fixture_id":"api_football:871474","provider_fixture_id":"871474","provider_team_id":"80"},{"canonical_fixture_id":"api_football:871470","provider_fixture_id":"871470","provider_team_id":"91"},{"canonical_fixture_id":"api_football:871470","provider_fixture_id":"871470","provider_team_id":"95"},{"canonical_fixture_id":"api_football:871472","provider_fixture_id":"871472","provider_team_id":"85"}]` |
+| `mls` | `4742` | `1.0` | `0.574019` | `[{"canonical_fixture_id":"api_football:816716","provider_fixture_id":"816716","provider_team_id":"1612"},{"canonical_fixture_id":"api_football:816716","provider_fixture_id":"816716","provider_team_id":"1599"},{"canonical_fixture_id":"api_football:816717","provider_fixture_id":"816717","provider_team_id":"1603"},{"canonical_fixture_id":"api_football:816717","provider_fixture_id":"816717","provider_team_id":"1613"},{"canonical_fixture_id":"api_football:816718","provider_fixture_id":"816718","provider_team_id":"1610"}]` |
+| `premier_league` | `3042` | `1.0` | `0.500329` | `[{"canonical_fixture_id":"api_football:867946","provider_fixture_id":"867946","provider_team_id":"42"},{"canonical_fixture_id":"api_football:867946","provider_fixture_id":"867946","provider_team_id":"52"},{"canonical_fixture_id":"api_football:867947","provider_fixture_id":"867947","provider_team_id":"40"},{"canonical_fixture_id":"api_football:867947","provider_fixture_id":"867947","provider_team_id":"36"},{"canonical_fixture_id":"api_football:867948","provider_fixture_id":"867948","provider_team_id":"66"}]` |
+| `primeira_liga` | `2498` | `1.0` | `0.504404` | `[{"canonical_fixture_id":"api_football:898605","provider_fixture_id":"898605","provider_team_id":"240"},{"canonical_fixture_id":"api_football:898605","provider_fixture_id":"898605","provider_team_id":"211"},{"canonical_fixture_id":"api_football:898604","provider_fixture_id":"898604","provider_team_id":"810"},{"canonical_fixture_id":"api_football:898604","provider_fixture_id":"898604","provider_team_id":"226"},{"canonical_fixture_id":"api_football:898608","provider_fixture_id":"898608","provider_team_id":"242"}]` |
+| `serie_a` | `3042` | `1.0` | `0.499014` | `[{"canonical_fixture_id":"api_football:881780","provider_fixture_id":"881780","provider_team_id":"494"},{"canonical_fixture_id":"api_football:881780","provider_fixture_id":"881780","provider_team_id":"489"},{"canonical_fixture_id":"api_football:881781","provider_fixture_id":"881781","provider_team_id":"499"},{"canonical_fixture_id":"api_football:881781","provider_fixture_id":"881781","provider_team_id":"498"},{"canonical_fixture_id":"api_football:881782","provider_fixture_id":"881782","provider_team_id":"505"}]` |
+
 Across the enabled rows, count-only lineage remains `2,265` evaluable, `897` fully covered, and `1,274` false-full evaluations inside `2,171` legacy `n=20/n=20` evaluations. These are counts, not an overall coverage estimate. They retain the prior proof that fixture-level missingness varies independently at fixed `n`.
 
-The frozen corpus is sufficient to prove offline identifiability. It is not itself a production runtime authority. `result_first_captured_at <= evaluated_at` is used to show where the full structural latest-20 denominator was actually visible at evaluation time; the gap between the two columns is evidence that kickoff-only hindsight cannot be silently called runtime PIT availability.
+The frozen corpus is sufficient to prove offline identifiability. `result_first_captured_at <= evaluated_at` is used to show where the full structural latest-20 denominator was actually visible at evaluation time; the gap between the two columns is evidence that kickoff-only hindsight cannot be silently called runtime PIT availability.
 
-Authority feasibility facts, not an Owner decision:
+Owner decision 2 and its implementation boundary:
 
 - `canonical_team_match_history`: current enabled-scope coverage is insufficient.
 - `matchday_fixture_identities`: useful identity routing, but it has no finished status, result, or first-result visibility time and cannot alone define the denominator.
-- persisted saved-raw fixtures: the frozen corpus proves that fixture identity, league, kickoff, finished result, and first-result visibility can be derived. A production use would require an approved, PIT-preserving runtime materialization rather than direct unbounded raw scans.
+- persisted saved-raw fixtures: **approved as the source for a bounded runtime materialization**, not for direct unbounded raw scans. Each immutable observation carries canonical Provider fixture identity, `captured_at`, and `source_inserted_at`; reads require both timestamps `<= as_of` and select the latest visible observation per fixture. A late historical raw with `source_inserted_at > as_of` cannot enter a prior denominator; an unknown insertion time is rejected and fails closed.
+- dynamic scope is read from `league_season.payload.enabled`. The latest-20 expected set is cross-season within the same Provider league, so a season boundary is not a reset switch.
+- deployment requires the historical materialization backlog to be exhausted before the read path is enabled. New fixture raw writes materialize in the same transaction. This package supplies the migration and local validation but does not deploy either.
+
+The coverage rows above correspond to `POST_20260823_REFRESH_BEFORE_XG_INGEST_01_PROVIDER_RETRY` with `18846` xG rows visible at the frozen observation. No historical null-response Provider retry had run. Any later Owner-authorized retry changes the numerator baseline and requires regenerating this package; it does not change the expected-match denominator contract.
+
+## Item 3 — coefficient-free formula-family draft
+
+Status: `DRAFT_ONLY_COEFFICIENTS_UNSET_NOT_EXECUTABLE`. The following family is intentionally non-executable until Owner-approved coefficients are supplied without outcomes, profit, hit rate, age-cutoff backtests, or EV-cap backtests.
+
+For each team, let `E` be the latest 20 finished, point-in-time-visible fixtures in the same Provider league before `as_of`, across seasons. Cancelled, abandoned, and postponed fixtures do not count as played. Let `m=|E|`, let `O` be the members of `E` with point-in-time-visible two-sided numeric xG, let `n=|O|`, `c=n/m`, `q=m-n`, and let `A` be the mean exact elapsed age in days over **E**, including fixtures whose xG is missing. Computing age over E rather than O means filling a missing xG value cannot itself increase the age term.
+
+For each attack/defence component:
+
+`SE0 = sample_sd(O) / sqrt(n)`
+
+`SE = SE0 * sqrt(1 + alpha_age_per_day * A + beta_missing * (1 - c))`
+
+`alpha_age_per_day = None` and `beta_missing = None`. Both are constrained nonnegative but remain unset. The missingness term uses independently observed `m` and `q`; therefore five observed xG rows after five occurred matches (`c=1`) are not the same state as five observed rows after twenty occurred matches (`c=0.25`), even though both have `n=5`.
+
+Lambda propagation is not allowed to apply the interior `0.5` coefficient beyond its valid segment. It uses a four-input GH-3 tensor product over home attack, away defence, away attack, and home defence; every node runs through the actual `calibrate_lambdas` piecewise function, including total clamps `1.35/4.40` and individual-lambda clamps. `lambda_sigma` is the weighted standard deviation of those mapped nodes. In the interior this reduces exactly to the existing Jacobian identity `0.5 * sqrt(SE_attack^2 + SE_opponent_defence^2)`. Any nonlinear quadrature mean shift is audit-only and does not change the point lambda in this draft.
+
+The resulting scalar `lambda_sigma` is consumed by Contract 1 GH-3 at `point_lambda ± sqrt(3)·lambda_sigma` with weights `(0.16666666666666666, 0.6666666666666666, 0.16666666666666666)`. The `0.01` lower-node floor exception remains explicit: once it triggers, the consumed discrete SD is below the supplied `lambda_sigma`.
+
+The five invariants are structural: nonnegative `alpha` makes uniform aging non-decreasing; at fixed dispersion and expected ages, increasing `n` decreases both `SE0` and `1-c`; `A=0,c=1` reproduces the interior baseline exactly and any nonzero-fresh case must pass the frozen tolerance; unavailable authority, `m<3`, `n<3`, identity conflict, unknown insertion time, or unset coefficients fail closed; and the cross-season latest-20 set replaces evidence one fixture at a time, so recent covered evidence reduces age and missingness without a season switch or time gate.
 
 ## Preregistered behavioral invariants
 
@@ -237,7 +279,7 @@ Additional structural requirements:
 ## Gate state and remaining Owner decisions
 
 1. **Decided:** Contract 1 defines `lambda_sigma` as a true standard deviation. GH-3 is the reference offline specification. This is not production implementation approval.
-2. **Open:** approve the runtime expected-match denominator authority and its point-in-time availability contract. The evidence above does not self-approve one.
-3. **Frozen:** formula-family selection remains closed until item 2 is decided. Coefficients remain unset.
+2. **Decided:** persisted saved-raw fixtures, materialized into immutable PIT observations, are the expected-match denominator authority. Migration and code are local-only; production deployment remains unapproved.
+3. **Thawed for draft only:** the formula family above is specified, but both coefficients remain unset. No final formula or parameter is approved.
 
-Contract 1 production implementation must be an independent change with its own Gate and must precede any SE-formula change. Bundling the two would make attribution impossible: a changed result could come from repairing the quadrature scale, changing the SE formula, or both. The current state is `CONTRACT_1_SEMANTICS_APPROVED / CONTRACT_1_PRODUCTION_IMPLEMENTATION_NOT_AUTHORIZED / ITEM_2_OWNER_DECISION_REQUIRED / ITEM_3_FROZEN`.
+Owner superseded the earlier sequencing rule. Contract 1 production implementation no longer occupies a separate Gate; it may be bundled with the eventual SE formula change in one production Gate because its near-uniform `sqrt(2)` rescaling is analytically separable. This does not approve that deployment. The current state is `ITEMS_1_2_DECIDED / ITEM_3_DRAFTED_COEFFICIENTS_UNSET / COMBINED_PRODUCTION_GATE_NOT_AUTHORIZED`.

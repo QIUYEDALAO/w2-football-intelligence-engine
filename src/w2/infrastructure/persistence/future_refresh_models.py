@@ -7,6 +7,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
@@ -190,6 +191,85 @@ class RawStatisticsRetentionModel(Base):
     retained_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class ExpectedMatchFixtureObservationModel(Base):
+    __tablename__ = "expected_match_fixture_observation"
+    __table_args__ = (
+        UniqueConstraint(
+            "raw_payload_sha256",
+            "provider",
+            "provider_fixture_id",
+            name="uq_expected_match_fixture_raw_identity",
+        ),
+        Index(
+            "ix_expected_match_fixture_scope_pit",
+            "provider",
+            "provider_league_id",
+            "captured_at",
+            "source_inserted_at",
+        ),
+        Index(
+            "ix_expected_match_fixture_home_kickoff",
+            "home_provider_team_id",
+            "kickoff_at",
+        ),
+        Index(
+            "ix_expected_match_fixture_away_kickoff",
+            "away_provider_team_id",
+            "kickoff_at",
+        ),
+    )
+
+    observation_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    canonical_fixture_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_league_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    season: Mapped[str] = mapped_column(String(32), nullable=False)
+    kickoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    home_provider_team_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    away_provider_team_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    fixture_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    home_goals: Mapped[int | None] = mapped_column(Integer)
+    away_goals: Mapped[int | None] = mapped_column(Integer)
+    raw_payload_sha256: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("raw_payload.sha256", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source_inserted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    materialized_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ExpectedMatchFixtureMaterializationModel(Base):
+    __tablename__ = "expected_match_fixture_materialization"
+    __table_args__ = (
+        CheckConstraint(
+            "status in ('COMPLETE', 'COMPLETE_WITH_REJECTIONS', 'REJECTED')",
+            name="ck_expected_match_fixture_materialization_status",
+        ),
+    )
+
+    raw_payload_sha256: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("raw_payload.sha256", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    source_captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    source_inserted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    materialized_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    observation_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    rejection_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    rejection_samples: Mapped[list[dict[str, str]]] = mapped_column(JSON, nullable=False)
+
+
 def _prevent_statistics_raw_mutation(
     _mapper: Any,
     _connection: Any,
@@ -203,10 +283,34 @@ def _prevent_retention_manifest_mutation(_mapper: Any, _connection: Any, _target
     raise ValueError("raw Statistics retention manifest is append-only")
 
 
+def _prevent_expected_match_mutation(_mapper: Any, _connection: Any, _target: Any) -> None:
+    raise ValueError("expected-match materialization is append-only")
+
+
 event.listen(RawPayloadModel, "before_update", _prevent_statistics_raw_mutation)
 event.listen(RawPayloadModel, "before_delete", _prevent_statistics_raw_mutation)
 event.listen(RawStatisticsRetentionModel, "before_update", _prevent_retention_manifest_mutation)
 event.listen(RawStatisticsRetentionModel, "before_delete", _prevent_retention_manifest_mutation)
+event.listen(
+    ExpectedMatchFixtureObservationModel,
+    "before_update",
+    _prevent_expected_match_mutation,
+)
+event.listen(
+    ExpectedMatchFixtureObservationModel,
+    "before_delete",
+    _prevent_expected_match_mutation,
+)
+event.listen(
+    ExpectedMatchFixtureMaterializationModel,
+    "before_update",
+    _prevent_expected_match_mutation,
+)
+event.listen(
+    ExpectedMatchFixtureMaterializationModel,
+    "before_delete",
+    _prevent_expected_match_mutation,
+)
 
 
 class TeamXgMatchModel(Base):

@@ -1,8 +1,8 @@
 # EV-SE offline preregistration reproduction
 
-This package reproduces the preregistration baseline, the Owner-approved Contract 1 semantic specification, the frozen GH-3 counterfactual, its `price_source`-stratified impact, and the item-2 denominator-authority feasibility evidence. It makes no Provider calls, production database writes, or outcome reads. The audit uses repeatable-read PostgreSQL `BEGIN ... READ ONLY` transactions, reads the frozen evaluation cohort and xG source separately, and rolls both back.
+This package reproduces the preregistration baseline, the Owner-approved Contract 1 semantic specification, the frozen GH-3 counterfactual, its `price_source`-stratified impact, the approved item-2 denominator contract, and the coefficient-free item-3 formula-family draft. It makes no Provider calls, production database writes, or outcome reads. The audit uses repeatable-read PostgreSQL `BEGIN ... READ ONLY` transactions, reads the frozen evaluation cohort and xG source separately, and rolls both back.
 
-Contract 1 approval is semantic only: `lambda_sigma` means a true standard deviation. The package does not authorize a coefficient, an SE formula, a production implementation, or a release. Formula-family item 3 remains frozen pending the Owner's item-2 denominator decision.
+Contract 1 approval is semantic only: `lambda_sigma` means a true standard deviation. Owner decision 2 approves persisted saved-raw fixtures materialized into immutable PIT observations as the expected-match denominator authority. Item 3 is thawed for a draft whose `alpha_age_per_day` and `beta_missing` values are both explicitly unset. The package does not authorize a coefficient, final SE formula, production implementation, migration apply, or release.
 
 ## 1. Checkout and self-check
 
@@ -103,7 +103,7 @@ AND current_ev - current_ev_minus_se >= 0
 AND COALESCE(recorded_at, evaluated_at) <= 2026-08-23T12:00:50Z
 AND api_football fixture identity resolves
 AND kickoff_at < evaluated_at
-AND captured_at <= evaluated_at
+AND first two-sided numeric saved-raw captured_at <= evaluated_at
 AND latest visible rows per side are capped at 20
 AND home_n >= 3 AND away_n >= 3
 AND age, sigma_home, sigma_away are non-null
@@ -111,7 +111,22 @@ AND age, sigma_home, sigma_away are non-null
 
 Coverage-denominator reconstruction additionally requires `evaluated_at < target kickoff` and both expected same-league denominators `>=3`. Its competition scope is read from `league_season.payload.enabled`; the script has no fixed league count or league-name list. The evidence reports every league separately and deliberately computes no overall coverage average.
 
+The runtime design is migration `0071_expected_match_denominator`. New fixture raw writes persist `inserted_at` and materialize their denominator observations in the same transaction. Historical materialization is bounded and Provider-zero. A read selects the latest observation per canonical Provider fixture only when both `captured_at <= as_of` and `source_inserted_at <= as_of`; unknown insertion time is rejected rather than backdated. The latest-20 set is same-Provider-league and cross-season, so it recovers as fixtures arrive without a season switch. Nothing in this package applies the migration or enables the read path.
+
+The formula-family draft is:
+
+```text
+SE0 = sample_sd(observed expected-fixture xG) / sqrt(n)
+SE  = SE0 * sqrt(1 + alpha_age_per_day * A + beta_missing * (1 - n/m))
+alpha_age_per_day = unset
+beta_missing      = unset
+```
+
+Here `m` comes from the independently materialized expected fixtures, `n` is their point-in-time xG-covered subset, and `A` is the mean exact age over the expected set including missing-xG fixtures. Four component SEs are propagated through the actual piecewise `calibrate_lambdas` function with a GH-3 tensor product; the interior result retains the `0.5` Jacobian. No age cutoff, season-start switch, EV cap, or outcome-derived coefficient is introduced.
+
 For the Contract 1 comparison, both AH and TOTALS must exist for a model-input group so the point lambdas can be identified from the frozen five-state distributions. A whole group enters the old-versus-GH-3 comparison only when the reconstructed old `ev_se` matches the persisted value within `0.000001`. The JSON records every excluded group and row. The script never back-solves a missing historical sigma from persisted `ev_se`.
+
+The approved 2,584-row Contract 1 block is pinned to local Git object `3fb17ced5dbefa6201bad164556940d8894bb9b2` and verified against SHA-256 `62e4c0baed196b865d468e3d0a9f34351bef3f187db5b4607e178d6e8412e55f`. This is necessary because the old `team_xg_match` merge path later republished mutable evidence: a current reconstruction accepts 2,576 rows and adds eight payload-price exclusions. The script reports that drift but preserves the previously approved comparison; it does not choose a historical raw capture by fitting reported `ev_se`.
 
 The accepted Contract 1 cohort is then partitioned by the exact `price_source` value. Each source gets `n/min/p05/p25/median/mean/p75/p95/max/max_absolute` for all four required deltas. The script also records attempted, accepted, and excluded counts per source, so excluded-to-accepted ratio is not mislabeled as attempted-row failure rate. The pooled `ev_se` delta is compared with a forward reconstruction of `old_ev_se * (sqrt(2) - 1)`; no historical sigma is inferred.
 

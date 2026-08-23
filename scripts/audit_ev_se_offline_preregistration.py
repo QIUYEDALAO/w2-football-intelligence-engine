@@ -31,6 +31,14 @@ CORPUS_SHA256 = "d19b217afe159c87dbf8d0dea87c260374ac9d18ffd8bb97581cfffe858cedc
 CORPUS_FILE_SHA256 = "80e49d1a32b5dd9653d41826e87415acff0d32a6804dea408f3b99737a6ab5e2"
 CORPUS_SNAPSHOT = "2026-08-22T05:50:41.929427Z"
 CORPUS_ROWS = 38_706
+CONTRACT1_FROZEN_COMMIT = "3fb17ced5dbefa6201bad164556940d8894bb9b2"
+CONTRACT1_FROZEN_PATH = (
+    "docs/review_packages/EV_SE_OFFLINE_VALIDATION/"
+    "EV_SE_OFFLINE_PREREGISTRATION_EVIDENCE_20260823.json"
+)
+CONTRACT1_FROZEN_SHA256 = (
+    "62e4c0baed196b865d468e3d0a9f34351bef3f187db5b4607e178d6e8412e55f"
+)
 FLOAT_TOLERANCE = 0.000001
 GH3_DISTANCE = math.sqrt(3.0)
 GH3_WEIGHTS = (1.0 / 6.0, 2.0 / 3.0, 1.0 / 6.0)
@@ -44,6 +52,84 @@ PRICE_SOURCE_COMPARISON_FIELDS = {
     "ev_se_delta_gh3_minus_old": "analysis_se_delta",
     "mixed_score_matrix_ev_delta_gh3_minus_old": "simulation_ev_delta",
 }
+
+
+def _formula_family_specification() -> dict[str, Any]:
+    return {
+        "status": "DRAFT_ONLY_COEFFICIENTS_UNSET_NOT_EXECUTABLE",
+        "method_version": "expected_match_age_coverage_multiplier.family.v1",
+        "expected_fixture_set": {
+            "definition": "LATEST_20_FINISHED_VISIBLE_FIXTURES_IN_SAME_PROVIDER_LEAGUE_BEFORE_AS_OF_ACROSS_SEASONS",
+            "visibility": [
+                "kickoff_at < as_of",
+                "captured_at <= as_of",
+                "source_inserted_at <= as_of",
+                "latest_visible_observation_per_canonical_provider_fixture",
+            ],
+            "m": "number_of_expected_finished_fixtures_after_non_played_fixtures_are_removed",
+            "n": "number_of_expected_fixtures_with_two_sided_numeric_xg_visible_at_as_of",
+            "coverage": "c = n / m",
+            "missing": "q = m - n",
+            "mean_age_days": "A = mean(exact_elapsed_seconds(as_of - kickoff_at) / 86400 over the expected set, including missing-xg fixtures)",
+        },
+        "component_standard_error": {
+            "baseline": "SE0 = sample_sd(observed_xg_values) / sqrt(n)",
+            "family": "SE = SE0 * sqrt(1 + alpha_age_per_day * A + beta_missing * (1 - c))",
+            "coefficients": {
+                "alpha_age_per_day": None,
+                "beta_missing": None,
+            },
+            "coefficient_constraints": [
+                "alpha_age_per_day >= 0",
+                "beta_missing >= 0",
+                "coefficients_must_be_selected_without_current_pick_outcomes_profit_or_hit_rate",
+            ],
+            "independent_missingness_identification": "m_and_q_come_from_saved_fixture_observations_and_are_not_functions_of_xg_n",
+        },
+        "lambda_propagation": {
+            "inputs": [
+                "home_attack_xg_for",
+                "away_defence_xg_against",
+                "away_attack_xg_for",
+                "home_defence_xg_against",
+            ],
+            "quadrature": "GH3_TENSOR_PRODUCT_OVER_FOUR_INDEPENDENT_COMPONENTS",
+            "standardized_nodes": [-_round(GH3_DISTANCE, 10), 0.0, _round(GH3_DISTANCE, 10)],
+            "weights": [_round(value, 10) for value in GH3_WEIGHTS],
+            "mapping": "run_every_node_through_the_actual_calibrate_lambdas_piecewise_function_including_total_1_35_4_40_and_individual_lambda_clamps",
+            "lambda_sigma": "weighted_standard_deviation_of_the_piecewise_mapped_lambda_nodes",
+            "interior_identity": "0.5 * sqrt(SE_attack^2 + SE_opponent_defence^2)",
+            "point_lambda_change": False,
+            "nonlinear_quadrature_mean_shift": "audit_only_not_used_to_change_point_lambda",
+        },
+        "contract_1_consumer": {
+            "nodes": "point_lambda +/- sqrt(3) * lambda_sigma",
+            "weights": "1/6, 2/3, 1/6",
+            "lower_node_floor": 0.01,
+            "floor_exception": "when_the_floor_fires_the_consumed_discrete_sd_is_less_than_lambda_sigma_and_must_be_reported",
+        },
+        "behavioral_invariants_by_construction": {
+            "age_monotonicity": "for_fixed_expected_set_dispersion_n_and_coverage_increasing_all_ages_cannot_reduce_SE_when_alpha_is_nonnegative",
+            "sample_coverage_monotonicity": "for_fixed_dispersion_and_expected_ages_increasing_n_reduces_SE0_and_1_minus_c",
+            "fresh_complete_baseline": "A=0_and_c=1_reproduces_SE0_exactly;_nonzero_fresh_age_must_pass_the_preregistered_baseline_tolerance",
+            "no_evidence_fail_closed": [
+                "expected_denominator_unavailable",
+                "m < 3",
+                "n < 3",
+                "provider_fixture_identity_conflict",
+                "unknown_source_inserted_at",
+                "coefficients_unset",
+            ],
+            "seasonal_recovery": "the_cross_season_latest20_set_changes_one_fixture_at_a_time;_new_recent_covered_fixtures_continuously_reduce_A_and_1_minus_c_without_a_season_switch_or_age_gate",
+        },
+        "forbidden": [
+            "age_cutoff",
+            "season_start_switch",
+            "ev_cap",
+            "outcome_tuned_coefficient",
+            "claim_that_stale_xg_causes_high_ev",
+        ],
+    }
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_JSON = ROOT / (
@@ -71,6 +157,7 @@ WITH frozen_evaluations AS (
           - (e.payload->>'current_ev_minus_se')::float8 >= 0
     AND coalesce(e.recorded_at, e.evaluated_at)
           <= timestamptz '2026-08-23T12:00:50Z'
+    AND FALSE -- reconstructed from first-visible saved raw in Python
 ), identities AS (
   SELECT DISTINCT ON (provider_fixture_id)
          provider_fixture_id, home_provider_team_id, away_provider_team_id,
@@ -88,6 +175,51 @@ WITH frozen_evaluations AS (
     VALUES ('HOME', i.home_provider_team_id),
            ('AWAY', i.away_provider_team_id)
   ) AS side(name, team_id)
+), statistics_team AS (
+  SELECT r.sha256, r.captured_at,
+         r.payload#>>'{parameters,fixture}' AS fixture_id,
+         item#>>'{team,id}' AS team_id,
+         (
+           SELECT stat->>'value'
+           FROM json_array_elements(item->'statistics') stat
+           WHERE lower(replace(stat->>'type', ' ', '_')) = 'expected_goals'
+             AND stat->>'value' IS NOT NULL
+           LIMIT 1
+         )::float8 AS xg
+  FROM raw_payload r
+  CROSS JOIN LATERAL json_array_elements(r.payload->'response') item
+  WHERE r.endpoint = 'statistics'
+    AND r.captured_at <= timestamptz '2026-08-23T12:00:50Z'
+), complete_statistics_capture AS (
+  SELECT sha256, captured_at, fixture_id
+  FROM statistics_team
+  WHERE fixture_id IS NOT NULL AND fixture_id <> ''
+  GROUP BY sha256, captured_at, fixture_id
+  HAVING count(DISTINCT team_id) FILTER (WHERE xg IS NOT NULL) = 2
+), first_xg_capture AS (
+  SELECT DISTINCT ON (fixture_id) sha256, fixture_id, captured_at
+  FROM complete_statistics_capture
+  ORDER BY fixture_id, captured_at, sha256
+), first_xg_team AS (
+  SELECT first_xg.sha256, first_xg.fixture_id, first_xg.captured_at,
+         source.team_id, max(source.xg) AS xg
+  FROM first_xg_capture first_xg
+  JOIN statistics_team source USING (sha256, captured_at, fixture_id)
+  WHERE source.xg IS NOT NULL
+  GROUP BY first_xg.sha256, first_xg.fixture_id, first_xg.captured_at,
+           source.team_id
+  HAVING min(source.xg) = max(source.xg)
+), first_xg_rows AS (
+  SELECT current.id, current.fixture_id, current.team_id, current.kickoff_at,
+         own.captured_at, own.sha256 AS raw_payload_sha256,
+         own.xg AS xg_for, opponent.xg AS xg_against
+  FROM first_xg_team own
+  JOIN first_xg_team opponent
+    ON opponent.sha256 = own.sha256
+   AND opponent.fixture_id = own.fixture_id
+   AND opponent.team_id <> own.team_id
+  JOIN team_xg_match current
+    ON current.fixture_id = own.fixture_id AND current.team_id = own.team_id
 ), ranked_xg AS (
   SELECT s.evaluation_id, s.side, x.*,
          row_number() OVER (
@@ -95,14 +227,10 @@ WITH frozen_evaluations AS (
            ORDER BY x.kickoff_at DESC, x.id DESC
          ) AS rank
   FROM sides s
-  JOIN team_xg_match x
+  JOIN first_xg_rows x
    ON x.team_id = s.team_id
    AND x.kickoff_at < s.evaluated_at
    AND x.captured_at <= s.evaluated_at
-   AND x.source_system = 'api_football_statistics'
-   AND x.raw_payload_sha256 IS NOT NULL
-   AND x.xg_for IS NOT NULL
-   AND x.xg_against IS NOT NULL
 ), visible_xg AS (
   SELECT * FROM ranked_xg WHERE rank <= 20
 ), side_stats AS (
@@ -198,6 +326,7 @@ WITH frozen_evaluations AS (
           - (e.payload->>'current_ev_minus_se')::float8 >= 0
     AND coalesce(e.recorded_at, e.evaluated_at)
           <= timestamptz '2026-08-23T12:00:50Z'
+    AND FALSE -- reconstructed from first-visible saved raw in Python
 ), identities AS (
   SELECT DISTINCT ON (provider_fixture_id)
          provider_fixture_id, home_provider_team_id, away_provider_team_id,
@@ -215,6 +344,51 @@ WITH frozen_evaluations AS (
     VALUES ('HOME', i.home_provider_team_id),
            ('AWAY', i.away_provider_team_id)
   ) AS side(name, team_id)
+), statistics_team AS (
+  SELECT r.sha256, r.captured_at,
+         r.payload#>>'{parameters,fixture}' AS fixture_id,
+         item#>>'{team,id}' AS team_id,
+         (
+           SELECT stat->>'value'
+           FROM json_array_elements(item->'statistics') stat
+           WHERE lower(replace(stat->>'type', ' ', '_')) = 'expected_goals'
+             AND stat->>'value' IS NOT NULL
+           LIMIT 1
+         )::float8 AS xg
+  FROM raw_payload r
+  CROSS JOIN LATERAL json_array_elements(r.payload->'response') item
+  WHERE r.endpoint = 'statistics'
+    AND r.captured_at <= timestamptz '2026-08-23T12:00:50Z'
+), complete_statistics_capture AS (
+  SELECT sha256, captured_at, fixture_id
+  FROM statistics_team
+  WHERE fixture_id IS NOT NULL AND fixture_id <> ''
+  GROUP BY sha256, captured_at, fixture_id
+  HAVING count(DISTINCT team_id) FILTER (WHERE xg IS NOT NULL) = 2
+), first_xg_capture AS (
+  SELECT DISTINCT ON (fixture_id) sha256, fixture_id, captured_at
+  FROM complete_statistics_capture
+  ORDER BY fixture_id, captured_at, sha256
+), first_xg_team AS (
+  SELECT first_xg.sha256, first_xg.fixture_id, first_xg.captured_at,
+         source.team_id, max(source.xg) AS xg
+  FROM first_xg_capture first_xg
+  JOIN statistics_team source USING (sha256, captured_at, fixture_id)
+  WHERE source.xg IS NOT NULL
+  GROUP BY first_xg.sha256, first_xg.fixture_id, first_xg.captured_at,
+           source.team_id
+  HAVING min(source.xg) = max(source.xg)
+), first_xg_rows AS (
+  SELECT current.id, current.fixture_id, current.team_id, current.kickoff_at,
+         own.captured_at, own.sha256 AS raw_payload_sha256,
+         own.xg AS xg_for, opponent.xg AS xg_against
+  FROM first_xg_team own
+  JOIN first_xg_team opponent
+    ON opponent.sha256 = own.sha256
+   AND opponent.fixture_id = own.fixture_id
+   AND opponent.team_id <> own.team_id
+  JOIN team_xg_match current
+    ON current.fixture_id = own.fixture_id AND current.team_id = own.team_id
 ), ranked_xg AS (
   SELECT s.evaluation_id, s.side, x.*,
          row_number() OVER (
@@ -222,14 +396,10 @@ WITH frozen_evaluations AS (
            ORDER BY x.kickoff_at DESC, x.id DESC
          ) AS rank
   FROM sides s
-  JOIN team_xg_match x
+  JOIN first_xg_rows x
    ON x.team_id = s.team_id
    AND x.kickoff_at < s.evaluated_at
    AND x.captured_at <= s.evaluated_at
-   AND x.source_system = 'api_football_statistics'
-   AND x.raw_payload_sha256 IS NOT NULL
-   AND x.xg_for IS NOT NULL
-   AND x.xg_against IS NOT NULL
 ), visible_xg AS (
   SELECT * FROM ranked_xg WHERE rank <= 20
 ), side_stats AS (
@@ -323,22 +493,46 @@ SELECT json_build_object(
 ) TO STDOUT;
 
 COPY (
-WITH identities AS (
-  SELECT DISTINCT ON (provider_fixture_id)
-         provider_fixture_id, home_provider_team_id, away_provider_team_id,
-         competition_id, provider_league_id, kickoff_utc
+WITH identity_observations AS (
+  SELECT provider_fixture_id, home_provider_team_id, away_provider_team_id,
+         competition_id, provider_league_id, kickoff_utc, captured_at
   FROM matchday_fixture_identities
   WHERE provider = 'api_football'
     AND captured_at <= timestamptz '2026-08-23T12:00:50Z'
+  UNION ALL
+  SELECT item#>>'{fixture,id}', item#>>'{teams,home,id}',
+         item#>>'{teams,away,id}', NULL, item#>>'{league,id}',
+         (item#>>'{fixture,date}')::timestamptz, r.captured_at
+  FROM raw_payload r
+  CROSS JOIN LATERAL json_array_elements(r.payload->'response') item
+  WHERE r.endpoint = 'fixtures'
+    AND r.captured_at <= timestamptz '2026-08-23T12:00:50Z'
+    AND coalesce(r.inserted_at, r.captured_at)
+          <= timestamptz '2026-08-23T12:00:50Z'
+), identities AS (
+  SELECT DISTINCT ON (provider_fixture_id) *
+  FROM identity_observations
+  WHERE provider_fixture_id IS NOT NULL
+    AND home_provider_team_id IS NOT NULL
+    AND away_provider_team_id IS NOT NULL
+    AND kickoff_utc IS NOT NULL
   ORDER BY provider_fixture_id, captured_at DESC
 )
 SELECT json_build_object(
   'kind', 'coverage_evaluation',
   'evaluation_id', e.evaluation_id,
   'fixture_id', e.fixture_id,
+  'model_input_hash', e.model_input_hash,
+  'market', e.market,
+  'selection', e.selection,
   'evaluated_at', e.evaluated_at,
   'frozen_at', coalesce(e.recorded_at, e.evaluated_at),
-  'competition_id', i.competition_id,
+  'current_ev', (e.payload->>'current_ev')::float8,
+  'current_ev_minus_se', (e.payload->>'current_ev_minus_se')::float8,
+  'decimal_odds', (e.payload->>'decimal_odds')::float8,
+  'exact_line', (e.payload->>'exact_line')::float8,
+  'model_distribution', e.payload->'model_settlement_distribution',
+  'competition_id', coalesce(i.competition_id, e.payload->>'competition_id'),
   'provider_league_id', i.provider_league_id,
   'kickoff_utc', i.kickoff_utc,
   'home_team_id', i.home_provider_team_id,
@@ -442,19 +636,11 @@ ORDER BY e.competition_id, e.season
 ) TO STDOUT;
 
 COPY (
-WITH identities AS (
-  SELECT DISTINCT ON (provider_fixture_id) provider_fixture_id
-  FROM matchday_fixture_identities
-  WHERE provider = 'api_football'
-    AND captured_at <= timestamptz '2026-08-23T12:00:50Z'
-  ORDER BY provider_fixture_id, captured_at DESC
-)
 SELECT json_build_object(
   'kind', 'source_counts',
   'coverage_evaluations', (
     SELECT count(*)
     FROM dynamic_prematch_evaluations e
-    JOIN identities i ON i.provider_fixture_id = e.fixture_id
     WHERE coalesce(e.recorded_at, e.evaluated_at)
           <= timestamptz '2026-08-23T12:00:50Z'
   ),
@@ -469,7 +655,6 @@ SELECT json_build_object(
   'contract_evaluations', (
     SELECT count(*)
     FROM dynamic_prematch_evaluations e
-    JOIN identities i ON i.provider_fixture_id = e.fixture_id
     WHERE e.payload->>'current_ev' IS NOT NULL
       AND e.payload->>'current_ev_minus_se' IS NOT NULL
       AND (e.payload->>'current_ev')::float8
@@ -490,20 +675,73 @@ ROLLBACK;
 XG_SQL = r"""
 BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
 COPY (
-SELECT json_build_object(
-  'kind', 'xg',
-  'id', id,
-  'fixture_id', fixture_id,
-  'team_id', team_id,
-  'kickoff_at', kickoff_at,
-  'captured_at', captured_at
-)::text
-FROM team_xg_match
-WHERE source_system = 'api_football_statistics'
-  AND raw_payload_sha256 IS NOT NULL
-  AND xg_for IS NOT NULL AND xg_against IS NOT NULL
-  AND captured_at <= timestamptz '2026-08-23T12:00:50Z'
-ORDER BY team_id, kickoff_at, id
+WITH stat_team AS (
+  SELECT r.sha256, r.captured_at,
+         r.payload#>>'{parameters,fixture}' AS fixture_id,
+         item#>>'{team,id}' AS team_id,
+         (
+           SELECT s->>'value'
+           FROM json_array_elements(item->'statistics') s
+           WHERE lower(replace(s->>'type', ' ', '_')) = 'expected_goals'
+             AND s->>'value' IS NOT NULL
+           LIMIT 1
+         )::float8 AS xg
+  FROM raw_payload r
+  CROSS JOIN LATERAL json_array_elements(r.payload->'response') item
+  WHERE r.endpoint = 'statistics'
+    AND r.captured_at <= timestamptz '2026-08-23T12:00:50Z'
+), complete_capture AS (
+  SELECT sha256, captured_at, fixture_id
+  FROM stat_team
+  WHERE fixture_id IS NOT NULL AND fixture_id <> ''
+  GROUP BY sha256, captured_at, fixture_id
+  HAVING count(DISTINCT team_id) FILTER (WHERE xg IS NOT NULL) = 2
+), first_complete AS (
+  SELECT DISTINCT ON (fixture_id) sha256, captured_at, fixture_id
+  FROM complete_capture
+  ORDER BY fixture_id, captured_at, sha256
+), first_teams AS (
+  SELECT f.sha256, f.captured_at, f.fixture_id, s.team_id, max(s.xg) AS xg
+  FROM first_complete f
+  JOIN stat_team s USING (sha256, captured_at, fixture_id)
+  WHERE s.xg IS NOT NULL
+  GROUP BY f.sha256, f.captured_at, f.fixture_id, s.team_id
+  HAVING min(s.xg) = max(s.xg)
+), reconstructed AS (
+  SELECT x.id, x.fixture_id, x.team_id, x.kickoff_at,
+         own.captured_at, x.raw_payload_sha256,
+         x.xg_for, x.xg_against
+  FROM first_teams own
+  JOIN first_teams opponent
+    ON opponent.sha256 = own.sha256
+   AND opponent.fixture_id = own.fixture_id
+   AND opponent.team_id <> own.team_id
+  JOIN team_xg_match x
+    ON x.fixture_id = own.fixture_id AND x.team_id = own.team_id
+)
+SELECT payload FROM (
+  SELECT 10 AS sort_group, team_id AS sort_team, kickoff_at AS sort_time, id AS sort_id,
+         json_build_object(
+           'kind', 'xg',
+           'id', id,
+           'fixture_id', fixture_id,
+           'team_id', team_id,
+           'kickoff_at', kickoff_at,
+           'captured_at', captured_at,
+           'raw_payload_sha256', raw_payload_sha256,
+           'xg_for', xg_for,
+           'xg_against', xg_against
+         )::text AS payload
+  FROM reconstructed
+  UNION ALL
+  SELECT 20, '', NULL, '', json_build_object(
+    'kind', 'xg_source_count',
+    'count', count(*),
+    'authority', 'FIRST_TWO_SIDED_NUMERIC_SAVED_RAW_CAPTURE'
+  )::text
+  FROM reconstructed
+) rows
+ORDER BY sort_group, sort_team, sort_time, sort_id
 ) TO STDOUT;
 ROLLBACK;
 """
@@ -559,7 +797,219 @@ def _run_read_only_sql(args: argparse.Namespace, sql: str) -> list[dict[str, Any
 
 
 def _read_production(args: argparse.Namespace) -> list[dict[str, Any]]:
-    return _run_read_only_sql(args, SQL) + _run_read_only_sql(args, XG_SQL)
+    rows = _run_read_only_sql(args, SQL) + _run_read_only_sql(args, XG_SQL)
+    return _reconstruct_frozen_xg_statistics(rows)
+
+
+def _reconstruct_frozen_xg_statistics(
+    source_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Rebuild the approved baseline from first-visible two-sided saved raw."""
+    xg_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in source_rows:
+        if row["kind"] != "xg":
+            continue
+        xg_by_team[str(row["team_id"])].append(
+            {
+                **row,
+                "kickoff_at": _utc(str(row["kickoff_at"])),
+                "captured_at": _utc(str(row["captured_at"])),
+            }
+        )
+    for rows in xg_by_team.values():
+        rows.sort(key=lambda row: (row["kickoff_at"], str(row["id"])), reverse=True)
+
+    contract_rows: list[dict[str, Any]] = []
+    age_rows: list[dict[str, Any]] = []
+    unusable: list[dict[str, Any]] = []
+    frozen_numeric_rows = 0
+    for row in source_rows:
+        if row["kind"] != "coverage_evaluation":
+            continue
+        current_ev = row.get("current_ev")
+        current_ev_minus_se = row.get("current_ev_minus_se")
+        if current_ev is None or current_ev_minus_se is None:
+            continue
+        ev_se = float(current_ev) - float(current_ev_minus_se)
+        if ev_se < 0:
+            continue
+        frozen_numeric_rows += 1
+        evaluated_at = _utc(str(row["evaluated_at"]))
+        kickoff_utc = _utc(str(row["kickoff_utc"]))
+        sides = {
+            "HOME": _visible_first_xg_rows(
+                xg_by_team.get(str(row["home_team_id"]), []), evaluated_at
+            ),
+            "AWAY": _visible_first_xg_rows(
+                xg_by_team.get(str(row["away_team_id"]), []), evaluated_at
+            ),
+        }
+        if any(len(values) < 3 for values in sides.values()):
+            unusable.append(
+                {
+                    "evaluation_id": row["evaluation_id"],
+                    "fixture_id": row["fixture_id"],
+                    "evaluated_at": row["evaluated_at"],
+                    "home_team_id": row["home_team_id"],
+                    "away_team_id": row["away_team_id"],
+                    "home_visible": len(sides["HOME"]),
+                    "away_visible": len(sides["AWAY"]),
+                    "home_kickoff_eligible": sum(
+                        value["kickoff_at"] < evaluated_at
+                        for value in xg_by_team.get(str(row["home_team_id"]), [])
+                    ),
+                    "away_kickoff_eligible": sum(
+                        value["kickoff_at"] < evaluated_at
+                        for value in xg_by_team.get(str(row["away_team_id"]), [])
+                    ),
+                }
+            )
+            continue
+        home = _xg_side_statistics(sides["HOME"])
+        away = _xg_side_statistics(sides["AWAY"])
+        if any(
+            value is None
+            for value in (
+                home["se_for"],
+                home["se_against"],
+                away["se_for"],
+                away["se_against"],
+            )
+        ):
+            continue
+        age = (
+            (kickoff_utc - home["latest_kickoff"]).total_seconds()
+            + (kickoff_utc - away["latest_kickoff"]).total_seconds()
+        ) / 172800.0
+        sigma_home = 0.5 * math.sqrt(
+            float(home["se_for"]) ** 2 + float(away["se_against"]) ** 2
+        )
+        sigma_away = 0.5 * math.sqrt(
+            float(away["se_for"]) ** 2 + float(home["se_against"]) ** 2
+        )
+        common = {
+            "evaluation_id": row["evaluation_id"],
+            "fixture_id": row["fixture_id"],
+            "competition_id": row["competition_id"],
+            "model_input_hash": row["model_input_hash"],
+            "market": row["market"],
+            "selection": row["selection"],
+            "evaluated_at": row["evaluated_at"],
+            "current_ev": current_ev,
+            "current_ev_minus_se": current_ev_minus_se,
+            "decimal_odds": row.get("decimal_odds"),
+            "exact_line": row.get("exact_line"),
+            "model_distribution": row.get("model_distribution"),
+            "home_n": len(sides["HOME"]),
+            "away_n": len(sides["AWAY"]),
+            "sigma_home": sigma_home,
+            "sigma_away": sigma_away,
+        }
+        contract_rows.append(
+            {
+                "kind": "contract_evaluation",
+                **common,
+                "home_xg_for": home["mean_for"],
+                "home_xg_against": home["mean_against"],
+                "away_xg_for": away["mean_for"],
+                "away_xg_against": away["mean_against"],
+            }
+        )
+        age_rows.append({**common, "age": age, "ev_se": ev_se})
+
+    age_metrics = _age_metrics(age_rows, frozen_numeric_rows=frozen_numeric_rows)
+    retained = [row for row in source_rows if row["kind"] != "age_metrics"]
+    return retained + [
+        {"kind": "age_metrics", "payload": age_metrics},
+        {
+            "kind": "xg_reconstruction_diagnostics",
+            "unusable_evaluations": len(unusable),
+            "samples": unusable[:20],
+        },
+        *contract_rows,
+    ]
+
+
+def _visible_first_xg_rows(
+    rows: list[dict[str, Any]], before: datetime
+) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in rows
+        if row["kickoff_at"] < before and row["captured_at"] <= before
+    ][:20]
+
+
+def _xg_side_statistics(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    xg_for = [float(row["xg_for"]) for row in rows]
+    xg_against = [float(row["xg_against"]) for row in rows]
+    return {
+        "mean_for": statistics.fmean(xg_for),
+        "mean_against": statistics.fmean(xg_against),
+        "se_for": statistics.stdev(xg_for) / math.sqrt(len(xg_for)),
+        "se_against": statistics.stdev(xg_against) / math.sqrt(len(xg_against)),
+        "latest_kickoff": max(row["kickoff_at"] for row in rows),
+    }
+
+
+def _age_metrics(
+    rows: list[dict[str, Any]], *, frozen_numeric_rows: int
+) -> dict[str, Any]:
+    def correlation(values: list[dict[str, Any]], x: str, y: str) -> float | None:
+        if len(values) < 2:
+            return None
+        return statistics.correlation(
+            [float(row[x]) for row in values],
+            [float(row[y]) for row in values],
+        )
+
+    strata: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        strata[(row["home_n"], row["away_n"], row["market"], row["selection"])].append(
+            row
+        )
+    residuals: list[dict[str, float]] = []
+    for values in strata.values():
+        if len(values) < 4:
+            continue
+        age_mean = statistics.fmean(float(row["age"]) for row in values)
+        se_mean = statistics.fmean(float(row["ev_se"]) for row in values)
+        residuals.extend(
+            {
+                "age_residual": float(row["age"]) - age_mean,
+                "ev_se_residual": float(row["ev_se"]) - se_mean,
+            }
+            for row in values
+        )
+    n20 = [row for row in rows if row["home_n"] == 20 and row["away_n"] == 20]
+    median_age = statistics.median(float(row["age"]) for row in n20)
+    fresh = [row for row in n20 if float(row["age"]) <= median_age]
+    old = [row for row in n20 if float(row["age"]) > median_age]
+    return {
+        "frozen_numeric_rows": frozen_numeric_rows,
+        "usable_rows": len(rows),
+        "distinct_fixtures": len({str(row["fixture_id"]) for row in rows}),
+        "ev_se_min": min(float(row["ev_se"]) for row in rows),
+        "ev_se_mean": statistics.fmean(float(row["ev_se"]) for row in rows),
+        "ev_se_max": max(float(row["ev_se"]) for row in rows),
+        "raw_age_correlation": correlation(rows, "age", "ev_se"),
+        "raw_min_n_correlation": statistics.correlation(
+            [min(int(row["home_n"]), int(row["away_n"])) for row in rows],
+            [float(row["ev_se"]) for row in rows],
+        ),
+        "fixed_effect_correlation": correlation(
+            residuals, "age_residual", "ev_se_residual"
+        ),
+        "fixed_effect_rows": len(residuals),
+        "n20_rows": len(n20),
+        "n20_fixtures": len({str(row["fixture_id"]) for row in n20}),
+        "n20_age_median": median_age,
+        "n20_age_correlation": correlation(n20, "age", "ev_se"),
+        "fresh_age_mean": statistics.fmean(float(row["age"]) for row in fresh),
+        "fresh_ev_se_mean": statistics.fmean(float(row["ev_se"]) for row in fresh),
+        "old_age_mean": statistics.fmean(float(row["age"]) for row in old),
+        "old_ev_se_mean": statistics.fmean(float(row["ev_se"]) for row in old),
+    }
 
 
 def _canonical_corpus(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -724,10 +1174,27 @@ def _coverage_metrics(
 
     corpus_by_league: dict[str, set[str]] = defaultdict(set)
     corpus_team_rows_by_league: dict[str, int] = defaultdict(int)
+    canonical_identity_valid_by_league: dict[str, int] = defaultdict(int)
+    xg_identity_joined_by_league: dict[str, int] = defaultdict(int)
+    xg_identity_failures_by_league: dict[str, list[dict[str, str]]] = defaultdict(list)
     for row in corpus["history_rows"]:
         provider_league_id = str(row["provider_league_id"])
-        corpus_by_league[provider_league_id].add(str(row["provider_fixture_id"]))
+        provider_fixture_id = str(row["provider_fixture_id"])
+        team_id = str(row["team_id"])
+        corpus_by_league[provider_league_id].add(provider_fixture_id)
         corpus_team_rows_by_league[provider_league_id] += 1
+        if str(row["fixture_id"]) == f"api_football:{provider_fixture_id}":
+            canonical_identity_valid_by_league[provider_league_id] += 1
+        if (team_id, provider_fixture_id) in xg_fixture_times:
+            xg_identity_joined_by_league[provider_league_id] += 1
+        elif len(xg_identity_failures_by_league[provider_league_id]) < 5:
+            xg_identity_failures_by_league[provider_league_id].append(
+                {
+                    "canonical_fixture_id": str(row["fixture_id"]),
+                    "provider_fixture_id": provider_fixture_id,
+                    "provider_team_id": team_id,
+                }
+            )
 
     by_competition = []
     for competition_id, provider_league_id in sorted(enabled.items()):
@@ -737,6 +1204,7 @@ def _coverage_metrics(
         pit_evaluations = int(state["point_in_time_denominator_available_evaluations"])
         pit_expected = int(state["pit_expected_fixture_side_slots"])
         side_coverages = list(state.pop("side_coverages"))
+        corpus_team_rows = corpus_team_rows_by_league[provider_league_id]
         by_competition.append(
             {
                 "competition_id": competition_id,
@@ -744,9 +1212,36 @@ def _coverage_metrics(
                 "offline_corpus_finished_fixtures": len(
                     corpus_by_league[provider_league_id]
                 ),
-                "offline_corpus_team_history_rows": corpus_team_rows_by_league[
-                    provider_league_id
-                ],
+                "offline_corpus_team_history_rows": corpus_team_rows,
+                "canonical_provider_fixture_identity_alignment": {
+                    "eligible_team_history_rows": corpus_team_rows,
+                    "canonical_id_shape_valid_rows": canonical_identity_valid_by_league[
+                        provider_league_id
+                    ],
+                    "canonical_id_shape_success_rate": (
+                        _round(
+                            canonical_identity_valid_by_league[provider_league_id]
+                            / corpus_team_rows
+                        )
+                        if corpus_team_rows
+                        else None
+                    ),
+                    "team_xg_match_joined_rows": xg_identity_joined_by_league[
+                        provider_league_id
+                    ],
+                    "team_xg_match_join_success_rate": (
+                        _round(
+                            xg_identity_joined_by_league[provider_league_id]
+                            / corpus_team_rows
+                        )
+                        if corpus_team_rows
+                        else None
+                    ),
+                    "team_xg_match_join_failure_samples": xg_identity_failures_by_league[
+                        provider_league_id
+                    ],
+                    "join_key": ["provider_fixture_id", "provider_team_id"],
+                },
                 "evaluations_with_both_expected_denominators_ge3": evaluations,
                 "point_in_time_denominator_available_evaluations": pit_evaluations,
                 "point_in_time_denominator_unavailable_evaluations": (
@@ -1585,6 +2080,41 @@ def _contract1_metrics(source_rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _approved_contract1_metrics(current: Mapping[str, Any]) -> dict[str, Any]:
+    result = subprocess.run(
+        ["git", "show", f"{CONTRACT1_FROZEN_COMMIT}:{CONTRACT1_FROZEN_PATH}"],
+        cwd=ROOT,
+        text=False,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        raise ValueError("EV_SE_CONTRACT1_FROZEN_GIT_OBJECT_UNAVAILABLE")
+    if hashlib.sha256(result.stdout).hexdigest() != CONTRACT1_FROZEN_SHA256:
+        raise ValueError("EV_SE_CONTRACT1_FROZEN_GIT_OBJECT_HASH_MISMATCH")
+    frozen_evidence = json.loads(result.stdout)
+    frozen = dict(frozen_evidence["contract_1_gh3_offline_impact"])
+    frozen_cohort = frozen["same_evaluation_cohort"]
+    current_cohort = current["same_evaluation_cohort"]
+    frozen_ids = set(frozen_cohort["excluded_nonreproducible_evaluation_ids"])
+    current_ids = set(current_cohort["excluded_nonreproducible_evaluation_ids"])
+    frozen["frozen_source"] = {
+        "commit": CONTRACT1_FROZEN_COMMIT,
+        "path": CONTRACT1_FROZEN_PATH,
+        "sha256": CONTRACT1_FROZEN_SHA256,
+        "reason": "APPROVED_CONTRACT1_EVIDENCE_PRECEDES_MUTABLE_TEAM_XG_MATCH_REPUBLICATION;_PRESERVE_THE_APPROVED_2584_ROW_COHORT_WITHOUT_SIGMA_BACKSOLVE",
+        "current_reconstruction": {
+            "baseline_reproducible_evaluations": current_cohort[
+                "baseline_reproducible_evaluations"
+            ],
+            "additional_nonreproducible_evaluation_ids": sorted(
+                current_ids - frozen_ids
+            ),
+        },
+    }
+    return frozen
+
+
 def _one(rows: list[dict[str, Any]], kind: str) -> dict[str, Any]:
     matches = [row for row in rows if row["kind"] == kind]
     if len(matches) != 1:
@@ -1598,6 +2128,7 @@ def build_evidence(source_rows: list[dict[str, Any]], corpus: Mapping[str, Any])
     captures = _one(source_rows, "capture_totals")
     canonical = _one(source_rows, "canonical_history")
     source_counts = _one(source_rows, "source_counts")
+    xg_source_count = _one(source_rows, "xg_source_count")
     enabled_rows = [row for row in source_rows if row["kind"] == "enabled_competition"]
     runtime_denominator_rows = [
         row for row in source_rows if row["kind"] == "denominator_runtime_competition"
@@ -1610,14 +2141,19 @@ def build_evidence(source_rows: list[dict[str, Any]], corpus: Mapping[str, Any])
         "coverage_evaluation": int(source_counts["coverage_evaluations"]),
         "contract_evaluation": int(source_counts["contract_evaluations"]),
         "enabled_competition": int(source_counts["enabled_competitions"]),
-        "xg": int(source_counts["xg"]),
+        "xg": int(xg_source_count["count"]),
     }
     if observed_counts != expected_counts:
         raise ValueError(
             f"EV_SE_SOURCE_ROWS_INCOMPLETE:{observed_counts}:{expected_counts}"
         )
     if int(lineage_source["frozen_count"]) != int(age["usable_rows"]):
-        raise ValueError("EV_SE_FROZEN_LINEAGE_COUNT_MISMATCH")
+        diagnostics = _one(source_rows, "xg_reconstruction_diagnostics")
+        raise ValueError(
+            "EV_SE_FROZEN_LINEAGE_COUNT_MISMATCH:"
+            f"{lineage_source['frozen_count']}:{age['usable_rows']}:"
+            f"{json.dumps(diagnostics, sort_keys=True)}"
+        )
     ev_multiplier = math.sqrt(0.25 + 0.25)
     simulation_multiplier = math.sqrt(0.158655 + 0.158655)
     coverage_metrics = _coverage_metrics(source_rows, corpus, enabled_rows)
@@ -1645,7 +2181,7 @@ def build_evidence(source_rows: list[dict[str, Any]], corpus: Mapping[str, Any])
                 row["matchday_identity_fixtures"]
             ),
         }
-    contract1 = _contract1_metrics(source_rows)
+    contract1 = _approved_contract1_metrics(_contract1_metrics(source_rows))
     cohort = contract1["same_evaluation_cohort"]
     reconstruction = contract1["lambda_reconstruction"]
     if (
@@ -1733,8 +2269,8 @@ def build_evidence(source_rows: list[dict[str, Any]], corpus: Mapping[str, Any])
     ):
         raise ValueError("EV_SE_CONTRACT1_PRICE_SOURCE_GATE_LINEAGE_MISMATCH")
     return {
-        "schema_version": "w2.ev_se.offline_preregistration_evidence.v4",
-        "status": "OWNER_CONTRACT1_SEMANTICS_APPROVED_OFFLINE_GH3_IMPACT_PRICE_SOURCE_STRATIFIED_PRODUCTION_CHANGE_GATED",
+        "schema_version": "w2.ev_se.offline_preregistration_evidence.v5",
+        "status": "OWNER_ITEMS_1_2_DECIDED_ITEM_3_DRAFTED_COEFFICIENTS_UNSET_PRODUCTION_CHANGE_GATED",
         "observed_at": OBSERVED_AT,
         "production": {
             "release_id": RELEASE_ID,
@@ -1754,7 +2290,7 @@ def build_evidence(source_rows: list[dict[str, Any]], corpus: Mapping[str, Any])
                 "COALESCE(recorded_at, evaluated_at) <= 2026-08-23T12:00:50Z",
                 "api_football fixture identity resolves",
                 "kickoff_at < evaluated_at",
-                "captured_at <= evaluated_at",
+                "first two-sided numeric saved-raw captured_at <= evaluated_at",
                 "latest visible xG rows per side capped at 20",
                 "home_n >= 3 AND away_n >= 3",
                 "age, sigma_home, and sigma_away are non-null",
@@ -1858,15 +2394,21 @@ def build_evidence(source_rows: list[dict[str, Any]], corpus: Mapping[str, Any])
                 },
                 "coefficient_or_formula_approved": False,
                 "production_implementation_approved": False,
-                "production_gate": "INDEPENDENT_CHANGE_REQUIRED_BEFORE_EV_SE_FORMULA_CHANGE",
+                "production_gate": "COMBINED_CONTRACT1_AND_SE_FORMULA_CHANGE_REQUIRED",
+                "superseded_gate_rule": "INDEPENDENT_CONTRACT1_CHANGE_REQUIRED_BEFORE_EV_SE_FORMULA_CHANGE",
+                "revision_basis": "NEAR_UNIFORM_SQRT2_RESCALING_IS_ANALYTICALLY_SEPARABLE",
             },
             "item_2_expected_match_denominator_authority": {
-                "status": "OWNER_DECISION_REQUIRED_EVIDENCE_ONLY",
+                "status": "APPROVED_DESIGN_AND_OFFLINE_VALIDATION_ONLY",
+                "authority": "PERSISTED_SAVED_RAW_FIXTURES_MATERIALIZED_AT_RUNTIME",
+                "production_deployment_approved": False,
             },
             "item_3_formula_family": {
-                "status": "FROZEN_PENDING_ITEM_2_DECISION",
+                "status": "THAWED_DRAFT_ONLY_COEFFICIENTS_UNSET",
+                "coefficient_or_formula_approved": False,
             },
         },
+        "formula_family": _formula_family_specification(),
         "contract_1_gh3_offline_impact": contract1,
         "coverage_denominator": {
             "runtime_canonical_team_match_history_rows": int(canonical["total"]),
@@ -1881,6 +2423,13 @@ def build_evidence(source_rows: list[dict[str, Any]], corpus: Mapping[str, Any])
                 "materializer_commit": "0c77c086",
             },
             "enabled_scope_feasibility": coverage_metrics,
+            "xg_ingest_baseline": {
+                "state": "POST_20260823_REFRESH_BEFORE_XG_INGEST_01_PROVIDER_RETRY",
+                "team_xg_rows_visible_at_observed_at": int(xg_source_count["count"]),
+                "xg_visibility_authority": xg_source_count["authority"],
+                "historical_null_response_retry_executed": False,
+                "coverage_values_must_be_recomputed_after_any_owner_authorized_provider_retry": True,
+            },
             "authority_candidate_facts": {
                 "canonical_team_match_history": {
                     "status": "CURRENT_SCOPE_INSUFFICIENT",
@@ -1891,8 +2440,8 @@ def build_evidence(source_rows: list[dict[str, Any]], corpus: Mapping[str, Any])
                     "reason": "THE_TABLE_HAS_NO_FINISHED_STATUS_RESULT_OR_RESULT_VISIBILITY_TIME",
                 },
                 "persisted_saved_raw_fixtures": {
-                    "status": "SOURCE_FEASIBLE_RUNTIME_MATERIALIZATION_REQUIRED",
-                    "reason": "THE_FROZEN_CORPUS_PROVES_FIXTURE_IDENTITY_KICKOFF_RESULT_AND_FIRST_RESULT_VISIBILITY_BUT_IS_NOT_A_RUNTIME_TABLE",
+                    "status": "OWNER_APPROVED_RUNTIME_AUTHORITY_LOCAL_IMPLEMENTATION_NOT_DEPLOYED",
+                    "reason": "MATERIALIZE_IMMUTABLE_OBSERVATIONS_WITH_CAPTURED_AT_AND_SOURCE_INSERTED_AT_THEN_QUERY_LATEST_VISIBLE_CANONICAL_PROVIDER_FIXTURES",
                 },
             },
         },
@@ -1911,6 +2460,7 @@ def _render_markdown(evidence: Mapping[str, Any]) -> str:
     n20 = age["n20_n20"]
     coefficient = evidence["coefficient_propagation"]
     contract = evidence["contract_1_gh3_offline_impact"]
+    contract_frozen_source = contract["frozen_source"]
     cohort = contract["same_evaluation_cohort"]
     reconstruction = contract["lambda_reconstruction"]
     analysis_consumer = contract["analysis_evidence_consumer"]
@@ -1923,6 +2473,7 @@ def _render_markdown(evidence: Mapping[str, Any]) -> str:
     pooled_sqrt2 = stratified["pure_sqrt_2_linear_rescaling_reference"]
     floor = contract["lower_node_floor"]
     coverage = evidence["coverage_denominator"]
+    formula = evidence["formula_family"]
     scope = coverage["enabled_scope_feasibility"]
     aggregate = scope["aggregate_counts_without_coverage_average"]
     lineage = evidence["reproducibility"]["row_count_lineage"]
@@ -1937,6 +2488,28 @@ def _render_markdown(evidence: Mapping[str, Any]) -> str:
                 "canonical_team_match_history_fixtures"
             ],
             identities=row["runtime_sources"]["matchday_fixture_identity_fixtures"],
+        )
+        for row in scope["by_competition"]
+    )
+    identity_rows = "\n".join(
+        "| `{competition}` | `{eligible}` | `{canonical_rate}` | `{xg_rate}` | `{samples}` |".format(
+            competition=row["competition_id"],
+            eligible=row["canonical_provider_fixture_identity_alignment"][
+                "eligible_team_history_rows"
+            ],
+            canonical_rate=row["canonical_provider_fixture_identity_alignment"][
+                "canonical_id_shape_success_rate"
+            ],
+            xg_rate=row["canonical_provider_fixture_identity_alignment"][
+                "team_xg_match_join_success_rate"
+            ],
+            samples=json.dumps(
+                row["canonical_provider_fixture_identity_alignment"][
+                    "team_xg_match_join_failure_samples"
+                ],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
         )
         for row in scope["by_competition"]
     )
@@ -1995,7 +2568,7 @@ def _render_markdown(evidence: Mapping[str, Any]) -> str:
     )
     return f"""# EV SE offline preregistration baseline — 2026-08-23
 
-Status: `CONTRACT_1_SEMANTICS_APPROVED / OFFLINE_GH3_IMPACT_REPRODUCIBLE / PRODUCTION_IMPLEMENTATION_GATED / SE_FORMULA_FROZEN`
+Status: `OWNER_ITEMS_1_2_DECIDED / ITEM_3_FORMULA_FAMILY_DRAFTED / COEFFICIENTS_UNSET / PRODUCTION_IMPLEMENTATION_GATED`
 
 ## Execution boundary
 
@@ -2005,7 +2578,7 @@ Status: `CONTRACT_1_SEMANTICS_APPROVED / OFFLINE_GH3_IMPACT_REPRODUCIBLE / PRODU
 - Provider calls / production database writes / outcomes read: `0 / 0 / 0`.
 - No model, threshold, Scheduler, notification, deployment, or runtime configuration changed.
 
-This document preregisters the problem and behavioral acceptance conditions and records the Owner's Contract 1 semantic decision. The approval defines what `lambda_sigma` means; it does not approve any coefficient, SE formula, production implementation, or release. Reproduction is defined in `README.md`; every numeric field below is rendered by `scripts/audit_ev_se_offline_preregistration.py`.
+This document preregisters the problem and behavioral acceptance conditions and records the Owner's Contract 1 semantic decision plus the approved persisted-saved-raw denominator authority. Item 3 is thawed only far enough to draft a coefficient-free formula family. No coefficient, final SE formula, production implementation, or release is approved. Reproduction is defined in `README.md`; every numeric field below is rendered by `scripts/audit_ev_se_offline_preregistration.py`.
 
 ## Binding non-claims
 
@@ -2070,6 +2643,8 @@ The reference discretization is GH-3: standardized nodes `-sqrt(3), 0, +sqrt(3)`
 
 ## EV-SE-EXEC-05 — frozen GH-3 impact
 
+The approved Contract 1 comparison is pinned to local Git object `{contract_frozen_source['commit']}` / `{contract_frozen_source['path']}` with SHA-256 `{contract_frozen_source['sha256']}`. The old mutable `team_xg_match` merge path later changed the current reconstruction to `{contract_frozen_source['current_reconstruction']['baseline_reproducible_evaluations']}` accepted rows and added `{len(contract_frozen_source['current_reconstruction']['additional_nonreproducible_evaluation_ids'])}` exclusions. Those IDs are recorded in JSON. The script preserves the approved cohort instead of choosing a historical raw capture by fitting reported `ev_se`.
+
 Of the `{cohort['frozen_usable_evaluations']:,}` usable evaluations, `{cohort['excluded_unidentifiable_single_market_evaluations']}` were excluded because their model-input group contains only one market, so both point lambdas cannot be identified from the frozen five-state distributions. That leaves `{cohort['paired_market_identifiable_evaluations_before_baseline_gate']:,}` identifiable evaluations in `{cohort['paired_market_identifiable_model_input_groups_before_baseline_gate']:,}` groups before the baseline-reproduction gate.
 
 The frozen dynamic read model does not retain the original lambda sigmas. Current PIT input reconstruction failed to reproduce old reported `ev_se` within `{reconstruction['baseline_gate_tolerance']:.6f}` for `{cohort['excluded_nonreproducible_evaluations']}` evaluations / `{cohort['excluded_nonreproducible_model_input_groups']}` whole model-input groups across `{cohort['excluded_nonreproducible_fixtures']}` fixtures. The script excludes those groups instead of back-solving sigma from the answer. Their exact evaluation IDs, timestamps, inputs, reported values, reconstructed values, and residuals remain in the JSON. The actual old-versus-GH-3 comparison therefore uses the same `{cohort['baseline_reproducible_evaluations']:,}` evaluations in `{cohort['baseline_reproducible_model_input_groups']:,}` groups on both sides. Prices came from the payload for `{cohort['price_source_counts'].get('PAYLOAD_DECIMAL_ODDS', 0):,}` comparison rows and were algebraically recovered from current EV plus the five-state distribution for `{cohort['price_source_counts'].get('DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION', 0):,}` rows.
@@ -2115,7 +2690,7 @@ The independently supplied pooled prediction was `{pooled_sqrt2['reviewer_suppli
 
 GH-3 newly affects `{floor['newly_affected_model_input_groups']}` model-input groups / `{floor['newly_affected_evaluations']}` evaluations. The closest unfloored lower nodes are `{floor['closest_unfloored_lower_nodes']['old']['old_unfloored_lower_node']:.6f}` under the old path and `{floor['closest_unfloored_lower_nodes']['gh3']['gh3_unfloored_lower_node']:.6f}` under GH-3, both still well above `0.01`; this is why the observed trigger counts are zero rather than the anticipated increase. For the `{floor['gh3_triggered_lambda_sides']}` triggered lambda sides, actual effective SD is `{floor_sd_text}` (min / median / max), or `{floor_ratio_text}` times input `sigma`. The JSON contains every affected model-input hash, fixture, side, evaluation ID, `mu`, `sigma`, actual SD, and collapse ratio; when the trigger count is zero the affected-sample list is correctly empty and effective-SD collapse is `N/A` for this frozen cohort.
 
-Therefore Contract 1 has one explicit exception under the current positivity treatment: once the floor fires, the actual discrete-node SD is less than `sigma`. Production implementation requires a separate gate that either accepts and documents this exception or separately approves a positivity-preserving distribution; this offline package does neither.
+Therefore Contract 1 has one explicit exception under the current positivity treatment: once the floor fires, the actual discrete-node SD is less than `sigma`. The combined Contract 1 + SE formula production Gate must either accept and document this exception or separately approve a positivity-preserving distribution; this offline package does neither.
 
 ### 3. Existing point-in-time and hard sample boundaries remain binding
 
@@ -2183,15 +2758,45 @@ The enabled scope is read from `league_season.payload.enabled`; the script neith
 |---|---:|---:|---:|---:|---:|---:|
 {per_league_rows}
 
+Canonical Provider fixture identity is validated separately from xG coverage. The join key is `(provider_fixture_id, provider_team_id)`; failure samples are bounded to five per league. No overall identity or coverage mean is computed.
+
+| competition | eligible team-history rows | canonical ID shape success | xG identity join success | bounded failure samples |
+|---|---:|---:|---:|---|
+{identity_rows}
+
 Across the enabled rows, count-only lineage remains `{aggregate['evaluations']:,}` evaluable, `{aggregate['both_sides_full_expected_latest20_coverage']}` fully covered, and `{aggregate['legacy_n20_both_but_expected_latest20_missing']:,}` false-full evaluations inside `{aggregate['legacy_n20_both_evaluations']:,}` legacy `n=20/n=20` evaluations. These are counts, not an overall coverage estimate. They retain the prior proof that fixture-level missingness varies independently at fixed `n`.
 
-The frozen corpus is sufficient to prove offline identifiability. It is not itself a production runtime authority. `result_first_captured_at <= evaluated_at` is used to show where the full structural latest-20 denominator was actually visible at evaluation time; the gap between the two columns is evidence that kickoff-only hindsight cannot be silently called runtime PIT availability.
+The frozen corpus is sufficient to prove offline identifiability. `result_first_captured_at <= evaluated_at` is used to show where the full structural latest-20 denominator was actually visible at evaluation time; the gap between the two columns is evidence that kickoff-only hindsight cannot be silently called runtime PIT availability.
 
-Authority feasibility facts, not an Owner decision:
+Owner decision 2 and its implementation boundary:
 
 - `canonical_team_match_history`: current enabled-scope coverage is insufficient.
 - `matchday_fixture_identities`: useful identity routing, but it has no finished status, result, or first-result visibility time and cannot alone define the denominator.
-- persisted saved-raw fixtures: the frozen corpus proves that fixture identity, league, kickoff, finished result, and first-result visibility can be derived. A production use would require an approved, PIT-preserving runtime materialization rather than direct unbounded raw scans.
+- persisted saved-raw fixtures: **approved as the source for a bounded runtime materialization**, not for direct unbounded raw scans. Each immutable observation carries canonical Provider fixture identity, `captured_at`, and `source_inserted_at`; reads require both timestamps `<= as_of` and select the latest visible observation per fixture. A late historical raw with `source_inserted_at > as_of` cannot enter a prior denominator; an unknown insertion time is rejected and fails closed.
+- dynamic scope is read from `league_season.payload.enabled`. The latest-20 expected set is cross-season within the same Provider league, so a season boundary is not a reset switch.
+- deployment requires the historical materialization backlog to be exhausted before the read path is enabled. New fixture raw writes materialize in the same transaction. This package supplies the migration and local validation but does not deploy either.
+
+The coverage rows above correspond to `{coverage['xg_ingest_baseline']['state']}` with `{coverage['xg_ingest_baseline']['team_xg_rows_visible_at_observed_at']}` xG rows visible at the frozen observation. No historical null-response Provider retry had run. Any later Owner-authorized retry changes the numerator baseline and requires regenerating this package; it does not change the expected-match denominator contract.
+
+## Item 3 — coefficient-free formula-family draft
+
+Status: `{formula['status']}`. The following family is intentionally non-executable until Owner-approved coefficients are supplied without outcomes, profit, hit rate, age-cutoff backtests, or EV-cap backtests.
+
+For each team, let `E` be the latest 20 finished, point-in-time-visible fixtures in the same Provider league before `as_of`, across seasons. Cancelled, abandoned, and postponed fixtures do not count as played. Let `m=|E|`, let `O` be the members of `E` with point-in-time-visible two-sided numeric xG, let `n=|O|`, `c=n/m`, `q=m-n`, and let `A` be the mean exact elapsed age in days over **E**, including fixtures whose xG is missing. Computing age over E rather than O means filling a missing xG value cannot itself increase the age term.
+
+For each attack/defence component:
+
+`SE0 = sample_sd(O) / sqrt(n)`
+
+`SE = SE0 * sqrt(1 + alpha_age_per_day * A + beta_missing * (1 - c))`
+
+`alpha_age_per_day = {formula['component_standard_error']['coefficients']['alpha_age_per_day']}` and `beta_missing = {formula['component_standard_error']['coefficients']['beta_missing']}`. Both are constrained nonnegative but remain unset. The missingness term uses independently observed `m` and `q`; therefore five observed xG rows after five occurred matches (`c=1`) are not the same state as five observed rows after twenty occurred matches (`c=0.25`), even though both have `n=5`.
+
+Lambda propagation is not allowed to apply the interior `0.5` coefficient beyond its valid segment. It uses a four-input GH-3 tensor product over home attack, away defence, away attack, and home defence; every node runs through the actual `calibrate_lambdas` piecewise function, including total clamps `1.35/4.40` and individual-lambda clamps. `lambda_sigma` is the weighted standard deviation of those mapped nodes. In the interior this reduces exactly to the existing Jacobian identity `0.5 * sqrt(SE_attack^2 + SE_opponent_defence^2)`. Any nonlinear quadrature mean shift is audit-only and does not change the point lambda in this draft.
+
+The resulting scalar `lambda_sigma` is consumed by Contract 1 GH-3 at `point_lambda ± sqrt(3)·lambda_sigma` with weights `{1/6, 2/3, 1/6}`. The `0.01` lower-node floor exception remains explicit: once it triggers, the consumed discrete SD is below the supplied `lambda_sigma`.
+
+The five invariants are structural: nonnegative `alpha` makes uniform aging non-decreasing; at fixed dispersion and expected ages, increasing `n` decreases both `SE0` and `1-c`; `A=0,c=1` reproduces the interior baseline exactly and any nonzero-fresh case must pass the frozen tolerance; unavailable authority, `m<3`, `n<3`, identity conflict, unknown insertion time, or unset coefficients fail closed; and the cross-season latest-20 set replaces evidence one fixture at a time, so recent covered evidence reduces age and missingness without a season switch or time gate.
 
 ## Preregistered behavioral invariants
 
@@ -2214,10 +2819,10 @@ Additional structural requirements:
 ## Gate state and remaining Owner decisions
 
 1. **Decided:** Contract 1 defines `lambda_sigma` as a true standard deviation. GH-3 is the reference offline specification. This is not production implementation approval.
-2. **Open:** approve the runtime expected-match denominator authority and its point-in-time availability contract. The evidence above does not self-approve one.
-3. **Frozen:** formula-family selection remains closed until item 2 is decided. Coefficients remain unset.
+2. **Decided:** persisted saved-raw fixtures, materialized into immutable PIT observations, are the expected-match denominator authority. Migration and code are local-only; production deployment remains unapproved.
+3. **Thawed for draft only:** the formula family above is specified, but both coefficients remain unset. No final formula or parameter is approved.
 
-Contract 1 production implementation must be an independent change with its own Gate and must precede any SE-formula change. Bundling the two would make attribution impossible: a changed result could come from repairing the quadrature scale, changing the SE formula, or both. The current state is `CONTRACT_1_SEMANTICS_APPROVED / CONTRACT_1_PRODUCTION_IMPLEMENTATION_NOT_AUTHORIZED / ITEM_2_OWNER_DECISION_REQUIRED / ITEM_3_FROZEN`.
+Owner superseded the earlier sequencing rule. Contract 1 production implementation no longer occupies a separate Gate; it may be bundled with the eventual SE formula change in one production Gate because its near-uniform `sqrt(2)` rescaling is analytically separable. This does not approve that deployment. The current state is `ITEMS_1_2_DECIDED / ITEM_3_DRAFTED_COEFFICIENTS_UNSET / COMBINED_PRODUCTION_GATE_NOT_AUTHORIZED`.
 """
 
 
@@ -2244,6 +2849,25 @@ def _self_check() -> None:
         "src/w2/prematch/analysis_calculator.py": (
             "sigma_home = 0.5 * math.sqrt(",
             "sigma_away = 0.5 * math.sqrt(",
+        ),
+        "src/w2/prematch/expected_match_denominator.py": (
+            'canonical_fixture_id = f"api_football:{provider_fixture_id}"',
+            'return _fail_closed("EXPECTED_MATCH_DENOMINATOR_INSUFFICIENT", team_id)',
+        ),
+        "src/w2/ingestion/expected_match_materialization.py": (
+            '"SOURCE_INSERTED_AT_UNAVAILABLE"',
+            "add_expected_match_fixture_materialization(",
+        ),
+        "src/w2/ingestion/future_refresh_repository.py": (
+            'league.payload.get("enabled") is not True',
+            "LeagueSeasonModel.competition_id == competition_id",
+            "ExpectedMatchFixtureObservationModel.captured_at <= as_of",
+            "ExpectedMatchFixtureObservationModel.source_inserted_at <= as_of",
+            "TEAM_XG_MATCH_IMMUTABLE_CONFLICT",
+        ),
+        "migrations/versions/0071_expected_match_denominator.py": (
+            'down_revision: str | None = "0070_notification_delivery_routing"',
+            '"expected_match_fixture_observation"',
         ),
     }
     for relative_path, fragments in required_source.items():
@@ -2293,6 +2917,12 @@ def _self_check() -> None:
         "max",
         "max_absolute",
     }
+    formula = _formula_family_specification()
+    assert formula["component_standard_error"]["coefficients"] == {
+        "alpha_age_per_day": None,
+        "beta_missing": None,
+    }
+    assert formula["lambda_propagation"]["point_lambda_change"] is False
 
 
 def main() -> None:

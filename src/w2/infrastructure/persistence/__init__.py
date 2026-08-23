@@ -17,6 +17,8 @@ from w2.infrastructure.persistence.factor_model_models import (
 )
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.future_refresh_models import (
+    ExpectedMatchFixtureMaterializationModel,
+    ExpectedMatchFixtureObservationModel,
     FreePlanFixtureScopeObservationModel,
     FutureRefreshCheckpointAuditModel,
     FutureRefreshRunAuditModel,
@@ -95,6 +97,8 @@ __all__ = [
     "DynamicPrematchEvaluationModel",
     "DynamicPrematchOpportunityModel",
     "DynamicPrematchSupersessionModel",
+    "ExpectedMatchFixtureMaterializationModel",
+    "ExpectedMatchFixtureObservationModel",
     "FutureRefreshCheckpointAuditModel",
     "FutureRefreshRunAuditModel",
     "FutureRefreshTaskAuditModel",

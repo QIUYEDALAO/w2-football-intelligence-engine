@@ -1,6 +1,6 @@
 {
-  "schema_version": "w2.ev_se.offline_preregistration_evidence.v4",
-  "status": "OWNER_CONTRACT1_SEMANTICS_APPROVED_OFFLINE_GH3_IMPACT_PRICE_SOURCE_STRATIFIED_PRODUCTION_CHANGE_GATED",
+  "schema_version": "w2.ev_se.offline_preregistration_evidence.v5",
+  "status": "OWNER_ITEMS_1_2_DECIDED_ITEM_3_DRAFTED_COEFFICIENTS_UNSET_PRODUCTION_CHANGE_GATED",
   "observed_at": "2026-08-23T12:00:50Z",
   "production": {
     "release_id": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1",
@@ -20,7 +20,7 @@
       "COALESCE(recorded_at, evaluated_at) <= 2026-08-23T12:00:50Z",
       "api_football fixture identity resolves",
       "kickoff_at < evaluated_at",
-      "captured_at <= evaluated_at",
+      "first two-sided numeric saved-raw captured_at <= evaluated_at",
       "latest visible xG rows per side capped at 20",
       "home_n >= 3 AND away_n >= 3",
       "age, sigma_home, and sigma_away are non-null"
@@ -113,14 +113,102 @@
       },
       "coefficient_or_formula_approved": false,
       "production_implementation_approved": false,
-      "production_gate": "INDEPENDENT_CHANGE_REQUIRED_BEFORE_EV_SE_FORMULA_CHANGE"
+      "production_gate": "COMBINED_CONTRACT1_AND_SE_FORMULA_CHANGE_REQUIRED",
+      "superseded_gate_rule": "INDEPENDENT_CONTRACT1_CHANGE_REQUIRED_BEFORE_EV_SE_FORMULA_CHANGE",
+      "revision_basis": "NEAR_UNIFORM_SQRT2_RESCALING_IS_ANALYTICALLY_SEPARABLE"
     },
     "item_2_expected_match_denominator_authority": {
-      "status": "OWNER_DECISION_REQUIRED_EVIDENCE_ONLY"
+      "status": "APPROVED_DESIGN_AND_OFFLINE_VALIDATION_ONLY",
+      "authority": "PERSISTED_SAVED_RAW_FIXTURES_MATERIALIZED_AT_RUNTIME",
+      "production_deployment_approved": false
     },
     "item_3_formula_family": {
-      "status": "FROZEN_PENDING_ITEM_2_DECISION"
+      "status": "THAWED_DRAFT_ONLY_COEFFICIENTS_UNSET",
+      "coefficient_or_formula_approved": false
     }
+  },
+  "formula_family": {
+    "status": "DRAFT_ONLY_COEFFICIENTS_UNSET_NOT_EXECUTABLE",
+    "method_version": "expected_match_age_coverage_multiplier.family.v1",
+    "expected_fixture_set": {
+      "definition": "LATEST_20_FINISHED_VISIBLE_FIXTURES_IN_SAME_PROVIDER_LEAGUE_BEFORE_AS_OF_ACROSS_SEASONS",
+      "visibility": [
+        "kickoff_at < as_of",
+        "captured_at <= as_of",
+        "source_inserted_at <= as_of",
+        "latest_visible_observation_per_canonical_provider_fixture"
+      ],
+      "m": "number_of_expected_finished_fixtures_after_non_played_fixtures_are_removed",
+      "n": "number_of_expected_fixtures_with_two_sided_numeric_xg_visible_at_as_of",
+      "coverage": "c = n / m",
+      "missing": "q = m - n",
+      "mean_age_days": "A = mean(exact_elapsed_seconds(as_of - kickoff_at) / 86400 over the expected set, including missing-xg fixtures)"
+    },
+    "component_standard_error": {
+      "baseline": "SE0 = sample_sd(observed_xg_values) / sqrt(n)",
+      "family": "SE = SE0 * sqrt(1 + alpha_age_per_day * A + beta_missing * (1 - c))",
+      "coefficients": {
+        "alpha_age_per_day": null,
+        "beta_missing": null
+      },
+      "coefficient_constraints": [
+        "alpha_age_per_day >= 0",
+        "beta_missing >= 0",
+        "coefficients_must_be_selected_without_current_pick_outcomes_profit_or_hit_rate"
+      ],
+      "independent_missingness_identification": "m_and_q_come_from_saved_fixture_observations_and_are_not_functions_of_xg_n"
+    },
+    "lambda_propagation": {
+      "inputs": [
+        "home_attack_xg_for",
+        "away_defence_xg_against",
+        "away_attack_xg_for",
+        "home_defence_xg_against"
+      ],
+      "quadrature": "GH3_TENSOR_PRODUCT_OVER_FOUR_INDEPENDENT_COMPONENTS",
+      "standardized_nodes": [
+        -1.7320508076,
+        0.0,
+        1.7320508076
+      ],
+      "weights": [
+        0.1666666667,
+        0.6666666667,
+        0.1666666667
+      ],
+      "mapping": "run_every_node_through_the_actual_calibrate_lambdas_piecewise_function_including_total_1_35_4_40_and_individual_lambda_clamps",
+      "lambda_sigma": "weighted_standard_deviation_of_the_piecewise_mapped_lambda_nodes",
+      "interior_identity": "0.5 * sqrt(SE_attack^2 + SE_opponent_defence^2)",
+      "point_lambda_change": false,
+      "nonlinear_quadrature_mean_shift": "audit_only_not_used_to_change_point_lambda"
+    },
+    "contract_1_consumer": {
+      "nodes": "point_lambda +/- sqrt(3) * lambda_sigma",
+      "weights": "1/6, 2/3, 1/6",
+      "lower_node_floor": 0.01,
+      "floor_exception": "when_the_floor_fires_the_consumed_discrete_sd_is_less_than_lambda_sigma_and_must_be_reported"
+    },
+    "behavioral_invariants_by_construction": {
+      "age_monotonicity": "for_fixed_expected_set_dispersion_n_and_coverage_increasing_all_ages_cannot_reduce_SE_when_alpha_is_nonnegative",
+      "sample_coverage_monotonicity": "for_fixed_dispersion_and_expected_ages_increasing_n_reduces_SE0_and_1_minus_c",
+      "fresh_complete_baseline": "A=0_and_c=1_reproduces_SE0_exactly;_nonzero_fresh_age_must_pass_the_preregistered_baseline_tolerance",
+      "no_evidence_fail_closed": [
+        "expected_denominator_unavailable",
+        "m < 3",
+        "n < 3",
+        "provider_fixture_identity_conflict",
+        "unknown_source_inserted_at",
+        "coefficients_unset"
+      ],
+      "seasonal_recovery": "the_cross_season_latest20_set_changes_one_fixture_at_a_time;_new_recent_covered_fixtures_continuously_reduce_A_and_1_minus_c_without_a_season_switch_or_age_gate"
+    },
+    "forbidden": [
+      "age_cutoff",
+      "season_start_switch",
+      "ev_cap",
+      "outcome_tuned_coefficient",
+      "claim_that_stale_xg_causes_high_ev"
+    ]
   },
   "contract_1_gh3_offline_impact": {
     "same_evaluation_cohort": {
@@ -838,6 +926,25 @@
         }
       },
       "contract_exception": "WHEN_THE_0_01_FLOOR_TRIGGERS_THE_DISCRETE_NODE_SD_IS_LESS_THAN_SIGMA"
+    },
+    "frozen_source": {
+      "commit": "3fb17ced5dbefa6201bad164556940d8894bb9b2",
+      "path": "docs/review_packages/EV_SE_OFFLINE_VALIDATION/EV_SE_OFFLINE_PREREGISTRATION_EVIDENCE_20260823.json",
+      "sha256": "62e4c0baed196b865d468e3d0a9f34351bef3f187db5b4607e178d6e8412e55f",
+      "reason": "APPROVED_CONTRACT1_EVIDENCE_PRECEDES_MUTABLE_TEAM_XG_MATCH_REPUBLICATION;_PRESERVE_THE_APPROVED_2584_ROW_COHORT_WITHOUT_SIGMA_BACKSOLVE",
+      "current_reconstruction": {
+        "baseline_reproducible_evaluations": 2576,
+        "additional_nonreproducible_evaluation_ids": [
+          "dqe-482fbc32327811c0b416b77dc56bf930e404914da2a4ec22fca503d14a18f54d",
+          "dqe-4a9b77b85f051d8d7affa9598ccea51ad099084d49ecc13f9dbaa2ddbc3225b6",
+          "dqe-69c454c1783f5ad1c68ed79333fd657082471c75fff846cdc031c5a395d0faec",
+          "dqe-8f1420267e72d9b3ab2c9908f88c624232b7f95722c7dda003256ad64ef59bc4",
+          "dqe-a4e45f4555215d9e8e10de68c36873891f584cd61299f973f559caf713a926db",
+          "dqe-afb2ed4358d7bed313abe49297bcd4413892452871f0cec5d5d12cfa204b4ebd",
+          "dqe-d157c71c7e858bbe6ecf4b1bf2fe2508e39cf0382c5c09c4caa07ba761257935",
+          "dqe-f1831329b23a227b8dba29030f30910284716cd33d9bfaadec7f467b774a8032"
+        ]
+      }
     }
   },
   "coverage_denominator": {
@@ -883,6 +990,44 @@
           "provider_league_id": "128",
           "offline_corpus_finished_fixtures": 2178,
           "offline_corpus_team_history_rows": 4356,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 4356,
+            "canonical_id_shape_valid_rows": 4356,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1874,
+            "team_xg_match_join_success_rate": 0.430211,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:831664",
+                "provider_fixture_id": "831664",
+                "provider_team_id": "458"
+              },
+              {
+                "canonical_fixture_id": "api_football:831664",
+                "provider_fixture_id": "831664",
+                "provider_team_id": "444"
+              },
+              {
+                "canonical_fixture_id": "api_football:831665",
+                "provider_fixture_id": "831665",
+                "provider_team_id": "455"
+              },
+              {
+                "canonical_fixture_id": "api_football:831665",
+                "provider_fixture_id": "831665",
+                "provider_team_id": "474"
+              },
+              {
+                "canonical_fixture_id": "api_football:831666",
+                "provider_fixture_id": "831666",
+                "provider_team_id": "442"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
           "evaluations_with_both_expected_denominators_ge3": 356,
           "point_in_time_denominator_available_evaluations": 356,
           "point_in_time_denominator_unavailable_evaluations": 0,
@@ -908,6 +1053,44 @@
           "provider_league_id": "71",
           "offline_corpus_finished_fixtures": 1744,
           "offline_corpus_team_history_rows": 3488,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 3488,
+            "canonical_id_shape_valid_rows": 3488,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1966,
+            "team_xg_match_join_success_rate": 0.563647,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:837992",
+                "provider_fixture_id": "837992",
+                "provider_team_id": "128"
+              },
+              {
+                "canonical_fixture_id": "api_football:837992",
+                "provider_fixture_id": "837992",
+                "provider_team_id": "124"
+              },
+              {
+                "canonical_fixture_id": "api_football:837998",
+                "provider_fixture_id": "837998",
+                "provider_team_id": "127"
+              },
+              {
+                "canonical_fixture_id": "api_football:837998",
+                "provider_fixture_id": "837998",
+                "provider_team_id": "144"
+              },
+              {
+                "canonical_fixture_id": "api_football:837994",
+                "provider_fixture_id": "837994",
+                "provider_team_id": "129"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
           "evaluations_with_both_expected_denominators_ge3": 176,
           "point_in_time_denominator_available_evaluations": 176,
           "point_in_time_denominator_unavailable_evaluations": 0,
@@ -933,6 +1116,44 @@
           "provider_league_id": "78",
           "offline_corpus_finished_fixtures": 1232,
           "offline_corpus_team_history_rows": 2464,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 2464,
+            "canonical_id_shape_valid_rows": 2464,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1224,
+            "team_xg_match_join_success_rate": 0.496753,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:871164",
+                "provider_fixture_id": "871164",
+                "provider_team_id": "157"
+              },
+              {
+                "canonical_fixture_id": "api_football:871164",
+                "provider_fixture_id": "871164",
+                "provider_team_id": "169"
+              },
+              {
+                "canonical_fixture_id": "api_football:871166",
+                "provider_fixture_id": "871166",
+                "provider_team_id": "159"
+              },
+              {
+                "canonical_fixture_id": "api_football:871166",
+                "provider_fixture_id": "871166",
+                "provider_team_id": "182"
+              },
+              {
+                "canonical_fixture_id": "api_football:871168",
+                "provider_fixture_id": "871168",
+                "provider_team_id": "167"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
           "evaluations_with_both_expected_denominators_ge3": 8,
           "point_in_time_denominator_available_evaluations": 8,
           "point_in_time_denominator_unavailable_evaluations": 0,
@@ -958,6 +1179,44 @@
           "provider_league_id": "103",
           "offline_corpus_finished_fixtures": 1103,
           "offline_corpus_team_history_rows": 2206,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 2206,
+            "canonical_id_shape_valid_rows": 2206,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1140,
+            "team_xg_match_join_success_rate": 0.516772,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:831004",
+                "provider_fixture_id": "831004",
+                "provider_team_id": "321"
+              },
+              {
+                "canonical_fixture_id": "api_football:831004",
+                "provider_fixture_id": "831004",
+                "provider_team_id": "2159"
+              },
+              {
+                "canonical_fixture_id": "api_football:831005",
+                "provider_fixture_id": "831005",
+                "provider_team_id": "326"
+              },
+              {
+                "canonical_fixture_id": "api_football:831005",
+                "provider_fixture_id": "831005",
+                "provider_team_id": "329"
+              },
+              {
+                "canonical_fixture_id": "api_football:831006",
+                "provider_fixture_id": "831006",
+                "provider_team_id": "320"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
           "evaluations_with_both_expected_denominators_ge3": 4,
           "point_in_time_denominator_available_evaluations": 4,
           "point_in_time_denominator_unavailable_evaluations": 0,
@@ -983,6 +1242,44 @@
           "provider_league_id": "88",
           "offline_corpus_finished_fixtures": 1293,
           "offline_corpus_team_history_rows": 2586,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 2586,
+            "canonical_id_shape_valid_rows": 2586,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1268,
+            "team_xg_match_join_success_rate": 0.490333,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:872224",
+                "provider_fixture_id": "872224",
+                "provider_team_id": "426"
+              },
+              {
+                "canonical_fixture_id": "api_football:872224",
+                "provider_fixture_id": "872224",
+                "provider_team_id": "210"
+              },
+              {
+                "canonical_fixture_id": "api_football:872225",
+                "provider_fixture_id": "872225",
+                "provider_team_id": "194"
+              },
+              {
+                "canonical_fixture_id": "api_football:872225",
+                "provider_fixture_id": "872225",
+                "provider_team_id": "205"
+              },
+              {
+                "canonical_fixture_id": "api_football:872226",
+                "provider_fixture_id": "872226",
+                "provider_team_id": "196"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
           "evaluations_with_both_expected_denominators_ge3": 149,
           "point_in_time_denominator_available_evaluations": 149,
           "point_in_time_denominator_unavailable_evaluations": 0,
@@ -1000,7 +1297,7 @@
           "runtime_sources": {
             "canonical_team_match_history_team_rows": 0,
             "canonical_team_match_history_fixtures": 0,
-            "matchday_fixture_identity_fixtures": 32
+            "matchday_fixture_identity_fixtures": 31
           }
         },
         {
@@ -1008,6 +1305,44 @@
           "provider_league_id": "140",
           "offline_corpus_finished_fixtures": 1528,
           "offline_corpus_team_history_rows": 3056,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 3056,
+            "canonical_id_shape_valid_rows": 3056,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1536,
+            "team_xg_match_join_success_rate": 0.502618,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:877947",
+                "provider_fixture_id": "877947",
+                "provider_team_id": "536"
+              },
+              {
+                "canonical_fixture_id": "api_football:877947",
+                "provider_fixture_id": "877947",
+                "provider_team_id": "727"
+              },
+              {
+                "canonical_fixture_id": "api_football:877945",
+                "provider_fixture_id": "877945",
+                "provider_team_id": "540"
+              },
+              {
+                "canonical_fixture_id": "api_football:877945",
+                "provider_fixture_id": "877945",
+                "provider_team_id": "538"
+              },
+              {
+                "canonical_fixture_id": "api_football:877950",
+                "provider_fixture_id": "877950",
+                "provider_team_id": "533"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
           "evaluations_with_both_expected_denominators_ge3": 198,
           "point_in_time_denominator_available_evaluations": 184,
           "point_in_time_denominator_unavailable_evaluations": 14,
@@ -1033,6 +1368,44 @@
           "provider_league_id": "61",
           "offline_corpus_finished_fixtures": 1304,
           "offline_corpus_team_history_rows": 2608,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 2608,
+            "canonical_id_shape_valid_rows": 2608,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1226,
+            "team_xg_match_join_success_rate": 0.470092,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:871474",
+                "provider_fixture_id": "871474",
+                "provider_team_id": "98"
+              },
+              {
+                "canonical_fixture_id": "api_football:871474",
+                "provider_fixture_id": "871474",
+                "provider_team_id": "80"
+              },
+              {
+                "canonical_fixture_id": "api_football:871470",
+                "provider_fixture_id": "871470",
+                "provider_team_id": "91"
+              },
+              {
+                "canonical_fixture_id": "api_football:871470",
+                "provider_fixture_id": "871470",
+                "provider_team_id": "95"
+              },
+              {
+                "canonical_fixture_id": "api_football:871472",
+                "provider_fixture_id": "871472",
+                "provider_team_id": "85"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
           "evaluations_with_both_expected_denominators_ge3": 154,
           "point_in_time_denominator_available_evaluations": 154,
           "point_in_time_denominator_unavailable_evaluations": 0,
@@ -1050,7 +1423,7 @@
           "runtime_sources": {
             "canonical_team_match_history_team_rows": 0,
             "canonical_team_match_history_fixtures": 0,
-            "matchday_fixture_identity_fixtures": 20
+            "matchday_fixture_identity_fixtures": 19
           }
         },
         {
@@ -1058,6 +1431,44 @@
           "provider_league_id": "253",
           "offline_corpus_finished_fixtures": 2371,
           "offline_corpus_team_history_rows": 4742,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 4742,
+            "canonical_id_shape_valid_rows": 4742,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 2722,
+            "team_xg_match_join_success_rate": 0.574019,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:816716",
+                "provider_fixture_id": "816716",
+                "provider_team_id": "1612"
+              },
+              {
+                "canonical_fixture_id": "api_football:816716",
+                "provider_fixture_id": "816716",
+                "provider_team_id": "1599"
+              },
+              {
+                "canonical_fixture_id": "api_football:816717",
+                "provider_fixture_id": "816717",
+                "provider_team_id": "1603"
+              },
+              {
+                "canonical_fixture_id": "api_football:816717",
+                "provider_fixture_id": "816717",
+                "provider_team_id": "1613"
+              },
+              {
+                "canonical_fixture_id": "api_football:816718",
+                "provider_fixture_id": "816718",
+                "provider_team_id": "1610"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
           "evaluations_with_both_expected_denominators_ge3": 738,
           "point_in_time_denominator_available_evaluations": 706,
           "point_in_time_denominator_unavailable_evaluations": 32,
@@ -1083,6 +1494,44 @@
           "provider_league_id": "39",
           "offline_corpus_finished_fixtures": 1521,
           "offline_corpus_team_history_rows": 3042,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 3042,
+            "canonical_id_shape_valid_rows": 3042,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1522,
+            "team_xg_match_join_success_rate": 0.500329,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:867946",
+                "provider_fixture_id": "867946",
+                "provider_team_id": "42"
+              },
+              {
+                "canonical_fixture_id": "api_football:867946",
+                "provider_fixture_id": "867946",
+                "provider_team_id": "52"
+              },
+              {
+                "canonical_fixture_id": "api_football:867947",
+                "provider_fixture_id": "867947",
+                "provider_team_id": "40"
+              },
+              {
+                "canonical_fixture_id": "api_football:867947",
+                "provider_fixture_id": "867947",
+                "provider_team_id": "36"
+              },
+              {
+                "canonical_fixture_id": "api_football:867948",
+                "provider_fixture_id": "867948",
+                "provider_team_id": "66"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
           "evaluations_with_both_expected_denominators_ge3": 184,
           "point_in_time_denominator_available_evaluations": 184,
           "point_in_time_denominator_unavailable_evaluations": 0,
@@ -1100,7 +1549,7 @@
           "runtime_sources": {
             "canonical_team_match_history_team_rows": 0,
             "canonical_team_match_history_fixtures": 0,
-            "matchday_fixture_identity_fixtures": 20
+            "matchday_fixture_identity_fixtures": 18
           }
         },
         {
@@ -1108,6 +1557,44 @@
           "provider_league_id": "94",
           "offline_corpus_finished_fixtures": 1249,
           "offline_corpus_team_history_rows": 2498,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 2498,
+            "canonical_id_shape_valid_rows": 2498,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1260,
+            "team_xg_match_join_success_rate": 0.504404,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:898605",
+                "provider_fixture_id": "898605",
+                "provider_team_id": "240"
+              },
+              {
+                "canonical_fixture_id": "api_football:898605",
+                "provider_fixture_id": "898605",
+                "provider_team_id": "211"
+              },
+              {
+                "canonical_fixture_id": "api_football:898604",
+                "provider_fixture_id": "898604",
+                "provider_team_id": "810"
+              },
+              {
+                "canonical_fixture_id": "api_football:898604",
+                "provider_fixture_id": "898604",
+                "provider_team_id": "226"
+              },
+              {
+                "canonical_fixture_id": "api_football:898608",
+                "provider_fixture_id": "898608",
+                "provider_team_id": "242"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
           "evaluations_with_both_expected_denominators_ge3": 120,
           "point_in_time_denominator_available_evaluations": 120,
           "point_in_time_denominator_unavailable_evaluations": 0,
@@ -1133,6 +1620,44 @@
           "provider_league_id": "135",
           "offline_corpus_finished_fixtures": 1521,
           "offline_corpus_team_history_rows": 3042,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 3042,
+            "canonical_id_shape_valid_rows": 3042,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1518,
+            "team_xg_match_join_success_rate": 0.499014,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:881780",
+                "provider_fixture_id": "881780",
+                "provider_team_id": "494"
+              },
+              {
+                "canonical_fixture_id": "api_football:881780",
+                "provider_fixture_id": "881780",
+                "provider_team_id": "489"
+              },
+              {
+                "canonical_fixture_id": "api_football:881781",
+                "provider_fixture_id": "881781",
+                "provider_team_id": "499"
+              },
+              {
+                "canonical_fixture_id": "api_football:881781",
+                "provider_fixture_id": "881781",
+                "provider_team_id": "498"
+              },
+              {
+                "canonical_fixture_id": "api_football:881782",
+                "provider_fixture_id": "881782",
+                "provider_team_id": "505"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
           "evaluations_with_both_expected_denominators_ge3": 178,
           "point_in_time_denominator_available_evaluations": 178,
           "point_in_time_denominator_unavailable_evaluations": 0,
@@ -1155,6 +1680,13 @@
         }
       ]
     },
+    "xg_ingest_baseline": {
+      "state": "POST_20260823_REFRESH_BEFORE_XG_INGEST_01_PROVIDER_RETRY",
+      "team_xg_rows_visible_at_observed_at": 18846,
+      "xg_visibility_authority": "FIRST_TWO_SIDED_NUMERIC_SAVED_RAW_CAPTURE",
+      "historical_null_response_retry_executed": false,
+      "coverage_values_must_be_recomputed_after_any_owner_authorized_provider_retry": true
+    },
     "authority_candidate_facts": {
       "canonical_team_match_history": {
         "status": "CURRENT_SCOPE_INSUFFICIENT",
@@ -1165,8 +1697,8 @@
         "reason": "THE_TABLE_HAS_NO_FINISHED_STATUS_RESULT_OR_RESULT_VISIBILITY_TIME"
       },
       "persisted_saved_raw_fixtures": {
-        "status": "SOURCE_FEASIBLE_RUNTIME_MATERIALIZATION_REQUIRED",
-        "reason": "THE_FROZEN_CORPUS_PROVES_FIXTURE_IDENTITY_KICKOFF_RESULT_AND_FIRST_RESULT_VISIBILITY_BUT_IS_NOT_A_RUNTIME_TABLE"
+        "status": "OWNER_APPROVED_RUNTIME_AUTHORITY_LOCAL_IMPLEMENTATION_NOT_DEPLOYED",
+        "reason": "MATERIALIZE_IMMUTABLE_OBSERVATIONS_WITH_CAPTURED_AT_AND_SOURCE_INSERTED_AT_THEN_QUERY_LATEST_VISIBLE_CANONICAL_PROVIDER_FIXTURES"
       }
     }
   },
