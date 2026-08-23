@@ -15,6 +15,13 @@ from w2.infrastructure.persistence.factor_model_models import (
     ProviderTeamIdentityCrosswalkModel,
     TeamRatingSnapshotModel,
 )
+from w2.infrastructure.persistence.factor_shadow_models import (
+    FactorShadowForecastCaptureModel,
+    FactorShadowForecastOutcomeModel,
+    FactorShadowMarketAttemptModel,
+    FactorShadowMarketOpportunityModel,
+    FactorShadowV2AdmissionModel,
+)
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.future_refresh_models import (
     ExpectedMatchFixtureMaterializationModel,
@@ -23,6 +30,7 @@ from w2.infrastructure.persistence.future_refresh_models import (
     FutureRefreshCheckpointAuditModel,
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
+    RawFixtureScopeMembershipModel,
     RawPayloadModel,
     RawStatisticsRetentionModel,
     TeamXgMatchModel,
@@ -99,6 +107,11 @@ __all__ = [
     "DynamicPrematchSupersessionModel",
     "ExpectedMatchFixtureMaterializationModel",
     "ExpectedMatchFixtureObservationModel",
+    "FactorShadowForecastCaptureModel",
+    "FactorShadowForecastOutcomeModel",
+    "FactorShadowMarketAttemptModel",
+    "FactorShadowMarketOpportunityModel",
+    "FactorShadowV2AdmissionModel",
     "FutureRefreshCheckpointAuditModel",
     "FutureRefreshRunAuditModel",
     "FutureRefreshTaskAuditModel",
@@ -133,6 +146,7 @@ __all__ = [
     "QuotaUsageModel",
     "RegisteredRosterSnapshotModel",
     "RawPayloadModel",
+    "RawFixtureScopeMembershipModel",
     "RawStatisticsRetentionModel",
     "ReadModelCheckpointModel",
     "RecommendationLockModel",

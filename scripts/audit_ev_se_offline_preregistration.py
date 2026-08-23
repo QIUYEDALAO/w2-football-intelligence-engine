@@ -2866,7 +2866,7 @@ def _self_check() -> None:
             "TEAM_XG_MATCH_IMMUTABLE_CONFLICT",
         ),
         "migrations/versions/0071_expected_match_denominator.py": (
-            'down_revision: str | None = "0070_notification_delivery_routing"',
+            'down_revision: str | None = "0070_factor_shadow_v2_gate0"',
             '"expected_match_fixture_observation"',
         ),
     }

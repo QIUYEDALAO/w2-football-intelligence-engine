@@ -38,6 +38,7 @@ from w2.infrastructure.persistence.future_refresh_models import (
     FutureRefreshCheckpointAuditModel,
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
+    RawFixtureScopeMembershipModel,
     RawPayloadModel,
     RawStatisticsRetentionModel,
     TeamXgMatchModel,
@@ -78,6 +79,11 @@ from w2.ingestion.authoritative_lineup import (
 )
 from w2.ingestion.expected_match_materialization import (
     add_expected_match_fixture_materialization,
+)
+from w2.ingestion.raw_fixture_scope import (
+    RAW_FIXTURE_SCOPE_POLICY_VERSION,
+    RawFixtureScope,
+    raw_fixture_scope_membership_contract,
 )
 from w2.lineups.intelligence import (
     build_team_baseline,
@@ -569,16 +575,47 @@ class FutureRefreshDbRepository:
         endpoint: str,
         captured_at: datetime,
         payload: dict[str, Any],
+        fixture_scope: RawFixtureScope | str | None = None,
+        request_identity: str | None = None,
+        scope_policy_version: str = RAW_FIXTURE_SCOPE_POLICY_VERSION,
     ) -> str:
         with Session(self.engine) as session:
             store = DatabaseRawPayloadObjectStore(session)
             try:
-                storage_uri = store.put(
-                    sha256=sha256,
-                    endpoint=endpoint,
-                    captured_at=captured_at,
-                    payload=payload,
+                existing = session.get(RawPayloadModel, sha256)
+                storage_uri = (
+                    existing.storage_uri
+                    if existing is not None
+                    else store.put(
+                        sha256=sha256,
+                        endpoint=endpoint,
+                        captured_at=captured_at,
+                        payload=payload,
+                    )
                 )
+                memberships = self._raw_fixture_scope_memberships(
+                    raw_payload_sha256=sha256,
+                    endpoint=endpoint,
+                    payload=payload,
+                    fixture_scope=fixture_scope,
+                    request_identity=request_identity,
+                    classified_at=datetime.now(UTC),
+                    scope_policy_version=scope_policy_version,
+                )
+                for membership in memberships:
+                    persisted = session.get(
+                        RawFixtureScopeMembershipModel,
+                        str(membership["membership_hash"]),
+                    )
+                    if persisted is None:
+                        session.add(RawFixtureScopeMembershipModel(**membership))
+                    elif not self._raw_fixture_scope_membership_matches(
+                        persisted,
+                        membership,
+                    ):
+                        raise FutureRefreshPersistenceError(
+                            "RAW_FIXTURE_SCOPE_MEMBERSHIP_CONFLICT"
+                        )
                 session.commit()
                 return storage_uri
             except IntegrityError:
@@ -586,7 +623,22 @@ class FutureRefreshDbRepository:
                 existing = session.get(RawPayloadModel, sha256)
                 if existing is None:
                     raise FutureRefreshPersistenceError("RAW_PAYLOAD_CONFLICT") from None
+                if not self._raw_fixture_scope_memberships_are_persisted(
+                    session,
+                    raw_payload_sha256=sha256,
+                    endpoint=endpoint,
+                    payload=payload,
+                    fixture_scope=fixture_scope,
+                    request_identity=request_identity,
+                    scope_policy_version=scope_policy_version,
+                ):
+                    raise FutureRefreshPersistenceError(
+                        "RAW_FIXTURE_SCOPE_MEMBERSHIP_CONFLICT"
+                    ) from None
                 return existing.storage_uri
+            except FutureRefreshPersistenceError:
+                session.rollback()
+                raise
             except Exception as exc:
                 session.rollback()
                 raise FutureRefreshPersistenceError("RAW_PAYLOAD_WRITE_FAILED") from exc
@@ -748,6 +800,122 @@ class FutureRefreshDbRepository:
                     )
                 )
         return results
+
+    @staticmethod
+    def _raw_fixture_scope_membership_payload(
+        row: RawFixtureScopeMembershipModel,
+    ) -> dict[str, Any]:
+        return {
+            "membership_hash": row.membership_hash,
+            "raw_payload_sha256": row.raw_payload_sha256,
+            "provider_fixture_id": row.provider_fixture_id,
+            "scope_policy_version": row.scope_policy_version,
+            "source_scope": row.source_scope,
+            "request_identity": row.request_identity,
+            "classified_at": row.classified_at,
+            "provider_league_id": row.provider_league_id,
+            "kickoff_utc": iso_z(row.kickoff_utc) if row.kickoff_utc is not None else None,
+        }
+
+    @classmethod
+    def _raw_fixture_scope_membership_matches(
+        cls,
+        row: RawFixtureScopeMembershipModel,
+        expected: dict[str, Any],
+    ) -> bool:
+        persisted = cls._raw_fixture_scope_membership_payload(row)
+        return all(
+            persisted[key] == expected[key]
+            for key in (
+                "membership_hash",
+                "raw_payload_sha256",
+                "provider_fixture_id",
+                "scope_policy_version",
+                "source_scope",
+                "request_identity",
+                "provider_league_id",
+            )
+        ) and persisted["kickoff_utc"] == (
+            iso_z(expected["kickoff_utc"])
+            if expected.get("kickoff_utc") is not None
+            else None
+        )
+
+    @staticmethod
+    def _raw_fixture_scope_memberships(
+        *,
+        raw_payload_sha256: str,
+        endpoint: str,
+        payload: dict[str, Any],
+        fixture_scope: RawFixtureScope | str | None,
+        request_identity: str | None,
+        classified_at: datetime,
+        scope_policy_version: str,
+    ) -> list[dict[str, Any]]:
+        if fixture_scope is None:
+            return []
+        if endpoint != "fixtures" or not request_identity:
+            raise FutureRefreshPersistenceError("RAW_FIXTURE_SCOPE_CONTEXT_INVALID")
+        response = payload.get("response")
+        if not isinstance(response, list):
+            return []
+        memberships: list[dict[str, Any]] = []
+        for item in response:
+            fixture = item.get("fixture") if isinstance(item, dict) else None
+            provider_fixture_id = (
+                str(fixture.get("id") or "") if isinstance(fixture, dict) else ""
+            )
+            if not provider_fixture_id:
+                continue
+            league = item.get("league") if isinstance(item, dict) else None
+            provider_league_id = (
+                str(league.get("id") or "") if isinstance(league, dict) else ""
+            )
+            try:
+                kickoff_utc = parse_db_datetime(fixture.get("date"))
+            except FutureRefreshPersistenceError:
+                kickoff_utc = None
+            memberships.append(
+                raw_fixture_scope_membership_contract(
+                    raw_payload_sha256=raw_payload_sha256,
+                    provider_fixture_id=provider_fixture_id,
+                    source_scope=fixture_scope,
+                    request_identity=request_identity,
+                    classified_at=classified_at,
+                    provider_league_id=provider_league_id or None,
+                    kickoff_utc=kickoff_utc,
+                    scope_policy_version=scope_policy_version,
+                )
+            )
+        return memberships
+
+    def _raw_fixture_scope_memberships_are_persisted(
+        self,
+        session: Session,
+        *,
+        raw_payload_sha256: str,
+        endpoint: str,
+        payload: dict[str, Any],
+        fixture_scope: RawFixtureScope | str | None,
+        request_identity: str | None,
+        scope_policy_version: str,
+    ) -> bool:
+        expected = self._raw_fixture_scope_memberships(
+            raw_payload_sha256=raw_payload_sha256,
+            endpoint=endpoint,
+            payload=payload,
+            fixture_scope=fixture_scope,
+            request_identity=request_identity,
+            classified_at=datetime.now(UTC),
+            scope_policy_version=scope_policy_version,
+        )
+        for item in expected:
+            row = session.get(RawFixtureScopeMembershipModel, str(item["membership_hash"]))
+            if row is None:
+                return False
+            if not self._raw_fixture_scope_membership_matches(row, item):
+                return False
+        return True
 
     def save_lineup_snapshots(
         self,
@@ -2744,6 +2912,102 @@ class FutureRefreshDbRepository:
                 fixture_id = str(item.get("fixture", {}).get("id"))
                 if fixture_id and fixture_id != "None":
                     fixtures[fixture_id] = item
+        return sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", ""))
+
+    def live_fixture_payloads(
+        self,
+        *,
+        provider_league_id: str | None,
+        kickoff_from: datetime,
+        kickoff_to: datetime,
+        scope_policy_version: str = RAW_FIXTURE_SCOPE_POLICY_VERSION,
+    ) -> list[dict[str, Any]]:
+        """Reserved scoped reader; the active planner still uses fixture_payloads()."""
+        return self._fixture_payloads_for_scope(
+            source_scope=RawFixtureScope.LIVE_DISCOVERY,
+            provider_league_id=provider_league_id,
+            kickoff_from=kickoff_from,
+            kickoff_to=kickoff_to,
+            scope_policy_version=scope_policy_version,
+        )
+
+    def historical_fixture_payloads(
+        self,
+        *,
+        kickoff_from: datetime,
+        kickoff_to: datetime,
+        provider_league_id: str | None = None,
+        scope_policy_version: str = RAW_FIXTURE_SCOPE_POLICY_VERSION,
+    ) -> list[dict[str, Any]]:
+        """Reserved scoped reader; Gate 1 history is selected by kickoff time."""
+        return self._fixture_payloads_for_scope(
+            source_scope=RawFixtureScope.HISTORICAL_TRAINING,
+            provider_league_id=provider_league_id,
+            kickoff_from=kickoff_from,
+            kickoff_to=kickoff_to,
+            scope_policy_version=scope_policy_version,
+        )
+
+    def _fixture_payloads_for_scope(
+        self,
+        *,
+        source_scope: RawFixtureScope,
+        provider_league_id: str | None,
+        kickoff_from: datetime,
+        kickoff_to: datetime,
+        scope_policy_version: str,
+    ) -> list[dict[str, Any]]:
+        start = parse_db_datetime(kickoff_from)
+        end = parse_db_datetime(kickoff_to)
+        if end < start:
+            raise FutureRefreshPersistenceError("FIXTURE_SCOPE_HORIZON_INVALID")
+        scope_filters = [
+            RawPayloadModel.endpoint == "fixtures",
+            RawFixtureScopeMembershipModel.source_scope == source_scope.value,
+            RawFixtureScopeMembershipModel.scope_policy_version == scope_policy_version,
+            RawFixtureScopeMembershipModel.kickoff_utc >= start,
+            RawFixtureScopeMembershipModel.kickoff_utc <= end,
+        ]
+        if provider_league_id is not None:
+            scope_filters.append(
+                RawFixtureScopeMembershipModel.provider_league_id == provider_league_id
+            )
+        with Session(self.engine) as session:
+            rows = list(
+                session.execute(
+                    select(RawPayloadModel, RawFixtureScopeMembershipModel)
+                    .join(
+                        RawFixtureScopeMembershipModel,
+                        RawFixtureScopeMembershipModel.raw_payload_sha256
+                        == RawPayloadModel.sha256,
+                    )
+                    .where(*scope_filters)
+                    .order_by(RawPayloadModel.captured_at)
+                )
+            )
+        fixtures: dict[str, dict[str, Any]] = {}
+        for raw, membership in rows:
+            response = raw.payload.get("response")
+            if not isinstance(response, list):
+                continue
+            for item in response:
+                fixture = item.get("fixture") if isinstance(item, dict) else None
+                if not isinstance(fixture, dict):
+                    continue
+                fixture_id = str(fixture.get("id") or "")
+                if fixture_id != membership.provider_fixture_id:
+                    continue
+                league = item.get("league")
+                league_id = str(league.get("id") or "") if isinstance(league, dict) else ""
+                if provider_league_id is not None and league_id != provider_league_id:
+                    continue
+                try:
+                    kickoff = parse_db_datetime(fixture.get("date"))
+                except FutureRefreshPersistenceError:
+                    continue
+                if start <= kickoff <= end:
+                    fixtures[fixture_id] = item
+                break
         return sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", ""))
 
     def fixture_payload(self, fixture_id: str, *, payload_limit: int = 32) -> dict[str, Any] | None:

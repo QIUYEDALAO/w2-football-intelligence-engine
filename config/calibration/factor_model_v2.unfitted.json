@@ -1,0 +1,9 @@
+{
+  "schema_version": "w2.factor_model_v2.calibration.v1",
+  "calibration_version": "factor-model-v2.unfitted",
+  "feature_registry_version": "factor-model-v2.v1.unadmitted",
+  "status": "UNFITTED",
+  "coefficients": {},
+  "admitted_for_historical_replay": false,
+  "admitted_for_forward_shadow": false
+}

@@ -1,7 +1,7 @@
 """materialize PIT expected-match fixture observations
 
 Revision ID: 0071_expected_match_denominator
-Revises: 0070_notification_delivery_routing
+Revises: 0070_factor_shadow_v2_gate0
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0071_expected_match_denominator"
-down_revision: str | None = "0070_notification_delivery_routing"
+down_revision: str | None = "0070_factor_shadow_v2_gate0"
 branch_labels: str | None = None
 depends_on: str | None = None
 
