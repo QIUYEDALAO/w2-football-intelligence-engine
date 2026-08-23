@@ -53,8 +53,9 @@ Provider calls / production writes / outcomes reads: `0 / 0 / 0`。
 ## 防复发
 
 1. cache 命中条件改为“两队 numeric xG 完整”，null/缺字段保持 retryable；该代码变更只在本地验证，未部署。
-2. 独立 guard 只在“numeric saved raw 已存在但 team_xg_match 不是恰好两条非空行”时报警；Provider pending 不混入该报警。
-3. 529 场历史补齐需要新的 Provider 权限与生产写入决策。没有授权前，报告保持 blocked，不自行执行。
+2. `team_xg_match` 改为 first-write-wins：同一 fixture+team 的重复发布不得覆盖首次 `captured_at`、数值或 raw hash；证据冲突直接回滚并报警，避免历史 PIT 重算漂移。该代码变更同样只在本地，未部署。
+3. 独立 guard 只在“numeric saved raw 已存在但 team_xg_match 不是恰好两条非空行”时报警；Provider pending 不混入该报警。
+4. 529 场历史补齐需要新的 Provider 权限与生产写入决策。没有授权前，报告保持 blocked，不自行执行。
 
 ## 可复现边界
 
