@@ -169,7 +169,7 @@ def test_fixture_discovery_enqueues_the_canonical_refresh_task(
     monkeypatch.setattr(
         scheduler_main,
         "matchday_checkpoint_competition_ids",
-        lambda: tuple(f"league-{index}" for index in range(13)),
+        lambda: tuple(f"league-{index}" for index in range(11)),
     )
 
     result = fixture_discovery_tick()
@@ -809,13 +809,13 @@ def test_scheduler_xg_backfill_dispatches_worker_task_without_running_provider(
     monkeypatch.setattr(
         scheduler_main,
         "matchday_checkpoint_competition_ids",
-        lambda: tuple(f"league-{index}" for index in range(13)),
+        lambda: tuple(f"league-{index}" for index in range(11)),
     )
 
     result = xg_history_backfill_tick()
 
     assert result["status"] == "QUEUED"
-    assert len(result["task_ids"]) == 13
+    assert len(result["task_ids"]) == 11
     assert sent[0]["name"] == "w2.xg_history_backfill"
     assert sent[0]["kwargs"]["queued_at_utc"] == result["queued_at_utc"]
     assert sent[0]["kwargs"]["competition_id"] == "league-0"

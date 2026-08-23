@@ -176,7 +176,7 @@ def fixture_discovery_tick() -> dict[str, object]:
     discovery_date = (operational_date + timedelta(days=offset)).isoformat()
     task_key = f"fixture-discovery:{operational_date.isoformat()}:{discovery_date}"
     competition_ids = matchday_checkpoint_competition_ids()
-    if len(competition_ids) != 13:
+    if not competition_ids:
         return {
             "status": "FIXTURE_DISCOVERY_SCOPE_INVALID",
             "provider_calls": 0,
@@ -678,7 +678,7 @@ def xg_history_backfill_tick() -> dict[str, object]:
 
     now = datetime.now(UTC)
     competition_ids = matchday_checkpoint_competition_ids()
-    if len(competition_ids) != 13:
+    if not competition_ids:
         return {
             "status": "XG_BACKFILL_SCOPE_INVALID",
             "provider_calls": 0,
