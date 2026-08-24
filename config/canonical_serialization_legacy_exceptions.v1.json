@@ -65,6 +65,8 @@
     {"path": "scripts/audit_t00.py", "symbol": "verify_github_runs", "hash_domain": "legacy.scripts.audit_t00_github_run_metadata"},
     {"path": "scripts/audit_market_mainline_ladder.py", "symbol": "main", "hash_domain": "legacy.scripts.market_mainline_ladder"},
     {"path": "scripts/audit_pr370_totals_quarter_ev.py", "symbol": "_hash", "hash_domain": "legacy.scripts.pr370_totals_quarter_ev"},
+    {"path": "scripts/audit_sched_dedup_01.py", "symbol": "_json_bytes", "hash_domain": "legacy.scripts.sched_dedup_json"},
+    {"path": "scripts/audit_sched_dedup_01.py", "symbol": "_parameter_hash", "hash_domain": "legacy.scripts.sched_dedup_sql_parameters"},
     {"path": "scripts/audit_w2_runtime_authorities.py", "symbol": "_sha_payload", "hash_domain": "legacy.scripts.runtime_authorities"},
     {"path": "scripts/build_fah_approval_package.py", "symbol": "_stable_hash", "hash_domain": "legacy.scripts.fah_approval_package"},
     {"path": "scripts/build_stage7i_successor_candidates.py", "symbol": "canonical_json", "hash_domain": "legacy.scripts.stage7i_successor_candidates"},
