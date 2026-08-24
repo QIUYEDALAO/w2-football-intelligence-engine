@@ -440,7 +440,7 @@ def _self_check() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ssh-host", default="root@45.207.194.97")
+    parser.add_argument("--ssh-host", required=True)
     parser.add_argument("--ssh-key", type=Path)
     parser.add_argument("--output-json", type=Path, default=DEFAULT_JSON)
     parser.add_argument("--output-markdown", type=Path, default=DEFAULT_MARKDOWN)
