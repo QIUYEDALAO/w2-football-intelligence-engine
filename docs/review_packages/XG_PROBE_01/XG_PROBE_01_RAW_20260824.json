@@ -1,0 +1,480 @@
+{
+  "authorization": {
+    "approved_calls": 10,
+    "authorization_id": "XG-PROBE-01_OWNER_10_CALLS",
+    "executed_calls": 10
+  },
+  "preflight": {
+    "prematch_gate": {
+      "checked_at": "2026-08-24T02:11:27.754468+00:00",
+      "due_count": 0,
+      "horizon_end": "2026-08-24T03:11:27.754468+00:00",
+      "kind": "prematch_gate"
+    },
+    "quota_before": {
+      "burst_limit": 300,
+      "burst_remaining": 298,
+      "daily_limit": 7500,
+      "daily_remaining": 7376,
+      "endpoint": "fixtures",
+      "kind": "quota",
+      "observed_at": "2026-08-24T02:00:08.113522+00:00",
+      "provider": "api_football"
+    },
+    "runtime": {
+      "checked_at": "2026-08-24T02:11:27.754468+00:00",
+      "kind": "runtime",
+      "schema": "0070_notification_delivery_routing"
+    }
+  },
+  "provider_probe": {
+    "request_count": 10,
+    "results": [
+      {
+        "captured_at": "2026-08-24T02:11:29.226725Z",
+        "competition_id": "argentina_primera",
+        "elapsed_ms": 301,
+        "expected_goals": [
+          {
+            "field_present": true,
+            "team_id": 2432,
+            "team_name": "Barracas Central",
+            "value": null
+          },
+          {
+            "field_present": true,
+            "team_id": 452,
+            "team_name": "Tigre",
+            "value": null
+          }
+        ],
+        "fixture_id": "1334458",
+        "http_status": 200,
+        "provider_errors": [],
+        "quota": {
+          "burst_limit": "300",
+          "burst_remaining": "299",
+          "daily_limit": "7500",
+          "daily_remaining": "7376"
+        },
+        "response_count": 2,
+        "sequence": 1
+      },
+      {
+        "captured_at": "2026-08-24T02:11:29.658115Z",
+        "competition_id": "argentina_primera",
+        "elapsed_ms": 230,
+        "expected_goals": [
+          {
+            "field_present": true,
+            "team_id": 457,
+            "team_name": "Newells Old Boys",
+            "value": null
+          },
+          {
+            "field_present": true,
+            "team_id": 442,
+            "team_name": "Defensa Y Justicia",
+            "value": null
+          }
+        ],
+        "fixture_id": "1491872",
+        "http_status": 200,
+        "provider_errors": [],
+        "quota": {
+          "burst_limit": "300",
+          "burst_remaining": "298",
+          "daily_limit": "7500",
+          "daily_remaining": "7375"
+        },
+        "response_count": 2,
+        "sequence": 2
+      },
+      {
+        "captured_at": "2026-08-24T02:11:30.086075Z",
+        "competition_id": "argentina_primera",
+        "elapsed_ms": 227,
+        "expected_goals": [
+          {
+            "field_present": true,
+            "team_id": 446,
+            "team_name": "Lanus",
+            "value": null
+          },
+          {
+            "field_present": true,
+            "team_id": 461,
+            "team_name": "San Martin S.J.",
+            "value": null
+          }
+        ],
+        "fixture_id": "1334500",
+        "http_status": 200,
+        "provider_errors": [],
+        "quota": {
+          "burst_limit": "300",
+          "burst_remaining": "297",
+          "daily_limit": "7500",
+          "daily_remaining": "7374"
+        },
+        "response_count": 2,
+        "sequence": 3
+      },
+      {
+        "captured_at": "2026-08-24T02:11:30.518790Z",
+        "competition_id": "argentina_primera",
+        "elapsed_ms": 232,
+        "expected_goals": [
+          {
+            "field_present": true,
+            "team_id": 463,
+            "team_name": "Aldosivi",
+            "value": null
+          },
+          {
+            "field_present": true,
+            "team_id": 436,
+            "team_name": "Racing Club",
+            "value": null
+          }
+        ],
+        "fixture_id": "1492028",
+        "http_status": 200,
+        "provider_errors": [],
+        "quota": {
+          "burst_limit": "300",
+          "burst_remaining": "296",
+          "daily_limit": "7500",
+          "daily_remaining": "7373"
+        },
+        "response_count": 2,
+        "sequence": 4
+      },
+      {
+        "captured_at": "2026-08-24T02:11:30.941878Z",
+        "competition_id": "argentina_primera",
+        "elapsed_ms": 222,
+        "expected_goals": [
+          {
+            "field_present": true,
+            "team_id": 473,
+            "team_name": "Independ. Rivadavia",
+            "value": null
+          },
+          {
+            "field_present": true,
+            "team_id": 450,
+            "team_name": "Estudiantes L.P.",
+            "value": null
+          }
+        ],
+        "fixture_id": "1334327",
+        "http_status": 200,
+        "provider_errors": [],
+        "quota": {
+          "burst_limit": "300",
+          "burst_remaining": "295",
+          "daily_limit": "7500",
+          "daily_remaining": "7372"
+        },
+        "response_count": 2,
+        "sequence": 5
+      },
+      {
+        "captured_at": "2026-08-24T02:11:31.356539Z",
+        "competition_id": "argentina_primera",
+        "elapsed_ms": 214,
+        "expected_goals": [
+          {
+            "field_present": true,
+            "team_id": 1065,
+            "team_name": "Central Cordoba de Santiago",
+            "value": null
+          },
+          {
+            "field_present": true,
+            "team_id": 445,
+            "team_name": "Huracan",
+            "value": null
+          }
+        ],
+        "fixture_id": "1334461",
+        "http_status": 200,
+        "provider_errors": [],
+        "quota": {
+          "burst_limit": "300",
+          "burst_remaining": "294",
+          "daily_limit": "7500",
+          "daily_remaining": "7371"
+        },
+        "response_count": 2,
+        "sequence": 6
+      },
+      {
+        "captured_at": "2026-08-24T02:11:31.822994Z",
+        "competition_id": "eredivisie",
+        "elapsed_ms": 266,
+        "expected_goals": [
+          {
+            "field_present": true,
+            "team_id": 427,
+            "team_name": "Telstar",
+            "value": null
+          },
+          {
+            "field_present": true,
+            "team_id": 195,
+            "team_name": "Willem II",
+            "value": null
+          }
+        ],
+        "fixture_id": "1376436",
+        "http_status": 200,
+        "provider_errors": [],
+        "quota": {
+          "burst_limit": "300",
+          "burst_remaining": "293",
+          "daily_limit": "7500",
+          "daily_remaining": "7370"
+        },
+        "response_count": 2,
+        "sequence": 7
+      },
+      {
+        "captured_at": "2026-08-24T02:11:32.255094Z",
+        "competition_id": "eredivisie",
+        "elapsed_ms": 231,
+        "expected_goals": [
+          {
+            "field_present": true,
+            "team_id": 198,
+            "team_name": "ADO Den Haag",
+            "value": null
+          },
+          {
+            "field_present": true,
+            "team_id": 427,
+            "team_name": "Telstar",
+            "value": null
+          }
+        ],
+        "fixture_id": "1375155",
+        "http_status": 200,
+        "provider_errors": [],
+        "quota": {
+          "burst_limit": "300",
+          "burst_remaining": "292",
+          "daily_limit": "7500",
+          "daily_remaining": "7369"
+        },
+        "response_count": 2,
+        "sequence": 8
+      },
+      {
+        "captured_at": "2026-08-24T02:11:32.704983Z",
+        "competition_id": "ligue_1",
+        "elapsed_ms": 249,
+        "expected_goals": [
+          {
+            "field_present": true,
+            "team_id": 93,
+            "team_name": "Reims",
+            "value": null
+          },
+          {
+            "field_present": true,
+            "team_id": 112,
+            "team_name": "Metz",
+            "value": null
+          }
+        ],
+        "fixture_id": "1375859",
+        "http_status": 200,
+        "provider_errors": [],
+        "quota": {
+          "burst_limit": "300",
+          "burst_remaining": "291",
+          "daily_limit": "7500",
+          "daily_remaining": "7368"
+        },
+        "response_count": 2,
+        "sequence": 9
+      },
+      {
+        "captured_at": "2026-08-24T02:11:33.126023Z",
+        "competition_id": "bundesliga",
+        "elapsed_ms": 220,
+        "expected_goals": [
+          {
+            "field_present": true,
+            "team_id": 185,
+            "team_name": "SC Paderborn 07",
+            "value": null
+          },
+          {
+            "field_present": true,
+            "team_id": 161,
+            "team_name": "VfL Wolfsburg",
+            "value": null
+          }
+        ],
+        "fixture_id": "1545418",
+        "http_status": 200,
+        "provider_errors": [],
+        "quota": {
+          "burst_limit": "300",
+          "burst_remaining": "290",
+          "daily_limit": "7500",
+          "daily_remaining": "7367"
+        },
+        "response_count": 2,
+        "sequence": 10
+      }
+    ]
+  },
+  "sample_selection": {
+    "pool": {
+      "eligible_before_kickoff_cutoff": 875,
+      "eligible_two_sided_null_before_kickoff_cutoff": 862,
+      "joinable_finished": 895,
+      "kickoff_cutoff": "2026-08-18T00:00:00Z",
+      "kind": "pool",
+      "selection_seed": "XG-PROBE-01",
+      "source_snapshot": "2026-08-24T02:11:15.68069+00:00",
+      "unmaterialized_statistics_null": 902
+    },
+    "rows": [
+      {
+        "competition_id": "argentina_primera",
+        "fixture_id": "1334458",
+        "kickoff": "2025-04-12T21:00:00+00:00",
+        "kind": "sample",
+        "original_captured_at": "2026-08-16T19:09:57.631962+00:00",
+        "original_expected_goals": [
+          null,
+          null
+        ],
+        "original_statistics_capture_count": 1,
+        "sample_rank": 1
+      },
+      {
+        "competition_id": "argentina_primera",
+        "fixture_id": "1491872",
+        "kickoff": "2026-02-08T01:15:00+00:00",
+        "kind": "sample",
+        "original_captured_at": "2026-08-16T19:20:11.340422+00:00",
+        "original_expected_goals": [
+          null,
+          null
+        ],
+        "original_statistics_capture_count": 1,
+        "sample_rank": 2
+      },
+      {
+        "competition_id": "argentina_primera",
+        "fixture_id": "1334500",
+        "kickoff": "2025-04-27T22:00:00+00:00",
+        "kind": "sample",
+        "original_captured_at": "2026-08-16T19:10:51.207579+00:00",
+        "original_expected_goals": [
+          null,
+          null
+        ],
+        "original_statistics_capture_count": 1,
+        "sample_rank": 3
+      },
+      {
+        "competition_id": "argentina_primera",
+        "fixture_id": "1492028",
+        "kickoff": "2026-04-19T16:30:00+00:00",
+        "kind": "sample",
+        "original_captured_at": "2026-08-16T19:24:11.560903+00:00",
+        "original_expected_goals": [
+          null,
+          null
+        ],
+        "original_statistics_capture_count": 1,
+        "sample_rank": 4
+      },
+      {
+        "competition_id": "argentina_primera",
+        "fixture_id": "1334327",
+        "kickoff": "2025-02-08T01:15:00+00:00",
+        "kind": "sample",
+        "original_captured_at": "2026-08-16T19:06:06.461577+00:00",
+        "original_expected_goals": [
+          null,
+          null
+        ],
+        "original_statistics_capture_count": 1,
+        "sample_rank": 5
+      },
+      {
+        "competition_id": "argentina_primera",
+        "fixture_id": "1334461",
+        "kickoff": "2025-04-14T21:00:00+00:00",
+        "kind": "sample",
+        "original_captured_at": "2026-08-16T19:10:09.188183+00:00",
+        "original_expected_goals": [
+          null,
+          null
+        ],
+        "original_statistics_capture_count": 1,
+        "sample_rank": 6
+      },
+      {
+        "competition_id": "eredivisie",
+        "fixture_id": "1376436",
+        "kickoff": "2025-05-29T18:00:00+00:00",
+        "kind": "sample",
+        "original_captured_at": "2026-08-17T01:53:20.838495+00:00",
+        "original_expected_goals": [
+          null,
+          null
+        ],
+        "original_statistics_capture_count": 1,
+        "sample_rank": 1
+      },
+      {
+        "competition_id": "eredivisie",
+        "fixture_id": "1375155",
+        "kickoff": "2025-05-17T14:30:00+00:00",
+        "kind": "sample",
+        "original_captured_at": "2026-08-17T01:52:50.261377+00:00",
+        "original_expected_goals": [
+          null,
+          null
+        ],
+        "original_statistics_capture_count": 1,
+        "sample_rank": 2
+      },
+      {
+        "competition_id": "ligue_1",
+        "fixture_id": "1375859",
+        "kickoff": "2025-05-29T18:30:00+00:00",
+        "kind": "sample",
+        "original_captured_at": "2026-08-17T00:42:46.245068+00:00",
+        "original_expected_goals": [
+          null,
+          null
+        ],
+        "original_statistics_capture_count": 1,
+        "sample_rank": 1
+      },
+      {
+        "competition_id": "bundesliga",
+        "fixture_id": "1545418",
+        "kickoff": "2026-05-25T18:30:00+00:00",
+        "kind": "sample",
+        "original_captured_at": "2026-08-17T00:14:15.063021+00:00",
+        "original_expected_goals": [
+          null,
+          null
+        ],
+        "original_statistics_capture_count": 1,
+        "sample_rank": 1
+      }
+    ]
+  },
+  "schema_version": "w2.xg_probe_01.raw.v1"
+}
