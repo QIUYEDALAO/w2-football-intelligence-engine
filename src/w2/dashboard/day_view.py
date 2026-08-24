@@ -60,6 +60,10 @@ def build_dashboard_day_view(
             odds_plans=(),
             market_evidence_fixture_ids=set(),
             as_of=_parse_time(generated_at) or datetime.now(UTC),
+            active_whitelist_count=max(
+                0,
+                int(dashboard_payload.get("active_whitelist_count") or 0),
+            ),
         )
     view = {
         "generated_at": generated_at,
@@ -87,6 +91,10 @@ def build_dashboard_day_view(
         "timezone": _text(dashboard_payload.get("timezone"), "Asia/Shanghai"),
         "window": _text(dashboard_payload.get("window"), "today"),
         "source": "dashboard_read_model",
+        "active_whitelist_count": max(
+            0,
+            int(dashboard_payload.get("active_whitelist_count") or 0),
+        ),
         "version": _mapping_copy(dashboard_payload.get("version")),
         "checkpoint_key": f"dashboard:day_view:{football_day}",
         "would_write_checkpoint": False,

@@ -84,6 +84,7 @@ def build_dashboard_intelligence_workspace(
     recommendation_capabilities: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Adapt existing bounded projections into the one final Dashboard read model."""
+    active_whitelist_count = max(0, _int(day_view.get("active_whitelist_count")))
     cards = _mapping_list(day_view.get("cards"))
     replay_cards = {
         _text(item.get("fixture_id")): item
@@ -187,7 +188,7 @@ def build_dashboard_intelligence_workspace(
         "runtime": {
             "product": PRODUCT,
             "public_dashboard_authority": PUBLIC_AUTHORITY,
-            "active_whitelist_count": 13,
+            "active_whitelist_count": active_whitelist_count,
             "free_bridge_mode": "SHADOW_ONLY",
             "market_price_attention_threshold_ratio": MARKET_PRICE_ATTENTION_THRESHOLD_RATIO,
             "candidate": "SHADOW_ONLY" if candidate_enabled else "OFF",
@@ -1410,7 +1411,7 @@ def _date_strip_entry(raw: Mapping[str, Any]) -> dict[str, Any]:
         "persisted_competition_coverage_count": max(
             0, _int(raw.get("persisted_competition_coverage_count"))
         ),
-        "active_whitelist_count": 13,
+        "active_whitelist_count": max(0, _int(raw.get("active_whitelist_count"))),
         "market_collection_window_status": _text(raw.get("market_collection_window_status")),
         "market_evidence_fixture_count": max(0, _int(raw.get("market_evidence_fixture_count"))),
         "public_semantics": dict(semantics),

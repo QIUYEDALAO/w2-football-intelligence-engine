@@ -1,0 +1,99 @@
+{
+  "check_passed": true,
+  "disabled_rows": [
+    {
+      "competition_id": "allsvenskan",
+      "fixture_id": "1494253"
+    }
+  ],
+  "enabled_scope": {
+    "authority": "league_season.payload.enabled",
+    "competition_count": 11,
+    "competition_ids": [
+      "argentina_primera",
+      "brasileirao_serie_a",
+      "bundesliga",
+      "eliteserien",
+      "eredivisie",
+      "la_liga",
+      "ligue_1",
+      "mls",
+      "premier_league",
+      "primeira_liga",
+      "serie_a"
+    ]
+  },
+  "fixture_1494253_reachability": {
+    "can_enter_official_performance_record": false,
+    "can_enter_public_recommendation_after_change": false,
+    "captured_plan_rows": 3,
+    "current_card": {
+      "candidate": false,
+      "decision_tier": "NOT_READY",
+      "formal_recommendation": false,
+      "v4_outcome": "NOT_READY"
+    },
+    "legacy_analysis_pick_active_rows": 2,
+    "official_funnel_eligible_rows": 0,
+    "official_opportunity_rows": 0
+  },
+  "frozen_input_schema_version": "w2.web-scope-01.frozen-input.v1",
+  "observed_at_utc": "2026-08-24T08:20:00Z",
+  "path_inventory": {
+    "dashboard": {
+      "after": 10,
+      "before": 11
+    },
+    "direct_fixture_projection": {
+      "after_visible": false,
+      "before_visible": true,
+      "fixture_id": "1494253"
+    },
+    "matchday": {
+      "after": 10,
+      "before": 11
+    },
+    "performance_record": {
+      "filter_commit": "c582ace4",
+      "fixture_id": "1494253",
+      "included_after_this_change": false,
+      "included_before_this_change": false
+    },
+    "postmatch_recommendations": {
+      "already_filtered_by_enabled_scope": true,
+      "fixture_id": "1494253",
+      "official_opportunities_after": 0,
+      "official_opportunities_before": 0
+    },
+    "radar_attention_input": {
+      "after": 10,
+      "before": 11
+    },
+    "version_counts": {
+      "after": 269,
+      "before": 320,
+      "disabled_removed": 51
+    }
+  },
+  "read_contract": {
+    "deployed": false,
+    "production_db_writes": 0,
+    "provider_calls": 0
+  },
+  "release_consistency": {
+    "api_git_sha": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1",
+    "existing_public_check_exit_code": 1,
+    "new_image_preflight_contract": "PYTHON_AND_WEB_OCI_REVISIONS_MUST_MATCH",
+    "same_revision": false,
+    "web_git_sha": "ae5b4d884c9f2f4da98b5c6874e7703fef4d720b"
+  },
+  "schema_version": "w2.web-scope-01.evidence.v1",
+  "scope_retention_ratio": 0.909090909091,
+  "source_contract": {
+    "date_strip_has_no_fixed_active_count": true,
+    "enabled_scope_reads_registry_enabled_ids": true,
+    "release_sync_preflight_present": true,
+    "repository_has_no_fixed_13_scope_guard": true,
+    "workspace_has_no_fixed_active_count": true
+  }
+}

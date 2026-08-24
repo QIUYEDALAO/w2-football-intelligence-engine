@@ -136,7 +136,7 @@ export interface WorkspaceDateStripEntry {
   upcoming_fixture_count: number;
   persisted_inventory_status: "PERSISTED_FIXTURES_AVAILABLE" | "EMPTY_PERSISTED_DAY";
   persisted_competition_coverage_count: number;
-  active_whitelist_count: 13;
+  active_whitelist_count: number;
   market_collection_window_status:
     | "EMPTY_PERSISTED_DAY"
     | "MARKET_EVIDENCE_AVAILABLE"
@@ -653,7 +653,7 @@ export interface IntelligenceWorkspace {
   runtime: {
     product: string;
     public_dashboard_authority: "NEW_INTELLIGENCE_WORKSPACE_ONLY";
-    active_whitelist_count: 13;
+    active_whitelist_count: number;
     free_bridge_mode: "SHADOW_ONLY";
     market_price_attention_threshold_ratio: 0.02;
     candidate: "OFF" | "SHADOW_ONLY";

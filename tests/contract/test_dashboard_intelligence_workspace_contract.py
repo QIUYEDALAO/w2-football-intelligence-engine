@@ -44,6 +44,7 @@ def _empty_day_view() -> dict[str, Any]:
         "football_day_start_utc": "2026-08-09T04:00:00Z",
         "football_day_end_utc": "2026-08-10T04:00:00Z",
         "source": "dashboard_read_model",
+        "active_whitelist_count": 11,
         "checkpoint_key": "dashboard:day_view:2026-08-09",
         "provider_calls": 0,
         "db_writes": 0,
@@ -58,7 +59,7 @@ def _empty_day_view() -> dict[str, Any]:
                 "upcoming_fixture_count": 0,
                 "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
                 "persisted_competition_coverage_count": 0,
-                "active_whitelist_count": 13,
+                "active_whitelist_count": 11,
                 "market_collection_window_status": "EMPTY_PERSISTED_DAY",
                 "market_evidence_fixture_count": 0,
             }

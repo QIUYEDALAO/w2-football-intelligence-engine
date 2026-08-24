@@ -53,7 +53,7 @@
   "runtime": {
     "product": "FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS",
     "public_dashboard_authority": "NEW_INTELLIGENCE_WORKSPACE_ONLY",
-    "active_whitelist_count": 13,
+    "active_whitelist_count": 11,
     "free_bridge_mode": "SHADOW_ONLY",
     "market_price_attention_threshold_ratio": 0.02,
     "candidate": "OFF",
@@ -74,7 +74,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
@@ -90,7 +90,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
@@ -106,7 +106,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
@@ -122,7 +122,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
@@ -138,7 +138,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
@@ -154,7 +154,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
@@ -170,7 +170,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
@@ -186,7 +186,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
@@ -202,7 +202,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
@@ -218,7 +218,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
@@ -234,7 +234,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
@@ -250,7 +250,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
@@ -266,7 +266,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
@@ -282,7 +282,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
@@ -298,7 +298,7 @@
       "upcoming_fixture_count": 0,
       "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
       "persisted_competition_coverage_count": 0,
-      "active_whitelist_count": 13,
+      "active_whitelist_count": 11,
       "market_collection_window_status": "EMPTY_PERSISTED_DAY",
       "market_evidence_fixture_count": 0,
       "public_semantics": {
