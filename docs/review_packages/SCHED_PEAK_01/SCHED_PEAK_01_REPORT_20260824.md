@@ -2,7 +2,7 @@
 
 ## 结论
 
-`CHECKPOINT_MISSING` 的具体成因是 **单 worker 串行化，加上任务的 Provider 后处理超过剩余窗口/租约**。生产 worker 明确为 `--concurrency=1`。18:30:49Z 调度器一次性成功 claim `14/14` 个 prematch 计划，说明不是没取走，也不是初始 claim 争用；11 个已发出的峰值请求全部 HTTP 200，最大 `355ms`，说明不是 Provider 超时。
+`CHECKPOINT_MISSING` 的具体成因是 **单 worker 串行化，加上任务的 Provider 后处理超过剩余窗口/租约**。生产 worker 明确为 `--concurrency=1`，且该观测发生在截至 2026-08-28T04:37:34Z 的临时 coverage 插桩窗口内。18:30:49Z 调度器一次性成功 claim `14/14` 个 prematch 计划，说明不是没取走，也不是初始 claim 争用；11 个已发出的峰值请求全部 HTTP 200，最大 `355ms`，说明不是 Provider 超时。
 
 巴甲 8-plan 批次排队 `467.645s` 后于 18:38:37Z 开始，8 次 Provider 请求在 18:38:40.507Z 前全部返回，但任务直到 18:47:45.513Z 才结束。最后响应后的本地处理仍占 `545.005s`，最终超过 18:45:00Z 短窗口 `165.513s`，也超过 18:45:49.502Z claim lease `116.011s`。18:45:55Z scheduler 因窗口和 lease 均已过期，把 6 个短窗口计划推进为 MISSED 并清除 token；worker 随后写回才看到 `CHECKPOINT_CLAIM_TOKEN_MISMATCH`。该 mismatch 是过期后的结果，不是最初争用原因。
 
@@ -43,7 +43,7 @@
 
 ## 修复选项与代价
 
-1. **先做有界容量修复：worker concurrency `1 → 2`。** 冻结时间线按 FIFO、并保留观测到的 task/child 切换占用重放，巴甲批次预计在 claim 后 `726.615s` 完成，距短窗口结束尚有 `123.883s`；因此 `2` 是这次冻结负载的最小可行并发，不是通用阈值。代价是多一个 Celery 子进程、额外 DB 连接和近似增加一份 worker 工作集；并行请求还会提高瞬时 Provider burst，必须保留现有 tick hard cap 与 quota guard，并在部署 Gate 复测内存、DB 连接和峰值 Provider burst。
+1. **临时止血候选：worker concurrency `1 → 2`。** 冻结时间线按 FIFO、并保留观测到的 task/child 切换占用重放，巴甲批次预计在 claim 后 `726.615s` 完成，距短窗口结束尚有 `123.883s`；因此 `2` 只是在 coverage 插桩负载下通过这一次冻结重放的临时值，不是长期容量基线。coverage 于 2026-08-28T04:37:34Z 结束后必须按 SCHED-PEAK-02 重测。代价是多一个 Celery 子进程、额外 DB 连接和近似增加一份 worker 工作集；并行请求还会提高瞬时 Provider burst，必须保留现有 tick hard cap 与 quota guard，并在部署 Gate 复测内存、DB 连接和峰值 Provider burst。
 2. **结构性修复：把临场短窗口放到独立 Celery queue/concurrency pool，并按 window_end/fixture 分小批。** 保留 scheduler 的 EDF claim，不改业务档位时间；让 discovery、postmatch、outcome 与长窗口任务不能占掉 T-30/T15 执行槽。代价是多一个 worker 服务/路由规则、更多 task 开销和更复杂的 quota 并发控制。
 3. **不建议加长 lease 或改 checkpoint 时间。** lease 变长只会允许窗口外写回，不能恢复正式 T-30 有效性；把业务档位错开会改变推荐语义。若只做“错峰”，应错开非临场后台任务或隔离队列，不动 T-30/T15 的窗口。
 

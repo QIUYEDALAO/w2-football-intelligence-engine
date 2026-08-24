@@ -1,0 +1,113 @@
+{
+  "analysis_call_count": 24,
+  "content_sha256": "3047b9764cbd997f724d425209416add346d4763f15d257f52aa90bc4c5aa571",
+  "coverage_trace_active": true,
+  "database_read_only": true,
+  "event_count": 6,
+  "events": [
+    {
+      "artifact_bytes": 641142,
+      "artifact_hash": "c2195f64d23a64f7fa17a2e34e7fea5c6b87678bac3d77364acf80da0c2ac9b9",
+      "event_at": "2026-08-23T18:38:37Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492341",
+      "wall_seconds": 92.923821
+    },
+    {
+      "artifact_bytes": 644147,
+      "artifact_hash": "7393e432b46b1f3fdb7cb7b15104e0006d64a7714f509741dd7638645ec20442",
+      "event_at": "2026-08-23T18:38:38.142854Z",
+      "event_type": "LINEUP_CHANGED",
+      "fixture_id": "1492341",
+      "wall_seconds": 95.271156
+    },
+    {
+      "artifact_bytes": 616563,
+      "artifact_hash": "ef834747a1969067e26719293d6b3b637c73a9dcfd56df616d2a35f8521400b1",
+      "event_at": "2026-08-23T18:38:38Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492347",
+      "wall_seconds": 88.072067
+    },
+    {
+      "artifact_bytes": 521855,
+      "artifact_hash": "d491debc74cd7787f480aba629d5593df9382abc8d1e5f3e59c17a75dd104d7c",
+      "event_at": "2026-08-23T18:38:39Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492349",
+      "wall_seconds": 89.180518
+    },
+    {
+      "artifact_bytes": 530439,
+      "artifact_hash": "2a60e6667d530d3d2e5325a3d55b3453ea90c8c37037719b5314bc42ce0ec646",
+      "event_at": "2026-08-23T18:38:40Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492342",
+      "wall_seconds": 87.005305
+    },
+    {
+      "artifact_bytes": 585553,
+      "artifact_hash": "6013eec7ac41f57559f551c415d5651a9a1c79a18c509505415e74d140e28dfe",
+      "event_at": "2026-08-23T18:38:40Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492348",
+      "wall_seconds": 87.930034
+    }
+  ],
+  "label": "coverage",
+  "manifest_sha256": "064d4b688af131f81e7debdd8586d3010d01f0df387c793c3796f90cb2e1b50d",
+  "outcomes_reads": 0,
+  "projection_pass_contract": "build_validate_rebuild_validate_read_only",
+  "provider_calls": 0,
+  "schema_version": "w2.sched_peak_02.profile.v1",
+  "source_image_digest": "sha256:c6015c5b27c26fc11a3b814c7f1c49ad9075fe7bcbcd3c386ebb18395879e271",
+  "source_release": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1",
+  "stages": {
+    "analysis_card": {
+      "calls": 24,
+      "wall_seconds": 34.029683
+    },
+    "artifact_validation": {
+      "calls": 12,
+      "wall_seconds": 0.842883
+    },
+    "canonical_hashing": {
+      "calls": 52436,
+      "wall_seconds": 3.424046
+    },
+    "canonical_serialization": {
+      "calls": 24,
+      "wall_seconds": 0.315581
+    },
+    "database_driver": {
+      "calls": 1097,
+      "wall_seconds": 388.069476
+    },
+    "deterministic_sampling_10000": {
+      "calls": 24,
+      "wall_seconds": 0.393282
+    },
+    "dynamic_evaluation_projection": {
+      "calls": 24,
+      "wall_seconds": 0.00261
+    },
+    "exact_score_matrix_13x13": {
+      "calls": 24,
+      "wall_seconds": 0.208022
+    },
+    "initial_artifact_build": {
+      "calls": 6,
+      "wall_seconds": 267.61782
+    },
+    "post_write_rebuild_read_only": {
+      "calls": 6,
+      "wall_seconds": 271.921172
+    },
+    "simulation_total": {
+      "calls": 24,
+      "wall_seconds": 6.687885
+    }
+  },
+  "total_cpu_seconds": 159.142941,
+  "total_wall_seconds": 540.384975
+}

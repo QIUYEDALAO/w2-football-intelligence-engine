@@ -1,0 +1,50 @@
+{
+  "schema_version": "w2.sched_peak_02.frozen_manifest.v1",
+  "source_release": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1",
+  "source_image_digest": "sha256:c6015c5b27c26fc11a3b814c7f1c49ad9075fe7bcbcd3c386ebb18395879e271",
+  "source_schema": "0070_notification_delivery_routing",
+  "competition_id": "brasileirao_serie_a",
+  "scheduled_at": "2026-08-23T18:30:00Z",
+  "benchmark_clock": "2026-08-24T00:00:00Z",
+  "observed_task_wall_seconds": 548.38,
+  "plan_count": 8,
+  "projection_pass_contract": "build_validate_rebuild_validate_read_only",
+  "events": [
+    {
+      "fixture_id": "1492341",
+      "event_type": "ODDS_CHANGED",
+      "event_id": "odds:0c07587ade9cd0f42010a309225a1708eb98f0faeb7cd0a0e08287c3d1dfd0ef",
+      "event_at": "2026-08-23T18:38:37Z"
+    },
+    {
+      "fixture_id": "1492341",
+      "event_type": "LINEUP_CHANGED",
+      "event_id": "lineup:378967bb953617a92ab2e738511dc4507a64caf999df3b2fee2be41013d0dd04",
+      "event_at": "2026-08-23T18:38:38.142854Z"
+    },
+    {
+      "fixture_id": "1492347",
+      "event_type": "ODDS_CHANGED",
+      "event_id": "odds:4041f7a2288e83afe0728be5e424af0d58b3e9f0f22a4019bb2b2996f8e82c32",
+      "event_at": "2026-08-23T18:38:38Z"
+    },
+    {
+      "fixture_id": "1492349",
+      "event_type": "ODDS_CHANGED",
+      "event_id": "odds:aae46580ef002e55a883aec6452844bde2ef08c63c588e7ea2e2f7d3815d27c3",
+      "event_at": "2026-08-23T18:38:39Z"
+    },
+    {
+      "fixture_id": "1492342",
+      "event_type": "ODDS_CHANGED",
+      "event_id": "odds:2b42fc62b0c6d3549979bc62f10a6747e5a8e2d480062476509e4c19519d1d35",
+      "event_at": "2026-08-23T18:38:40Z"
+    },
+    {
+      "fixture_id": "1492348",
+      "event_type": "ODDS_CHANGED",
+      "event_id": "odds:e98d67565c1be49858602d4e1a17a82f270986d8555a6c34d85980dc46e99dc4",
+      "event_at": "2026-08-23T18:38:40Z"
+    }
+  ]
+}

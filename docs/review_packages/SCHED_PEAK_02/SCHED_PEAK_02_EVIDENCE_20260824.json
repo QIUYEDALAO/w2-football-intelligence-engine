@@ -1,0 +1,225 @@
+{
+  "capacity_retest_contract": {
+    "coverage_must_be_absent": true,
+    "long_term_capacity_baseline": null,
+    "measurements": [
+      "queue_seconds",
+      "claim_to_finish_seconds",
+      "task_wall_seconds",
+      "per_plan_seconds",
+      "worker_cpu_and_rss",
+      "database_connections_and_query_time",
+      "provider_call_count_and_max_elapsed_ms",
+      "window_margin_seconds"
+    ],
+    "not_before": "2026-08-28T04:37:34Z",
+    "same_1830z_slot_shape_required": true,
+    "temporary_capacity_until_retest": 2
+  },
+  "content_sha256": "b834ebc43a919b0139d5cb34c2409744a1a2806a78da4b48892dde97540695b9",
+  "coverage_ab": {
+    "coverage_cpu_multiplier": 1.178112,
+    "coverage_cpu_overhead_seconds": 24.059914,
+    "coverage_cpu_seconds": 159.142941,
+    "coverage_multiplier": 1.042229,
+    "coverage_overhead_seconds": 21.895375,
+    "coverage_rehearsal_minus_production_seconds": -7.995025,
+    "coverage_seconds_per_plan": 67.548122,
+    "coverage_wall_seconds": 540.384975,
+    "plain_cpu_seconds": 135.083027,
+    "plain_seconds_per_plan": 64.8112,
+    "plain_wall_seconds": 518.4896,
+    "production_observed_seconds_per_plan": 68.5475,
+    "production_observed_task_wall_seconds": 548.38,
+    "production_wall_explained_ratio": 0.985421
+  },
+  "coverage_event_timings": [
+    {
+      "artifact_bytes": 641142,
+      "artifact_hash": "c2195f64d23a64f7fa17a2e34e7fea5c6b87678bac3d77364acf80da0c2ac9b9",
+      "event_at": "2026-08-23T18:38:37Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492341",
+      "wall_seconds": 92.923821
+    },
+    {
+      "artifact_bytes": 644147,
+      "artifact_hash": "7393e432b46b1f3fdb7cb7b15104e0006d64a7714f509741dd7638645ec20442",
+      "event_at": "2026-08-23T18:38:38.142854Z",
+      "event_type": "LINEUP_CHANGED",
+      "fixture_id": "1492341",
+      "wall_seconds": 95.271156
+    },
+    {
+      "artifact_bytes": 616563,
+      "artifact_hash": "ef834747a1969067e26719293d6b3b637c73a9dcfd56df616d2a35f8521400b1",
+      "event_at": "2026-08-23T18:38:38Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492347",
+      "wall_seconds": 88.072067
+    },
+    {
+      "artifact_bytes": 521855,
+      "artifact_hash": "d491debc74cd7787f480aba629d5593df9382abc8d1e5f3e59c17a75dd104d7c",
+      "event_at": "2026-08-23T18:38:39Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492349",
+      "wall_seconds": 89.180518
+    },
+    {
+      "artifact_bytes": 530439,
+      "artifact_hash": "2a60e6667d530d3d2e5325a3d55b3453ea90c8c37037719b5314bc42ce0ec646",
+      "event_at": "2026-08-23T18:38:40Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492342",
+      "wall_seconds": 87.005305
+    },
+    {
+      "artifact_bytes": 585553,
+      "artifact_hash": "6013eec7ac41f57559f551c415d5651a9a1c79a18c509505415e74d140e28dfe",
+      "event_at": "2026-08-23T18:38:40Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492348",
+      "wall_seconds": 87.930034
+    }
+  ],
+  "frozen_manifest": {
+    "analysis_call_count": 24,
+    "competition_id": "brasileirao_serie_a",
+    "event_count": 6,
+    "plan_count": 8,
+    "sha256": "064d4b688af131f81e7debdd8586d3010d01f0df387c793c3796f90cb2e1b50d",
+    "source_image_digest": "sha256:c6015c5b27c26fc11a3b814c7f1c49ad9075fe7bcbcd3c386ebb18395879e271",
+    "source_release": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1"
+  },
+  "plain_event_timings": [
+    {
+      "artifact_bytes": 641142,
+      "artifact_hash": "c2195f64d23a64f7fa17a2e34e7fea5c6b87678bac3d77364acf80da0c2ac9b9",
+      "event_at": "2026-08-23T18:38:37Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492341",
+      "wall_seconds": 87.494738
+    },
+    {
+      "artifact_bytes": 644147,
+      "artifact_hash": "7393e432b46b1f3fdb7cb7b15104e0006d64a7714f509741dd7638645ec20442",
+      "event_at": "2026-08-23T18:38:38.142854Z",
+      "event_type": "LINEUP_CHANGED",
+      "fixture_id": "1492341",
+      "wall_seconds": 88.524239
+    },
+    {
+      "artifact_bytes": 616563,
+      "artifact_hash": "ef834747a1969067e26719293d6b3b637c73a9dcfd56df616d2a35f8521400b1",
+      "event_at": "2026-08-23T18:38:38Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492347",
+      "wall_seconds": 84.616363
+    },
+    {
+      "artifact_bytes": 521855,
+      "artifact_hash": "d491debc74cd7787f480aba629d5593df9382abc8d1e5f3e59c17a75dd104d7c",
+      "event_at": "2026-08-23T18:38:39Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492349",
+      "wall_seconds": 85.681076
+    },
+    {
+      "artifact_bytes": 530439,
+      "artifact_hash": "2a60e6667d530d3d2e5325a3d55b3453ea90c8c37037719b5314bc42ce0ec646",
+      "event_at": "2026-08-23T18:38:40Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492342",
+      "wall_seconds": 83.647902
+    },
+    {
+      "artifact_bytes": 585553,
+      "artifact_hash": "6013eec7ac41f57559f551c415d5651a9a1c79a18c509505415e74d140e28dfe",
+      "event_at": "2026-08-23T18:38:40Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492348",
+      "wall_seconds": 88.523927
+    }
+  ],
+  "profile_sha256": {
+    "coverage": "3047b9764cbd997f724d425209416add346d4763f15d257f52aa90bc4c5aa571",
+    "plain": "f96c917ecfa1490a189f012c9d01de5bb05227ce89bcad9b38af36f9b37b2334"
+  },
+  "safety": {
+    "benchmark_database": "isolated_clone_read_only",
+    "deployment": false,
+    "outcomes_reads": 0,
+    "production_database_writes": 0,
+    "provider_calls": 0
+  },
+  "schema_version": "w2.sched_peak_02.evidence.v1",
+  "stage_comparison": {
+    "analysis_card": {
+      "calls": 24,
+      "coverage_seconds": 34.029683,
+      "multiplier": 2.098659,
+      "plain_seconds": 16.214968
+    },
+    "artifact_validation": {
+      "calls": 12,
+      "coverage_seconds": 0.842883,
+      "multiplier": 0.993084,
+      "plain_seconds": 0.848753
+    },
+    "canonical_hashing": {
+      "calls": 52436,
+      "coverage_seconds": 3.424046,
+      "multiplier": 1.200507,
+      "plain_seconds": 2.852167
+    },
+    "canonical_serialization": {
+      "calls": 24,
+      "coverage_seconds": 0.315581,
+      "multiplier": 0.967334,
+      "plain_seconds": 0.326238
+    },
+    "database_driver": {
+      "calls": 1097,
+      "coverage_seconds": 388.069476,
+      "multiplier": 0.996349,
+      "plain_seconds": 389.491477
+    },
+    "deterministic_sampling_10000": {
+      "calls": 24,
+      "coverage_seconds": 0.393282,
+      "multiplier": 2.935488,
+      "plain_seconds": 0.133975
+    },
+    "dynamic_evaluation_projection": {
+      "calls": 24,
+      "coverage_seconds": 0.00261,
+      "multiplier": 2.146382,
+      "plain_seconds": 0.001216
+    },
+    "exact_score_matrix_13x13": {
+      "calls": 24,
+      "coverage_seconds": 0.208022,
+      "multiplier": 4.389854,
+      "plain_seconds": 0.047387
+    },
+    "initial_artifact_build": {
+      "calls": 6,
+      "coverage_seconds": 267.61782,
+      "multiplier": 1.032423,
+      "plain_seconds": 259.213358
+    },
+    "post_write_rebuild_read_only": {
+      "calls": 6,
+      "coverage_seconds": 271.921172,
+      "multiplier": 1.052224,
+      "plain_seconds": 258.425267
+    },
+    "simulation_total": {
+      "calls": 24,
+      "coverage_seconds": 6.687885,
+      "multiplier": 2.88517,
+      "plain_seconds": 2.318021
+    }
+  }
+}
