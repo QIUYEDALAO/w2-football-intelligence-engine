@@ -23,10 +23,16 @@ GUARD_MINUTES=${W2_XG_REFRESH_PREMATCH_GUARD_MINUTES:-45}
 MIN_COVERAGE=${W2_XG_REFRESH_MIN_COVERAGE_PERCENT:-70}
 PSQL="docker exec -i w2-staging-postgres-1 psql -XAt -U w2_user -d w2"
 
-# Runtime authority is league_season, so a reviewed enable/disable decision is
-# picked up without maintaining a second hard-coded competition list here.
-COMPS=${W2_XG_REFRESH_COMPETITIONS:-$($PSQL -c "SELECT competition_id FROM league_season
-  WHERE (payload->>'enabled')::boolean IS TRUE ORDER BY competition_id;" 2>/dev/null)}
+# Runtime authority is the current league_season named by league_profile, so a
+# reviewed enable/disable decision is picked up without a second hard-coded
+# competition list or accidentally reviving an enabled historical season.
+COMPS=${W2_XG_REFRESH_COMPETITIONS:-$($PSQL -c "SELECT s.competition_id
+  FROM league_season s
+  JOIN league_profile p ON p.competition_id = s.competition_id
+  WHERE (s.payload->>'enabled')::boolean IS TRUE
+    AND (coalesce(p.payload->>'current_season', '') = ''
+         OR s.season = p.payload->>'current_season')
+  ORDER BY s.competition_id;" 2>/dev/null)}
 [ -n "$COMPS" ] || { echo "XG_REFRESH_SKIPPED_NO_ENABLED_COMPETITIONS"; exit 0; }
 
 docker inspect w2-staging-scheduler-1 >/dev/null 2>&1 || { echo "XG_REFRESH_SKIPPED_SCHEDULER_ABSENT"; exit 0; }

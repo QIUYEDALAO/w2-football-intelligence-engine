@@ -37,7 +37,7 @@ is false by design so one run cannot sweep every competition at once, which
 left no path for keeping xG current: `team_xg_match` sat at 18,696 while 144
 finished matches carried a result and no xG, and the rolling five-match window
 kept reaching further back until the restarted European leagues priced August
-fixtures off May evidence. `w2-xg-refresh` walks the whitelist one competition
+fixtures off May evidence. `w2-xg-refresh` walks the database-enabled current seasons one competition
 per call, which is the shape that guardrail permits, and defers itself when a
 prematch checkpoint is within 45 minutes because a checkpoint window that
 closes unserved cannot be reopened.

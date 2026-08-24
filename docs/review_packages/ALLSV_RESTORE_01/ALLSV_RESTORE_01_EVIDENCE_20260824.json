@@ -1,0 +1,72 @@
+{
+  "schema_version": "w2.allsv_restore_01.evidence.v1",
+  "task_id": "ALLSV-RESTORE-01",
+  "generated_at": "2026-08-24T09:34:00Z",
+  "status": "OWNER_SCOPE_APPROVED_PRODUCTION_ACTIONS_PENDING",
+  "evidence_sha256": "63fbfbe14c43e2d4386efa8ddbc9a66340c89176414c874dfb3bacdc58a876cd",
+  "scope": {
+    "approved_restore": "allsvenskan",
+    "must_remain_disabled": "chinese_super_league",
+    "probe_inference": "Five mature fixtures are sufficient only to falsify permanent null; they do not estimate steady-state coverage."
+  },
+  "production": {
+    "release_id": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1",
+    "schema": "0070_notification_delivery_routing",
+    "python_image_digest": "sha256:c6015c5b27c26fc11a3b814c7f1c49ad9075fe7bcbcd3c386ebb18395879e271",
+    "healthy_container_count": 6,
+    "worker_concurrency": 2,
+    "worker_concurrency_changed_at": "2026-08-24T09:04:00Z"
+  },
+  "constraints_observed": {
+    "provider_calls": 0,
+    "production_database_writes": 0,
+    "deployments": 0,
+    "outcome_reads": 0
+  },
+  "league_state": {
+    "allsvenskan_enabled": false,
+    "chinese_super_league_enabled": false
+  },
+  "allsvenskan_probe": {
+    "sample_size": 5,
+    "two_team_numeric_xg": 5,
+    "old_null_recovered": 4,
+    "steady_state_coverage_claim_authorized": false
+  },
+  "current_30d_health": {
+    "finished_fixtures": 16,
+    "covered_fixtures": 2,
+    "coverage_percent": 12.5,
+    "newest_persisted_xg_kickoff": "2026-08-21T17:00:00Z",
+    "required_coverage_percent": 70.0,
+    "maximum_newest_xg_age_days": 7,
+    "gate": "FAIL_BACKFILL_REQUIRED"
+  },
+  "checkpoint_plans": {
+    "skipped_policy_total": 1324,
+    "unexpired_exact_blocker": 1296,
+    "expired_exact_blocker": 28,
+    "unexpired_plan_set_sha256": "8998f5e00892a178ff29e3bbc9926267a616a5adaea1d73ce38c22f210bfd7de",
+    "blocker": [
+      "COMPETITION_DISABLED_NO_XG_COVERAGE"
+    ]
+  },
+  "ordered_gates": {
+    "decision_a_deploy_retry_and_dynamic_scope": "PENDING_SEPARATE_OWNER_DECISION",
+    "decision_b_controlled_backfill": "PENDING_SEPARATE_OWNER_DECISION",
+    "backfill_health_gate": "FAIL_12_5_PERCENT",
+    "sched_dedup_01_capacity_evidence": "PENDING",
+    "decision_c_enable_and_exact_reopen": "BLOCKED",
+    "postdeploy_validation": "NOT_STARTED"
+  },
+  "performance_scope": {
+    "disabled_scope_snapshot_settled_bets": 59,
+    "disabled_scope_snapshot_profit_units": -4.135,
+    "allsvenskan_historical_settled_bets": 2,
+    "allsvenskan_historical_profit_units": -0.17,
+    "projected_restored_snapshot_settled_bets": 61,
+    "projected_restored_snapshot_profit_units": -4.305,
+    "ev_gap_retest_status": "REQUIRED_AFTER_RESTORE_NOT_YET_RUN",
+    "non_claim": "The 61-bet projection is not a reproduced inferential cohort and cannot inherit the original 65-bet EV-gap test."
+  }
+}
