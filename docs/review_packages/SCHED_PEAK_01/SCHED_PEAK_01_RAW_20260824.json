@@ -1,0 +1,1006 @@
+{
+  "authority": {
+    "release_id": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1",
+    "schema": "0070_notification_delivery_routing"
+  },
+  "capacity_lines": [
+    "8",
+    "Mem:            7939        1880        1078         143        5430        6058",
+    "w2-staging-worker-1|0.23%|250MiB / 2GiB|2",
+    "w2-staging-scheduler-1|0.00%|346.5MiB / 768MiB|3",
+    "w2-staging-postgres-1|4.54%|215.2MiB / 1GiB|10",
+    "2147483648|0"
+  ],
+  "collected_at": "2026-08-24T04:10:34.447018Z",
+  "database": {
+    "older_backlog": [
+      {
+        "finished_at": "2026-08-23T18:31:24.883722+00:00",
+        "key": "checkpoint-refresh:ligue_1:2026:c373da496abccaf2",
+        "queued_at": "2026-08-23T18:24:47.226648+00:00",
+        "started_at": "2026-08-23T18:31:23.3239+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:016628f6-29f1-4f1f-b271-0d08ff3c83ff"
+      }
+    ],
+    "peak_endpoint_captures": [
+      {
+        "capture_status": "CAPTURED",
+        "checkpoint": "T15_ODDS",
+        "competition_id": "serie_a",
+        "elapsed_ms": 319,
+        "endpoint": "odds",
+        "error_code": null,
+        "fixture_id": "api_football:1550088",
+        "provider_captured_at": "2026-08-23T18:31:25+00:00",
+        "request_task_key": "matchday-intake:odds:aebfd25411c13181",
+        "requested_at": "2026-08-23T18:31:25+00:00",
+        "response_count": 1,
+        "status_code": 200
+      },
+      {
+        "capture_status": "CAPTURED",
+        "checkpoint": "T15_ODDS",
+        "competition_id": "serie_a",
+        "elapsed_ms": 305,
+        "endpoint": "odds",
+        "error_code": null,
+        "fixture_id": "api_football:1550094",
+        "provider_captured_at": "2026-08-23T18:31:25+00:00",
+        "request_task_key": "matchday-intake:odds:719a388b79cdca62",
+        "requested_at": "2026-08-23T18:31:25+00:00",
+        "response_count": 1,
+        "status_code": 200
+      },
+      {
+        "capture_status": "CAPTURED",
+        "checkpoint": "T15_ODDS",
+        "competition_id": "ligue_1",
+        "elapsed_ms": 355,
+        "endpoint": "odds",
+        "error_code": null,
+        "fixture_id": "api_football:1552735",
+        "provider_captured_at": "2026-08-23T18:36:14+00:00",
+        "request_task_key": "matchday-intake:odds:4bd0c10c28be9cb5",
+        "requested_at": "2026-08-23T18:36:14+00:00",
+        "response_count": 1,
+        "status_code": 200
+      },
+      {
+        "capture_status": "CAPTURED",
+        "checkpoint": "T-30m_VALIDATION_LOCK,T30_LINEUPS_RETRY",
+        "competition_id": "brasileirao_serie_a",
+        "elapsed_ms": 232,
+        "endpoint": "lineups",
+        "error_code": null,
+        "fixture_id": "api_football:1492341",
+        "provider_captured_at": "2026-08-23T18:38:38+00:00",
+        "request_task_key": "matchday-intake:lineups:c046c9a71fa8d3dc",
+        "requested_at": "2026-08-23T18:38:37+00:00",
+        "response_count": 2,
+        "status_code": 200
+      },
+      {
+        "capture_status": "CAPTURED",
+        "checkpoint": "T-30m_VALIDATION_LOCK",
+        "competition_id": "brasileirao_serie_a",
+        "elapsed_ms": 320,
+        "endpoint": "odds",
+        "error_code": null,
+        "fixture_id": "api_football:1492341",
+        "provider_captured_at": "2026-08-23T18:38:37+00:00",
+        "request_task_key": "matchday-intake:odds:c046c9a71fa8d3dc",
+        "requested_at": "2026-08-23T18:38:37+00:00",
+        "response_count": 1,
+        "status_code": 200
+      },
+      {
+        "capture_status": "PROVIDER_EMPTY",
+        "checkpoint": "T-30m_VALIDATION_LOCK,T30_LINEUPS_RETRY",
+        "competition_id": "brasileirao_serie_a",
+        "elapsed_ms": 224,
+        "endpoint": "lineups",
+        "error_code": null,
+        "fixture_id": "api_football:1492347",
+        "provider_captured_at": "2026-08-23T18:38:38+00:00",
+        "request_task_key": "matchday-intake:lineups:11247e4543a2b74e",
+        "requested_at": "2026-08-23T18:38:38+00:00",
+        "response_count": 0,
+        "status_code": 200
+      },
+      {
+        "capture_status": "CAPTURED",
+        "checkpoint": "T-30m_VALIDATION_LOCK",
+        "competition_id": "brasileirao_serie_a",
+        "elapsed_ms": 326,
+        "endpoint": "odds",
+        "error_code": null,
+        "fixture_id": "api_football:1492347",
+        "provider_captured_at": "2026-08-23T18:38:38+00:00",
+        "request_task_key": "matchday-intake:odds:11247e4543a2b74e",
+        "requested_at": "2026-08-23T18:38:38+00:00",
+        "response_count": 1,
+        "status_code": 200
+      },
+      {
+        "capture_status": "CAPTURED",
+        "checkpoint": "T-30m_VALIDATION_LOCK",
+        "competition_id": "brasileirao_serie_a",
+        "elapsed_ms": 295,
+        "endpoint": "odds",
+        "error_code": null,
+        "fixture_id": "api_football:1492349",
+        "provider_captured_at": "2026-08-23T18:38:39+00:00",
+        "request_task_key": "matchday-intake:odds:732ebdde9a170fa9",
+        "requested_at": "2026-08-23T18:38:38+00:00",
+        "response_count": 1,
+        "status_code": 200
+      },
+      {
+        "capture_status": "PROVIDER_EMPTY",
+        "checkpoint": "T-30m_VALIDATION_LOCK,T30_LINEUPS_RETRY",
+        "competition_id": "brasileirao_serie_a",
+        "elapsed_ms": 335,
+        "endpoint": "lineups",
+        "error_code": null,
+        "fixture_id": "api_football:1492349",
+        "provider_captured_at": "2026-08-23T18:38:39+00:00",
+        "request_task_key": "matchday-intake:lineups:732ebdde9a170fa9",
+        "requested_at": "2026-08-23T18:38:39+00:00",
+        "response_count": 0,
+        "status_code": 200
+      },
+      {
+        "capture_status": "CAPTURED",
+        "checkpoint": "T3_ODDS",
+        "competition_id": "brasileirao_serie_a",
+        "elapsed_ms": 304,
+        "endpoint": "odds",
+        "error_code": null,
+        "fixture_id": "api_football:1492342",
+        "provider_captured_at": "2026-08-23T18:38:40+00:00",
+        "request_task_key": "matchday-intake:odds:fe3ac44b515d5ec0",
+        "requested_at": "2026-08-23T18:38:39+00:00",
+        "response_count": 1,
+        "status_code": 200
+      },
+      {
+        "capture_status": "CAPTURED",
+        "checkpoint": "T3_ODDS",
+        "competition_id": "brasileirao_serie_a",
+        "elapsed_ms": 308,
+        "endpoint": "odds",
+        "error_code": null,
+        "fixture_id": "api_football:1492348",
+        "provider_captured_at": "2026-08-23T18:38:40+00:00",
+        "request_task_key": "matchday-intake:odds:f44882ed282ec540",
+        "requested_at": "2026-08-23T18:38:40+00:00",
+        "response_count": 1,
+        "status_code": 200
+      }
+    ],
+    "plans": [
+      {
+        "attempt_count": 1,
+        "blockers": [],
+        "capture_id": "5d55e38ce9f9e910704c377f826a55508f10d0bc6a2dd4e168c7676f3250357e",
+        "checkpoint": "T15_ODDS",
+        "competition_id": "serie_a",
+        "fixture_id": "api_football:1550088",
+        "kickoff_utc": "2026-08-23T18:45:00+00:00",
+        "missed_at": null,
+        "plan_id": "d12008be9c3476bd5fa56547619ebf1583d42d4b85b5a9b376314c9262f0cc68",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "CAPTURED",
+        "window_end": "2026-08-23T18:45:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      },
+      {
+        "attempt_count": 1,
+        "blockers": [],
+        "capture_id": "8cc2090b17c366ea600ce4e11c37a623215681a836191531981f27526ea1b0ba",
+        "checkpoint": "T15_ODDS",
+        "competition_id": "serie_a",
+        "fixture_id": "api_football:1550094",
+        "kickoff_utc": "2026-08-23T18:45:00+00:00",
+        "missed_at": null,
+        "plan_id": "2772d4714d4b3898c4e72655dc4d88cb1e81f7b3d0cef5ab786137a9e01ac83c",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "CAPTURED",
+        "window_end": "2026-08-23T18:45:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      },
+      {
+        "attempt_count": 1,
+        "blockers": [],
+        "capture_id": "75b3349335c286705afc4c8ca4f7dc07a96b648df9cd859e7026c4d50aaa38d4",
+        "checkpoint": "T15_ODDS",
+        "competition_id": "ligue_1",
+        "fixture_id": "api_football:1552735",
+        "kickoff_utc": "2026-08-23T18:45:00+00:00",
+        "missed_at": null,
+        "plan_id": "005cca1711af1dd8881f7226fd727395e1d71c6837e62a88299bb4d46fadf3a9",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "CAPTURED",
+        "window_end": "2026-08-23T18:45:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      },
+      {
+        "attempt_count": 1,
+        "blockers": [
+          "CHECKPOINT_MISSING"
+        ],
+        "capture_id": null,
+        "checkpoint": "T-30m_VALIDATION_LOCK",
+        "competition_id": "brasileirao_serie_a",
+        "fixture_id": "api_football:1492341",
+        "kickoff_utc": "2026-08-23T19:00:00+00:00",
+        "missed_at": "2026-08-23T18:45:55.290005+00:00",
+        "plan_id": "97edda42c93a92961077076536534e77ea899a34f7f45198728ad01fb35420f6",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "MISSED",
+        "window_end": "2026-08-23T18:45:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      },
+      {
+        "attempt_count": 1,
+        "blockers": [
+          "CHECKPOINT_MISSING"
+        ],
+        "capture_id": null,
+        "checkpoint": "T30_LINEUPS_RETRY",
+        "competition_id": "brasileirao_serie_a",
+        "fixture_id": "api_football:1492341",
+        "kickoff_utc": "2026-08-23T19:00:00+00:00",
+        "missed_at": "2026-08-23T18:45:55.290005+00:00",
+        "plan_id": "09d2c443a1a3ce8f47efcbf471a7d35935015b2ef9832772f26efa4170d6605c",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "MISSED",
+        "window_end": "2026-08-23T18:45:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      },
+      {
+        "attempt_count": 1,
+        "blockers": [
+          "CHECKPOINT_MISSING"
+        ],
+        "capture_id": null,
+        "checkpoint": "T-30m_VALIDATION_LOCK",
+        "competition_id": "brasileirao_serie_a",
+        "fixture_id": "api_football:1492347",
+        "kickoff_utc": "2026-08-23T19:00:00+00:00",
+        "missed_at": "2026-08-23T18:45:55.290005+00:00",
+        "plan_id": "607d6c5d1c78dcaa6cd4629a97e608b569050cdc0879eb22af22cec685475304",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "MISSED",
+        "window_end": "2026-08-23T18:45:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      },
+      {
+        "attempt_count": 1,
+        "blockers": [
+          "CHECKPOINT_MISSING"
+        ],
+        "capture_id": null,
+        "checkpoint": "T30_LINEUPS_RETRY",
+        "competition_id": "brasileirao_serie_a",
+        "fixture_id": "api_football:1492347",
+        "kickoff_utc": "2026-08-23T19:00:00+00:00",
+        "missed_at": "2026-08-23T18:45:55.290005+00:00",
+        "plan_id": "8d517a5fe90b8d8ee22fcc0514d2f42253fdfbd06e9d5698458308736326689c",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "MISSED",
+        "window_end": "2026-08-23T18:45:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      },
+      {
+        "attempt_count": 1,
+        "blockers": [
+          "CHECKPOINT_MISSING"
+        ],
+        "capture_id": null,
+        "checkpoint": "T-30m_VALIDATION_LOCK",
+        "competition_id": "brasileirao_serie_a",
+        "fixture_id": "api_football:1492349",
+        "kickoff_utc": "2026-08-23T19:00:00+00:00",
+        "missed_at": "2026-08-23T18:45:55.290005+00:00",
+        "plan_id": "4e275f6bedbc10f213c15af0cad020bd200cdaefabf25731418eeffce449c486",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "MISSED",
+        "window_end": "2026-08-23T18:45:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      },
+      {
+        "attempt_count": 1,
+        "blockers": [
+          "CHECKPOINT_MISSING"
+        ],
+        "capture_id": null,
+        "checkpoint": "T30_LINEUPS_RETRY",
+        "competition_id": "brasileirao_serie_a",
+        "fixture_id": "api_football:1492349",
+        "kickoff_utc": "2026-08-23T19:00:00+00:00",
+        "missed_at": "2026-08-23T18:45:55.290005+00:00",
+        "plan_id": "382112cc450561595e937d7386935297c4fbc3362d03ed8086b051fcd1e78aa3",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "MISSED",
+        "window_end": "2026-08-23T18:45:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      },
+      {
+        "attempt_count": 2,
+        "blockers": [],
+        "capture_id": null,
+        "checkpoint": "T60_ODDS_LINEUPS",
+        "competition_id": "la_liga",
+        "fixture_id": "api_football:1570346",
+        "kickoff_utc": "2026-08-23T19:30:00+00:00",
+        "missed_at": null,
+        "plan_id": "597caa1b697896feb0e8ad6b8654d3c3d93b325bed3c4b5403d0dc4a470a4547",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "PROVIDER_EMPTY",
+        "window_end": "2026-08-23T18:50:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      },
+      {
+        "attempt_count": 2,
+        "blockers": [],
+        "capture_id": null,
+        "checkpoint": "T60_ODDS_LINEUPS",
+        "competition_id": "primeira_liga",
+        "fixture_id": "api_football:1575466",
+        "kickoff_utc": "2026-08-23T19:30:00+00:00",
+        "missed_at": null,
+        "plan_id": "bb7ddb0de7b25f5b293e1d04638291186b9f0d2ff4c712b3d07f483754f812c7",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "FAILED",
+        "window_end": "2026-08-23T18:50:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      },
+      {
+        "attempt_count": 2,
+        "blockers": [
+          "CHECKPOINT_MISSING"
+        ],
+        "capture_id": null,
+        "checkpoint": "T3_ODDS",
+        "competition_id": "brasileirao_serie_a",
+        "fixture_id": "api_football:1492342",
+        "kickoff_utc": "2026-08-23T21:30:00+00:00",
+        "missed_at": "2026-08-23T19:01:01.128179+00:00",
+        "plan_id": "d136d4c156701f7f0ea4716beec18dfdb5d3f3608dd12263e555a2eb815b5284",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "MISSED",
+        "window_end": "2026-08-23T19:00:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      },
+      {
+        "attempt_count": 2,
+        "blockers": [
+          "CHECKPOINT_MISSING"
+        ],
+        "capture_id": null,
+        "checkpoint": "T3_ODDS",
+        "competition_id": "brasileirao_serie_a",
+        "fixture_id": "api_football:1492348",
+        "kickoff_utc": "2026-08-23T21:30:00+00:00",
+        "missed_at": "2026-08-23T19:01:01.128179+00:00",
+        "plan_id": "7797d0e71eee694feeed221ae61343329c402b674316ff91b567a7f5a11db79e",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "MISSED",
+        "window_end": "2026-08-23T19:00:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      },
+      {
+        "attempt_count": 2,
+        "blockers": [
+          "CHECKPOINT_MISSING"
+        ],
+        "capture_id": null,
+        "checkpoint": "T6_ODDS",
+        "competition_id": "argentina_primera",
+        "fixture_id": "api_football:1493087",
+        "kickoff_utc": "2026-08-24T00:30:00+00:00",
+        "missed_at": "2026-08-23T19:01:01.128179+00:00",
+        "plan_id": "198b8fc2123ebe12aedc6440d07b4fde32909fa2c47bdb581e4e09ee72a493c4",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "MISSED",
+        "window_end": "2026-08-23T19:00:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      },
+      {
+        "attempt_count": 3,
+        "blockers": [],
+        "capture_id": null,
+        "checkpoint": "POSTMATCH_RESULT",
+        "competition_id": "premier_league",
+        "fixture_id": "api_football:1557375",
+        "kickoff_utc": "2026-08-23T15:30:00+00:00",
+        "missed_at": null,
+        "plan_id": "785d650abbbc09093f6d50840c8847e435c0e24b11d6fa55b13de83e567c0622",
+        "scheduled_at": "2026-08-23T18:30:00+00:00",
+        "status": "CAPTURED",
+        "window_end": "2026-08-25T03:30:00+00:00",
+        "window_start": "2026-08-23T18:30:00+00:00"
+      }
+    ],
+    "provider_window": {
+      "attempts": 14,
+      "errors": 0,
+      "last_completed_at": "2026-08-23T18:38:40.507132+00:00",
+      "max_seconds": 0.355263,
+      "p95_seconds": 0.342247,
+      "timeouts": 0
+    },
+    "schema": "0070_notification_delivery_routing",
+    "snapshot_at": "2026-08-24T04:10:37.219929+00:00",
+    "tasks": [
+      {
+        "blockers": [
+          "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+        ],
+        "checkpoint_fixture_ids": [
+          "1552735"
+        ],
+        "finished_at": "2026-08-23T18:31:24.883722+00:00",
+        "key": "checkpoint-refresh:ligue_1:2026:c373da496abccaf2",
+        "queue_seconds": 396.097252,
+        "queued_at": "2026-08-23T18:24:47.226648+00:00",
+        "request_count": 1,
+        "run_seconds": 1.559822,
+        "started_at": "2026-08-23T18:31:23.3239+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:016628f6-29f1-4f1f-b271-0d08ff3c83ff"
+      },
+      {
+        "blockers": [],
+        "checkpoint_fixture_ids": [
+          "api_football:1550088",
+          "api_football:1550094"
+        ],
+        "finished_at": "2026-08-23T18:35:03.314541+00:00",
+        "key": "checkpoint-refresh:serie_a:2026:aa4ee09216a67a0b",
+        "queue_seconds": 35.420999,
+        "queued_at": "2026-08-23T18:30:49.501785+00:00",
+        "request_count": 2,
+        "run_seconds": 218.391757,
+        "started_at": "2026-08-23T18:31:24.922784+00:00",
+        "status": "COMPLETED",
+        "task_id": "checkpoint-refresh:fca5eb98-e92c-4ca7-9ffd-d24f34c8d483"
+      },
+      {
+        "blockers": [],
+        "checkpoint_fixture_ids": [
+          "api_football:1552735"
+        ],
+        "finished_at": "2026-08-23T18:38:02.280941+00:00",
+        "key": "checkpoint-refresh:ligue_1:2026:23c7467a0b619807",
+        "queue_seconds": 324.816581,
+        "queued_at": "2026-08-23T18:30:49.501785+00:00",
+        "request_count": 1,
+        "run_seconds": 107.962575,
+        "started_at": "2026-08-23T18:36:14.318366+00:00",
+        "status": "COMPLETED",
+        "task_id": "checkpoint-refresh:91d2013b-5c63-4ee7-80ea-d5baec867aa0"
+      },
+      {
+        "blockers": [
+          "CHECKPOINT_CLAIM_TOKEN_MISMATCH"
+        ],
+        "checkpoint_fixture_ids": null,
+        "finished_at": "2026-08-23T18:47:45.512591+00:00",
+        "key": "checkpoint-refresh:brasileirao_serie_a:2026:23bb2eef33b99ce7",
+        "queue_seconds": 467.645293,
+        "queued_at": "2026-08-23T18:30:49.501785+00:00",
+        "request_count": null,
+        "run_seconds": 548.365513,
+        "started_at": "2026-08-23T18:38:37.147078+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:b1f7bfd9-415d-475b-869d-beebc1dce0eb"
+      },
+      {
+        "blockers": [
+          "CHECKPOINT_CLAIM_TOKEN_MISMATCH"
+        ],
+        "checkpoint_fixture_ids": null,
+        "finished_at": "2026-08-23T18:47:45.591144+00:00",
+        "key": "checkpoint-refresh:la_liga:2026:c36a8d87ad4a9b39",
+        "queue_seconds": 1016.031569,
+        "queued_at": "2026-08-23T18:30:49.501785+00:00",
+        "request_count": null,
+        "run_seconds": 0.05779,
+        "started_at": "2026-08-23T18:47:45.533354+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:dc2fdd8f-2182-452d-9575-48c366e09189"
+      },
+      {
+        "blockers": [
+          "CHECKPOINT_CLAIM_TOKEN_MISMATCH"
+        ],
+        "checkpoint_fixture_ids": null,
+        "finished_at": "2026-08-23T18:47:45.677037+00:00",
+        "key": "checkpoint-refresh:primeira_liga:2026:93e9ccf70f6bf043",
+        "queue_seconds": 1016.109548,
+        "queued_at": "2026-08-23T18:30:49.501785+00:00",
+        "request_count": null,
+        "run_seconds": 0.065704,
+        "started_at": "2026-08-23T18:47:45.611333+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:0e2c517c-43ce-4c1e-ac20-a2338ce26229"
+      },
+      {
+        "blockers": [
+          "CHECKPOINT_CLAIM_TOKEN_MISMATCH"
+        ],
+        "checkpoint_fixture_ids": null,
+        "finished_at": "2026-08-23T18:47:45.766397+00:00",
+        "key": "checkpoint-refresh:argentina_primera:2026:0308e80a29633290",
+        "queue_seconds": 1016.195755,
+        "queued_at": "2026-08-23T18:30:49.501785+00:00",
+        "request_count": null,
+        "run_seconds": 0.068857,
+        "started_at": "2026-08-23T18:47:45.69754+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:74791ae6-e9e8-4bcf-b2e4-1846f31c998e"
+      },
+      {
+        "blockers": [
+          "CHECKPOINT_CLAIM_TOKEN_MISMATCH"
+        ],
+        "checkpoint_fixture_ids": null,
+        "finished_at": "2026-08-23T18:47:45.844535+00:00",
+        "key": "checkpoint-refresh:premier_league:2026:2d29310aefe043ca",
+        "queue_seconds": 955.81067,
+        "queued_at": "2026-08-23T18:31:49.967989+00:00",
+        "request_count": null,
+        "run_seconds": 0.065876,
+        "started_at": "2026-08-23T18:47:45.778659+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:5b7ca730-db6d-46a5-aab1-4939335a1b2b"
+      },
+      {
+        "blockers": [
+          "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+        ],
+        "checkpoint_fixture_ids": [
+          "1492341"
+        ],
+        "finished_at": "2026-08-23T18:48:29.035429+00:00",
+        "key": "checkpoint-refresh:brasileirao_serie_a:2026:8c4bbe9462f89d86",
+        "queue_seconds": 272.844435,
+        "queued_at": "2026-08-23T18:43:54.678552+00:00",
+        "request_count": 1,
+        "run_seconds": 1.512442,
+        "started_at": "2026-08-23T18:48:27.522987+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:89ea082b-bcec-4e40-a7f6-788887053f5f"
+      },
+      {
+        "blockers": [],
+        "checkpoint_fixture_ids": [
+          "api_football:1570346",
+          "api_football:1570346",
+          "api_football:1570346"
+        ],
+        "finished_at": "2026-08-23T18:50:12.253205+00:00",
+        "key": "checkpoint-refresh:la_liga:2026:f2d3fcba9cac8197",
+        "queue_seconds": 153.777499,
+        "queued_at": "2026-08-23T18:45:55.290005+00:00",
+        "request_count": 2,
+        "run_seconds": 103.185701,
+        "started_at": "2026-08-23T18:48:29.067504+00:00",
+        "status": "COMPLETED",
+        "task_id": "checkpoint-refresh:cd8c9c26-665f-4681-a1f6-20848d7930b2"
+      },
+      {
+        "blockers": [],
+        "checkpoint_fixture_ids": [
+          "api_football:1575466",
+          "api_football:1575466",
+          "api_football:1575466"
+        ],
+        "finished_at": "2026-08-23T18:52:37.483632+00:00",
+        "key": "checkpoint-refresh:primeira_liga:2026:d276141f14e86f55",
+        "queue_seconds": 319.879121,
+        "queued_at": "2026-08-23T18:45:55.290005+00:00",
+        "request_count": 2,
+        "run_seconds": 82.314506,
+        "started_at": "2026-08-23T18:51:15.169126+00:00",
+        "status": "COMPLETED",
+        "task_id": "checkpoint-refresh:aedd2e0c-147f-46d7-b924-2b8b87bb666d"
+      },
+      {
+        "blockers": [
+          "CHECKPOINT_CLAIM_TOKEN_MISMATCH"
+        ],
+        "checkpoint_fixture_ids": null,
+        "finished_at": "2026-08-23T19:01:50.753016+00:00",
+        "key": "checkpoint-refresh:brasileirao_serie_a:2026:b3a7a127bd0ef697",
+        "queue_seconds": 448.397352,
+        "queued_at": "2026-08-23T18:45:55.290005+00:00",
+        "request_count": null,
+        "run_seconds": 507.065659,
+        "started_at": "2026-08-23T18:53:23.687357+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:5e202d92-ec6e-4a95-baec-b04eadb3ee7e"
+      },
+      {
+        "blockers": [
+          "CHECKPOINT_BATCH_NO_VALID_CLAIMS"
+        ],
+        "checkpoint_fixture_ids": null,
+        "finished_at": "2026-08-23T19:01:50.824375+00:00",
+        "key": "checkpoint-refresh:argentina_primera:2026:89f5adbaae21b3ad",
+        "queue_seconds": 955.479696,
+        "queued_at": "2026-08-23T18:45:55.290005+00:00",
+        "request_count": null,
+        "run_seconds": 0.054674,
+        "started_at": "2026-08-23T19:01:50.769701+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:0e4a9239-3ffe-4dfd-ab42-96d2289dfa21"
+      },
+      {
+        "blockers": [
+          "CHECKPOINT_CLAIM_TOKEN_MISMATCH"
+        ],
+        "checkpoint_fixture_ids": null,
+        "finished_at": "2026-08-23T19:01:50.911265+00:00",
+        "key": "checkpoint-refresh:serie_a:2026:954e934496f7a3dd",
+        "queue_seconds": 955.556802,
+        "queued_at": "2026-08-23T18:45:55.290005+00:00",
+        "request_count": null,
+        "run_seconds": 0.064458,
+        "started_at": "2026-08-23T19:01:50.846807+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:2e28e19e-94f3-4975-b3ba-fe57d5347c4c"
+      },
+      {
+        "blockers": [
+          "CHECKPOINT_CLAIM_TOKEN_MISMATCH"
+        ],
+        "checkpoint_fixture_ids": null,
+        "finished_at": "2026-08-23T19:01:50.981651+00:00",
+        "key": "checkpoint-refresh:ligue_1:2026:f67f0d3d1d525871",
+        "queue_seconds": 955.641957,
+        "queued_at": "2026-08-23T18:45:55.290005+00:00",
+        "request_count": null,
+        "run_seconds": 0.049689,
+        "started_at": "2026-08-23T19:01:50.931962+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:faa2d166-7067-43c4-abf0-407d1994bd86"
+      },
+      {
+        "blockers": [
+          "CHECKPOINT_CLAIM_TOKEN_MISMATCH"
+        ],
+        "checkpoint_fixture_ids": null,
+        "finished_at": "2026-08-23T19:02:25.053446+00:00",
+        "key": "checkpoint-refresh:premier_league:2026:3cb2708c0d41c683",
+        "queue_seconds": 894.918147,
+        "queued_at": "2026-08-23T18:46:56.075761+00:00",
+        "request_count": null,
+        "run_seconds": 34.059538,
+        "started_at": "2026-08-23T19:01:50.993908+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:ff29d984-cdf6-4fbb-87c8-96ad13f2ff0e"
+      },
+      {
+        "blockers": [],
+        "checkpoint_fixture_ids": [
+          "api_football:1570346",
+          "api_football:1570346",
+          "api_football:1570342",
+          "api_football:1570340"
+        ],
+        "finished_at": "2026-08-23T19:06:57.785348+00:00",
+        "key": "checkpoint-refresh:la_liga:2026:aced0f0a2c07bcd2",
+        "queue_seconds": 145.547025,
+        "queued_at": "2026-08-23T19:00:00.79101+00:00",
+        "request_count": 4,
+        "run_seconds": 271.447313,
+        "started_at": "2026-08-23T19:02:26.338035+00:00",
+        "status": "COMPLETED",
+        "task_id": "checkpoint-refresh:2352135d-03f9-4ad6-b57f-909f0aaf0ae3"
+      },
+      {
+        "blockers": [],
+        "checkpoint_fixture_ids": [
+          "api_football:1575466",
+          "api_football:1575466"
+        ],
+        "finished_at": "2026-08-23T19:10:15.328276+00:00",
+        "key": "checkpoint-refresh:primeira_liga:2026:e079c42577a921dd",
+        "queue_seconds": 449.986824,
+        "queued_at": "2026-08-23T19:00:00.79101+00:00",
+        "request_count": 2,
+        "run_seconds": 164.550442,
+        "started_at": "2026-08-23T19:07:30.777834+00:00",
+        "status": "COMPLETED",
+        "task_id": "checkpoint-refresh:d44ec22d-81d3-4054-99b2-c225f32a223e"
+      },
+      {
+        "blockers": [],
+        "checkpoint_fixture_ids": [
+          "api_football:1493080"
+        ],
+        "finished_at": "2026-08-23T19:11:48.775266+00:00",
+        "key": "checkpoint-refresh:argentina_primera:2026:22466e28d8e0ab48",
+        "queue_seconds": 640.900802,
+        "queued_at": "2026-08-23T19:00:00.79101+00:00",
+        "request_count": 2,
+        "run_seconds": 67.083454,
+        "started_at": "2026-08-23T19:10:41.691812+00:00",
+        "status": "COMPLETED",
+        "task_id": "checkpoint-refresh:69bcb4b4-ceea-492b-b5d2-43ff7a47bedc"
+      },
+      {
+        "blockers": [],
+        "checkpoint_fixture_ids": [
+          "api_football:1557376"
+        ],
+        "finished_at": "2026-08-23T19:12:57.018131+00:00",
+        "key": "checkpoint-refresh:premier_league:2026:6c7d5e22676e816a",
+        "queue_seconds": 728.588194,
+        "queued_at": "2026-08-23T19:00:00.79101+00:00",
+        "request_count": 1,
+        "run_seconds": 47.638927,
+        "started_at": "2026-08-23T19:12:09.379204+00:00",
+        "status": "COMPLETED",
+        "task_id": "checkpoint-refresh:58e6d56a-86db-409f-bec0-a127d19861f3"
+      },
+      {
+        "blockers": [],
+        "checkpoint_fixture_ids": [
+          "api_football:1492353",
+          "api_football:1492354"
+        ],
+        "finished_at": "2026-08-23T19:13:26.157509+00:00",
+        "key": "checkpoint-refresh:brasileirao_serie_a:2026:99a44418ff0eae29",
+        "queue_seconds": 776.251926,
+        "queued_at": "2026-08-23T19:00:00.79101+00:00",
+        "request_count": 2,
+        "run_seconds": 29.114573,
+        "started_at": "2026-08-23T19:12:57.042936+00:00",
+        "status": "COMPLETED",
+        "task_id": "checkpoint-refresh:cd388f0d-ad87-4909-a469-83c94d3e4ad9"
+      },
+      {
+        "blockers": [],
+        "checkpoint_fixture_ids": [
+          "api_football:1550087",
+          "api_football:1550099",
+          "api_football:1550102"
+        ],
+        "finished_at": "2026-08-23T19:14:34.06624+00:00",
+        "key": "checkpoint-refresh:serie_a:2026:92e0935cb808f5ee",
+        "queue_seconds": 745.044613,
+        "queued_at": "2026-08-23T19:01:01.128179+00:00",
+        "request_count": 3,
+        "run_seconds": 67.893448,
+        "started_at": "2026-08-23T19:13:26.172792+00:00",
+        "status": "COMPLETED",
+        "task_id": "checkpoint-refresh:dbe85c64-120e-4022-9619-4d35c78cbe0e"
+      },
+      {
+        "blockers": [],
+        "checkpoint_fixture_ids": [
+          "api_football:1552742"
+        ],
+        "finished_at": "2026-08-23T19:14:44.231897+00:00",
+        "key": "checkpoint-refresh:ligue_1:2026:2dc5a0bb23c33cf4",
+        "queue_seconds": 812.955039,
+        "queued_at": "2026-08-23T19:01:01.128179+00:00",
+        "request_count": 1,
+        "run_seconds": 10.148679,
+        "started_at": "2026-08-23T19:14:34.083218+00:00",
+        "status": "COMPLETED",
+        "task_id": "checkpoint-refresh:01810cfd-65c0-4d41-82bb-dd9cab7de67e"
+      },
+      {
+        "blockers": [],
+        "checkpoint_fixture_ids": [
+          "api_football:1557375"
+        ],
+        "finished_at": "2026-08-23T19:15:17.842763+00:00",
+        "key": "checkpoint-refresh:premier_league:2026:4d1bb47cbbc55abf",
+        "queue_seconds": 762.281541,
+        "queued_at": "2026-08-23T19:02:01.970677+00:00",
+        "request_count": 2,
+        "run_seconds": 33.590545,
+        "started_at": "2026-08-23T19:14:44.252218+00:00",
+        "status": "COMPLETED",
+        "task_id": "checkpoint-refresh:fa576632-c9ca-4b7b-81a2-b92b5bdadea7"
+      }
+    ]
+  },
+  "dispatch": {
+    "all_due_projected_calls": 16,
+    "due_checkpoint_count": 14,
+    "groups": [
+      {
+        "checkpoint_count": 2,
+        "competition_id": "serie_a",
+        "task_id": "checkpoint-refresh:fca5eb98-e92c-4ca7-9ffd-d24f34c8d483"
+      },
+      {
+        "checkpoint_count": 1,
+        "competition_id": "ligue_1",
+        "task_id": "checkpoint-refresh:91d2013b-5c63-4ee7-80ea-d5baec867aa0"
+      },
+      {
+        "checkpoint_count": 8,
+        "competition_id": "brasileirao_serie_a",
+        "task_id": "checkpoint-refresh:b1f7bfd9-415d-475b-869d-beebc1dce0eb"
+      },
+      {
+        "checkpoint_count": 1,
+        "competition_id": "la_liga",
+        "task_id": "checkpoint-refresh:dc2fdd8f-2182-452d-9575-48c366e09189"
+      },
+      {
+        "checkpoint_count": 1,
+        "competition_id": "primeira_liga",
+        "task_id": "checkpoint-refresh:0e2c517c-43ce-4c1e-ac20-a2338ce26229"
+      },
+      {
+        "checkpoint_count": 1,
+        "competition_id": "argentina_primera",
+        "task_id": "checkpoint-refresh:74791ae6-e9e8-4bcf-b2e4-1846f31c998e"
+      }
+    ],
+    "plans": [
+      {
+        "checkpoint": "T15_ODDS",
+        "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+        "competition_id": "serie_a",
+        "due_at": "2026-08-23T18:30:00Z",
+        "fixture_id": "api_football:1550088",
+        "plan_id": "d12008be9c3476bd5fa56547619ebf1583d42d4b85b5a9b376314c9262f0cc68",
+        "window_end": "2026-08-23T18:45:00Z"
+      },
+      {
+        "checkpoint": "T15_ODDS",
+        "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+        "competition_id": "serie_a",
+        "due_at": "2026-08-23T18:30:00Z",
+        "fixture_id": "api_football:1550094",
+        "plan_id": "2772d4714d4b3898c4e72655dc4d88cb1e81f7b3d0cef5ab786137a9e01ac83c",
+        "window_end": "2026-08-23T18:45:00Z"
+      },
+      {
+        "checkpoint": "T15_ODDS",
+        "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+        "competition_id": "ligue_1",
+        "due_at": "2026-08-23T18:30:00Z",
+        "fixture_id": "api_football:1552735",
+        "plan_id": "005cca1711af1dd8881f7226fd727395e1d71c6837e62a88299bb4d46fadf3a9",
+        "window_end": "2026-08-23T18:45:00Z"
+      },
+      {
+        "checkpoint": "T-30m_VALIDATION_LOCK",
+        "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+        "competition_id": "brasileirao_serie_a",
+        "due_at": "2026-08-23T18:30:00Z",
+        "fixture_id": "api_football:1492341",
+        "plan_id": "97edda42c93a92961077076536534e77ea899a34f7f45198728ad01fb35420f6",
+        "window_end": "2026-08-23T18:45:00Z"
+      },
+      {
+        "checkpoint": "T30_LINEUPS_RETRY",
+        "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+        "competition_id": "brasileirao_serie_a",
+        "due_at": "2026-08-23T18:30:00Z",
+        "fixture_id": "api_football:1492341",
+        "plan_id": "09d2c443a1a3ce8f47efcbf471a7d35935015b2ef9832772f26efa4170d6605c",
+        "window_end": "2026-08-23T18:45:00Z"
+      },
+      {
+        "checkpoint": "T-30m_VALIDATION_LOCK",
+        "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+        "competition_id": "brasileirao_serie_a",
+        "due_at": "2026-08-23T18:30:00Z",
+        "fixture_id": "api_football:1492347",
+        "plan_id": "607d6c5d1c78dcaa6cd4629a97e608b569050cdc0879eb22af22cec685475304",
+        "window_end": "2026-08-23T18:45:00Z"
+      },
+      {
+        "checkpoint": "T30_LINEUPS_RETRY",
+        "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+        "competition_id": "brasileirao_serie_a",
+        "due_at": "2026-08-23T18:30:00Z",
+        "fixture_id": "api_football:1492347",
+        "plan_id": "8d517a5fe90b8d8ee22fcc0514d2f42253fdfbd06e9d5698458308736326689c",
+        "window_end": "2026-08-23T18:45:00Z"
+      },
+      {
+        "checkpoint": "T-30m_VALIDATION_LOCK",
+        "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+        "competition_id": "brasileirao_serie_a",
+        "due_at": "2026-08-23T18:30:00Z",
+        "fixture_id": "api_football:1492349",
+        "plan_id": "4e275f6bedbc10f213c15af0cad020bd200cdaefabf25731418eeffce449c486",
+        "window_end": "2026-08-23T18:45:00Z"
+      },
+      {
+        "checkpoint": "T30_LINEUPS_RETRY",
+        "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+        "competition_id": "brasileirao_serie_a",
+        "due_at": "2026-08-23T18:30:00Z",
+        "fixture_id": "api_football:1492349",
+        "plan_id": "382112cc450561595e937d7386935297c4fbc3362d03ed8086b051fcd1e78aa3",
+        "window_end": "2026-08-23T18:45:00Z"
+      },
+      {
+        "checkpoint": "T60_ODDS_LINEUPS",
+        "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+        "competition_id": "la_liga",
+        "due_at": "2026-08-23T18:30:00Z",
+        "fixture_id": "api_football:1570346",
+        "plan_id": "597caa1b697896feb0e8ad6b8654d3c3d93b325bed3c4b5403d0dc4a470a4547",
+        "window_end": "2026-08-23T18:50:00Z"
+      },
+      {
+        "checkpoint": "T60_ODDS_LINEUPS",
+        "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+        "competition_id": "primeira_liga",
+        "due_at": "2026-08-23T18:30:00Z",
+        "fixture_id": "api_football:1575466",
+        "plan_id": "bb7ddb0de7b25f5b293e1d04638291186b9f0d2ff4c712b3d07f483754f812c7",
+        "window_end": "2026-08-23T18:50:00Z"
+      },
+      {
+        "checkpoint": "T3_ODDS",
+        "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+        "competition_id": "brasileirao_serie_a",
+        "due_at": "2026-08-23T18:30:00Z",
+        "fixture_id": "api_football:1492342",
+        "plan_id": "d136d4c156701f7f0ea4716beec18dfdb5d3f3608dd12263e555a2eb815b5284",
+        "window_end": "2026-08-23T19:00:00Z"
+      },
+      {
+        "checkpoint": "T3_ODDS",
+        "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+        "competition_id": "brasileirao_serie_a",
+        "due_at": "2026-08-23T18:30:00Z",
+        "fixture_id": "api_football:1492348",
+        "plan_id": "7797d0e71eee694feeed221ae61343329c402b674316ff91b567a7f5a11db79e",
+        "window_end": "2026-08-23T19:00:00Z"
+      },
+      {
+        "checkpoint": "T6_ODDS",
+        "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+        "competition_id": "argentina_primera",
+        "due_at": "2026-08-23T18:30:00Z",
+        "fixture_id": "api_football:1493087",
+        "plan_id": "198b8fc2123ebe12aedc6440d07b4fde32909fa2c47bdb581e4e09ee72a493c4",
+        "window_end": "2026-08-23T19:00:00Z"
+      }
+    ],
+    "projected_calls": 16,
+    "queued_at_utc": "2026-08-23T18:30:49.501785Z",
+    "selected_checkpoint_count": 14,
+    "tick_hard_cap": 30
+  },
+  "safety": {
+    "deployments": 0,
+    "production_writes": 0,
+    "provider_calls_by_collector": 0
+  },
+  "schema_version": "w2.sched-peak-01.raw.v1",
+  "worker": {
+    "command": [
+      "coverage",
+      "run",
+      "--rcfile=/app/config/coverage/production.coveragerc",
+      "-m",
+      "celery",
+      "-A",
+      "apps.worker.celery_app",
+      "worker",
+      "--loglevel=INFO",
+      "--concurrency=1",
+      "--max-tasks-per-child=10",
+      "--max-memory-per-child=1200000"
+    ]
+  }
+}

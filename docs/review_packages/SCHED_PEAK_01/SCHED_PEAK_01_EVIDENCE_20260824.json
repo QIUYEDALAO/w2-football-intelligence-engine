@@ -1,0 +1,249 @@
+{
+  "authority": {
+    "release_id": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1",
+    "schema": "0070_notification_delivery_routing"
+  },
+  "capacity_option": {
+    "brazil_finish_after_claim_seconds": 726.615224,
+    "current_capacity_lines": [
+      "8",
+      "Mem:            7939        1880        1078         143        5430        6058",
+      "w2-staging-worker-1|0.23%|250MiB / 2GiB|2",
+      "w2-staging-scheduler-1|0.00%|346.5MiB / 768MiB|3",
+      "w2-staging-postgres-1|4.54%|215.2MiB / 1GiB|10",
+      "2147483648|0"
+    ],
+    "frozen_trace_minimum_concurrency": 2,
+    "replay_margin_seconds": 123.882991,
+    "short_window_budget_seconds": 850.498215,
+    "two_slot_replay": [
+      {
+        "competition_id": "serie_a",
+        "finish_after_claim_seconds": 289.395582,
+        "slot": 1,
+        "start_after_claim_seconds": 0.0
+      },
+      {
+        "competition_id": "ligue_1",
+        "finish_after_claim_seconds": 178.249711,
+        "slot": 2,
+        "start_after_claim_seconds": 35.420999
+      },
+      {
+        "competition_id": "brasileirao_serie_a",
+        "finish_after_claim_seconds": 726.615224,
+        "slot": 2,
+        "start_after_claim_seconds": 178.249711
+      }
+    ]
+  },
+  "claim": {
+    "all_missed_attempted": true,
+    "claim_expires_at": "2026-08-23T18:45:49.501785Z",
+    "claimed_at": "2026-08-23T18:30:49.501785Z",
+    "claimed_count": 14,
+    "lease_seconds": 900,
+    "missed_at": [
+      "2026-08-23T18:45:55.290005+00:00",
+      "2026-08-23T19:01:01.128179+00:00"
+    ],
+    "short_missed_count": 6,
+    "short_window_budget_from_claim_seconds": 850.498215,
+    "short_window_end": "2026-08-23T18:45:00Z"
+  },
+  "failure_dimensions": {
+    "captured_by_checkpoint": {
+      "T15_ODDS": 3
+    },
+    "captured_by_competition": {
+      "ligue_1": 1,
+      "serie_a": 2
+    },
+    "missed_by_checkpoint": {
+      "T-30m_VALIDATION_LOCK": 3,
+      "T30_LINEUPS_RETRY": 3,
+      "T3_ODDS": 2,
+      "T6_ODDS": 1
+    },
+    "missed_by_competition": {
+      "argentina_primera": 1,
+      "brasileirao_serie_a": 8
+    }
+  },
+  "occupancy": {
+    "brazil_queue_seconds": 467.645293,
+    "brazil_run_seconds": 548.365513,
+    "claim_to_brazil_finish_seconds": 1016.010806,
+    "post_provider_tail_over_short_window_seconds": 165.512591,
+    "post_provider_tail_seconds": 545.005459,
+    "remaining_lease_at_brazil_start_seconds": 432.354707,
+    "run_over_remaining_lease_seconds": 116.010806
+  },
+  "provider": {
+    "brazil_first_request_at": "2026-08-23T18:38:37+00:00",
+    "brazil_last_response_at": "2026-08-23T18:38:40.507132Z",
+    "brazil_max_elapsed_ms": 335,
+    "brazil_request_count": 8,
+    "peak_endpoint_capture_count": 11,
+    "peak_error_count": 0,
+    "peak_http_200_count": 11,
+    "peak_max_elapsed_ms": 355,
+    "window_summary": {
+      "attempts": 14,
+      "errors": 0,
+      "last_completed_at": "2026-08-23T18:38:40.507132+00:00",
+      "max_seconds": 0.355263,
+      "p95_seconds": 0.342247,
+      "timeouts": 0
+    }
+  },
+  "root_cause": {
+    "claim_contention": false,
+    "classification": "SINGLE_WORKER_SERIALIZATION_PLUS_POST_REQUEST_PROCESSING_OVERRAN_CLAIM_WINDOW",
+    "late_claim_token_mismatch_is_effect_not_cause": true,
+    "never_claimed_before_expiry": false,
+    "provider_timeout": false,
+    "worker_concurrency_insufficient": true
+  },
+  "safety": {
+    "deployments": 0,
+    "production_writes": 0,
+    "provider_calls_by_collector": 0
+  },
+  "schema_version": "w2.sched-peak-01.evidence.v1",
+  "slot": {
+    "all_same_due_at_status_counts": {
+      "CAPTURED": 4,
+      "FAILED": 1,
+      "MISSED": 9,
+      "PROVIDER_EMPTY": 1
+    },
+    "due_at": "2026-08-23T18:30:00Z",
+    "postmatch_plan": {
+      "attempt_count": 3,
+      "plan_id": "785d650abbbc09093f6d50840c8847e435c0e24b11d6fa55b13de83e567c0622",
+      "status": "CAPTURED",
+      "window_end": "2026-08-25T03:30:00+00:00"
+    },
+    "prematch_captured_count": 3,
+    "prematch_due_count": 14,
+    "prematch_missed_count": 9,
+    "prematch_other_terminal_count": 2,
+    "prematch_projected_provider_calls": 16,
+    "prematch_selected_count": 14,
+    "prematch_status_counts": {
+      "CAPTURED": 3,
+      "FAILED": 1,
+      "MISSED": 9,
+      "PROVIDER_EMPTY": 1
+    }
+  },
+  "source_raw_sha256": "cee679a712face0b32ba548c7fcb740e1794eff8d2f8c79bc27f9ab6ea59da5f",
+  "worker": {
+    "command": [
+      "coverage",
+      "run",
+      "--rcfile=/app/config/coverage/production.coveragerc",
+      "-m",
+      "celery",
+      "-A",
+      "apps.worker.celery_app",
+      "worker",
+      "--loglevel=INFO",
+      "--concurrency=1",
+      "--max-tasks-per-child=10",
+      "--max-memory-per-child=1200000"
+    ],
+    "concurrency": 1,
+    "dispatch_group_count": 6,
+    "groups": [
+      {
+        "blockers": [],
+        "checkpoint_count": 2,
+        "competition_id": "serie_a",
+        "dispatch_order": 1,
+        "finished_at": "2026-08-23T18:35:03.314541+00:00",
+        "queue_seconds": 35.420999,
+        "queued_at": "2026-08-23T18:30:49.501785+00:00",
+        "run_seconds": 218.391757,
+        "started_at": "2026-08-23T18:31:24.922784+00:00",
+        "status": "COMPLETED",
+        "task_id": "checkpoint-refresh:fca5eb98-e92c-4ca7-9ffd-d24f34c8d483"
+      },
+      {
+        "blockers": [],
+        "checkpoint_count": 1,
+        "competition_id": "ligue_1",
+        "dispatch_order": 2,
+        "finished_at": "2026-08-23T18:38:02.280941+00:00",
+        "queue_seconds": 324.816581,
+        "queued_at": "2026-08-23T18:30:49.501785+00:00",
+        "run_seconds": 107.962575,
+        "started_at": "2026-08-23T18:36:14.318366+00:00",
+        "status": "COMPLETED",
+        "task_id": "checkpoint-refresh:91d2013b-5c63-4ee7-80ea-d5baec867aa0"
+      },
+      {
+        "blockers": [
+          "CHECKPOINT_CLAIM_TOKEN_MISMATCH"
+        ],
+        "checkpoint_count": 8,
+        "competition_id": "brasileirao_serie_a",
+        "dispatch_order": 3,
+        "finished_at": "2026-08-23T18:47:45.512591+00:00",
+        "queue_seconds": 467.645293,
+        "queued_at": "2026-08-23T18:30:49.501785+00:00",
+        "run_seconds": 548.365513,
+        "started_at": "2026-08-23T18:38:37.147078+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:b1f7bfd9-415d-475b-869d-beebc1dce0eb"
+      },
+      {
+        "blockers": [
+          "CHECKPOINT_CLAIM_TOKEN_MISMATCH"
+        ],
+        "checkpoint_count": 1,
+        "competition_id": "la_liga",
+        "dispatch_order": 4,
+        "finished_at": "2026-08-23T18:47:45.591144+00:00",
+        "queue_seconds": 1016.031569,
+        "queued_at": "2026-08-23T18:30:49.501785+00:00",
+        "run_seconds": 0.05779,
+        "started_at": "2026-08-23T18:47:45.533354+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:dc2fdd8f-2182-452d-9575-48c366e09189"
+      },
+      {
+        "blockers": [
+          "CHECKPOINT_CLAIM_TOKEN_MISMATCH"
+        ],
+        "checkpoint_count": 1,
+        "competition_id": "primeira_liga",
+        "dispatch_order": 5,
+        "finished_at": "2026-08-23T18:47:45.677037+00:00",
+        "queue_seconds": 1016.109548,
+        "queued_at": "2026-08-23T18:30:49.501785+00:00",
+        "run_seconds": 0.065704,
+        "started_at": "2026-08-23T18:47:45.611333+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:0e2c517c-43ce-4c1e-ac20-a2338ce26229"
+      },
+      {
+        "blockers": [
+          "CHECKPOINT_CLAIM_TOKEN_MISMATCH"
+        ],
+        "checkpoint_count": 1,
+        "competition_id": "argentina_primera",
+        "dispatch_order": 6,
+        "finished_at": "2026-08-23T18:47:45.766397+00:00",
+        "queue_seconds": 1016.195755,
+        "queued_at": "2026-08-23T18:30:49.501785+00:00",
+        "run_seconds": 0.068857,
+        "started_at": "2026-08-23T18:47:45.69754+00:00",
+        "status": "BLOCKED",
+        "task_id": "checkpoint-refresh:74791ae6-e9e8-4bcf-b2e4-1846f31c998e"
+      }
+    ],
+    "older_backlog_count": 1
+  }
+}
