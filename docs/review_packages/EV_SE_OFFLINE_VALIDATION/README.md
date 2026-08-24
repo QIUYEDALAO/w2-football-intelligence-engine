@@ -41,9 +41,10 @@ If the artifact is unavailable, reproduce it from persisted saved raw at materia
 git worktree add --detach /tmp/w2-factor-corpus-source 0c77c086
 mkdir -p /tmp/w2-factor-corpus-output
 cd /tmp/w2-factor-corpus-source
+export W2_EV_SE_SSH_HOST='root@production-host'
 
 ssh -i /Users/liudehua/.ssh/id_ed25519_w2_hk \
-  -o StrictHostKeyChecking=yes root@45.207.194.97 \
+  -o StrictHostKeyChecking=yes "$W2_EV_SE_SSH_HOST" \
   "docker exec -i w2-staging-postgres-1 psql -X -qAt \
   -v ON_ERROR_STOP=1 -U w2_user -d w2" <<'SQL' | \
 PYTHONPATH=src uv run --frozen python scripts/materialize_factor_history_dry_run.py \
@@ -77,6 +78,7 @@ The materializer output must report `provider_calls=0`, `database_writes=0`, `el
 From `codex/ev-se-offline-validation`:
 
 ```bash
+export W2_EV_SE_SSH_HOST='root@production-host'
 python3 scripts/audit_ev_se_offline_preregistration.py \
   --corpus /absolute/path/to/factor_history_corpus.json \
   --ssh-key /Users/liudehua/.ssh/id_ed25519_w2_hk \
@@ -110,6 +112,8 @@ AND age, sigma_home, sigma_away are non-null
 ```
 
 Coverage-denominator reconstruction additionally requires `evaluated_at < target kickoff` and both expected same-league denominators `>=3`. Its competition scope is read from `league_season.payload.enabled`; the script has no fixed league count or league-name list. The evidence reports every league separately and deliberately computes no overall coverage average.
+
+`matchday_fixture_identities` is retention-managed and is not a finished-match denominator authority. Its historical row counts are therefore excluded from the frozen evidence: they can decrease after the observation time and cannot satisfy exact replay. Canonical Provider fixture identity shape, join success, and bounded failure samples are instead reproduced from the immutable frozen corpus.
 
 The runtime design is migration `0071_expected_match_denominator`. New fixture raw writes persist `inserted_at` and materialize their denominator observations in the same transaction. Historical materialization is bounded and Provider-zero. A read selects the latest observation per canonical Provider fixture only when both `captured_at <= as_of` and `source_inserted_at <= as_of`; unknown insertion time is rejected rather than backdated. The latest-20 set is same-Provider-league and cross-season, so it recovers as fixtures arrive without a season switch. Nothing in this package applies the migration or enables the read path.
 

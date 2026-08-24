@@ -80,6 +80,7 @@ def materialize_saved_fixture_observations(
                 }
             )
             continue
+        assert kickoff_at is not None
         canonical_fixture_id = f"api_football:{provider_fixture_id}"
         provider_identity = (
             provider_league_id,

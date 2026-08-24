@@ -194,19 +194,19 @@ For each evaluation and team, the expected set was the latest 20 finished canoni
 
 The enabled scope is read from `league_season.payload.enabled`; the script neither assumes a fixed league count nor divides by one. The frozen observation contains `11` enabled competitions. Coverage is reported per league only; no overall coverage average is computed.
 
-| competition | evaluable rows | frozen finished fixtures | offline structural xG coverage | PIT denominator available rows | PIT xG coverage | runtime canonical fixtures / identity fixtures |
+| competition | evaluable rows | frozen finished fixtures | offline structural xG coverage | PIT denominator available rows | PIT xG coverage | runtime canonical team rows / fixtures |
 |---|---:|---:|---:|---:|---:|---:|
-| `argentina_primera` | `356` | `2178` | `0.254916` | `356` | `0.254916` | `0` / `53` |
-| `brasileirao_serie_a` | `176` | `1744` | `0.966477` | `176` | `0.966477` | `0` / `47` |
-| `bundesliga` | `8` | `1232` | `1.0` | `8` | `1.0` | `0` / `20` |
-| `eliteserien` | `4` | `1103` | `0.975` | `4` | `0.975` | `0` / `34` |
-| `eredivisie` | `149` | `1293` | `0.974329` | `149` | `0.974329` | `0` / `31` |
-| `la_liga` | `198` | `1528` | `0.996465` | `184` | `0.998098` | `0` / `28` |
-| `ligue_1` | `154` | `1304` | `0.991558` | `154` | `0.991558` | `0` / `19` |
-| `mls` | `738` | `2371` | `0.942412` | `706` | `0.943768` | `0` / `55` |
-| `premier_league` | `184` | `1521` | `1.0` | `184` | `1.0` | `0` / `18` |
-| `primeira_liga` | `120` | `1249` | `0.989583` | `120` | `0.989583` | `0` / `31` |
-| `serie_a` | `178` | `1521` | `1.0` | `178` | `1.0` | `0` / `20` |
+| `argentina_primera` | `356` | `2178` | `0.254916` | `356` | `0.254916` | `0` / `0` |
+| `brasileirao_serie_a` | `176` | `1744` | `0.966477` | `176` | `0.966477` | `0` / `0` |
+| `bundesliga` | `8` | `1232` | `1.0` | `8` | `1.0` | `0` / `0` |
+| `eliteserien` | `4` | `1103` | `0.975` | `4` | `0.975` | `0` / `0` |
+| `eredivisie` | `149` | `1293` | `0.974329` | `149` | `0.974329` | `0` / `0` |
+| `la_liga` | `198` | `1528` | `0.996465` | `184` | `0.998098` | `0` / `0` |
+| `ligue_1` | `154` | `1304` | `0.991558` | `154` | `0.991558` | `0` / `0` |
+| `mls` | `738` | `2371` | `0.942412` | `706` | `0.943768` | `0` / `0` |
+| `premier_league` | `184` | `1521` | `1.0` | `184` | `1.0` | `0` / `0` |
+| `primeira_liga` | `120` | `1249` | `0.989583` | `120` | `0.989583` | `0` / `0` |
+| `serie_a` | `178` | `1521` | `1.0` | `178` | `1.0` | `0` / `0` |
 
 Canonical Provider fixture identity is validated separately from xG coverage. The join key is `(provider_fixture_id, provider_team_id)`; failure samples are bounded to five per league. No overall identity or coverage mean is computed.
 
@@ -231,7 +231,7 @@ The frozen corpus is sufficient to prove offline identifiability. `result_first_
 Owner decision 2 and its implementation boundary:
 
 - `canonical_team_match_history`: current enabled-scope coverage is insufficient.
-- `matchday_fixture_identities`: useful identity routing, but it has no finished status, result, or first-result visibility time and cannot alone define the denominator.
+- `matchday_fixture_identities`: useful identity routing, but it has no finished status, result, or first-result visibility time and cannot alone define the denominator. Its retention-managed row count is deliberately excluded from frozen evidence; canonical identity alignment is reproduced from the immutable corpus above.
 - persisted saved-raw fixtures: **approved as the source for a bounded runtime materialization**, not for direct unbounded raw scans. Each immutable observation carries canonical Provider fixture identity, `captured_at`, and `source_inserted_at`; reads require both timestamps `<= as_of` and select the latest visible observation per fixture. A late historical raw with `source_inserted_at > as_of` cannot enter a prior denominator; an unknown insertion time is rejected and fails closed.
 - dynamic scope is read from `league_season.payload.enabled`. The latest-20 expected set is cross-season within the same Provider league, so a season boundary is not a reset switch.
 - deployment requires the historical materialization backlog to be exhausted before the read path is enabled. New fixture raw writes materialize in the same transaction. This package supplies the migration and local validation but does not deploy either.

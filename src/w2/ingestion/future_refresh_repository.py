@@ -868,6 +868,7 @@ class FutureRefreshDbRepository:
             )
             if not provider_fixture_id:
                 continue
+            assert isinstance(fixture, dict)
             league = item.get("league") if isinstance(item, dict) else None
             provider_league_id = (
                 str(league.get("id") or "") if isinstance(league, dict) else ""

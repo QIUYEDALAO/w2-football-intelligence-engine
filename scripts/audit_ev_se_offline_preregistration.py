@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import statistics
 import subprocess
 import sys
@@ -613,12 +614,6 @@ WITH enabled AS (
   FROM canonical_team_match_history
   WHERE captured_at <= timestamptz '2026-08-23T12:00:50Z'
   GROUP BY competition_id
-), identities AS (
-  SELECT competition_id, count(DISTINCT provider_fixture_id) AS fixtures
-  FROM matchday_fixture_identities
-  WHERE provider = 'api_football'
-    AND captured_at <= timestamptz '2026-08-23T12:00:50Z'
-  GROUP BY competition_id
 )
 SELECT json_build_object(
   'kind', 'denominator_runtime_competition',
@@ -626,12 +621,10 @@ SELECT json_build_object(
   'season', e.season,
   'provider_league_id', e.provider_league_id,
   'canonical_history_team_rows', coalesce(c.team_rows, 0),
-  'canonical_history_fixtures', coalesce(c.fixtures, 0),
-  'matchday_identity_fixtures', coalesce(i.fixtures, 0)
+  'canonical_history_fixtures', coalesce(c.fixtures, 0)
 )::text
 FROM enabled e
 LEFT JOIN canonical c ON c.competition_id = e.competition_id
-LEFT JOIN identities i ON i.competition_id = e.competition_id
 ORDER BY e.competition_id, e.season
 ) TO STDOUT;
 
@@ -2177,9 +2170,6 @@ def build_evidence(source_rows: list[dict[str, Any]], corpus: Mapping[str, Any])
             "canonical_team_match_history_fixtures": int(
                 row["canonical_history_fixtures"]
             ),
-            "matchday_fixture_identity_fixtures": int(
-                row["matchday_identity_fixtures"]
-            ),
         }
     contract1 = _approved_contract1_metrics(_contract1_metrics(source_rows))
     cohort = contract1["same_evaluation_cohort"]
@@ -2482,12 +2472,14 @@ def _render_markdown(evidence: Mapping[str, Any]) -> str:
         "| `{competition_id}` | `{evaluations_with_both_expected_denominators_ge3}` | "
         "`{offline_corpus_finished_fixtures}` | `{offline_structural_xg_coverage}` | "
         "`{point_in_time_denominator_available_evaluations}` | "
-        "`{point_in_time_xg_coverage}` | `{canonical}` / `{identities}` |".format(
+        "`{point_in_time_xg_coverage}` | `{canonical_rows}` / `{canonical_fixtures}` |".format(
             **row,
-            canonical=row["runtime_sources"][
+            canonical_rows=row["runtime_sources"][
+                "canonical_team_match_history_team_rows"
+            ],
+            canonical_fixtures=row["runtime_sources"][
                 "canonical_team_match_history_fixtures"
             ],
-            identities=row["runtime_sources"]["matchday_fixture_identity_fixtures"],
         )
         for row in scope["by_competition"]
     )
@@ -2754,7 +2746,7 @@ For each evaluation and team, the expected set was the latest 20 finished canoni
 
 The enabled scope is read from `league_season.payload.enabled`; the script neither assumes a fixed league count nor divides by one. The frozen observation contains `{scope['enabled_competition_count_observed']}` enabled competitions. Coverage is reported per league only; no overall coverage average is computed.
 
-| competition | evaluable rows | frozen finished fixtures | offline structural xG coverage | PIT denominator available rows | PIT xG coverage | runtime canonical fixtures / identity fixtures |
+| competition | evaluable rows | frozen finished fixtures | offline structural xG coverage | PIT denominator available rows | PIT xG coverage | runtime canonical team rows / fixtures |
 |---|---:|---:|---:|---:|---:|---:|
 {per_league_rows}
 
@@ -2771,7 +2763,7 @@ The frozen corpus is sufficient to prove offline identifiability. `result_first_
 Owner decision 2 and its implementation boundary:
 
 - `canonical_team_match_history`: current enabled-scope coverage is insufficient.
-- `matchday_fixture_identities`: useful identity routing, but it has no finished status, result, or first-result visibility time and cannot alone define the denominator.
+- `matchday_fixture_identities`: useful identity routing, but it has no finished status, result, or first-result visibility time and cannot alone define the denominator. Its retention-managed row count is deliberately excluded from frozen evidence; canonical identity alignment is reproduced from the immutable corpus above.
 - persisted saved-raw fixtures: **approved as the source for a bounded runtime materialization**, not for direct unbounded raw scans. Each immutable observation carries canonical Provider fixture identity, `captured_at`, and `source_inserted_at`; reads require both timestamps `<= as_of` and select the latest visible observation per fixture. A late historical raw with `source_inserted_at > as_of` cannot enter a prior denominator; an unknown insertion time is rejected and fails closed.
 - dynamic scope is read from `league_season.payload.enabled`. The latest-20 expected set is cross-season within the same Provider league, so a season boundary is not a reset switch.
 - deployment requires the historical materialization backlog to be exhausted before the read path is enabled. New fixture raw writes materialize in the same transaction. This package supplies the migration and local validation but does not deploy either.
@@ -2928,7 +2920,7 @@ def _self_check() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus", type=Path)
-    parser.add_argument("--ssh-host", default="root@45.207.194.97")
+    parser.add_argument("--ssh-host", default=os.environ.get("W2_EV_SE_SSH_HOST"))
     parser.add_argument("--ssh-key", type=Path)
     parser.add_argument("--output-json", type=Path, default=DEFAULT_JSON)
     parser.add_argument("--output-markdown", type=Path, default=DEFAULT_MARKDOWN)
@@ -2941,6 +2933,8 @@ def main() -> None:
         return
     if args.corpus is None:
         parser.error("--corpus is required unless --self-check is used")
+    if not args.ssh_host:
+        parser.error("--ssh-host or W2_EV_SE_SSH_HOST is required")
     source_rows = _read_production(args)
     evidence = build_evidence(source_rows, _load_corpus(args.corpus))
     rendered_json = json.dumps(evidence, ensure_ascii=False, indent=2) + "\n"

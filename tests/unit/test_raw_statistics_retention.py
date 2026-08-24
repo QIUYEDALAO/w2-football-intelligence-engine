@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 
 from w2.domain.canonical_serialization import HashDomain
 from w2.infrastructure.persistence.future_refresh_models import (
+    ExpectedMatchFixtureMaterializationModel,
+    ExpectedMatchFixtureObservationModel,
     RawPayloadModel,
     RawStatisticsRetentionModel,
 )
@@ -50,6 +52,8 @@ def test_non_statistics_raw_does_not_create_statistics_manifest(tmp_path: Path) 
     engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'retention.db'}")
     RawPayloadModel.__table__.create(engine)
     RawStatisticsRetentionModel.__table__.create(engine)
+    ExpectedMatchFixtureMaterializationModel.__table__.create(engine)
+    ExpectedMatchFixtureObservationModel.__table__.create(engine)
     repository = FutureRefreshDbRepository(engine=engine)
     payload = {"response": []}
     digest = sha256_payload(payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
