@@ -272,3 +272,5 @@ def test_xg_refresh_reads_dynamic_enabled_scope() -> None:
     assert "(s.payload->>'enabled')::boolean IS TRUE" in source
     assert "s.season = p.payload->>'current_season'" in source
     assert "chinese_super_league allsvenskan" not in source
+    assert '"${COMPOSE[@]}" run --rm --no-deps --entrypoint python' in source
+    assert "docker exec -e W2_XG_BACKFILL_COMPETITION_ID" not in source

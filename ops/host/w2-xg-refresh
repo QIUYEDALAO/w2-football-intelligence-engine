@@ -22,6 +22,11 @@ BUDGET=${W2_XG_REFRESH_BUDGET_PER_COMPETITION:-80}
 GUARD_MINUTES=${W2_XG_REFRESH_PREMATCH_GUARD_MINUTES:-45}
 MIN_COVERAGE=${W2_XG_REFRESH_MIN_COVERAGE_PERCENT:-70}
 PSQL="docker exec -i w2-staging-postgres-1 psql -XAt -U w2_user -d w2"
+COMPOSE=(docker compose -p w2-staging
+  -f /opt/w2/deploy/compose.staging.yml
+  -f /opt/w2/deploy/controlled-future-refresh.override.yml
+  -f /opt/w2/deploy/production-coverage.override.yml
+  --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env)
 
 # Runtime authority is the current league_season named by league_profile, so a
 # reviewed enable/disable decision is picked up without a second hard-coded
@@ -53,9 +58,10 @@ calls=0
 for comp in $COMPS; do
   out=""
   for attempt in 1 2; do
-    docker exec -e W2_XG_BACKFILL_COMPETITION_ID="$comp" \
-      -e W2_XG_BACKFILL_REQUEST_BUDGET="$BUDGET" w2-staging-scheduler-1 \
-      python -c 'from w2.ingestion.xg_backfill import run_xg_history_backfill
+    "${COMPOSE[@]}" run --rm --no-deps --entrypoint python \
+      -e W2_XG_BACKFILL_COMPETITION_ID="$comp" \
+      -e W2_XG_BACKFILL_REQUEST_BUDGET="$BUDGET" scheduler \
+      -c 'from w2.ingestion.xg_backfill import run_xg_history_backfill
 d = run_xg_history_backfill().__dict__
 print("OK %s %s %s" % (d["statistics_request_count"], d["team_xg_match_rows"], ",".join(d["blockers"]) or "-"))' >"$TMP" 2>&1
     out=$(grep '^OK ' "$TMP" | tail -1)
