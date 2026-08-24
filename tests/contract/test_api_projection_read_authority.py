@@ -324,7 +324,7 @@ def test_import_graph_allows_pure_domain_and_read_only_dependencies(tmp_path: Pa
 def test_dashboard_uses_existing_shadow_projection_namespace() -> None:
     source = Path("src/w2/api/repository.py").read_text(encoding="utf-8")
     assert "dashboard:fixture_latest:" not in source
-    assert "self.checkpoints(ANALYSIS_CARD_SHADOW_PREFIX)" in source
+    assert "literal(ANALYSIS_CARD_SHADOW_PREFIX)" in source
 
 
 def test_full_execution_surface_has_no_removed_production_fallback_identity() -> None:

@@ -8,7 +8,6 @@ from typing import Any
 from w2.dashboard.date_window import football_day_for_kickoff
 from w2.dashboard.results import normalize_match_status
 
-ACTIVE_WHITELIST_COUNT = 13
 WINDOW_RADIUS_DAYS = 7
 
 
@@ -19,9 +18,12 @@ def build_persisted_date_strip(
     odds_plans: Iterable[Mapping[str, Any]],
     market_evidence_fixture_ids: set[str],
     as_of: datetime,
+    active_whitelist_count: int,
 ) -> list[dict[str, Any]]:
     if as_of.tzinfo is None:
         raise ValueError("as_of must be timezone-aware")
+    if active_whitelist_count < 0:
+        raise ValueError("active_whitelist_count must be non-negative")
     reference = as_of.astimezone(UTC)
     fixtures_by_day: dict[date, list[Mapping[str, Any]]] = defaultdict(list)
     for fixture in fixtures:
@@ -79,7 +81,7 @@ def build_persisted_date_strip(
                     "PERSISTED_FIXTURES_AVAILABLE" if day_fixtures else "EMPTY_PERSISTED_DAY"
                 ),
                 "persisted_competition_coverage_count": competition_count,
-                "active_whitelist_count": ACTIVE_WHITELIST_COUNT,
+                "active_whitelist_count": active_whitelist_count,
                 "market_collection_window_status": collection_status,
                 "market_evidence_fixture_count": evidence_count,
                 "public_semantics": _public_semantics(collection_status),

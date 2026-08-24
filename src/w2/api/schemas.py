@@ -236,7 +236,7 @@ class WorkspaceRuntime(BaseModel):
 
     product: Literal["FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS"]
     public_dashboard_authority: Literal["NEW_INTELLIGENCE_WORKSPACE_ONLY"]
-    active_whitelist_count: Literal[13]
+    active_whitelist_count: int = Field(ge=0)
     free_bridge_mode: Literal["SHADOW_ONLY"]
     market_price_attention_threshold_ratio: float = Field(ge=0.02, le=0.02)
     candidate: Literal["OFF", "SHADOW_ONLY"]
@@ -1581,8 +1581,8 @@ class WorkspaceDateStripEntry(BaseModel):
         "PERSISTED_FIXTURES_AVAILABLE",
         "EMPTY_PERSISTED_DAY",
     ]
-    persisted_competition_coverage_count: int = Field(ge=0, le=13)
-    active_whitelist_count: Literal[13]
+    persisted_competition_coverage_count: int = Field(ge=0)
+    active_whitelist_count: int = Field(ge=0)
     market_collection_window_status: Literal[
         "EMPTY_PERSISTED_DAY",
         "MARKET_EVIDENCE_AVAILABLE",
@@ -1612,6 +1612,8 @@ class WorkspaceDateStripEntry(BaseModel):
             raise ValueError("empty date strip entries cannot claim fixtures or evidence")
         if self.persisted_competition_coverage_count != self.competition_count:
             raise ValueError("date strip coverage must use persisted competition count")
+        if self.competition_count > self.active_whitelist_count:
+            raise ValueError("date strip competition count cannot exceed enabled scope")
         expected_cause = {
             "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW": "NOT_YET_DUE",
             "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY": "AWAITING_COLLECTION",

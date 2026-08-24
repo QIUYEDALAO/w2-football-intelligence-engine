@@ -29,7 +29,6 @@ from w2.api.schemas import (
     PerformanceResponse,
     PerformanceWindowProjection,
 )
-from w2.competitions.league_whitelist_scope import load_league_whitelist_scope
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryError
 from w2.config import get_settings
 from w2.dashboard.date_strip import build_persisted_date_strip, next_available_date
@@ -1256,12 +1255,17 @@ class ReadModelRepository:
 
     def _dashboard_competition_ids(self) -> tuple[str, ...]:
         try:
-            scope = load_league_whitelist_scope(CompetitionRegistry(engine=self._database_engine()))
+            competition_ids = tuple(
+                sorted(CompetitionRegistry(engine=self._database_engine()).enabled_ids())
+            )
         except CompetitionRegistryError as exc:
             raise SystemDegradedError("COMPETITION_WHITELIST_UNAVAILABLE") from exc
-        if len(scope.all_whitelist) != 13:
+        if not competition_ids:
             raise SystemDegradedError("COMPETITION_WHITELIST_INVALID")
-        return scope.all_whitelist
+        return competition_ids
+
+    def active_competition_count(self) -> int:
+        return len(self._dashboard_competition_ids())
 
     def checkpoints(self, prefix: str) -> list[Checkpoint]:
         try:
@@ -1303,28 +1307,14 @@ class ReadModelRepository:
         )
 
     def dashboard_latest_fixtures(self) -> list[dict[str, Any]]:
-        fixtures: list[dict[str, Any]] = []
-        for row in self.checkpoints(ANALYSIS_CARD_SHADOW_PREFIX):
-            fixture_id = row.key.removeprefix(ANALYSIS_CARD_SHADOW_PREFIX)
-            card = self._analysis_card_from_checkpoint(row, fixture_id)
-            fixtures.append(self._dashboard_fixture_from_projection(card, row))
-        return fixtures
+        return self.dashboard_fixtures_for_window(
+            start=None,
+            end=None,
+            limit=MAX_PUBLIC_FIXTURES,
+        )
 
     def analysis_checkpoint_count(self) -> int:
-        try:
-            with Session(self._database_engine()) as session:
-                return int(
-                    session.scalar(
-                        select(func.count(ReadModelCheckpointModel.id)).where(
-                            ReadModelCheckpointModel.checkpoint_key.like(
-                                f"{ANALYSIS_CARD_SHADOW_PREFIX}%"
-                            )
-                        )
-                    )
-                    or 0
-                )
-        except SQLAlchemyError as exc:
-            raise SystemDegradedError("READ_MODEL_CHECKPOINT_QUERY_FAILED") from exc
+        return self.release_counts()["read_model_fixture_count"]
 
     def dashboard_fixtures_for_window(
         self,
@@ -1370,7 +1360,10 @@ class ReadModelRepository:
                     )
                 if fixture_ids is not None:
                     requested = tuple(
-                        dict.fromkeys(str(value or "").strip() for value in fixture_ids)
+                        dict.fromkeys(
+                            str(value or "").strip().removeprefix("api_football:")
+                            for value in fixture_ids
+                        )
                     )
                     projection_query = projection_query.where(
                         MatchdayFixtureIdentityModel.provider_fixture_id.in_(requested)
@@ -2101,11 +2094,18 @@ class ReadModelRepository:
         return statuses
 
     def dashboard_fixture(self, fixture_id: str) -> dict[str, Any] | None:
-        row = self.checkpoint(f"{ANALYSIS_CARD_SHADOW_PREFIX}{fixture_id}")
-        if row is None:
+        rows = self.dashboard_fixtures_for_window(
+            start=None,
+            end=None,
+            limit=1,
+            fixture_ids=(fixture_id,),
+        )
+        if not rows or not isinstance(rows[0].get("_analysis_card_projection"), dict):
             return None
-        card = self._analysis_card_from_checkpoint(row, fixture_id)
-        return self._dashboard_fixture_from_projection(card, row)
+        fixture = deepcopy(rows[0])
+        fixture.pop("_analysis_card_projection", None)
+        fixture.pop("_public_team_labels", None)
+        return fixture
 
     def dashboard_provider(self) -> dict[str, Any] | None:
         row = self.checkpoint("dashboard:provider_status")
@@ -2120,10 +2120,16 @@ class ReadModelRepository:
         return None if row is None else deepcopy(row.payload)
 
     def analysis_card_projection(self, fixture_id: str) -> dict[str, Any] | None:
-        row = self.checkpoint(f"{ANALYSIS_CARD_SHADOW_PREFIX}{fixture_id}")
-        if row is None:
+        rows = self.dashboard_fixtures_for_window(
+            start=None,
+            end=None,
+            limit=1,
+            fixture_ids=(fixture_id,),
+        )
+        if not rows:
             return None
-        return self._analysis_card_from_checkpoint(row, fixture_id)
+        projection = rows[0].get("_analysis_card_projection")
+        return deepcopy(projection) if isinstance(projection, dict) else None
 
     def _analysis_card_from_checkpoint(
         self,
@@ -2182,6 +2188,7 @@ class ReadModelRepository:
         ]
 
     def release_counts(self) -> dict[str, int]:
+        competition_ids = self._dashboard_competition_ids()
         try:
             status = func.upper(
                 ReadModelCheckpointModel.payload["analysis_card"]["status"].as_string()
@@ -2193,10 +2200,17 @@ class ReadModelRepository:
                         func.count(ReadModelCheckpointModel.id).filter(
                             status.in_(FINISHED_STATUSES)
                         ),
-                    ).where(
-                        ReadModelCheckpointModel.checkpoint_key.like(
-                            f"{ANALYSIS_CARD_SHADOW_PREFIX}%"
-                        )
+                    )
+                    .select_from(MatchdayFixtureIdentityModel)
+                    .join(
+                        ReadModelCheckpointModel,
+                        ReadModelCheckpointModel.checkpoint_key
+                        == literal(ANALYSIS_CARD_SHADOW_PREFIX)
+                        + MatchdayFixtureIdentityModel.provider_fixture_id,
+                    )
+                    .where(
+                        MatchdayFixtureIdentityModel.provider == "api_football",
+                        MatchdayFixtureIdentityModel.competition_id.in_(competition_ids),
                     )
                 ).one()
         except SQLAlchemyError as exc:
@@ -2210,7 +2224,7 @@ class ReadModelRepository:
 
     def public_release_counts(self, *, limit: int = MAX_PUBLIC_FIXTURES) -> dict[str, int]:
         bounded = max(0, min(int(limit), MAX_PUBLIC_FIXTURES))
-        fixtures = self.dashboard_latest_fixtures()[:bounded]
+        fixtures = self.dashboard_fixtures_for_window(start=None, end=None, limit=bounded)
         return {
             "read_model_fixture_count": len(fixtures),
             "matchday_card_count": len(fixtures),
@@ -2560,6 +2574,7 @@ class ReadModelRepository:
             ),
             market_evidence_fixture_ids=evidence_ids,
             as_of=now or datetime.now(UTC),
+            active_whitelist_count=len(competition_ids),
         )
 
 
@@ -2908,6 +2923,18 @@ class ReadModelService:
                 odds_plans=(),
                 market_evidence_fixture_ids=set(),
                 as_of=generated_at,
+                active_whitelist_count=len(
+                    {str(card.get("competition_id") or "") for card in cards} - {""}
+                ),
+            )
+        )
+        active_count_reader = getattr(self.repository, "active_competition_count", None)
+        active_whitelist_count = (
+            active_count_reader()
+            if callable(active_count_reader)
+            else max(
+                (int(item.get("active_whitelist_count") or 0) for item in date_strip),
+                default=0,
             )
         )
         start, end = football_day_window(requested_date)
@@ -2953,6 +2980,7 @@ class ReadModelService:
             "window": window,
             "data_profile": "real-db" if fixture_checkpoint_count else "empty",
             "data_source": "read_model_checkpoint",
+            "active_whitelist_count": active_whitelist_count,
             "version": {
                 "api_git_sha": git_sha,
                 "release_id": os.getenv("W2_RELEASE_ID") or git_sha,

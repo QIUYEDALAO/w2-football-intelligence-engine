@@ -605,6 +605,7 @@ def test_dashboard_repository_reuses_one_lazy_engine(monkeypatch: Any) -> None:
 
     monkeypatch.setattr(api_repository, "create_engine", engine_factory)
     repository = api_repository.ReadModelRepository()
+    monkeypatch.setattr(repository, "_dashboard_competition_ids", lambda: ("allsvenskan",))
 
     assert repository.analysis_checkpoint_count() == 0
     assert repository.analysis_checkpoint_count() == 0
@@ -706,6 +707,27 @@ def test_release_counts_aggregates_without_materializing_analysis_cards(
     with Session(engine) as session:
         for fixture_id, status in (("1", "NS"), ("2", "FT"), ("3", None)):
             session.add(
+                MatchdayFixtureIdentityModel(
+                    fixture_id=f"api_football:{fixture_id}",
+                    provider="api_football",
+                    provider_fixture_id=fixture_id,
+                    competition_id="allsvenskan",
+                    provider_league_id="113",
+                    season="2026",
+                    kickoff_utc=datetime(2026, 8, 20, tzinfo=UTC),
+                    fixture_status=status or "NS",
+                    home_provider_team_id=f"home-{fixture_id}",
+                    away_provider_team_id=f"away-{fixture_id}",
+                    home_w2_team_id=None,
+                    away_w2_team_id=None,
+                    team_identity_status="REVIEW_REQUIRED",
+                    raw_payload_sha256=fixture_id * 64,
+                    captured_at=datetime(2026, 8, 20, tzinfo=UTC),
+                    identity_hash=fixture_id * 64,
+                    payload={},
+                )
+            )
+            session.add(
                 ReadModelCheckpointModel(
                     checkpoint_key=(f"{api_repository.ANALYSIS_CARD_SHADOW_PREFIX}{fixture_id}"),
                     source_hash=fixture_id * 64,
@@ -716,6 +738,7 @@ def test_release_counts_aggregates_without_materializing_analysis_cards(
         session.commit()
 
     repository = api_repository.ReadModelRepository(engine=engine)
+    monkeypatch.setattr(repository, "_dashboard_competition_ids", lambda: ("allsvenskan",))
     monkeypatch.setattr(
         repository,
         "dashboard_latest_fixtures",
