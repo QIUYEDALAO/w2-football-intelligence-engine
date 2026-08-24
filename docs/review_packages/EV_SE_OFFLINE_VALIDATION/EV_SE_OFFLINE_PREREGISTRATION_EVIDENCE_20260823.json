@@ -1,0 +1,1712 @@
+{
+  "schema_version": "w2.ev_se.offline_preregistration_evidence.v5",
+  "status": "OWNER_ITEMS_1_2_DECIDED_ITEM_3_DRAFTED_COEFFICIENTS_UNSET_PRODUCTION_CHANGE_GATED",
+  "observed_at": "2026-08-23T12:00:50Z",
+  "production": {
+    "release_id": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1",
+    "schema": "0070_notification_delivery_routing",
+    "provider_calls": 0,
+    "database_writes": 0,
+    "outcomes_read": 0
+  },
+  "reproducibility": {
+    "float_tolerance": 1e-06,
+    "frozen_row_time_expression": "COALESCE(recorded_at, evaluated_at)",
+    "frozen_row_cutoff_inclusive": "2026-08-23T12:00:50Z",
+    "usable_predicate": [
+      "current_ev IS NOT NULL",
+      "current_ev_minus_se IS NOT NULL",
+      "current_ev - current_ev_minus_se >= 0",
+      "COALESCE(recorded_at, evaluated_at) <= 2026-08-23T12:00:50Z",
+      "api_football fixture identity resolves",
+      "kickoff_at < evaluated_at",
+      "first two-sided numeric saved-raw captured_at <= evaluated_at",
+      "latest visible xG rows per side capped at 20",
+      "home_n >= 3 AND away_n >= 3",
+      "age, sigma_home, and sigma_away are non-null"
+    ],
+    "row_count_lineage": {
+      "handoff_ev_se_values": 2564,
+      "handoff_age_correlation_subset": 2528,
+      "frozen_baseline_usable": 2603,
+      "owner_live_recount": 2653,
+      "owner_live_recount_added_after_frozen_cutoff": 50,
+      "frozen_row_2603_max_recorded_at": "2026-08-23T11:50:02.966096Z",
+      "first_post_cutoff_row_recorded_at": "2026-08-23T12:01:12.133049Z",
+      "owner_live_row_2653_recorded_at": "2026-08-23T12:38:09.196654Z"
+    },
+    "minimum_lineage": {
+      "handoff_min_exact": 0.029576,
+      "handoff_min_reported_4dp": 0.0296,
+      "frozen_min_exact": 0.028387,
+      "new_min_evaluated_at": "2026-08-23T11:48:53Z",
+      "new_min_recorded_at": "2026-08-23T11:49:13.927694Z",
+      "cause": "NEW_EVALUATION_ENTERED_AFTER_HANDOFF_SNAPSHOT"
+    }
+  },
+  "age_falsification": {
+    "usable_evaluations": 2603,
+    "distinct_fixtures": 162,
+    "ev_se": {
+      "min": 0.028387,
+      "mean": 0.053626,
+      "max": 0.121181
+    },
+    "raw_latest_age_ev_se_correlation": -0.029046,
+    "raw_min_n_ev_se_correlation": -0.787364,
+    "fixed_effect_age_ev_se_correlation": 0.002498,
+    "fixed_effect_strata": [
+      "home_n",
+      "away_n",
+      "market",
+      "selection"
+    ],
+    "fixed_effect_minimum_stratum_rows": 4,
+    "fixed_effect_rows": 2582,
+    "n20_n20": {
+      "evaluations": 2293,
+      "fixtures": 139,
+      "age_median_days": 14.0,
+      "age_ev_se_correlation": -0.004335,
+      "fresh_age_mean_days": 9.156,
+      "fresh_ev_se_mean": 0.0491,
+      "old_age_mean_days": 71.219,
+      "old_ev_se_mean": 0.050651
+    }
+  },
+  "coefficient_propagation": {
+    "interior_lambda_jacobian_per_xg_mean": 0.5,
+    "frozen_model_captures": 157,
+    "base_total_inside_1_35_4_40": 156,
+    "base_total_above_4_40": 1,
+    "base_total_below_1_35": 0,
+    "ev_se_node_weight_effective_sigma_multiplier": 0.7071067812,
+    "simulation_node_weight_effective_sigma_multiplier": 0.5633027605,
+    "effective_sigma_multiplier_ratio": 1.2552872642,
+    "lower_node_floor": 0.01,
+    "shared_sigma_semantics": "CONTRACT_1_TRUE_STANDARD_DEVIATION"
+  },
+  "owner_decisions": {
+    "item_1_lambda_sigma_semantics": {
+      "status": "APPROVED_SEMANTIC_CONTRACT_ONLY",
+      "contract": "CONTRACT_1_TRUE_STANDARD_DEVIATION",
+      "meaning": "lambda_sigma_is_the_standard_deviation_of_the_lambda_distribution",
+      "reference_quadrature": {
+        "name": "GH-3",
+        "standardized_nodes": [
+          -1.7320508076,
+          0.0,
+          1.7320508076
+        ],
+        "weights": [
+          0.1666666667,
+          0.6666666667,
+          0.1666666667
+        ],
+        "matched_standard_normal_moments": {
+          "m0": 1.0,
+          "m1": 0.0,
+          "m2": 1.0,
+          "m3": 0.0,
+          "m4": 3.0
+        }
+      },
+      "coefficient_or_formula_approved": false,
+      "production_implementation_approved": false,
+      "production_gate": "COMBINED_CONTRACT1_AND_SE_FORMULA_CHANGE_REQUIRED",
+      "superseded_gate_rule": "INDEPENDENT_CONTRACT1_CHANGE_REQUIRED_BEFORE_EV_SE_FORMULA_CHANGE",
+      "revision_basis": "NEAR_UNIFORM_SQRT2_RESCALING_IS_ANALYTICALLY_SEPARABLE"
+    },
+    "item_2_expected_match_denominator_authority": {
+      "status": "APPROVED_DESIGN_AND_OFFLINE_VALIDATION_ONLY",
+      "authority": "PERSISTED_SAVED_RAW_FIXTURES_MATERIALIZED_AT_RUNTIME",
+      "production_deployment_approved": false
+    },
+    "item_3_formula_family": {
+      "status": "THAWED_DRAFT_ONLY_COEFFICIENTS_UNSET",
+      "coefficient_or_formula_approved": false
+    }
+  },
+  "formula_family": {
+    "status": "DRAFT_ONLY_COEFFICIENTS_UNSET_NOT_EXECUTABLE",
+    "method_version": "expected_match_age_coverage_multiplier.family.v1",
+    "expected_fixture_set": {
+      "definition": "LATEST_20_FINISHED_VISIBLE_FIXTURES_IN_SAME_PROVIDER_LEAGUE_BEFORE_AS_OF_ACROSS_SEASONS",
+      "visibility": [
+        "kickoff_at < as_of",
+        "captured_at <= as_of",
+        "source_inserted_at <= as_of",
+        "latest_visible_observation_per_canonical_provider_fixture"
+      ],
+      "m": "number_of_expected_finished_fixtures_after_non_played_fixtures_are_removed",
+      "n": "number_of_expected_fixtures_with_two_sided_numeric_xg_visible_at_as_of",
+      "coverage": "c = n / m",
+      "missing": "q = m - n",
+      "mean_age_days": "A = mean(exact_elapsed_seconds(as_of - kickoff_at) / 86400 over the expected set, including missing-xg fixtures)"
+    },
+    "component_standard_error": {
+      "baseline": "SE0 = sample_sd(observed_xg_values) / sqrt(n)",
+      "family": "SE = SE0 * sqrt(1 + alpha_age_per_day * A + beta_missing * (1 - c))",
+      "coefficients": {
+        "alpha_age_per_day": null,
+        "beta_missing": null
+      },
+      "coefficient_constraints": [
+        "alpha_age_per_day >= 0",
+        "beta_missing >= 0",
+        "coefficients_must_be_selected_without_current_pick_outcomes_profit_or_hit_rate"
+      ],
+      "independent_missingness_identification": "m_and_q_come_from_saved_fixture_observations_and_are_not_functions_of_xg_n"
+    },
+    "lambda_propagation": {
+      "inputs": [
+        "home_attack_xg_for",
+        "away_defence_xg_against",
+        "away_attack_xg_for",
+        "home_defence_xg_against"
+      ],
+      "quadrature": "GH3_TENSOR_PRODUCT_OVER_FOUR_INDEPENDENT_COMPONENTS",
+      "standardized_nodes": [
+        -1.7320508076,
+        0.0,
+        1.7320508076
+      ],
+      "weights": [
+        0.1666666667,
+        0.6666666667,
+        0.1666666667
+      ],
+      "mapping": "run_every_node_through_the_actual_calibrate_lambdas_piecewise_function_including_total_1_35_4_40_and_individual_lambda_clamps",
+      "lambda_sigma": "weighted_standard_deviation_of_the_piecewise_mapped_lambda_nodes",
+      "interior_identity": "0.5 * sqrt(SE_attack^2 + SE_opponent_defence^2)",
+      "point_lambda_change": false,
+      "nonlinear_quadrature_mean_shift": "audit_only_not_used_to_change_point_lambda"
+    },
+    "contract_1_consumer": {
+      "nodes": "point_lambda +/- sqrt(3) * lambda_sigma",
+      "weights": "1/6, 2/3, 1/6",
+      "lower_node_floor": 0.01,
+      "floor_exception": "when_the_floor_fires_the_consumed_discrete_sd_is_less_than_lambda_sigma_and_must_be_reported"
+    },
+    "behavioral_invariants_by_construction": {
+      "age_monotonicity": "for_fixed_expected_set_dispersion_n_and_coverage_increasing_all_ages_cannot_reduce_SE_when_alpha_is_nonnegative",
+      "sample_coverage_monotonicity": "for_fixed_dispersion_and_expected_ages_increasing_n_reduces_SE0_and_1_minus_c",
+      "fresh_complete_baseline": "A=0_and_c=1_reproduces_SE0_exactly;_nonzero_fresh_age_must_pass_the_preregistered_baseline_tolerance",
+      "no_evidence_fail_closed": [
+        "expected_denominator_unavailable",
+        "m < 3",
+        "n < 3",
+        "provider_fixture_identity_conflict",
+        "unknown_source_inserted_at",
+        "coefficients_unset"
+      ],
+      "seasonal_recovery": "the_cross_season_latest20_set_changes_one_fixture_at_a_time;_new_recent_covered_fixtures_continuously_reduce_A_and_1_minus_c_without_a_season_switch_or_age_gate"
+    },
+    "forbidden": [
+      "age_cutoff",
+      "season_start_switch",
+      "ev_cap",
+      "outcome_tuned_coefficient",
+      "claim_that_stale_xg_causes_high_ev"
+    ]
+  },
+  "contract_1_gh3_offline_impact": {
+    "same_evaluation_cohort": {
+      "frozen_usable_evaluations": 2603,
+      "paired_market_eligible_evaluations": 2584,
+      "paired_market_model_input_groups": 1061,
+      "paired_market_identifiable_evaluations_before_baseline_gate": 2598,
+      "paired_market_identifiable_model_input_groups_before_baseline_gate": 1068,
+      "baseline_reproducible_evaluations": 2584,
+      "baseline_reproducible_model_input_groups": 1061,
+      "excluded_nonreproducible_evaluations": 14,
+      "excluded_nonreproducible_model_input_groups": 7,
+      "excluded_nonreproducible_fixtures": 4,
+      "excluded_nonreproducible_evaluation_ids": [
+        "dqe-0a02a571c3450f0449a95ea93e10d0e9bf8e9206b3e840aebb5eac8b057251ed",
+        "dqe-25c1f498314b6a83c1741dce5b13b6c53658669151c06105826ab3e72054e1bf",
+        "dqe-26a079222f2ca7acdced8ce480596953dc1738b34801a2a5b3034622c83341c6",
+        "dqe-2ab52258af00c4692f042a82416cda1185ce1bcdbc0ef98005c9c4054f83947c",
+        "dqe-4bfdccfd569b2a685381cc27cf8ee24cd592e2152abb9ccf86e32543647dc78e",
+        "dqe-6b971846341164e3fffb6a79e4af4cced9205db54e5c0d249b9b227fc4fd7b76",
+        "dqe-900ffad400c594714ed00feb312a07a47a4947d71bcdfc664f9af380954116ee",
+        "dqe-9a546f64e23bd7a86590dd81c7126786e5fdbcc8e522f5abd353e98154cf0dcd",
+        "dqe-a178efc3ad7e95f90ad690bf4a6764c822e0e869fe64cc440cb24bb8ffd38f72",
+        "dqe-af13a54adaceab672f6bcdeba18b40d15cdb86b78645ed70976a8ccda453158c",
+        "dqe-d1c9d8047ebf7800dd3cfda68ead25362da7feb504573a19db2b2cd37da43e98",
+        "dqe-d523e00d3f6fe1be465bd7c14c3293a1adcfb3f328fa7a7831895e972495ee1a",
+        "dqe-df26f508be65438700d206d210741973445be24e6b8ae70773b400f73d2a540b",
+        "dqe-e4084790668c25a35939207bb22249d56fb4be266badcdb5a93b5c75126c2314"
+      ],
+      "excluded_nonreproducible_reason": "FROZEN_DYNAMIC_EVALUATION_OMITS_ORIGINAL_SIGMA;_CURRENT_PIT_INPUT_RECONSTRUCTION_DOES_NOT_REPLAY_REPORTED_OLD_EV_SE_WITHIN_TOLERANCE;_NO_SIGMA_BACKSOLVE_ALLOWED",
+      "excluded_unidentifiable_single_market_evaluations": 5,
+      "excluded_evaluation_ids": [
+        "dqe-002ecda7bc8c92cf19e2ca050b88273f9d792472bf848f4283d2642054deb497",
+        "dqe-202a76651f269ab14d0494c4950745c891723ed8e54773b19cb58cc3b2a28e0d",
+        "dqe-2e8e318f31129fc63156592cdc423d4a52f07a99428af0478f2ca219fbf0a1dc",
+        "dqe-8c526d4ca1ed5fadce38b41ef128cda9e2f0cc3b98a34bf0310d96e43b21f84f",
+        "dqe-9048463d34a15ff6b5a364c41f3e0aa797414cae80a90a3d37d4ed58f5b4ad8a"
+      ],
+      "price_source_counts": {
+        "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION": 478,
+        "PAYLOAD_DECIMAL_ODDS": 2106
+      },
+      "price_source_baseline_gate_lineage": {
+        "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION": {
+          "attempted_identifiable_evaluations": 492,
+          "accepted_evaluations": 478,
+          "excluded_evaluations": 14,
+          "failure_rate_among_attempted": 0.028455,
+          "excluded_to_accepted_ratio": 0.029289
+        },
+        "PAYLOAD_DECIMAL_ODDS": {
+          "attempted_identifiable_evaluations": 2106,
+          "accepted_evaluations": 2106,
+          "excluded_evaluations": 0,
+          "failure_rate_among_attempted": 0.0,
+          "excluded_to_accepted_ratio": 0.0
+        }
+      }
+    },
+    "lambda_reconstruction": {
+      "method": "DETERMINISTIC_TWO_DIMENSION_PATTERN_SEARCH_AGAINST_FROZEN_FIVE_STATE_DISTRIBUTIONS",
+      "rho": 0.0,
+      "max_goals": 12,
+      "max_absolute_distribution_probability_error": 0.0,
+      "max_fit_objective": 0.0,
+      "max_sigma_range_within_model_input_group": 0.0,
+      "point_ev_fit_residual": {
+        "n": 2598,
+        "min": -1e-06,
+        "p05": -0.0,
+        "p25": -0.0,
+        "median": 0.0,
+        "mean": 0.0,
+        "p75": 0.0,
+        "p95": 0.0,
+        "max": 1e-06,
+        "max_absolute": 1e-06
+      },
+      "old_analysis_ev_se_residual": {
+        "n": 2598,
+        "min": -0.057594,
+        "p05": -1e-06,
+        "p25": -0.0,
+        "median": -0.0,
+        "mean": -9.4e-05,
+        "p75": 0.0,
+        "p95": 0.0,
+        "max": 1e-06,
+        "max_absolute": 0.057594
+      },
+      "baseline_gate_tolerance": 1e-06,
+      "baseline_reproducible_old_analysis_ev_se_residual": {
+        "n": 2584,
+        "min": -1e-06,
+        "p05": -1e-06,
+        "p25": -0.0,
+        "median": -0.0,
+        "mean": -0.0,
+        "p75": 0.0,
+        "p95": 0.0,
+        "max": 1e-06,
+        "max_absolute": 1e-06
+      },
+      "old_analysis_ev_se_residual_outliers_over_tolerance": [
+        {
+          "evaluation_id": "dqe-0a02a571c3450f0449a95ea93e10d0e9bf8e9206b3e840aebb5eac8b057251ed",
+          "fixture_id": "1493076",
+          "model_input_hash": "56608a6dcc74191c2ab82ede150a604d25e365d8d3699281283df5c4f323de47",
+          "market": "TOTALS",
+          "evaluated_at": "2026-08-17T01:09:22+00:00",
+          "line": 2.25,
+          "price": 2.05,
+          "price_source": "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION",
+          "reported_ev_se": 0.10658,
+          "reconstructed_old_ev_se": 0.048986,
+          "residual": -0.057594,
+          "lambda_home": 1.1045,
+          "lambda_away": 1.5925,
+          "sigma_home": 0.10071,
+          "sigma_away": 0.107308
+        },
+        {
+          "evaluation_id": "dqe-2ab52258af00c4692f042a82416cda1185ce1bcdbc0ef98005c9c4054f83947c",
+          "fixture_id": "1493069",
+          "model_input_hash": "ddcc214cae9834c99ac2b4d0f3c4941149ca27c1bea6752d06789d1ce093026b",
+          "market": "TOTALS",
+          "evaluated_at": "2026-08-17T01:09:21+00:00",
+          "line": 1.75,
+          "price": 2.05,
+          "price_source": "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION",
+          "reported_ev_se": 0.102131,
+          "reconstructed_old_ev_se": 0.046604,
+          "residual": -0.055527,
+          "lambda_home": 1.212,
+          "lambda_away": 0.754,
+          "sigma_home": 0.094632,
+          "sigma_away": 0.069323
+        },
+        {
+          "evaluation_id": "dqe-a178efc3ad7e95f90ad690bf4a6764c822e0e869fe64cc440cb24bb8ffd38f72",
+          "fixture_id": "1493069",
+          "model_input_hash": "ddcc214cae9834c99ac2b4d0f3c4941149ca27c1bea6752d06789d1ce093026b",
+          "market": "ASIAN_HANDICAP",
+          "evaluated_at": "2026-08-17T01:09:21+00:00",
+          "line": -0.25,
+          "price": 1.92,
+          "price_source": "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION",
+          "reported_ev_se": 0.092651,
+          "reconstructed_old_ev_se": 0.042417,
+          "residual": -0.050234,
+          "lambda_home": 1.212,
+          "lambda_away": 0.754,
+          "sigma_home": 0.094632,
+          "sigma_away": 0.069323
+        },
+        {
+          "evaluation_id": "dqe-d523e00d3f6fe1be465bd7c14c3293a1adcfb3f328fa7a7831895e972495ee1a",
+          "fixture_id": "1493076",
+          "model_input_hash": "56608a6dcc74191c2ab82ede150a604d25e365d8d3699281283df5c4f323de47",
+          "market": "ASIAN_HANDICAP",
+          "evaluated_at": "2026-08-17T01:09:22+00:00",
+          "line": 0.75,
+          "price": 1.82,
+          "price_source": "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION",
+          "reported_ev_se": 0.069891,
+          "reconstructed_old_ev_se": 0.034825,
+          "residual": -0.035066,
+          "lambda_home": 1.1045,
+          "lambda_away": 1.5925,
+          "sigma_home": 0.10071,
+          "sigma_away": 0.107308
+        },
+        {
+          "evaluation_id": "dqe-9a546f64e23bd7a86590dd81c7126786e5fdbcc8e522f5abd353e98154cf0dcd",
+          "fixture_id": "1493067",
+          "model_input_hash": "555f1285caaa622ef601c6d696db5d82af83695dec20ccd829cba62fc52576fc",
+          "market": "TOTALS",
+          "evaluated_at": "2026-08-17T01:09:20+00:00",
+          "line": 1.75,
+          "price": 1.880001,
+          "price_source": "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION",
+          "reported_ev_se": 0.087975,
+          "reconstructed_old_ev_se": 0.075382,
+          "residual": -0.012593,
+          "lambda_home": 0.89625,
+          "lambda_away": 1.215,
+          "sigma_home": 0.09715,
+          "sigma_away": 0.196233
+        },
+        {
+          "evaluation_id": "dqe-26a079222f2ca7acdced8ce480596953dc1738b34801a2a5b3034622c83341c6",
+          "fixture_id": "1493067",
+          "model_input_hash": "555f1285caaa622ef601c6d696db5d82af83695dec20ccd829cba62fc52576fc",
+          "market": "ASIAN_HANDICAP",
+          "evaluated_at": "2026-08-17T01:09:20+00:00",
+          "line": -0.25,
+          "price": 1.54,
+          "price_source": "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION",
+          "reported_ev_se": 0.071471,
+          "reconstructed_old_ev_se": 0.061246,
+          "residual": -0.010225,
+          "lambda_home": 0.89625,
+          "lambda_away": 1.215,
+          "sigma_home": 0.09715,
+          "sigma_away": 0.196233
+        },
+        {
+          "evaluation_id": "dqe-4bfdccfd569b2a685381cc27cf8ee24cd592e2152abb9ccf86e32543647dc78e",
+          "fixture_id": "1490390",
+          "model_input_hash": "4490d585c0716893853de415dcae10224397c6f12039dcd6403c4c60ee22c597",
+          "market": "ASIAN_HANDICAP",
+          "evaluated_at": "2026-08-17T01:30:32+00:00",
+          "line": -0.5,
+          "price": 1.83,
+          "price_source": "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION",
+          "reported_ev_se": 0.059768,
+          "reconstructed_old_ev_se": 0.056966,
+          "residual": -0.002802,
+          "lambda_home": 1.057,
+          "lambda_away": 1.708,
+          "sigma_home": 0.11616,
+          "sigma_away": 0.143054
+        },
+        {
+          "evaluation_id": "dqe-900ffad400c594714ed00feb312a07a47a4947d71bcdfc664f9af380954116ee",
+          "fixture_id": "1490390",
+          "model_input_hash": "ea3c914def6b35fdb9ae472166d641f5ee46d675863f8c27045b2536040eb82e",
+          "market": "ASIAN_HANDICAP",
+          "evaluated_at": "2026-08-17T02:03:27.245923+00:00",
+          "line": -0.5,
+          "price": 1.83,
+          "price_source": "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION",
+          "reported_ev_se": 0.059768,
+          "reconstructed_old_ev_se": 0.056966,
+          "residual": -0.002802,
+          "lambda_home": 1.057,
+          "lambda_away": 1.708,
+          "sigma_home": 0.11616,
+          "sigma_away": 0.143054
+        },
+        {
+          "evaluation_id": "dqe-d1c9d8047ebf7800dd3cfda68ead25362da7feb504573a19db2b2cd37da43e98",
+          "fixture_id": "1490390",
+          "model_input_hash": "ba1ebfedd652de8a746fa0a4840620f313444f909a216ac3a10269e140f8d67a",
+          "market": "ASIAN_HANDICAP",
+          "evaluated_at": "2026-08-17T02:03:26+00:00",
+          "line": -0.5,
+          "price": 1.83,
+          "price_source": "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION",
+          "reported_ev_se": 0.059768,
+          "reconstructed_old_ev_se": 0.056966,
+          "residual": -0.002802,
+          "lambda_home": 1.057,
+          "lambda_away": 1.708,
+          "sigma_home": 0.11616,
+          "sigma_away": 0.143054
+        },
+        {
+          "evaluation_id": "dqe-df26f508be65438700d206d210741973445be24e6b8ae70773b400f73d2a540b",
+          "fixture_id": "1490390",
+          "model_input_hash": "dc330779ba2297a4e94c098a3150fc728dbf17391f5ebe3c431afbcdafda6144",
+          "market": "ASIAN_HANDICAP",
+          "evaluated_at": "2026-08-17T01:08:36+00:00",
+          "line": -0.5,
+          "price": 1.83,
+          "price_source": "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION",
+          "reported_ev_se": 0.059768,
+          "reconstructed_old_ev_se": 0.056966,
+          "residual": -0.002802,
+          "lambda_home": 1.057,
+          "lambda_away": 1.708,
+          "sigma_home": 0.11616,
+          "sigma_away": 0.143054
+        },
+        {
+          "evaluation_id": "dqe-25c1f498314b6a83c1741dce5b13b6c53658669151c06105826ab3e72054e1bf",
+          "fixture_id": "1490390",
+          "model_input_hash": "ea3c914def6b35fdb9ae472166d641f5ee46d675863f8c27045b2536040eb82e",
+          "market": "TOTALS",
+          "evaluated_at": "2026-08-17T02:03:27.245923+00:00",
+          "line": 3.0,
+          "price": 1.819999,
+          "price_source": "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION",
+          "reported_ev_se": 0.057173,
+          "reconstructed_old_ev_se": 0.054523,
+          "residual": -0.00265,
+          "lambda_home": 1.057,
+          "lambda_away": 1.708,
+          "sigma_home": 0.11616,
+          "sigma_away": 0.143054
+        },
+        {
+          "evaluation_id": "dqe-6b971846341164e3fffb6a79e4af4cced9205db54e5c0d249b9b227fc4fd7b76",
+          "fixture_id": "1490390",
+          "model_input_hash": "4490d585c0716893853de415dcae10224397c6f12039dcd6403c4c60ee22c597",
+          "market": "TOTALS",
+          "evaluated_at": "2026-08-17T01:30:32+00:00",
+          "line": 3.0,
+          "price": 1.819999,
+          "price_source": "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION",
+          "reported_ev_se": 0.057173,
+          "reconstructed_old_ev_se": 0.054523,
+          "residual": -0.00265,
+          "lambda_home": 1.057,
+          "lambda_away": 1.708,
+          "sigma_home": 0.11616,
+          "sigma_away": 0.143054
+        },
+        {
+          "evaluation_id": "dqe-af13a54adaceab672f6bcdeba18b40d15cdb86b78645ed70976a8ccda453158c",
+          "fixture_id": "1490390",
+          "model_input_hash": "dc330779ba2297a4e94c098a3150fc728dbf17391f5ebe3c431afbcdafda6144",
+          "market": "TOTALS",
+          "evaluated_at": "2026-08-17T01:08:36+00:00",
+          "line": 3.0,
+          "price": 1.819999,
+          "price_source": "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION",
+          "reported_ev_se": 0.057173,
+          "reconstructed_old_ev_se": 0.054523,
+          "residual": -0.00265,
+          "lambda_home": 1.057,
+          "lambda_away": 1.708,
+          "sigma_home": 0.11616,
+          "sigma_away": 0.143054
+        },
+        {
+          "evaluation_id": "dqe-e4084790668c25a35939207bb22249d56fb4be266badcdb5a93b5c75126c2314",
+          "fixture_id": "1490390",
+          "model_input_hash": "ba1ebfedd652de8a746fa0a4840620f313444f909a216ac3a10269e140f8d67a",
+          "market": "TOTALS",
+          "evaluated_at": "2026-08-17T02:03:26+00:00",
+          "line": 3.0,
+          "price": 1.819999,
+          "price_source": "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION",
+          "reported_ev_se": 0.057173,
+          "reconstructed_old_ev_se": 0.054523,
+          "residual": -0.00265,
+          "lambda_home": 1.057,
+          "lambda_away": 1.708,
+          "sigma_home": 0.11616,
+          "sigma_away": 0.143054
+        }
+      ]
+    },
+    "analysis_evidence_consumer": {
+      "reported_point_ev_delta": {
+        "n": 2584,
+        "min": 0.0,
+        "p05": 0.0,
+        "p25": 0.0,
+        "median": 0.0,
+        "mean": 0.0,
+        "p75": 0.0,
+        "p95": 0.0,
+        "max": 0.0,
+        "max_absolute": 0.0
+      },
+      "reason_reported_ev_unchanged": "REPORTED_EV_USES_POINT_LAMBDAS;_lambda_scenarios_ONLY_COMPUTES_EV_SE",
+      "internal_quadrature_mean_ev_delta_gh3_minus_old": {
+        "n": 2584,
+        "min": -0.004681,
+        "p05": -0.00176,
+        "p25": -0.000744,
+        "median": -0.000251,
+        "mean": -0.00032,
+        "p75": 0.000165,
+        "p95": 0.000679,
+        "max": 0.002518,
+        "max_absolute": 0.004681
+      },
+      "ev_se_delta_gh3_minus_old": {
+        "n": 2584,
+        "min": 0.011775,
+        "p05": 0.016598,
+        "p25": 0.018879,
+        "median": 0.020762,
+        "mean": 0.022056,
+        "p75": 0.02326,
+        "p95": 0.035729,
+        "max": 0.049328,
+        "max_absolute": 0.049328
+      }
+    },
+    "simulation_consumer": {
+      "mixed_score_matrix_ev_delta_gh3_minus_old": {
+        "n": 2584,
+        "min": -0.006423,
+        "p05": -0.002405,
+        "p25": -0.00102,
+        "median": -0.000343,
+        "mean": -0.000437,
+        "p75": 0.000229,
+        "p95": 0.000931,
+        "max": 0.003496,
+        "max_absolute": 0.006423
+      },
+      "settlement_probability_rounding_decimals": 6
+    },
+    "price_source_stratified_comparison": {
+      "strata": {
+        "DERIVED_FROM_CURRENT_EV_AND_FIVE_STATE_DISTRIBUTION": {
+          "n": 478,
+          "reported_point_ev_delta": {
+            "n": 478,
+            "min": 0.0,
+            "p05": 0.0,
+            "p25": 0.0,
+            "median": 0.0,
+            "mean": 0.0,
+            "p75": 0.0,
+            "p95": 0.0,
+            "max": 0.0,
+            "max_absolute": 0.0
+          },
+          "internal_quadrature_mean_ev_delta_gh3_minus_old": {
+            "n": 478,
+            "min": -0.004681,
+            "p05": -0.003386,
+            "p25": -0.000961,
+            "median": -0.00032,
+            "mean": -0.000412,
+            "p75": 0.000486,
+            "p95": 0.002253,
+            "max": 0.002518,
+            "max_absolute": 0.004681
+          },
+          "ev_se_delta_gh3_minus_old": {
+            "n": 478,
+            "min": 0.015113,
+            "p05": 0.017721,
+            "p25": 0.019871,
+            "median": 0.023259,
+            "mean": 0.027423,
+            "p75": 0.036258,
+            "p95": 0.043939,
+            "max": 0.049328,
+            "max_absolute": 0.049328
+          },
+          "mixed_score_matrix_ev_delta_gh3_minus_old": {
+            "n": 478,
+            "min": -0.006423,
+            "p05": -0.004631,
+            "p25": -0.001313,
+            "median": -0.000436,
+            "mean": -0.000561,
+            "p75": 0.000665,
+            "p95": 0.003135,
+            "max": 0.003496,
+            "max_absolute": 0.006423
+          },
+          "pure_sqrt_2_linear_rescaling_reference": {
+            "basis": "FORWARD_RECONSTRUCTED_OLD_EV_SE_TIMES_SQRT_2_MINUS_1;_NO_HISTORICAL_SIGMA_BACKSOLVE",
+            "predicted_ev_se_delta": {
+              "n": 478,
+              "min": 0.015133,
+              "p05": 0.017754,
+              "p25": 0.020019,
+              "median": 0.023435,
+              "mean": 0.027685,
+              "p75": 0.036433,
+              "p95": 0.045091,
+              "max": 0.050195,
+              "max_absolute": 0.050195
+            },
+            "actual_minus_predicted_ev_se_delta": {
+              "n": 478,
+              "min": -0.001799,
+              "p05": -0.001336,
+              "p25": -0.000309,
+              "median": -0.000113,
+              "mean": -0.000262,
+              "p75": -4.3e-05,
+              "p95": 0.000105,
+              "max": 0.000472,
+              "max_absolute": 0.001799
+            },
+            "actual_mean": 0.027423,
+            "predicted_mean": 0.027685,
+            "absolute_relative_mean_gap": 0.009465
+          }
+        },
+        "PAYLOAD_DECIMAL_ODDS": {
+          "n": 2106,
+          "reported_point_ev_delta": {
+            "n": 2106,
+            "min": 0.0,
+            "p05": 0.0,
+            "p25": 0.0,
+            "median": 0.0,
+            "mean": 0.0,
+            "p75": 0.0,
+            "p95": 0.0,
+            "max": 0.0,
+            "max_absolute": 0.0
+          },
+          "internal_quadrature_mean_ev_delta_gh3_minus_old": {
+            "n": 2106,
+            "min": -0.00277,
+            "p05": -0.001261,
+            "p25": -0.000687,
+            "median": -0.000237,
+            "mean": -0.000299,
+            "p75": 0.000127,
+            "p95": 0.000609,
+            "max": 0.001044,
+            "max_absolute": 0.00277
+          },
+          "ev_se_delta_gh3_minus_old": {
+            "n": 2106,
+            "min": 0.011775,
+            "p05": 0.016311,
+            "p25": 0.018628,
+            "median": 0.020617,
+            "mean": 0.020838,
+            "p75": 0.02263,
+            "p95": 0.026168,
+            "max": 0.034009,
+            "max_absolute": 0.034009
+          },
+          "mixed_score_matrix_ev_delta_gh3_minus_old": {
+            "n": 2106,
+            "min": -0.003793,
+            "p05": -0.001725,
+            "p25": -0.00094,
+            "median": -0.000323,
+            "mean": -0.000408,
+            "p75": 0.000174,
+            "p95": 0.000836,
+            "max": 0.001428,
+            "max_absolute": 0.003793
+          },
+          "pure_sqrt_2_linear_rescaling_reference": {
+            "basis": "FORWARD_RECONSTRUCTED_OLD_EV_SE_TIMES_SQRT_2_MINUS_1;_NO_HISTORICAL_SIGMA_BACKSOLVE",
+            "predicted_ev_se_delta": {
+              "n": 2106,
+              "min": 0.011758,
+              "p05": 0.016313,
+              "p25": 0.018645,
+              "median": 0.020699,
+              "mean": 0.020927,
+              "p75": 0.022859,
+              "p95": 0.026432,
+              "max": 0.03393,
+              "max_absolute": 0.03393
+            },
+            "actual_minus_predicted_ev_se_delta": {
+              "n": 2106,
+              "min": -0.001077,
+              "p05": -0.000245,
+              "p25": -0.000132,
+              "median": -7.9e-05,
+              "mean": -8.8e-05,
+              "p75": -3.3e-05,
+              "p95": 4e-05,
+              "max": 0.000308,
+              "max_absolute": 0.001077
+            },
+            "actual_mean": 0.020838,
+            "predicted_mean": 0.020927,
+            "absolute_relative_mean_gap": 0.004227
+          }
+        }
+      },
+      "distribution_difference_assessments": {
+        "reported_point_ev_delta": {
+          "criterion": "MATERIAL_IF_ABSOLUTE_STANDARDIZED_MEAN_GAP_OR_MAX_P05_P25_MEDIAN_P75_P95_GAP_IS_AT_LEAST_0_20_POOLED_WITHIN_SOURCE_SD",
+          "criterion_purpose": "DESCRIPTIVE_REPORTING_ONLY_NOT_A_MODEL_GATE_OR_PARAMETER",
+          "threshold": 0.2,
+          "pooled_within_source_sd": 0.0,
+          "absolute_mean_gap": 0.0,
+          "absolute_standardized_mean_gap": 0.0,
+          "largest_central_quantile_gap": "p05",
+          "absolute_largest_central_quantile_gap": 0.0,
+          "absolute_standardized_largest_central_quantile_gap": 0.0,
+          "material_difference": false,
+          "classification": "NO_MATERIAL_PRICE_SOURCE_DIFFERENCE",
+          "pooled_statistic_may_be_sole_reporting_granularity": true
+        },
+        "internal_quadrature_mean_ev_delta_gh3_minus_old": {
+          "criterion": "MATERIAL_IF_ABSOLUTE_STANDARDIZED_MEAN_GAP_OR_MAX_P05_P25_MEDIAN_P75_P95_GAP_IS_AT_LEAST_0_20_POOLED_WITHIN_SOURCE_SD",
+          "criterion_purpose": "DESCRIPTIVE_REPORTING_ONLY_NOT_A_MODEL_GATE_OR_PARAMETER",
+          "threshold": 0.2,
+          "pooled_within_source_sd": 0.000839,
+          "absolute_mean_gap": 0.000113,
+          "absolute_standardized_mean_gap": 0.135036,
+          "largest_central_quantile_gap": "p05",
+          "absolute_largest_central_quantile_gap": 0.002125,
+          "absolute_standardized_largest_central_quantile_gap": 2.532142,
+          "material_difference": true,
+          "classification": "MATERIAL_PRICE_SOURCE_DIFFERENCE",
+          "pooled_statistic_may_be_sole_reporting_granularity": false
+        },
+        "ev_se_delta_gh3_minus_old": {
+          "criterion": "MATERIAL_IF_ABSOLUTE_STANDARDIZED_MEAN_GAP_OR_MAX_P05_P25_MEDIAN_P75_P95_GAP_IS_AT_LEAST_0_20_POOLED_WITHIN_SOURCE_SD",
+          "criterion_purpose": "DESCRIPTIVE_REPORTING_ONLY_NOT_A_MODEL_GATE_OR_PARAMETER",
+          "threshold": 0.2,
+          "pooled_within_source_sd": 0.004879,
+          "absolute_mean_gap": 0.006585,
+          "absolute_standardized_mean_gap": 1.349489,
+          "largest_central_quantile_gap": "p95",
+          "absolute_largest_central_quantile_gap": 0.017771,
+          "absolute_standardized_largest_central_quantile_gap": 3.642091,
+          "material_difference": true,
+          "classification": "MATERIAL_PRICE_SOURCE_DIFFERENCE",
+          "pooled_statistic_may_be_sole_reporting_granularity": false
+        },
+        "mixed_score_matrix_ev_delta_gh3_minus_old": {
+          "criterion": "MATERIAL_IF_ABSOLUTE_STANDARDIZED_MEAN_GAP_OR_MAX_P05_P25_MEDIAN_P75_P95_GAP_IS_AT_LEAST_0_20_POOLED_WITHIN_SOURCE_SD",
+          "criterion_purpose": "DESCRIPTIVE_REPORTING_ONLY_NOT_A_MODEL_GATE_OR_PARAMETER",
+          "threshold": 0.2,
+          "pooled_within_source_sd": 0.001152,
+          "absolute_mean_gap": 0.000153,
+          "absolute_standardized_mean_gap": 0.132682,
+          "largest_central_quantile_gap": "p05",
+          "absolute_largest_central_quantile_gap": 0.002906,
+          "absolute_standardized_largest_central_quantile_gap": 2.522429,
+          "material_difference": true,
+          "classification": "MATERIAL_PRICE_SOURCE_DIFFERENCE",
+          "pooled_statistic_may_be_sole_reporting_granularity": false
+        }
+      },
+      "ev_se_pooled_mean_question": {
+        "pooled_mean": 0.022056,
+        "answer": "YES_MIXTURE_OF_MATERIALLY_DIFFERENT_PRICE_SOURCE_DISTRIBUTIONS",
+        "pooled_mean_must_not_be_the_only_reporting_granularity": true,
+        "criterion_reference": "MATERIAL_IF_ABSOLUTE_STANDARDIZED_MEAN_GAP_OR_MAX_P05_P25_MEDIAN_P75_P95_GAP_IS_AT_LEAST_0_20_POOLED_WITHIN_SOURCE_SD"
+      },
+      "pure_sqrt_2_linear_rescaling_reference": {
+        "basis": "FORWARD_RECONSTRUCTED_OLD_EV_SE_TIMES_SQRT_2_MINUS_1;_NO_HISTORICAL_SIGMA_BACKSOLVE",
+        "predicted_ev_se_delta": {
+          "n": 2584,
+          "min": 0.011758,
+          "p05": 0.016624,
+          "p25": 0.018912,
+          "median": 0.020862,
+          "mean": 0.022177,
+          "p75": 0.023343,
+          "p95": 0.035506,
+          "max": 0.050195,
+          "max_absolute": 0.050195
+        },
+        "actual_mean": 0.022056,
+        "recomputed_predicted_mean": 0.022177,
+        "absolute_relative_mean_gap_to_recomputed_prediction": 0.005437,
+        "reviewer_supplied_predicted_mean": 0.022213,
+        "absolute_relative_mean_gap_to_reviewer_reference": 0.007054
+      }
+    },
+    "lower_node_floor": {
+      "floor": 0.01,
+      "lambda_side_inputs": 2122,
+      "old_distance_sigma": 1.0,
+      "old_triggered_lambda_sides": 0,
+      "old_trigger_rate": 0.0,
+      "old_affected_model_input_groups": 0,
+      "old_affected_evaluations": 0,
+      "gh3_distance_sigma": 1.7320508076,
+      "gh3_triggered_lambda_sides": 0,
+      "gh3_trigger_rate": 0.0,
+      "gh3_affected_model_input_groups": 0,
+      "gh3_affected_evaluations": 0,
+      "newly_affected_model_input_groups": 0,
+      "newly_affected_evaluations": 0,
+      "gh3_effective_sd_on_triggered_sides": {
+        "n": 0,
+        "min": null,
+        "p05": null,
+        "p25": null,
+        "median": null,
+        "mean": null,
+        "p75": null,
+        "p95": null,
+        "max": null,
+        "max_absolute": null
+      },
+      "gh3_effective_sd_over_sigma_on_triggered_sides": {
+        "n": 0,
+        "min": null,
+        "p05": null,
+        "p25": null,
+        "median": null,
+        "mean": null,
+        "p75": null,
+        "p95": null,
+        "max": null,
+        "max_absolute": null
+      },
+      "affected_samples": [],
+      "closest_unfloored_lower_nodes": {
+        "old": {
+          "model_input_hash": "fb21aebf6bd7fe09d329814ad3c175835b153947e06082cac320aa939a816e5d",
+          "fixture_id": "1493079",
+          "side": "AWAY",
+          "evaluation_ids": [
+            "dqe-023996b18ffcf33c4fec99a13639a2b87db245af3270d9d187a17a6044276d8e",
+            "dqe-a04101bd741db10458c3ff2fe58a4481b12145ab79c8a611d084ef76e423202b"
+          ],
+          "mu": 0.608,
+          "sigma": 0.073321,
+          "old_unfloored_lower_node": 0.534679,
+          "gh3_unfloored_lower_node": 0.481005
+        },
+        "gh3": {
+          "model_input_hash": "003c69dd0071a03656b79b49fb339d209072a4fbd2059f65c6927c816f4c4545",
+          "fixture_id": "1494232",
+          "side": "HOME",
+          "evaluation_ids": [
+            "dqe-12f7d7949ea74b627337f857db50d431a4fb19ad9257c910fd79f5a34f801c0b",
+            "dqe-e31c6c28ceb7f3c8cc31bb08f610eb12220fe9b74bed3b448cb6525478ff0430"
+          ],
+          "mu": 0.71335,
+          "sigma": 0.141551,
+          "old_unfloored_lower_node": 0.571799,
+          "gh3_unfloored_lower_node": 0.468176
+        }
+      },
+      "contract_exception": "WHEN_THE_0_01_FLOOR_TRIGGERS_THE_DISCRETE_NODE_SD_IS_LESS_THAN_SIGMA"
+    },
+    "frozen_source": {
+      "commit": "3fb17ced5dbefa6201bad164556940d8894bb9b2",
+      "path": "docs/review_packages/EV_SE_OFFLINE_VALIDATION/EV_SE_OFFLINE_PREREGISTRATION_EVIDENCE_20260823.json",
+      "sha256": "62e4c0baed196b865d468e3d0a9f34351bef3f187db5b4607e178d6e8412e55f",
+      "reason": "APPROVED_CONTRACT1_EVIDENCE_PRECEDES_MUTABLE_TEAM_XG_MATCH_REPUBLICATION;_PRESERVE_THE_APPROVED_2584_ROW_COHORT_WITHOUT_SIGMA_BACKSOLVE",
+      "current_reconstruction": {
+        "baseline_reproducible_evaluations": 2576,
+        "additional_nonreproducible_evaluation_ids": [
+          "dqe-482fbc32327811c0b416b77dc56bf930e404914da2a4ec22fca503d14a18f54d",
+          "dqe-4a9b77b85f051d8d7affa9598ccea51ad099084d49ecc13f9dbaa2ddbc3225b6",
+          "dqe-69c454c1783f5ad1c68ed79333fd657082471c75fff846cdc031c5a395d0faec",
+          "dqe-8f1420267e72d9b3ab2c9908f88c624232b7f95722c7dda003256ad64ef59bc4",
+          "dqe-a4e45f4555215d9e8e10de68c36873891f584cd61299f973f559caf713a926db",
+          "dqe-afb2ed4358d7bed313abe49297bcd4413892452871f0cec5d5d12cfa204b4ebd",
+          "dqe-d157c71c7e858bbe6ecf4b1bf2fe2508e39cf0382c5c09c4caa07ba761257935",
+          "dqe-f1831329b23a227b8dba29030f30910284716cd33d9bfaadec7f467b774a8032"
+        ]
+      }
+    }
+  },
+  "coverage_denominator": {
+    "runtime_canonical_team_match_history_rows": 102,
+    "runtime_active_competition_rows": 0,
+    "runtime_competition_ids": [
+      "allsvenskan"
+    ],
+    "offline_corpus": {
+      "snapshot_as_of": "2026-08-22T05:50:41.929427Z",
+      "corpus_sha256": "d19b217afe159c87dbf8d0dea87c260374ac9d18ffd8bb97581cfffe858cedc5",
+      "file_sha256": "80e49d1a32b5dd9653d41826e87415acff0d32a6804dea408f3b99737a6ab5e2",
+      "history_rows": 38706,
+      "team_identity_namespace": "api_football.provider_team_id.v1",
+      "materializer_commit": "0c77c086"
+    },
+    "enabled_scope_feasibility": {
+      "scope_source": "league_season.payload.enabled",
+      "enabled_competition_count_observed": 11,
+      "competition_ids": [
+        "argentina_primera",
+        "brasileirao_serie_a",
+        "bundesliga",
+        "eliteserien",
+        "eredivisie",
+        "la_liga",
+        "ligue_1",
+        "mls",
+        "premier_league",
+        "primeira_liga",
+        "serie_a"
+      ],
+      "aggregate_counts_without_coverage_average": {
+        "evaluations": 2265,
+        "both_sides_full_expected_latest20_coverage": 897,
+        "legacy_n20_both_evaluations": 2171,
+        "legacy_n20_both_but_expected_latest20_missing": 1274,
+        "side_rows_with_missing_expected_xg": 2379
+      },
+      "by_competition": [
+        {
+          "competition_id": "argentina_primera",
+          "provider_league_id": "128",
+          "offline_corpus_finished_fixtures": 2178,
+          "offline_corpus_team_history_rows": 4356,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 4356,
+            "canonical_id_shape_valid_rows": 4356,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1874,
+            "team_xg_match_join_success_rate": 0.430211,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:831664",
+                "provider_fixture_id": "831664",
+                "provider_team_id": "458"
+              },
+              {
+                "canonical_fixture_id": "api_football:831664",
+                "provider_fixture_id": "831664",
+                "provider_team_id": "444"
+              },
+              {
+                "canonical_fixture_id": "api_football:831665",
+                "provider_fixture_id": "831665",
+                "provider_team_id": "455"
+              },
+              {
+                "canonical_fixture_id": "api_football:831665",
+                "provider_fixture_id": "831665",
+                "provider_team_id": "474"
+              },
+              {
+                "canonical_fixture_id": "api_football:831666",
+                "provider_fixture_id": "831666",
+                "provider_team_id": "442"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
+          "evaluations_with_both_expected_denominators_ge3": 356,
+          "point_in_time_denominator_available_evaluations": 356,
+          "point_in_time_denominator_unavailable_evaluations": 0,
+          "expected_fixture_side_slots": 14240,
+          "observed_xg_fixture_side_slots": 3630,
+          "offline_structural_xg_coverage": 0.254916,
+          "pit_expected_fixture_side_slots": 14240,
+          "pit_observed_xg_fixture_side_slots": 3630,
+          "point_in_time_xg_coverage": 0.254916,
+          "side_coverage_median": 0.25,
+          "both_sides_full_expected_latest20_coverage": 0,
+          "legacy_n20_both_evaluations": 264,
+          "legacy_n20_both_but_expected_latest20_missing": 264,
+          "side_rows_with_missing_expected_xg": 712,
+          "runtime_sources": {
+            "canonical_team_match_history_team_rows": 0,
+            "canonical_team_match_history_fixtures": 0,
+            "matchday_fixture_identity_fixtures": 53
+          }
+        },
+        {
+          "competition_id": "brasileirao_serie_a",
+          "provider_league_id": "71",
+          "offline_corpus_finished_fixtures": 1744,
+          "offline_corpus_team_history_rows": 3488,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 3488,
+            "canonical_id_shape_valid_rows": 3488,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1966,
+            "team_xg_match_join_success_rate": 0.563647,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:837992",
+                "provider_fixture_id": "837992",
+                "provider_team_id": "128"
+              },
+              {
+                "canonical_fixture_id": "api_football:837992",
+                "provider_fixture_id": "837992",
+                "provider_team_id": "124"
+              },
+              {
+                "canonical_fixture_id": "api_football:837998",
+                "provider_fixture_id": "837998",
+                "provider_team_id": "127"
+              },
+              {
+                "canonical_fixture_id": "api_football:837998",
+                "provider_fixture_id": "837998",
+                "provider_team_id": "144"
+              },
+              {
+                "canonical_fixture_id": "api_football:837994",
+                "provider_fixture_id": "837994",
+                "provider_team_id": "129"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
+          "evaluations_with_both_expected_denominators_ge3": 176,
+          "point_in_time_denominator_available_evaluations": 176,
+          "point_in_time_denominator_unavailable_evaluations": 0,
+          "expected_fixture_side_slots": 7040,
+          "observed_xg_fixture_side_slots": 6804,
+          "offline_structural_xg_coverage": 0.966477,
+          "pit_expected_fixture_side_slots": 7040,
+          "pit_observed_xg_fixture_side_slots": 6804,
+          "point_in_time_xg_coverage": 0.966477,
+          "side_coverage_median": 0.95,
+          "both_sides_full_expected_latest20_coverage": 30,
+          "legacy_n20_both_evaluations": 176,
+          "legacy_n20_both_but_expected_latest20_missing": 146,
+          "side_rows_with_missing_expected_xg": 236,
+          "runtime_sources": {
+            "canonical_team_match_history_team_rows": 0,
+            "canonical_team_match_history_fixtures": 0,
+            "matchday_fixture_identity_fixtures": 47
+          }
+        },
+        {
+          "competition_id": "bundesliga",
+          "provider_league_id": "78",
+          "offline_corpus_finished_fixtures": 1232,
+          "offline_corpus_team_history_rows": 2464,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 2464,
+            "canonical_id_shape_valid_rows": 2464,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1224,
+            "team_xg_match_join_success_rate": 0.496753,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:871164",
+                "provider_fixture_id": "871164",
+                "provider_team_id": "157"
+              },
+              {
+                "canonical_fixture_id": "api_football:871164",
+                "provider_fixture_id": "871164",
+                "provider_team_id": "169"
+              },
+              {
+                "canonical_fixture_id": "api_football:871166",
+                "provider_fixture_id": "871166",
+                "provider_team_id": "159"
+              },
+              {
+                "canonical_fixture_id": "api_football:871166",
+                "provider_fixture_id": "871166",
+                "provider_team_id": "182"
+              },
+              {
+                "canonical_fixture_id": "api_football:871168",
+                "provider_fixture_id": "871168",
+                "provider_team_id": "167"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
+          "evaluations_with_both_expected_denominators_ge3": 8,
+          "point_in_time_denominator_available_evaluations": 8,
+          "point_in_time_denominator_unavailable_evaluations": 0,
+          "expected_fixture_side_slots": 320,
+          "observed_xg_fixture_side_slots": 320,
+          "offline_structural_xg_coverage": 1.0,
+          "pit_expected_fixture_side_slots": 320,
+          "pit_observed_xg_fixture_side_slots": 320,
+          "point_in_time_xg_coverage": 1.0,
+          "side_coverage_median": 1.0,
+          "both_sides_full_expected_latest20_coverage": 8,
+          "legacy_n20_both_evaluations": 8,
+          "legacy_n20_both_but_expected_latest20_missing": 0,
+          "side_rows_with_missing_expected_xg": 0,
+          "runtime_sources": {
+            "canonical_team_match_history_team_rows": 0,
+            "canonical_team_match_history_fixtures": 0,
+            "matchday_fixture_identity_fixtures": 20
+          }
+        },
+        {
+          "competition_id": "eliteserien",
+          "provider_league_id": "103",
+          "offline_corpus_finished_fixtures": 1103,
+          "offline_corpus_team_history_rows": 2206,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 2206,
+            "canonical_id_shape_valid_rows": 2206,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1140,
+            "team_xg_match_join_success_rate": 0.516772,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:831004",
+                "provider_fixture_id": "831004",
+                "provider_team_id": "321"
+              },
+              {
+                "canonical_fixture_id": "api_football:831004",
+                "provider_fixture_id": "831004",
+                "provider_team_id": "2159"
+              },
+              {
+                "canonical_fixture_id": "api_football:831005",
+                "provider_fixture_id": "831005",
+                "provider_team_id": "326"
+              },
+              {
+                "canonical_fixture_id": "api_football:831005",
+                "provider_fixture_id": "831005",
+                "provider_team_id": "329"
+              },
+              {
+                "canonical_fixture_id": "api_football:831006",
+                "provider_fixture_id": "831006",
+                "provider_team_id": "320"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
+          "evaluations_with_both_expected_denominators_ge3": 4,
+          "point_in_time_denominator_available_evaluations": 4,
+          "point_in_time_denominator_unavailable_evaluations": 0,
+          "expected_fixture_side_slots": 160,
+          "observed_xg_fixture_side_slots": 156,
+          "offline_structural_xg_coverage": 0.975,
+          "pit_expected_fixture_side_slots": 160,
+          "pit_observed_xg_fixture_side_slots": 156,
+          "point_in_time_xg_coverage": 0.975,
+          "side_coverage_median": 1.0,
+          "both_sides_full_expected_latest20_coverage": 2,
+          "legacy_n20_both_evaluations": 2,
+          "legacy_n20_both_but_expected_latest20_missing": 0,
+          "side_rows_with_missing_expected_xg": 2,
+          "runtime_sources": {
+            "canonical_team_match_history_team_rows": 0,
+            "canonical_team_match_history_fixtures": 0,
+            "matchday_fixture_identity_fixtures": 34
+          }
+        },
+        {
+          "competition_id": "eredivisie",
+          "provider_league_id": "88",
+          "offline_corpus_finished_fixtures": 1293,
+          "offline_corpus_team_history_rows": 2586,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 2586,
+            "canonical_id_shape_valid_rows": 2586,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1268,
+            "team_xg_match_join_success_rate": 0.490333,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:872224",
+                "provider_fixture_id": "872224",
+                "provider_team_id": "426"
+              },
+              {
+                "canonical_fixture_id": "api_football:872224",
+                "provider_fixture_id": "872224",
+                "provider_team_id": "210"
+              },
+              {
+                "canonical_fixture_id": "api_football:872225",
+                "provider_fixture_id": "872225",
+                "provider_team_id": "194"
+              },
+              {
+                "canonical_fixture_id": "api_football:872225",
+                "provider_fixture_id": "872225",
+                "provider_team_id": "205"
+              },
+              {
+                "canonical_fixture_id": "api_football:872226",
+                "provider_fixture_id": "872226",
+                "provider_team_id": "196"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
+          "evaluations_with_both_expected_denominators_ge3": 149,
+          "point_in_time_denominator_available_evaluations": 149,
+          "point_in_time_denominator_unavailable_evaluations": 0,
+          "expected_fixture_side_slots": 5960,
+          "observed_xg_fixture_side_slots": 5807,
+          "offline_structural_xg_coverage": 0.974329,
+          "pit_expected_fixture_side_slots": 5960,
+          "pit_observed_xg_fixture_side_slots": 5807,
+          "point_in_time_xg_coverage": 0.974329,
+          "side_coverage_median": 0.95,
+          "both_sides_full_expected_latest20_coverage": 33,
+          "legacy_n20_both_evaluations": 149,
+          "legacy_n20_both_but_expected_latest20_missing": 116,
+          "side_rows_with_missing_expected_xg": 153,
+          "runtime_sources": {
+            "canonical_team_match_history_team_rows": 0,
+            "canonical_team_match_history_fixtures": 0,
+            "matchday_fixture_identity_fixtures": 31
+          }
+        },
+        {
+          "competition_id": "la_liga",
+          "provider_league_id": "140",
+          "offline_corpus_finished_fixtures": 1528,
+          "offline_corpus_team_history_rows": 3056,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 3056,
+            "canonical_id_shape_valid_rows": 3056,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1536,
+            "team_xg_match_join_success_rate": 0.502618,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:877947",
+                "provider_fixture_id": "877947",
+                "provider_team_id": "536"
+              },
+              {
+                "canonical_fixture_id": "api_football:877947",
+                "provider_fixture_id": "877947",
+                "provider_team_id": "727"
+              },
+              {
+                "canonical_fixture_id": "api_football:877945",
+                "provider_fixture_id": "877945",
+                "provider_team_id": "540"
+              },
+              {
+                "canonical_fixture_id": "api_football:877945",
+                "provider_fixture_id": "877945",
+                "provider_team_id": "538"
+              },
+              {
+                "canonical_fixture_id": "api_football:877950",
+                "provider_fixture_id": "877950",
+                "provider_team_id": "533"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
+          "evaluations_with_both_expected_denominators_ge3": 198,
+          "point_in_time_denominator_available_evaluations": 184,
+          "point_in_time_denominator_unavailable_evaluations": 14,
+          "expected_fixture_side_slots": 7920,
+          "observed_xg_fixture_side_slots": 7892,
+          "offline_structural_xg_coverage": 0.996465,
+          "pit_expected_fixture_side_slots": 7360,
+          "pit_observed_xg_fixture_side_slots": 7346,
+          "point_in_time_xg_coverage": 0.998098,
+          "side_coverage_median": 1.0,
+          "both_sides_full_expected_latest20_coverage": 170,
+          "legacy_n20_both_evaluations": 198,
+          "legacy_n20_both_but_expected_latest20_missing": 28,
+          "side_rows_with_missing_expected_xg": 28,
+          "runtime_sources": {
+            "canonical_team_match_history_team_rows": 0,
+            "canonical_team_match_history_fixtures": 0,
+            "matchday_fixture_identity_fixtures": 28
+          }
+        },
+        {
+          "competition_id": "ligue_1",
+          "provider_league_id": "61",
+          "offline_corpus_finished_fixtures": 1304,
+          "offline_corpus_team_history_rows": 2608,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 2608,
+            "canonical_id_shape_valid_rows": 2608,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1226,
+            "team_xg_match_join_success_rate": 0.470092,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:871474",
+                "provider_fixture_id": "871474",
+                "provider_team_id": "98"
+              },
+              {
+                "canonical_fixture_id": "api_football:871474",
+                "provider_fixture_id": "871474",
+                "provider_team_id": "80"
+              },
+              {
+                "canonical_fixture_id": "api_football:871470",
+                "provider_fixture_id": "871470",
+                "provider_team_id": "91"
+              },
+              {
+                "canonical_fixture_id": "api_football:871470",
+                "provider_fixture_id": "871470",
+                "provider_team_id": "95"
+              },
+              {
+                "canonical_fixture_id": "api_football:871472",
+                "provider_fixture_id": "871472",
+                "provider_team_id": "85"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
+          "evaluations_with_both_expected_denominators_ge3": 154,
+          "point_in_time_denominator_available_evaluations": 154,
+          "point_in_time_denominator_unavailable_evaluations": 0,
+          "expected_fixture_side_slots": 6160,
+          "observed_xg_fixture_side_slots": 6108,
+          "offline_structural_xg_coverage": 0.991558,
+          "pit_expected_fixture_side_slots": 6160,
+          "pit_observed_xg_fixture_side_slots": 6108,
+          "point_in_time_xg_coverage": 0.991558,
+          "side_coverage_median": 1.0,
+          "both_sides_full_expected_latest20_coverage": 128,
+          "legacy_n20_both_evaluations": 154,
+          "legacy_n20_both_but_expected_latest20_missing": 26,
+          "side_rows_with_missing_expected_xg": 26,
+          "runtime_sources": {
+            "canonical_team_match_history_team_rows": 0,
+            "canonical_team_match_history_fixtures": 0,
+            "matchday_fixture_identity_fixtures": 19
+          }
+        },
+        {
+          "competition_id": "mls",
+          "provider_league_id": "253",
+          "offline_corpus_finished_fixtures": 2371,
+          "offline_corpus_team_history_rows": 4742,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 4742,
+            "canonical_id_shape_valid_rows": 4742,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 2722,
+            "team_xg_match_join_success_rate": 0.574019,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:816716",
+                "provider_fixture_id": "816716",
+                "provider_team_id": "1612"
+              },
+              {
+                "canonical_fixture_id": "api_football:816716",
+                "provider_fixture_id": "816716",
+                "provider_team_id": "1599"
+              },
+              {
+                "canonical_fixture_id": "api_football:816717",
+                "provider_fixture_id": "816717",
+                "provider_team_id": "1603"
+              },
+              {
+                "canonical_fixture_id": "api_football:816717",
+                "provider_fixture_id": "816717",
+                "provider_team_id": "1613"
+              },
+              {
+                "canonical_fixture_id": "api_football:816718",
+                "provider_fixture_id": "816718",
+                "provider_team_id": "1610"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
+          "evaluations_with_both_expected_denominators_ge3": 738,
+          "point_in_time_denominator_available_evaluations": 706,
+          "point_in_time_denominator_unavailable_evaluations": 32,
+          "expected_fixture_side_slots": 29520,
+          "observed_xg_fixture_side_slots": 27820,
+          "offline_structural_xg_coverage": 0.942412,
+          "pit_expected_fixture_side_slots": 28240,
+          "pit_observed_xg_fixture_side_slots": 26652,
+          "point_in_time_xg_coverage": 0.943768,
+          "side_coverage_median": 0.95,
+          "both_sides_full_expected_latest20_coverage": 70,
+          "legacy_n20_both_evaluations": 738,
+          "legacy_n20_both_but_expected_latest20_missing": 668,
+          "side_rows_with_missing_expected_xg": 1196,
+          "runtime_sources": {
+            "canonical_team_match_history_team_rows": 0,
+            "canonical_team_match_history_fixtures": 0,
+            "matchday_fixture_identity_fixtures": 55
+          }
+        },
+        {
+          "competition_id": "premier_league",
+          "provider_league_id": "39",
+          "offline_corpus_finished_fixtures": 1521,
+          "offline_corpus_team_history_rows": 3042,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 3042,
+            "canonical_id_shape_valid_rows": 3042,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1522,
+            "team_xg_match_join_success_rate": 0.500329,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:867946",
+                "provider_fixture_id": "867946",
+                "provider_team_id": "42"
+              },
+              {
+                "canonical_fixture_id": "api_football:867946",
+                "provider_fixture_id": "867946",
+                "provider_team_id": "52"
+              },
+              {
+                "canonical_fixture_id": "api_football:867947",
+                "provider_fixture_id": "867947",
+                "provider_team_id": "40"
+              },
+              {
+                "canonical_fixture_id": "api_football:867947",
+                "provider_fixture_id": "867947",
+                "provider_team_id": "36"
+              },
+              {
+                "canonical_fixture_id": "api_football:867948",
+                "provider_fixture_id": "867948",
+                "provider_team_id": "66"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
+          "evaluations_with_both_expected_denominators_ge3": 184,
+          "point_in_time_denominator_available_evaluations": 184,
+          "point_in_time_denominator_unavailable_evaluations": 0,
+          "expected_fixture_side_slots": 7360,
+          "observed_xg_fixture_side_slots": 7360,
+          "offline_structural_xg_coverage": 1.0,
+          "pit_expected_fixture_side_slots": 7360,
+          "pit_observed_xg_fixture_side_slots": 7360,
+          "point_in_time_xg_coverage": 1.0,
+          "side_coverage_median": 1.0,
+          "both_sides_full_expected_latest20_coverage": 184,
+          "legacy_n20_both_evaluations": 184,
+          "legacy_n20_both_but_expected_latest20_missing": 0,
+          "side_rows_with_missing_expected_xg": 0,
+          "runtime_sources": {
+            "canonical_team_match_history_team_rows": 0,
+            "canonical_team_match_history_fixtures": 0,
+            "matchday_fixture_identity_fixtures": 18
+          }
+        },
+        {
+          "competition_id": "primeira_liga",
+          "provider_league_id": "94",
+          "offline_corpus_finished_fixtures": 1249,
+          "offline_corpus_team_history_rows": 2498,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 2498,
+            "canonical_id_shape_valid_rows": 2498,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1260,
+            "team_xg_match_join_success_rate": 0.504404,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:898605",
+                "provider_fixture_id": "898605",
+                "provider_team_id": "240"
+              },
+              {
+                "canonical_fixture_id": "api_football:898605",
+                "provider_fixture_id": "898605",
+                "provider_team_id": "211"
+              },
+              {
+                "canonical_fixture_id": "api_football:898604",
+                "provider_fixture_id": "898604",
+                "provider_team_id": "810"
+              },
+              {
+                "canonical_fixture_id": "api_football:898604",
+                "provider_fixture_id": "898604",
+                "provider_team_id": "226"
+              },
+              {
+                "canonical_fixture_id": "api_football:898608",
+                "provider_fixture_id": "898608",
+                "provider_team_id": "242"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
+          "evaluations_with_both_expected_denominators_ge3": 120,
+          "point_in_time_denominator_available_evaluations": 120,
+          "point_in_time_denominator_unavailable_evaluations": 0,
+          "expected_fixture_side_slots": 4800,
+          "observed_xg_fixture_side_slots": 4750,
+          "offline_structural_xg_coverage": 0.989583,
+          "pit_expected_fixture_side_slots": 4800,
+          "pit_observed_xg_fixture_side_slots": 4750,
+          "point_in_time_xg_coverage": 0.989583,
+          "side_coverage_median": 1.0,
+          "both_sides_full_expected_latest20_coverage": 94,
+          "legacy_n20_both_evaluations": 120,
+          "legacy_n20_both_but_expected_latest20_missing": 26,
+          "side_rows_with_missing_expected_xg": 26,
+          "runtime_sources": {
+            "canonical_team_match_history_team_rows": 0,
+            "canonical_team_match_history_fixtures": 0,
+            "matchday_fixture_identity_fixtures": 31
+          }
+        },
+        {
+          "competition_id": "serie_a",
+          "provider_league_id": "135",
+          "offline_corpus_finished_fixtures": 1521,
+          "offline_corpus_team_history_rows": 3042,
+          "canonical_provider_fixture_identity_alignment": {
+            "eligible_team_history_rows": 3042,
+            "canonical_id_shape_valid_rows": 3042,
+            "canonical_id_shape_success_rate": 1.0,
+            "team_xg_match_joined_rows": 1518,
+            "team_xg_match_join_success_rate": 0.499014,
+            "team_xg_match_join_failure_samples": [
+              {
+                "canonical_fixture_id": "api_football:881780",
+                "provider_fixture_id": "881780",
+                "provider_team_id": "494"
+              },
+              {
+                "canonical_fixture_id": "api_football:881780",
+                "provider_fixture_id": "881780",
+                "provider_team_id": "489"
+              },
+              {
+                "canonical_fixture_id": "api_football:881781",
+                "provider_fixture_id": "881781",
+                "provider_team_id": "499"
+              },
+              {
+                "canonical_fixture_id": "api_football:881781",
+                "provider_fixture_id": "881781",
+                "provider_team_id": "498"
+              },
+              {
+                "canonical_fixture_id": "api_football:881782",
+                "provider_fixture_id": "881782",
+                "provider_team_id": "505"
+              }
+            ],
+            "join_key": [
+              "provider_fixture_id",
+              "provider_team_id"
+            ]
+          },
+          "evaluations_with_both_expected_denominators_ge3": 178,
+          "point_in_time_denominator_available_evaluations": 178,
+          "point_in_time_denominator_unavailable_evaluations": 0,
+          "expected_fixture_side_slots": 7120,
+          "observed_xg_fixture_side_slots": 7120,
+          "offline_structural_xg_coverage": 1.0,
+          "pit_expected_fixture_side_slots": 7120,
+          "pit_observed_xg_fixture_side_slots": 7120,
+          "point_in_time_xg_coverage": 1.0,
+          "side_coverage_median": 1.0,
+          "both_sides_full_expected_latest20_coverage": 178,
+          "legacy_n20_both_evaluations": 178,
+          "legacy_n20_both_but_expected_latest20_missing": 0,
+          "side_rows_with_missing_expected_xg": 0,
+          "runtime_sources": {
+            "canonical_team_match_history_team_rows": 0,
+            "canonical_team_match_history_fixtures": 0,
+            "matchday_fixture_identity_fixtures": 20
+          }
+        }
+      ]
+    },
+    "xg_ingest_baseline": {
+      "state": "POST_20260823_REFRESH_BEFORE_XG_INGEST_01_PROVIDER_RETRY",
+      "team_xg_rows_visible_at_observed_at": 18846,
+      "xg_visibility_authority": "FIRST_TWO_SIDED_NUMERIC_SAVED_RAW_CAPTURE",
+      "historical_null_response_retry_executed": false,
+      "coverage_values_must_be_recomputed_after_any_owner_authorized_provider_retry": true
+    },
+    "authority_candidate_facts": {
+      "canonical_team_match_history": {
+        "status": "CURRENT_SCOPE_INSUFFICIENT",
+        "reason": "NO_ROWS_FOR_THE_ENABLED_SCOPE_AT_THE_FROZEN_OBSERVATION"
+      },
+      "matchday_fixture_identities": {
+        "status": "IDENTITY_ONLY_NOT_A_FINISHED_MATCH_DENOMINATOR",
+        "reason": "THE_TABLE_HAS_NO_FINISHED_STATUS_RESULT_OR_RESULT_VISIBILITY_TIME"
+      },
+      "persisted_saved_raw_fixtures": {
+        "status": "OWNER_APPROVED_RUNTIME_AUTHORITY_LOCAL_IMPLEMENTATION_NOT_DEPLOYED",
+        "reason": "MATERIALIZE_IMMUTABLE_OBSERVATIONS_WITH_CAPTURED_AT_AND_SOURCE_INSERTED_AT_THEN_QUERY_LATEST_VISIBLE_CANONICAL_PROVIDER_FIXTURES"
+      }
+    }
+  },
+  "forbidden_uses": [
+    "CURRENT_65_PICK_PROFIT_TUNING",
+    "AGE_CUTOFF_BACKTEST_SELECTION",
+    "EV_CAP_BACKTEST_SELECTION",
+    "STALE_XG_CAUSES_HIGH_EV_CLAIM",
+    "PRODUCTION_PARAMETER_CHANGE_WITHOUT_OWNER_APPROVAL"
+  ]
+}

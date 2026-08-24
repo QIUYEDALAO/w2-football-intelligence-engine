@@ -6,6 +6,8 @@ from typing import Any
 import pytest
 
 from w2.features.xg_materialization import (
+    XG_METHOD_VERSION,
+    XG_PIT_SOURCE_KICKOFF_ONLY,
     materialize_rolling_xg,
     parse_team_xg_matches,
 )
@@ -139,6 +141,74 @@ def test_rolling_xg_visibility_uses_latest_component_availability() -> None:
     assert snapshot is not None
     assert snapshot.as_of_time == captured_times[-1]
     assert snapshot.as_of_time < NOW
+
+
+def test_source_kickoff_only_ignores_backfill_capture_but_excludes_target() -> None:
+    rows = []
+    for index in range(3):
+        rows.extend(
+            parse_team_xg_matches(
+                fixture_payload=finished_fixture(
+                    f"source-{index}", NOW - timedelta(days=4 - index)
+                ),
+                statistics_payload=statistics(home_xg=str(index + 1)),
+                captured_at=NOW + timedelta(days=1),
+                raw_payload_sha256=f"{index + 1}" * 64,
+            )
+        )
+    rows.extend(
+        parse_team_xg_matches(
+            fixture_payload=finished_fixture("target", NOW - timedelta(days=10)),
+            statistics_payload=statistics(home_xg="99"),
+            captured_at=NOW + timedelta(days=1),
+            raw_payload_sha256="f" * 64,
+        )
+    )
+
+    snapshot = materialize_rolling_xg(
+        team_id="10",
+        as_of_fixture_id="target",
+        as_of_time=NOW,
+        matches=rows,
+        min_matches=3,
+        pit_semantics=XG_PIT_SOURCE_KICKOFF_ONLY,
+        method_version=XG_METHOD_VERSION,
+    )
+
+    assert snapshot is not None
+    assert snapshot.match_count == 3
+    assert snapshot.rolling_xg_for == 2.0
+    assert snapshot.as_of_time == NOW - timedelta(days=2)
+    assert snapshot.source_fixture_ids == ("source-0", "source-1", "source-2")
+    assert "target" not in snapshot.source_fixture_ids
+
+
+def test_source_kickoff_only_falls_back_to_strict_for_unknown_method() -> None:
+    rows = []
+    for index in range(3):
+        rows.extend(
+            parse_team_xg_matches(
+                fixture_payload=finished_fixture(
+                    f"source-{index}", NOW - timedelta(days=4 - index)
+                ),
+                statistics_payload=statistics(),
+                captured_at=NOW + timedelta(days=1),
+                raw_payload_sha256=f"{index + 1}" * 64,
+            )
+        )
+
+    assert (
+        materialize_rolling_xg(
+            team_id="10",
+            as_of_fixture_id="target",
+            as_of_time=NOW,
+            matches=rows,
+            min_matches=3,
+            pit_semantics=XG_PIT_SOURCE_KICKOFF_ONLY,
+            method_version="unknown",
+        )
+        is None
+    )
 
 
 class FakeClient:

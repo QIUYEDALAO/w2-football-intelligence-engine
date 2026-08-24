@@ -1,0 +1,23 @@
+[Unit]
+Description=W2 Factor V2 delayed forward collection (collection only)
+Requires=docker.service
+After=docker.service network-online.target w2-staging.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/w2/deploy
+ExecStart=/usr/bin/sudo /usr/bin/docker compose \
+  -f /opt/w2/deploy/compose.staging.yml \
+  -f /opt/w2/deploy/controlled-future-refresh.override.yml \
+  -f /opt/w2/deploy/production-coverage.override.yml \
+  --env-file /opt/w2/shared/.env \
+  --env-file /opt/w2/shared/release.env \
+  --profile factor-v2 \
+  run --rm --no-deps factor-v2-forward-collector
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -25,6 +25,9 @@ from w2.infrastructure.persistence.model_forecast_models import (
     canonical_model_forecast_fixture_id_sql,
     model_forecast_fixture_aliases,
 )
+from w2.ingestion.expected_match_materialization import (
+    add_expected_match_fixture_materialization,
+)
 from w2.matchday.intake_v2 import CheckpointPlan, parse_utc, stable_hash, validate_manifest_identity
 from w2.prematch.evaluation_slots import CURRENT_EVALUATION_POLICY, is_evaluation_slot
 from w2.prematch.lifecycle import EvaluationOpportunityContext, OpportunityState
@@ -102,15 +105,22 @@ class MatchdayRuntimeRepository:
             existing = session.get(RawPayloadModel, sha256)
             if existing is not None:
                 return False
-            session.add(
-                RawPayloadModel(
-                    sha256=sha256,
-                    endpoint=endpoint,
-                    captured_at=captured_at,
-                    storage_uri=f"db://raw_payload/{sha256}",
-                    payload=dict(payload),
-                )
+            inserted_at = datetime.now(UTC)
+            raw = RawPayloadModel(
+                sha256=sha256,
+                endpoint=endpoint,
+                captured_at=captured_at,
+                inserted_at=inserted_at,
+                storage_uri=f"db://raw_payload/{sha256}",
+                payload=dict(payload),
             )
+            session.add(raw)
+            if endpoint == "fixtures":
+                add_expected_match_fixture_materialization(
+                    session,
+                    raw,
+                    materialized_at=inserted_at,
+                )
             session.commit()
         return True
 
