@@ -186,6 +186,43 @@ def test_model_forecast_denominator_write_does_not_rewrite_frozen_card(
         )
 
 
+def test_projection_events_batch_round3_read_once_per_fixture_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+
+    class CountingRound3Repository(ScopedRepository):
+        def __init__(self) -> None:
+            super().__init__()
+            self.round3_calls: list[list[str]] = []
+
+        def round3_market_evidence_for_fixtures(
+            self,
+            fixture_ids: list[str],
+        ) -> list[dict[str, Any]]:
+            self.round3_calls.append(list(fixture_ids))
+            return []
+
+    repository = CountingRound3Repository()
+    first = _event()
+    second = ProjectionSourceEvent.create(
+        fixture_id=first.fixture_id,
+        event_type="ODDS_CHANGED",
+        event_id="odds:capture-2",
+        event_at=first.event_at + timedelta(minutes=1),
+        payload={"capture_id": "capture-2"},
+    )
+
+    materialize_projection_events(
+        [first, second],
+        repository=repository,
+        calculate_analysis_card=_calculate_projection,
+        engine=_engine(dynamic=True),
+    )
+
+    assert repository.round3_calls == [["1576804"]]
+
+
 def _patch_projection(monkeypatch: pytest.MonkeyPatch) -> None:
     def project(
         self: ReadModelService,
@@ -1603,7 +1640,7 @@ def test_lineup_shadow_payload_requires_event_payload_identity(
         validate_frozen_analysis_payload("1576804", payload)
 
 
-def test_post_write_current_read_difference_rolls_back_entire_shadow_unit(
+def test_post_write_refresh_does_not_recalculate_full_analysis_card(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_ready_projection(monkeypatch)
@@ -1622,7 +1659,7 @@ def test_post_write_current_read_difference_rolls_back_entire_shadow_unit(
         lifecycle = scoped_repository.dynamic_prematch_lifecycle(fixture_id)
         if lifecycle.get("versions"):
             card["dynamic_prematch"] = lifecycle
-        card["decision"] = "ANALYSIS_ONLY" if calls <= 4 else "SKIP"
+        card["decision"] = "ANALYSIS_ONLY" if calls <= 2 else "SKIP"
         return card
 
     event = _event()
@@ -1635,16 +1672,65 @@ def test_post_write_current_read_difference_rolls_back_entire_shadow_unit(
         source_event=event,
     )
 
-    with pytest.raises(
-        FrozenAnalysisError,
-        match="persisted-readback reconciliation mismatch:decision",
-    ):
-        write_frozen_analysis_artifacts(engine, [artifact])
+    write_frozen_analysis_artifacts(engine, [artifact])
 
     with Session(engine) as session:
-        assert session.query(DynamicPrematchEvaluationModel).count() == 0
+        assert session.query(DynamicPrematchEvaluationModel).count() == 1
         assert session.query(DynamicPrematchSupersessionModel).count() == 0
-        assert session.query(ReadModelCheckpointModel).count() == 0
+        checkpoint = session.query(ReadModelCheckpointModel).one()
+        assert checkpoint.payload["analysis_card"]["decision"] == "ANALYSIS_ONLY"
+    assert calls == 2
+
+
+def test_incremental_post_write_refresh_byte_matches_full_rebuild(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    engine = _engine(dynamic=True)
+
+    def calculate(
+        scoped_repository: Any,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, Any] | None:
+        card = _calculate_projection(scoped_repository, fixture_id, evaluated_at)
+        assert card is not None
+        lifecycle = scoped_repository.dynamic_prematch_lifecycle(fixture_id)
+        if lifecycle.get("versions"):
+            card["dynamic_prematch"] = lifecycle
+        return card
+
+    projected_at = datetime(2026, 7, 18, 5, 0, 3, tzinfo=UTC)
+    event = _event()
+    materializer = AnalysisCardCanaryMaterializer(
+        ScopedRepository(),
+        calculate_analysis_card=calculate,
+        clock=lambda: projected_at,
+    )
+    artifact = materializer.build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+
+    repository = DynamicPrematchRepository(engine)
+    with Session(engine) as session:
+        for evaluation in artifact.evaluations:
+            repository.append_evaluation_in_session(session, evaluation)
+        lifecycle = repository.lifecycle_in_session(session, event.fixture_id)
+        incremental = materializer.refresh_shadow_after_write(
+            artifact,
+            lifecycle=lifecycle,
+        )
+        rebuilt = materializer.build(
+            event.fixture_id,
+            evaluated_at=event.event_at,
+            source_event=event,
+            session=session,
+        )
+        assert incremental.canonical_bytes == rebuilt.canonical_bytes
+        assert incremental.payload == rebuilt.payload
+        session.rollback()
 
 
 def test_projection_failure_after_evaluation_is_repairable_without_duplicate(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from time import monotonic
@@ -97,6 +98,9 @@ class _FrozenScopedInputs:
         self.observations = observations
         self.round3_evidence = round3_evidence
         self.session = session
+        self.dynamic_lifecycle_read = False
+        self._delegated_read_cache: dict[tuple[str, str, str], Any] = {}
+        self._dynamic_lifecycle_cache: dict[str, dict[str, Any]] = {}
 
     def fixture_payload(self, fixture_id: str) -> dict[str, Any] | None:
         return self.fixture if fixture_id == self.fixture_id else None
@@ -110,20 +114,37 @@ class _FrozenScopedInputs:
         return [dict(row) for row in self.observations]
 
     def dynamic_prematch_lifecycle(self, fixture_id: str) -> dict[str, Any]:
+        self.dynamic_lifecycle_read = True
         if fixture_id != self.fixture_id:
             return {}
+        cached = self._dynamic_lifecycle_cache.get(fixture_id)
+        if cached is not None:
+            return deepcopy(cached)
         if self.session is not None:
-            return DynamicPrematchRepository.lifecycle_in_session(
+            lifecycle = DynamicPrematchRepository.lifecycle_in_session(
                 self.session,
                 fixture_id,
             )
-        reader = getattr(self.delegate, "dynamic_prematch_lifecycle", None)
-        return reader(fixture_id) if callable(reader) else {}
+        else:
+            reader = getattr(self.delegate, "dynamic_prematch_lifecycle", None)
+            lifecycle = reader(fixture_id) if callable(reader) else {}
+        self._dynamic_lifecycle_cache[fixture_id] = deepcopy(lifecycle)
+        return deepcopy(lifecycle)
 
     def __getattr__(self, name: str) -> Any:
         if name == "round3_market_evidence_for_fixtures" and self.round3_evidence is not None:
             return self._round3_market_evidence_for_fixtures
-        return getattr(self.delegate, name)
+        target = getattr(self.delegate, name)
+        if not callable(target):
+            return target
+
+        def memoized_read(*args: Any, **kwargs: Any) -> Any:
+            key = (name, repr(args), repr(sorted(kwargs.items())))
+            if key not in self._delegated_read_cache:
+                self._delegated_read_cache[key] = deepcopy(target(*args, **kwargs))
+            return deepcopy(self._delegated_read_cache[key])
+
+        return memoized_read
 
     def _round3_market_evidence_for_fixtures(
         self,
@@ -144,6 +165,7 @@ class FrozenAnalysisArtifact:
     evaluations: tuple[DynamicEvaluationVersion, ...] = ()
     lineup_event: LineupConfirmedEvent | None = None
     read_time_reference: dict[str, Any] | None = None
+    dynamic_lifecycle_projected: bool = field(default=False, compare=False, repr=False)
     projection_event: ProjectionSourceEvent | None = field(
         default=None,
         compare=False,
@@ -362,11 +384,13 @@ class AnalysisCardCanaryMaterializer:
         *,
         calculate_analysis_card: AnalysisCardCalculator,
         build_scoreline_reference: ScorelineReferenceBuilder | None = None,
+        round3_evidence_by_fixture: Mapping[str, list[dict[str, Any]]] | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.repository = repository
         self.calculate_analysis_card = calculate_analysis_card
         self.build_scoreline_reference = build_scoreline_reference
+        self.round3_evidence_by_fixture = round3_evidence_by_fixture
         self.clock = clock or (lambda: datetime.now(UTC))
 
     def build(
@@ -425,17 +449,23 @@ class AnalysisCardCanaryMaterializer:
             raise FrozenAnalysisError("scoped observation input exceeds bound")
         if any(str(row.get("fixture_id") or "") != fixture_id for row in observations):
             raise FrozenAnalysisError("scoped observation identity conflict")
-        round3_reader = getattr(
-            self.repository,
-            "round3_market_evidence_for_fixtures",
-            None,
-        )
-        round3_projection_enabled = callable(round3_reader)
-        round3_evidence = (
-            cast(list[dict[str, Any]], round3_reader([fixture_id]))
-            if callable(round3_reader)
-            else []
-        )
+        if self.round3_evidence_by_fixture is not None:
+            round3_projection_enabled = True
+            round3_evidence = [
+                dict(row) for row in self.round3_evidence_by_fixture.get(fixture_id, [])
+            ]
+        else:
+            round3_reader = getattr(
+                self.repository,
+                "round3_market_evidence_for_fixtures",
+                None,
+            )
+            round3_projection_enabled = callable(round3_reader)
+            round3_evidence = (
+                cast(list[dict[str, Any]], round3_reader([fixture_id]))
+                if callable(round3_reader)
+                else []
+            )
         if len(round3_evidence) > MAX_ROUND3_EVIDENCE_ROWS_PER_FIXTURE:
             raise FrozenAnalysisError("round3 evidence input exceeds bound")
         canonical_fixture_id = (
@@ -708,8 +738,46 @@ class AnalysisCardCanaryMaterializer:
             evaluations=evaluations,
             lineup_event=lineup_event,
             read_time_reference=read_time_reference,
+            dynamic_lifecycle_projected=frozen_inputs.dynamic_lifecycle_read,
             projection_event=event,
             projection_materializer=self,
+        )
+
+    def refresh_shadow_after_write(
+        self,
+        artifact: FrozenAnalysisArtifact,
+        *,
+        lifecycle: dict[str, Any],
+        project_dynamic_lifecycle: bool | None = None,
+    ) -> FrozenAnalysisArtifact:
+        """Refresh only the lifecycle field changed by the projection write."""
+        if artifact.payload.get("checkpoint_namespace") != "shadow":
+            raise FrozenAnalysisError("post-write refresh requires shadow artifact")
+        card = deepcopy(artifact.payload.get("analysis_card"))
+        if not isinstance(card, dict):
+            raise FrozenAnalysisError("post-write analysis card unavailable")
+        should_project_lifecycle = (
+            artifact.dynamic_lifecycle_projected
+            if project_dynamic_lifecycle is None
+            else project_dynamic_lifecycle
+        )
+        if should_project_lifecycle:
+            if lifecycle.get("versions"):
+                card["dynamic_prematch"] = deepcopy(lifecycle)
+            else:
+                card.pop("dynamic_prematch", None)
+        payload = deepcopy(artifact.payload)
+        payload["analysis_card"] = card
+        payload["last_projected_at"] = _normalize_evaluation_time(self.clock())
+        payload["shadow_reconciliation"] = _reconcile_analysis_cards(card, card)
+        payload["projection_hash"] = _projection_business_hash(payload)
+        payload["artifact_hash"] = canonical_sha256(
+            {key: value for key, value in payload.items() if key != "artifact_hash"},
+            domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT,
+        )
+        return validate_frozen_analysis_payload(
+            _checkpoint_fixture_id(artifact.checkpoint_key),
+            payload,
         )
 
 
@@ -1077,15 +1145,14 @@ def write_frozen_analysis_artifacts(
                     event = original.projection_event
                     if materializer is None or event is None:
                         raise FrozenAnalysisError("shadow post-write calculator unavailable")
-                    rebuilt = materializer.build(
+                    lifecycle = DynamicPrematchRepository.lifecycle_in_session(
+                        session,
                         event.fixture_id,
-                        evaluated_at=event.event_at,
-                        source_event=event,
-                        session=session,
                     )
-                    artifact = validate_frozen_analysis_payload(
-                        event.fixture_id,
-                        rebuilt.payload,
+                    artifact = materializer.refresh_shadow_after_write(
+                        draft,
+                        lifecycle=lifecycle,
+                        project_dynamic_lifecycle=original.dynamic_lifecycle_projected,
                     )
                     if (
                         artifact.checkpoint_key != draft.checkpoint_key
@@ -1158,19 +1225,18 @@ def write_frozen_analysis_artifacts(
                 persisted_card = persisted_payload.get("analysis_card")
                 if artifact.payload.get("checkpoint_namespace") != "shadow":
                     continue
-                materializer = original.projection_materializer
-                event = original.projection_event
-                if not isinstance(persisted_card, dict) or materializer is None or event is None:
+                if not isinstance(persisted_card, dict):
                     raise FrozenAnalysisError("projection persisted-readback unavailable")
-                post_write = materializer.build(
-                    event.fixture_id,
-                    evaluated_at=event.event_at,
-                    source_event=event,
-                    session=session,
+                persisted = validate_frozen_analysis_payload(
+                    _checkpoint_fixture_id(artifact.checkpoint_key),
+                    persisted_payload,
                 )
-                current_read = post_write.payload.get("analysis_card")
-                if not isinstance(current_read, dict):
-                    raise FrozenAnalysisError("projection post-write current read unavailable")
+                current_read = artifact.payload.get("analysis_card")
+                if (
+                    not isinstance(current_read, dict)
+                    or persisted.source_hash != artifact.source_hash
+                ):
+                    raise FrozenAnalysisError("projection post-write source identity changed")
                 reconciliation = _reconcile_analysis_cards(current_read, persisted_card)
                 if reconciliation != persisted_payload.get("shadow_reconciliation"):
                     raise FrozenAnalysisError(
@@ -1574,10 +1640,27 @@ def materialize_projection_events(
         from w2.infrastructure.database import create_engine
 
         engine = create_engine()
+    round3_by_fixture: dict[str, list[dict[str, Any]]] | None = None
+    round3_reader = getattr(repository, "round3_market_evidence_for_fixtures", None)
+    if callable(round3_reader):
+        round3_by_fixture = {event.fixture_id: [] for event in ordered}
+        fixture_ids = list(round3_by_fixture)
+        normalized_fixture_ids = {
+            fixture_id.removeprefix("api_football:"): fixture_id for fixture_id in fixture_ids
+        }
+        for start in range(0, len(fixture_ids), 64):
+            rows = cast(list[dict[str, Any]], round3_reader(fixture_ids[start : start + 64]))
+            for row in rows:
+                normalized = str(row.get("fixture_id") or "").removeprefix("api_football:")
+                fixture_id = normalized_fixture_ids.get(normalized)
+                if fixture_id is None:
+                    raise FrozenAnalysisError("round3 batch returned unexpected fixture scope")
+                round3_by_fixture[fixture_id].append(dict(row))
     materializer = AnalysisCardCanaryMaterializer(
         repository,
         calculate_analysis_card=calculate_analysis_card,
         build_scoreline_reference=build_scoreline_reference,
+        round3_evidence_by_fixture=round3_by_fixture,
     )
     for event in ordered:
         artifact = materializer.build(
