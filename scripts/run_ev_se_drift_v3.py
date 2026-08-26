@@ -16,6 +16,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
+from typing import Any
+
 import ev_se_beta_kappa as B
 import ev_se_mle as M
 import ev_se_v2_gates as G
@@ -35,13 +37,13 @@ def _round(x: float | None, k: int = 9) -> float | None:
     return None if x is None else round(x, k)
 
 
-def _series_by_cell() -> dict[str, dict[str, list]]:
+def _series_by_cell() -> dict[str, dict[str, list[Any]]]:
     """cell -> {'series': per team-season observations, 'pairs': variogram rows,
     'all_pairs': rows carrying a cross-season flag}."""
-    out: dict[str, dict[str, list]] = {}
+    out: dict[str, dict[str, list[Any]]] = {}
     for comp in ("attack", "defence"):
         loaded = load(comp)
-        by_league: dict[str, list] = {}
+        by_league: dict[str, list[Any]] = {}
         for (league, team, season), series in loaded.items():
             by_league.setdefault(league, []).append((team, season, sorted(series)))
         for league, entries in by_league.items():
@@ -99,7 +101,7 @@ def _se0_squared_quantiles() -> dict[str, dict[str, float]]:
     return report
 
 
-def estimate(cells: dict[str, dict[str, list]]) -> dict[str, dict[str, object]]:
+def estimate(cells: dict[str, dict[str, list[Any]]]) -> dict[str, dict[str, object]]:
     report: dict[str, dict[str, object]] = {}
     for cell in sorted(cells):
         series = cells[cell]["series"]
@@ -197,7 +199,8 @@ def form_mismatch(
 ) -> dict[str, object]:
     out: dict[str, object] = {}
     for cell, stats in sorted(se0.items()):
-        alpha = cells.get(cell, {}).get("mle", {}).get("sigma2_alpha_abs")  # type: ignore[union-attr]
+        cell_row: Any = cells.get(cell, {})
+        alpha = cell_row.get("mle", {}).get("sigma2_alpha_abs")
         row = {
             "se0_squared_p10": _round(stats["p10"]),
             "se0_squared_p50": _round(stats["p50"]),
@@ -332,9 +335,9 @@ def self_test_check() -> int:
     text = render(build())
     stored = json.loads(text)
 
-    paths: list[list] = []
+    paths: list[list[Any]] = []
 
-    def walk(node, trail):
+    def walk(node: Any, trail: list[Any]) -> None:
         if isinstance(node, dict):
             for k, v in node.items():
                 walk(v, [*trail, k])

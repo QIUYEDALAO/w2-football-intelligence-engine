@@ -73,13 +73,15 @@ def observed_capture_times() -> dict[tuple[str, str], float]:
 
 def xg_era_start() -> float:
     """Earliest kickoff the xG extract reaches, in epoch days."""
-    lo = None
+    lo: str | None = None
     for line in open(CSV):
         p = line.rstrip("\n").split(",")
         if len(p) != 7 or p[0] in ("BEGIN", "ROLLBACK"):
             continue
         if lo is None or p[2] < lo:
             lo = p[2]
+    if lo is None:
+        raise ValueError("xg extract contains no data rows")
     return parse_ts(lo)
 
 
@@ -97,7 +99,7 @@ def states(
     """
     capture = observed_capture_times()
     era0 = xg_era_start() if era_restricted else None
-    timelines: dict[tuple[str, str], list[tuple[float, bool]]] = {}
+    timelines: dict[tuple[str, str], list[tuple[float, float | None]]] = {}
     for row in json.load(open(CORPUS))["history_rows"]:
         league = LEAGUE.get(row["provider_league_id"])
         if league is None:
@@ -201,7 +203,7 @@ def nrmse(rows: list[tuple[str, float, float]], kappa: float) -> float | None:
         total += wi
     if total <= 0 or signal <= 0:
         return None
-    return (resid / signal) ** 0.5
+    return float((resid / signal) ** 0.5)
 
 
 def kappa_by_league(

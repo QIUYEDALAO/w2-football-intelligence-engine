@@ -21,6 +21,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
+from typing import Any
+
 import ev_se_mle as M
 from _load import CORPUS, CSV, LEAGUE
 from ev_se_drift_alpha import HOLDOUT_CUTOFF, parse_ts
@@ -46,7 +48,7 @@ def load_rich(component: str) -> dict[str, list[tuple[str, str, float, float, st
             row["season"],
         )
     col = 4 if component == "attack" else 5
-    out: dict[str, list] = {}
+    out: dict[str, list[Any]] = {}
     for line in open(CSV):
         p = line.rstrip("\n").split(",")
         if len(p) != 7 or p[0] in ("BEGIN", "ROLLBACK"):
@@ -66,7 +68,7 @@ def load_rich(component: str) -> dict[str, list[tuple[str, str, float, float, st
     return out
 
 
-def _centre(rows: list, index: int, values: list[float]) -> list[float]:
+def _centre(rows: list[Any], index: int, values: list[float]) -> list[float]:
     """Remove a categorical fixed effect by centring within its level."""
     groups: dict[str, list[float]] = {}
     for row, value in zip(rows, values, strict=True):
@@ -79,7 +81,7 @@ def _centre(rows: list, index: int, values: list[float]) -> list[float]:
     ]
 
 
-def series_from(rows: list, values: list[float]) -> list[list[tuple[float, float]]]:
+def series_from(rows: list[Any], values: list[float]) -> list[list[tuple[float, float]]]:
     grouped: dict[tuple[str, str], list[tuple[float, float]]] = {}
     for row, value in zip(rows, values, strict=True):
         grouped.setdefault((row[0], row[1]), []).append((row[2], value))

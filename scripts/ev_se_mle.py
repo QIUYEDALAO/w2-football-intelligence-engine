@@ -22,6 +22,7 @@ often and runs the test at about half its nominal size. The naive test is
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 
 # One-sided boundary LRT at 5%: 0.5*P(chi2_1 > c) = 0.05  =>  c = 2.7055.
 # This is the decision threshold of the test, and the region built from it is the
@@ -72,7 +73,11 @@ def cell_loglik(
 
 # ------------------------------------------------------------------ optimisation
 def _nelder_mead(
-    fn, start: list[float], step: float = 0.5, tol: float = 1e-10, max_iter: int = 2000
+    fn: Callable[[list[float]], float],
+    start: list[float],
+    step: float = 0.5,
+    tol: float = 1e-10,
+    max_iter: int = 2000,
 ) -> tuple[list[float], float]:
     """Deterministic Nelder-Mead. No third-party dependency, so fits reproduce bit for bit."""
     n = len(start)
@@ -116,7 +121,13 @@ def _nelder_mead(
     return simplex[best], values[best]
 
 
-def _golden(fn, lo: float, hi: float, tol: float = 1e-9, max_iter: int = 300) -> float:
+def _golden(
+    fn: Callable[[float], float],
+    lo: float,
+    hi: float,
+    tol: float = 1e-9,
+    max_iter: int = 300,
+) -> float:
     """Golden-section minimisation on a scalar, for the restricted and profile fits."""
     inv = (math.sqrt(5.0) - 1.0) / 2.0
     c, d = hi - inv * (hi - lo), lo + inv * (hi - lo)

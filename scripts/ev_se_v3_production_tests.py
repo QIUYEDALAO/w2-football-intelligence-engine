@@ -84,7 +84,7 @@ def production_sigma(age_days: float, *, observed: int = 6) -> dict[str, Any]:
     service = ReadModelService.__new__(ReadModelService)
     service._bounded_public_request = False
     service._team_xg_matches_cache = None
-    service._future_refresh_repository_cache = StubRepository(
+    service._future_refresh_repository_cache = StubRepository(  # type: ignore[assignment]
         _rows(age_days, observed=observed)
     )
     return service._empirical_xg_lambda_uncertainty(

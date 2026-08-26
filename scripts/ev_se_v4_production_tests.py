@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -81,7 +82,8 @@ def sigma(values: list[float], *, age_days: float = 10.0, count: int = 8) -> dic
     service = ReadModelService.__new__(ReadModelService)
     service._bounded_public_request = False
     service._team_xg_matches_cache = None
-    service._future_refresh_repository_cache = StubRepository(
+    # the stub satisfies the one method production calls on the repository
+    service._future_refresh_repository_cache = StubRepository(  # type: ignore[assignment]
         _rows(values, age_days=age_days, count=count)
     )
     return service._empirical_xg_lambda_uncertainty(
@@ -137,7 +139,7 @@ def production_invariants() -> list[str]:
 
 # ------------------------------------------------ mutants injected into production
 @contextmanager
-def patched(name: str, replacement: Any):
+def patched(name: str, replacement: Any) -> Iterator[None]:
     original = getattr(ReadModelService, name)
     setattr(ReadModelService, name, replacement)
     try:
@@ -234,10 +236,13 @@ def candidate(
 def candidate_invariants(**knobs: Any) -> list[str]:
     base = sigma(TIGHT)
     se0 = float(base["lambda_sigma_home"])
+
     def at(age: float, cov: float | None) -> float | None:
         return candidate(se0, age, cov, **knobs)
-    b, older, sparser, fresh = at(10.0, 1.0), at(60.0, 1.0), at(10.0, 0.5), at(0.0, 1.0)
-    if None in (b, older, sparser, fresh):
+
+    b, older = at(10.0, 1.0), at(60.0, 1.0)
+    sparser, fresh = at(10.0, 0.5), at(0.0, 1.0)
+    if b is None or older is None or sparser is None or fresh is None:
         return ["candidate_unavailable_on_valid_inputs"]
     bad: list[str] = []
     if older < b:
@@ -268,9 +273,9 @@ def main() -> int:
         else:
             survived.append(name)
 
-    healthy = {"alpha": 1e-4, "beta": 1e-3}
+    healthy: dict[str, Any] = {"alpha": 1e-4, "beta": 1e-3}
     research_positive = candidate_invariants(**healthy)
-    research_mutants = {
+    research_mutants: dict[str, dict[str, Any]] = {
         "negative_age_coefficient": {"alpha": -1e-4},
         "inverted_coverage_sign": {"coverage_sign": -1.0},
         "constant_inflation_at_baseline": {"constant_inflation": 1e-3},

@@ -17,6 +17,8 @@ carries total weight one, and the CI is a cluster bootstrap over teams with
 from __future__ import annotations
 
 import random
+from collections.abc import Callable, Sequence
+from typing import Any
 
 from ev_se_variogram import (
     BINS,
@@ -32,14 +34,16 @@ MIN_VALID_BINS = 4
 
 
 # --------------------------------------------------------------- weighted least squares
-def team_weights(rows: list[tuple[str, ...]]) -> dict[str, float]:
+def team_weights(rows: Sequence[Sequence[Any]]) -> dict[str, float]:
     counts: dict[str, int] = {}
     for row in rows:
         counts[row[0]] = counts.get(row[0], 0) + 1
     return {team: 1.0 / n for team, n in counts.items()}
 
 
-def wls_stats(rows: list, basis) -> dict[str, tuple[list[list[float]], list[float]]]:
+def wls_stats(
+    rows: Sequence[Sequence[Any]], basis: Callable[[Sequence[Any]], Sequence[float]]
+) -> dict[str, tuple[list[list[float]], list[float]]]:
     """Per team: (X'WX, X'Wy) so each bootstrap replication is O(teams)."""
     w = team_weights(rows)
     acc: dict[str, tuple[list[list[float]], list[float]]] = {}
@@ -74,7 +78,9 @@ def _solve_linear_system(mat: list[list[float]], rhs: list[float]) -> list[float
     return [aug[i][k] / aug[i][i] for i in range(k)]
 
 
-def wls_solve(stats: dict, teams: list[str]) -> list[float] | None:
+def wls_solve(
+    stats: dict[str, tuple[list[list[float]], list[float]]], teams: list[str]
+) -> list[float] | None:
     first = next(iter(stats.values()))
     k = len(first[1])
     mat = [[0.0] * k for _ in range(k)]
@@ -89,7 +95,11 @@ def wls_solve(stats: dict, teams: list[str]) -> list[float] | None:
 
 
 def wls_bootstrap(
-    stats: dict, index: int, *, reps: int = REPS, seed: int = SEED
+    stats: dict[str, tuple[list[list[float]], list[float]]],
+    index: int,
+    *,
+    reps: int = REPS,
+    seed: int = SEED,
 ) -> tuple[float | None, float | None]:
     teams = sorted(stats)
     if not teams:
@@ -130,7 +140,7 @@ def weighted_quantile_bins(
     return out
 
 
-def linearity_gate(rows: list[tuple[str, float, float]]) -> dict:
+def linearity_gate(rows: list[tuple[str, float, float]]) -> dict[str, Any]:
     """Frozen gate: delta^2 CI excludes zero AND max binned rel. deviation > 20%.
 
     Two relative-deviation conventions are reported because the protocol sentence
@@ -158,7 +168,7 @@ def linearity_gate(rows: list[tuple[str, float, float]]) -> dict:
 
     w = team_weights(rows)
     max_dev_obs = max_dev_quad = max_dev_drift = 0.0
-    bin_report: list[dict] = []
+    bin_report: list[dict[str, Any]] = []
     valid = 0
     for group in weighted_quantile_bins(rows):
         n_pairs = len(group)
@@ -217,7 +227,7 @@ def linearity_gate(rows: list[tuple[str, float, float]]) -> dict:
 
 
 # ------------------------------------------------------------------- season boundary
-def boundary_model(rows: list[tuple[str, float, float, float]]) -> dict:
+def boundary_model(rows: list[tuple[str, float, float, float]]) -> dict[str, Any]:
     """d = 2*tau^2 + sigma^2*delta + jump*crosses_boundary, on all pairs.
 
     Rows are (team, delta, crossed, d). The jump term carries the one-off variance

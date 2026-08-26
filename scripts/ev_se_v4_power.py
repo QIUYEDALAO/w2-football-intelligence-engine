@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Per-cell power and size study, protocol v3 section 4 (commit 603a9753).
+"""Per-cell power and size study, protocol v4 section 7 (commit 18f812b7).
+
+The computation is unchanged from v3 section 4, which v4 carries forward verbatim.
+Only the output path and the provenance stamp differ, so a v3-era run and this
+script produce the same numbers for the same cell. `--only <cell>` runs a single
+cell, which is how that equivalence is checked cheaply rather than asserted.
 
 Synthetic series are drawn on the *real* timestamp geometry of each cell, with
 that cell's own fitted tau^2 and an injected sigma^2 from the frozen grid. Both
@@ -27,7 +32,7 @@ REPLICATIONS = 500
 SEED = 20260826
 OUT = os.path.join(
     os.path.dirname(__file__), "..", "docs", "review_packages",
-    "EV_SE_DRIFT_V3", "EV_SE_DRIFT_V3_POWER.json",
+    "EV_SE_DRIFT_V4", "EV_SE_DRIFT_V4_POWER.json",
 )
 
 
@@ -73,9 +78,15 @@ def variogram_detects(replicate: list[list[tuple[float, float]]]) -> bool:
 
 
 def main() -> int:
+    only = None
+    for index, argument in enumerate(sys.argv):
+        if argument == "--only" and index + 1 < len(sys.argv):
+            only = sys.argv[index + 1]
     cells = cell_series()
     report: dict[str, object] = {}
     for cell in sorted(cells):
+        if only is not None and cell != only:
+            continue
         real = cells[cell]
         times = [[t for t, _ in s] for s in real]
         # tau^2 comes from this cell's own fit on the real data
@@ -112,13 +123,16 @@ def main() -> int:
             "status": "TEST_MISCALIBRATED" if size > 0.08 else "CALIBRATED",
         }
     payload = {
-        "schema_version": "w2.ev_se.drift_v3.power.v1",
-        "protocol_commit": "603a9753",
+        "schema_version": "w2.ev_se.drift_v4.power.v1",
+        "protocol_commit": "18f812b7",
         "replications": REPLICATIONS,
         "seed": SEED,
         "sigma2_grid": list(SIGMA2_GRID),
         "cells": report,
     }
+    if only is not None:
+        print(json.dumps(payload["cells"], indent=2, sort_keys=True))
+        return 0
     with open(OUT, "w", encoding="utf-8") as fh:
         fh.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     print("WROTE", OUT)

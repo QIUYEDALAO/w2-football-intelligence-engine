@@ -22,6 +22,8 @@ import random
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
+from typing import Any
+
 import ev_se_mle as M
 import ev_se_variogram as V
 from _load import load
@@ -37,7 +39,7 @@ OUT = os.path.join(
 )
 
 
-def draw(rng: random.Random, sigma2: float):
+def draw(rng: random.Random, sigma2: float) -> list[list[tuple[float, float]]]:
     out = []
     for _ in range(TEAMS):
         times = sorted(rng.uniform(0.0, SPAN) for _ in range(MATCHES))
@@ -51,7 +53,7 @@ def draw(rng: random.Random, sigma2: float):
     return out
 
 
-def variogram_detects(replicate) -> bool:
+def variogram_detects(replicate: list[list[tuple[float, float]]]) -> bool:
     rows = []
     for i, series in enumerate(replicate):
         for a in range(len(series)):
@@ -63,8 +65,8 @@ def variogram_detects(replicate) -> bool:
     return lo is not None and lo > 0.0
 
 
-def representative_power() -> dict[str, object]:
-    grid: dict[str, object] = {}
+def representative_power() -> dict[str, Any]:
+    grid: dict[str, Any] = {}
     for sigma2 in SIGMA2_GRID:
         rng = random.Random(SEED)  # noqa: S311 - statistical replication, not crypto
         mle_hits = var_hits = 0
@@ -82,7 +84,7 @@ def representative_power() -> dict[str, object]:
         }
         print(f"  sigma2={sigma2:.1e} mle={mle_hits / REPLICATIONS:.3f} "
               f"vario={var_hits / REPLICATIONS:.3f}", flush=True)
-    size = grid["0.0e+00"]["mle_rejection_rate"]  # type: ignore[index]
+    size = grid["0.0e+00"]["mle_rejection_rate"]
     return {
         "population": "representative_geometry",
         "design": f"{TEAMS} teams x {MATCHES} matches / {SPAN:.0f} days, tau2={TAU2}",
@@ -98,7 +100,7 @@ def representative_power() -> dict[str, object]:
     }
 
 
-def production_state_ages() -> dict[str, object]:
+def production_state_ages() -> dict[str, Any]:
     """Window age across real evaluation states -- the range an age term would see."""
     cells: dict[str, list[float]] = {}
     for component in ("attack", "defence"):
@@ -110,7 +112,7 @@ def production_state_ages() -> dict[str, object]:
                 cells.setdefault(f"{league}|{component}", []).append(
                     sum(as_of - t for t, _ in window) / DENOMINATOR
                 )
-    out: dict[str, object] = {}
+    out: dict[str, Any] = {}
     for cell, ages in sorted(cells.items()):
         ages.sort()
         n = len(ages)
@@ -124,7 +126,7 @@ def production_state_ages() -> dict[str, object]:
     return {"population": "production_states", "cells": out}
 
 
-def age_term_impact(ages: dict[str, object], evidence_path: str) -> dict[str, object]:
+def age_term_impact(ages: dict[str, Any], evidence_path: str) -> dict[str, Any]:
     """SE ratio between the 10th and 90th percentile of realised age, per cell.
 
     Uses each cell's own alpha point estimate and its own median SE0^2. This is the
@@ -133,8 +135,8 @@ def age_term_impact(ages: dict[str, object], evidence_path: str) -> dict[str, ob
     """
     with open(evidence_path, encoding="utf-8") as fh:
         evidence = json.load(fh)
-    out: dict[str, object] = {}
-    for cell, stats in ages["cells"].items():  # type: ignore[index]
+    out: dict[str, Any] = {}
+    for cell, stats in ages["cells"].items():
         alpha = evidence["alpha_cells"][cell]["mle"]["sigma2_alpha_abs"]
         se0sq = evidence["form_mismatch"][cell]["se0_squared_p50"]
         lo = (se0sq + alpha * stats["age_p10_days"]) ** 0.5
@@ -145,7 +147,7 @@ def age_term_impact(ages: dict[str, object], evidence_path: str) -> dict[str, ob
             "se_ratio_p90_over_p10": round(hi / lo, 6),
             "se_percent_change": round((hi / lo - 1.0) * 100.0, 4),
         }
-    ratios = [v["se_percent_change"] for v in out.values()]  # type: ignore[index]
+    ratios = [v["se_percent_change"] for v in out.values()]
     ratios_sorted = sorted(ratios)
     return {
         "population": "production_states",

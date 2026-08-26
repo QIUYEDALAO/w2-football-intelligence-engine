@@ -17,6 +17,7 @@ join is point-in-time stable.
 import json
 import os
 import sys
+from typing import Any
 
 sys.path.insert(0, os.path.dirname(__file__))
 from ev_se_drift_alpha import HOLDOUT_CUTOFF, build_windows, make_pairs, parse_ts
@@ -37,15 +38,20 @@ LEAGUE = {
 }
 
 
-def load(component: str, *, estimation_only: bool = True) -> dict:
-    key = {}
+Series = list[tuple[float, float]]
+
+
+def load(
+    component: str, *, estimation_only: bool = True
+) -> dict[tuple[str, str, str], Series]:
+    key: dict[tuple[str, str], tuple[str, str]] = {}
     for row in json.load(open(CORPUS))["history_rows"]:
         key[(row["provider_fixture_id"], row["team_id"])] = (
             row["provider_league_id"],
             row["season"],
         )
     col = 4 if component == "attack" else 5
-    series: dict = {}
+    series: dict[tuple[str, str, str], Series] = {}
     for line in open(CSV):
         p = line.rstrip("\n").split(",")
         if len(p) != 7 or p[0] in ("BEGIN", "ROLLBACK"):
@@ -62,8 +68,8 @@ def load(component: str, *, estimation_only: bool = True) -> dict:
     return series
 
 
-def pairs_for(component: str, size: int) -> dict:
-    out: dict = {}
+def pairs_for(component: str, size: int) -> dict[str, list[Any]]:
+    out: dict[str, list[Any]] = {}
     for (league, team, season), s in load(component).items():
         if len(s) < size:
             continue

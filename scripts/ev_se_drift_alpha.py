@@ -9,6 +9,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 # ---------------------------------------------------------------- frozen protocol
 SEED = 20260826
@@ -209,7 +210,9 @@ def _quad_team_stats(pairs: list[Pair]) -> dict[str, tuple[float, ...]]:
     return {t: tuple(v) for t, v in acc.items()}
 
 
-def solve_quadratic(stats: dict[str, tuple[float, ...]], teams: list[str]):
+def solve_quadratic(
+    stats: dict[str, tuple[float, ...]], teams: list[str]
+) -> tuple[float | None, float | None]:
     s = [0.0] * 5
     for t in teams:
         v = stats[t]
@@ -239,7 +242,9 @@ def weighted_quantile_bins(pairs: list[Pair], bins: int = H_BINS) -> list[list[P
     return out
 
 
-def linearity_gate(pairs: list[Pair], *, reps: int = BOOTSTRAP_REPS, seed: int = SEED) -> dict:
+def linearity_gate(
+    pairs: list[Pair], *, reps: int = BOOTSTRAP_REPS, seed: int = SEED
+) -> dict[str, Any]:
     """Frozen gate: H^2 CI excludes 0 AND max binned curvature deviation > 20%."""
     lin_stats = _team_stats(pairs, "brownian")
     teams = sorted(lin_stats)
@@ -266,15 +271,16 @@ def linearity_gate(pairs: list[Pair], *, reps: int = BOOTSTRAP_REPS, seed: int =
         for b in bins
         if len(b) >= MIN_PAIRS_PER_BIN and len({p.team for p in b}) >= MIN_TEAMS_PER_BIN
     ]
-    max_dev, bin_report = 0.0, []
-    for b in valid:
-        h_mid = sum(p.h for p in b) / len(b)
+    max_dev = 0.0
+    bin_report: list[dict[str, Any]] = []
+    for group in valid:
+        h_mid = sum(p.h for p in group) / len(group)
         lin = a_lin * h_mid if a_lin else 0.0
-        qua = (a_q * h_mid + b_q * h_mid * h_mid) if a_q is not None else 0.0
+        qua = (a_q * h_mid + b_q * h_mid * h_mid) if a_q is not None and b_q is not None else 0.0
         dev = abs(qua - lin) / abs(lin) if lin else 0.0
         max_dev = max(max_dev, dev)
         bin_report.append(
-            {"h_mid": h_mid, "pairs": len(b), "linear": lin,
+            {"h_mid": h_mid, "pairs": len(group), "linear": lin,
              "quadratic": qua, "rel_dev": dev}
         )
 

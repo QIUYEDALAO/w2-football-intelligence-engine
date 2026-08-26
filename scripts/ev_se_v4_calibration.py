@@ -32,6 +32,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
+from typing import Any
+
 import ev_se_mle as M
 from _load import CORPUS, CSV, LEAGUE
 from ev_se_beta_kappa import DENOMINATOR, MIN_OBSERVED, observed_capture_times
@@ -70,12 +72,12 @@ def _expected_timelines() -> dict[tuple[str, str], list[tuple[float, str]]]:
     return out
 
 
-def states(component: str, *, pit: bool) -> dict[str, list[tuple[float, float, float, float]]]:
+def states(component: str, *, pit: bool) -> dict[str, list[State]]:
     """cell -> [(mean_age, coverage, residual, se0_squared), ...]."""
     capture = observed_capture_times()
     values = _xg_values(component)
     timelines = _expected_timelines()
-    out: dict[str, list[tuple[float, float, float, float]]] = {}
+    out: dict[str, list[State]] = {}
     for (league, team), timeline in timelines.items():
         for i in range(DENOMINATOR, len(timeline)):
             as_of, target_fixture = timeline[i]
@@ -108,7 +110,10 @@ def states(component: str, *, pit: bool) -> dict[str, list[tuple[float, float, f
     return out
 
 
-def _strata(rows: list, index: int) -> list[list]:
+State = tuple[float, float, float, float]
+
+
+def _strata(rows: list[State], index: int) -> list[list[State]]:
     ordered = sorted(rows, key=lambda r: r[index])
     size = len(ordered) // STRATA
     if size == 0:
@@ -119,7 +124,7 @@ def _strata(rows: list, index: int) -> list[list]:
     ]
 
 
-def _summarise(group: list, alpha: float, tau2: float, by: str) -> dict[str, object]:
+def _summarise(group: list[State], alpha: float, tau2: float, by: str) -> dict[str, Any]:
     base = [r[2] / (r[3] + tau2) ** 0.5 for r in group]
     cand = [r[2] / (r[3] + tau2 + alpha * r[0]) ** 0.5 for r in group]
     n = len(group)
@@ -133,8 +138,8 @@ def _summarise(group: list, alpha: float, tau2: float, by: str) -> dict[str, obj
     }
 
 
-def basis(pit: bool) -> dict[str, object]:
-    cells: dict[str, object] = {}
+def basis(pit: bool) -> dict[str, Any]:
+    cells: dict[str, Any] = {}
     total_states = 0
     for component in ("attack", "defence"):
         produced = states(component, pit=pit)
@@ -177,7 +182,7 @@ def basis(pit: bool) -> dict[str, object]:
     return {"status": "COMPUTED", "total_states": total_states, "cells": cells}
 
 
-def report() -> dict[str, object]:
+def report() -> dict[str, Any]:
     return {
         "window_semantics": (
             "latest 20 expected fixtures by kickoff across seasons, no season reset, "

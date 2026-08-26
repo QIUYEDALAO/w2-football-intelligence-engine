@@ -24,6 +24,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
+from typing import Any
+
 import ev_se_mle as M
 from _load import load
 from ev_se_beta_kappa import DENOMINATOR
@@ -31,9 +33,9 @@ from ev_se_beta_kappa import DENOMINATOR
 STRATA = 4
 
 
-def states_for(component: str):
+def states_for(component: str) -> dict[str, list[Any]]:
     """(cell, team, mean_age, coverage, z_numerator, se0_squared) per evaluation state."""
-    out: dict[str, list] = {}
+    out: dict[str, list[Any]] = {}
     for (league, team, _season), series in load(component).items():
         s = sorted(series)
         if len(s) <= DENOMINATOR:
@@ -54,7 +56,7 @@ def states_for(component: str):
     return out
 
 
-def _quantile_strata(rows: list, index: int) -> list[list]:
+def _quantile_strata(rows: list[Any], index: int) -> list[list[Any]]:
     ordered = sorted(rows, key=lambda r: r[index])
     size = len(ordered) // STRATA
     if size == 0:
@@ -66,7 +68,7 @@ def _quantile_strata(rows: list, index: int) -> list[list]:
 
 
 def report() -> dict[str, object]:
-    out: dict[str, object] = {}
+    out: dict[str, Any] = {}
     for component in ("attack", "defence"):
         cells = states_for(component)
         for cell, rows in sorted(cells.items()):
@@ -78,8 +80,8 @@ def report() -> dict[str, object]:
             alpha, tau2, _ll = M.fit_full(series)
 
             def summarise(
-                group: list, by: str, *, alpha: float = alpha, tau2: float = tau2
-            ) -> dict[str, object]:
+                group: list[Any], by: str, *, alpha: float = alpha, tau2: float = tau2
+            ) -> dict[str, Any]:
                 zs_base, zs_cand = [], []
                 for _team, age, _cov, resid, se0sq in group:
                     zs_base.append(resid / (se0sq + tau2) ** 0.5)
