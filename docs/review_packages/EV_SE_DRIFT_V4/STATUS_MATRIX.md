@@ -78,12 +78,15 @@ deviation · **IN PROGRESS** running, artefact not yet present.
 | Production-state age distribution | DONE | same artefact, `production_state_ages` |
 | Operational impact from a committed script | DONE | same artefact, `age_term_operational_impact` |
 | Three populations named, never averaged together | DONE | `populations_are_never_mixed` |
-| Per-cell real-geometry power, frozen | **IN PROGRESS** | `scripts/ev_se_v4_power.py`; artefact absent until the run completes |
-| Evidence carries the power artefact's SHA-256 | DONE | `external_artefacts.power_per_cell`, `present` currently false |
+| Per-cell real-geometry power, frozen | DONE | `EV_SE_DRIFT_V4_POWER.json`, 26 cells x 6 grid points x 500 replications |
+| Evidence carries the power artefact's SHA-256 | DONE | `external_artefacts.power_per_cell`, `present: true`, `sha256: f2c0c88d…` |
+| Size measured before power is quoted | DONE | `mle_size_at_null` per cell, 0.028–0.060 against nominal 0.05, no cell miscalibrated |
 
-The per-cell row is deliberately not `DONE`. The evidence file reports
-`present: false` for that artefact, so the matrix, the evidence and the filesystem
-agree while the run is unfinished — which is the property v3 lacked.
+The run completed at 156 of 156 points. The artefact was produced by
+`scripts/ev_se_v3_power.py`, whose computation v4 §7 carries forward verbatim, and
+the equivalence was **checked rather than asserted**: `ev_se_v4_power.py --only
+"allsvenskan|attack"` reproduces all six grid points of that cell bit for bit. Both
+facts are recorded in the artefact's `provenance` and `equivalence_check` blocks.
 
 ## Section 8 — behavioural tests, classified
 
@@ -118,8 +121,9 @@ agree while the run is unfinished — which is the property v3 lacked.
 | Report | DONE — `REPORT.md` |
 | Status matrix matching the files that exist | DONE — this file |
 | Frozen evidence JSON | DONE — `EV_SE_DRIFT_V4_EVIDENCE.json` |
-| Frozen power artefact | IN PROGRESS |
+| Frozen power artefact | DONE — `EV_SE_DRIFT_V4_POWER.json` |
 | Frozen operational-impact artefact | DONE — `EV_SE_DRIFT_V4_IMPACT.json` |
+| Frozen production-test artefact | DONE — `EV_SE_DRIFT_V4_PRODUCTION_TESTS.json` |
 | Reproduction commands | DONE — report §9 |
 | Ruff / mypy / test results | DONE — report §10 |
 | Explicit list of what remains open | DONE — report §11 |

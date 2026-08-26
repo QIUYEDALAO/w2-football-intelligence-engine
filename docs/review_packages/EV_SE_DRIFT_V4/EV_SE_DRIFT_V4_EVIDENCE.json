@@ -3934,8 +3934,8 @@
     },
     "power_per_cell": {
       "file": "EV_SE_DRIFT_V4_POWER.json",
-      "present": false,
-      "sha256": null
+      "present": true,
+      "sha256": "f2c0c88d567f214aa34f1e708dff84da528ba455ff90795ca30033fcaeddaf2c"
     }
   },
   "forbidden_uses": [

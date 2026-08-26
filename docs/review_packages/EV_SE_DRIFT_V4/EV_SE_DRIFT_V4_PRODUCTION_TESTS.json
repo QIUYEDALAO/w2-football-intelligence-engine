@@ -1,0 +1,65 @@
+{
+  "bound_to": [
+    "w2.prematch.analysis_calculator.ReadModelService._empirical_xg_lambda_uncertainty",
+    "w2.prematch.analysis_calculator.ReadModelService._xg_standard_error",
+    "w2.strategy.simulate.ah_expected_value_uncertainty_from_lambdas"
+  ],
+  "not_expressible_in_production": {
+    "class": "NOT_EXPRESSIBLE_IN_PRODUCTION",
+    "mutants": {
+      "age_reset_on_season_switch": "production never reads a season field; team_xg_matches_for_teams orders by kickoff across seasons with limit_per_team=20, so there is no season reset to introduce",
+      "inverted_coverage_sign": "production carries no coverage term and consumes no expected-match denominator, so there is no coverage sign to flip",
+      "negative_age_coefficient": "production carries no age coefficient: _empirical_xg_lambda_uncertainty derives sigma from the dispersion and count of the rows it holds and never reads observation age, so there is no age behaviour to invert"
+    },
+    "note": "these are preregistered mutants of a candidate formula that does not exist in production; they are NOT counted as passes, and their absence is itself the finding",
+    "scored": false
+  },
+  "production_behaviour": {
+    "age_changes_sigma": false,
+    "ev_se_fresh_1d": 0.002932,
+    "ev_se_stale_400d": 0.002932,
+    "fresh_1d_sigma_home": 0.007406,
+    "invariants_held": "PASS",
+    "stale_400d_sigma_home": 0.007406,
+    "two_observations_status": "XG_UNCERTAINTY_SAMPLE_INSUFFICIENT"
+  },
+  "production_expressible_mutants": {
+    "class": "PRODUCTION_EXPRESSIBLE",
+    "injected_into": "ReadModelService._xg_standard_error, patched in place",
+    "killed": {
+      "dispersion_ignored": [
+        "P3b_dispersion_response_inert"
+      ],
+      "fail_open_below_evidence_threshold": [
+        "P1_fail_closed_under_three"
+      ],
+      "inverted_sample_scaling": [
+        "P2_sample_monotonicity"
+      ]
+    },
+    "survived": []
+  },
+  "research_candidate": {
+    "class": "RESEARCH_CANDIDATE_ONLY",
+    "killed": {
+      "age_reset_on_season_switch": [
+        "age_term_inert"
+      ],
+      "constant_inflation_at_baseline": [
+        "fresh_complete_baseline"
+      ],
+      "fail_open_without_denominator": [
+        "no_evidence_fail_closed"
+      ],
+      "inverted_coverage_sign": [
+        "coverage_monotonicity"
+      ],
+      "negative_age_coefficient": [
+        "candidate_unavailable_on_valid_inputs"
+      ]
+    },
+    "note": "exercised against research code; proves the suite can fail, not that production is right",
+    "positive_invariants": "PASS",
+    "survived": []
+  }
+}

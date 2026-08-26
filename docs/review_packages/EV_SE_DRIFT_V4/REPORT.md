@@ -1,7 +1,7 @@
 # EV-SE staleness and missing coverage — v4 findings
 
 Protocol `18f812b7`, frozen before any v4 result. Evidence
-`EV_SE_DRIFT_V4_EVIDENCE.json`. Clause-by-clause state in `STATUS_MATRIX.md`.
+`EV_SE_DRIFT_V4_EVIDENCE.json`. Clause-by-clause state in `STATUS_MATRIX.md`. Per-cell power in `EV_SE_DRIFT_V4_POWER.json`.
 v2 (`b34eada9`) and v3 (`e429bd97`) are retained unmodified as failed history; their
 evidence files were not touched.
 
@@ -33,7 +33,7 @@ controlled path, `XgRetentionService.repair_derived_lineage`, can rewrite it; it
 requires `write_db=true` plus a backup, and `_guarded_timestamp_updates` raises on
 any non-timestamp drift. v3 called the column unreliable and built its Path C
 reasoning on that. The column is close to a first-write record. The reason a replay
-finds nothing is different, and is in section 7.
+finds nothing is different, and is in section 8.
 
 Three further corrections of fact: the impact figure is **7.88% maximum and 1.54%
 median with 11 of 26 cells at zero** (v3 said "at most 7.9%, 0% in 12, median 2–4%"
@@ -62,7 +62,42 @@ the boundary region and **includes** it under the conventional profile interval.
 `allsvenskan|defence` excludes zero under both likelihood intervals and **includes**
 it under the corrected team bootstrap. v3's single interval overstated both.
 
-## 4. What the data says
+## 4. Power on real geometry: the size check first
+
+`EV_SE_DRIFT_V4_POWER.json`, 26 cells x 6 injected rates x 500 replications, seed
+`20260826`, both estimators on identical replicates.
+
+The null row comes first because power quoted without it is not evidence. The MLE's
+rejection rate at `sigma^2 = 0` runs from **0.028 to 0.060** across the 26 cells
+against a nominal 0.05, and no cell is flagged `TEST_MISCALIBRATED`. The boundary
+mixture is doing its job on real geometry, not just on the synthetic design. The
+variogram sits at 0.020–0.036, well under nominal — conservative, which is the same
+thing that costs it power below.
+
+With size established, the power:
+
+| injected `sigma^2` | MLE, across cells | variogram |
+|---|---|---|
+| 0 (size) | 0.028 – 0.060 | 0.020 – 0.036 |
+| **1e-4** | min 0.078, **median 0.128**, max 0.206 | median 0.042 |
+| 3e-4 | min 0.220, median 0.446, max 0.730 | — |
+| 1e-3 | 0.788 – 1.000 | — |
+
+`1e-4` is the rate that would move `SE` about 10% over 60 days at the measured
+median `SE0^2`. **No cell reaches 80% power there — 0 of 26.** The median is 12.8%,
+lower than the 17.2% the favourable synthetic design gave, because real series are
+shorter and less evenly spaced than `20 x 45 / 300 days`.
+
+The efficient estimator is worth roughly **2.9x** the variogram's power at that rate
+(median ratio across cells), which is why v3's "8%" described the moment estimator
+rather than the data. It is also why the answer does not change: tripling the power
+of a test that had 4% leaves it far short of 80%.
+
+These three populations are kept separate throughout and never averaged:
+`representative_geometry` (the synthetic design, in `EV_SE_DRIFT_V4_IMPACT.json`),
+`real_cell_geometry` (this table), and `production_states` (section 7).
+
+## 5. What the data says
 
 26 cells. 22 detect nothing and 11 return `sigma^2 = 0` exactly, the boundary
 solution. Four reject uncorrected, where 26 one-sided tests at 5% expect 1.3 under
@@ -85,7 +120,7 @@ survivors hold under all three intervals.
 
 Every cell passes the linearity gate under both relative-deviation conventions.
 
-## 5. The two survivors are not a calendar artefact
+## 6. The two survivors are not a calendar artefact
 
 The local level model carries neither home advantage nor opponent quality, and a
 non-random schedule can make either imitate drift. Removing both as fixed effects
@@ -95,7 +130,7 @@ makes the signal stronger, not weaker: `primeira_liga|attack` goes 0.0001 → 0.
 This check was added after the primary estimates were read and is labelled as
 supplementary in the evidence.
 
-## 6. Why it still should not ship
+## 7. Why it still should not ship
 
 **The correction is smaller than production would notice.** Across real evaluation
 states the mean age of a latest-20 window moves by only **5.9 to 28.2 days**
@@ -115,11 +150,11 @@ coverage — now genuinely varying from **0.15 to 1.0**, where v3's was identica
 coin flips, and `var(z)` sits near 1.0 throughout, so the shipped baseline is
 roughly calibrated in both directions an added term would address.
 
-**Beta is not identifiable at all.** See section 7.
+**Beta is not identifiable at all.** See section 8.
 
-**Nothing can be validated out of sample.** See section 7.
+**Nothing can be validated out of sample.** See section 8.
 
-## 7. Three point-in-time verdicts, one cause
+## 8. Three point-in-time verdicts, one cause
 
 Under `captured_at <= as_of` — the filter `ReadModelService._xg_uncertainty_rows`
 itself applies — **not one evaluation epoch in the estimation period has three xG
@@ -151,7 +186,7 @@ Production itself is not defective here. `_xg_uncertainty_rows` drops rows with
 the future. The defect was in the v2 and v3 research loaders, which never read the
 column.
 
-## 8. What production does, and what can be mutated
+## 9. What production does, and what can be mutated
 
 The suite runs through `ReadModelService._empirical_xg_lambda_uncertainty`,
 `ReadModelService._xg_standard_error` and
@@ -182,7 +217,7 @@ against a local wrapper — as v3 did — measures nothing about production.
 **The research candidate formula** is exercised separately and labelled as research
 code. It is not shipped, not reachable from production, and not a proposal.
 
-## 9. Recommendation
+## 10. Recommendation
 
 **Leave `alpha_age_per_day` and `beta_missing` NULL. Recommend to the Owner that
 they stay unset, and record the reason as `NOT_IDENTIFIABLE`.**
@@ -233,7 +268,7 @@ admissible holdout exists), whether these findings extend beyond the 13 leagues 
 the corpus, and whether the two detected cells generalise beyond the seasons
 observed.
 
-## 10. Reproduction
+## 11. Reproduction
 
 The frozen xG extract is not in the repository. SHA-256
 `84ef81e90377014cb9ea9abc93276aebed65e1c63b9d4e5dfa18d47443634909`, 18,978 data
@@ -270,7 +305,7 @@ git worktree add --detach /tmp/w2-v3-frozen e429bd97
 cd /tmp/w2-v3-frozen && python3 scripts/run_ev_se_drift_v3.py --check
 ```
 
-## 11. Ruff, mypy and tests
+## 12. Ruff, mypy and tests
 
 | Check | Result |
 |---|---|
@@ -282,6 +317,7 @@ cd /tmp/w2-v3-frozen && python3 scripts/run_ev_se_drift_v3.py --check
 | `run_ev_se_drift_v4.py --self-test-check` | PASS, counts printed by the command |
 | `ev_se_v4_production_tests.py` | exit 0; 3 of 3 expressible mutants killed, 0 survived |
 | `run_ev_se_drift_v2.py --check` | PASS |
+| `ev_se_v4_power.py --only "allsvenskan\|attack"` | matches the frozen artefact on all 6 grid points |
 | `run_ev_se_drift_v3.py --check` at `e429bd97` | PASS |
 
 The two `mypy src apps` errors are in `expected_match_denominator.py:100` and
@@ -289,18 +325,15 @@ The two `mypy src apps` errors are in `expected_match_denominator.py:100` and
 not because this work caused it. The full 2,912-test suite was not run; the 54 above
 are the tests covering the paths this work binds to.
 
-## 12. Open items
+## 13. Open items
 
-1. **Per-cell real-geometry power is still running.** `EV_SE_DRIFT_V4_POWER.json`
-   does not exist yet and the evidence reports `present: false` for it. The status
-   matrix says IN PROGRESS rather than DONE — the property v3 lacked.
-2. **The full test suite was not run.** 2,912 tests exist; 54 were run.
-3. **Calibration has no out-of-sample basis** and will not until enough post-2026-07
+1. **The full test suite was not run.** 2,912 tests exist; 54 were run.
+2. **Calibration has no out-of-sample basis** and will not until enough post-2026-07
    history accumulates.
-4. **`raw_payload_sha256` is a placeholder in the behavioural harness**, because the
+3. **`raw_payload_sha256` is a placeholder in the behavioural harness**, because the
    frozen extract omitted the column. It makes production more permissive, so a
    blocked verdict stays conservative.
-5. **The season-boundary signal is suggestive, not established.** 4 of 26 jump terms
+4. **The season-boundary signal is suggestive, not established.** 4 of 26 jump terms
    exclude zero against 1.3 expected, and 3 of those 4 are negative, which a season
    break adding variance cannot explain. The consistent reading is mean reversion at
    long lags, which would mean a linear-in-age inflation over-inflates at large `A` —
