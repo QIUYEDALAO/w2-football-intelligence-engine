@@ -19,7 +19,8 @@ here so a new host can be brought up without reconstructing it from memory.
 | `w2-totals-calibration` | `/opt/w2/deploy/` | Totals calibration snapshot, read-only |
 | `w2-registry-gc.service` / `.timer` | `/etc/systemd/system/` | Runs the collection |
 | `w2-release-preflight` | `/usr/local/bin/` | Space, base image and layer count before a release |
-| `w2-release-sync-preflight` | `/usr/local/bin/` | Block mixed Python/Web image revisions before a release |
+| `w2-release-sync-preflight` | `/opt/w2/deploy/` | Block mixed Python/Web image revisions before a release |
+| `w2-staging-release-sync.conf` | `/etc/systemd/system/w2-staging.service.d/` | Run release-sync before stack activation |
 | `registry-config.yml` | `/opt/w2/deploy/registry/` | Registry with manifest deletion enabled |
 | `journald-w2-retention.conf` | `/etc/systemd/journald.conf.d/` | Journal size cap |
 
@@ -65,12 +66,14 @@ steady-state free space is not what a release costs. It also refuses to run
 if the runtime base is missing: a release built on a pre-flatten image cannot
 mount, that lineage having passed the overlayfs mount-option limit.
 
-Every release must also run `w2-release-sync-preflight <python-image>
+Every release must also run `/opt/w2/deploy/w2-release-sync-preflight <python-image>
 <web-image> <release-sha>` before changing `release.env`, then run
 `scripts/verify_release_sync.py` against public ingress after the switch. A
 Python-only image change is not a complete release: if the Web image does not
 carry the same OCI revision, the preflight fails instead of allowing
-`release.env` and `/meta.json` to describe different commits.
+`release.env` and `/meta.json` to describe different commits. Install
+`w2-staging-release-sync.conf` as a systemd drop-in so ordinary service
+activation enforces the same check.
 
 **Registry config.** The stock `registry:2` config does not set
 `storage.delete.enabled`, so manifests cannot be deleted and the store only

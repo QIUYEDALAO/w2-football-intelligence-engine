@@ -218,6 +218,13 @@ def test_release_sync_preflight_rejects_mixed_image_revisions(tmp_path: Path) ->
     assert "RELEASE_SYNC_PREFLIGHT_OK" in synced.stdout
 
 
+def test_release_sync_preflight_runs_before_service_activation() -> None:
+    drop_in = Path("ops/host/w2-staging-release-sync.conf").read_text(encoding="utf-8")
+
+    assert "ExecStartPre=/opt/w2/deploy/w2-release-sync-preflight" in drop_in
+    assert "${W2_PYTHON_IMAGE} ${W2_WEB_IMAGE} ${W2_GIT_SHA}" in drop_in
+
+
 def test_web_scope_check_rejects_single_field_mutation(tmp_path: Path) -> None:
     evidence = Path(
         "docs/review_packages/WEB_SCOPE_01/WEB_SCOPE_01_EVIDENCE.json"
