@@ -26,14 +26,13 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 import ev_se_mle as M
 from _load import load
-from ev_se_beta_kappa import DENOMINATOR, MIN_OBSERVED, observed_fixtures
+from ev_se_beta_kappa import DENOMINATOR
 
 STRATA = 4
 
 
 def states_for(component: str):
     """(cell, team, mean_age, coverage, z_numerator, se0_squared) per evaluation state."""
-    observed = observed_fixtures()
     out: dict[str, list] = {}
     for (league, team, _season), series in load(component).items():
         s = sorted(series)
@@ -78,7 +77,9 @@ def report() -> dict[str, object]:
             ]
             alpha, tau2, _ll = M.fit_full(series)
 
-            def summarise(group: list, by: str) -> dict[str, object]:
+            def summarise(
+                group: list, by: str, *, alpha: float = alpha, tau2: float = tau2
+            ) -> dict[str, object]:
                 zs_base, zs_cand = [], []
                 for _team, age, _cov, resid, se0sq in group:
                     zs_base.append(resid / (se0sq + tau2) ** 0.5)

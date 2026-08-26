@@ -80,7 +80,7 @@ def main() -> int:
         _sigma2_hat, tau2_hat, _ll = M.fit_full(real)
         grid: dict[str, object] = {}
         for sigma2 in SIGMA2_GRID:
-            rng = random.Random(SEED)
+            rng = random.Random(SEED)  # noqa: S311 - statistical replication, not crypto
             mle_hits = var_hits = 0
             started = time.time()
             for _ in range(REPLICATIONS):

@@ -38,8 +38,26 @@ MAX_NRMSE = 0.50
 
 
 def observed_fixtures() -> set[tuple[str, str]]:
-    """(fixture_id, team_id) carrying two-sided numeric xG in the frozen extract."""
-    seen: set[tuple[str, str]] = set()
+    """(fixture_id, team_id) carrying two-sided numeric xG in the final extract.
+
+    STATIC existence. This is what a reader of the finished table sees, not what was
+    visible at any earlier moment. Use `observed_capture_times` for the
+    point-in-time question.
+    """
+    return set(observed_capture_times())
+
+
+def observed_capture_times() -> dict[tuple[str, str], float]:
+    """(fixture_id, team_id) -> capture time in epoch days.
+
+    `captured_at` is the column `ReadModelService._xg_uncertainty_rows` compares
+    against `as_of`, so it is the visibility clock production itself honours.
+    Ordinary ingestion is first-write-wins behind an immutability guard, so the value
+    is the first write for the rows it covers; the one controlled path that can
+    rewrite it, `XgRetentionService.repair_derived_lineage`, needs write_db plus a
+    backup and rejects any non-timestamp drift.
+    """
+    out: dict[tuple[str, str], float] = {}
     for line in open(CSV):
         p = line.rstrip("\n").split(",")
         if len(p) != 7 or p[0] in ("BEGIN", "ROLLBACK"):
@@ -49,8 +67,8 @@ def observed_fixtures() -> set[tuple[str, str]]:
             float(p[5])
         except ValueError:
             continue
-        seen.add((p[0], p[1]))
-    return seen
+        out[(p[0], p[1])] = parse_ts(p[3])
+    return out
 
 
 def xg_era_start() -> float:
@@ -65,7 +83,9 @@ def xg_era_start() -> float:
     return parse_ts(lo)
 
 
-def states(*, era_restricted: bool = False) -> dict[str, list[tuple[str, float, float]]]:
+def states(
+    *, era_restricted: bool = False, pit: bool = False
+) -> dict[str, list[tuple[str, float, float]]]:
     """league -> [(team, u, D), ...] over every full-denominator evaluation state.
 
     With `era_restricted`, only states whose whole expected window sits inside the
@@ -75,7 +95,7 @@ def states(*, era_restricted: bool = False) -> dict[str, list[tuple[str, float, 
     defines `E` as the expected PIT fixture set with no era qualifier, so the
     unrestricted form stays primary and this one is reported beside it.
     """
-    observed = observed_fixtures()
+    capture = observed_capture_times()
     era0 = xg_era_start() if era_restricted else None
     timelines: dict[tuple[str, str], list[tuple[float, bool]]] = {}
     for row in json.load(open(CORPUS))["history_rows"]:
@@ -86,8 +106,8 @@ def states(*, era_restricted: bool = False) -> dict[str, list[tuple[str, float, 
         if kickoff >= HOLDOUT_CUTOFF:
             continue          # the holdout is reserved for path C
         key = (league, row["team_id"])
-        has_xg = (row["provider_fixture_id"], row["team_id"]) in observed
-        timelines.setdefault(key, []).append((parse_ts(kickoff), has_xg))
+        seen_at = capture.get((row["provider_fixture_id"], row["team_id"]))
+        timelines.setdefault(key, []).append((parse_ts(kickoff), seen_at))
 
     out: dict[str, list[tuple[str, float, float]]] = {}
     for (league, team), series in timelines.items():
@@ -97,7 +117,11 @@ def states(*, era_restricted: bool = False) -> dict[str, list[tuple[str, float, 
             expected = series[i - DENOMINATOR : i]
             if era0 is not None and expected[0][0] < era0:
                 continue
-            got = [t for t, has in expected if has]
+            if pit:
+                # visible at the evaluation epoch, the filter production applies
+                got = [t for t, seen in expected if seen is not None and seen <= as_of]
+            else:
+                got = [t for t, seen in expected if seen is not None]
             if len(got) < MIN_OBSERVED:
                 continue      # fail closed rather than contribute a state
             coverage = len(got) / DENOMINATOR
@@ -180,9 +204,30 @@ def nrmse(rows: list[tuple[str, float, float]], kappa: float) -> float | None:
     return (resid / signal) ** 0.5
 
 
-def kappa_by_league(*, era_restricted: bool = False) -> dict[str, dict[str, object]]:
+def kappa_by_league(
+    *, era_restricted: bool = False, pit: bool = False
+) -> dict[str, dict[str, object]]:
+    """Per league kappa. With `pit`, the observed set honours captured_at <= as_of.
+
+    When the point-in-time observed set is empty or too thin at every epoch the
+    league is `MISSINGNESS_NOT_IDENTIFIABLE`. That is a different verdict from
+    `MISSINGNESS_PREMISE_FAILED`, which asserts a measured direction and may not be
+    reported when no admissible measurement exists. v3 reported the second where the
+    first was true.
+    """
     report: dict[str, dict[str, object]] = {}
-    for league, rows in sorted(states(era_restricted=era_restricted).items()):
+    produced = states(era_restricted=era_restricted, pit=pit)
+    if pit and not produced:
+        return {
+            "_verdict": {
+                "status": "MISSINGNESS_NOT_IDENTIFIABLE",
+                "reason": (
+                    "no evaluation epoch has at least three xG observations visible "
+                    "at that epoch, so u and D cannot be formed at all"
+                ),
+            }
+        }
+    for league, rows in sorted(produced.items()):
         gapped = [r for r in rows if r[1] > 0.0]
         teams_with_gap = {r[0] for r in gapped}
         stats = team_stats(rows)
@@ -201,6 +246,13 @@ def kappa_by_league(*, era_restricted: bool = False) -> dict[str, dict[str, obje
             "support_sufficient": bool(support),
         }
         report[league] = {
+            "status": (
+                "MISSINGNESS_NOT_IDENTIFIABLE"
+                if not support
+                else "MISSINGNESS_PREMISE_FAILED"
+                if not all(premises.values())
+                else "PREMISES_MET_PENDING_ALPHA"
+            ),
             "states": len(rows),
             "states_with_gap": len(gapped),
             "teams": len(stats),

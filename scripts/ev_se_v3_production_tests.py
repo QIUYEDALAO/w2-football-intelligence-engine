@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import json
 import math
-import sys
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -142,7 +141,6 @@ def check_invariants(**knobs: Any) -> list[str]:
     propagated EV_SE as well, so a mutant cannot hide behind the propagation step.
     """
     fresh = production_sigma(1.0)
-    older = production_sigma(120.0)
     if fresh["lambda_uncertainty_status"] != "ANALYSIS_READY":
         return ["production_not_ready_on_valid_inputs"]
     se0_home = float(fresh["lambda_sigma_home"])

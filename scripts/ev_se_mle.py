@@ -12,16 +12,23 @@ model and the honest place to ask whether the data can identify `sigma^2` at all
 
 `sigma^2 = 0` sits on the boundary of the parameter space, so the likelihood-ratio
 statistic is not chi-square under the null. It is the 50:50 mixture of a point mass
-at zero and chi^2_1, which is what `lrt_pvalue` applies. Using chi^2_1 here would
-roughly double the false-positive rate.
+at zero and chi^2_1, which is what `lrt_pvalue` applies.
+
+A naive `chi^2_1` p-value is exactly twice the mixture one, so it rejects less
+often and runs the test at about half its nominal size. The naive test is
+*conservative*, not anti-conservative -- v3 stated this backwards.
 """
 
 from __future__ import annotations
 
 import math
 
-# One-sided boundary LRT at 5%: 0.5*P(chi2_1 > c) = 0.05  =>  c = 2.7055
-LRT_CRITICAL_95 = 2.705543454095404
+# One-sided boundary LRT at 5%: 0.5*P(chi2_1 > c) = 0.05  =>  c = 2.7055.
+# This is the decision threshold of the test, and the region built from it is the
+# set the test does not reject -- not a two-sided 95% interval for an interior point.
+BOUNDARY_CRITICAL_95 = 2.705543454095404
+# Conventional two-sided 95% profile interval: the chi^2_1 0.95 quantile.
+PROFILE_CRITICAL_95 = 3.841458820694124
 
 
 def loglik(series: list[tuple[float, float]], sigma2: float, tau2: float) -> float:
@@ -177,13 +184,25 @@ def lrt_pvalue(ll_full: float, ll_restricted: float) -> float:
 
 
 def profile_interval(
-    series_list: list[list[tuple[float, float]]], sigma2_hat: float, ll_max: float
+    series_list: list[list[tuple[float, float]]],
+    sigma2_hat: float,
+    ll_max: float,
+    *,
+    critical: float = BOUNDARY_CRITICAL_95,
 ) -> tuple[float, float | None]:
-    """95% profile-likelihood interval for sigma^2, boundary-calibrated.
+    """Profile-likelihood region {sigma^2 : 2*(ll_max - ll_profile) <= critical}.
 
-    The region is {sigma^2 : 2*(ll_max - ll_profile) <= 2.7055}, the same critical
-    value the one-sided boundary LRT uses. Interval and test therefore agree by
-    construction: the interval excludes zero exactly when the test rejects.
+    The caller chooses the critical value and therefore the meaning:
+
+      * `BOUNDARY_CRITICAL_95` (2.7055) gives the set the one-sided boundary test
+        does not reject at 5%. It agrees with the test by construction and excludes
+        zero exactly when the test rejects. It is NOT a two-sided 95% confidence
+        interval for a cell whose optimum is interior.
+      * `PROFILE_CRITICAL_95` (3.8415) gives the conventional two-sided 95% profile
+        interval, correct at an interior optimum and conservative at the boundary.
+
+    v3 used the first everywhere and called it a 95% CI. Both are now emitted and
+    each is labelled.
     """
     v0 = _pooled_variance(series_list)
 
@@ -195,7 +214,7 @@ def profile_interval(
         )
         return cell_loglik(series_list, sigma2, math.exp(best))
 
-    target = ll_max - LRT_CRITICAL_95 / 2.0
+    target = ll_max - critical / 2.0
 
     lo = 0.0
     if profile(0.0) < target:                      # zero is excluded: bisect for the bound
@@ -227,13 +246,56 @@ def profile_interval(
 
 
 def cluster_bootstrap(
+    series_by_team: dict[str, list[list[tuple[float, float]]]],
+    *,
+    reps: int = 200,
+    seed: int = 20260826,
+) -> tuple[float | None, float | None]:
+    """Percentile interval from a bootstrap clustered on **teams**.
+
+    The resampling unit is the team, so every series a team contributes across every
+    season moves together. v3 resampled the flat list of team-season series, which
+    splits one team across units, treats correlated series as independent and
+    returns an interval that is too narrow.
+
+    200 replications, fixed by protocol v4 section 4 and stated rather than implied:
+    10,000 replications of a two-parameter MLE across 26 cells is not affordable.
+    This sits beside the likelihood intervals as a robustness check and is never the
+    primary interval.
+    """
+    import random as _random
+
+    teams = sorted(series_by_team)
+    n = len(teams)
+    if n == 0:
+        return None, None
+    rng = _random.Random(seed)  # noqa: S311 - statistical bootstrap, not crypto
+    draws: list[float] = []
+    for _ in range(reps):
+        sample: list[list[tuple[float, float]]] = []
+        for _ in range(n):
+            sample.extend(series_by_team[teams[rng.randrange(n)]])
+        if not sample:
+            continue
+        sigma2, _tau2, _ll = fit_full(sample)
+        draws.append(sigma2)
+    if not draws:
+        return None, None
+    draws.sort()
+    lo = draws[int(0.025 * len(draws))]
+    hi = draws[min(int(0.975 * len(draws)), len(draws) - 1)]
+    return lo, hi
+
+
+def cluster_bootstrap_by_team_season(
     series_list: list[list[tuple[float, float]]], *, reps: int = 200, seed: int = 20260826
 ) -> tuple[float | None, float | None]:
-    """Robustness check beside the profile interval, not a replacement for it.
+    """The v3 bootstrap, retained only so the v3 evidence keeps reproducing.
 
-    Protocol v3 section 3 fixes this at 200 reps and says so: 10,000 replications of
-    a full two-parameter MLE is not affordable, and a smaller bootstrap stated
-    plainly is worth more than a large one implied.
+    Its resampling unit is the team-season, which splits one team across units and
+    returns an interval that is too narrow. Protocol v4 section 4 records this as a
+    defect and `cluster_bootstrap` is the corrected version. Do not use this for new
+    work; it exists so failed history stays auditable.
     """
     import random as _random
 

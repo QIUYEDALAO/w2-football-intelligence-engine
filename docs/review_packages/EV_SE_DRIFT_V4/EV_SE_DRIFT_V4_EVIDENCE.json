@@ -1,0 +1,5147 @@
+{
+  "alpha_cells": {
+    "allsvenskan|attack": {
+      "delta_span_days": 230.083,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": true,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.083988,
+        "max_rel_dev_quadratic": 0.087726,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.000304454636,
+            0.001672057757
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.000153078352,
+            0.001832098842
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -868.241684,
+        "loglik_null": -872.741144,
+        "lr_statistic": 8.99892,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 0.001350696,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.000224850733,
+            0.001878749911
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.000840408108,
+        "tau2": 0.530932098
+      },
+      "pairs": 8720,
+      "series": 32,
+      "status": "DETECTED_UNCORRECTED",
+      "teams": 18,
+      "teams_bootstrapped": 18,
+      "variogram_comparator": {
+        "alpha_abs": 0.002348335845,
+        "bootstrap_ci": [
+          0.000790013922,
+          0.004169305268
+        ],
+        "tau2": 0.47654755
+      }
+    },
+    "allsvenskan|defence": {
+      "delta_span_days": 230.083,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": true,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.084279,
+        "max_rel_dev_quadratic": 0.06398,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.00012986563,
+            0.00119016274
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.001617250756
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -843.208886,
+        "loglik_null": -845.907149,
+        "lr_statistic": 5.396527,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 0.01008843,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            6.705516e-05,
+            0.001349193997
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.000548330432,
+        "tau2": 0.502397927
+      },
+      "pairs": 8720,
+      "series": 32,
+      "status": "DETECTED_UNCORRECTED",
+      "teams": 18,
+      "teams_bootstrapped": 18,
+      "variogram_comparator": {
+        "alpha_abs": 0.001330629474,
+        "bootstrap_ci": [
+          0.000156138714,
+          0.00294307583
+        ],
+        "tau2": 0.471935187
+      }
+    },
+    "argentina_primera|attack": {
+      "delta_span_days": 219.052,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.03481,
+        "max_rel_dev_quadratic": 0.00489,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000619727054
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.001061368188
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1205.220543,
+        "loglik_null": -1206.229943,
+        "lr_statistic": 2.018799,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 0.077680993,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.00071313422
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.000231568994,
+        "tau2": 0.365881723
+      },
+      "pairs": 13878,
+      "series": 58,
+      "status": "NOT_DETECTED",
+      "teams": 30,
+      "teams_bootstrapped": 30,
+      "variogram_comparator": {
+        "alpha_abs": 0.000677568023,
+        "bootstrap_ci": [
+          -0.000191792486,
+          0.001734235673
+        ],
+        "tau2": 0.350036071
+      }
+    },
+    "argentina_primera|defence": {
+      "delta_span_days": 219.052,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.057809,
+        "max_rel_dev_quadratic": 0.028174,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000367414026
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000324196189
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1204.917578,
+        "loglik_null": -1205.045971,
+        "lr_statistic": 0.256786,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 0.306168517,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000438380768
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 7.0855292e-05,
+        "tau2": 0.370554332
+      },
+      "pairs": 13878,
+      "series": 58,
+      "status": "NOT_DETECTED",
+      "teams": 30,
+      "teams_bootstrapped": 30,
+      "variogram_comparator": {
+        "alpha_abs": 0.000138422587,
+        "bootstrap_ci": [
+          -0.000896106772,
+          0.001096823772
+        ],
+        "tau2": 0.378423501
+      }
+    },
+    "brasileirao_serie_a|attack": {
+      "delta_span_days": 252.896,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.033017,
+        "max_rel_dev_quadratic": 0.014093,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000432309881
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000379058854
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1626.024368,
+        "loglik_null": -1626.558033,
+        "lr_statistic": 1.067329,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 0.150774738,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000507427669
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.000130526817,
+        "tau2": 0.473725616
+      },
+      "pairs": 28046,
+      "series": 40,
+      "status": "NOT_DETECTED",
+      "teams": 24,
+      "teams_bootstrapped": 24,
+      "variogram_comparator": {
+        "alpha_abs": 0.000158441243,
+        "bootstrap_ci": [
+          -0.000262434197,
+          0.000601934395
+        ],
+        "tau2": 0.455809221
+      }
+    },
+    "brasileirao_serie_a|defence": {
+      "delta_span_days": 252.896,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.03135,
+        "max_rel_dev_quadratic": 0.009415,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000261119744
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000272136633
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1630.687353,
+        "loglik_null": -1630.715354,
+        "lr_statistic": 0.056004,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 0.406463644,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000319262119
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 2.6176555e-05,
+        "tau2": 0.480933669
+      },
+      "pairs": 28046,
+      "series": 40,
+      "status": "NOT_DETECTED",
+      "teams": 24,
+      "teams_bootstrapped": 24,
+      "variogram_comparator": {
+        "alpha_abs": -7.1350882e-05,
+        "bootstrap_ci": [
+          -0.000421450157,
+          0.000305937989
+        ],
+        "tau2": 0.488480349
+      }
+    },
+    "bundesliga|attack": {
+      "delta_span_days": 266.792,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.04853,
+        "max_rel_dev_quadratic": 0.028563,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000364888002
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000344038037
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1038.891335,
+        "loglik_null": -1038.891335,
+        "lr_statistic": 0.0,
+        "optimum_at_boundary": true,
+        "p_value_boundary_mixture": 1.0,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000471641063
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.0,
+        "tau2": 0.597789738
+      },
+      "pairs": 11988,
+      "series": 36,
+      "status": "NOT_DETECTED",
+      "teams": 20,
+      "teams_bootstrapped": 20,
+      "variogram_comparator": {
+        "alpha_abs": -0.000285173726,
+        "bootstrap_ci": [
+          -0.001610702655,
+          0.001082571651
+        ],
+        "tau2": 0.604936247
+      }
+    },
+    "bundesliga|defence": {
+      "delta_span_days": 266.792,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.049886,
+        "max_rel_dev_quadratic": 0.031148,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000428979522
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000437827891
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1084.243939,
+        "loglik_null": -1084.243939,
+        "lr_statistic": 0.0,
+        "optimum_at_boundary": true,
+        "p_value_boundary_mixture": 1.0,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000567433474
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.0,
+        "tau2": 0.665444763
+      },
+      "pairs": 11988,
+      "series": 36,
+      "status": "NOT_DETECTED",
+      "teams": 20,
+      "teams_bootstrapped": 20,
+      "variogram_comparator": {
+        "alpha_abs": -0.00048564296,
+        "bootstrap_ci": [
+          -0.001619854062,
+          0.00058182982
+        ],
+        "tau2": 0.677352471
+      }
+    },
+    "chinese_super_league|attack": {
+      "delta_span_days": 252.983,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.028603,
+        "max_rel_dev_quadratic": 0.017338,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000659402343
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000506589641
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1065.093149,
+        "loglik_null": -1065.135781,
+        "lr_statistic": 0.085263,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 0.385143646,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000808589919
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 7.696438e-05,
+        "tau2": 0.728793371
+      },
+      "pairs": 10482,
+      "series": 32,
+      "status": "NOT_DETECTED",
+      "teams": 18,
+      "teams_bootstrapped": 18,
+      "variogram_comparator": {
+        "alpha_abs": 0.000568025609,
+        "bootstrap_ci": [
+          -0.000622933835,
+          0.001862780227
+        ],
+        "tau2": 0.675800802
+      }
+    },
+    "chinese_super_league|defence": {
+      "delta_span_days": 252.983,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.056067,
+        "max_rel_dev_quadratic": 0.006782,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000182001338
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.0
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1116.373916,
+        "loglik_null": -1116.373916,
+        "lr_statistic": 0.0,
+        "optimum_at_boundary": true,
+        "p_value_boundary_mixture": 1.0,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000259490961
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.0,
+        "tau2": 0.831986258
+      },
+      "pairs": 10482,
+      "series": 32,
+      "status": "NOT_DETECTED",
+      "teams": 18,
+      "teams_bootstrapped": 18,
+      "variogram_comparator": {
+        "alpha_abs": -0.000487713074,
+        "bootstrap_ci": [
+          -0.001553917776,
+          0.000622597171
+        ],
+        "tau2": 0.899930799
+      }
+    },
+    "eliteserien|attack": {
+      "delta_span_days": 256.031,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.031254,
+        "max_rel_dev_quadratic": 0.008667,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000253092534
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            4.5238165e-05
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1077.35188,
+        "loglik_null": -1077.35188,
+        "lr_statistic": 0.0,
+        "optimum_at_boundary": true,
+        "p_value_boundary_mixture": 1.0,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000346297463
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.0,
+        "tau2": 0.68751464
+      },
+      "pairs": 11338,
+      "series": 32,
+      "status": "NOT_DETECTED",
+      "teams": 18,
+      "teams_bootstrapped": 18,
+      "variogram_comparator": {
+        "alpha_abs": -6.4409685e-05,
+        "bootstrap_ci": [
+          -0.000953433178,
+          0.000845837007
+        ],
+        "tau2": 0.676434627
+      }
+    },
+    "eliteserien|defence": {
+      "delta_span_days": 256.031,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.051338,
+        "max_rel_dev_quadratic": 0.005572,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000446530845
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000535412172
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1078.505458,
+        "loglik_null": -1078.505458,
+        "lr_statistic": 0.0,
+        "optimum_at_boundary": true,
+        "p_value_boundary_mixture": 1.0,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000562530057
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.0,
+        "tau2": 0.689423782
+      },
+      "pairs": 11338,
+      "series": 32,
+      "status": "NOT_DETECTED",
+      "teams": 18,
+      "teams_bootstrapped": 18,
+      "variogram_comparator": {
+        "alpha_abs": 0.000100271303,
+        "bootstrap_ci": [
+          -0.000998004284,
+          0.001251879283
+        ],
+        "tau2": 0.686219175
+      }
+    },
+    "eredivisie|attack": {
+      "delta_span_days": 287.969,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.062964,
+        "max_rel_dev_quadratic": 0.032278,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000423312883
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000393081784
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1112.535157,
+        "loglik_null": -1112.535157,
+        "lr_statistic": 0.0,
+        "optimum_at_boundary": true,
+        "p_value_boundary_mixture": 1.0,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.00055110121
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.0,
+        "tau2": 0.63395971
+      },
+      "pairs": 12720,
+      "series": 36,
+      "status": "NOT_DETECTED",
+      "teams": 21,
+      "teams_bootstrapped": 21,
+      "variogram_comparator": {
+        "alpha_abs": 0.000331078582,
+        "bootstrap_ci": [
+          -0.000645138662,
+          0.001309207402
+        ],
+        "tau2": 0.601653167
+      }
+    },
+    "eredivisie|defence": {
+      "delta_span_days": 287.969,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.063951,
+        "max_rel_dev_quadratic": 0.028135,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.00076652565
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000548207729
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1145.005306,
+        "loglik_null": -1145.256608,
+        "lr_statistic": 0.502603,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 0.239179218,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000927636578
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.000165072518,
+        "tau2": 0.675488894
+      },
+      "pairs": 12720,
+      "series": 36,
+      "status": "NOT_DETECTED",
+      "teams": 21,
+      "teams_bootstrapped": 21,
+      "variogram_comparator": {
+        "alpha_abs": 0.000104472349,
+        "bootstrap_ci": [
+          -0.001239641182,
+          0.001347973852
+        ],
+        "tau2": 0.697060563
+      }
+    },
+    "la_liga|attack": {
+      "delta_span_days": 283.083,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.030849,
+        "max_rel_dev_quadratic": 0.005866,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000128291197
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            6.7705111e-05
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1252.832431,
+        "loglik_null": -1252.832431,
+        "lr_statistic": 0.0,
+        "optimum_at_boundary": true,
+        "p_value_boundary_mixture": 1.0,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.00017838914
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.0,
+        "tau2": 0.548561598
+      },
+      "pairs": 16816,
+      "series": 40,
+      "status": "NOT_DETECTED",
+      "teams": 23,
+      "teams_bootstrapped": 23,
+      "variogram_comparator": {
+        "alpha_abs": 0.000137517974,
+        "bootstrap_ci": [
+          -0.000685602381,
+          0.001058134207
+        ],
+        "tau2": 0.532438017
+      }
+    },
+    "la_liga|defence": {
+      "delta_span_days": 283.083,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.035458,
+        "max_rel_dev_quadratic": 0.021255,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000292384339
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000261152771
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1346.254175,
+        "loglik_null": -1346.254175,
+        "lr_statistic": 0.0,
+        "optimum_at_boundary": true,
+        "p_value_boundary_mixture": 1.0,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000376911551
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.0,
+        "tau2": 0.654083526
+      },
+      "pairs": 16816,
+      "series": 40,
+      "status": "NOT_DETECTED",
+      "teams": 23,
+      "teams_bootstrapped": 23,
+      "variogram_comparator": {
+        "alpha_abs": -0.000151384178,
+        "bootstrap_ci": [
+          -0.001114650123,
+          0.000813435429
+        ],
+        "tau2": 0.679263274
+      }
+    },
+    "ligue_1|attack": {
+      "delta_span_days": 274.01,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.040946,
+        "max_rel_dev_quadratic": 0.016451,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000195229555
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.0
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1157.076102,
+        "loglik_null": -1157.076102,
+        "lr_statistic": 0.0,
+        "optimum_at_boundary": true,
+        "p_value_boundary_mixture": 1.0,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000277016076
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.0,
+        "tau2": 0.747748733
+      },
+      "pairs": 12258,
+      "series": 36,
+      "status": "NOT_DETECTED",
+      "teams": 21,
+      "teams_bootstrapped": 21,
+      "variogram_comparator": {
+        "alpha_abs": -5.7291597e-05,
+        "bootstrap_ci": [
+          -0.001341112298,
+          0.001438548991
+        ],
+        "tau2": 0.732515253
+      }
+    },
+    "ligue_1|defence": {
+      "delta_span_days": 274.01,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.05202,
+        "max_rel_dev_quadratic": 0.003946,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000217749347
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.0
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1186.554621,
+        "loglik_null": -1186.554621,
+        "lr_statistic": 0.0,
+        "optimum_at_boundary": true,
+        "p_value_boundary_mixture": 1.0,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000308699073
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.0,
+        "tau2": 0.80055427
+      },
+      "pairs": 12258,
+      "series": 36,
+      "status": "NOT_DETECTED",
+      "teams": 21,
+      "teams_bootstrapped": 21,
+      "variogram_comparator": {
+        "alpha_abs": -0.000545593467,
+        "bootstrap_ci": [
+          -0.001677710318,
+          0.000545534173
+        ],
+        "tau2": 0.848805856
+      }
+    },
+    "mls|attack": {
+      "delta_span_days": 286.958,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.011313,
+        "max_rel_dev_quadratic": 0.004988,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000390665802
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000388407057
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -2552.969159,
+        "loglik_null": -2553.353679,
+        "lr_statistic": 0.76904,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 0.190257051,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000456491219
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.000112235178,
+        "tau2": 0.621787055
+      },
+      "pairs": 37277,
+      "series": 59,
+      "status": "NOT_DETECTED",
+      "teams": 30,
+      "teams_bootstrapped": 30,
+      "variogram_comparator": {
+        "alpha_abs": 7.3891616e-05,
+        "bootstrap_ci": [
+          -0.00056552414,
+          0.000731682764
+        ],
+        "tau2": 0.617928218
+      }
+    },
+    "mls|defence": {
+      "delta_span_days": 286.958,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.024302,
+        "max_rel_dev_quadratic": 0.012597,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000274365252
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000233912912
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -2578.370674,
+        "loglik_null": -2578.409593,
+        "lr_statistic": 0.077838,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 0.39012477,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000331210017
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 3.3252558e-05,
+        "tau2": 0.640657515
+      },
+      "pairs": 37277,
+      "series": 59,
+      "status": "NOT_DETECTED",
+      "teams": 30,
+      "teams_bootstrapped": 30,
+      "variogram_comparator": {
+        "alpha_abs": 6.9307945e-05,
+        "bootstrap_ci": [
+          -0.000433434627,
+          0.000607562237
+        ],
+        "tau2": 0.642720963
+      }
+    },
+    "premier_league|attack": {
+      "delta_span_days": 281.833,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.042556,
+        "max_rel_dev_quadratic": 0.015828,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000572432262
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000625947423
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1334.328764,
+        "loglik_null": -1334.760316,
+        "lr_statistic": 0.863103,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 0.176435919,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000677489875
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.000157698769,
+        "tau2": 0.591988315
+      },
+      "pairs": 17336,
+      "series": 40,
+      "status": "NOT_DETECTED",
+      "teams": 23,
+      "teams_bootstrapped": 23,
+      "variogram_comparator": {
+        "alpha_abs": 0.000363367605,
+        "bootstrap_ci": [
+          -0.000555573927,
+          0.0014240341
+        ],
+        "tau2": 0.558482687
+      }
+    },
+    "premier_league|defence": {
+      "delta_span_days": 281.833,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.016453,
+        "max_rel_dev_quadratic": 0.006136,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000545594373
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000385690318
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1359.786929,
+        "loglik_null": -1359.976216,
+        "lr_statistic": 0.378573,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 0.269184017,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.00065645482
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.000112798789,
+        "tau2": 0.622113348
+      },
+      "pairs": 17336,
+      "series": 40,
+      "status": "NOT_DETECTED",
+      "teams": 23,
+      "teams_bootstrapped": 23,
+      "variogram_comparator": {
+        "alpha_abs": -4.9739712e-05,
+        "bootstrap_ci": [
+          -0.001030728251,
+          0.000856242738
+        ],
+        "tau2": 0.641219184
+      }
+    },
+    "primeira_liga|attack": {
+      "delta_span_days": 280.906,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.031572,
+        "max_rel_dev_quadratic": 0.014442,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.000339837955,
+            0.001464538496
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.000277821077,
+            0.001565899902
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1011.519214,
+        "loglik_null": -1018.688959,
+        "lr_statistic": 14.339489,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 7.6315e-05,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.000276999999,
+            0.00163643266
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.000774419959,
+        "tau2": 0.513444904
+      },
+      "pairs": 12198,
+      "series": 36,
+      "status": "DETECTED_UNCORRECTED",
+      "teams": 20,
+      "teams_bootstrapped": 20,
+      "variogram_comparator": {
+        "alpha_abs": 0.000809326909,
+        "bootstrap_ci": [
+          -0.000380800023,
+          0.002141894681
+        ],
+        "tau2": 0.513219592
+      }
+    },
+    "primeira_liga|defence": {
+      "delta_span_days": 280.906,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": true,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.064537,
+        "max_rel_dev_quadratic": 0.037899,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000457983417
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000312439547
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1061.954324,
+        "loglik_null": -1062.047853,
+        "lr_statistic": 0.187059,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 0.332687926,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000556694378
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 7.3145808e-05,
+        "tau2": 0.603575787
+      },
+      "pairs": 12198,
+      "series": 36,
+      "status": "NOT_DETECTED",
+      "teams": 20,
+      "teams_bootstrapped": 20,
+      "variogram_comparator": {
+        "alpha_abs": 0.000715107442,
+        "bootstrap_ci": [
+          -0.000230163057,
+          0.001735221834
+        ],
+        "tau2": 0.587723717
+      }
+    },
+    "serie_a|attack": {
+      "delta_span_days": 281.094,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.061055,
+        "max_rel_dev_quadratic": 0.025255,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            0.0,
+            0.000125172856
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.0
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1149.487782,
+        "loglik_null": -1149.487782,
+        "lr_statistic": 0.0,
+        "optimum_at_boundary": true,
+        "p_value_boundary_mixture": 1.0,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000173900863
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.0,
+        "tau2": 0.462496112
+      },
+      "pairs": 16578,
+      "series": 40,
+      "status": "NOT_DETECTED",
+      "teams": 23,
+      "teams_bootstrapped": 23,
+      "variogram_comparator": {
+        "alpha_abs": -0.000254491674,
+        "bootstrap_ci": [
+          -0.000827229045,
+          0.00041126163
+        ],
+        "tau2": 0.473363029
+      }
+    },
+    "serie_a|defence": {
+      "delta_span_days": 281.094,
+      "linearity_gate": {
+        "delta2_ci_excludes_zero": false,
+        "gate": "LINEAR_OK",
+        "max_rel_dev_observed": 0.030522,
+        "max_rel_dev_quadratic": 0.012747,
+        "valid_bins": 5
+      },
+      "mle": {
+        "boundary_region_95": {
+          "critical_value": 2.705543454095404,
+          "interval": [
+            3.825342e-05,
+            0.000796285183
+          ],
+          "meaning": "the set the one-sided boundary LRT does not reject at 5%; excludes zero exactly when the test rejects; NOT a two-sided 95% confidence interval at an interior optimum"
+        },
+        "cluster_bootstrap_200reps": {
+          "interval": [
+            0.0,
+            0.000798324013
+          ],
+          "meaning": "percentile interval from 200 replications clustered on teams; a robustness check reported beside the likelihood intervals, never the primary",
+          "resampling_unit": "team"
+        },
+        "loglik_full": -1185.615435,
+        "loglik_null": -1187.501182,
+        "lr_statistic": 3.771492,
+        "optimum_at_boundary": false,
+        "p_value_boundary_mixture": 0.026066554,
+        "profile_ci_95": {
+          "critical_value": 3.841458820694124,
+          "interval": [
+            0.0,
+            0.000914349593
+          ],
+          "meaning": "conventional two-sided 95% profile-likelihood interval; correct at an interior optimum, conservative at the boundary"
+        },
+        "sigma2_alpha_abs": 0.000325704447,
+        "tau2": 0.483897481
+      },
+      "pairs": 16578,
+      "series": 40,
+      "status": "DETECTED_UNCORRECTED",
+      "teams": 23,
+      "teams_bootstrapped": 23,
+      "variogram_comparator": {
+        "alpha_abs": 2.0128917e-05,
+        "bootstrap_ci": [
+          -0.000699294779,
+          0.000670844003
+        ],
+        "tau2": 0.50246639
+      }
+    }
+  },
+  "calibration": {
+    "baseline_is_coefficient_free": "baseline z uses only SE0 and tau^2, so its trend across strata is a fact about prediction error rather than a property of any fitted model",
+    "candidate_is_circular": "alpha comes from the same estimation period; in-sample only",
+    "coverage_definition": "|O| / |E| with E the expected window and O its xG-carrying subset",
+    "pit_basis": {
+      "reason": "no evaluation epoch carries three xG observations under this basis, so no calibration state can be formed",
+      "status": "NOT_IDENTIFIABLE"
+    },
+    "static_basis": {
+      "cells": {
+        "allsvenskan|attack": {
+          "alpha_used": 0.0008404081084513699,
+          "baseline_var_z_oldest_minus_youngest": 0.287763,
+          "by_age": [
+            {
+              "baseline_var_z": 0.874286,
+              "candidate_var_z": 0.813563,
+              "mean_age_days": 53.822,
+              "mean_coverage": 0.4643,
+              "n": 168,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.092414,
+              "candidate_var_z": 0.978417,
+              "mean_age_days": 77.789,
+              "mean_coverage": 0.7244,
+              "n": 168,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.159977,
+              "candidate_var_z": 1.018531,
+              "mean_age_days": 94.302,
+              "mean_coverage": 0.8435,
+              "n": 168,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.162049,
+              "candidate_var_z": 0.937361,
+              "mean_age_days": 162.725,
+              "mean_coverage": 0.845,
+              "n": 169,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 0.92312,
+              "candidate_var_z": 0.855423,
+              "mean_age_days": 57.111,
+              "mean_coverage": 0.3914,
+              "n": 168,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.92841,
+              "candidate_var_z": 0.815956,
+              "mean_age_days": 94.691,
+              "mean_coverage": 0.7274,
+              "n": 168,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.140225,
+              "candidate_var_z": 0.965454,
+              "mean_age_days": 122.211,
+              "mean_coverage": 0.8351,
+              "n": 168,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.296172,
+              "candidate_var_z": 1.110011,
+              "mean_age_days": 114.909,
+              "mean_coverage": 0.9228,
+              "n": 169,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 673,
+          "status": "OK",
+          "tau2_used": 0.5309320983983744
+        },
+        "allsvenskan|defence": {
+          "alpha_used": 0.0005483304318850744,
+          "baseline_var_z_oldest_minus_youngest": 0.153311,
+          "by_age": [
+            {
+              "baseline_var_z": 0.992086,
+              "candidate_var_z": 0.945395,
+              "mean_age_days": 53.822,
+              "mean_coverage": 0.4643,
+              "n": 168,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.041546,
+              "candidate_var_z": 0.965435,
+              "mean_age_days": 77.789,
+              "mean_coverage": 0.7244,
+              "n": 168,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.948096,
+              "candidate_var_z": 0.866226,
+              "mean_age_days": 94.302,
+              "mean_coverage": 0.8435,
+              "n": 168,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.145397,
+              "candidate_var_z": 0.978615,
+              "mean_age_days": 162.725,
+              "mean_coverage": 0.845,
+              "n": 169,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 0.984158,
+              "candidate_var_z": 0.936018,
+              "mean_age_days": 57.111,
+              "mean_coverage": 0.3914,
+              "n": 168,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.070889,
+              "candidate_var_z": 0.980589,
+              "mean_age_days": 94.691,
+              "mean_coverage": 0.7274,
+              "n": 168,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.075591,
+              "candidate_var_z": 0.946314,
+              "mean_age_days": 122.211,
+              "mean_coverage": 0.8351,
+              "n": 168,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.997369,
+              "candidate_var_z": 0.893256,
+              "mean_age_days": 114.909,
+              "mean_coverage": 0.9228,
+              "n": 169,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 673,
+          "status": "OK",
+          "tau2_used": 0.5023979269104382
+        },
+        "argentina_primera|attack": {
+          "alpha_used": 0.00023156899403654272,
+          "baseline_var_z_oldest_minus_youngest": -0.118928,
+          "by_age": [
+            {
+              "baseline_var_z": 1.088542,
+              "candidate_var_z": 1.070906,
+              "mean_age_days": 31.228,
+              "mean_coverage": 0.2996,
+              "n": 278,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.861903,
+              "candidate_var_z": 0.837683,
+              "mean_age_days": 51.05,
+              "mean_coverage": 0.4705,
+              "n": 278,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.123213,
+              "candidate_var_z": 1.078679,
+              "mean_age_days": 69.116,
+              "mean_coverage": 0.7628,
+              "n": 278,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.969614,
+              "candidate_var_z": 0.918891,
+              "mean_age_days": 99.107,
+              "mean_coverage": 0.7907,
+              "n": 281,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 1.062063,
+              "candidate_var_z": 1.033976,
+              "mean_age_days": 60.542,
+              "mean_coverage": 0.2164,
+              "n": 278,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.844482,
+              "candidate_var_z": 0.823183,
+              "mean_age_days": 45.738,
+              "mean_coverage": 0.4448,
+              "n": 278,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.122006,
+              "candidate_var_z": 1.080428,
+              "mean_age_days": 64.195,
+              "mean_coverage": 0.6939,
+              "n": 278,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.014239,
+              "candidate_var_z": 0.968041,
+              "mean_age_days": 80.23,
+              "mean_coverage": 0.9667,
+              "n": 281,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 1115,
+          "status": "OK",
+          "tau2_used": 0.3658817225487182
+        },
+        "argentina_primera|defence": {
+          "alpha_used": 7.085529193846553e-05,
+          "baseline_var_z_oldest_minus_youngest": 0.04756,
+          "by_age": [
+            {
+              "baseline_var_z": 0.990072,
+              "candidate_var_z": 0.985198,
+              "mean_age_days": 31.228,
+              "mean_coverage": 0.2996,
+              "n": 278,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.975628,
+              "candidate_var_z": 0.967154,
+              "mean_age_days": 51.05,
+              "mean_coverage": 0.4705,
+              "n": 278,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.094141,
+              "candidate_var_z": 1.080572,
+              "mean_age_days": 69.116,
+              "mean_coverage": 0.7628,
+              "n": 278,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.037632,
+              "candidate_var_z": 1.020018,
+              "mean_age_days": 99.107,
+              "mean_coverage": 0.7907,
+              "n": 281,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 1.006091,
+              "candidate_var_z": 0.996698,
+              "mean_age_days": 60.542,
+              "mean_coverage": 0.2164,
+              "n": 278,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.904673,
+              "candidate_var_z": 0.897646,
+              "mean_age_days": 45.738,
+              "mean_coverage": 0.4448,
+              "n": 278,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.109916,
+              "candidate_var_z": 1.097159,
+              "mean_age_days": 64.195,
+              "mean_coverage": 0.6939,
+              "n": 278,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.076376,
+              "candidate_var_z": 1.060998,
+              "mean_age_days": 80.23,
+              "mean_coverage": 0.9667,
+              "n": 281,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 1115,
+          "status": "OK",
+          "tau2_used": 0.37055433161713014
+        },
+        "brasileirao_serie_a|attack": {
+          "alpha_used": 0.00013052681734881675,
+          "baseline_var_z_oldest_minus_youngest": 0.206069,
+          "by_age": [
+            {
+              "baseline_var_z": 0.937411,
+              "candidate_var_z": 0.928715,
+              "mean_age_days": 38.21,
+              "mean_coverage": 0.5708,
+              "n": 344,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.082469,
+              "candidate_var_z": 1.065172,
+              "mean_age_days": 62.263,
+              "mean_coverage": 0.9901,
+              "n": 344,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.992521,
+              "candidate_var_z": 0.972888,
+              "mean_age_days": 77.06,
+              "mean_coverage": 0.9903,
+              "n": 344,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.14348,
+              "candidate_var_z": 1.10724,
+              "mean_age_days": 127.789,
+              "mean_coverage": 0.9983,
+              "n": 346,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 1.015711,
+              "candidate_var_z": 1.005067,
+              "mean_age_days": 40.455,
+              "mean_coverage": 0.5547,
+              "n": 344,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.091543,
+              "candidate_var_z": 1.06727,
+              "mean_age_days": 88.825,
+              "mean_coverage": 0.9948,
+              "n": 344,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.143524,
+              "candidate_var_z": 1.116517,
+              "mean_age_days": 89.473,
+              "mean_coverage": 1.0,
+              "n": 344,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.906482,
+              "candidate_var_z": 0.886446,
+              "mean_age_days": 86.807,
+              "mean_coverage": 1.0,
+              "n": 346,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 1378,
+          "status": "OK",
+          "tau2_used": 0.47372561609930947
+        },
+        "brasileirao_serie_a|defence": {
+          "alpha_used": 2.6176555216724103e-05,
+          "baseline_var_z_oldest_minus_youngest": 0.057707,
+          "by_age": [
+            {
+              "baseline_var_z": 0.957476,
+              "candidate_var_z": 0.955596,
+              "mean_age_days": 38.21,
+              "mean_coverage": 0.5708,
+              "n": 344,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.118594,
+              "candidate_var_z": 1.114986,
+              "mean_age_days": 62.263,
+              "mean_coverage": 0.9901,
+              "n": 344,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.942943,
+              "candidate_var_z": 0.939213,
+              "mean_age_days": 77.06,
+              "mean_coverage": 0.9903,
+              "n": 344,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.015183,
+              "candidate_var_z": 1.008732,
+              "mean_age_days": 127.789,
+              "mean_coverage": 0.9983,
+              "n": 346,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 0.929553,
+              "candidate_var_z": 0.927635,
+              "mean_age_days": 40.455,
+              "mean_coverage": 0.5547,
+              "n": 344,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.947309,
+              "candidate_var_z": 0.943047,
+              "mean_age_days": 88.825,
+              "mean_coverage": 0.9948,
+              "n": 344,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.068334,
+              "candidate_var_z": 1.063561,
+              "mean_age_days": 89.473,
+              "mean_coverage": 1.0,
+              "n": 344,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.088573,
+              "candidate_var_z": 1.083847,
+              "mean_age_days": 86.807,
+              "mean_coverage": 1.0,
+              "n": 346,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 1378,
+          "status": "OK",
+          "tau2_used": 0.48093366875283544
+        },
+        "bundesliga|attack": {
+          "alpha_used": 0.0,
+          "baseline_var_z_oldest_minus_youngest": 0.036811,
+          "by_age": [
+            {
+              "baseline_var_z": 1.080589,
+              "candidate_var_z": 1.080589,
+              "mean_age_days": 40.115,
+              "mean_coverage": 0.4108,
+              "n": 194,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.887406,
+              "candidate_var_z": 0.887406,
+              "mean_age_days": 77.808,
+              "mean_coverage": 0.9263,
+              "n": 194,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.009915,
+              "candidate_var_z": 1.009915,
+              "mean_age_days": 91.06,
+              "mean_coverage": 0.9933,
+              "n": 194,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.1174,
+              "candidate_var_z": 1.1174,
+              "mean_age_days": 149.562,
+              "mean_coverage": 0.9954,
+              "n": 194,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 1.067174,
+              "candidate_var_z": 1.067174,
+              "mean_age_days": 40.127,
+              "mean_coverage": 0.4108,
+              "n": 194,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.118374,
+              "candidate_var_z": 1.118374,
+              "mean_age_days": 97.631,
+              "mean_coverage": 0.9149,
+              "n": 194,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.880035,
+              "candidate_var_z": 0.880035,
+              "mean_age_days": 110.397,
+              "mean_coverage": 1.0,
+              "n": 194,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.029727,
+              "candidate_var_z": 1.029727,
+              "mean_age_days": 110.39,
+              "mean_coverage": 1.0,
+              "n": 194,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 776,
+          "status": "OK",
+          "tau2_used": 0.5977897375510204
+        },
+        "bundesliga|defence": {
+          "alpha_used": 0.0,
+          "baseline_var_z_oldest_minus_youngest": 0.037608,
+          "by_age": [
+            {
+              "baseline_var_z": 0.931304,
+              "candidate_var_z": 0.931304,
+              "mean_age_days": 40.115,
+              "mean_coverage": 0.4108,
+              "n": 194,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.892141,
+              "candidate_var_z": 0.892141,
+              "mean_age_days": 77.808,
+              "mean_coverage": 0.9263,
+              "n": 194,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.1728,
+              "candidate_var_z": 1.1728,
+              "mean_age_days": 91.06,
+              "mean_coverage": 0.9933,
+              "n": 194,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.968912,
+              "candidate_var_z": 0.968912,
+              "mean_age_days": 149.562,
+              "mean_coverage": 0.9954,
+              "n": 194,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 0.941909,
+              "candidate_var_z": 0.941909,
+              "mean_age_days": 40.127,
+              "mean_coverage": 0.4108,
+              "n": 194,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.989796,
+              "candidate_var_z": 0.989796,
+              "mean_age_days": 97.631,
+              "mean_coverage": 0.9149,
+              "n": 194,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.027296,
+              "candidate_var_z": 1.027296,
+              "mean_age_days": 110.397,
+              "mean_coverage": 1.0,
+              "n": 194,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.006155,
+              "candidate_var_z": 1.006155,
+              "mean_age_days": 110.39,
+              "mean_coverage": 1.0,
+              "n": 194,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 776,
+          "status": "OK",
+          "tau2_used": 0.6654447631715653
+        },
+        "chinese_super_league|attack": {
+          "alpha_used": 7.696438029580638e-05,
+          "baseline_var_z_oldest_minus_youngest": -0.050865,
+          "by_age": [
+            {
+              "baseline_var_z": 1.083981,
+              "candidate_var_z": 1.080088,
+              "mean_age_days": 38.125,
+              "mean_coverage": 0.455,
+              "n": 181,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.910791,
+              "candidate_var_z": 0.902676,
+              "mean_age_days": 90.054,
+              "mean_coverage": 0.8506,
+              "n": 181,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.074331,
+              "candidate_var_z": 1.062859,
+              "mean_age_days": 107.953,
+              "mean_coverage": 0.8812,
+              "n": 181,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.033116,
+              "candidate_var_z": 1.016495,
+              "mean_age_days": 160.147,
+              "mean_coverage": 0.8648,
+              "n": 183,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 1.07128,
+              "candidate_var_z": 1.067187,
+              "mean_age_days": 42.009,
+              "mean_coverage": 0.4431,
+              "n": 181,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.028554,
+              "candidate_var_z": 1.016492,
+              "mean_age_days": 124.537,
+              "mean_coverage": 0.7729,
+              "n": 181,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.182425,
+              "candidate_var_z": 1.168035,
+              "mean_age_days": 116.038,
+              "mean_coverage": 0.8779,
+              "n": 181,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.822288,
+              "candidate_var_z": 0.812657,
+              "mean_age_days": 114.202,
+              "mean_coverage": 0.9566,
+              "n": 183,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 726,
+          "status": "OK",
+          "tau2_used": 0.7287933705449191
+        },
+        "chinese_super_league|defence": {
+          "alpha_used": 0.0,
+          "baseline_var_z_oldest_minus_youngest": -0.037043,
+          "by_age": [
+            {
+              "baseline_var_z": 0.961872,
+              "candidate_var_z": 0.961872,
+              "mean_age_days": 38.125,
+              "mean_coverage": 0.455,
+              "n": 181,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.02604,
+              "candidate_var_z": 1.02604,
+              "mean_age_days": 90.054,
+              "mean_coverage": 0.8506,
+              "n": 181,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.915013,
+              "candidate_var_z": 0.915013,
+              "mean_age_days": 107.953,
+              "mean_coverage": 0.8812,
+              "n": 181,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.924829,
+              "candidate_var_z": 0.924829,
+              "mean_age_days": 160.147,
+              "mean_coverage": 0.8648,
+              "n": 183,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 0.886847,
+              "candidate_var_z": 0.886847,
+              "mean_age_days": 42.009,
+              "mean_coverage": 0.4431,
+              "n": 181,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.079196,
+              "candidate_var_z": 1.079196,
+              "mean_age_days": 124.537,
+              "mean_coverage": 0.7729,
+              "n": 181,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.020626,
+              "candidate_var_z": 1.020626,
+              "mean_age_days": 116.038,
+              "mean_coverage": 0.8779,
+              "n": 181,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.841999,
+              "candidate_var_z": 0.841999,
+              "mean_age_days": 114.202,
+              "mean_coverage": 0.9566,
+              "n": 183,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 726,
+          "status": "OK",
+          "tau2_used": 0.8319862575885042
+        },
+        "eliteserien|attack": {
+          "alpha_used": 0.0,
+          "baseline_var_z_oldest_minus_youngest": -0.074008,
+          "by_age": [
+            {
+              "baseline_var_z": 1.023709,
+              "candidate_var_z": 1.023709,
+              "mean_age_days": 45.635,
+              "mean_coverage": 0.4813,
+              "n": 192,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.176997,
+              "candidate_var_z": 1.176997,
+              "mean_age_days": 89.128,
+              "mean_coverage": 0.8893,
+              "n": 192,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.920466,
+              "candidate_var_z": 0.920466,
+              "mean_age_days": 100.74,
+              "mean_coverage": 0.8982,
+              "n": 192,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.949701,
+              "candidate_var_z": 0.949701,
+              "mean_age_days": 159.95,
+              "mean_coverage": 0.906,
+              "n": 192,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 0.923161,
+              "candidate_var_z": 0.923161,
+              "mean_age_days": 50.417,
+              "mean_coverage": 0.4401,
+              "n": 192,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.963761,
+              "candidate_var_z": 0.963761,
+              "mean_age_days": 119.876,
+              "mean_coverage": 0.8076,
+              "n": 192,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.15125,
+              "candidate_var_z": 1.15125,
+              "mean_age_days": 118.218,
+              "mean_coverage": 0.9299,
+              "n": 192,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.032702,
+              "candidate_var_z": 1.032702,
+              "mean_age_days": 106.942,
+              "mean_coverage": 0.9971,
+              "n": 192,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 768,
+          "status": "OK",
+          "tau2_used": 0.6875146395133204
+        },
+        "eliteserien|defence": {
+          "alpha_used": 0.0,
+          "baseline_var_z_oldest_minus_youngest": -0.065575,
+          "by_age": [
+            {
+              "baseline_var_z": 0.961043,
+              "candidate_var_z": 0.961043,
+              "mean_age_days": 45.635,
+              "mean_coverage": 0.4813,
+              "n": 192,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.192605,
+              "candidate_var_z": 1.192605,
+              "mean_age_days": 89.128,
+              "mean_coverage": 0.8893,
+              "n": 192,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.079778,
+              "candidate_var_z": 1.079778,
+              "mean_age_days": 100.74,
+              "mean_coverage": 0.8982,
+              "n": 192,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.895468,
+              "candidate_var_z": 0.895468,
+              "mean_age_days": 159.95,
+              "mean_coverage": 0.906,
+              "n": 192,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 0.856078,
+              "candidate_var_z": 0.856078,
+              "mean_age_days": 50.417,
+              "mean_coverage": 0.4401,
+              "n": 192,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.195779,
+              "candidate_var_z": 1.195779,
+              "mean_age_days": 119.876,
+              "mean_coverage": 0.8076,
+              "n": 192,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.003225,
+              "candidate_var_z": 1.003225,
+              "mean_age_days": 118.218,
+              "mean_coverage": 0.9299,
+              "n": 192,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.073811,
+              "candidate_var_z": 1.073811,
+              "mean_age_days": 106.942,
+              "mean_coverage": 0.9971,
+              "n": 192,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 768,
+          "status": "OK",
+          "tau2_used": 0.6894237823538034
+        },
+        "eredivisie|attack": {
+          "alpha_used": 0.0,
+          "baseline_var_z_oldest_minus_youngest": -0.172712,
+          "by_age": [
+            {
+              "baseline_var_z": 1.172423,
+              "candidate_var_z": 1.172423,
+              "mean_age_days": 39.795,
+              "mean_coverage": 0.4109,
+              "n": 206,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.926232,
+              "candidate_var_z": 0.926232,
+              "mean_age_days": 82.282,
+              "mean_coverage": 0.9112,
+              "n": 206,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.029365,
+              "candidate_var_z": 1.029365,
+              "mean_age_days": 97.32,
+              "mean_coverage": 0.9956,
+              "n": 206,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.999711,
+              "candidate_var_z": 0.999711,
+              "mean_age_days": 133.173,
+              "mean_coverage": 1.0,
+              "n": 208,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 1.156117,
+              "candidate_var_z": 1.156117,
+              "mean_age_days": 39.889,
+              "mean_coverage": 0.4092,
+              "n": 206,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.781969,
+              "candidate_var_z": 0.781969,
+              "mean_age_days": 93.45,
+              "mean_coverage": 0.9085,
+              "n": 206,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.076791,
+              "candidate_var_z": 1.076791,
+              "mean_age_days": 109.996,
+              "mean_coverage": 1.0,
+              "n": 206,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.111766,
+              "candidate_var_z": 1.111766,
+              "mean_age_days": 109.466,
+              "mean_coverage": 1.0,
+              "n": 208,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 826,
+          "status": "OK",
+          "tau2_used": 0.6339597098236994
+        },
+        "eredivisie|defence": {
+          "alpha_used": 0.0001650725181143131,
+          "baseline_var_z_oldest_minus_youngest": -0.316331,
+          "by_age": [
+            {
+              "baseline_var_z": 1.26755,
+              "candidate_var_z": 1.256564,
+              "mean_age_days": 39.795,
+              "mean_coverage": 0.4109,
+              "n": 206,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.028003,
+              "candidate_var_z": 1.008631,
+              "mean_age_days": 82.282,
+              "mean_coverage": 0.9112,
+              "n": 206,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.891425,
+              "candidate_var_z": 0.87158,
+              "mean_age_days": 97.32,
+              "mean_coverage": 0.9956,
+              "n": 206,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.951219,
+              "candidate_var_z": 0.922615,
+              "mean_age_days": 133.173,
+              "mean_coverage": 1.0,
+              "n": 208,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 1.247773,
+              "candidate_var_z": 1.237055,
+              "mean_age_days": 39.889,
+              "mean_coverage": 0.4092,
+              "n": 206,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.943825,
+              "candidate_var_z": 0.92377,
+              "mean_age_days": 93.45,
+              "mean_coverage": 0.9085,
+              "n": 206,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.933137,
+              "candidate_var_z": 0.910692,
+              "mean_age_days": 109.996,
+              "mean_coverage": 1.0,
+              "n": 206,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.012864,
+              "candidate_var_z": 0.987246,
+              "mean_age_days": 109.466,
+              "mean_coverage": 1.0,
+              "n": 208,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 826,
+          "status": "OK",
+          "tau2_used": 0.6754888940198042
+        },
+        "la_liga|attack": {
+          "alpha_used": 0.0,
+          "baseline_var_z_oldest_minus_youngest": -0.270868,
+          "by_age": [
+            {
+              "baseline_var_z": 1.182169,
+              "candidate_var_z": 1.182169,
+              "mean_age_days": 36.061,
+              "mean_coverage": 0.4383,
+              "n": 247,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.884594,
+              "candidate_var_z": 0.884594,
+              "mean_age_days": 77.124,
+              "mean_coverage": 0.9516,
+              "n": 247,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.077423,
+              "candidate_var_z": 1.077423,
+              "mean_age_days": 90.828,
+              "mean_coverage": 0.9919,
+              "n": 247,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.911301,
+              "candidate_var_z": 0.911301,
+              "mean_age_days": 126.15,
+              "mean_coverage": 1.0,
+              "n": 248,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 1.11586,
+              "candidate_var_z": 1.11586,
+              "mean_age_days": 36.332,
+              "mean_coverage": 0.4342,
+              "n": 247,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.04798,
+              "candidate_var_z": 1.04798,
+              "mean_age_days": 91.34,
+              "mean_coverage": 0.9476,
+              "n": 247,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.909234,
+              "candidate_var_z": 0.909234,
+              "mean_age_days": 102.299,
+              "mean_coverage": 1.0,
+              "n": 247,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.982125,
+              "candidate_var_z": 0.982125,
+              "mean_age_days": 100.296,
+              "mean_coverage": 1.0,
+              "n": 248,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 989,
+          "status": "OK",
+          "tau2_used": 0.5485615982214461
+        },
+        "la_liga|defence": {
+          "alpha_used": 0.0,
+          "baseline_var_z_oldest_minus_youngest": -0.239622,
+          "by_age": [
+            {
+              "baseline_var_z": 1.117491,
+              "candidate_var_z": 1.117491,
+              "mean_age_days": 36.061,
+              "mean_coverage": 0.4383,
+              "n": 247,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.953373,
+              "candidate_var_z": 0.953373,
+              "mean_age_days": 77.124,
+              "mean_coverage": 0.9516,
+              "n": 247,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.996332,
+              "candidate_var_z": 0.996332,
+              "mean_age_days": 90.828,
+              "mean_coverage": 0.9919,
+              "n": 247,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.877869,
+              "candidate_var_z": 0.877869,
+              "mean_age_days": 126.15,
+              "mean_coverage": 1.0,
+              "n": 248,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 1.02406,
+              "candidate_var_z": 1.02406,
+              "mean_age_days": 36.332,
+              "mean_coverage": 0.4342,
+              "n": 247,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.943963,
+              "candidate_var_z": 0.943963,
+              "mean_age_days": 91.34,
+              "mean_coverage": 0.9476,
+              "n": 247,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.17503,
+              "candidate_var_z": 1.17503,
+              "mean_age_days": 102.299,
+              "mean_coverage": 1.0,
+              "n": 247,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.802319,
+              "candidate_var_z": 0.802319,
+              "mean_age_days": 100.296,
+              "mean_coverage": 1.0,
+              "n": 248,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 989,
+          "status": "OK",
+          "tau2_used": 0.6540835263192566
+        },
+        "ligue_1|attack": {
+          "alpha_used": 0.0,
+          "baseline_var_z_oldest_minus_youngest": 0.015132,
+          "by_age": [
+            {
+              "baseline_var_z": 1.002235,
+              "candidate_var_z": 1.002235,
+              "mean_age_days": 38.615,
+              "mean_coverage": 0.3918,
+              "n": 202,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.872792,
+              "candidate_var_z": 0.872792,
+              "mean_age_days": 79.253,
+              "mean_coverage": 0.9057,
+              "n": 202,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.153751,
+              "candidate_var_z": 1.153751,
+              "mean_age_days": 91.453,
+              "mean_coverage": 0.9871,
+              "n": 202,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.017367,
+              "candidate_var_z": 1.017367,
+              "mean_age_days": 139.174,
+              "mean_coverage": 1.0,
+              "n": 203,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 0.997811,
+              "candidate_var_z": 0.997811,
+              "mean_age_days": 38.682,
+              "mean_coverage": 0.3913,
+              "n": 202,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.066251,
+              "candidate_var_z": 1.066251,
+              "mean_age_days": 92.763,
+              "mean_coverage": 0.8933,
+              "n": 202,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.934443,
+              "candidate_var_z": 0.934443,
+              "mean_age_days": 110.618,
+              "mean_coverage": 1.0,
+              "n": 202,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.047491,
+              "candidate_var_z": 1.047491,
+              "mean_age_days": 106.594,
+              "mean_coverage": 1.0,
+              "n": 203,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 809,
+          "status": "OK",
+          "tau2_used": 0.7477487329409049
+        },
+        "ligue_1|defence": {
+          "alpha_used": 0.0,
+          "baseline_var_z_oldest_minus_youngest": 0.099098,
+          "by_age": [
+            {
+              "baseline_var_z": 0.884898,
+              "candidate_var_z": 0.884898,
+              "mean_age_days": 38.615,
+              "mean_coverage": 0.3918,
+              "n": 202,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.018311,
+              "candidate_var_z": 1.018311,
+              "mean_age_days": 79.253,
+              "mean_coverage": 0.9057,
+              "n": 202,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.004143,
+              "candidate_var_z": 1.004143,
+              "mean_age_days": 91.453,
+              "mean_coverage": 0.9871,
+              "n": 202,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.983996,
+              "candidate_var_z": 0.983996,
+              "mean_age_days": 139.174,
+              "mean_coverage": 1.0,
+              "n": 203,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 0.883446,
+              "candidate_var_z": 0.883446,
+              "mean_age_days": 38.682,
+              "mean_coverage": 0.3913,
+              "n": 202,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.787822,
+              "candidate_var_z": 0.787822,
+              "mean_age_days": 92.763,
+              "mean_coverage": 0.8933,
+              "n": 202,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.95548,
+              "candidate_var_z": 0.95548,
+              "mean_age_days": 110.618,
+              "mean_coverage": 1.0,
+              "n": 202,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.263218,
+              "candidate_var_z": 1.263218,
+              "mean_age_days": 106.594,
+              "mean_coverage": 1.0,
+              "n": 203,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 809,
+          "status": "OK",
+          "tau2_used": 0.8005542704264433
+        },
+        "mls|attack": {
+          "alpha_used": 0.0001122351784772889,
+          "baseline_var_z_oldest_minus_youngest": 0.140536,
+          "by_age": [
+            {
+              "baseline_var_z": 1.001606,
+              "candidate_var_z": 0.994982,
+              "mean_age_days": 39.73,
+              "mean_coverage": 0.5695,
+              "n": 504,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.957108,
+              "candidate_var_z": 0.945721,
+              "mean_age_days": 70.198,
+              "mean_coverage": 0.9903,
+              "n": 504,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.959503,
+              "candidate_var_z": 0.945819,
+              "mean_age_days": 84.183,
+              "mean_coverage": 1.0,
+              "n": 504,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.142142,
+              "candidate_var_z": 1.116563,
+              "mean_age_days": 137.36,
+              "mean_coverage": 1.0,
+              "n": 505,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 0.986958,
+              "candidate_var_z": 0.980359,
+              "mean_age_days": 40.539,
+              "mean_coverage": 0.5598,
+              "n": 504,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.057367,
+              "candidate_var_z": 1.039877,
+              "mean_age_days": 97.937,
+              "mean_coverage": 1.0,
+              "n": 504,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.987072,
+              "candidate_var_z": 0.970467,
+              "mean_age_days": 98.052,
+              "mean_coverage": 1.0,
+              "n": 504,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.029185,
+              "candidate_var_z": 1.012587,
+              "mean_age_days": 95.027,
+              "mean_coverage": 1.0,
+              "n": 505,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 2017,
+          "status": "OK",
+          "tau2_used": 0.6217870551868769
+        },
+        "mls|defence": {
+          "alpha_used": 3.32525581314411e-05,
+          "baseline_var_z_oldest_minus_youngest": 0.086803,
+          "by_age": [
+            {
+              "baseline_var_z": 0.970034,
+              "candidate_var_z": 0.968163,
+              "mean_age_days": 39.73,
+              "mean_coverage": 0.5695,
+              "n": 504,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.959995,
+              "candidate_var_z": 0.95669,
+              "mean_age_days": 70.198,
+              "mean_coverage": 0.9903,
+              "n": 504,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.003429,
+              "candidate_var_z": 0.999274,
+              "mean_age_days": 84.183,
+              "mean_coverage": 1.0,
+              "n": 504,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.056837,
+              "candidate_var_z": 1.049765,
+              "mean_age_days": 137.36,
+              "mean_coverage": 1.0,
+              "n": 505,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 0.977689,
+              "candidate_var_z": 0.975764,
+              "mean_age_days": 40.539,
+              "mean_coverage": 0.5598,
+              "n": 504,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.973222,
+              "candidate_var_z": 0.968602,
+              "mean_age_days": 97.937,
+              "mean_coverage": 1.0,
+              "n": 504,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.922346,
+              "candidate_var_z": 0.917681,
+              "mean_age_days": 98.052,
+              "mean_coverage": 1.0,
+              "n": 504,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.11692,
+              "candidate_var_z": 1.111721,
+              "mean_age_days": 95.027,
+              "mean_coverage": 1.0,
+              "n": 505,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 2017,
+          "status": "OK",
+          "tau2_used": 0.6406575152087254
+        },
+        "premier_league|attack": {
+          "alpha_used": 0.00015769876874906463,
+          "baseline_var_z_oldest_minus_youngest": -0.136507,
+          "by_age": [
+            {
+              "baseline_var_z": 1.163531,
+              "candidate_var_z": 1.152512,
+              "mean_age_days": 41.266,
+              "mean_coverage": 0.4317,
+              "n": 257,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.983172,
+              "candidate_var_z": 0.966412,
+              "mean_age_days": 68.902,
+              "mean_coverage": 0.9442,
+              "n": 257,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.909924,
+              "candidate_var_z": 0.891295,
+              "mean_age_days": 83.032,
+              "mean_coverage": 0.9998,
+              "n": 257,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.027024,
+              "candidate_var_z": 0.994091,
+              "mean_age_days": 132.863,
+              "mean_coverage": 1.0,
+              "n": 260,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 1.211881,
+              "candidate_var_z": 1.200009,
+              "mean_age_days": 41.328,
+              "mean_coverage": 0.4313,
+              "n": 257,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.972789,
+              "candidate_var_z": 0.952219,
+              "mean_age_days": 85.825,
+              "mean_coverage": 0.9444,
+              "n": 257,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.970119,
+              "candidate_var_z": 0.945617,
+              "mean_age_days": 101.439,
+              "mean_coverage": 1.0,
+              "n": 257,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.929995,
+              "candidate_var_z": 0.907475,
+              "mean_age_days": 97.879,
+              "mean_coverage": 1.0,
+              "n": 260,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 1031,
+          "status": "OK",
+          "tau2_used": 0.5919883148843391
+        },
+        "premier_league|defence": {
+          "alpha_used": 0.0001127987888109935,
+          "baseline_var_z_oldest_minus_youngest": -0.140511,
+          "by_age": [
+            {
+              "baseline_var_z": 1.114381,
+              "candidate_var_z": 1.106756,
+              "mean_age_days": 41.266,
+              "mean_coverage": 0.4317,
+              "n": 257,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.953164,
+              "candidate_var_z": 0.942155,
+              "mean_age_days": 68.902,
+              "mean_coverage": 0.9442,
+              "n": 257,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.954873,
+              "candidate_var_z": 0.941404,
+              "mean_age_days": 83.032,
+              "mean_coverage": 0.9998,
+              "n": 257,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.97387,
+              "candidate_var_z": 0.952359,
+              "mean_age_days": 132.863,
+              "mean_coverage": 1.0,
+              "n": 260,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 1.085481,
+              "candidate_var_z": 1.07814,
+              "mean_age_days": 41.328,
+              "mean_coverage": 0.4313,
+              "n": 257,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.993689,
+              "candidate_var_z": 0.979869,
+              "mean_age_days": 85.825,
+              "mean_coverage": 0.9444,
+              "n": 257,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.070953,
+              "candidate_var_z": 1.052404,
+              "mean_age_days": 101.439,
+              "mean_coverage": 1.0,
+              "n": 257,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.847638,
+              "candidate_var_z": 0.833648,
+              "mean_age_days": 97.879,
+              "mean_coverage": 1.0,
+              "n": 260,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 1031,
+          "status": "OK",
+          "tau2_used": 0.6221133480979251
+        },
+        "primeira_liga|attack": {
+          "alpha_used": 0.0007744199590927304,
+          "baseline_var_z_oldest_minus_youngest": 0.044488,
+          "by_age": [
+            {
+              "baseline_var_z": 1.098285,
+              "candidate_var_z": 1.033651,
+              "mean_age_days": 47.387,
+              "mean_coverage": 0.4294,
+              "n": 194,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.198033,
+              "candidate_var_z": 1.072879,
+              "mean_age_days": 81.673,
+              "mean_coverage": 0.9585,
+              "n": 194,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.94345,
+              "candidate_var_z": 0.827047,
+              "mean_age_days": 99.621,
+              "mean_coverage": 0.9758,
+              "n": 194,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.142773,
+              "candidate_var_z": 0.953094,
+              "mean_age_days": 140.845,
+              "mean_coverage": 0.9964,
+              "n": 197,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 1.083379,
+              "candidate_var_z": 1.020204,
+              "mean_age_days": 47.406,
+              "mean_coverage": 0.4284,
+              "n": 194,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.293004,
+              "candidate_var_z": 1.136693,
+              "mean_age_days": 101.433,
+              "mean_coverage": 0.9317,
+              "n": 194,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.176965,
+              "candidate_var_z": 1.018557,
+              "mean_age_days": 113.556,
+              "mean_coverage": 1.0,
+              "n": 194,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.833968,
+              "candidate_var_z": 0.7149,
+              "mean_age_days": 107.644,
+              "mean_coverage": 1.0,
+              "n": 197,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 779,
+          "status": "OK",
+          "tau2_used": 0.5134449038593818
+        },
+        "primeira_liga|defence": {
+          "alpha_used": 7.314580786928757e-05,
+          "baseline_var_z_oldest_minus_youngest": -0.051626,
+          "by_age": [
+            {
+              "baseline_var_z": 0.980583,
+              "candidate_var_z": 0.975968,
+              "mean_age_days": 47.387,
+              "mean_coverage": 0.4294,
+              "n": 194,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.146225,
+              "candidate_var_z": 1.135568,
+              "mean_age_days": 81.673,
+              "mean_coverage": 0.9585,
+              "n": 194,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.94233,
+              "candidate_var_z": 0.931726,
+              "mean_age_days": 99.621,
+              "mean_coverage": 0.9758,
+              "n": 194,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.928957,
+              "candidate_var_z": 0.914093,
+              "mean_age_days": 140.845,
+              "mean_coverage": 0.9964,
+              "n": 197,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 0.987041,
+              "candidate_var_z": 0.982373,
+              "mean_age_days": 47.406,
+              "mean_coverage": 0.4284,
+              "n": 194,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.150764,
+              "candidate_var_z": 1.137755,
+              "mean_age_days": 101.433,
+              "mean_coverage": 0.9317,
+              "n": 194,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.749485,
+              "candidate_var_z": 0.739951,
+              "mean_age_days": 113.556,
+              "mean_coverage": 1.0,
+              "n": 194,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.108035,
+              "candidate_var_z": 1.094488,
+              "mean_age_days": 107.644,
+              "mean_coverage": 1.0,
+              "n": 197,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 779,
+          "status": "OK",
+          "tau2_used": 0.6035757869005431
+        },
+        "serie_a|attack": {
+          "alpha_used": 0.0,
+          "baseline_var_z_oldest_minus_youngest": -0.078751,
+          "by_age": [
+            {
+              "baseline_var_z": 1.082214,
+              "candidate_var_z": 1.082214,
+              "mean_age_days": 39.943,
+              "mean_coverage": 0.4408,
+              "n": 239,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.088989,
+              "candidate_var_z": 1.088989,
+              "mean_age_days": 73.166,
+              "mean_coverage": 0.9538,
+              "n": 239,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.747781,
+              "candidate_var_z": 0.747781,
+              "mean_age_days": 83.538,
+              "mean_coverage": 0.9935,
+              "n": 239,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.003463,
+              "candidate_var_z": 1.003463,
+              "mean_age_days": 138.0,
+              "mean_coverage": 0.9979,
+              "n": 239,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 1.054274,
+              "candidate_var_z": 1.054274,
+              "mean_age_days": 40.091,
+              "mean_coverage": 0.44,
+              "n": 239,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 1.143719,
+              "candidate_var_z": 1.143719,
+              "mean_age_days": 91.424,
+              "mean_coverage": 0.946,
+              "n": 239,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.905886,
+              "candidate_var_z": 0.905886,
+              "mean_age_days": 99.443,
+              "mean_coverage": 1.0,
+              "n": 239,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.818567,
+              "candidate_var_z": 0.818567,
+              "mean_age_days": 103.689,
+              "mean_coverage": 1.0,
+              "n": 239,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 956,
+          "status": "OK",
+          "tau2_used": 0.46249611237924865
+        },
+        "serie_a|defence": {
+          "alpha_used": 0.00032570444670106433,
+          "baseline_var_z_oldest_minus_youngest": -0.113246,
+          "by_age": [
+            {
+              "baseline_var_z": 1.080046,
+              "candidate_var_z": 1.055582,
+              "mean_age_days": 39.943,
+              "mean_coverage": 0.4408,
+              "n": 239,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 1.019923,
+              "candidate_var_z": 0.974427,
+              "mean_age_days": 73.166,
+              "mean_coverage": 0.9538,
+              "n": 239,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.833538,
+              "candidate_var_z": 0.791344,
+              "mean_age_days": 83.538,
+              "mean_coverage": 0.9935,
+              "n": 239,
+              "stratified_by": "age"
+            },
+            {
+              "baseline_var_z": 0.9668,
+              "candidate_var_z": 0.886377,
+              "mean_age_days": 138.0,
+              "mean_coverage": 0.9979,
+              "n": 239,
+              "stratified_by": "age"
+            }
+          ],
+          "by_coverage": [
+            {
+              "baseline_var_z": 1.08673,
+              "candidate_var_z": 1.061967,
+              "mean_age_days": 40.091,
+              "mean_coverage": 0.44,
+              "n": 239,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.918208,
+              "candidate_var_z": 0.867386,
+              "mean_age_days": 91.424,
+              "mean_coverage": 0.946,
+              "n": 239,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.923718,
+              "candidate_var_z": 0.868465,
+              "mean_age_days": 99.443,
+              "mean_coverage": 1.0,
+              "n": 239,
+              "stratified_by": "coverage"
+            },
+            {
+              "baseline_var_z": 0.97165,
+              "candidate_var_z": 0.909912,
+              "mean_age_days": 103.689,
+              "mean_coverage": 1.0,
+              "n": 239,
+              "stratified_by": "coverage"
+            }
+          ],
+          "coverage_max": 1.0,
+          "coverage_min": 0.15,
+          "states": 956,
+          "status": "OK",
+          "tau2_used": 0.4838974813758861
+        }
+      },
+      "status": "COMPUTED",
+      "total_states": 25686
+    },
+    "window_semantics": "latest 20 expected fixtures by kickoff across seasons, no season reset, matching team_xg_matches_for_teams(limit_per_team=20)"
+  },
+  "confound_diagnostic": {
+    "adjustments": [
+      "home/away fixed effect",
+      "opponent fixed effect"
+    ],
+    "cells": {
+      "allsvenskan|attack": {
+        "home_away_adjusted": {
+          "p": 0.0008815514636406132,
+          "sigma2": 0.0008773121093231457
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.0006170946349126957,
+          "sigma2": 0.0007877476972734458
+        },
+        "observations": 758,
+        "raw": {
+          "p": 0.0013506960861307212,
+          "sigma2": 0.0008404081084513699
+        },
+        "sigma2_retained_fraction": 0.9373394775129406,
+        "survives_adjustment": true
+      },
+      "allsvenskan|defence": {
+        "home_away_adjusted": {
+          "p": 0.006451582893190838,
+          "sigma2": 0.0005894854249985964
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.0020392233683199975,
+          "sigma2": 0.0006588301191492564
+        },
+        "observations": 758,
+        "raw": {
+          "p": 0.010088430102741387,
+          "sigma2": 0.0005483304318850744
+        },
+        "sigma2_retained_fraction": 1.2015202528232864,
+        "survives_adjustment": true
+      },
+      "argentina_primera|attack": {
+        "home_away_adjusted": {
+          "p": 0.03729114928351514,
+          "sigma2": 0.00028826321865575835
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.03933927633220572,
+          "sigma2": 0.0002586069051073894
+        },
+        "observations": 1264,
+        "raw": {
+          "p": 0.07768099314541599,
+          "sigma2": 0.00023156899403654272
+        },
+        "sigma2_retained_fraction": 1.1167596343514796,
+        "survives_adjustment": true
+      },
+      "argentina_primera|defence": {
+        "home_away_adjusted": {
+          "p": 0.21111240437652987,
+          "sigma2": 0.000109790798196194
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.2479677096472239,
+          "sigma2": 8.927288391634409e-05
+        },
+        "observations": 1264,
+        "raw": {
+          "p": 0.3061685168438097,
+          "sigma2": 7.085529193846553e-05
+        },
+        "sigma2_retained_fraction": 1.25993248314993,
+        "survives_adjustment": false
+      },
+      "brasileirao_serie_a|attack": {
+        "home_away_adjusted": {
+          "p": 0.056092737725433446,
+          "sigma2": 0.00019686958360777608
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.033581047820534886,
+          "sigma2": 0.00021018492108763214
+        },
+        "observations": 1518,
+        "raw": {
+          "p": 0.15077473780020426,
+          "sigma2": 0.00013052681734881675
+        },
+        "sigma2_retained_fraction": 1.6102815142266051,
+        "survives_adjustment": true
+      },
+      "brasileirao_serie_a|defence": {
+        "home_away_adjusted": {
+          "p": 0.1966801627518054,
+          "sigma2": 9.439519680275586e-05
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.05726897030631198,
+          "sigma2": 0.00016604062599765248
+        },
+        "observations": 1518,
+        "raw": {
+          "p": 0.4064636441624092,
+          "sigma2": 2.6176555216724103e-05
+        },
+        "sigma2_retained_fraction": 6.343104530865458,
+        "survives_adjustment": false
+      },
+      "bundesliga|attack": {
+        "home_away_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.2590203021969253,
+          "sigma2": 0.00012320284549424107
+        },
+        "observations": 882,
+        "raw": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "sigma2_retained_fraction": null,
+        "survives_adjustment": false
+      },
+      "bundesliga|defence": {
+        "home_away_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "observations": 882,
+        "raw": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "sigma2_retained_fraction": null,
+        "survives_adjustment": false
+      },
+      "chinese_super_league|attack": {
+        "home_away_adjusted": {
+          "p": 0.3249620712414819,
+          "sigma2": 0.00011428772221182967
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.05232885232956991,
+          "sigma2": 0.00039272822837817283
+        },
+        "observations": 834,
+        "raw": {
+          "p": 0.38514364635710757,
+          "sigma2": 7.696438029580638e-05
+        },
+        "sigma2_retained_fraction": 5.10272709100955,
+        "survives_adjustment": false
+      },
+      "chinese_super_league|defence": {
+        "home_away_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "observations": 834,
+        "raw": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "sigma2_retained_fraction": null,
+        "survives_adjustment": false
+      },
+      "eliteserien|attack": {
+        "home_away_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "observations": 866,
+        "raw": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "sigma2_retained_fraction": null,
+        "survives_adjustment": false
+      },
+      "eliteserien|defence": {
+        "home_away_adjusted": {
+          "p": 0.40391312230112264,
+          "sigma2": 5.3438065633601085e-05
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.23002330825709152,
+          "sigma2": 0.00014486668668311202
+        },
+        "observations": 866,
+        "raw": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "sigma2_retained_fraction": null,
+        "survives_adjustment": false
+      },
+      "eredivisie|attack": {
+        "home_away_adjusted": {
+          "p": 0.36337378693793254,
+          "sigma2": 7.079392158969057e-05
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.4025852336061344,
+          "sigma2": 4.146267329820677e-05
+        },
+        "observations": 922,
+        "raw": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "sigma2_retained_fraction": null,
+        "survives_adjustment": false
+      },
+      "eredivisie|defence": {
+        "home_away_adjusted": {
+          "p": 0.0957681555056769,
+          "sigma2": 0.00032492457438611716
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.0728641872324162,
+          "sigma2": 0.00029582571236688086
+        },
+        "observations": 922,
+        "raw": {
+          "p": 0.2391792179637568,
+          "sigma2": 0.0001650725181143131
+        },
+        "sigma2_retained_fraction": 1.7920954726214382,
+        "survives_adjustment": false
+      },
+      "la_liga|attack": {
+        "home_away_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "observations": 1102,
+        "raw": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "sigma2_retained_fraction": null,
+        "survives_adjustment": false
+      },
+      "la_liga|defence": {
+        "home_away_adjusted": {
+          "p": 0.49136311655347475,
+          "sigma2": 3.3612046473258287e-06
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.22236848181395277,
+          "sigma2": 9.57733484369285e-05
+        },
+        "observations": 1102,
+        "raw": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "sigma2_retained_fraction": null,
+        "survives_adjustment": false
+      },
+      "ligue_1|attack": {
+        "home_away_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "observations": 900,
+        "raw": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "sigma2_retained_fraction": null,
+        "survives_adjustment": false
+      },
+      "ligue_1|defence": {
+        "home_away_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "observations": 900,
+        "raw": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "sigma2_retained_fraction": null,
+        "survives_adjustment": false
+      },
+      "mls|attack": {
+        "home_away_adjusted": {
+          "p": 0.07342769634316777,
+          "sigma2": 0.00018526929647398477
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.06795234222019139,
+          "sigma2": 0.00017959922793482698
+        },
+        "observations": 2124,
+        "raw": {
+          "p": 0.19025705064822312,
+          "sigma2": 0.0001122351784772889
+        },
+        "sigma2_retained_fraction": 1.600204413370888,
+        "survives_adjustment": false
+      },
+      "mls|defence": {
+        "home_away_adjusted": {
+          "p": 0.305458764938907,
+          "sigma2": 5.945967998330204e-05
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.3263256903532572,
+          "sigma2": 5.106801581327635e-05
+        },
+        "observations": 2124,
+        "raw": {
+          "p": 0.3901247702118801,
+          "sigma2": 3.32525581314411e-05
+        },
+        "sigma2_retained_fraction": 1.5357620190126153,
+        "survives_adjustment": false
+      },
+      "premier_league|attack": {
+        "home_away_adjusted": {
+          "p": 0.13839457411894843,
+          "sigma2": 0.0001860292218203704
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.02290650232885516,
+          "sigma2": 0.0003179283079948302
+        },
+        "observations": 1132,
+        "raw": {
+          "p": 0.17643591893788513,
+          "sigma2": 0.00015769876874906463
+        },
+        "sigma2_retained_fraction": 2.0160481309827345,
+        "survives_adjustment": true
+      },
+      "premier_league|defence": {
+        "home_away_adjusted": {
+          "p": 0.23020523823721448,
+          "sigma2": 0.00013463678913489492
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.059915525776617906,
+          "sigma2": 0.00027980334634734454
+        },
+        "observations": 1132,
+        "raw": {
+          "p": 0.2691840171995429,
+          "sigma2": 0.0001127987888109935
+        },
+        "sigma2_retained_fraction": 2.4805527550139312,
+        "survives_adjustment": false
+      },
+      "primeira_liga|attack": {
+        "home_away_adjusted": {
+          "p": 3.1432136194958414e-05,
+          "sigma2": 0.0008089183389593047
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 1.800065442964185e-08,
+          "sigma2": 0.0011605828291712992
+        },
+        "observations": 896,
+        "raw": {
+          "p": 7.631471260654678e-05,
+          "sigma2": 0.0007744199590927304
+        },
+        "sigma2_retained_fraction": 1.4986478790280364,
+        "survives_adjustment": true
+      },
+      "primeira_liga|defence": {
+        "home_away_adjusted": {
+          "p": 0.3110285129404001,
+          "sigma2": 8.23495905422841e-05
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.06475377252579885,
+          "sigma2": 0.00022083607141297086
+        },
+        "observations": 896,
+        "raw": {
+          "p": 0.33268792591559976,
+          "sigma2": 7.314580786928757e-05
+        },
+        "sigma2_retained_fraction": 3.019121366567002,
+        "survives_adjustment": false
+      },
+      "serie_a|attack": {
+        "home_away_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "observations": 1090,
+        "raw": {
+          "p": 1.0,
+          "sigma2": 0.0
+        },
+        "sigma2_retained_fraction": null,
+        "survives_adjustment": false
+      },
+      "serie_a|defence": {
+        "home_away_adjusted": {
+          "p": 0.01797486396142011,
+          "sigma2": 0.0003526076104197663
+        },
+        "home_away_and_opponent_adjusted": {
+          "p": 0.0011542495343387152,
+          "sigma2": 0.00046258551828800735
+        },
+        "observations": 1090,
+        "raw": {
+          "p": 0.0260665537972064,
+          "sigma2": 0.00032570444670106433
+        },
+        "sigma2_retained_fraction": 1.4202615990458805,
+        "survives_adjustment": true
+      }
+    },
+    "disclosure": "added after the primary v3 estimates were read; supplementary only, and it changes no frozen number"
+  },
+  "external_artefacts": {
+    "impact_and_representative_power": {
+      "file": "EV_SE_DRIFT_V4_IMPACT.json",
+      "present": true,
+      "sha256": "02ce8bc59bc13ffeda8954a4c4cacce408bfe446e50c17f994a22ffea481924e"
+    },
+    "power_per_cell": {
+      "file": "EV_SE_DRIFT_V4_POWER.json",
+      "present": false,
+      "sha256": null
+    }
+  },
+  "forbidden_uses": [
+    "SETTLED_PICK_PROFIT",
+    "HIT_RATE",
+    "CURRENT_65_PICKS"
+  ],
+  "form_mismatch": {
+    "allsvenskan|attack": {
+      "alpha_rel_at_p10": 0.055537165,
+      "alpha_rel_at_p50": 0.031101612,
+      "alpha_rel_at_p90": 0.020276101,
+      "se0_squared_p10": 0.015132355,
+      "se0_squared_p50": 0.027021368,
+      "se0_squared_p90": 0.041448211,
+      "se0_squared_spread_p90_over_p10": 2.739046,
+      "states": 123
+    },
+    "allsvenskan|defence": {
+      "alpha_rel_at_p10": 0.045323908,
+      "alpha_rel_at_p50": 0.021868085,
+      "alpha_rel_at_p90": 0.013921763,
+      "se0_squared_p10": 0.012098039,
+      "se0_squared_p50": 0.025074461,
+      "se0_squared_p90": 0.039386566,
+      "se0_squared_spread_p90_over_p10": 3.255616,
+      "states": 123
+    },
+    "argentina_primera|attack": {
+      "alpha_rel_at_p10": 0.025298664,
+      "alpha_rel_at_p50": 0.013663468,
+      "alpha_rel_at_p90": 0.006572385,
+      "se0_squared_p10": 0.009153408,
+      "se0_squared_p50": 0.016948039,
+      "se0_squared_p90": 0.035233632,
+      "se0_squared_spread_p90_over_p10": 3.849236,
+      "states": 194
+    },
+    "argentina_primera|defence": {
+      "alpha_rel_at_p10": 0.007136953,
+      "alpha_rel_at_p50": 0.004086299,
+      "alpha_rel_at_p90": 0.002377531,
+      "se0_squared_p10": 0.009927947,
+      "se0_squared_p50": 0.017339724,
+      "se0_squared_p90": 0.029802053,
+      "se0_squared_spread_p90_over_p10": 3.001834,
+      "states": 194
+    },
+    "brasileirao_serie_a|attack": {
+      "alpha_rel_at_p10": 0.011076663,
+      "alpha_rel_at_p50": 0.005845563,
+      "alpha_rel_at_p90": 0.003449955,
+      "se0_squared_p10": 0.011783947,
+      "se0_squared_p50": 0.022329211,
+      "se0_squared_p90": 0.037834355,
+      "se0_squared_spread_p90_over_p10": 3.210669,
+      "states": 718
+    },
+    "brasileirao_serie_a|defence": {
+      "alpha_rel_at_p10": 0.001995847,
+      "alpha_rel_at_p50": 0.001237167,
+      "alpha_rel_at_p90": 0.000685897,
+      "se0_squared_p10": 0.013115513,
+      "se0_squared_p50": 0.021158474,
+      "se0_squared_p90": 0.038164,
+      "se0_squared_spread_p90_over_p10": 2.909837,
+      "states": 718
+    },
+    "bundesliga|attack": {
+      "se0_squared_p10": 0.014477092,
+      "se0_squared_p50": 0.026057158,
+      "se0_squared_p90": 0.046326039,
+      "se0_squared_spread_p90_over_p10": 3.199955,
+      "states": 252
+    },
+    "bundesliga|defence": {
+      "se0_squared_p10": 0.017460671,
+      "se0_squared_p50": 0.031589618,
+      "se0_squared_p90": 0.043735737,
+      "se0_squared_spread_p90_over_p10": 2.504814,
+      "states": 252
+    },
+    "chinese_super_league|attack": {
+      "alpha_rel_at_p10": 0.005748329,
+      "alpha_rel_at_p50": 0.002572389,
+      "alpha_rel_at_p90": 0.001264709,
+      "se0_squared_p10": 0.013389,
+      "se0_squared_p50": 0.029919421,
+      "se0_squared_p90": 0.060855408,
+      "se0_squared_spread_p90_over_p10": 4.545179,
+      "states": 194
+    },
+    "chinese_super_league|defence": {
+      "se0_squared_p10": 0.019082684,
+      "se0_squared_p50": 0.033793618,
+      "se0_squared_p90": 0.081194461,
+      "se0_squared_spread_p90_over_p10": 4.254876,
+      "states": 194
+    },
+    "eliteserien|attack": {
+      "se0_squared_p10": 0.018374947,
+      "se0_squared_p50": 0.029647316,
+      "se0_squared_p90": 0.051717684,
+      "se0_squared_spread_p90_over_p10": 2.814576,
+      "states": 224
+    },
+    "eliteserien|defence": {
+      "se0_squared_p10": 0.016478895,
+      "se0_squared_p50": 0.03332025,
+      "se0_squared_p90": 0.055331197,
+      "se0_squared_spread_p90_over_p10": 3.357701,
+      "states": 224
+    },
+    "eredivisie|attack": {
+      "se0_squared_p10": 0.014802882,
+      "se0_squared_p50": 0.026897421,
+      "se0_squared_p90": 0.052734158,
+      "se0_squared_spread_p90_over_p10": 3.562425,
+      "states": 258
+    },
+    "eredivisie|defence": {
+      "alpha_rel_at_p10": 0.008238104,
+      "alpha_rel_at_p50": 0.005433865,
+      "alpha_rel_at_p90": 0.003217207,
+      "se0_squared_p10": 0.020037684,
+      "se0_squared_p50": 0.030378474,
+      "se0_squared_p90": 0.051309263,
+      "se0_squared_spread_p90_over_p10": 2.560638,
+      "states": 258
+    },
+    "la_liga|attack": {
+      "se0_squared_p10": 0.011019092,
+      "se0_squared_p50": 0.023865474,
+      "se0_squared_p90": 0.063958895,
+      "se0_squared_spread_p90_over_p10": 5.804371,
+      "states": 360
+    },
+    "la_liga|defence": {
+      "se0_squared_p10": 0.016575513,
+      "se0_squared_p50": 0.030312053,
+      "se0_squared_p90": 0.056009618,
+      "se0_squared_spread_p90_over_p10": 3.379058,
+      "states": 360
+    },
+    "ligue_1|attack": {
+      "se0_squared_p10": 0.018903895,
+      "se0_squared_p50": 0.033116316,
+      "se0_squared_p90": 0.053459197,
+      "se0_squared_spread_p90_over_p10": 2.827946,
+      "states": 252
+    },
+    "ligue_1|defence": {
+      "se0_squared_p10": 0.022550776,
+      "se0_squared_p50": 0.035888671,
+      "se0_squared_p90": 0.063508355,
+      "se0_squared_spread_p90_over_p10": 2.816238,
+      "states": 252
+    },
+    "mls|attack": {
+      "alpha_rel_at_p10": 0.007378662,
+      "alpha_rel_at_p50": 0.003729161,
+      "alpha_rel_at_p90": 0.00226098,
+      "se0_squared_p10": 0.015210776,
+      "se0_squared_p50": 0.030096632,
+      "se0_squared_p90": 0.049640053,
+      "se0_squared_spread_p90_over_p10": 3.263479,
+      "states": 944
+    },
+    "mls|defence": {
+      "alpha_rel_at_p10": 0.001823052,
+      "alpha_rel_at_p50": 0.001136889,
+      "alpha_rel_at_p90": 0.000685271,
+      "se0_squared_p10": 0.018240053,
+      "se0_squared_p50": 0.029248737,
+      "se0_squared_p90": 0.048524671,
+      "se0_squared_spread_p90_over_p10": 2.660336,
+      "states": 944
+    },
+    "premier_league|attack": {
+      "alpha_rel_at_p10": 0.012639384,
+      "alpha_rel_at_p50": 0.005782613,
+      "alpha_rel_at_p90": 0.00276019,
+      "se0_squared_p10": 0.012476776,
+      "se0_squared_p50": 0.027271197,
+      "se0_squared_p90": 0.057133303,
+      "se0_squared_spread_p90_over_p10": 4.579172,
+      "states": 360
+    },
+    "premier_league|defence": {
+      "alpha_rel_at_p10": 0.007643148,
+      "alpha_rel_at_p50": 0.004056291,
+      "alpha_rel_at_p90": 0.002050242,
+      "se0_squared_p10": 0.014758158,
+      "se0_squared_p50": 0.027808355,
+      "se0_squared_p90": 0.055017303,
+      "se0_squared_spread_p90_over_p10": 3.727925,
+      "states": 360
+    },
+    "primeira_liga|attack": {
+      "alpha_rel_at_p10": 0.063812142,
+      "alpha_rel_at_p50": 0.036918408,
+      "alpha_rel_at_p90": 0.014044978,
+      "se0_squared_p10": 0.012135934,
+      "se0_squared_p50": 0.020976526,
+      "se0_squared_p90": 0.055138566,
+      "se0_squared_spread_p90_over_p10": 4.543413,
+      "states": 252
+    },
+    "primeira_liga|defence": {
+      "alpha_rel_at_p10": 0.005072104,
+      "alpha_rel_at_p50": 0.002761356,
+      "alpha_rel_at_p90": 0.001154222,
+      "se0_squared_p10": 0.014421197,
+      "se0_squared_p50": 0.026489092,
+      "se0_squared_p90": 0.063372368,
+      "se0_squared_spread_p90_over_p10": 4.39439,
+      "states": 252
+    },
+    "serie_a|attack": {
+      "se0_squared_p10": 0.010783829,
+      "se0_squared_p50": 0.020418211,
+      "se0_squared_p90": 0.042106895,
+      "se0_squared_spread_p90_over_p10": 3.904633,
+      "states": 358
+    },
+    "serie_a|defence": {
+      "alpha_rel_at_p10": 0.028609663,
+      "alpha_rel_at_p50": 0.014172,
+      "alpha_rel_at_p90": 0.008004484,
+      "se0_squared_p10": 0.011384421,
+      "se0_squared_p50": 0.02298225,
+      "se0_squared_p90": 0.04069025,
+      "se0_squared_spread_p90_over_p10": 3.574205,
+      "states": 358
+    }
+  },
+  "history": {
+    "v2": {
+      "commit": "b34eada9",
+      "note": "retained unmodified as failed history"
+    },
+    "v3": {
+      "commit": "e429bd97",
+      "note": "retained unmodified as failed history; its evidence reproduces at that commit, not at HEAD, because v4 corrected shared modules"
+    }
+  },
+  "inputs": {
+    "corpus_sha256": "80e49d1a32b5dd9653d41826e87415acff0d32a6804dea408f3b99737a6ab5e2",
+    "holdout_cutoff": "2026-01-01",
+    "xg_csv_data_rows": 18978,
+    "xg_csv_sha256": "84ef81e90377014cb9ea9abc93276aebed65e1c63b9d4e5dfa18d47443634909",
+    "xg_kickoff_max": "2026-08-25 19:00:00+00",
+    "xg_kickoff_min": "2024-02-22 01:00:00+00"
+  },
+  "missingness_beta_pit": {
+    "_verdict": {
+      "reason": "no evaluation epoch has at least three xG observations visible at that epoch, so u and D cannot be formed at all",
+      "status": "MISSINGNESS_NOT_IDENTIFIABLE"
+    }
+  },
+  "missingness_beta_static_diagnostic": {
+    "cells": {
+      "allsvenskan": {
+        "kappa_ci": [
+          -194.34359306882837,
+          -95.15308035453435
+        ],
+        "kappa_days_per_unit_deficit": -131.55085724041245,
+        "mean_coverage_deficit": 0.3141304347826087,
+        "mean_d_ci": [
+          -49.66699757715295,
+          -20.188814041127042
+        ],
+        "mean_d_days": -31.455825915179226,
+        "nrmse": 0.6842616592566106,
+        "nrmse_tolerance": 0.5,
+        "premises": {
+          "kappa_ci_above_zero": false,
+          "mean_d_ci_above_zero": false,
+          "nrmse_within_tolerance": false,
+          "support_sufficient": true
+        },
+        "premises_met_without_alpha": false,
+        "states": 828,
+        "states_with_gap": 809,
+        "status": "MISSINGNESS_PREMISE_FAILED",
+        "teams": 18,
+        "teams_with_gap": 18
+      },
+      "argentina_primera": {
+        "kappa_ci": [
+          -128.73425977725626,
+          -108.3944012654223
+        ],
+        "kappa_days_per_unit_deficit": -120.29647303106893,
+        "mean_coverage_deficit": 0.41261799874134675,
+        "mean_d_ci": [
+          -55.436110040245545,
+          -45.91086545294735
+        ],
+        "mean_d_days": -51.13761275066898,
+        "nrmse": 0.8183408967729614,
+        "nrmse_tolerance": 0.5,
+        "premises": {
+          "kappa_ci_above_zero": false,
+          "mean_d_ci_above_zero": false,
+          "nrmse_within_tolerance": false,
+          "support_sufficient": true
+        },
+        "premises_met_without_alpha": false,
+        "states": 1589,
+        "states_with_gap": 1381,
+        "status": "MISSINGNESS_PREMISE_FAILED",
+        "teams": 30,
+        "teams_with_gap": 30
+      },
+      "brasileirao_serie_a": {
+        "kappa_ci": [
+          -440.957864995644,
+          -197.36379980658657
+        ],
+        "kappa_days_per_unit_deficit": -314.17754740281043,
+        "mean_coverage_deficit": 0.11231884057971014,
+        "mean_d_ci": [
+          -55.465685820471315,
+          -19.133482635562228
+        ],
+        "mean_d_days": -35.11708759623033,
+        "nrmse": 0.5968337932625196,
+        "nrmse_tolerance": 0.5,
+        "premises": {
+          "kappa_ci_above_zero": false,
+          "mean_d_ci_above_zero": false,
+          "nrmse_within_tolerance": false,
+          "support_sufficient": true
+        },
+        "premises_met_without_alpha": false,
+        "states": 1380,
+        "states_with_gap": 380,
+        "status": "MISSINGNESS_PREMISE_FAILED",
+        "teams": 24,
+        "teams_with_gap": 20
+      },
+      "bundesliga": {
+        "kappa_ci": [
+          -337.23422844667516,
+          -165.76753315558594
+        ],
+        "kappa_days_per_unit_deficit": -235.00392196172226,
+        "mean_coverage_deficit": 0.16818766066838045,
+        "mean_d_ci": [
+          -72.30477871495822,
+          -22.301709245191905
+        ],
+        "mean_d_days": -40.48594849264646,
+        "nrmse": 0.5170582398559508,
+        "nrmse_tolerance": 0.5,
+        "premises": {
+          "kappa_ci_above_zero": false,
+          "mean_d_ci_above_zero": false,
+          "nrmse_within_tolerance": false,
+          "support_sufficient": true
+        },
+        "premises_met_without_alpha": false,
+        "states": 778,
+        "states_with_gap": 300,
+        "status": "MISSINGNESS_PREMISE_FAILED",
+        "teams": 19,
+        "teams_with_gap": 17
+      },
+      "chinese_super_league": {
+        "kappa_ci": [
+          -166.42471684142228,
+          -139.9413925272145
+        ],
+        "kappa_days_per_unit_deficit": -155.81887966664988,
+        "mean_coverage_deficit": 0.23752983293556088,
+        "mean_d_ci": [
+          -30.947097119783635,
+          -16.841308266244724
+        ],
+        "mean_d_days": -24.414570311513252,
+        "nrmse": 0.4417468872386527,
+        "nrmse_tolerance": 0.5,
+        "premises": {
+          "kappa_ci_above_zero": false,
+          "mean_d_ci_above_zero": false,
+          "nrmse_within_tolerance": true,
+          "support_sufficient": true
+        },
+        "premises_met_without_alpha": false,
+        "states": 838,
+        "states_with_gap": 787,
+        "status": "MISSINGNESS_PREMISE_FAILED",
+        "teams": 18,
+        "teams_with_gap": 18
+      },
+      "eliteserien": {
+        "kappa_ci": [
+          -267.50403936810517,
+          -138.43759985236636
+        ],
+        "kappa_days_per_unit_deficit": -190.46777564505814,
+        "mean_coverage_deficit": 0.2197508896797153,
+        "mean_d_ci": [
+          -50.55591495750526,
+          -20.154779625539167
+        ],
+        "mean_d_days": -33.004445007801124,
+        "nrmse": 0.5953580460733912,
+        "nrmse_tolerance": 0.5,
+        "premises": {
+          "kappa_ci_above_zero": false,
+          "mean_d_ci_above_zero": false,
+          "nrmse_within_tolerance": false,
+          "support_sufficient": true
+        },
+        "premises_met_without_alpha": false,
+        "states": 843,
+        "states_with_gap": 657,
+        "status": "MISSINGNESS_PREMISE_FAILED",
+        "teams": 18,
+        "teams_with_gap": 18
+      },
+      "eredivisie": {
+        "kappa_ci": [
+          -355.31705323252083,
+          -153.1405787620697
+        ],
+        "kappa_days_per_unit_deficit": -265.89839189106476,
+        "mean_coverage_deficit": 0.1696987951807229,
+        "mean_d_ci": [
+          -86.09121346063345,
+          -24.703573930416212
+        ],
+        "mean_d_days": -50.73057216028589,
+        "nrmse": 0.5273636646292333,
+        "nrmse_tolerance": 0.5,
+        "premises": {
+          "kappa_ci_above_zero": false,
+          "mean_d_ci_above_zero": false,
+          "nrmse_within_tolerance": false,
+          "support_sufficient": true
+        },
+        "premises_met_without_alpha": false,
+        "states": 830,
+        "states_with_gap": 317,
+        "status": "MISSINGNESS_PREMISE_FAILED",
+        "teams": 21,
+        "teams_with_gap": 21
+      },
+      "la_liga": {
+        "kappa_ci": [
+          -466.1909678139574,
+          -144.06415761923387
+        ],
+        "kappa_days_per_unit_deficit": -293.2229015611806,
+        "mean_coverage_deficit": 0.1543983822042467,
+        "mean_d_ci": [
+          -93.09468117238835,
+          -21.021822317448468
+        ],
+        "mean_d_days": -47.76329465372171,
+        "nrmse": 0.6737516438424348,
+        "nrmse_tolerance": 0.5,
+        "premises": {
+          "kappa_ci_above_zero": false,
+          "mean_d_ci_above_zero": false,
+          "nrmse_within_tolerance": false,
+          "support_sufficient": true
+        },
+        "premises_met_without_alpha": false,
+        "states": 989,
+        "states_with_gap": 337,
+        "status": "MISSINGNESS_PREMISE_FAILED",
+        "teams": 21,
+        "teams_with_gap": 20
+      },
+      "ligue_1": {
+        "kappa_ci": [
+          -362.81403540418125,
+          -177.42573602122718
+        ],
+        "kappa_days_per_unit_deficit": -278.9211743839896,
+        "mean_coverage_deficit": 0.17823674475955611,
+        "mean_d_ci": [
+          -90.81294448288287,
+          -29.007003132385513
+        ],
+        "mean_d_days": -55.520334512613445,
+        "nrmse": 0.49577097187807895,
+        "nrmse_tolerance": 0.5,
+        "premises": {
+          "kappa_ci_above_zero": false,
+          "mean_d_ci_above_zero": false,
+          "nrmse_within_tolerance": true,
+          "support_sufficient": true
+        },
+        "premises_met_without_alpha": false,
+        "states": 811,
+        "states_with_gap": 318,
+        "status": "MISSINGNESS_PREMISE_FAILED",
+        "teams": 20,
+        "teams_with_gap": 20
+      },
+      "mls": {
+        "kappa_ci": [
+          -182.01439250349762,
+          -171.82929608834544
+        ],
+        "kappa_days_per_unit_deficit": -176.94200686687492,
+        "mean_coverage_deficit": 0.10999008428358949,
+        "mean_d_ci": [
+          -20.170133895660385,
+          -17.363921600734304
+        ],
+        "mean_d_days": -18.997512156574686,
+        "nrmse": 0.07960324777904562,
+        "nrmse_tolerance": 0.5,
+        "premises": {
+          "kappa_ci_above_zero": false,
+          "mean_d_ci_above_zero": false,
+          "nrmse_within_tolerance": true,
+          "support_sufficient": true
+        },
+        "premises_met_without_alpha": false,
+        "states": 2017,
+        "states_with_gap": 493,
+        "status": "MISSINGNESS_PREMISE_FAILED",
+        "teams": 30,
+        "teams_with_gap": 29
+      },
+      "premier_league": {
+        "kappa_ci": [
+          -484.0722046154515,
+          -179.68311336850456
+        ],
+        "kappa_days_per_unit_deficit": -335.4459673928419,
+        "mean_coverage_deficit": 0.15562560620756546,
+        "mean_d_ci": [
+          -106.06293167141422,
+          -25.184725514240817
+        ],
+        "mean_d_days": -58.50342473839504,
+        "nrmse": 0.6107641522472423,
+        "nrmse_tolerance": 0.5,
+        "premises": {
+          "kappa_ci_above_zero": false,
+          "mean_d_ci_above_zero": false,
+          "nrmse_within_tolerance": false,
+          "support_sufficient": true
+        },
+        "premises_met_without_alpha": false,
+        "states": 1031,
+        "states_with_gap": 354,
+        "status": "MISSINGNESS_PREMISE_FAILED",
+        "teams": 22,
+        "teams_with_gap": 21
+      },
+      "primeira_liga": {
+        "kappa_ci": [
+          -221.64343485668525,
+          -151.43470767418282
+        ],
+        "kappa_days_per_unit_deficit": -173.69052047131314,
+        "mean_coverage_deficit": 0.1590268886043534,
+        "mean_d_ci": [
+          -35.82619702793201,
+          -20.356330231263406
+        ],
+        "mean_d_days": -27.208880400762233,
+        "nrmse": 0.4397916210470737,
+        "nrmse_tolerance": 0.5,
+        "premises": {
+          "kappa_ci_above_zero": false,
+          "mean_d_ci_above_zero": false,
+          "nrmse_within_tolerance": true,
+          "support_sufficient": true
+        },
+        "premises_met_without_alpha": false,
+        "states": 781,
+        "states_with_gap": 291,
+        "status": "MISSINGNESS_PREMISE_FAILED",
+        "teams": 18,
+        "teams_with_gap": 17
+      },
+      "serie_a": {
+        "kappa_ci": [
+          -478.1253769520553,
+          -151.2676160866831
+        ],
+        "kappa_days_per_unit_deficit": -310.5427819221339,
+        "mean_coverage_deficit": 0.15318371607515657,
+        "mean_d_ci": [
+          -103.26450867268855,
+          -18.488952896018258
+        ],
+        "mean_d_days": -51.92382236740918,
+        "nrmse": 0.6513598198139002,
+        "nrmse_tolerance": 0.5,
+        "premises": {
+          "kappa_ci_above_zero": false,
+          "mean_d_ci_above_zero": false,
+          "nrmse_within_tolerance": false,
+          "support_sufficient": true
+        },
+        "premises_met_without_alpha": false,
+        "states": 958,
+        "states_with_gap": 357,
+        "status": "MISSINGNESS_PREMISE_FAILED",
+        "teams": 22,
+        "teams_with_gap": 19
+      }
+    },
+    "note": "static xG existence, not point-in-time. Retained from v3 as a diagnostic; it does not answer the production question and its premise verdicts must not be quoted as if it did"
+  },
+  "multiplicity": {
+    "benjamini_hochberg_meaning": "controls the false discovery rate at 5%; among the reported survivors an expected 5% are false, so a survivor is not individually certain",
+    "benjamini_hochberg_survivors": [
+      "primeira_liga|attack",
+      "allsvenskan|attack"
+    ],
+    "bonferroni_meaning": "controls the family-wise error rate at 5% across all 26 tests",
+    "bonferroni_survivors": [
+      "primeira_liga|attack",
+      "allsvenskan|attack"
+    ],
+    "expected_false_positives_under_null": 1.3,
+    "family": "26 league x component cells, one one-sided test each",
+    "sorted_p_values": [
+      [
+        "primeira_liga|attack",
+        7.6315e-05
+      ],
+      [
+        "allsvenskan|attack",
+        0.001350696
+      ],
+      [
+        "allsvenskan|defence",
+        0.01008843
+      ],
+      [
+        "serie_a|defence",
+        0.026066554
+      ],
+      [
+        "argentina_primera|attack",
+        0.077680993
+      ],
+      [
+        "brasileirao_serie_a|attack",
+        0.150774738
+      ],
+      [
+        "premier_league|attack",
+        0.176435919
+      ],
+      [
+        "mls|attack",
+        0.190257051
+      ],
+      [
+        "eredivisie|defence",
+        0.239179218
+      ],
+      [
+        "premier_league|defence",
+        0.269184017
+      ],
+      [
+        "argentina_primera|defence",
+        0.306168517
+      ],
+      [
+        "primeira_liga|defence",
+        0.332687926
+      ],
+      [
+        "chinese_super_league|attack",
+        0.385143646
+      ],
+      [
+        "mls|defence",
+        0.39012477
+      ],
+      [
+        "brasileirao_serie_a|defence",
+        0.406463644
+      ],
+      [
+        "bundesliga|attack",
+        1.0
+      ],
+      [
+        "bundesliga|defence",
+        1.0
+      ],
+      [
+        "chinese_super_league|defence",
+        1.0
+      ],
+      [
+        "eliteserien|attack",
+        1.0
+      ],
+      [
+        "eliteserien|defence",
+        1.0
+      ],
+      [
+        "eredivisie|attack",
+        1.0
+      ],
+      [
+        "la_liga|attack",
+        1.0
+      ],
+      [
+        "la_liga|defence",
+        1.0
+      ],
+      [
+        "ligue_1|attack",
+        1.0
+      ],
+      [
+        "ligue_1|defence",
+        1.0
+      ],
+      [
+        "serie_a|attack",
+        1.0
+      ]
+    ],
+    "tests": 26,
+    "uncorrected_rejections": [
+      "primeira_liga|attack",
+      "allsvenskan|attack",
+      "allsvenskan|defence",
+      "serie_a|defence"
+    ]
+  },
+  "parameter_state": {
+    "alpha_age_per_day": null,
+    "beta_missing": null,
+    "encoding_rule": "NULL means no value was established. Zero is a claim that the effect is absent and is not available as a way to write NOT_IDENTIFIABLE. A consumer of an unset coefficient must omit the term rather than multiply by zero"
+  },
+  "path_c": {
+    "earliest_captured_at": "2026-07-21 01:08:18.854214+00",
+    "production_path_is_pit_safe": "ReadModelService._xg_uncertainty_rows drops rows with captured_at > as_of, so the shipped read model fails closed rather than reading the future",
+    "reason": "the xG values did not exist in team_xg_match before 2026-07, so no evaluation epoch after the 2026-01-01 holdout boundary had any admissible history; a point-in-time replay correctly finds nothing because there was nothing to find",
+    "rows_captured_before_2026_07": 0,
+    "rows_total": 18978,
+    "status": "PATH_C_NOT_IDENTIFIABLE",
+    "what_would_make_it_identifiable": "elapsed time. From the 2026-07 backfill onward captured_at accumulates a usable visibility history, so a holdout beginning after that date becomes answerable once enough of it exists. No retroactive record can recover the epochs where xG was simply absent",
+    "write_semantics": {
+      "controlled_exception": "XgRetentionService.repair_derived_lineage can rewrite captured_at. It requires write_db=true plus a backup path, and _guarded_timestamp_updates raises XG_RETENTION_NON_TIMESTAMP_DRIFT if any non-timestamp field differs",
+      "ordinary_ingestion": "upsert_team_xg_matches is first-write-wins behind an immutability guard: an existing row is compared field by field and any difference raises TEAM_XG_MATCH_IMMUTABLE_CONFLICT, otherwise the write is skipped. captured_at is never overwritten by ordinary ingestion",
+      "v3_description_was_wrong": "v3 called this an upsert that overwrites captured_at and inferred the column was unreliable. It is close to a first-write record; the reason path C fails is missing history, not a corrupted column"
+    }
+  },
+  "protocol_commit": "18f812b7",
+  "schema_version": "w2.ev_se.drift_v4.evidence.v1",
+  "season_boundary": {
+    "allsvenskan|attack": {
+      "alpha_abs_pooled": 0.0013143661077957066,
+      "alpha_abs_pooled_ci": [
+        0.0002524297896913408,
+        0.0026069635977192867
+      ],
+      "cross_season_pairs": 7753,
+      "pairs": 16473,
+      "season_jump_variance": -0.3576530550937346,
+      "season_jump_variance_ci": [
+        -0.7693773314947904,
+        -0.008727110385245401
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.5177015980822853,
+      "teams": 18
+    },
+    "allsvenskan|defence": {
+      "alpha_abs_pooled": 0.0007202482978315947,
+      "alpha_abs_pooled_ci": [
+        -0.00030530817625310213,
+        0.0019584133120300975
+      ],
+      "cross_season_pairs": 7753,
+      "pairs": 16473,
+      "season_jump_variance": -0.1323958459703911,
+      "season_jump_variance_ci": [
+        -0.3835856761952305,
+        0.12212425396135007
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.49985449546068,
+      "teams": 18
+    },
+    "argentina_primera|attack": {
+      "alpha_abs_pooled": 0.00037969779856456725,
+      "alpha_abs_pooled_ci": [
+        -0.000253344855736106,
+        0.001050406781757826
+      ],
+      "cross_season_pairs": 12873,
+      "pairs": 26751,
+      "season_jump_variance": -0.11197690730945033,
+      "season_jump_variance_ci": [
+        -0.3238894537259457,
+        0.08729753880710803
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.3561240151664098,
+      "teams": 30
+    },
+    "argentina_primera|defence": {
+      "alpha_abs_pooled": 6.779244812082363e-05,
+      "alpha_abs_pooled_ci": [
+        -0.000695150813036489,
+        0.0008541821645484288
+      ],
+      "cross_season_pairs": 12873,
+      "pairs": 26751,
+      "season_jump_variance": -0.07283985032027664,
+      "season_jump_variance_ci": [
+        -0.291233900495569,
+        0.11898578285680071
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.3887093453953622,
+      "teams": 30
+    },
+    "brasileirao_serie_a|attack": {
+      "alpha_abs_pooled": 0.00013092432254014383,
+      "alpha_abs_pooled_ci": [
+        -0.0002907134614726515,
+        0.0005593725553716391
+      ],
+      "cross_season_pairs": 23028,
+      "pairs": 51074,
+      "season_jump_variance": 0.08905064096214019,
+      "season_jump_variance_ci": [
+        -0.06516471317251613,
+        0.251296139702725
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.4357193176511803,
+      "teams": 24
+    },
+    "brasileirao_serie_a|defence": {
+      "alpha_abs_pooled": 0.00010644769548200131,
+      "alpha_abs_pooled_ci": [
+        -0.0003133763220020609,
+        0.0005672390583714787
+      ],
+      "cross_season_pairs": 23028,
+      "pairs": 51074,
+      "season_jump_variance": -0.046366827100416584,
+      "season_jump_variance_ci": [
+        -0.20777050865033125,
+        0.11588893382208457
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.48453615650779475,
+      "teams": 24
+    },
+    "bundesliga|attack": {
+      "alpha_abs_pooled": 0.00014039376226321164,
+      "alpha_abs_pooled_ci": [
+        -0.0007555878231340422,
+        0.0009565917334716658
+      ],
+      "cross_season_pairs": 8160,
+      "pairs": 20148,
+      "season_jump_variance": 0.059226490649417166,
+      "season_jump_variance_ci": [
+        -0.14390606265732409,
+        0.27849373007650985
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.5839472443100657,
+      "teams": 20
+    },
+    "bundesliga|defence": {
+      "alpha_abs_pooled": 0.0001965233150376229,
+      "alpha_abs_pooled_ci": [
+        -0.0008585101088514739,
+        0.0012441835436945046
+      ],
+      "cross_season_pairs": 8160,
+      "pairs": 20148,
+      "season_jump_variance": -0.0029208769670566437,
+      "season_jump_variance_ci": [
+        -0.19835629209938044,
+        0.19409664406011118
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.6543491170012586,
+      "teams": 20
+    },
+    "chinese_super_league|attack": {
+      "alpha_abs_pooled": 0.00014168191680830966,
+      "alpha_abs_pooled_ci": [
+        -0.0007953426136377412,
+        0.0010881326401350646
+      ],
+      "cross_season_pairs": 9465,
+      "pairs": 19947,
+      "season_jump_variance": 0.2745536948883842,
+      "season_jump_variance_ci": [
+        -0.03212245406791684,
+        0.6117648766555568
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.6516212640371501,
+      "teams": 18
+    },
+    "chinese_super_league|defence": {
+      "alpha_abs_pooled": -0.00036459519009445206,
+      "alpha_abs_pooled_ci": [
+        -0.0013560079014233973,
+        0.0006456170045138979
+      ],
+      "cross_season_pairs": 9465,
+      "pairs": 19947,
+      "season_jump_variance": -0.19082079810648558,
+      "season_jump_variance_ci": [
+        -0.6849005904592874,
+        0.2814455096964176
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.9657930532115112,
+      "teams": 18
+    },
+    "eliteserien|attack": {
+      "alpha_abs_pooled": 0.0005468407703340713,
+      "alpha_abs_pooled_ci": [
+        -0.0005091215927010215,
+        0.001524473163817086
+      ],
+      "cross_season_pairs": 10158,
+      "pairs": 21496,
+      "season_jump_variance": 0.006291272580027446,
+      "season_jump_variance_ci": [
+        -0.3212075490960184,
+        0.369618148103596
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.6231076792074203,
+      "teams": 18
+    },
+    "eliteserien|defence": {
+      "alpha_abs_pooled": 0.0001662364526635728,
+      "alpha_abs_pooled_ci": [
+        -0.0008185180811863369,
+        0.00116551922073856
+      ],
+      "cross_season_pairs": 10158,
+      "pairs": 21496,
+      "season_jump_variance": -0.018475292342316024,
+      "season_jump_variance_ci": [
+        -0.3147387179102752,
+        0.32778010390423934
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.6837137312762431,
+      "teams": 18
+    },
+    "eredivisie|attack": {
+      "alpha_abs_pooled": 0.0006046150899765911,
+      "alpha_abs_pooled_ci": [
+        -0.00023961928451689588,
+        0.0015317799020244907
+      ],
+      "cross_season_pairs": 8736,
+      "pairs": 21456,
+      "season_jump_variance": 0.09303292030229346,
+      "season_jump_variance_ci": [
+        -0.1541240460198086,
+        0.37425988698580565
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.5698089117314559,
+      "teams": 21
+    },
+    "eredivisie|defence": {
+      "alpha_abs_pooled": 0.000646406853035224,
+      "alpha_abs_pooled_ci": [
+        -0.00032863479064380093,
+        0.0015723866318803053
+      ],
+      "cross_season_pairs": 8736,
+      "pairs": 21456,
+      "season_jump_variance": -0.2022963679115093,
+      "season_jump_variance_ci": [
+        -0.4770252933599241,
+        0.06436210035955617
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.6890208685382901,
+      "teams": 21
+    },
+    "la_liga|attack": {
+      "alpha_abs_pooled": 7.12376865154777e-05,
+      "alpha_abs_pooled_ci": [
+        -0.0005635311447579501,
+        0.0007315709472874466
+      ],
+      "cross_season_pairs": 11096,
+      "pairs": 27912,
+      "season_jump_variance": 0.09018165541614637,
+      "season_jump_variance_ci": [
+        -0.09557353305571067,
+        0.2982227733736481
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.5048256729510917,
+      "teams": 23
+    },
+    "la_liga|defence": {
+      "alpha_abs_pooled": -0.00013657616228686243,
+      "alpha_abs_pooled_ci": [
+        -0.0009120861122403171,
+        0.0006609666447134926
+      ],
+      "cross_season_pairs": 11096,
+      "pairs": 27912,
+      "season_jump_variance": -0.13060123670381768,
+      "season_jump_variance_ci": [
+        -0.32362550950591923,
+        0.052571092899726155
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.7013795034215908,
+      "teams": 23
+    },
+    "ligue_1|attack": {
+      "alpha_abs_pooled": -0.00032000296936718055,
+      "alpha_abs_pooled_ci": [
+        -0.0010502090872604594,
+        0.0004446158702999901
+      ],
+      "cross_season_pairs": 8160,
+      "pairs": 20418,
+      "season_jump_variance": 0.2726338474914457,
+      "season_jump_variance_ci": [
+        0.0255081240610971,
+        0.53963854545013
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.7103003507760277,
+      "teams": 21
+    },
+    "ligue_1|defence": {
+      "alpha_abs_pooled": -0.000310129414340672,
+      "alpha_abs_pooled_ci": [
+        -0.0009998943187066464,
+        0.0003989148302330955
+      ],
+      "cross_season_pairs": 8160,
+      "pairs": 20418,
+      "season_jump_variance": -0.10733281397720255,
+      "season_jump_variance_ci": [
+        -0.40267845898642546,
+        0.13734199155038254
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.872789646541348,
+      "teams": 21
+    },
+    "mls|attack": {
+      "alpha_abs_pooled": 0.0002591299198245988,
+      "alpha_abs_pooled_ci": [
+        -0.00028963798824231684,
+        0.0008370327711995842
+      ],
+      "cross_season_pairs": 37498,
+      "pairs": 74775,
+      "season_jump_variance": -0.00964879762325914,
+      "season_jump_variance_ci": [
+        -0.17602851409255177,
+        0.1508248045545135
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.6061784421702058,
+      "teams": 30
+    },
+    "mls|defence": {
+      "alpha_abs_pooled": 0.00043524523757583835,
+      "alpha_abs_pooled_ci": [
+        7.916674149797808e-05,
+        0.0008042036797976749
+      ],
+      "cross_season_pairs": 37498,
+      "pairs": 74775,
+      "season_jump_variance": -0.11427338794625652,
+      "season_jump_variance_ci": [
+        -0.20966327552827738,
+        -0.02035733783045142
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.6291279108514091,
+      "teams": 30
+    },
+    "premier_league|attack": {
+      "alpha_abs_pooled": 0.0006466707334509137,
+      "alpha_abs_pooled_ci": [
+        -0.0002769988027044328,
+        0.0017635008984476163
+      ],
+      "cross_season_pairs": 12046,
+      "pairs": 29382,
+      "season_jump_variance": 0.08987026186191295,
+      "season_jump_variance_ci": [
+        -0.18340248846260854,
+        0.33929519026861
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.5081649898485843,
+      "teams": 23
+    },
+    "premier_league|defence": {
+      "alpha_abs_pooled": 0.00034397857325212567,
+      "alpha_abs_pooled_ci": [
+        -0.00031309660169973226,
+        0.0009966898470612424
+      ],
+      "cross_season_pairs": 12046,
+      "pairs": 29382,
+      "season_jump_variance": -0.24643932712046943,
+      "season_jump_variance_ci": [
+        -0.48220074807956004,
+        -0.006210948160429166
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.655591413665461,
+      "teams": 23
+    },
+    "primeira_liga|attack": {
+      "alpha_abs_pooled": 0.0003457135969644834,
+      "alpha_abs_pooled_ci": [
+        -0.0004749997563780168,
+        0.0012297593825394354
+      ],
+      "cross_season_pairs": 8602,
+      "pairs": 20800,
+      "season_jump_variance": 0.0010567133338633993,
+      "season_jump_variance_ci": [
+        -0.23338867618145323,
+        0.2310594133081223
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.5224624234019383,
+      "teams": 20
+    },
+    "primeira_liga|defence": {
+      "alpha_abs_pooled": 0.0005316556645215203,
+      "alpha_abs_pooled_ci": [
+        -0.00021499025984231165,
+        0.0013624843925430018
+      ],
+      "cross_season_pairs": 8602,
+      "pairs": 20800,
+      "season_jump_variance": -0.2131066233924218,
+      "season_jump_variance_ci": [
+        -0.5180217209503243,
+        0.08481652208953631
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.6156021435828555,
+      "teams": 20
+    },
+    "serie_a|attack": {
+      "alpha_abs_pooled": 0.00010707963206613555,
+      "alpha_abs_pooled_ci": [
+        -0.0003190321205208666,
+        0.0005867307209818053
+      ],
+      "cross_season_pairs": 10645,
+      "pairs": 27223,
+      "season_jump_variance": 0.024057393777385635,
+      "season_jump_variance_ci": [
+        -0.12813986154601958,
+        0.18516329801691092
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.44792203350151505,
+      "teams": 23
+    },
+    "serie_a|defence": {
+      "alpha_abs_pooled": 4.977802425293762e-05,
+      "alpha_abs_pooled_ci": [
+        -0.0006132485996235852,
+        0.0006849320910681429
+      ],
+      "cross_season_pairs": 10645,
+      "pairs": 27223,
+      "season_jump_variance": -0.03513087257194653,
+      "season_jump_variance_ci": [
+        -0.20994381081030938,
+        0.14068661323182688
+      ],
+      "status": "IDENTIFIED",
+      "tau2": 0.49681004829915465,
+      "teams": 23
+    }
+  }
+}
