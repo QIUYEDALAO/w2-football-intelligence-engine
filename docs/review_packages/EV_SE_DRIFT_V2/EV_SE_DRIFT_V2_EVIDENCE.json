@@ -1,0 +1,494 @@
+{
+  "alpha_cells": {
+    "allsvenskan|attack": {
+      "alpha_abs": 0.002348336,
+      "ci_high": 0.004169305,
+      "ci_low": 0.000790014,
+      "delta_span_days": 230.083,
+      "pairs": 8720,
+      "status": "USABLE",
+      "tau2": 0.47654755,
+      "teams": 18,
+      "use": true
+    },
+    "allsvenskan|defence": {
+      "alpha_abs": 0.001330629,
+      "ci_high": 0.002943076,
+      "ci_low": 0.000156139,
+      "delta_span_days": 230.083,
+      "pairs": 8720,
+      "status": "USABLE",
+      "tau2": 0.471935187,
+      "teams": 18,
+      "use": true
+    },
+    "argentina_primera|attack": {
+      "alpha_abs": 0.000677568,
+      "ci_high": 0.001734236,
+      "ci_low": -0.000191792,
+      "delta_span_days": 219.052,
+      "pairs": 13878,
+      "status": "CI_INCLUDES_ZERO",
+      "tau2": 0.350036071,
+      "teams": 30,
+      "use": false
+    },
+    "argentina_primera|defence": {
+      "alpha_abs": 0.000138423,
+      "ci_high": 0.001096824,
+      "ci_low": -0.000896107,
+      "delta_span_days": 219.052,
+      "pairs": 13878,
+      "status": "CI_INCLUDES_ZERO",
+      "tau2": 0.378423501,
+      "teams": 30,
+      "use": false
+    },
+    "brasileirao_serie_a|attack": {
+      "alpha_abs": 0.000158441,
+      "ci_high": 0.000601934,
+      "ci_low": -0.000262434,
+      "delta_span_days": 252.896,
+      "pairs": 28046,
+      "status": "CI_INCLUDES_ZERO",
+      "tau2": 0.455809221,
+      "teams": 24,
+      "use": false
+    },
+    "brasileirao_serie_a|defence": {
+      "alpha_abs": -7.1351e-05,
+      "ci_high": 0.000305938,
+      "ci_low": -0.00042145,
+      "delta_span_days": 252.896,
+      "pairs": 28046,
+      "status": "NEGATIVE_SLOPE",
+      "tau2": 0.488480349,
+      "teams": 24,
+      "use": false
+    },
+    "bundesliga|attack": {
+      "alpha_abs": -0.000285174,
+      "ci_high": 0.001082572,
+      "ci_low": -0.001610703,
+      "delta_span_days": 266.792,
+      "pairs": 11988,
+      "status": "NEGATIVE_SLOPE",
+      "tau2": 0.604936247,
+      "teams": 20,
+      "use": false
+    },
+    "bundesliga|defence": {
+      "alpha_abs": -0.000485643,
+      "ci_high": 0.00058183,
+      "ci_low": -0.001619854,
+      "delta_span_days": 266.792,
+      "pairs": 11988,
+      "status": "NEGATIVE_SLOPE",
+      "tau2": 0.677352471,
+      "teams": 20,
+      "use": false
+    },
+    "chinese_super_league|attack": {
+      "alpha_abs": 0.000568026,
+      "ci_high": 0.00186278,
+      "ci_low": -0.000622934,
+      "delta_span_days": 252.983,
+      "pairs": 10482,
+      "status": "CI_INCLUDES_ZERO",
+      "tau2": 0.675800802,
+      "teams": 18,
+      "use": false
+    },
+    "chinese_super_league|defence": {
+      "alpha_abs": -0.000487713,
+      "ci_high": 0.000622597,
+      "ci_low": -0.001553918,
+      "delta_span_days": 252.983,
+      "pairs": 10482,
+      "status": "NEGATIVE_SLOPE",
+      "tau2": 0.899930799,
+      "teams": 18,
+      "use": false
+    },
+    "eliteserien|attack": {
+      "alpha_abs": -6.441e-05,
+      "ci_high": 0.000845837,
+      "ci_low": -0.000953433,
+      "delta_span_days": 256.031,
+      "pairs": 11338,
+      "status": "NEGATIVE_SLOPE",
+      "tau2": 0.676434627,
+      "teams": 18,
+      "use": false
+    },
+    "eliteserien|defence": {
+      "alpha_abs": 0.000100271,
+      "ci_high": 0.001251879,
+      "ci_low": -0.000998004,
+      "delta_span_days": 256.031,
+      "pairs": 11338,
+      "status": "CI_INCLUDES_ZERO",
+      "tau2": 0.686219175,
+      "teams": 18,
+      "use": false
+    },
+    "eredivisie|attack": {
+      "alpha_abs": 0.000331079,
+      "ci_high": 0.001309207,
+      "ci_low": -0.000645139,
+      "delta_span_days": 287.969,
+      "pairs": 12720,
+      "status": "CI_INCLUDES_ZERO",
+      "tau2": 0.601653167,
+      "teams": 21,
+      "use": false
+    },
+    "eredivisie|defence": {
+      "alpha_abs": 0.000104472,
+      "ci_high": 0.001347974,
+      "ci_low": -0.001239641,
+      "delta_span_days": 287.969,
+      "pairs": 12720,
+      "status": "CI_INCLUDES_ZERO",
+      "tau2": 0.697060563,
+      "teams": 21,
+      "use": false
+    },
+    "la_liga|attack": {
+      "alpha_abs": 0.000137518,
+      "ci_high": 0.001058134,
+      "ci_low": -0.000685602,
+      "delta_span_days": 283.083,
+      "pairs": 16816,
+      "status": "CI_INCLUDES_ZERO",
+      "tau2": 0.532438017,
+      "teams": 23,
+      "use": false
+    },
+    "la_liga|defence": {
+      "alpha_abs": -0.000151384,
+      "ci_high": 0.000813435,
+      "ci_low": -0.00111465,
+      "delta_span_days": 283.083,
+      "pairs": 16816,
+      "status": "NEGATIVE_SLOPE",
+      "tau2": 0.679263274,
+      "teams": 23,
+      "use": false
+    },
+    "ligue_1|attack": {
+      "alpha_abs": -5.7292e-05,
+      "ci_high": 0.001438549,
+      "ci_low": -0.001341112,
+      "delta_span_days": 274.01,
+      "pairs": 12258,
+      "status": "NEGATIVE_SLOPE",
+      "tau2": 0.732515253,
+      "teams": 21,
+      "use": false
+    },
+    "ligue_1|defence": {
+      "alpha_abs": -0.000545593,
+      "ci_high": 0.000545534,
+      "ci_low": -0.00167771,
+      "delta_span_days": 274.01,
+      "pairs": 12258,
+      "status": "NEGATIVE_SLOPE",
+      "tau2": 0.848805856,
+      "teams": 21,
+      "use": false
+    },
+    "mls|attack": {
+      "alpha_abs": 7.3892e-05,
+      "ci_high": 0.000731683,
+      "ci_low": -0.000565524,
+      "delta_span_days": 286.958,
+      "pairs": 37277,
+      "status": "CI_INCLUDES_ZERO",
+      "tau2": 0.617928218,
+      "teams": 30,
+      "use": false
+    },
+    "mls|defence": {
+      "alpha_abs": 6.9308e-05,
+      "ci_high": 0.000607562,
+      "ci_low": -0.000433435,
+      "delta_span_days": 286.958,
+      "pairs": 37277,
+      "status": "CI_INCLUDES_ZERO",
+      "tau2": 0.642720963,
+      "teams": 30,
+      "use": false
+    },
+    "premier_league|attack": {
+      "alpha_abs": 0.000363368,
+      "ci_high": 0.001424034,
+      "ci_low": -0.000555574,
+      "delta_span_days": 281.833,
+      "pairs": 17336,
+      "status": "CI_INCLUDES_ZERO",
+      "tau2": 0.558482687,
+      "teams": 23,
+      "use": false
+    },
+    "premier_league|defence": {
+      "alpha_abs": -4.974e-05,
+      "ci_high": 0.000856243,
+      "ci_low": -0.001030728,
+      "delta_span_days": 281.833,
+      "pairs": 17336,
+      "status": "NEGATIVE_SLOPE",
+      "tau2": 0.641219184,
+      "teams": 23,
+      "use": false
+    },
+    "primeira_liga|attack": {
+      "alpha_abs": 0.000809327,
+      "ci_high": 0.002141895,
+      "ci_low": -0.0003808,
+      "delta_span_days": 280.906,
+      "pairs": 12198,
+      "status": "CI_INCLUDES_ZERO",
+      "tau2": 0.513219592,
+      "teams": 20,
+      "use": false
+    },
+    "primeira_liga|defence": {
+      "alpha_abs": 0.000715107,
+      "ci_high": 0.001735222,
+      "ci_low": -0.000230163,
+      "delta_span_days": 280.906,
+      "pairs": 12198,
+      "status": "CI_INCLUDES_ZERO",
+      "tau2": 0.587723717,
+      "teams": 20,
+      "use": false
+    },
+    "serie_a|attack": {
+      "alpha_abs": -0.000254492,
+      "ci_high": 0.000411262,
+      "ci_low": -0.000827229,
+      "delta_span_days": 281.094,
+      "pairs": 16578,
+      "status": "NEGATIVE_SLOPE",
+      "tau2": 0.473363029,
+      "teams": 23,
+      "use": false
+    },
+    "serie_a|defence": {
+      "alpha_abs": 2.0129e-05,
+      "ci_high": 0.000670844,
+      "ci_low": -0.000699295,
+      "delta_span_days": 281.094,
+      "pairs": 16578,
+      "status": "CI_INCLUDES_ZERO",
+      "tau2": 0.50246639,
+      "teams": 23,
+      "use": false
+    }
+  },
+  "bootstrap": {
+    "ci": 0.95,
+    "reps": 10000,
+    "seed": 20260826
+  },
+  "forbidden_uses": [
+    "SETTLED_PICK_PROFIT",
+    "HIT_RATE",
+    "CURRENT_65_PICKS"
+  ],
+  "inputs": {
+    "corpus_sha256": "80e49d1a32b5dd9653d41826e87415acff0d32a6804dea408f3b99737a6ab5e2",
+    "holdout_cutoff": "2026-01-01",
+    "xg_csv_data_rows": 18978,
+    "xg_csv_sha256": "84ef81e90377014cb9ea9abc93276aebed65e1c63b9d4e5dfa18d47443634909",
+    "xg_kickoff_max": "2026-08-25 19:00:00+00",
+    "xg_kickoff_min": "2024-02-22 01:00:00+00"
+  },
+  "path_c": {
+    "allsvenskan|attack": {
+      "coverage_68": 0.673202614,
+      "coverage_95": 0.917211329,
+      "n": 459,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 1.286108972
+    },
+    "allsvenskan|defence": {
+      "coverage_68": 0.673202614,
+      "coverage_95": 0.923747277,
+      "n": 459,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 1.19905946
+    },
+    "argentina_primera|attack": {
+      "coverage_68": 0.68627451,
+      "coverage_95": 0.950980392,
+      "n": 510,
+      "status": "OK",
+      "var_z": 1.037695773
+    },
+    "argentina_primera|defence": {
+      "coverage_68": 0.715686275,
+      "coverage_95": 0.947058824,
+      "n": 510,
+      "status": "OK",
+      "var_z": 0.946099877
+    },
+    "brasileirao_serie_a|attack": {
+      "coverage_68": 0.677121771,
+      "coverage_95": 0.95202952,
+      "n": 1084,
+      "status": "OK",
+      "var_z": 1.037826585
+    },
+    "brasileirao_serie_a|defence": {
+      "coverage_68": 0.691881919,
+      "coverage_95": 0.963099631,
+      "n": 1084,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 0.972704336
+    },
+    "bundesliga|attack": {
+      "coverage_68": 0.693333333,
+      "coverage_95": 0.941111111,
+      "n": 900,
+      "status": "OK",
+      "var_z": 1.087385994
+    },
+    "bundesliga|defence": {
+      "coverage_68": 0.684444444,
+      "coverage_95": 0.944444444,
+      "n": 900,
+      "status": "OK",
+      "var_z": 1.169947983
+    },
+    "chinese_super_league|attack": {
+      "coverage_68": 0.73,
+      "coverage_95": 0.945,
+      "n": 600,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 1.024365352
+    },
+    "chinese_super_league|defence": {
+      "coverage_68": 0.756666667,
+      "coverage_95": 0.965,
+      "n": 600,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 0.863884762
+    },
+    "eliteserien|attack": {
+      "coverage_68": 0.714728682,
+      "coverage_95": 0.948837209,
+      "n": 645,
+      "status": "OK",
+      "var_z": 0.980586314
+    },
+    "eliteserien|defence": {
+      "coverage_68": 0.71627907,
+      "coverage_95": 0.953488372,
+      "n": 645,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 0.975630062
+    },
+    "eredivisie|attack": {
+      "coverage_68": 0.714285714,
+      "coverage_95": 0.945852535,
+      "n": 868,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 0.991120445
+    },
+    "eredivisie|defence": {
+      "coverage_68": 0.741935484,
+      "coverage_95": 0.958525346,
+      "n": 868,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 0.92426168
+    },
+    "la_liga|attack": {
+      "coverage_68": 0.703096539,
+      "coverage_95": 0.951730419,
+      "n": 1098,
+      "status": "OK",
+      "var_z": 1.013674337
+    },
+    "la_liga|defence": {
+      "coverage_68": 0.734972678,
+      "coverage_95": 0.959016393,
+      "n": 1098,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 0.930237822
+    },
+    "ligue_1|attack": {
+      "coverage_68": 0.717633929,
+      "coverage_95": 0.955357143,
+      "n": 896,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 0.967352321
+    },
+    "ligue_1|defence": {
+      "coverage_68": 0.75,
+      "coverage_95": 0.947544643,
+      "n": 896,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 0.912277321
+    },
+    "mls|attack": {
+      "coverage_68": 0.704423592,
+      "coverage_95": 0.94772118,
+      "n": 1492,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 1.048233182
+    },
+    "mls|defence": {
+      "coverage_68": 0.679624665,
+      "coverage_95": 0.950402145,
+      "n": 1492,
+      "status": "OK",
+      "var_z": 1.057373588
+    },
+    "premier_league|attack": {
+      "coverage_68": 0.70202952,
+      "coverage_95": 0.951107011,
+      "n": 1084,
+      "status": "OK",
+      "var_z": 0.978755302
+    },
+    "premier_league|defence": {
+      "coverage_68": 0.714944649,
+      "coverage_95": 0.962177122,
+      "n": 1084,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 0.896330511
+    },
+    "primeira_liga|attack": {
+      "coverage_68": 0.673469388,
+      "coverage_95": 0.945578231,
+      "n": 882,
+      "status": "OK",
+      "var_z": 1.090680521
+    },
+    "primeira_liga|defence": {
+      "coverage_68": 0.70861678,
+      "coverage_95": 0.953514739,
+      "n": 882,
+      "status": "OK",
+      "var_z": 1.015175241
+    },
+    "serie_a|attack": {
+      "coverage_68": 0.726860254,
+      "coverage_95": 0.956442831,
+      "n": 1102,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 0.960991825
+    },
+    "serie_a|defence": {
+      "coverage_68": 0.719600726,
+      "coverage_95": 0.953720508,
+      "n": 1102,
+      "status": "PATH_C_MISMATCH",
+      "var_z": 1.022366057
+    }
+  },
+  "protocol_commit": "3fca0384",
+  "schema_version": "w2.ev_se.drift_v2.evidence.v1"
+}

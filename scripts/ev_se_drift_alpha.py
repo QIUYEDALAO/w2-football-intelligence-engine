@@ -6,9 +6,9 @@ Never reads settled bet outcomes, profit, loss, or hit rate.
 
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+import random
+from dataclasses import dataclass
+from datetime import datetime
 
 # ---------------------------------------------------------------- frozen protocol
 SEED = 20260826
@@ -168,9 +168,6 @@ def slope_through_origin(stats: dict[str, tuple[float, float]], teams: list[str]
     return num / den
 
 
-import random
-
-
 def bootstrap_ci(
     stats: dict[str, tuple[float, float]],
     *,
@@ -180,7 +177,7 @@ def bootstrap_ci(
     teams = sorted(stats)
     if not teams:
         return None, None, []
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # noqa: S311 - statistical bootstrap, not crypto
     draws: list[float] = []
     n = len(teams)
     for _ in range(reps):
@@ -251,7 +248,7 @@ def linearity_gate(pairs: list[Pair], *, reps: int = BOOTSTRAP_REPS, seed: int =
     quad = _quad_team_stats(pairs)
     a_q, b_q = solve_quadratic(quad, teams)
 
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # noqa: S311 - statistical bootstrap, not crypto
     n = len(teams)
     draws = []
     for _ in range(reps):
@@ -264,7 +261,11 @@ def linearity_gate(pairs: list[Pair], *, reps: int = BOOTSTRAP_REPS, seed: int =
     b_hi = draws[min(int((1 + CI_LEVEL) / 2 * len(draws)), len(draws) - 1)] if draws else None
 
     bins = weighted_quantile_bins(pairs)
-    valid = [b for b in bins if len(b) >= MIN_PAIRS_PER_BIN and len({p.team for p in b}) >= MIN_TEAMS_PER_BIN]
+    valid = [
+        b
+        for b in bins
+        if len(b) >= MIN_PAIRS_PER_BIN and len({p.team for p in b}) >= MIN_TEAMS_PER_BIN
+    ]
     max_dev, bin_report = 0.0, []
     for b in valid:
         h_mid = sum(p.h for p in b) / len(b)
@@ -272,7 +273,10 @@ def linearity_gate(pairs: list[Pair], *, reps: int = BOOTSTRAP_REPS, seed: int =
         qua = (a_q * h_mid + b_q * h_mid * h_mid) if a_q is not None else 0.0
         dev = abs(qua - lin) / abs(lin) if lin else 0.0
         max_dev = max(max_dev, dev)
-        bin_report.append({"h_mid": h_mid, "pairs": len(b), "linear": lin, "quadratic": qua, "rel_dev": dev})
+        bin_report.append(
+            {"h_mid": h_mid, "pairs": len(b), "linear": lin,
+             "quadratic": qua, "rel_dev": dev}
+        )
 
     excludes_zero = b_lo is not None and b_hi is not None and not (b_lo <= 0.0 <= b_hi)
     nonlinear = excludes_zero and max_dev > CURVATURE_TOLERANCE
@@ -285,5 +289,9 @@ def linearity_gate(pairs: list[Pair], *, reps: int = BOOTSTRAP_REPS, seed: int =
         "valid_bins": len(valid),
         "max_relative_curvature_deviation": max_dev,
         "bins": bin_report,
-        "status": "NONLINEAR_DRIFT" if nonlinear else ("INSUFFICIENT_SUPPORT" if len(valid) < MIN_BINS else "LINEAR_OK"),
+        "status": (
+            "NONLINEAR_DRIFT"
+            if nonlinear
+            else ("INSUFFICIENT_SUPPORT" if len(valid) < MIN_BINS else "LINEAR_OK")
+        ),
     }
