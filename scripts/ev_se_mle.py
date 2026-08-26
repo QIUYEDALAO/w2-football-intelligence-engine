@@ -224,3 +224,29 @@ def profile_interval(
         else:
             a = mid
     return lo, (a + b) / 2.0
+
+
+def cluster_bootstrap(
+    series_list: list[list[tuple[float, float]]], *, reps: int = 200, seed: int = 20260826
+) -> tuple[float | None, float | None]:
+    """Robustness check beside the profile interval, not a replacement for it.
+
+    Protocol v3 section 3 fixes this at 200 reps and says so: 10,000 replications of
+    a full two-parameter MLE is not affordable, and a smaller bootstrap stated
+    plainly is worth more than a large one implied.
+    """
+    import random as _random
+
+    n = len(series_list)
+    if n == 0:
+        return None, None
+    rng = _random.Random(seed)  # noqa: S311 - statistical bootstrap, not crypto
+    draws: list[float] = []
+    for _ in range(reps):
+        sample = [series_list[rng.randrange(n)] for _ in range(n)]
+        sigma2, _tau2, _ll = fit_full(sample)
+        draws.append(sigma2)
+    draws.sort()
+    lo = draws[int(0.025 * len(draws))]
+    hi = draws[min(int(0.975 * len(draws)), len(draws) - 1)]
+    return lo, hi

@@ -1,0 +1,1905 @@
+{
+  "baseline_column_is_coefficient_free": "baseline z uses only SE0 and tau^2, so its trend across age strata is a fact about prediction error rather than a property of any fitted model",
+  "basis": "IN_SAMPLE_ESTIMATION_PERIOD",
+  "cells": {
+    "allsvenskan|attack": {
+      "alpha_used": 0.0008404081084513699,
+      "baseline_var_z_oldest_minus_youngest": 0.378601,
+      "by_age": [
+        {
+          "baseline_var_z": 1.205684,
+          "candidate_var_z": 1.064655,
+          "mean_age_days": 88.777,
+          "mean_coverage": 1.0,
+          "n": 30,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.301281,
+          "candidate_var_z": 1.138304,
+          "mean_age_days": 95.069,
+          "mean_coverage": 1.0,
+          "n": 30,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.45674,
+          "candidate_var_z": 1.266221,
+          "mean_age_days": 100.132,
+          "mean_coverage": 1.0,
+          "n": 30,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.584285,
+          "candidate_var_z": 1.361654,
+          "mean_age_days": 107.703,
+          "mean_coverage": 1.0,
+          "n": 33,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 0.735553,
+          "candidate_var_z": 0.637681,
+          "mean_age_days": 97.37,
+          "mean_coverage": 1.0,
+          "n": 30,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.873545,
+          "candidate_var_z": 1.63571,
+          "mean_age_days": 95.347,
+          "mean_coverage": 1.0,
+          "n": 30,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.94073,
+          "candidate_var_z": 1.693636,
+          "mean_age_days": 97.744,
+          "mean_coverage": 1.0,
+          "n": 30,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.051445,
+          "candidate_var_z": 0.909065,
+          "mean_age_days": 101.809,
+          "mean_coverage": 1.0,
+          "n": 33,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.5309320983983744
+    },
+    "allsvenskan|defence": {
+      "alpha_used": 0.0005483304318850744,
+      "baseline_var_z_oldest_minus_youngest": -0.014841,
+      "by_age": [
+        {
+          "baseline_var_z": 1.366327,
+          "candidate_var_z": 1.252248,
+          "mean_age_days": 88.777,
+          "mean_coverage": 1.0,
+          "n": 30,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.24808,
+          "candidate_var_z": 1.136826,
+          "mean_age_days": 95.069,
+          "mean_coverage": 1.0,
+          "n": 30,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.979392,
+          "candidate_var_z": 0.887246,
+          "mean_age_days": 100.132,
+          "mean_coverage": 1.0,
+          "n": 30,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.351486,
+          "candidate_var_z": 1.21387,
+          "mean_age_days": 107.703,
+          "mean_coverage": 1.0,
+          "n": 33,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 1.788109,
+          "candidate_var_z": 1.63139,
+          "mean_age_days": 97.37,
+          "mean_coverage": 1.0,
+          "n": 30,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.514705,
+          "candidate_var_z": 1.372329,
+          "mean_age_days": 95.347,
+          "mean_coverage": 1.0,
+          "n": 30,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.812027,
+          "candidate_var_z": 0.737803,
+          "mean_age_days": 97.744,
+          "mean_coverage": 1.0,
+          "n": 30,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.877812,
+          "candidate_var_z": 0.790958,
+          "mean_age_days": 101.809,
+          "mean_coverage": 1.0,
+          "n": 33,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.5023979269104382
+    },
+    "argentina_primera|attack": {
+      "alpha_used": 0.00023156899403654272,
+      "baseline_var_z_oldest_minus_youngest": -0.096799,
+      "by_age": [
+        {
+          "baseline_var_z": 1.19847,
+          "candidate_var_z": 1.147505,
+          "mean_age_days": 73.954,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.095415,
+          "candidate_var_z": 1.047107,
+          "mean_age_days": 76.984,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.132143,
+          "candidate_var_z": 1.079831,
+          "mean_age_days": 81.016,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.101671,
+          "candidate_var_z": 1.048247,
+          "mean_age_days": 85.037,
+          "mean_coverage": 1.0,
+          "n": 50,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 1.50528,
+          "candidate_var_z": 1.437834,
+          "mean_age_days": 79.642,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.981956,
+          "candidate_var_z": 0.937466,
+          "mean_age_days": 79.002,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.50458,
+          "candidate_var_z": 1.43592,
+          "mean_age_days": 79.253,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.558516,
+          "candidate_var_z": 0.532941,
+          "mean_age_days": 79.333,
+          "mean_coverage": 1.0,
+          "n": 50,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.3658817225487182
+    },
+    "argentina_primera|defence": {
+      "alpha_used": 7.085529193846553e-05,
+      "baseline_var_z_oldest_minus_youngest": -0.072525,
+      "by_age": [
+        {
+          "baseline_var_z": 1.137905,
+          "candidate_var_z": 1.122718,
+          "mean_age_days": 73.954,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.181273,
+          "candidate_var_z": 1.165125,
+          "mean_age_days": 76.984,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.087197,
+          "candidate_var_z": 1.071537,
+          "mean_age_days": 81.016,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.06538,
+          "candidate_var_z": 1.049142,
+          "mean_age_days": 85.037,
+          "mean_coverage": 1.0,
+          "n": 50,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 1.440188,
+          "candidate_var_z": 1.419979,
+          "mean_age_days": 79.642,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.759533,
+          "candidate_var_z": 0.748688,
+          "mean_age_days": 79.002,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.326565,
+          "candidate_var_z": 1.308087,
+          "mean_age_days": 79.253,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.950266,
+          "candidate_var_z": 0.936463,
+          "mean_age_days": 79.333,
+          "mean_coverage": 1.0,
+          "n": 50,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.37055433161713014
+    },
+    "brasileirao_serie_a|attack": {
+      "alpha_used": 0.00013052681734881675,
+      "baseline_var_z_oldest_minus_youngest": -0.123203,
+      "by_age": [
+        {
+          "baseline_var_z": 1.045758,
+          "candidate_var_z": 1.030297,
+          "mean_age_days": 57.262,
+          "mean_coverage": 1.0,
+          "n": 179,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.085673,
+          "candidate_var_z": 1.067277,
+          "mean_age_days": 65.851,
+          "mean_coverage": 1.0,
+          "n": 179,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.045991,
+          "candidate_var_z": 1.026076,
+          "mean_age_days": 73.611,
+          "mean_coverage": 1.0,
+          "n": 179,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.922555,
+          "candidate_var_z": 0.902872,
+          "mean_age_days": 82.939,
+          "mean_coverage": 1.0,
+          "n": 181,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 1.38918,
+          "candidate_var_z": 1.364654,
+          "mean_age_days": 69.503,
+          "mean_coverage": 1.0,
+          "n": 179,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.935465,
+          "candidate_var_z": 0.918547,
+          "mean_age_days": 70.881,
+          "mean_coverage": 1.0,
+          "n": 179,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.947864,
+          "candidate_var_z": 0.930734,
+          "mean_age_days": 69.98,
+          "mean_coverage": 1.0,
+          "n": 179,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.82852,
+          "candidate_var_z": 0.813586,
+          "mean_age_days": 69.451,
+          "mean_coverage": 1.0,
+          "n": 181,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.47372561609930947
+    },
+    "brasileirao_serie_a|defence": {
+      "alpha_used": 2.6176555216724103e-05,
+      "baseline_var_z_oldest_minus_youngest": -0.016955,
+      "by_age": [
+        {
+          "baseline_var_z": 1.104117,
+          "candidate_var_z": 1.100862,
+          "mean_age_days": 57.262,
+          "mean_coverage": 1.0,
+          "n": 179,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.20999,
+          "candidate_var_z": 1.205877,
+          "mean_age_days": 65.851,
+          "mean_coverage": 1.0,
+          "n": 179,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.908754,
+          "candidate_var_z": 0.905315,
+          "mean_age_days": 73.611,
+          "mean_coverage": 1.0,
+          "n": 179,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.087162,
+          "candidate_var_z": 1.0825,
+          "mean_age_days": 82.939,
+          "mean_coverage": 1.0,
+          "n": 181,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 0.911664,
+          "candidate_var_z": 0.908382,
+          "mean_age_days": 69.503,
+          "mean_coverage": 1.0,
+          "n": 179,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.975157,
+          "candidate_var_z": 0.971691,
+          "mean_age_days": 70.881,
+          "mean_coverage": 1.0,
+          "n": 179,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.024391,
+          "candidate_var_z": 1.020637,
+          "mean_age_days": 69.98,
+          "mean_coverage": 1.0,
+          "n": 179,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.395367,
+          "candidate_var_z": 1.390403,
+          "mean_age_days": 69.451,
+          "mean_coverage": 1.0,
+          "n": 181,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.48093366875283544
+    },
+    "bundesliga|attack": {
+      "alpha_used": 0.0,
+      "baseline_var_z_oldest_minus_youngest": 0.351829,
+      "by_age": [
+        {
+          "baseline_var_z": 0.730994,
+          "candidate_var_z": 0.730994,
+          "mean_age_days": 78.564,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.015838,
+          "candidate_var_z": 1.015838,
+          "mean_age_days": 80.177,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.930543,
+          "candidate_var_z": 0.930543,
+          "mean_age_days": 82.054,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.082823,
+          "candidate_var_z": 1.082823,
+          "mean_age_days": 84.085,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 0.949259,
+          "candidate_var_z": 0.949259,
+          "mean_age_days": 81.213,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.966569,
+          "candidate_var_z": 0.966569,
+          "mean_age_days": 81.175,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.1279,
+          "candidate_var_z": 1.1279,
+          "mean_age_days": 81.297,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.716472,
+          "candidate_var_z": 0.716472,
+          "mean_age_days": 81.194,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.5977897375510204
+    },
+    "bundesliga|defence": {
+      "alpha_used": 0.0,
+      "baseline_var_z_oldest_minus_youngest": 0.383624,
+      "by_age": [
+        {
+          "baseline_var_z": 0.750183,
+          "candidate_var_z": 0.750183,
+          "mean_age_days": 78.564,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.863164,
+          "candidate_var_z": 0.863164,
+          "mean_age_days": 80.177,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.994827,
+          "candidate_var_z": 0.994827,
+          "mean_age_days": 82.054,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.133807,
+          "candidate_var_z": 1.133807,
+          "mean_age_days": 84.085,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 0.779703,
+          "candidate_var_z": 0.779703,
+          "mean_age_days": 81.213,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.843298,
+          "candidate_var_z": 0.843298,
+          "mean_age_days": 81.175,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.056499,
+          "candidate_var_z": 1.056499,
+          "mean_age_days": 81.297,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.06248,
+          "candidate_var_z": 1.06248,
+          "mean_age_days": 81.194,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.6654447631715653
+    },
+    "chinese_super_league|attack": {
+      "alpha_used": 7.696438029580638e-05,
+      "baseline_var_z_oldest_minus_youngest": 0.536174,
+      "by_age": [
+        {
+          "baseline_var_z": 0.951804,
+          "candidate_var_z": 0.942608,
+          "mean_age_days": 95.49,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.188322,
+          "candidate_var_z": 1.175953,
+          "mean_age_days": 104.93,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.836561,
+          "candidate_var_z": 0.827243,
+          "mean_age_days": 112.251,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.487978,
+          "candidate_var_z": 1.469937,
+          "mean_age_days": 123.098,
+          "mean_coverage": 1.0,
+          "n": 50,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 0.791116,
+          "candidate_var_z": 0.781647,
+          "mean_age_days": 114.602,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.863785,
+          "candidate_var_z": 0.854491,
+          "mean_age_days": 108.137,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.240271,
+          "candidate_var_z": 1.227199,
+          "mean_age_days": 105.917,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.566233,
+          "candidate_var_z": 1.549106,
+          "mean_age_days": 107.753,
+          "mean_coverage": 1.0,
+          "n": 50,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.7287933705449191
+    },
+    "chinese_super_league|defence": {
+      "alpha_used": 0.0,
+      "baseline_var_z_oldest_minus_youngest": 0.313535,
+      "by_age": [
+        {
+          "baseline_var_z": 0.742059,
+          "candidate_var_z": 0.742059,
+          "mean_age_days": 95.49,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.342396,
+          "candidate_var_z": 1.342396,
+          "mean_age_days": 104.93,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.06376,
+          "candidate_var_z": 1.06376,
+          "mean_age_days": 112.251,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.055594,
+          "candidate_var_z": 1.055594,
+          "mean_age_days": 123.098,
+          "mean_coverage": 1.0,
+          "n": 50,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 1.226572,
+          "candidate_var_z": 1.226572,
+          "mean_age_days": 114.602,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.931165,
+          "candidate_var_z": 0.931165,
+          "mean_age_days": 108.137,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.024381,
+          "candidate_var_z": 1.024381,
+          "mean_age_days": 105.917,
+          "mean_coverage": 1.0,
+          "n": 48,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.023048,
+          "candidate_var_z": 1.023048,
+          "mean_age_days": 107.753,
+          "mean_coverage": 1.0,
+          "n": 50,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.8319862575885042
+    },
+    "eliteserien|attack": {
+      "alpha_used": 0.0,
+      "baseline_var_z_oldest_minus_youngest": -0.318451,
+      "by_age": [
+        {
+          "baseline_var_z": 1.216458,
+          "candidate_var_z": 1.216458,
+          "mean_age_days": 87.602,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.338008,
+          "candidate_var_z": 1.338008,
+          "mean_age_days": 93.669,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.874982,
+          "candidate_var_z": 0.874982,
+          "mean_age_days": 101.938,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.898007,
+          "candidate_var_z": 0.898007,
+          "mean_age_days": 113.579,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 1.034773,
+          "candidate_var_z": 1.034773,
+          "mean_age_days": 97.476,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.082719,
+          "candidate_var_z": 1.082719,
+          "mean_age_days": 99.259,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.126163,
+          "candidate_var_z": 1.126163,
+          "mean_age_days": 99.5,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.0838,
+          "candidate_var_z": 1.0838,
+          "mean_age_days": 100.552,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.6875146395133204
+    },
+    "eliteserien|defence": {
+      "alpha_used": 0.0,
+      "baseline_var_z_oldest_minus_youngest": -0.080547,
+      "by_age": [
+        {
+          "baseline_var_z": 1.092766,
+          "candidate_var_z": 1.092766,
+          "mean_age_days": 87.602,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.464123,
+          "candidate_var_z": 1.464123,
+          "mean_age_days": 93.669,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.177695,
+          "candidate_var_z": 1.177695,
+          "mean_age_days": 101.938,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.012219,
+          "candidate_var_z": 1.012219,
+          "mean_age_days": 113.579,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 1.061897,
+          "candidate_var_z": 1.061897,
+          "mean_age_days": 97.476,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.989853,
+          "candidate_var_z": 0.989853,
+          "mean_age_days": 99.259,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.437158,
+          "candidate_var_z": 1.437158,
+          "mean_age_days": 99.5,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.257895,
+          "candidate_var_z": 1.257895,
+          "mean_age_days": 100.552,
+          "mean_coverage": 1.0,
+          "n": 56,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.6894237823538034
+    },
+    "eredivisie|attack": {
+      "alpha_used": 0.0,
+      "baseline_var_z_oldest_minus_youngest": -0.398435,
+      "by_age": [
+        {
+          "baseline_var_z": 1.220479,
+          "candidate_var_z": 1.220479,
+          "mean_age_days": 85.346,
+          "mean_coverage": 1.0,
+          "n": 64,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.795346,
+          "candidate_var_z": 0.795346,
+          "mean_age_days": 91.297,
+          "mean_coverage": 1.0,
+          "n": 64,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.160682,
+          "candidate_var_z": 1.160682,
+          "mean_age_days": 93.554,
+          "mean_coverage": 1.0,
+          "n": 64,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.822044,
+          "candidate_var_z": 0.822044,
+          "mean_age_days": 97.332,
+          "mean_coverage": 1.0,
+          "n": 66,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 0.803214,
+          "candidate_var_z": 0.803214,
+          "mean_age_days": 92.393,
+          "mean_coverage": 1.0,
+          "n": 64,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.007289,
+          "candidate_var_z": 1.007289,
+          "mean_age_days": 91.339,
+          "mean_coverage": 1.0,
+          "n": 64,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.159796,
+          "candidate_var_z": 1.159796,
+          "mean_age_days": 91.984,
+          "mean_coverage": 1.0,
+          "n": 64,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.022005,
+          "candidate_var_z": 1.022005,
+          "mean_age_days": 91.979,
+          "mean_coverage": 1.0,
+          "n": 66,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.6339597098236994
+    },
+    "eredivisie|defence": {
+      "alpha_used": 0.0001650725181143131,
+      "baseline_var_z_oldest_minus_youngest": -0.391628,
+      "by_age": [
+        {
+          "baseline_var_z": 1.121689,
+          "candidate_var_z": 1.100085,
+          "mean_age_days": 85.346,
+          "mean_coverage": 1.0,
+          "n": 64,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.213133,
+          "candidate_var_z": 1.187788,
+          "mean_age_days": 91.297,
+          "mean_coverage": 1.0,
+          "n": 64,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.714202,
+          "candidate_var_z": 0.698963,
+          "mean_age_days": 93.554,
+          "mean_coverage": 1.0,
+          "n": 64,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.730061,
+          "candidate_var_z": 0.71387,
+          "mean_age_days": 97.332,
+          "mean_coverage": 1.0,
+          "n": 66,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 0.615001,
+          "candidate_var_z": 0.601877,
+          "mean_age_days": 92.393,
+          "mean_coverage": 1.0,
+          "n": 64,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.94,
+          "candidate_var_z": 0.920609,
+          "mean_age_days": 91.339,
+          "mean_coverage": 1.0,
+          "n": 64,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.874943,
+          "candidate_var_z": 0.856957,
+          "mean_age_days": 91.984,
+          "mean_coverage": 1.0,
+          "n": 64,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.330382,
+          "candidate_var_z": 1.302858,
+          "mean_age_days": 91.979,
+          "mean_coverage": 1.0,
+          "n": 66,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.6754888940198042
+    },
+    "la_liga|attack": {
+      "alpha_used": 0.0,
+      "baseline_var_z_oldest_minus_youngest": 0.129756,
+      "by_age": [
+        {
+          "baseline_var_z": 0.977223,
+          "candidate_var_z": 0.977223,
+          "mean_age_days": 75.571,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.893793,
+          "candidate_var_z": 0.893793,
+          "mean_age_days": 83.523,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.943058,
+          "candidate_var_z": 0.943058,
+          "mean_age_days": 87.343,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.106979,
+          "candidate_var_z": 1.106979,
+          "mean_age_days": 91.263,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 1.53962,
+          "candidate_var_z": 1.53962,
+          "mean_age_days": 84.405,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.81526,
+          "candidate_var_z": 0.81526,
+          "mean_age_days": 84.423,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.715363,
+          "candidate_var_z": 0.715363,
+          "mean_age_days": 84.223,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.850811,
+          "candidate_var_z": 0.850811,
+          "mean_age_days": 84.648,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.5485615982214461
+    },
+    "la_liga|defence": {
+      "alpha_used": 0.0,
+      "baseline_var_z_oldest_minus_youngest": -0.184315,
+      "by_age": [
+        {
+          "baseline_var_z": 0.955011,
+          "candidate_var_z": 0.955011,
+          "mean_age_days": 75.571,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.148456,
+          "candidate_var_z": 1.148456,
+          "mean_age_days": 83.523,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.928926,
+          "candidate_var_z": 0.928926,
+          "mean_age_days": 87.343,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.770696,
+          "candidate_var_z": 0.770696,
+          "mean_age_days": 91.263,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 0.954446,
+          "candidate_var_z": 0.954446,
+          "mean_age_days": 84.405,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.658123,
+          "candidate_var_z": 0.658123,
+          "mean_age_days": 84.423,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.156588,
+          "candidate_var_z": 1.156588,
+          "mean_age_days": 84.223,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.033932,
+          "candidate_var_z": 1.033932,
+          "mean_age_days": 84.648,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.6540835263192566
+    },
+    "ligue_1|attack": {
+      "alpha_used": 0.0,
+      "baseline_var_z_oldest_minus_youngest": 0.351657,
+      "by_age": [
+        {
+          "baseline_var_z": 1.100024,
+          "candidate_var_z": 1.100024,
+          "mean_age_days": 80.617,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.854571,
+          "candidate_var_z": 0.854571,
+          "mean_age_days": 84.205,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.176886,
+          "candidate_var_z": 1.176886,
+          "mean_age_days": 86.759,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.451681,
+          "candidate_var_z": 1.451681,
+          "mean_age_days": 90.005,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 0.902466,
+          "candidate_var_z": 0.902466,
+          "mean_age_days": 85.617,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.553707,
+          "candidate_var_z": 1.553707,
+          "mean_age_days": 85.066,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.063972,
+          "candidate_var_z": 1.063972,
+          "mean_age_days": 85.874,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.063016,
+          "candidate_var_z": 1.063016,
+          "mean_age_days": 85.029,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.7477487329409049
+    },
+    "ligue_1|defence": {
+      "alpha_used": 0.0,
+      "baseline_var_z_oldest_minus_youngest": 0.537988,
+      "by_age": [
+        {
+          "baseline_var_z": 1.086093,
+          "candidate_var_z": 1.086093,
+          "mean_age_days": 80.617,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.226712,
+          "candidate_var_z": 1.226712,
+          "mean_age_days": 84.205,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.650356,
+          "candidate_var_z": 0.650356,
+          "mean_age_days": 86.759,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.624081,
+          "candidate_var_z": 1.624081,
+          "mean_age_days": 90.005,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 1.627016,
+          "candidate_var_z": 1.627016,
+          "mean_age_days": 85.617,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.948978,
+          "candidate_var_z": 0.948978,
+          "mean_age_days": 85.066,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.958814,
+          "candidate_var_z": 0.958814,
+          "mean_age_days": 85.874,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.052432,
+          "candidate_var_z": 1.052432,
+          "mean_age_days": 85.029,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.8005542704264433
+    },
+    "mls|attack": {
+      "alpha_used": 0.0001122351784772889,
+      "baseline_var_z_oldest_minus_youngest": 0.127857,
+      "by_age": [
+        {
+          "baseline_var_z": 1.017984,
+          "candidate_var_z": 1.007045,
+          "mean_age_days": 62.998,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.98385,
+          "candidate_var_z": 0.971432,
+          "mean_age_days": 74.584,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.855485,
+          "candidate_var_z": 0.843631,
+          "mean_age_days": 81.602,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.145841,
+          "candidate_var_z": 1.128774,
+          "mean_age_days": 88.2,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 0.882648,
+          "candidate_var_z": 0.871303,
+          "mean_age_days": 76.602,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.114938,
+          "candidate_var_z": 1.100232,
+          "mean_age_days": 77.193,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.000622,
+          "candidate_var_z": 0.987855,
+          "mean_age_days": 76.189,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.004952,
+          "candidate_var_z": 0.991493,
+          "mean_age_days": 77.399,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.6217870551868769
+    },
+    "mls|defence": {
+      "alpha_used": 3.32525581314411e-05,
+      "baseline_var_z_oldest_minus_youngest": -0.012828,
+      "by_age": [
+        {
+          "baseline_var_z": 0.985943,
+          "candidate_var_z": 0.982881,
+          "mean_age_days": 62.998,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.940084,
+          "candidate_var_z": 0.936615,
+          "mean_age_days": 74.584,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.085669,
+          "candidate_var_z": 1.0813,
+          "mean_age_days": 81.602,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.973115,
+          "candidate_var_z": 0.968882,
+          "mean_age_days": 88.2,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 1.083347,
+          "candidate_var_z": 1.079276,
+          "mean_age_days": 76.602,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.975573,
+          "candidate_var_z": 0.971797,
+          "mean_age_days": 77.193,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.010648,
+          "candidate_var_z": 1.006828,
+          "mean_age_days": 76.189,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.915243,
+          "candidate_var_z": 0.911778,
+          "mean_age_days": 77.399,
+          "mean_coverage": 1.0,
+          "n": 236,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.6406575152087254
+    },
+    "premier_league|attack": {
+      "alpha_used": 0.00015769876874906463,
+      "baseline_var_z_oldest_minus_youngest": -0.141111,
+      "by_age": [
+        {
+          "baseline_var_z": 0.989834,
+          "candidate_var_z": 0.972834,
+          "mean_age_days": 69.665,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.993865,
+          "candidate_var_z": 0.975341,
+          "mean_age_days": 74.826,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.929502,
+          "candidate_var_z": 0.911103,
+          "mean_age_days": 79.674,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.848723,
+          "candidate_var_z": 0.831329,
+          "mean_age_days": 82.815,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 0.952242,
+          "candidate_var_z": 0.933948,
+          "mean_age_days": 77.056,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.709923,
+          "candidate_var_z": 0.696726,
+          "mean_age_days": 76.166,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.065443,
+          "candidate_var_z": 1.045038,
+          "mean_age_days": 76.818,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.034316,
+          "candidate_var_z": 1.014894,
+          "mean_age_days": 76.941,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.5919883148843391
+    },
+    "premier_league|defence": {
+      "alpha_used": 0.0001127987888109935,
+      "baseline_var_z_oldest_minus_youngest": 0.082201,
+      "by_age": [
+        {
+          "baseline_var_z": 0.94813,
+          "candidate_var_z": 0.936987,
+          "mean_age_days": 69.665,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.843747,
+          "candidate_var_z": 0.833109,
+          "mean_age_days": 74.826,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.91889,
+          "candidate_var_z": 0.906338,
+          "mean_age_days": 79.674,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.030331,
+          "candidate_var_z": 1.015876,
+          "mean_age_days": 82.815,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 0.825137,
+          "candidate_var_z": 0.814236,
+          "mean_age_days": 77.056,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.988904,
+          "candidate_var_z": 0.975965,
+          "mean_age_days": 76.166,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.839415,
+          "candidate_var_z": 0.828508,
+          "mean_age_days": 76.818,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.087643,
+          "candidate_var_z": 1.0736,
+          "mean_age_days": 76.941,
+          "mean_coverage": 1.0,
+          "n": 90,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.6221133480979251
+    },
+    "primeira_liga|attack": {
+      "alpha_used": 0.0007744199590927304,
+      "baseline_var_z_oldest_minus_youngest": -0.299009,
+      "by_age": [
+        {
+          "baseline_var_z": 1.097892,
+          "candidate_var_z": 0.986149,
+          "mean_age_days": 79.618,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.023911,
+          "candidate_var_z": 0.915495,
+          "mean_age_days": 83.269,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.32766,
+          "candidate_var_z": 1.181805,
+          "mean_age_days": 87.265,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.798883,
+          "candidate_var_z": 0.707086,
+          "mean_age_days": 91.949,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 1.275056,
+          "candidate_var_z": 1.139054,
+          "mean_age_days": 85.625,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.810241,
+          "candidate_var_z": 0.723162,
+          "mean_age_days": 84.633,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.236197,
+          "candidate_var_z": 1.103831,
+          "mean_age_days": 86.229,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.926852,
+          "candidate_var_z": 0.824488,
+          "mean_age_days": 85.614,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.5134449038593818
+    },
+    "primeira_liga|defence": {
+      "alpha_used": 7.314580786928757e-05,
+      "baseline_var_z_oldest_minus_youngest": 0.095054,
+      "by_age": [
+        {
+          "baseline_var_z": 1.091065,
+          "candidate_var_z": 1.081055,
+          "mean_age_days": 79.618,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.18873,
+          "candidate_var_z": 1.177615,
+          "mean_age_days": 83.269,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.854609,
+          "candidate_var_z": 0.846167,
+          "mean_age_days": 87.265,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 1.186119,
+          "candidate_var_z": 1.173699,
+          "mean_age_days": 91.949,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 0.814204,
+          "candidate_var_z": 0.806159,
+          "mean_age_days": 85.625,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.439368,
+          "candidate_var_z": 1.425349,
+          "mean_age_days": 84.633,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.893275,
+          "candidate_var_z": 0.88458,
+          "mean_age_days": 86.229,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 1.173675,
+          "candidate_var_z": 1.162447,
+          "mean_age_days": 85.614,
+          "mean_coverage": 1.0,
+          "n": 63,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.6035757869005431
+    },
+    "serie_a|attack": {
+      "alpha_used": 0.0,
+      "baseline_var_z_oldest_minus_youngest": -0.318695,
+      "by_age": [
+        {
+          "baseline_var_z": 0.980533,
+          "candidate_var_z": 0.980533,
+          "mean_age_days": 73.843,
+          "mean_coverage": 1.0,
+          "n": 89,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.954319,
+          "candidate_var_z": 0.954319,
+          "mean_age_days": 76.292,
+          "mean_coverage": 1.0,
+          "n": 89,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.815136,
+          "candidate_var_z": 0.815136,
+          "mean_age_days": 78.389,
+          "mean_coverage": 1.0,
+          "n": 89,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.661838,
+          "candidate_var_z": 0.661838,
+          "mean_age_days": 80.88,
+          "mean_coverage": 1.0,
+          "n": 91,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 1.004914,
+          "candidate_var_z": 1.004914,
+          "mean_age_days": 76.962,
+          "mean_coverage": 1.0,
+          "n": 89,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.964391,
+          "candidate_var_z": 0.964391,
+          "mean_age_days": 77.443,
+          "mean_coverage": 1.0,
+          "n": 89,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.837297,
+          "candidate_var_z": 0.837297,
+          "mean_age_days": 77.666,
+          "mean_coverage": 1.0,
+          "n": 89,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.606468,
+          "candidate_var_z": 0.606468,
+          "mean_age_days": 77.41,
+          "mean_coverage": 1.0,
+          "n": 91,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.46249611237924865
+    },
+    "serie_a|defence": {
+      "alpha_used": 0.00032570444670106433,
+      "baseline_var_z_oldest_minus_youngest": -0.311124,
+      "by_age": [
+        {
+          "baseline_var_z": 1.143453,
+          "candidate_var_z": 1.092245,
+          "mean_age_days": 73.843,
+          "mean_coverage": 1.0,
+          "n": 89,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.941535,
+          "candidate_var_z": 0.897642,
+          "mean_age_days": 76.292,
+          "mean_coverage": 1.0,
+          "n": 89,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.938261,
+          "candidate_var_z": 0.893447,
+          "mean_age_days": 78.389,
+          "mean_coverage": 1.0,
+          "n": 89,
+          "stratified_by": "age"
+        },
+        {
+          "baseline_var_z": 0.832329,
+          "candidate_var_z": 0.791368,
+          "mean_age_days": 80.88,
+          "mean_coverage": 1.0,
+          "n": 91,
+          "stratified_by": "age"
+        }
+      ],
+      "by_coverage": [
+        {
+          "baseline_var_z": 0.924051,
+          "candidate_var_z": 0.880817,
+          "mean_age_days": 76.962,
+          "mean_coverage": 1.0,
+          "n": 89,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.96014,
+          "candidate_var_z": 0.915331,
+          "mean_age_days": 77.443,
+          "mean_coverage": 1.0,
+          "n": 89,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.976898,
+          "candidate_var_z": 0.930132,
+          "mean_age_days": 77.666,
+          "mean_coverage": 1.0,
+          "n": 89,
+          "stratified_by": "coverage"
+        },
+        {
+          "baseline_var_z": 0.990924,
+          "candidate_var_z": 0.94497,
+          "mean_age_days": 77.41,
+          "mean_coverage": 1.0,
+          "n": 91,
+          "stratified_by": "coverage"
+        }
+      ],
+      "tau2_used": 0.4838974813758861
+    }
+  },
+  "not_a_holdout": "path C is not identifiable, so no out-of-sample calibration exists; the candidate column is circular because alpha comes from this data"
+}

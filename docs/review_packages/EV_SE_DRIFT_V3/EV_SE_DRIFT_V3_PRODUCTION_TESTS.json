@@ -1,0 +1,36 @@
+{
+  "bound_to": [
+    "w2.prematch.analysis_calculator.ReadModelService._empirical_xg_lambda_uncertainty",
+    "w2.strategy.simulate.ah_expected_value_uncertainty_from_lambdas"
+  ],
+  "mutants_rejected": {
+    "age_reset_on_season_switch": [
+      "age_term_inert"
+    ],
+    "constant_inflation_at_baseline": [
+      "fresh_complete_baseline"
+    ],
+    "fail_open_without_denominator": [
+      "no_evidence_fail_closed"
+    ],
+    "inverted_coverage_sign": [
+      "coverage_monotonicity"
+    ],
+    "negative_age_coefficient": [
+      "candidate_unavailable_on_valid_inputs"
+    ]
+  },
+  "mutants_survived": [],
+  "positive_invariants": "PASS",
+  "production_as_shipped": {
+    "age_changes_sigma": false,
+    "ev_se_fresh": 0.028653,
+    "ev_se_stale_400d": 0.028653,
+    "fails_closed_under_three": true,
+    "five_observations_sigma_home": 0.088741,
+    "fresh_sigma_home": 0.076399,
+    "stale_400d_sigma_home": 0.076399,
+    "two_observations_status": "XG_UNCERTAINTY_SAMPLE_INSUFFICIENT"
+  },
+  "production_as_shipped_invariants": "PASS"
+}

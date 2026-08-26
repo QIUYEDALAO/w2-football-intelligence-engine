@@ -108,6 +108,7 @@ def estimate(cells: dict[str, dict[str, list]]) -> dict[str, dict[str, object]]:
         _tau0, ll_null = M.fit_restricted(series)
         pvalue = M.lrt_pvalue(ll_full, ll_null)
         ci_lo, ci_hi = M.profile_interval(series, sigma2, ll_full)
+        boot_lo, boot_hi = M.cluster_bootstrap(series)
 
         stats = V.team_stats(pairs)
         v_intercept, v_slope = V.solve(stats, sorted(stats))
@@ -143,6 +144,7 @@ def estimate(cells: dict[str, dict[str, list]]) -> dict[str, dict[str, object]]:
                 "lr_statistic": _round(2.0 * (ll_full - ll_null), 6),
                 "p_value_boundary_mixture": _round(pvalue, 9),
                 "profile_ci": [_round(ci_lo, 12), _round(ci_hi, 12)],
+                "cluster_bootstrap_ci_200reps": [_round(boot_lo, 12), _round(boot_hi, 12)],
             },
             "variogram_comparator": {
                 "alpha_abs": _round(v_slope, 12),

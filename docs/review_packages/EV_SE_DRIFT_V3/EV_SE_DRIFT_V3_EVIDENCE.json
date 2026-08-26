@@ -11,6 +11,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.000173422932,
+          0.001779178022
+        ],
         "loglik_full": -868.241684,
         "loglik_null": -872.741144,
         "lr_statistic": 8.99892,
@@ -46,6 +50,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.001514469918
+        ],
         "loglik_full": -843.208886,
         "loglik_null": -845.907149,
         "lr_statistic": 5.396527,
@@ -81,6 +89,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.000880886997
+        ],
         "loglik_full": -1205.220543,
         "loglik_null": -1206.229943,
         "lr_statistic": 2.018799,
@@ -116,6 +128,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.000355415068
+        ],
         "loglik_full": -1204.917578,
         "loglik_null": -1205.045971,
         "lr_statistic": 0.256786,
@@ -151,6 +167,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.000520949019
+        ],
         "loglik_full": -1626.024368,
         "loglik_null": -1626.558033,
         "lr_statistic": 1.067329,
@@ -186,6 +206,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.000202330242
+        ],
         "loglik_full": -1630.687353,
         "loglik_null": -1630.715354,
         "lr_statistic": 0.056004,
@@ -221,6 +245,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.000402942696
+        ],
         "loglik_full": -1038.891335,
         "loglik_null": -1038.891335,
         "lr_statistic": 0.0,
@@ -256,6 +284,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.00053066639
+        ],
         "loglik_full": -1084.243939,
         "loglik_null": -1084.243939,
         "lr_statistic": 0.0,
@@ -291,6 +323,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.000726564723
+        ],
         "loglik_full": -1065.093149,
         "loglik_null": -1065.135781,
         "lr_statistic": 0.085263,
@@ -326,6 +362,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.0
+        ],
         "loglik_full": -1116.373916,
         "loglik_null": -1116.373916,
         "lr_statistic": 0.0,
@@ -361,6 +401,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          8.1093736e-05
+        ],
         "loglik_full": -1077.35188,
         "loglik_null": -1077.35188,
         "lr_statistic": 0.0,
@@ -396,6 +440,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.000469281851
+        ],
         "loglik_full": -1078.505458,
         "loglik_null": -1078.505458,
         "lr_statistic": 0.0,
@@ -431,6 +479,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.00047778557
+        ],
         "loglik_full": -1112.535157,
         "loglik_null": -1112.535157,
         "lr_statistic": 0.0,
@@ -466,6 +518,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.00067509969
+        ],
         "loglik_full": -1145.005306,
         "loglik_null": -1145.256608,
         "lr_statistic": 0.502603,
@@ -501,6 +557,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          6.8971022e-05
+        ],
         "loglik_full": -1252.832431,
         "loglik_null": -1252.832431,
         "lr_statistic": 0.0,
@@ -536,6 +596,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.00026177609
+        ],
         "loglik_full": -1346.254175,
         "loglik_null": -1346.254175,
         "lr_statistic": 0.0,
@@ -571,6 +635,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.0
+        ],
         "loglik_full": -1157.076102,
         "loglik_null": -1157.076102,
         "lr_statistic": 0.0,
@@ -606,6 +674,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.0
+        ],
         "loglik_full": -1186.554621,
         "loglik_null": -1186.554621,
         "lr_statistic": 0.0,
@@ -641,6 +713,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.000398791306
+        ],
         "loglik_full": -2552.969159,
         "loglik_null": -2553.353679,
         "lr_statistic": 0.76904,
@@ -676,6 +752,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.000237893024
+        ],
         "loglik_full": -2578.370674,
         "loglik_null": -2578.409593,
         "lr_statistic": 0.077838,
@@ -711,6 +791,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.000476435469
+        ],
         "loglik_full": -1334.328764,
         "loglik_null": -1334.760316,
         "lr_statistic": 0.863103,
@@ -746,6 +830,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.000399325226
+        ],
         "loglik_full": -1359.786929,
         "loglik_null": -1359.976216,
         "lr_statistic": 0.378573,
@@ -781,6 +869,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.000259471661,
+          0.001572827331
+        ],
         "loglik_full": -1011.519214,
         "loglik_null": -1018.688959,
         "lr_statistic": 14.339489,
@@ -816,6 +908,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.000297236051
+        ],
         "loglik_full": -1061.954324,
         "loglik_null": -1062.047853,
         "lr_statistic": 0.187059,
@@ -851,6 +947,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          3.1914068e-05
+        ],
         "loglik_full": -1149.487782,
         "loglik_null": -1149.487782,
         "lr_statistic": 0.0,
@@ -886,6 +986,10 @@
         "valid_bins": 5
       },
       "mle": {
+        "cluster_bootstrap_ci_200reps": [
+          0.0,
+          0.000930981206
+        ],
         "loglik_full": -1185.615435,
         "loglik_null": -1187.501182,
         "lr_statistic": 3.771492,
