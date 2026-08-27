@@ -40,8 +40,10 @@ summing to `1.0`. Not `display`: `workspace.py` already renders `BASELINE_PRIOR`
 The probability itself is unvalidated rather than wrong-given-its-inputs:
 `CALIBRATION_STATUS = "BASELINE_PRIOR"` is a hardcoded constant over hand-set
 weights (`home_advantage_goals=0.12`, `elo_gap_weight=0.28`, …) that were never
-fitted. At `1.92` the market implies `52.08%` including vig, so the model sat
-**22.7 points** above it — the shape of an uncalibrated probability, not an edge.
+fitted. The record's own devigged market probability is `0.500000` (model
+`0.748131` minus the recorded delta `0.248131`), so the model sat **24.8 points**
+above the market the system itself computed — the shape of an uncalibrated
+probability, not an edge.
 
 ## 2. Independent defects, each with its own class
 
@@ -119,7 +121,7 @@ moved, the arithmetic did not.
 
 ## 5. Regression tests
 
-`tests/unit/test_point_ev_calibration_authority.py`, 29 tests, all passing.
+`tests/unit/test_point_ev_calibration_authority.py`, 29 tests, all passing. R1 and R2 add `tests/unit/test_point_ev_calibration_identity.py`, 35 tests.
 
 | requirement | tests |
 |---|---|
@@ -133,14 +135,14 @@ moved, the arithmetic did not.
 
 | check | result |
 |---|---|
-| `pytest tests/` | **2,865 passed**, 6 failed, 9 skipped |
+| `pytest tests/` | **2,900 passed**, 6 failed, 9 skipped |
 | the 6 failures | **pre-existing and environmental** — identical set before and after the change; docker socket unavailable and `python` not on PATH |
 | `ruff check .` | All checks passed |
 | `mypy src apps` | Success, no issues in 289 source files |
-| new regression suite | 29 passed |
+| new regression suites | 64 passed (29 + 35) |
 
 The baseline comparison was run by stashing the change and diffing the failure sets;
-they match exactly. 2,836 passed before, 2,865 after — the difference is the 29 new
+they match exactly. 2,836 passed before, 2,900 after — the difference is the 64 new
 tests.
 
 Two repository contracts were updated because they track reality and reality moved:
@@ -301,7 +303,7 @@ reach the database payload without further plumbing:
 
 ## 14. R1 regression tests
 
-`tests/unit/test_point_ev_calibration_identity.py`, 30 tests, plus the 29 from R0
+`tests/unit/test_point_ev_calibration_identity.py`, 35 tests, plus the 29 from R0
 with the vacuous one replaced by a direct assertion on a denominator-scoped
 evaluation.
 
@@ -316,12 +318,69 @@ evaluation.
 | (g) no vacuous assertions | the R0 one is replaced; no `is None or` remains outside prose |
 | (h) EV_SE distinguished from EV−SE, and devig from raw implied | 2 |
 
-**Results after R1**: `2,895 passed`, 6 failed, 9 skipped. The 6 are the same
+**Results after R2**: `2,900 passed`, 6 failed, 9 skipped. The 6 are the same
 environmental failures present at `fc70b48e`. `ruff check .` passes; `mypy src apps`
 reports no issues in 289 files. The package matrix caller counts were updated again
 for the new test file.
 
-## 15. Authorisation
+## 15. R2 — closing the round-trip
+
+Four findings, all reproduced before anything changed.
+
+**R2-1 `binding`, and mine again.** `_version_from_payload` enumerates fields
+explicitly and I never added the four calibration ones, so every reconstruction
+from a persisted payload returned them as `None`. Reproduced directly: append the
+same evaluation twice, and the second call — the existing-record path used by both
+duplicate writes and integrity conflicts — hands back an object whose calibration
+audit is blank. The record on disk was right; the object rebuilt from it was not.
+
+**Compatibility, and what a legacy row must reconstruct as.** Rows written before
+this authority carry none of these keys. Two rules:
+
+- it must **never** rebuild as validated. `recommendation_admissible` is recomputed
+  from the status rather than read from the stored boolean, so a record cannot
+  carry its own permission forward across a change in what counts as validated;
+- it must stay **distinguishable** from a record that ran under the authority and
+  declared nothing. That is the same objection R1-3 raised about `ABSENT` versus
+  `BASELINE_PRIOR`, and it applies again one level up.
+
+So a legacy payload rebuilds as `UNRECORDED` with `calibration_authority = None`.
+The missing authority stamp is the signal: `ABSENT` means the authority ran and
+nothing was declared, `UNRECORDED` means no authority ever looked. Back-stamping a
+legacy row with the current authority version would have destroyed exactly that.
+
+**R2-2.** The R1 tests read `row.payload` as JSON, which never exercises
+reconstruction. They now go through the repository API and assert on the rebuilt
+`DynamicEvaluationVersion`, covering declared-but-unvalidated, `ABSENT`, validated,
+and a payload with the keys stripped out.
+
+**R2-3.** The R1 downgrade test used different slots and suffixes, and the context
+helper derives the capture identity from the suffix — so it built two *different*
+opportunities and proved nothing about a downgrade. Replaced with a fixed context:
+same capture, slot, quote, model input, checkpoint and source event, changing only
+the calibration.
+
+**R2-4.** Section 1 of this report still carried `52.08%` and `22.7 points` after
+R1 corrected them elsewhere, so the document contradicted itself. One set of
+numbers now: devigged market `0.500000`, model `24.8` points above, `EV_SE
+0.050326`, `EV−SE 0.386085`.
+
+## 16. Does R2 change any number or behaviour?
+
+**No EV value changes.** `current_ev`, `current_delta`, `current_ev_minus_se`, the
+five-state distribution and the formula are untouched; the replay artefact is
+byte-identical to R1 (`2b44380cf79b1b9b…`).
+
+**No admission or notification behaviour changes.** R2 only fixes what a
+reconstructed object reports. Classification, gating, identity and the outbox are
+as they were after R1 — which the same-opportunity test now demonstrates end to end
+rather than asserting.
+
+**One behaviour is newly *correct* rather than newly *different*:** a caller that
+read calibration off a repository-returned existing version used to see `None` and
+could not tell an unvalidated record from a validated one. It now sees the record.
+
+## 17. Authorisation
 
 Nothing here is authorised, applied to production, or deployed. `alpha_age_per_day`
 and `beta_missing` remain `NULL`. Historical recommendations, settlements and the
