@@ -1,0 +1,636 @@
+{
+  "admission_ledger": {
+    "attack": {
+      "admitted": 14290,
+      "candidate_team_fixture_pairs": 33450,
+      "excluded_no_xg_history_for_team": 2059,
+      "excluded_target_without_xg": 0,
+      "excluded_window_below_three": 17101,
+      "excluded_zero_variance": 0
+    },
+    "defence": {
+      "admitted": 14290,
+      "candidate_team_fixture_pairs": 33450,
+      "excluded_no_xg_history_for_team": 2059,
+      "excluded_target_without_xg": 0,
+      "excluded_window_below_three": 17101,
+      "excluded_zero_variance": 0
+    }
+  },
+  "age_term_operational_impact": {
+    "cells": {
+      "allsvenskan|attack": {
+        "alpha_abs": 0.000840408108,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 110.6366,
+        "se_percent_change_at_ci_low": 40.7387,
+        "se_percent_change_at_point_estimate": 84.9098
+      },
+      "allsvenskan|defence": {
+        "alpha_abs": 0.000548330432,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 101.8966,
+        "se_percent_change_at_ci_low": 16.1151,
+        "se_percent_change_at_point_estimate": 71.0164
+      },
+      "argentina_primera|attack": {
+        "alpha_abs": 0.000231568994,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 86.2971,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 56.853
+      },
+      "argentina_primera|defence": {
+        "alpha_abs": 7.0855292e-05,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 72.0279,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 25.2693
+      },
+      "brasileirao_serie_a|attack": {
+        "alpha_abs": 0.000130526817,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 44.8956,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 19.0419
+      },
+      "brasileirao_serie_a|defence": {
+        "alpha_abs": 2.6176555e-05,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 36.0743,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 4.9253
+      },
+      "bundesliga|attack": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 46.612,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "bundesliga|defence": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 47.9132,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "chinese_super_league|attack": {
+        "alpha_abs": 7.696438e-05,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 77.4182,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 14.6178
+      },
+      "chinese_super_league|defence": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 37.1906,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "eliteserien|attack": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 46.5214,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "eliteserien|defence": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 61.3194,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "eredivisie|attack": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 45.6343,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "eredivisie|defence": {
+        "alpha_abs": 0.000165072518,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 58.466,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 19.7264
+      },
+      "la_liga|attack": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 25.5889,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "la_liga|defence": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 36.5448,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "ligue_1|attack": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 27.6286,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "ligue_1|defence": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 29.2104,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "mls|attack": {
+        "alpha_abs": 0.000112235178,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 41.6792,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 15.6159
+      },
+      "mls|defence": {
+        "alpha_abs": 3.3252558e-05,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 34.3753,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 5.2704
+      },
+      "premier_league|attack": {
+        "alpha_abs": 0.000157698769,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 47.6837,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 19.1006
+      },
+      "premier_league|defence": {
+        "alpha_abs": 0.000112798789,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 48.1644,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 15.2611
+      },
+      "primeira_liga|attack": {
+        "alpha_abs": 0.000774419959,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 83.583,
+        "se_percent_change_at_ci_low": 37.9901,
+        "se_percent_change_at_point_estimate": 65.3153
+      },
+      "primeira_liga|defence": {
+        "alpha_abs": 7.3145808e-05,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 50.559,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 11.4237
+      },
+      "serie_a|attack": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 25.2691,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "serie_a|defence": {
+        "alpha_abs": 0.000325704447,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 61.6072,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 37.3989
+      }
+    },
+    "cells_total": 26,
+    "cells_with_zero_change": 11,
+    "max_percent_change": 84.9098,
+    "median_percent_change": 11.4237,
+    "non_boundary_cells": 15,
+    "non_boundary_cells_whose_band_reaches_zero": 12,
+    "reading": "the size of the correction an age term would apply across the ages production actually sees. Not evidence the correction is right: alpha's own profile interval spans roughly a factor of five, and the longest windows cross season breaks, which is where the boundary jump term found the random walk over-predicting"
+  },
+  "epoch_guard": {
+    "capture_ignoring_epochs": 14290,
+    "epochs_lost_to_target_conditioning": 872,
+    "findings": [],
+    "ledger": {
+      "admitted": 14290,
+      "candidate_team_fixture_pairs": 33450,
+      "excluded_no_xg_history_for_team": 2059,
+      "excluded_target_without_xg": 0,
+      "excluded_window_below_three": 17101,
+      "excluded_zero_variance": 0
+    },
+    "pit_epochs": 0,
+    "production_age_spread_p10_p90_days": 121.183,
+    "production_epochs": 14290,
+    "result": "PASS",
+    "season_reset_age_spread_p10_p90_days": 65.446,
+    "season_reset_epochs": 13114,
+    "target_xg_conditioned_epochs": 13418
+  },
+  "population": "production_evaluation_epochs",
+  "population_definition": "every (team, finished fixture) pair at that fixture's kickoff; window is the latest 20 xG rows with kickoff < as_of across seasons; admitted when at least 3 rows carry positive sample variance, as _xg_standard_error requires. Whether the target later produced xG is not an admission rule",
+  "protocol_commit": "b74766f9",
+  "schema_version": "w2.ev_se.drift_v6.impact.v1",
+  "state_distributions": {
+    "allsvenskan|attack": {
+      "age_p10_days": 30.302,
+      "age_p10_to_p90_span_days": 157.9,
+      "age_p50_days": 93.139,
+      "age_p90_days": 188.202,
+      "epochs": 873,
+      "epochs_with_full_20_window": 465,
+      "epochs_with_target_xg": 703,
+      "se0_squared_p10": 0.01468875,
+      "se0_squared_p50": 0.02938782894736842,
+      "se0_squared_p90": 0.08355586419753086,
+      "se0_squared_spread_p90_over_p10": 5.688426,
+      "window_rows_p10": 4.0,
+      "window_rows_p50": 20.0
+    },
+    "allsvenskan|defence": {
+      "age_p10_days": 30.302,
+      "age_p10_to_p90_span_days": 157.9,
+      "age_p50_days": 93.139,
+      "age_p90_days": 188.202,
+      "epochs": 873,
+      "epochs_with_full_20_window": 465,
+      "epochs_with_target_xg": 703,
+      "se0_squared_p10": 0.014453105263157896,
+      "se0_squared_p50": 0.028369723684210528,
+      "se0_squared_p90": 0.0962781818181818,
+      "se0_squared_spread_p90_over_p10": 6.661418,
+      "window_rows_p10": 4.0,
+      "window_rows_p50": 20.0
+    },
+    "argentina_primera|attack": {
+      "age_p10_days": 49.026,
+      "age_p10_to_p90_span_days": 181.521,
+      "age_p50_days": 125.467,
+      "age_p90_days": 230.547,
+      "epochs": 1654,
+      "epochs_with_full_20_window": 1150,
+      "epochs_with_target_xg": 1174,
+      "se0_squared_p10": 0.010146105263157894,
+      "se0_squared_p50": 0.017432315789473685,
+      "se0_squared_p90": 0.048163894736842114,
+      "se0_squared_spread_p90_over_p10": 4.747033,
+      "window_rows_p10": 8.0,
+      "window_rows_p50": 20.0
+    },
+    "argentina_primera|defence": {
+      "age_p10_days": 49.026,
+      "age_p10_to_p90_span_days": 181.521,
+      "age_p50_days": 125.467,
+      "age_p90_days": 230.547,
+      "epochs": 1654,
+      "epochs_with_full_20_window": 1150,
+      "epochs_with_target_xg": 1174,
+      "se0_squared_p10": 0.010863894736842105,
+      "se0_squared_p50": 0.019120842105263155,
+      "se0_squared_p90": 0.04661873684210527,
+      "se0_squared_spread_p90_over_p10": 4.291162,
+      "window_rows_p10": 8.0,
+      "window_rows_p50": 20.0
+    },
+    "brasileirao_serie_a|attack": {
+      "age_p10_days": 37.324,
+      "age_p10_to_p90_span_days": 94.68,
+      "age_p50_days": 68.976,
+      "age_p90_days": 132.004,
+      "epochs": 1448,
+      "epochs_with_full_20_window": 1040,
+      "epochs_with_target_xg": 1446,
+      "se0_squared_p10": 0.012734157894736841,
+      "se0_squared_p50": 0.024757421052631574,
+      "se0_squared_p90": 0.05214876033057851,
+      "se0_squared_spread_p90_over_p10": 4.095187,
+      "window_rows_p10": 9.0,
+      "window_rows_p50": 20.0
+    },
+    "brasileirao_serie_a|defence": {
+      "age_p10_days": 37.324,
+      "age_p10_to_p90_span_days": 94.68,
+      "age_p50_days": 68.976,
+      "age_p90_days": 132.004,
+      "epochs": 1448,
+      "epochs_with_full_20_window": 1040,
+      "epochs_with_target_xg": 1446,
+      "se0_squared_p10": 0.013115526315789475,
+      "se0_squared_p50": 0.023578181818181818,
+      "se0_squared_p90": 0.0498179012345679,
+      "se0_squared_spread_p90_over_p10": 3.798391,
+      "window_rows_p10": 9.0,
+      "window_rows_p50": 20.0
+    },
+    "bundesliga|attack": {
+      "age_p10_days": 35.56,
+      "age_p10_to_p90_span_days": 117.036,
+      "age_p50_days": 80.25,
+      "age_p90_days": 152.596,
+      "epochs": 824,
+      "epochs_with_full_20_window": 494,
+      "epochs_with_target_xg": 822,
+      "se0_squared_p10": 0.015314144736842106,
+      "se0_squared_p50": 0.03124815789473684,
+      "se0_squared_p90": 0.08973155818540435,
+      "se0_squared_spread_p90_over_p10": 5.859391,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "bundesliga|defence": {
+      "age_p10_days": 35.56,
+      "age_p10_to_p90_span_days": 117.036,
+      "age_p50_days": 80.25,
+      "age_p90_days": 152.596,
+      "epochs": 824,
+      "epochs_with_full_20_window": 494,
+      "epochs_with_target_xg": 822,
+      "se0_squared_p10": 0.019603473684210525,
+      "se0_squared_p50": 0.03573073684210526,
+      "se0_squared_p90": 0.09988975206611572,
+      "se0_squared_spread_p90_over_p10": 5.095513,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "chinese_super_league|attack": {
+      "age_p10_days": 28.189,
+      "age_p10_to_p90_span_days": 157.238,
+      "age_p50_days": 105.54,
+      "age_p90_days": 185.427,
+      "epochs": 906,
+      "epochs_with_full_20_window": 523,
+      "epochs_with_target_xg": 780,
+      "se0_squared_p10": 0.018346539682539683,
+      "se0_squared_p50": 0.0364047894736842,
+      "se0_squared_p90": 0.1049175873015873,
+      "se0_squared_spread_p90_over_p10": 5.718658,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "chinese_super_league|defence": {
+      "age_p10_days": 28.189,
+      "age_p10_to_p90_span_days": 157.238,
+      "age_p50_days": 105.54,
+      "age_p90_days": 185.427,
+      "epochs": 906,
+      "epochs_with_full_20_window": 523,
+      "epochs_with_target_xg": 780,
+      "se0_squared_p10": 0.01970603947368421,
+      "se0_squared_p50": 0.03893919736842106,
+      "se0_squared_p90": 0.10994856578947369,
+      "se0_squared_spread_p90_over_p10": 5.579435,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "eliteserien|attack": {
+      "age_p10_days": 25.544,
+      "age_p10_to_p90_span_days": 147.684,
+      "age_p50_days": 96.491,
+      "age_p90_days": 173.228,
+      "epochs": 892,
+      "epochs_with_full_20_window": 525,
+      "epochs_with_target_xg": 810,
+      "se0_squared_p10": 0.015990736842105262,
+      "se0_squared_p50": 0.03574803947368422,
+      "se0_squared_p90": 0.08928503401360544,
+      "se0_squared_spread_p90_over_p10": 5.583547,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "eliteserien|defence": {
+      "age_p10_days": 25.544,
+      "age_p10_to_p90_span_days": 147.684,
+      "age_p50_days": 96.491,
+      "age_p90_days": 173.228,
+      "epochs": 892,
+      "epochs_with_full_20_window": 525,
+      "epochs_with_target_xg": 810,
+      "se0_squared_p10": 0.01734613727300708,
+      "se0_squared_p50": 0.037476063492063484,
+      "se0_squared_p90": 0.08001955555555554,
+      "se0_squared_spread_p90_over_p10": 4.613105,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "eredivisie|attack": {
+      "age_p10_days": 31.699,
+      "age_p10_to_p90_span_days": 103.735,
+      "age_p50_days": 91.448,
+      "age_p90_days": 135.434,
+      "epochs": 863,
+      "epochs_with_full_20_window": 516,
+      "epochs_with_target_xg": 859,
+      "se0_squared_p10": 0.01736382894736842,
+      "se0_squared_p50": 0.033531302631578955,
+      "se0_squared_p90": 0.08066173570019725,
+      "se0_squared_spread_p90_over_p10": 4.645389,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "eredivisie|defence": {
+      "age_p10_days": 31.699,
+      "age_p10_to_p90_span_days": 103.735,
+      "age_p50_days": 91.448,
+      "age_p90_days": 135.434,
+      "epochs": 863,
+      "epochs_with_full_20_window": 516,
+      "epochs_with_target_xg": 859,
+      "se0_squared_p10": 0.020088105263157897,
+      "se0_squared_p50": 0.03427393421052631,
+      "se0_squared_p90": 0.09108595041322314,
+      "se0_squared_spread_p90_over_p10": 4.534323,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "la_liga|attack": {
+      "age_p10_days": 24.135,
+      "age_p10_to_p90_span_days": 101.911,
+      "age_p50_days": 85.268,
+      "age_p90_days": 126.047,
+      "epochs": 1033,
+      "epochs_with_full_20_window": 652,
+      "epochs_with_target_xg": 1033,
+      "se0_squared_p10": 0.013381828947368422,
+      "se0_squared_p50": 0.0271883830455259,
+      "se0_squared_p90": 0.07889523809523812,
+      "se0_squared_spread_p90_over_p10": 5.895699,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "la_liga|defence": {
+      "age_p10_days": 24.135,
+      "age_p10_to_p90_span_days": 101.911,
+      "age_p50_days": 85.268,
+      "age_p90_days": 126.047,
+      "epochs": 1033,
+      "epochs_with_full_20_window": 652,
+      "epochs_with_target_xg": 1033,
+      "se0_squared_p10": 0.01677084210526316,
+      "se0_squared_p50": 0.03533834710743802,
+      "se0_squared_p90": 0.07787626262626261,
+      "se0_squared_spread_p90_over_p10": 4.643551,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "ligue_1|attack": {
+      "age_p10_days": 29.328,
+      "age_p10_to_p90_span_days": 115.801,
+      "age_p50_days": 84.968,
+      "age_p90_days": 145.129,
+      "epochs": 839,
+      "epochs_with_full_20_window": 494,
+      "epochs_with_target_xg": 837,
+      "se0_squared_p10": 0.020945052631578948,
+      "se0_squared_p50": 0.04288288157894737,
+      "se0_squared_p90": 0.110266,
+      "se0_squared_spread_p90_over_p10": 5.264537,
+      "window_rows_p10": 6.0,
+      "window_rows_p50": 20.0
+    },
+    "ligue_1|defence": {
+      "age_p10_days": 29.328,
+      "age_p10_to_p90_span_days": 115.801,
+      "age_p50_days": 84.968,
+      "age_p90_days": 145.129,
+      "epochs": 839,
+      "epochs_with_full_20_window": 494,
+      "epochs_with_target_xg": 837,
+      "se0_squared_p10": 0.023411105263157893,
+      "se0_squared_p50": 0.04433843500363108,
+      "se0_squared_p90": 0.12286452631578948,
+      "se0_squared_spread_p90_over_p10": 5.24813,
+      "window_rows_p10": 6.0,
+      "window_rows_p50": 20.0
+    },
+    "mls|attack": {
+      "age_p10_days": 37.625,
+      "age_p10_to_p90_span_days": 108.075,
+      "age_p50_days": 78.913,
+      "age_p90_days": 145.7,
+      "epochs": 2034,
+      "epochs_with_full_20_window": 1524,
+      "epochs_with_target_xg": 2034,
+      "se0_squared_p10": 0.015868631578947367,
+      "se0_squared_p50": 0.031802355263157896,
+      "se0_squared_p90": 0.06112321052631579,
+      "se0_squared_spread_p90_over_p10": 3.851826,
+      "window_rows_p10": 9.0,
+      "window_rows_p50": 20.0
+    },
+    "mls|defence": {
+      "age_p10_days": 37.625,
+      "age_p10_to_p90_span_days": 108.075,
+      "age_p50_days": 78.913,
+      "age_p90_days": 145.7,
+      "epochs": 2034,
+      "epochs_with_full_20_window": 1524,
+      "epochs_with_target_xg": 2034,
+      "se0_squared_p10": 0.018432565789473682,
+      "se0_squared_p50": 0.031967666666666665,
+      "se0_squared_p90": 0.06203578947368421,
+      "se0_squared_spread_p90_over_p10": 3.365554,
+      "window_rows_p10": 9.0,
+      "window_rows_p50": 20.0
+    },
+    "premier_league|attack": {
+      "age_p10_days": 37.881,
+      "age_p10_to_p90_span_days": 100.046,
+      "age_p50_days": 75.055,
+      "age_p90_days": 137.927,
+      "epochs": 1063,
+      "epochs_with_full_20_window": 677,
+      "epochs_with_target_xg": 1063,
+      "se0_squared_p10": 0.013602421052631578,
+      "se0_squared_p50": 0.031725807291666665,
+      "se0_squared_p90": 0.08232108843537414,
+      "se0_squared_spread_p90_over_p10": 6.051944,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "premier_league|defence": {
+      "age_p10_days": 37.881,
+      "age_p10_to_p90_span_days": 100.046,
+      "age_p50_days": 75.055,
+      "age_p90_days": 137.927,
+      "epochs": 1063,
+      "epochs_with_full_20_window": 677,
+      "epochs_with_target_xg": 1063,
+      "se0_squared_p10": 0.016300315789473684,
+      "se0_squared_p50": 0.030079230210602763,
+      "se0_squared_p90": 0.08550621301775146,
+      "se0_squared_spread_p90_over_p10": 5.245678,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "primeira_liga|attack": {
+      "age_p10_days": 31.155,
+      "age_p10_to_p90_span_days": 110.287,
+      "age_p50_days": 85.699,
+      "age_p90_days": 141.442,
+      "epochs": 838,
+      "epochs_with_full_20_window": 507,
+      "epochs_with_target_xg": 836,
+      "se0_squared_p10": 0.01337532679738562,
+      "se0_squared_p50": 0.025158999999999997,
+      "se0_squared_p90": 0.07466947368421054,
+      "se0_squared_spread_p90_over_p10": 5.582628,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "primeira_liga|defence": {
+      "age_p10_days": 31.155,
+      "age_p10_to_p90_span_days": 110.287,
+      "age_p50_days": 85.699,
+      "age_p90_days": 141.442,
+      "epochs": 838,
+      "epochs_with_full_20_window": 507,
+      "epochs_with_target_xg": 836,
+      "se0_squared_p10": 0.015334144736842104,
+      "se0_squared_p50": 0.031121631578947366,
+      "se0_squared_p90": 0.08676394557823128,
+      "se0_squared_spread_p90_over_p10": 5.658219,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "serie_a|attack": {
+      "age_p10_days": 36.786,
+      "age_p10_to_p90_span_days": 108.014,
+      "age_p50_days": 76.428,
+      "age_p90_days": 144.799,
+      "epochs": 1023,
+      "epochs_with_full_20_window": 641,
+      "epochs_with_target_xg": 1021,
+      "se0_squared_p10": 0.01221225,
+      "se0_squared_p50": 0.026600842105263155,
+      "se0_squared_p90": 0.06829111111111111,
+      "se0_squared_spread_p90_over_p10": 5.592017,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    },
+    "serie_a|defence": {
+      "age_p10_days": 36.786,
+      "age_p10_to_p90_span_days": 108.014,
+      "age_p50_days": 76.428,
+      "age_p90_days": 144.799,
+      "epochs": 1023,
+      "epochs_with_full_20_window": 641,
+      "epochs_with_target_xg": 1021,
+      "se0_squared_p10": 0.013180473684210528,
+      "se0_squared_p50": 0.027643036332179932,
+      "se0_squared_p90": 0.07616944444444444,
+      "se0_squared_spread_p90_over_p10": 5.778961,
+      "window_rows_p10": 7.0,
+      "window_rows_p50": 20.0
+    }
+  },
+  "supersedes": {
+    "defects": [
+      "epochs drawn from the xG-carrying series, so the target had to produce xG afterwards (872 epochs)",
+      "windows sliced as series[i-20:i], so a full 20-row window was required where production fails closed below three (5,082 epochs)"
+    ],
+    "file": "EV_SE_DRIFT_V5_IMPACT.json"
+  }
+}
