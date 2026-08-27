@@ -297,6 +297,18 @@ async function installRoutes(
 ): Promise<void> {
   const contract = scenarioContract[scenario];
   const dayViewPayload = dayView(scenario);
+  if (readyCardCount === 0) {
+    dayViewPayload.cards = [];
+    dayViewPayload.counts.total = 0;
+    dayViewPayload.counts.analysis_pick = 0;
+    dayViewPayload.counts.ready = 0;
+    Object.assign(dayViewPayload, {
+      degradation: {
+        title: "今日暂无比赛",
+        message: "当前比赛日没有可展示 fixture。",
+      },
+    });
+  }
   if (scheduledWait) {
     dayViewPayload.cards[0].kickoff_utc = "2026-07-20T12:00:00Z";
     dayViewPayload.cards[0].next_eval_at = "2026-07-20T06:00:00Z";
@@ -396,6 +408,16 @@ async function installRoutes(
     return route.continue();
   });
 }
+
+test("empty DayView renders an explanatory state instead of a blank page", async ({
+  page,
+}) => {
+  await installRoutes(page, "READY", 0);
+  await page.goto("/");
+
+  await expect(page.getByText("今日暂无比赛")).toBeVisible();
+  await expect(page.getByText("当前比赛日没有可展示 fixture。")).toBeVisible();
+});
 
 test("READY renders the unified pick and verified analysis-card", async ({
   page,

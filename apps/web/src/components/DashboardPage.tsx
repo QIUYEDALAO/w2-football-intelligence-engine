@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { clearCachedDashboardView, fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
 import { footballDayShanghai } from "../lib/formatters";
+import { textValue } from "../lib/normalize";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
 import { BossDecisionConsole } from "../reference/boss-console/BossDecisionConsole";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
@@ -121,12 +122,13 @@ export function DashboardPage() {
       {state === "error" ? <EmptySection title="加载失败" detail="请确认公网 /v1 API 可访问；不会用假数据顶替真实数据。" /> : null}
 
       {state === "empty" && view ? (
-        view.day_view ? (
-          <BossDecisionConsole dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} />
-        ) : showDiagnostics ? (
+        showDiagnostics && !view.day_view ? (
           <DataDiagnosticsPanel debug={view.debug} release={view.release} />
         ) : (
-          <EmptySection title={empty.title} detail={empty.detail} />
+          <EmptySection
+            title={textValue(view.day_view?.degradation?.title, empty.title)}
+            detail={textValue(view.day_view?.degradation?.message, empty.detail)}
+          />
         )
       ) : null}
 
