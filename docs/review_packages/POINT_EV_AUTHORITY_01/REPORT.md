@@ -222,7 +222,106 @@ is that `BASELINE_PRIOR` is a hand-set prior; V2 exists to replace exactly that.
    a material change in behaviour and the Owner should decide it knowingly rather
    than discover it. It is the strongest argument for sequencing V2 next.
 
-## 11. Authorisation
+## 11. R1 — what the first pass left open
+
+Five findings, all confirmed against the code before anything was changed. The R0
+commits are kept; this is an append.
+
+**R1-1 `binding`, and the most serious.** Calibration decided admission but never
+entered the immutable identity. Same quote, same model input, same checkpoint,
+different calibration produced the same `attempt_identity_hash`, and append-only
+first-write-wins then swallowed the second, different conclusion. A downgrade from
+validated to unvalidated would never have been recorded. R0 saw this trade-off and
+resolved it the wrong way: I left calibration out of the identity to avoid changing
+hashes, and treated it as a follow-up. It was a correctness bug.
+
+**R1-2 `binding`.** `calibration_status` existed only on `DynamicEvaluationInput`.
+It never reached `DynamicEvaluationVersion`, `as_dict`, or the database, so the
+persisted record showed a gate's true/false and not the status, the authority
+version, or the admission verdict.
+
+**R1-3 audit semantics.** Absent normalised to `BASELINE_PRIOR`. Both fail closed,
+but that erased the difference between "declared the hand-set prior" and "declared
+nothing" — only one of those tells you the pipeline was working.
+
+**R1-4 a vacuous test.** `assert version.gate_results is None or "calibration_validated"
+in version.gate_results` passes without checking anything whenever `gate_results`
+is absent, which it was for the non-denominator input the test used.
+
+**R1-5 two reporting errors.** `0.386085` was labelled EV_SE; it is EV−SE, and
+EV_SE is `0.050326`. And the "whole market" phrasing above.
+
+## 12. Identity versioning — the design and its trade-offs
+
+Calibration now enters both identities, each with an explicit version key inside the
+hashed payload: `EVALUATION_IDENTITY_VERSION` and `ATTEMPT_IDENTITY_VERSION`, both
+`…v2`. The version is inside the hash on purpose — an old and a new hash then differ
+for a reason a reader can name, instead of differing mysteriously.
+
+**Where it goes, and why there.** Into the **attempt** identity, alongside
+`quote_identity_hash` and `model_input_hash`. Calibration is the same category of
+thing as those two: part of this attempt's decision basis. The replay confirms the
+shape — five calibration states share one `opportunity_identity_hash` (it is the
+same betting opportunity) and produce five distinct `attempt_identity_hash` values
+(five different bases for a decision).
+
+**Alternatives weighed.**
+
+- *Into the opportunity identity.* Rejected: a calibration change would become a
+  different opportunity, which is wrong. The opportunity is the checkpoint for the
+  market; re-evaluating it under a new model does not make it a new one.
+- *Bump `evaluation_policy_version`.* Rejected as too coarse. It already sits in the
+  opportunity hash and expresses "the rules changed", not "this evaluation's basis
+  changed". It cannot separate two evaluations under the same policy.
+- *A separate `calibration_identity_hash` column.* Rejected: it needs a migration,
+  which is out of scope here, and a column that dedup does not key on would not have
+  fixed the swallow anyway.
+- *Leave it out and rely on `gate_results`.* That is R0, and it is the bug.
+
+**The cost, stated.** Adding a key changes every future hash. Existing rows are
+immutable and keep theirs. The first evaluation of an open opportunity after this
+lands produces a new attempt hash and therefore one additional append-only row.
+That is not a supersession storm and it is not an accident — it is the correct
+record that the decision basis changed. Old hashes remain reproducible only under
+the v1 payload shape, which is what the version key documents.
+
+## 13. What the record now carries
+
+`DynamicEvaluationVersion` gained four fields, and `as_dict` uses `asdict`, so they
+reach the database payload without further plumbing:
+
+| field | meaning |
+|---|---|
+| `calibration_status_raw` | as received, `null` when nothing was declared |
+| `calibration_status` | normalised; `ABSENT` when nothing was declared |
+| `calibration_recommendation_admissible` | the verdict this authority reached |
+| `calibration_authority` | which authority version reached it |
+
+`ABSENT` is a distinct status, is in `NON_VALIDATION_STATUSES`, and fails closed.
+
+## 14. R1 regression tests
+
+`tests/unit/test_point_ev_calibration_identity.py`, 30 tests, plus the 29 from R0
+with the vacuous one replaced by a direct assertion on a denominator-scoped
+evaluation.
+
+| requirement | tests |
+|---|---|
+| (a) BASELINE_PRIOR / READY / UNKNOWN / absent form no candidate and no notification | 10 |
+| (b) validated passes and still answers to the EV gates | 4 |
+| (c) no identity collision across calibration changes | 4, including that both conclusions survive append-only |
+| (d) `as_dict` and database round-trip keep every audit field | 4, including absent vs declared baseline |
+| (e) downgrade blocks, upgrade is its own attempt, no stale candidate | 2 |
+| (f) `market_candidate`, `read_model_projection`, `repository`, `notification` | 4, exercising each surface for real |
+| (g) no vacuous assertions | the R0 one is replaced; no `is None or` remains outside prose |
+| (h) EV_SE distinguished from EV−SE, and devig from raw implied | 2 |
+
+**Results after R1**: `2,895 passed`, 6 failed, 9 skipped. The 6 are the same
+environmental failures present at `fc70b48e`. `ruff check .` passes; `mypy src apps`
+reports no issues in 289 files. The package matrix caller counts were updated again
+for the new test file.
+
+## 15. Authorisation
 
 Nothing here is authorised, applied to production, or deployed. `alpha_age_per_day`
 and `beta_missing` remain `NULL`. Historical recommendations, settlements and the

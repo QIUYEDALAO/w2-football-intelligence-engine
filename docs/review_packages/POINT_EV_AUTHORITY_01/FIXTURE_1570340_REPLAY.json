@@ -1,84 +1,99 @@
 {
   "after_fix_replay": {
-    "under_absent_status": {
+    "absent": {
+      "attempt_identity_hash": "9ff5a975ab7b901422a0c2815c3cb0ccf1291be3f8b378c112275f78b8e6f327",
       "blockers": [
         "MODEL_CALIBRATION_NOT_VALIDATED"
       ],
+      "calibration_authority": "w2.domain.calibration_authority.v1",
+      "calibration_recommendation_admissible": false,
+      "calibration_status": "ABSENT",
+      "calibration_status_raw": null,
       "current_ev": 0.436411,
-      "decimal_odds": 1.92,
-      "exact_line": 3.5,
-      "selection": "UNDER",
+      "current_ev_minus_se": 0.386085,
+      "opportunity_identity_hash": "a039abf3a9a9b0d84685a7debc333ed0e4e76f8beb428cc174a700202d0ade85",
+      "opportunity_state": "BLOCKED_BY_GATE",
       "state": "NOT_READY_MODEL_INPUT"
     },
-    "under_pipeline_ready_status": {
+    "pipeline_ready": {
+      "attempt_identity_hash": "e6095253fb49c6503a21b4e71b88880f21a684d82ed1606524f62d705e076685",
       "blockers": [
         "MODEL_CALIBRATION_NOT_VALIDATED"
       ],
+      "calibration_authority": "w2.domain.calibration_authority.v1",
+      "calibration_recommendation_admissible": false,
+      "calibration_status": "READY",
+      "calibration_status_raw": "READY",
       "current_ev": 0.436411,
-      "decimal_odds": 1.92,
-      "exact_line": 3.5,
-      "selection": "UNDER",
+      "current_ev_minus_se": 0.386085,
+      "opportunity_identity_hash": "a039abf3a9a9b0d84685a7debc333ed0e4e76f8beb428cc174a700202d0ade85",
+      "opportunity_state": "BLOCKED_BY_GATE",
       "state": "NOT_READY_MODEL_INPUT"
     },
-    "under_production_validated": {
+    "production_validated": {
+      "attempt_identity_hash": "8e71df8ca9c80fa59880ff67813b3d736b231f7dd13aa83963b8048051e3ea11",
       "blockers": [],
+      "calibration_authority": "w2.domain.calibration_authority.v1",
+      "calibration_recommendation_admissible": true,
+      "calibration_status": "PRODUCTION_VALIDATED",
+      "calibration_status_raw": "PRODUCTION_VALIDATED",
       "current_ev": 0.436411,
-      "decimal_odds": 1.92,
-      "exact_line": 3.5,
-      "selection": "UNDER",
+      "current_ev_minus_se": 0.386085,
+      "opportunity_identity_hash": "a039abf3a9a9b0d84685a7debc333ed0e4e76f8beb428cc174a700202d0ade85",
+      "opportunity_state": "EVALUATED_CANDIDATE",
       "state": "ANALYSIS_PICK_ACTIVE"
     },
-    "under_shipped_calibration": {
+    "shipped_baseline_prior": {
+      "attempt_identity_hash": "a5a12e570927ab33aa1c1386ecf4d06fe257685b043b3411c59f830f11508c55",
       "blockers": [
         "MODEL_CALIBRATION_NOT_VALIDATED"
       ],
+      "calibration_authority": "w2.domain.calibration_authority.v1",
+      "calibration_recommendation_admissible": false,
+      "calibration_status": "BASELINE_PRIOR",
+      "calibration_status_raw": "BASELINE_PRIOR",
       "current_ev": 0.436411,
-      "decimal_odds": 1.92,
-      "exact_line": 3.5,
-      "selection": "UNDER",
+      "current_ev_minus_se": 0.386085,
+      "opportunity_identity_hash": "a039abf3a9a9b0d84685a7debc333ed0e4e76f8beb428cc174a700202d0ade85",
+      "opportunity_state": "BLOCKED_BY_GATE",
+      "state": "NOT_READY_MODEL_INPUT"
+    },
+    "unknown": {
+      "attempt_identity_hash": "f4aafc0db57fe5101df9b9d3f55edea18a9e3aaaab5d7602a9761833206cd9ee",
+      "blockers": [
+        "MODEL_CALIBRATION_NOT_VALIDATED"
+      ],
+      "calibration_authority": "w2.domain.calibration_authority.v1",
+      "calibration_recommendation_admissible": false,
+      "calibration_status": "UNKNOWN",
+      "calibration_status_raw": "UNKNOWN",
+      "current_ev": 0.436411,
+      "current_ev_minus_se": 0.386085,
+      "opportunity_identity_hash": "a039abf3a9a9b0d84685a7debc333ed0e4e76f8beb428cc174a700202d0ade85",
+      "opportunity_state": "BLOCKED_BY_GATE",
       "state": "NOT_READY_MODEL_INPUT"
     }
   },
-  "authority": {
-    "blocker": "MODEL_CALIBRATION_NOT_VALIDATED",
-    "module": "w2.domain.calibration_authority",
-    "non_validation_statuses": [
-      "BASELINE_PRIOR",
-      "NOT_CALIBRATED",
-      "NO_SETTLED_SAMPLE",
-      "READY",
-      "UNKNOWN",
-      "UNVALIDATED"
-    ],
-    "validated_statuses": [
-      "APPROVED_VALIDATED",
-      "PRODUCTION_VALIDATED"
-    ]
+  "authority_version": "w2.domain.calibration_authority.v1",
+  "frozen_from_production_record": {
+    "current_delta": 0.248131,
+    "current_ev": 0.436411,
+    "current_ev_minus_se": 0.386085,
+    "devigged_market_probability": 0.5,
+    "ev_se": 0.050326,
+    "model_win_probability": 0.7481305152250234,
+    "note": "EV_SE is 0.050326. 0.386085 is EV minus SE, which R0's status matrix mislabelled. The authority's own devigged market probability is 0.50, so the model sat 24.8 points above it; 1/1.92 = 0.5208 is one side including vig and is not a devig result",
+    "one_side_implied_including_vig": 0.520833
   },
-  "before_fix_production_record": {
-    "all_failed_gates": [],
-    "blockers": [],
-    "calibration_gate_present": false,
-    "gate_results_keys": [
-      "bookmaker_depth",
-      "candidate",
-      "evaluated",
-      "mainline_parsed",
-      "model_ready",
-      "no_edge",
-      "quote_fresh"
-    ],
-    "notification": {
-      "delivery_status": "DELIVERED",
-      "event_type": "CANDIDATE_T30_CONFIRMED"
-    },
-    "official_funnel_eligible": true,
-    "opportunity_state": "EVALUATED_CANDIDATE",
-    "state": "ANALYSIS_PICK_ACTIVE"
+  "identity_separation": {
+    "attempt_identities_distinct": true,
+    "opportunity_identity_shared": true
   },
-  "ev_untouched": "the EV is recorded unchanged in every case; no cap was introduced",
-  "fixture_id": "1570340",
+  "identity_versions": {
+    "attempt": "w2.dynamic_quote_evaluation.attempt_identity.v2",
+    "evaluation": "w2.dynamic_quote_evaluation.identity.v2"
+  },
   "protocol_commit": "6fdecb95",
-  "schema_version": "w2.point_ev_authority.replay.v1",
-  "shipped_calibration_status": "BASELINE_PRIOR"
+  "revision": "R1",
+  "schema_version": "w2.point_ev_authority.replay.v2"
 }

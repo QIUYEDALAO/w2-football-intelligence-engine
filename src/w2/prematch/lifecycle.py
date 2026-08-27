@@ -24,6 +24,11 @@ CHECKPOINT_OPPORTUNITY_SCOPE = "CHECKPOINT_EVALUATION_OPPORTUNITY_V2"
 CHECKPOINT_OPPORTUNITY_SEMANTICS = "CHECKPOINT_EVALUATION_OPPORTUNITY"
 MIN_DYNAMIC_BOOKMAKER_DEPTH = 3
 SETTLEMENT_STATE_ORDER = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
+# Calibration decides admission, so it belongs in the identity that append-only
+# dedup keys on. Adding a key changes every future hash, so the payloads carry an
+# explicit version: an old and a new hash then differ for a reason a reader can see.
+EVALUATION_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.identity.v2"
+ATTEMPT_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v2"
 EVAL_02B_DISTRIBUTION_TOLERANCE = 1e-9
 SOURCE_ABSENT_USER_MESSAGE = "当前采集窗口尚未取得完整盘口"
 SOURCE_ABSENT_NEXT_ACTION = "等待下一次受控采集"
@@ -216,6 +221,13 @@ class DynamicEvaluationVersion:
     checkpoint_plan_identity: str | None = None
     source_event_identity: str | None = None
     opportunity_state: OpportunityState | None = None
+    # The calibration behind the decision, kept on the record rather than only in
+    # gate_results. gate_results says whether the gate passed; these say what the
+    # gate was looking at, under which authority, and what it concluded.
+    calibration_status_raw: str | None = None
+    calibration_status: str | None = None
+    calibration_recommendation_admissible: bool | None = None
+    calibration_authority: str | None = None
 
     def as_dict(
         self,
@@ -251,11 +263,20 @@ def bind_evaluation_opportunity(
     opportunity_hash = opportunity_identity_hash(context, market=version.market)
     attempt_hash = _hash(
         {
+            "attempt_identity_version": ATTEMPT_IDENTITY_VERSION,
             "opportunity_identity_hash": opportunity_hash,
             "quote_identity_hash": version.quote_identity_hash,
             "model_input_hash": context.model_input_hash,
             "lineup_input_hash": version.lineup_input_hash,
             "source_event_identity": context.source_event_identity,
+            # Same quote, same model input, different calibration is a different
+            # attempt: it reached its conclusion on a different basis. Without this
+            # the append-only first-write-wins swallows the second conclusion, so a
+            # downgrade from validated to unvalidated would never be recorded.
+            "calibration_status": version.calibration_status,
+            "calibration_recommendation_admissible": (
+                version.calibration_recommendation_admissible
+            ),
         }
     )
     if version.state == DynamicEvaluationState.ANALYSIS_PICK_ACTIVE:
@@ -406,6 +427,11 @@ class LockSnapshotResult:
 
 
 def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersion:
+    calibration_record = calibration_authority.evidence_record(value.calibration_status)
+    calibration_normalised = str(calibration_record["calibration_status"])
+    calibration_admissible = bool(
+        calibration_record["calibration_recommendation_admissible"]
+    )
     evaluated_at = _aware_utc(value.evaluated_at, field="evaluated_at")
     capture_at = (
         _aware_utc(value.capture_at, field="capture_at") if value.capture_at is not None else None
@@ -464,7 +490,7 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
     elif not value.model_ready or not value.market_probability_ready or not value.model_input_hash:
         state = DynamicEvaluationState.NOT_READY_MODEL_INPUT
         blockers.append("MODEL_OR_DEVIG_NOT_READY")
-    elif not calibration_authority.recommendation_admissible(value.calibration_status):
+    elif not calibration_admissible:
         # The distribution, EV and EV_SE are still computed, stored and shown; only
         # the authority to become a candidate is withheld. An unvalidated
         # probability is analysis evidence, not a recommendation.
@@ -507,6 +533,9 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
         "lineup_input_hash": value.lineup_input_hash,
         "checkpoint": value.checkpoint,
         "capture_at": _iso(capture_at) if capture_at else None,
+        "identity_version": EVALUATION_IDENTITY_VERSION,
+        "calibration_status": calibration_normalised,
+        "calibration_recommendation_admissible": calibration_admissible,
     }
     if denominator_scoped:
         identity_payload.update(
@@ -551,9 +580,7 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
             "bookmaker_depth": value.bookmaker_count >= MIN_DYNAMIC_BOOKMAKER_DEPTH,
             "quote_fresh": bool(value.quote_fresh),
             "evaluated": evaluation_complete,
-            "calibration_validated": calibration_authority.recommendation_admissible(
-                value.calibration_status
-            ),
+            "calibration_validated": calibration_admissible,
             "no_edge": evaluation_complete and state == DynamicEvaluationState.NO_EDGE_CURRENT,
             "candidate": evaluation_complete
             and state == DynamicEvaluationState.ANALYSIS_PICK_ACTIVE,
@@ -591,6 +618,10 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
     return DynamicEvaluationVersion(
         evaluation_id=f"dqe-{identity_hash}",
         identity_hash=identity_hash,
+        calibration_status_raw=calibration_record["calibration_status_raw"],
+        calibration_status=calibration_record["calibration_status"],
+        calibration_recommendation_admissible=calibration_admissible,
+        calibration_authority=calibration_record["calibration_authority"],
         fixture_id=str(value.fixture_id),
         market=str(value.market),
         selection=str(value.selection),

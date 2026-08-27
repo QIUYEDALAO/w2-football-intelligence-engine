@@ -32,6 +32,16 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+#: A record that never carried a calibration status at all. Distinct from
+#: BASELINE_PRIOR, which is a real declaration that the probability came from the
+#: hand-set prior. Both fail closed, but conflating them loses the difference
+#: between "we know it was unvalidated" and "we do not know what this was".
+ABSENT_STATUS = "ABSENT"
+
+RECOMMENDATION_BLOCKER = "MODEL_CALIBRATION_NOT_VALIDATED"
+AUTHORITY_VERSION = "w2.domain.calibration_authority.v1"
+
+
 #: Statuses that record a completed validation of the probability against outcomes.
 #: Membership here is the only thing that authorises a formal recommendation.
 RECOMMENDATION_VALIDATED_STATUSES = frozenset(
@@ -52,21 +62,22 @@ NON_VALIDATION_STATUSES = frozenset(
         "NOT_CALIBRATED",
         "NO_SETTLED_SAMPLE",
         "UNKNOWN",
+        ABSENT_STATUS,
     }
 )
 
-RECOMMENDATION_BLOCKER = "MODEL_CALIBRATION_NOT_VALIDATED"
 
 
 def normalise_status(status: object) -> str:
-    """Upper-cased status text. Absent or blank becomes ``BASELINE_PRIOR``.
+    """Upper-cased status text. Absent or blank becomes ``ABSENT``.
 
-    Failing closed on an absent status matters: a record that never carried a
-    calibration status is exactly the case this module exists to catch, and
-    treating it as unknown-therefore-fine would reopen the hole.
+    Absent used to normalise to ``BASELINE_PRIOR``, which failed closed correctly
+    but destroyed an audit distinction: a record that declared the hand-set prior
+    and a record that declared nothing are different facts about what was known.
+    Both are inadmissible; only one of them tells you the pipeline was working.
     """
     text = "" if status is None else str(status).strip().upper()
-    return text or "BASELINE_PRIOR"
+    return text or ABSENT_STATUS
 
 
 def recommendation_admissible(status: object) -> bool:
@@ -96,7 +107,8 @@ def evidence_record(status: object) -> dict[str, Any]:
     """
     normalised = normalise_status(status)
     return {
+        "calibration_status_raw": None if status is None else str(status),
         "calibration_status": normalised,
         "calibration_recommendation_admissible": recommendation_admissible(normalised),
-        "calibration_authority": "w2.domain.calibration_authority.v1",
+        "calibration_authority": AUTHORITY_VERSION,
     }
