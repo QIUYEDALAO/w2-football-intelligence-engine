@@ -28,6 +28,7 @@ SETTLEMENT_STATE_ORDER = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
 # dedup keys on. Adding a key changes every future hash, so the payloads carry an
 # explicit version: an old and a new hash then differ for a reason a reader can see.
 EVALUATION_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.identity.v2"
+LEGACY_EVALUATION_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.identity.v1"
 ATTEMPT_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v2"
 EVAL_02B_DISTRIBUTION_TOLERANCE = 1e-9
 SOURCE_ABSENT_USER_MESSAGE = "当前采集窗口尚未取得完整盘口"
@@ -426,7 +427,11 @@ class LockSnapshotResult:
     checkpoint: str = T30_VALIDATION_CHECKPOINT
 
 
-def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersion:
+def classify_evaluation(
+    value: DynamicEvaluationInput,
+    *,
+    identity_version: str = EVALUATION_IDENTITY_VERSION,
+) -> DynamicEvaluationVersion:
     calibration_record = calibration_authority.evidence_record(value.calibration_status)
     calibration_normalised = str(calibration_record["calibration_status"])
     calibration_admissible = bool(
@@ -521,6 +526,11 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
         if ev_minus_se is not None
         else 0.0,
     }
+    if identity_version not in {
+        EVALUATION_IDENTITY_VERSION,
+        LEGACY_EVALUATION_IDENTITY_VERSION,
+    }:
+        raise ValueError("EVALUATION_IDENTITY_VERSION_INVALID")
     identity_payload: dict[str, Any] = {
         "fixture_id": value.fixture_id,
         "market": value.market,
@@ -533,10 +543,15 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
         "lineup_input_hash": value.lineup_input_hash,
         "checkpoint": value.checkpoint,
         "capture_at": _iso(capture_at) if capture_at else None,
-        "identity_version": EVALUATION_IDENTITY_VERSION,
-        "calibration_status": calibration_normalised,
-        "calibration_recommendation_admissible": calibration_admissible,
     }
+    if identity_version == EVALUATION_IDENTITY_VERSION:
+        identity_payload.update(
+            {
+                "identity_version": EVALUATION_IDENTITY_VERSION,
+                "calibration_status": calibration_normalised,
+                "calibration_recommendation_admissible": calibration_admissible,
+            }
+        )
     if denominator_scoped:
         identity_payload.update(
             {

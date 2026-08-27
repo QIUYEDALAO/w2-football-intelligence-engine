@@ -31,6 +31,8 @@ from w2.prematch.lifecycle import (
     DYNAMIC_EVALUATION_V1_SCHEMA,
     DYNAMIC_EVALUATION_V2_SCHEMA,
     DYNAMIC_EVALUATION_V3_SCHEMA,
+    EVALUATION_IDENTITY_VERSION,
+    LEGACY_EVALUATION_IDENTITY_VERSION,
     MODEL_FORECAST_DENOMINATOR_SCOPE,
     DynamicEvaluationInput,
     DynamicEvaluationVersion,
@@ -885,14 +887,27 @@ def validate_frozen_analysis_payload(
             raise FrozenAnalysisError("dynamic evaluation fixture identity missing")
         if lineup_identity is not None and not isinstance(lineup_identity, dict):
             raise FrozenAnalysisError("dynamic evaluation lineup identity invalid")
-        evaluations = tuple(
-            _dynamic_evaluations(
-                card,
-                manifest,
-                fixture_identity={str(key): str(value) for key, value in fixture_identity.items()},
-                lineup_identity=cast(dict[str, str] | None, lineup_identity),
+        def rebuild_evaluations(identity_version: str) -> tuple[DynamicEvaluationVersion, ...]:
+            return tuple(
+                _dynamic_evaluations(
+                    card,
+                    manifest,
+                    fixture_identity={
+                        str(key): str(value) for key, value in fixture_identity.items()
+                    },
+                    lineup_identity=cast(dict[str, str] | None, lineup_identity),
+                    evaluation_identity_version=identity_version,
+                )
             )
-        )
+
+        evaluations = rebuild_evaluations(EVALUATION_IDENTITY_VERSION)
+        stored_hashes = payload.get("source_evaluation_hashes")
+        if isinstance(stored_hashes, list) and sorted(
+            item.identity_hash for item in evaluations
+        ) != stored_hashes:
+            legacy_evaluations = rebuild_evaluations(LEGACY_EVALUATION_IDENTITY_VERSION)
+            if sorted(item.identity_hash for item in legacy_evaluations) == stored_hashes:
+                evaluations = legacy_evaluations
         scoreline_references = payload.get("source_evaluation_scoreline_references", {})
         if not isinstance(scoreline_references, dict) or any(
             not isinstance(identity_hash, str) or not isinstance(reference, dict)
@@ -1258,6 +1273,7 @@ def _dynamic_evaluations(
     lineup_identity: dict[str, str] | None,
     build_scoreline_reference: ScorelineReferenceBuilder | None = None,
     opportunity_contexts: tuple[EvaluationOpportunityContext, ...] = (),
+    evaluation_identity_version: str = EVALUATION_IDENTITY_VERSION,
 ) -> list[DynamicEvaluationVersion]:
     if not opportunity_contexts:
         raw_contexts = manifest.get("opportunity_contexts")
@@ -1514,7 +1530,7 @@ def _dynamic_evaluations(
             mainline_parsed=exact_line is not None,
             denominator_scope=denominator_scope if denominator_scoped else None,
         )
-        version = classify_evaluation(value)
+        version = classify_evaluation(value, identity_version=evaluation_identity_version)
         if version.state.value == "ANALYSIS_PICK_ACTIVE" and build_scoreline_reference:
             version = replace(
                 version,

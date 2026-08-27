@@ -20,7 +20,11 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 )
 from w2.operations.observability import default_metric_registry
 from w2.prematch.analysis_calculator import ReadModelService
-from w2.prematch.lifecycle import MODEL_FORECAST_DENOMINATOR_SCOPE, LineupConfirmedEvent
+from w2.prematch.lifecycle import (
+    LEGACY_EVALUATION_IDENTITY_VERSION,
+    MODEL_FORECAST_DENOMINATOR_SCOPE,
+    LineupConfirmedEvent,
+)
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_CANARY_PREFIX,
     ANALYSIS_CARD_CANARY_SCHEMA,
@@ -31,6 +35,7 @@ from w2.prematch.read_model_projection import (
     ProjectionSourceEvent,
     _dynamic_evaluations,
     _post_lineup_odds_plan,
+    _projection_business_hash,
     canonical_sha256,
     materialize_projection_events,
     read_frozen_analysis_artifact,
@@ -1461,6 +1466,54 @@ def test_single_event_shadow_matches_post_write_current_read_with_lifecycle(
             assert plan.status == "DUE"
     else:
         assert "lineup_event_payload_sha256" not in artifact.payload
+
+
+def test_frozen_reader_accepts_the_pre_calibration_identity_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    artifact = _materializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=_event().event_at,
+        source_event=_event(),
+    )
+    payload = deepcopy(artifact.payload)
+    manifest = payload["input_manifest"]
+    legacy = tuple(
+        _dynamic_evaluations(
+            payload["analysis_card"],
+            manifest,
+            fixture_identity=manifest["dynamic_fixture_identity"],
+            lineup_identity=manifest["dynamic_lineup_identity"],
+            build_scoreline_reference=_scoreline_reference,
+            evaluation_identity_version=LEGACY_EVALUATION_IDENTITY_VERSION,
+        )
+    )
+    primary = min(legacy, key=lambda item: item.evaluation_id)
+    payload.update(
+        {
+            "source_evaluation_id": primary.evaluation_id,
+            "source_evaluation_hash": primary.identity_hash,
+            "source_evaluation_ids": sorted(item.evaluation_id for item in legacy),
+            "source_evaluation_hashes": sorted(item.identity_hash for item in legacy),
+            "source_evaluation_scoreline_references": {
+                item.identity_hash: item.scoreline_reference
+                for item in legacy
+                if item.scoreline_reference is not None
+            },
+        }
+    )
+    payload["projection_hash"] = _projection_business_hash(payload)
+    payload["artifact_hash"] = canonical_sha256(
+        {key: value for key, value in payload.items() if key != "artifact_hash"},
+        domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT,
+    )
+
+    restored = validate_frozen_analysis_payload("1576804", payload)
+
+    assert [item.identity_hash for item in restored.evaluations] == [
+        item.identity_hash for item in legacy
+    ]
 
 
 def test_same_source_event_replay_adds_scoreline_contract_as_new_immutable_evaluation(
