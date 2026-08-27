@@ -14,6 +14,7 @@ passes when the thing under test was never produced.
 
 from __future__ import annotations
 
+import inspect
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -54,6 +55,10 @@ MODEL_WIN_PROBABILITY = 0.7481305152250234
 
 UNADMISSIBLE = ("BASELINE_PRIOR", "READY", "UNKNOWN", None, "")
 ADMISSIBLE = ("PRODUCTION_VALIDATED", "APPROVED_VALIDATED")
+
+
+def test_new_evaluation_writer_cannot_select_the_legacy_identity() -> None:
+    assert tuple(inspect.signature(classify_evaluation).parameters) == ("value",)
 
 
 def _engine():  # type: ignore[no-untyped-def]
@@ -373,9 +378,7 @@ def test_e_upgrade_on_the_same_opportunity_is_its_own_attempt() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
     repository.append_evaluation(_same_opportunity_attempt("BASELINE_PRIOR", minutes=0))
-    repository.append_evaluation(
-        _same_opportunity_attempt("PRODUCTION_VALIDATED", minutes=30)
-    )
+    repository.append_evaluation(_same_opportunity_attempt("PRODUCTION_VALIDATED", minutes=30))
     with Session(engine) as session:
         rows = list(session.scalars(select(DynamicPrematchEvaluationModel)))
         opportunities = list(session.scalars(select(DynamicPrematchOpportunityModel)))

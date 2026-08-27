@@ -45,6 +45,63 @@ def test_alembic_upgrade_and_downgrade_smoke(tmp_path: Path) -> None:
         assert result.returncode == 0, result.stderr
 
 
+def test_0070_adds_isolated_v2_tables_without_rewriting_v1_capture(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'factor-shadow-v2.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+    assert _alembic(root, env, "upgrade", "0069_outcome_ledger_run_state").returncode == 0
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "insert into model_forecast_capture "
+                "(capture_identity_hash,fixture_id,competition_id,kickoff_utc,captured_at,"
+                "lead_time_seconds,lead_time_bucket,model_family,model_version,"
+                "model_input_manifest_hash,four_field_xg_identity_hash,score_matrix_hash,"
+                "payload,payload_sha256,inserted_at) values "
+                "(:hash,'1570351','la_liga',:at,:at,10800,'LT_3H','family','v1',"
+                ":hash,:hash,:hash,'{}',:hash,:at)"
+            ),
+            {"hash": "a" * 64, "at": datetime(2026, 8, 20, 16)},
+        )
+        before = connection.execute(
+            text(
+                "select count(*) as row_count, min(capture_identity_hash) as identity "
+                "from model_forecast_capture"
+            )
+        ).mappings().one()
+
+    assert _alembic(root, env, "upgrade", "head").returncode == 0
+    with engine.connect() as connection:
+        after = connection.execute(
+            text(
+                "select count(*) as row_count, min(capture_identity_hash) as identity "
+                "from model_forecast_capture"
+            )
+        ).mappings().one()
+
+    assert after == before
+    tables = set(inspect(engine).get_table_names())
+    assert {
+        "raw_fixture_scope_membership",
+        "factor_shadow_forecast_capture",
+        "factor_shadow_market_opportunity",
+        "factor_shadow_market_attempt",
+        "factor_shadow_forecast_outcome",
+        "factor_shadow_v2_admission",
+    } <= tables
+    forecast_columns = {
+        column["name"] for column in inspect(engine).get_columns("factor_shadow_forecast_capture")
+    }
+    assert {"captured_at", "feature_as_of", "computed_at"} <= forecast_columns
+    assert {"market", "checkpoint", "quote_identity_hash"}.isdisjoint(forecast_columns)
+
+
 def test_0060_projects_canonical_fixture_id_without_rewriting_capture(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[2]
     database_url = f"sqlite+pysqlite:///{tmp_path / 'canonical-capture-view.db'}"

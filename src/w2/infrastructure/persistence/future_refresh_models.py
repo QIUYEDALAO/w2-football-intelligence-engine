@@ -7,6 +7,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
@@ -157,6 +158,43 @@ class RawPayloadModel(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
+class RawFixtureScopeMembershipModel(Base):
+    __tablename__ = "raw_fixture_scope_membership"
+    __table_args__ = (
+        UniqueConstraint(
+            "raw_payload_sha256",
+            "provider_fixture_id",
+            "scope_policy_version",
+            name="uq_raw_fixture_scope_membership_identity",
+        ),
+        Index(
+            "ix_raw_fixture_scope_membership_scope_kickoff",
+            "source_scope",
+            "scope_policy_version",
+            "provider_league_id",
+            "kickoff_utc",
+        ),
+        CheckConstraint(
+            "source_scope in ('LIVE_DISCOVERY','HISTORICAL_TRAINING','CONTROLLED_AUDIT')",
+            name="ck_raw_fixture_scope_membership_scope",
+        ),
+    )
+
+    membership_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    raw_payload_sha256: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("raw_payload.sha256", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    provider_fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    scope_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_scope: Mapped[str] = mapped_column(String(32), nullable=False)
+    request_identity: Mapped[str] = mapped_column(String(64), nullable=False)
+    classified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    provider_league_id: Mapped[str | None] = mapped_column(String(64))
+    kickoff_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class FreePlanFixtureScopeObservationModel(Base):
     __tablename__ = "free_plan_fixture_scope_observations"
     __table_args__ = (
@@ -207,6 +245,8 @@ event.listen(RawPayloadModel, "before_update", _prevent_statistics_raw_mutation)
 event.listen(RawPayloadModel, "before_delete", _prevent_statistics_raw_mutation)
 event.listen(RawStatisticsRetentionModel, "before_update", _prevent_retention_manifest_mutation)
 event.listen(RawStatisticsRetentionModel, "before_delete", _prevent_retention_manifest_mutation)
+event.listen(RawFixtureScopeMembershipModel, "before_update", _prevent_retention_manifest_mutation)
+event.listen(RawFixtureScopeMembershipModel, "before_delete", _prevent_retention_manifest_mutation)
 
 
 class TeamXgMatchModel(Base):
