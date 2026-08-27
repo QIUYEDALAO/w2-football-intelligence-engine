@@ -1,0 +1,57 @@
+{
+  "schema_version": "w2.factor_v2.forward_prereg_amendment.v1.evidence",
+  "status": "SUCCESSOR_FROZEN_NO_ROWS_ALLOWED_UNTIL_ACTIVATION_AUTHORITY",
+  "protocol": {
+    "commit": "cb958902b2893adac44871cce0f324cf2f5ac307",
+    "file_sha256": "aa0d7e1482ba7a0a31c4509a7e3a28a91a3e2acdc8ced591a6b7f7114b84dd52"
+  },
+  "old_preregistration": {
+    "file_sha256": "cad4b549bc8a00d56ad29f1913bc8ebd582a21ee8524b86a4fb7e24480f936c1",
+    "status": "SUPERSEDED_BEFORE_FIRST_SAMPLE",
+    "modified": false
+  },
+  "successor_preregistration": {
+    "file_sha256": "5c6b13b50818587d381e361bafbce25f33bd7e7f52c3b090ccf02bd0def4c880",
+    "semantic_sha256": "bf2b539d77a532b7c8bf9e81d2644f6f3f760ddf549719613ee2643c8aac4e98",
+    "amendment_frozen_at": "2026-08-27T16:10:59Z",
+    "cohort_start": null,
+    "cohort_start_status": "UNRESOLVED_NO_ROWS_ALLOWED"
+  },
+  "candidate_identity": {
+    "split": "c45e1d4efcd3d59e9ef21c6ae36e1639a84faedf9e90356eb67e6830f6120d29",
+    "preprocessing": "c6530ef565383c454bba40e5213ece7101289c4c30c0f8d5792a9e03af70029e",
+    "features": "9e514a36d08b6fe94ec6dd17057f24d384cc781abf94ef5c3988b2af5d69de92",
+    "model": "665a0e58bdb4369ab0a04501a3c14caaa6818f0340137de33b6d0217d9bfd0c6",
+    "calibration": "199ae9c24b4aca04a0058967dda259461544a23baf45c8f0ab84154277564255",
+    "score_matrices": "4e9b94ca624fff556775af508bebb9ac26722de87f0f15d442dd986f455a6c66",
+    "recovery_evidence": "43ea7cd64ff369191317ada071136ecdc0173d48a929e09688a3c6f32322555e"
+  },
+  "zero_row_evidence": {
+    "classification": "CONFIRMED_RECORD_NOT_LIVE_QUERIED",
+    "forward_sample_count": 0,
+    "production_release": "ea557bb8ff64e06add91bbe32814fe073ec64642",
+    "production_schema": "0070_notification_delivery_routing",
+    "factor_shadow_migration_present_in_release": false
+  },
+  "variants": {
+    "BASE_PRE_LINEUP": "ELIGIBLE_ONLY_AFTER_ACTIVATION_AUTHORITY",
+    "LINEUP_CONFIRMED": "NO_ROWS_ALLOWED_UNTIL_SEPARATE_PREREGISTRATION"
+  },
+  "point_ev_authority_epoch": "POINT_EV_FAIL_CLOSED",
+  "gate_1": "FAIL_PENDING_PROSPECTIVE_CONFIRMATION",
+  "gate_2": "CLOSED",
+  "execution": {
+    "provider_calls": 0,
+    "production_reads": 0,
+    "production_writes": 0,
+    "github_ghcr": 0,
+    "model_fit_tune_score": 0,
+    "validation_holdout_prospective_metric_reads": 0,
+    "migration_apply": 0,
+    "collector_timer_start": 0,
+    "deployment": 0,
+    "candidate_opportunity_outbox_bark": 0
+  },
+  "alpha": null,
+  "beta": null
+}
