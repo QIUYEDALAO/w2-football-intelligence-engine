@@ -42,8 +42,8 @@ No row in this table authorises migration, collection or deployment.
 | factor/data-role matrix | `PASS_LOCAL` |
 | dual-track/lineup contract | `PASS_LOCAL` |
 | corrected roadmap | `PASS_LOCAL` |
-| Claude Code independent acceptance | `PENDING` |
-| task 2 entry | `BLOCKED_PENDING_PROTOCOL_ACCEPTANCE` |
+| Claude Code independent acceptance | `PASS_WITH_FOUR_DOCUMENT_CORRECTIONS` |
+| follow-on task execution | `NOT_STARTED / REQUIRES_NEW_EXPLICIT_INSTRUCTION` |
 
 ## Factual-source labels
 
@@ -55,6 +55,7 @@ No row in this table authorises migration, collection or deployment.
 | `SUPPLIED` | stated in revised scope and not independently refreshed live |
 | `VAULT` | navigation/deployment record; subordinate to code/live evidence |
 | `NOT_LIVE_REFRESHED` | production connection deliberately not used |
+| `CONFIRMED_RECORD / NOT_LIVE_VERIFIED` | confirmed from local code/records but not refreshed against production because production reads were 0 |
 
 Material numbers:
 
@@ -80,4 +81,3 @@ Material numbers:
 | migration/collector/timer/deploy | 0 / 0 / 0 / 0 |
 | business code changed | 0 |
 | Gate 1 / Gate 2 changed | no (`FAIL` / `CLOSED`) |
-

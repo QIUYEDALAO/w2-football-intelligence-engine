@@ -13,7 +13,8 @@ Authority: frozen split manifest canonical hash
 | HOLDOUT | manifest rows `split=HOLDOUT`, kickoff `[2026-01-01,2026-08-21T19:18:10.674088Z)` | 2,628 | metrics inspected | `OBSERVED_CONFIRMATORY_CONTAMINATED` |
 | prospective successor | exact bounds to be frozen after new model identity | 0 now | unseen | future confirmation only |
 
-Task 2 may fit and select only within the 3,118 frozen TRAIN identities. Internal
+`V2-GATE1-CALIBRATION-RECOVERY-01` may fit and select only within the 3,118 frozen
+TRAIN identities. Internal
 folds do not turn any part of that set into independent validation. VALIDATION and
 HOLDOUT may be used only for blind reproducibility checks that do not expose new
 metrics to the developer.
@@ -73,4 +74,3 @@ Before its first row, freeze:
 - primary metrics, strata, power basis, one-look time and insufficient-sample rule;
 - POINT-EV authority epoch field; and
 - permanent `relaxation_forbidden_after_first_sample=true`.
-

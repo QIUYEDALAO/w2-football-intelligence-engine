@@ -1,6 +1,6 @@
 # V2-REENTRY-PROTOCOL-01 — technical judgement
 
-Status: `LOCAL_PROTOCOL_COMPLETE / CLAUDE_ACCEPTANCE_PENDING`
+Status: `CLAUDE_ACCEPTED / DOCUMENT_CORRECTIONS_APPLIED / NO_FOLLOW_ON_STARTED`
 
 Frozen protocol: `1f080b26` (`PROTOCOL_FROZEN_20260827.md`)
 
@@ -40,7 +40,7 @@ complete, V2 remains analysis-only and `APPROVED_VALIDATED` does not exist.
 
 | Claim | Result | Authority |
 |---|---|---|
-| Production head is `fc70b48e` | `CONFIRMED` | local Git and W2 Vault deployment record; no live refresh |
+| Production head is `fc70b48e` | `CONFIRMED_RECORD / NOT_LIVE_VERIFIED` | local Git and W2 Vault deployment record; production reads were 0 |
 | V2 head is `6f2032cc` | `CONFIRMED` | local Git |
 | POINT-EV head is `2b4751c6` | `CONFIRMED` | local Git |
 | Production/V2 split at `ae5b4d88`, 21/17 | `CONFIRMED` | local `merge-base` and `rev-list` |
@@ -50,7 +50,7 @@ complete, V2 remains analysis-only and `APPROVED_VALIDATED` does not exist.
 | xG changed 18,696/9,348 to 18,978/9,489 | `CONFIRMED_LOCAL_ARTEFACTS` | two local CSV snapshots; not a live production query |
 | current common xG rows changed values | `CORRECTED: NO` | all 18,696 `(fixture_id, team_id)` rows match on compared fields |
 | code produces `APPROVED_VALIDATED` | `CONFIRMED: NO` | code search; value is accepted by consumers but has no producer |
-| production calibration is `BASELINE_PRIOR` | `CONFIRMED_CODE / NOT_LIVE_REFRESHED` | `src/w2/strategy/calibration.py` at local production lineage |
+| production calibration is `BASELINE_PRIOR` | `CONFIRMED_RECORD / NOT_LIVE_VERIFIED` | `src/w2/strategy/calibration.py` at the recorded production lineage; production reads were 0 |
 | VALIDATION and HOLDOUT metrics were observed | `CONFIRMED` | frozen Gate 1 report and artifact |
 | no forward V2 row exists | `SUPPLIED_AND_CODE_CONSISTENT / NOT_LIVE_REFRESHED` | revised scope, Vault and production migration absence |
 | V1 T-30m evaluation is 85% | `SUPPLIED_FROZEN_OPERATIONAL_EVIDENCE` | W2 Vault record; no production query in this task |
@@ -75,9 +75,11 @@ Why this baseline:
 
 The merge is still a semantic integration, not a mechanical green merge. The
 auto-merged xG repository, scheduler, Compose and tests require explicit review.
-Migration `0070_factor_shadow_v2_gate0` already declares
-`down_revision = 0070_notification_delivery_routing`, but the merged migration graph
-must be checked again on the selected baseline.
+Migration `0070_factor_shadow_v2_gate0` declares
+`down_revision = 0070_notification_delivery_routing`, but that target revision does
+not exist on branch `6f2032cc`. The chain can become complete only on the selected
+merged baseline `2b4751c6 + 6f2032cc`, where the migration graph and single-head claim
+must be checked again.
 
 ### Conflict inventory
 
@@ -132,6 +134,10 @@ one of the 18,696 common `(fixture_id, team_id)` rows has the same kickoff,
 `captured_at`, xG values and source system. No common row was removed. Thus no local
 evidence shows that first-write immutability would change the old frozen rows.
 
+That zero-difference evidence is bounded to the two local snapshots from
+`2026-08-22T06:22Z` through `2026-08-26`. It is not evidence that the common rows had
+never varied before the earlier snapshot.
+
 ### Rejected options
 
 - **Declare the old result invalid solely because `4733c76f` was absent**: that
@@ -159,9 +165,9 @@ Exact local comparison found:
 
 The +54 pre-cutoff fixtures can change historical rolling xG inputs and scorable
 coverage. Even though the common rows are stable, the later corpus is not the same
-experiment. Task 2 must create new corpus, split/preprocessing, feature, model,
-calibration, score-matrix and report hashes. The old Gate 1 report remains byte-for-
-byte historical evidence and `FAIL`.
+experiment. `V2-GATE1-CALIBRATION-RECOVERY-01` must create new corpus,
+split/preprocessing, feature, model, calibration, score-matrix and report hashes. The
+old Gate 1 report remains byte-for-byte historical evidence and `FAIL`.
 
 No model metrics were recomputed in this review.
 
@@ -221,12 +227,14 @@ tests are required before approval can influence production.
 
 ## 7. Judgement 5 — POINT-EV sequencing and the V1 discontinuity
 
-POINT-EV landing is a separate production task and is a hard prerequisite for the
+`POINT-EV-LANDING-01` is a separate production task and is a hard prerequisite for the
 legacy Task 6 (`V2-GATE5-ADMISSION-01`) and for any V2 candidate influence. It is not
-a prerequisite for Task 2 development, schema work or analysis-only shadow rows.
+a prerequisite for `V2-GATE1-CALIBRATION-RECOVERY-01` development, schema work or
+analysis-only shadow rows.
 
 Its deployment must be independently authorised and accepted. Local head
-`2b4751c6` is not production enforcement.
+`2b4751c6` is not production enforcement, and `POINT-EV-LANDING-01` requires separate
+explicit Owner deployment authorisation.
 
 With current `BASELINE_PRIOR`, POINT-EV landing makes V1 produce no formal candidates.
 That is the intended fail-closed result, but it creates an operational epoch break:
@@ -248,14 +256,16 @@ and using pre-fix V1 candidates as the continuing live control.
 
 ## 8. Judgement 6 — exact data roles after both old test sets were observed
 
-Task 2 development is limited to target fixture identities marked `TRAIN` in frozen
-split manifest `01a4f593…`: kickoff in `[2024-01-01, 2025-01-01)`, exactly 3,118
-targets. Under the old Gate 1 xG snapshot, 2,684 were scorable for coefficient fitting.
-Missing/unscorable members remain in the development accounting.
+`V2-GATE1-CALIBRATION-RECOVERY-01` development is limited to target fixture identities
+marked `TRAIN` in frozen split manifest `01a4f593…`: kickoff in
+`[2024-01-01, 2025-01-01)`, exactly 3,118 targets. Under the old Gate 1 xG snapshot,
+2,684 were scorable for coefficient fitting. Missing/unscorable members remain in the
+development accounting.
 
-Task 2 may use their outcomes for fitting, calibration choice, debugging and internal
-time-ordered/cross-fitted diagnostics. Once used this way, every such diagnostic is
-development evidence only. It cannot be called a validation or Gate pass.
+`V2-GATE1-CALIBRATION-RECOVERY-01` may use their outcomes for fitting, calibration
+choice, debugging and internal time-ordered/cross-fitted diagnostics. Once used this
+way, every such diagnostic is development evidence only. It cannot be called a
+validation or Gate pass.
 
 The old 2025 VALIDATION set (4,520 targets) and 2026 HOLDOUT set (2,628 targets) are
 both sealed as `OBSERVED_CONFIRMATORY_CONTAMINATED`. They may be used only for
@@ -278,7 +288,8 @@ Choice: **formal pre-first-row amendment**, not cancellation and not parallel us
 the old model protocol.
 
 The current preregistration is bound by `frozen_gate1_inputs` to the failed model and
-its old hashes. Task 2 necessarily creates a new identity. Running the old protocol
+its old hashes. `V2-GATE1-CALIBRATION-RECOVERY-01` necessarily creates a new identity.
+Running the old protocol
 in parallel would spend capacity on a model already known to fail, while its
 `production_capture_captured_at_not_before=2026-08-22T09:05:33Z` predates actual
 activation and would create an irrecoverable prospective gap.

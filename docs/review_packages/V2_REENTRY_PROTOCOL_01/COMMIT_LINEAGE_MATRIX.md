@@ -81,7 +81,7 @@ identical far-horizon patch explains their content overlap.
 | raw fixture scope | V2 scope membership remains append-only and conflict checked |
 | scheduler | current production checkpoint/claim fixes remain authoritative |
 | worker | V2 uses independent role/service and cannot call Provider or write V1 |
-| migrations | factor revision follows notification routing and has one Alembic head |
+| migrations | `0070_factor_shadow_v2_gate0` names `0070_notification_delivery_routing` as its `down_revision`, but that target does not exist on branch `6f2032cc`; a single Alembic head can exist only on the selected merged baseline `2b4751c6 + 6f2032cc` and must be rechecked in `V2-INTEGRATION-BASELINE-01` |
 | POINT-EV | admission is fail-closed for all nonvalidated states |
 | V2 authority | no free-form admission row may manufacture `APPROVED_VALIDATED` |
 | documentation | old Gate 1 remains old-line evidence, not a merged-baseline result |
@@ -93,4 +93,3 @@ identical far-horizon patch explains their content overlap.
 | rebase the 17 V2 commits | rewrites the frozen evidence chain and serialises conflicts |
 | cherry-pick a subset | omission risk and duplicate-patch risk |
 | start from `6f2032cc` | omits 21 production commits and all POINT-EV commits |
-
