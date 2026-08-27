@@ -7,6 +7,10 @@ from typing import Any
 from w2.features.live_factors import TeamXgSnapshot
 
 FINISHED_STATUS = {"FT", "AET", "PEN"}
+XG_METHOD_VERSION = "api-football.expected-goals.statistics.v1"
+XG_SOURCE_SYSTEM = "api_football_statistics"
+XG_PIT_SOURCE_KICKOFF_ONLY = "SOURCE_KICKOFF_ONLY"
+XG_PIT_STRICT_CAPTURED_AT = "STRICT_CAPTURED_AT"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -21,7 +25,7 @@ class TeamXgMatch:
     goals_for: int
     goals_against: int
     raw_payload_sha256: str
-    source_system: str = "api_football_statistics"
+    source_system: str = XG_SOURCE_SYSTEM
     candidate: bool = False
     formal_recommendation: bool = False
 
@@ -42,6 +46,8 @@ class TeamXgRollingSnapshot:
     rolling_goals_for: float
     rolling_goals_against: float
     regression_index: float
+    source_fixture_ids: tuple[str, ...]
+    source_raw_payload_sha256s: tuple[str, ...]
     source_system: str = "team_xg_match"
     candidate: bool = False
     formal_recommendation: bool = False
@@ -127,6 +133,8 @@ def materialize_rolling_xg(
     matches: list[TeamXgMatch],
     window: int = 5,
     min_matches: int = 3,
+    pit_semantics: str = XG_PIT_STRICT_CAPTURED_AT,
+    method_version: str = XG_METHOD_VERSION,
 ) -> TeamXgRollingSnapshot | None:
     """Build a target-fixture snapshot without making it visible before its inputs.
 
@@ -135,19 +143,29 @@ def materialize_rolling_xg(
     every selected component was knowable.
     """
     cutoff = as_of_time.astimezone(UTC)
+    source_kickoff_only = (
+        pit_semantics == XG_PIT_SOURCE_KICKOFF_ONLY
+        and method_version == XG_METHOD_VERSION
+        and all(row.source_system == XG_SOURCE_SYSTEM for row in matches)
+    )
+    if pit_semantics not in {XG_PIT_SOURCE_KICKOFF_ONLY, XG_PIT_STRICT_CAPTURED_AT}:
+        raise ValueError("XG_PIT_SEMANTICS_INVALID")
     eligible = [
         row
         for row in matches
         if row.team_id == team_id
+        and row.fixture_id != as_of_fixture_id
         and row.kickoff_at.astimezone(UTC) < cutoff
-        and row.captured_at.astimezone(UTC) < cutoff
+        and (source_kickoff_only or row.captured_at.astimezone(UTC) < cutoff)
     ]
     eligible.sort(key=lambda row: row.kickoff_at)
     selected = eligible[-window:]
     if len(selected) < min_matches:
         return None
     available_at = max(
-        max(row.kickoff_at.astimezone(UTC), row.captured_at.astimezone(UTC))
+        row.kickoff_at.astimezone(UTC)
+        if source_kickoff_only
+        else max(row.kickoff_at.astimezone(UTC), row.captured_at.astimezone(UTC))
         for row in selected
     )
     count = len(selected)
@@ -167,6 +185,8 @@ def materialize_rolling_xg(
         rolling_goals_for=round(goals_for, 4),
         rolling_goals_against=round(goals_against, 4),
         regression_index=round(regression_index, 4),
+        source_fixture_ids=tuple(row.fixture_id for row in selected),
+        source_raw_payload_sha256s=tuple(row.raw_payload_sha256 for row in selected),
     )
 
 
