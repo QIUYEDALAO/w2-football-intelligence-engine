@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from w2.domain import calibration_authority
 from w2.domain.five_state_pricing import MIN_CASHFLOW_PRICE_EDGE
 from w2.markets.analysis_evidence import build_analysis_market_evidence
 
@@ -106,6 +107,7 @@ def select_authoritative_market_candidate(
                     expected_value=ev,
                     uncertainty=uncertainty,
                     cashflow_edge=cashflow_edge,
+                    calibration_status=_mapping(candidate.get("calibration")).get("status"),
                 ),
                 ev - uncertainty,
                 cashflow_edge,
@@ -518,6 +520,7 @@ def _best_evaluated_side(
                     expected_value=ev,
                     uncertainty=uncertainty,
                     cashflow_edge=cashflow_edge,
+                    calibration_status=evidence.get("calibration_status"),
                 ),
                 ev - uncertainty,
                 cashflow_edge,
@@ -540,10 +543,12 @@ def _admission_eligible(
     expected_value: float,
     uncertainty: float,
     cashflow_edge: float,
+    calibration_status: object,
 ) -> bool:
     return bool(
         evidence_complete
         and candidate_role == "MARKET_MAINLINE"
+        and calibration_authority.recommendation_admissible(calibration_status)
         and expected_value > 0
         and expected_value - uncertainty > 0
         and cashflow_edge >= float(MIN_CASHFLOW_PRICE_EDGE)

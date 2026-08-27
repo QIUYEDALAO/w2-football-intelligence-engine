@@ -42,8 +42,10 @@ def _market(name: str) -> dict[str, object]:
     return {"market": name, "decision": "PICK", "tendency": tendency, "line": "-0.5"}
 
 
-def _ready_simulation() -> dict[str, object]:
-    return {
+def _ready_simulation(*, calibration_status: str | None = None) -> dict[str, object]:
+    """A ready simulation. `calibration_status` is opt-in: one test asserts that an
+    absent status surfaces as UNKNOWN, and admission tests declare a validated one."""
+    simulation: dict[str, object] = {
         "status": "READY",
         "model_version": "model",
         "calibration_version": "calibration",
@@ -56,6 +58,9 @@ def _ready_simulation() -> dict[str, object]:
             "params": {"dixon_coles_rho": 0.0},
         },
     }
+    if calibration_status is not None:
+        simulation["calibration_status"] = calibration_status
+    return simulation
 
 
 def _evaluated_candidate(
@@ -69,6 +74,9 @@ def _evaluated_candidate(
         "quote_status": "COMPLETE",
         "quote_usage": "EXECUTABLE",
         "quotes": {"executable": {"decimal_odds": "1.9"}},
+        # admission consults the calibration authority; this fixture is about
+        # ranking eligible sides, so it declares a validated one
+        "calibration": {"status": "PRODUCTION_VALIDATED"},
         "analysis_evidence": {
             "status": "COMPLETE",
             "model_probability": {
@@ -136,7 +144,7 @@ def test_production_shaped_ah_side_admission_prefers_eligible_side(
         selection=None,
         line="-0.5",
         quote_identity_audit={"ah": _audit()},
-        simulation=_ready_simulation(),
+        simulation=_ready_simulation(calibration_status="PRODUCTION_VALIDATED"),
     )
     assert evidence["status"] == "NO_EDGE"
     assert _best_evaluated_side(
@@ -151,7 +159,7 @@ def test_production_shaped_ah_side_admission_prefers_eligible_side(
         quote_identity_audit={"ah": _audit()},
         current_odds={"ah": {"home_line": "-0.5", "away_line": "0.5"}},
         pricing_shadow={},
-        simulation=_ready_simulation(),
+        simulation=_ready_simulation(calibration_status="PRODUCTION_VALIDATED"),
         fixture_id="fixture-1",
         competition_id="allsvenskan",
     )["ah"]

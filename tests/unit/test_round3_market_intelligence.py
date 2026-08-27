@@ -108,7 +108,11 @@ def _market_rows(
     return rows
 
 
-def _simulation(*, calibration_status: str = "READY") -> dict[str, Any]:
+# READY used to be the default here, mirroring an allowlist that treated the
+# simulation pipeline's status as a validation verdict. Tests that are about the
+# market radar declare a validated calibration; the blocker itself is asserted by
+# the BASELINE_PRIOR case below.
+def _simulation(*, calibration_status: str = "PRODUCTION_VALIDATED") -> dict[str, Any]:
     return {
         "status": "READY",
         "model_version": "model-v1",

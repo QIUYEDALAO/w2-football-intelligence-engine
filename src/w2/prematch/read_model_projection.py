@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
+from w2.domain import calibration_authority
 from w2.domain.canonical_serialization import (
     CanonicalSerializationError,
     HashDomain,
@@ -1477,6 +1478,9 @@ def _dynamic_evaluations(
             ).upper()
             == "COMPLETE",
             model_ready=model_ready,
+            calibration_status=calibration_authority.status_of(
+                simulation if isinstance(simulation, Mapping) else None
+            ),
             market_probability_ready=bool(devig),
             identity_conflict=False,
             model_probability=_float_or_none(model.get("effective_probability")),

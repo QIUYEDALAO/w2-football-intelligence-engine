@@ -127,7 +127,7 @@ def test_model_forecast_denominator_emits_both_markets_without_candidates() -> N
     versions = _dynamic_evaluations(
         {
             "fixture_id": "1494246",
-            "simulation": {"status": "READY"},
+            "simulation": {"status": "READY", "calibration_status": "PRODUCTION_VALIDATED"},
         },
         {
             "evaluated_at": "2026-08-17T16:30:00Z",
@@ -262,6 +262,9 @@ def _patch_ready_projection(monkeypatch: pytest.MonkeyPatch) -> None:
             "evaluated_at": evaluation_time.astimezone(UTC).isoformat(),
             "simulation": {
                 "status": "READY",
+                # a shaped production card declares its calibration; these tests are
+                # about materialisation and replay, not the calibration gate
+                "calibration_status": "PRODUCTION_VALIDATED",
                 "lambda_home": 1.4,
                 "lambda_away": 0.9,
                 "scoreline_picks": [],
@@ -1981,7 +1984,7 @@ def _depth_card(*, ah_mainline: dict[str, Any], ou_mainline: dict[str, Any]) -> 
 
     return {
         "fixture_id": "1523198",
-        "simulation": {"status": "READY"},
+        "simulation": {"status": "READY", "calibration_status": "PRODUCTION_VALIDATED"},
         "market_candidates": {
             "ah": branch("HOME", ah_mainline),
             "ou": branch("OVER", ou_mainline),

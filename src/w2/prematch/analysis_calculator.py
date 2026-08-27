@@ -50,6 +50,7 @@ from w2.dashboard.status_labels import (
 )
 from w2.dashboard.validation import validate_recommendation
 from w2.dashboard.validation_summary import validation_summary
+from w2.domain import calibration_authority
 from w2.domain.canonical_serialization import (
     HashDomain,
     canonical_sha256,
@@ -6171,7 +6172,9 @@ class ReadModelService:
                 "as_of_time": datetime.fromisoformat(str(dashboard["captured_at"])),
                 "quality": dashboard.get("decision_status", "SKIP"),
                 "calibration_status": calibration_status,
-                "calibrated": calibration_status in {"PRODUCTION_VALIDATED", "APPROVED_VALIDATED"},
+                "calibrated": calibration_authority.recommendation_admissible(
+                    calibration_status
+                ),
             }
         return {
             "probability_type": "independent_model_probability",

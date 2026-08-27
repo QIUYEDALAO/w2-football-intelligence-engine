@@ -1,0 +1,84 @@
+{
+  "acquisition": {
+    "deploys": 0,
+    "method": "ssh + docker exec psql, BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY, ROLLBACK",
+    "production_writes": 0,
+    "provider_calls": 0
+  },
+  "calibration_fields_present_in_decision_record": [],
+  "chain": {
+    "1_quote": {
+      "bookmaker_count": 5,
+      "capture_at": "2026-08-26T18:30:58Z",
+      "decimal_odds": 1.92,
+      "exact_line": 3.5,
+      "market": "TOTALS",
+      "quote_identity_hash": "ac0d3b7d80de16e175a7cf964b24cf2f4969db242f2d88672b90b7c8f7fbbab6",
+      "selection": "UNDER"
+    },
+    "2_model_input": {
+      "lineup_input_hash": null,
+      "model_forecast_capture_identity_hash": "b2bb64f84ebe6076b1c64e265d78bfdd564b7369d6893b8414cc509f1f58e37b",
+      "model_input_hash": "f1d37065c9f4bd4b52973eda482587c131fe83a93a7c067342ffab5dc53939fc"
+    },
+    "3_five_state_distribution": {
+      "HALF_LOSS": 0.0,
+      "HALF_WIN": 0.0,
+      "LOSS": 0.25186948477497656,
+      "PUSH": 0.0,
+      "WIN": 0.7481305152250234
+    },
+    "4_ev": {
+      "current_delta": 0.248131,
+      "current_ev": 0.436411,
+      "current_ev_minus_se": 0.386085,
+      "required_delta": 0.05,
+      "required_ev": 0.0,
+      "required_ev_minus_se": 0.0
+    },
+    "5_gates": {
+      "bookmaker_depth": true,
+      "candidate": true,
+      "evaluated": true,
+      "mainline_parsed": true,
+      "model_ready": true,
+      "no_edge": false,
+      "quote_fresh": true
+    },
+    "6_decision": {
+      "all_failed_gates": [],
+      "blockers": [],
+      "exclusion_reason": null,
+      "first_failed_gate": null,
+      "official_funnel_eligible": true,
+      "opportunity_state": "EVALUATED_CANDIDATE",
+      "state": "ANALYSIS_PICK_ACTIVE"
+    },
+    "7_notification": {
+      "created_at": "2026-08-26T18:32:56.204867+00:00",
+      "delivery_status": "DELIVERED",
+      "event_type": "CANDIDATE_T30_CONFIRMED",
+      "opportunity_identity_hash": "e5bf6da48a0840756c6abfe94e32ef17ffd626ef8b43d9e1fdfa550e8eef680f"
+    }
+  },
+  "evaluation_payload_sha256": "7c50b37f9d04630a88546e0e3a53363139df2b5a91ece34f456e81c92eae8cc1",
+  "fixture_id": "1570340",
+  "independently_verified": {
+    "distribution_sums_to_one": 1.0,
+    "ev_formula": {
+      "agrees": true,
+      "computed": 0.436411,
+      "note": "five-state EV reproduces the recorded value exactly",
+      "recorded": 0.436411
+    },
+    "five_state_binding": {
+      "line": 3.5,
+      "note": "a .5 line admits no push or half settlement; PUSH/HALF_WIN/HALF_LOSS are all 0.0, which is correct",
+      "push_states_zero": true
+    },
+    "market_implied_probability_with_vig": 0.520833,
+    "model_minus_market_probability_points": 22.73
+  },
+  "protocol_commit": "6fdecb95",
+  "schema_version": "w2.point_ev_authority.trace.v1"
+}

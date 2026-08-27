@@ -98,6 +98,9 @@ def _attempt(
             decimal_odds=odds,
             bookmaker_count=depth,
             mainline_parsed=True,
+            # these tests are about notification transitions, so they declare a
+            # validated calibration; the calibration gate has its own tests
+            calibration_status="PRODUCTION_VALIDATED",
             denominator_scope=CHECKPOINT_OPPORTUNITY_SCOPE,
         )
     )

@@ -65,6 +65,9 @@ def test_denominator_evaluation_persists_real_write_time_and_gate_attribution() 
             source_observations_present=False,
             quote_fresh=False,
             model_ready=True,
+            # declared so this test keeps isolating quote and mainline attribution;
+            # the calibration gate has its own tests
+            calibration_status="PRODUCTION_VALIDATED",
             market_probability_ready=False,
             schema_version=DYNAMIC_EVALUATION_V3_SCHEMA,
             competition_id="113",
@@ -119,6 +122,10 @@ def _evaluation(
         "market_probability": market_probability,
         "expected_value": ev,
         "ev_se": ev_se,
+        # A well-formed evaluation now declares where its probability came from.
+        # Tests about the EV gates say so explicitly; the calibration gate itself
+        # is covered by its own tests below.
+        "calibration_status": "PRODUCTION_VALIDATED",
     }
     values.update(overrides)
     return DynamicEvaluationInput(**values)  # type: ignore[arg-type]
