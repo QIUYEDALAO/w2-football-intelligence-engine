@@ -1,0 +1,472 @@
+{
+  "age_term_operational_impact": {
+    "cells": {
+      "allsvenskan|attack": {
+        "alpha_abs": 0.000840408108,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 43.5285,
+        "se_percent_change_at_ci_low": 24.0997,
+        "se_percent_change_at_point_estimate": 38.2923
+      },
+      "allsvenskan|defence": {
+        "alpha_abs": 0.000548330432,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 42.3693,
+        "se_percent_change_at_ci_low": 12.0404,
+        "se_percent_change_at_point_estimate": 35.4363
+      },
+      "argentina_primera|attack": {
+        "alpha_abs": 0.000231568994,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 67.5879,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 49.0734
+      },
+      "argentina_primera|defence": {
+        "alpha_abs": 7.0855292e-05,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 60.1959,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 25.4397
+      },
+      "brasileirao_serie_a|attack": {
+        "alpha_abs": 0.000130526817,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 33.5206,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 16.0285
+      },
+      "brasileirao_serie_a|defence": {
+        "alpha_abs": 2.6176555e-05,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 28.3939,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 4.5484
+      },
+      "bundesliga|attack": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 27.2506,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "bundesliga|defence": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 27.0619,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "chinese_super_league|attack": {
+        "alpha_abs": 7.696438e-05,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 33.6885,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 10.0166
+      },
+      "chinese_super_league|defence": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 21.4157,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "eliteserien|attack": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 27.4814,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "eliteserien|defence": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 32.9082,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "eredivisie|attack": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 18.3453,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "eredivisie|defence": {
+        "alpha_abs": 0.000165072518,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 20.5457,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 9.6124
+      },
+      "la_liga|attack": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 13.2194,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "la_liga|defence": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 17.16,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "ligue_1|attack": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 15.72,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "ligue_1|defence": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 16.7271,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "mls|attack": {
+        "alpha_abs": 0.000112235178,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 30.93,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 13.2106
+      },
+      "mls|defence": {
+        "alpha_abs": 3.3252558e-05,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 26.6441,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 4.7732
+      },
+      "premier_league|attack": {
+        "alpha_abs": 0.000157698769,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 29.279,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 14.2745
+      },
+      "premier_league|defence": {
+        "alpha_abs": 0.000112798789,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 29.2256,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 11.5038
+      },
+      "primeira_liga|attack": {
+        "alpha_abs": 0.000774419959,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 30.2477,
+        "se_percent_change_at_ci_low": 18.6789,
+        "se_percent_change_at_point_estimate": 26.5083
+      },
+      "primeira_liga|defence": {
+        "alpha_abs": 7.3145808e-05,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 23.1584,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 7.3106
+      },
+      "serie_a|attack": {
+        "alpha_abs": 0.0,
+        "alpha_at_boundary": true,
+        "se_percent_change_at_ci_high": 18.8682,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 0.0
+      },
+      "serie_a|defence": {
+        "alpha_abs": 0.000325704447,
+        "alpha_at_boundary": false,
+        "se_percent_change_at_ci_high": 33.7664,
+        "se_percent_change_at_ci_low": 0.0,
+        "se_percent_change_at_point_estimate": 24.2572
+      }
+    },
+    "cells_total": 26,
+    "cells_with_zero_change": 11,
+    "max_percent_change": 49.0734,
+    "median_percent_change": 7.3106,
+    "reading": "this is the size of the correction an age term would apply across the ages production actually sees. It is not evidence that the correction is right: the same alpha carries a profile interval spanning roughly a factor of five, and windows this long cross season breaks, which is the regime the boundary jump term found the random walk over-predicting"
+  },
+  "population": "production_states",
+  "protocol_commit": "4558f5ab",
+  "schema_version": "w2.ev_se.drift_v5.impact.v1",
+  "state_distributions": {
+    "allsvenskan|attack": {
+      "age_p10_days": 93.332,
+      "age_p10_to_p90_span_days": 113.836,
+      "age_p50_days": 129.94,
+      "age_p90_days": 207.168,
+      "se0_squared_p10": 0.014685513157894736,
+      "se0_squared_p50": 0.026408039473684208,
+      "se0_squared_p90": 0.03951626315789474,
+      "states": 397
+    },
+    "allsvenskan|defence": {
+      "age_p10_days": 93.332,
+      "age_p10_to_p90_span_days": 113.836,
+      "age_p50_days": 129.94,
+      "age_p90_days": 207.168,
+      "se0_squared_p10": 0.012793736842105264,
+      "se0_squared_p50": 0.023640263157894737,
+      "se0_squared_p90": 0.04458921052631579,
+      "states": 397
+    },
+    "argentina_primera|attack": {
+      "age_p10_days": 76.529,
+      "age_p10_to_p90_span_days": 179.903,
+      "age_p50_days": 171.838,
+      "age_p90_days": 256.432,
+      "se0_squared_p10": 0.009742631578947369,
+      "se0_squared_p50": 0.01636182894736842,
+      "se0_squared_p90": 0.03335815789473684,
+      "states": 672
+    },
+    "argentina_primera|defence": {
+      "age_p10_days": 76.529,
+      "age_p10_to_p90_span_days": 179.903,
+      "age_p50_days": 171.838,
+      "age_p90_days": 256.432,
+      "se0_squared_p10": 0.010540052631578947,
+      "se0_squared_p50": 0.01680382894736842,
+      "se0_squared_p90": 0.029495315789473685,
+      "states": 672
+    },
+    "brasileirao_serie_a|attack": {
+      "age_p10_days": 58.153,
+      "age_p10_to_p90_span_days": 80.794,
+      "age_p50_days": 76.642,
+      "age_p90_days": 138.947,
+      "se0_squared_p10": 0.012235526315789473,
+      "se0_squared_p50": 0.02286557894736842,
+      "se0_squared_p90": 0.0375378947368421,
+      "states": 1038
+    },
+    "brasileirao_serie_a|defence": {
+      "age_p10_days": 58.153,
+      "age_p10_to_p90_span_days": 80.794,
+      "age_p50_days": 76.642,
+      "age_p90_days": 138.947,
+      "se0_squared_p10": 0.012618210526315787,
+      "se0_squared_p50": 0.021209526315789477,
+      "se0_squared_p90": 0.0394938947368421,
+      "states": 1038
+    },
+    "bundesliga|attack": {
+      "age_p10_days": 79.171,
+      "age_p10_to_p90_span_days": 82.423,
+      "age_p50_days": 85.396,
+      "age_p90_days": 161.594,
+      "se0_squared_p10": 0.014520249999999998,
+      "se0_squared_p50": 0.025433473684210527,
+      "se0_squared_p90": 0.04687782894736841,
+      "states": 492
+    },
+    "bundesliga|defence": {
+      "age_p10_days": 79.171,
+      "age_p10_to_p90_span_days": 82.423,
+      "age_p50_days": 85.396,
+      "age_p90_days": 161.594,
+      "se0_squared_p10": 0.01714784210526316,
+      "se0_squared_p50": 0.031189000000000005,
+      "se0_squared_p90": 0.04394205263157895,
+      "states": 492
+    },
+    "chinese_super_league|attack": {
+      "age_p10_days": 100.177,
+      "age_p10_to_p90_span_days": 110.843,
+      "age_p50_days": 125.046,
+      "age_p90_days": 211.019,
+      "se0_squared_p10": 0.017768736842105264,
+      "se0_squared_p50": 0.032842776315789475,
+      "se0_squared_p90": 0.06617067105263158,
+      "states": 474
+    },
+    "chinese_super_league|defence": {
+      "age_p10_days": 100.177,
+      "age_p10_to_p90_span_days": 110.843,
+      "age_p50_days": 125.046,
+      "age_p90_days": 211.019,
+      "se0_squared_p10": 0.018467513157894737,
+      "se0_squared_p50": 0.03466268421052632,
+      "se0_squared_p90": 0.0773828947368421,
+      "states": 474
+    },
+    "eliteserien|attack": {
+      "age_p10_days": 89.696,
+      "age_p10_to_p90_span_days": 109.893,
+      "age_p50_days": 111.873,
+      "age_p90_days": 199.589,
+      "se0_squared_p10": 0.015511631578947369,
+      "se0_squared_p50": 0.02981284210526316,
+      "se0_squared_p90": 0.05203178947368422,
+      "states": 504
+    },
+    "eliteserien|defence": {
+      "age_p10_days": 89.696,
+      "age_p10_to_p90_span_days": 109.893,
+      "age_p50_days": 111.873,
+      "age_p90_days": 199.589,
+      "se0_squared_p10": 0.016763894736842106,
+      "se0_squared_p50": 0.030197421052631578,
+      "se0_squared_p90": 0.055331197368421056,
+      "states": 504
+    },
+    "eredivisie|attack": {
+      "age_p10_days": 88.678,
+      "age_p10_to_p90_span_days": 55.072,
+      "age_p50_days": 100.292,
+      "age_p90_days": 143.749,
+      "se0_squared_p10": 0.016223894736842107,
+      "se0_squared_p50": 0.026897421052631577,
+      "se0_squared_p90": 0.0520332105263158,
+      "states": 512
+    },
+    "eredivisie|defence": {
+      "age_p10_days": 88.678,
+      "age_p10_to_p90_span_days": 55.072,
+      "age_p50_days": 100.292,
+      "age_p90_days": 143.749,
+      "se0_squared_p10": 0.019748565789473684,
+      "se0_squared_p50": 0.030479723684210525,
+      "se0_squared_p90": 0.04151021052631579,
+      "states": 512
+    },
+    "la_liga|attack": {
+      "age_p10_days": 79.122,
+      "age_p10_to_p90_span_days": 60.081,
+      "age_p50_days": 91.223,
+      "age_p90_days": 139.204,
+      "se0_squared_p10": 0.013141368421052632,
+      "se0_squared_p50": 0.023910842105263154,
+      "se0_squared_p90": 0.058226526315789465,
+      "states": 652
+    },
+    "la_liga|defence": {
+      "age_p10_days": 79.122,
+      "age_p10_to_p90_span_days": 60.081,
+      "age_p50_days": 91.223,
+      "age_p90_days": 139.204,
+      "se0_squared_p10": 0.015173736842105264,
+      "se0_squared_p50": 0.030947631578947365,
+      "se0_squared_p90": 0.05379225000000001,
+      "states": 652
+    },
+    "ligue_1|attack": {
+      "age_p10_days": 81.915,
+      "age_p10_to_p90_span_days": 71.236,
+      "age_p50_days": 91.758,
+      "age_p90_days": 153.151,
+      "se0_squared_p10": 0.020229618421052635,
+      "se0_squared_p50": 0.0355001447368421,
+      "se0_squared_p90": 0.05730130263157894,
+      "states": 492
+    },
+    "ligue_1|defence": {
+      "age_p10_days": 81.915,
+      "age_p10_to_p90_span_days": 71.236,
+      "age_p50_days": 91.758,
+      "age_p90_days": 153.151,
+      "se0_squared_p10": 0.02145330263157895,
+      "se0_squared_p50": 0.03537256578947369,
+      "se0_squared_p90": 0.06632452631578947,
+      "states": 492
+    },
+    "mls|attack": {
+      "age_p10_days": 64.463,
+      "age_p10_to_p90_span_days": 92.224,
+      "age_p50_days": 83.831,
+      "age_p90_days": 156.686,
+      "se0_squared_p10": 0.01534119736842105,
+      "se0_squared_p50": 0.029513302631578947,
+      "se0_squared_p90": 0.04852235526315789,
+      "states": 1524
+    },
+    "mls|defence": {
+      "age_p10_days": 64.463,
+      "age_p10_to_p90_span_days": 92.224,
+      "age_p50_days": 83.831,
+      "age_p90_days": 156.686,
+      "se0_squared_p10": 0.017523894736842106,
+      "se0_squared_p50": 0.029231302631578943,
+      "se0_squared_p90": 0.04852467105263157,
+      "states": 1524
+    },
+    "premier_league|attack": {
+      "age_p10_days": 70.94,
+      "age_p10_to_p90_span_days": 74.7,
+      "age_p50_days": 82.727,
+      "age_p90_days": 145.64,
+      "se0_squared_p10": 0.013321526315789475,
+      "se0_squared_p50": 0.02732684210526316,
+      "se0_squared_p90": 0.05156277631578948,
+      "states": 677
+    },
+    "premier_league|defence": {
+      "age_p10_days": 70.94,
+      "age_p10_to_p90_span_days": 74.7,
+      "age_p50_days": 82.727,
+      "age_p90_days": 145.64,
+      "se0_squared_p10": 0.015073894736842106,
+      "se0_squared_p50": 0.02662894736842105,
+      "se0_squared_p90": 0.04850442105263157,
+      "states": 677
+    },
+    "primeira_liga|attack": {
+      "age_p10_days": 80.536,
+      "age_p10_to_p90_span_days": 65.498,
+      "age_p50_days": 114.711,
+      "age_p90_days": 146.034,
+      "se0_squared_p10": 0.012252355263157894,
+      "se0_squared_p50": 0.02210847368421053,
+      "se0_squared_p90": 0.05513856578947368,
+      "states": 505
+    },
+    "primeira_liga|defence": {
+      "age_p10_days": 80.536,
+      "age_p10_to_p90_span_days": 65.498,
+      "age_p50_days": 114.711,
+      "age_p90_days": 146.034,
+      "se0_squared_p10": 0.01447646052631579,
+      "se0_squared_p50": 0.025720263157894736,
+      "se0_squared_p90": 0.0589018947368421,
+      "states": 505
+    },
+    "serie_a|attack": {
+      "age_p10_days": 74.676,
+      "age_p10_to_p90_span_days": 78.548,
+      "age_p50_days": 80.941,
+      "age_p90_days": 153.224,
+      "se0_squared_p10": 0.010879157894736842,
+      "se0_squared_p50": 0.020090578947368425,
+      "se0_squared_p90": 0.03837678947368421,
+      "states": 639
+    },
+    "serie_a|defence": {
+      "age_p10_days": 74.676,
+      "age_p10_to_p90_span_days": 78.548,
+      "age_p50_days": 80.941,
+      "age_p90_days": 153.224,
+      "se0_squared_p10": 0.011754526315789472,
+      "se0_squared_p50": 0.022707315789473687,
+      "se0_squared_p90": 0.037220736842105265,
+      "states": 639
+    }
+  },
+  "supersedes": {
+    "defect": "v4 grouped evaluation windows by (league, team, season), so no window spanned a season break and the age span came out four to fifteen times too narrow",
+    "file": "EV_SE_DRIFT_V4_IMPACT.json"
+  },
+  "window_self_check": {
+    "cross_season_age_spread_p10_p90_days": 92.34,
+    "cross_season_states": 8578,
+    "findings": [],
+    "result": "PASS",
+    "season_reset_age_spread_p10_p90_days": 29.091,
+    "season_reset_states": 4489,
+    "spread_ratio": 3.174
+  },
+  "window_semantics": "latest 20 xG rows by kickoff across seasons, as team_xg_matches_for_teams orders them; built by ev_se_v5_window"
+}

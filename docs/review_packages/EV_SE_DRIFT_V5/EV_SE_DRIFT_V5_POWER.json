@@ -1,0 +1,1425 @@
+{
+  "cells": {
+    "allsvenskan|attack": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.04,
+          "timing_not_compared": {
+            "seconds": 43.0
+          },
+          "variogram_rejection_rate": 0.028
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.896,
+          "timing_not_compared": {
+            "seconds": 44.5
+          },
+          "variogram_rejection_rate": 0.454
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.088,
+          "timing_not_compared": {
+            "seconds": 43.8
+          },
+          "variogram_rejection_rate": 0.036
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.036,
+          "timing_not_compared": {
+            "seconds": 43.0
+          },
+          "variogram_rejection_rate": 0.028
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.31,
+          "timing_not_compared": {
+            "seconds": 44.0
+          },
+          "variogram_rejection_rate": 0.088
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.042,
+          "timing_not_compared": {
+            "seconds": 43.1
+          },
+          "variogram_rejection_rate": 0.028
+        }
+      },
+      "mle_size_at_null": 0.04,
+      "series": 32,
+      "status": "CALIBRATED",
+      "tau2_used": 0.5309320983983744
+    },
+    "allsvenskan|defence": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.04,
+          "timing_not_compared": {
+            "seconds": 48.1
+          },
+          "variogram_rejection_rate": 0.028
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.916,
+          "timing_not_compared": {
+            "seconds": 45.9
+          },
+          "variogram_rejection_rate": 0.482
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.092,
+          "timing_not_compared": {
+            "seconds": 51.2
+          },
+          "variogram_rejection_rate": 0.036
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.036,
+          "timing_not_compared": {
+            "seconds": 45.1
+          },
+          "variogram_rejection_rate": 0.028
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.324,
+          "timing_not_compared": {
+            "seconds": 49.6
+          },
+          "variogram_rejection_rate": 0.092
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.044,
+          "timing_not_compared": {
+            "seconds": 47.1
+          },
+          "variogram_rejection_rate": 0.028
+        }
+      },
+      "mle_size_at_null": 0.04,
+      "series": 32,
+      "status": "CALIBRATED",
+      "tau2_used": 0.5023979269104382
+    },
+    "argentina_primera|attack": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.046,
+          "timing_not_compared": {
+            "seconds": 71.3
+          },
+          "variogram_rejection_rate": 0.026
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.99,
+          "timing_not_compared": {
+            "seconds": 73.0
+          },
+          "variogram_rejection_rate": 0.654
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.132,
+          "timing_not_compared": {
+            "seconds": 83.5
+          },
+          "variogram_rejection_rate": 0.042
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.05,
+          "timing_not_compared": {
+            "seconds": 75.5
+          },
+          "variogram_rejection_rate": 0.028
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.488,
+          "timing_not_compared": {
+            "seconds": 81.1
+          },
+          "variogram_rejection_rate": 0.128
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.06,
+          "timing_not_compared": {
+            "seconds": 82.8
+          },
+          "variogram_rejection_rate": 0.03
+        }
+      },
+      "mle_size_at_null": 0.046,
+      "series": 58,
+      "status": "CALIBRATED",
+      "tau2_used": 0.3658817225487182
+    },
+    "argentina_primera|defence": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.046,
+          "timing_not_compared": {
+            "seconds": 72.1
+          },
+          "variogram_rejection_rate": 0.026
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.99,
+          "timing_not_compared": {
+            "seconds": 71.6
+          },
+          "variogram_rejection_rate": 0.654
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.128,
+          "timing_not_compared": {
+            "seconds": 72.4
+          },
+          "variogram_rejection_rate": 0.042
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.05,
+          "timing_not_compared": {
+            "seconds": 81.8
+          },
+          "variogram_rejection_rate": 0.028
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.48,
+          "timing_not_compared": {
+            "seconds": 71.4
+          },
+          "variogram_rejection_rate": 0.128
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.06,
+          "timing_not_compared": {
+            "seconds": 81.3
+          },
+          "variogram_rejection_rate": 0.03
+        }
+      },
+      "mle_size_at_null": 0.046,
+      "series": 58,
+      "status": "CALIBRATED",
+      "tau2_used": 0.37055433161713014
+    },
+    "brasileirao_serie_a|attack": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.028,
+          "timing_not_compared": {
+            "seconds": 63.2
+          },
+          "variogram_rejection_rate": 0.02
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.998,
+          "timing_not_compared": {
+            "seconds": 63.9
+          },
+          "variogram_rejection_rate": 0.904
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.204,
+          "timing_not_compared": {
+            "seconds": 63.0
+          },
+          "variogram_rejection_rate": 0.056
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.036,
+          "timing_not_compared": {
+            "seconds": 63.7
+          },
+          "variogram_rejection_rate": 0.02
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.73,
+          "timing_not_compared": {
+            "seconds": 62.9
+          },
+          "variogram_rejection_rate": 0.212
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.06,
+          "timing_not_compared": {
+            "seconds": 63.3
+          },
+          "variogram_rejection_rate": 0.028
+        }
+      },
+      "mle_size_at_null": 0.028,
+      "series": 40,
+      "status": "CALIBRATED",
+      "tau2_used": 0.47372561609930947
+    },
+    "brasileirao_serie_a|defence": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.028,
+          "timing_not_compared": {
+            "seconds": 63.3
+          },
+          "variogram_rejection_rate": 0.02
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.998,
+          "timing_not_compared": {
+            "seconds": 77.7
+          },
+          "variogram_rejection_rate": 0.9
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.196,
+          "timing_not_compared": {
+            "seconds": 67.0
+          },
+          "variogram_rejection_rate": 0.056
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.036,
+          "timing_not_compared": {
+            "seconds": 64.0
+          },
+          "variogram_rejection_rate": 0.02
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.724,
+          "timing_not_compared": {
+            "seconds": 67.1
+          },
+          "variogram_rejection_rate": 0.206
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.058,
+          "timing_not_compared": {
+            "seconds": 66.2
+          },
+          "variogram_rejection_rate": 0.028
+        }
+      },
+      "mle_size_at_null": 0.028,
+      "series": 40,
+      "status": "CALIBRATED",
+      "tau2_used": 0.48093366875283544
+    },
+    "bundesliga|attack": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.048,
+          "timing_not_compared": {
+            "seconds": 95.1
+          },
+          "variogram_rejection_rate": 0.026
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.918,
+          "timing_not_compared": {
+            "seconds": 52.0
+          },
+          "variogram_rejection_rate": 0.242
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.112,
+          "timing_not_compared": {
+            "seconds": 54.8
+          },
+          "variogram_rejection_rate": 0.042
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.048,
+          "timing_not_compared": {
+            "seconds": 93.2
+          },
+          "variogram_rejection_rate": 0.032
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.308,
+          "timing_not_compared": {
+            "seconds": 52.6
+          },
+          "variogram_rejection_rate": 0.068
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.066,
+          "timing_not_compared": {
+            "seconds": 54.5
+          },
+          "variogram_rejection_rate": 0.032
+        }
+      },
+      "mle_size_at_null": 0.048,
+      "series": 36,
+      "status": "CALIBRATED",
+      "tau2_used": 0.5977897375510204
+    },
+    "bundesliga|defence": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.048,
+          "timing_not_compared": {
+            "seconds": 58.8
+          },
+          "variogram_rejection_rate": 0.026
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.876,
+          "timing_not_compared": {
+            "seconds": 51.9
+          },
+          "variogram_rejection_rate": 0.204
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.11,
+          "timing_not_compared": {
+            "seconds": 51.6
+          },
+          "variogram_rejection_rate": 0.042
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.048,
+          "timing_not_compared": {
+            "seconds": 64.1
+          },
+          "variogram_rejection_rate": 0.032
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.284,
+          "timing_not_compared": {
+            "seconds": 51.8
+          },
+          "variogram_rejection_rate": 0.062
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.064,
+          "timing_not_compared": {
+            "seconds": 59.8
+          },
+          "variogram_rejection_rate": 0.032
+        }
+      },
+      "mle_size_at_null": 0.048,
+      "series": 36,
+      "status": "CALIBRATED",
+      "tau2_used": 0.6654447631715653
+    },
+    "chinese_super_league|attack": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.04,
+          "timing_not_compared": {
+            "seconds": 47.8
+          },
+          "variogram_rejection_rate": 0.036
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.856,
+          "timing_not_compared": {
+            "seconds": 59.8
+          },
+          "variogram_rejection_rate": 0.432
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.09,
+          "timing_not_compared": {
+            "seconds": 48.4
+          },
+          "variogram_rejection_rate": 0.058
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.04,
+          "timing_not_compared": {
+            "seconds": 48.3
+          },
+          "variogram_rejection_rate": 0.036
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.256,
+          "timing_not_compared": {
+            "seconds": 54.1
+          },
+          "variogram_rejection_rate": 0.092
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.05,
+          "timing_not_compared": {
+            "seconds": 47.4
+          },
+          "variogram_rejection_rate": 0.038
+        }
+      },
+      "mle_size_at_null": 0.04,
+      "series": 32,
+      "status": "CALIBRATED",
+      "tau2_used": 0.7287933705449191
+    },
+    "chinese_super_league|defence": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.04,
+          "timing_not_compared": {
+            "seconds": 58.9
+          },
+          "variogram_rejection_rate": 0.036
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.788,
+          "timing_not_compared": {
+            "seconds": 59.7
+          },
+          "variogram_rejection_rate": 0.358
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.078,
+          "timing_not_compared": {
+            "seconds": 48.1
+          },
+          "variogram_rejection_rate": 0.056
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.04,
+          "timing_not_compared": {
+            "seconds": 58.7
+          },
+          "variogram_rejection_rate": 0.036
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.22,
+          "timing_not_compared": {
+            "seconds": 48.4
+          },
+          "variogram_rejection_rate": 0.082
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.048,
+          "timing_not_compared": {
+            "seconds": 57.1
+          },
+          "variogram_rejection_rate": 0.038
+        }
+      },
+      "mle_size_at_null": 0.04,
+      "series": 32,
+      "status": "CALIBRATED",
+      "tau2_used": 0.8319862575885042
+    },
+    "eliteserien|attack": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.056,
+          "timing_not_compared": {
+            "seconds": 60.1
+          },
+          "variogram_rejection_rate": 0.032
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.896,
+          "timing_not_compared": {
+            "seconds": 49.0
+          },
+          "variogram_rejection_rate": 0.478
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.118,
+          "timing_not_compared": {
+            "seconds": 60.4
+          },
+          "variogram_rejection_rate": 0.034
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.062,
+          "timing_not_compared": {
+            "seconds": 55.1
+          },
+          "variogram_rejection_rate": 0.034
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.314,
+          "timing_not_compared": {
+            "seconds": 51.1
+          },
+          "variogram_rejection_rate": 0.1
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.066,
+          "timing_not_compared": {
+            "seconds": 59.9
+          },
+          "variogram_rejection_rate": 0.032
+        }
+      },
+      "mle_size_at_null": 0.056,
+      "series": 32,
+      "status": "CALIBRATED",
+      "tau2_used": 0.6875146395133204
+    },
+    "eliteserien|defence": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.056,
+          "timing_not_compared": {
+            "seconds": 59.8
+          },
+          "variogram_rejection_rate": 0.032
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.896,
+          "timing_not_compared": {
+            "seconds": 54.0
+          },
+          "variogram_rejection_rate": 0.478
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.118,
+          "timing_not_compared": {
+            "seconds": 60.3
+          },
+          "variogram_rejection_rate": 0.034
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.062,
+          "timing_not_compared": {
+            "seconds": 60.2
+          },
+          "variogram_rejection_rate": 0.034
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.312,
+          "timing_not_compared": {
+            "seconds": 60.1
+          },
+          "variogram_rejection_rate": 0.1
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.066,
+          "timing_not_compared": {
+            "seconds": 60.2
+          },
+          "variogram_rejection_rate": 0.032
+        }
+      },
+      "mle_size_at_null": 0.056,
+      "series": 32,
+      "status": "CALIBRATED",
+      "tau2_used": 0.6894237823538034
+    },
+    "eredivisie|attack": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.046,
+          "timing_not_compared": {
+            "seconds": 54.2
+          },
+          "variogram_rejection_rate": 0.03
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.91,
+          "timing_not_compared": {
+            "seconds": 59.5
+          },
+          "variogram_rejection_rate": 0.296
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.094,
+          "timing_not_compared": {
+            "seconds": 51.9
+          },
+          "variogram_rejection_rate": 0.042
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.05,
+          "timing_not_compared": {
+            "seconds": 52.6
+          },
+          "variogram_rejection_rate": 0.028
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.342,
+          "timing_not_compared": {
+            "seconds": 51.3
+          },
+          "variogram_rejection_rate": 0.082
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.06,
+          "timing_not_compared": {
+            "seconds": 51.5
+          },
+          "variogram_rejection_rate": 0.03
+        }
+      },
+      "mle_size_at_null": 0.046,
+      "series": 36,
+      "status": "CALIBRATED",
+      "tau2_used": 0.6339597098236994
+    },
+    "eredivisie|defence": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.046,
+          "timing_not_compared": {
+            "seconds": 60.3
+          },
+          "variogram_rejection_rate": 0.03
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.884,
+          "timing_not_compared": {
+            "seconds": 51.6
+          },
+          "variogram_rejection_rate": 0.274
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.09,
+          "timing_not_compared": {
+            "seconds": 62.2
+          },
+          "variogram_rejection_rate": 0.04
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.05,
+          "timing_not_compared": {
+            "seconds": 58.1
+          },
+          "variogram_rejection_rate": 0.028
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.316,
+          "timing_not_compared": {
+            "seconds": 59.9
+          },
+          "variogram_rejection_rate": 0.08
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.06,
+          "timing_not_compared": {
+            "seconds": 58.0
+          },
+          "variogram_rejection_rate": 0.03
+        }
+      },
+      "mle_size_at_null": 0.046,
+      "series": 36,
+      "status": "CALIBRATED",
+      "tau2_used": 0.6754888940198042
+    },
+    "la_liga|attack": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.044,
+          "timing_not_compared": {
+            "seconds": 64.5
+          },
+          "variogram_rejection_rate": 0.02
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.99,
+          "timing_not_compared": {
+            "seconds": 57.1
+          },
+          "variogram_rejection_rate": 0.464
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.164,
+          "timing_not_compared": {
+            "seconds": 56.9
+          },
+          "variogram_rejection_rate": 0.032
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.052,
+          "timing_not_compared": {
+            "seconds": 68.0
+          },
+          "variogram_rejection_rate": 0.02
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.558,
+          "timing_not_compared": {
+            "seconds": 56.7
+          },
+          "variogram_rejection_rate": 0.104
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.068,
+          "timing_not_compared": {
+            "seconds": 63.7
+          },
+          "variogram_rejection_rate": 0.02
+        }
+      },
+      "mle_size_at_null": 0.044,
+      "series": 40,
+      "status": "CALIBRATED",
+      "tau2_used": 0.5485615982214461
+    },
+    "la_liga|defence": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.044,
+          "timing_not_compared": {
+            "seconds": 57.0
+          },
+          "variogram_rejection_rate": 0.02
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.97,
+          "timing_not_compared": {
+            "seconds": 56.9
+          },
+          "variogram_rejection_rate": 0.346
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.136,
+          "timing_not_compared": {
+            "seconds": 56.4
+          },
+          "variogram_rejection_rate": 0.026
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.054,
+          "timing_not_compared": {
+            "seconds": 56.5
+          },
+          "variogram_rejection_rate": 0.02
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.45,
+          "timing_not_compared": {
+            "seconds": 56.3
+          },
+          "variogram_rejection_rate": 0.082
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.066,
+          "timing_not_compared": {
+            "seconds": 56.5
+          },
+          "variogram_rejection_rate": 0.02
+        }
+      },
+      "mle_size_at_null": 0.044,
+      "series": 40,
+      "status": "CALIBRATED",
+      "tau2_used": 0.6540835263192566
+    },
+    "ligue_1|attack": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.06,
+          "timing_not_compared": {
+            "seconds": 50.6
+          },
+          "variogram_rejection_rate": 0.032
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.872,
+          "timing_not_compared": {
+            "seconds": 50.8
+          },
+          "variogram_rejection_rate": 0.216
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.112,
+          "timing_not_compared": {
+            "seconds": 50.7
+          },
+          "variogram_rejection_rate": 0.038
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.062,
+          "timing_not_compared": {
+            "seconds": 50.6
+          },
+          "variogram_rejection_rate": 0.03
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.332,
+          "timing_not_compared": {
+            "seconds": 50.3
+          },
+          "variogram_rejection_rate": 0.068
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.068,
+          "timing_not_compared": {
+            "seconds": 50.4
+          },
+          "variogram_rejection_rate": 0.032
+        }
+      },
+      "mle_size_at_null": 0.06,
+      "series": 36,
+      "status": "CALIBRATED",
+      "tau2_used": 0.7477487329409049
+    },
+    "ligue_1|defence": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.06,
+          "timing_not_compared": {
+            "seconds": 50.6
+          },
+          "variogram_rejection_rate": 0.032
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.846,
+          "timing_not_compared": {
+            "seconds": 50.7
+          },
+          "variogram_rejection_rate": 0.208
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.11,
+          "timing_not_compared": {
+            "seconds": 50.9
+          },
+          "variogram_rejection_rate": 0.038
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.062,
+          "timing_not_compared": {
+            "seconds": 50.5
+          },
+          "variogram_rejection_rate": 0.03
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.312,
+          "timing_not_compared": {
+            "seconds": 50.4
+          },
+          "variogram_rejection_rate": 0.06
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.068,
+          "timing_not_compared": {
+            "seconds": 50.5
+          },
+          "variogram_rejection_rate": 0.032
+        }
+      },
+      "mle_size_at_null": 0.06,
+      "series": 36,
+      "status": "CALIBRATED",
+      "tau2_used": 0.8005542704264433
+    },
+    "mls|attack": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.046,
+          "timing_not_compared": {
+            "seconds": 83.2
+          },
+          "variogram_rejection_rate": 0.026
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 1.0,
+          "timing_not_compared": {
+            "seconds": 83.7
+          },
+          "variogram_rejection_rate": 0.848
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.188,
+          "timing_not_compared": {
+            "seconds": 83.0
+          },
+          "variogram_rejection_rate": 0.076
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.046,
+          "timing_not_compared": {
+            "seconds": 83.2
+          },
+          "variogram_rejection_rate": 0.028
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.678,
+          "timing_not_compared": {
+            "seconds": 82.9
+          },
+          "variogram_rejection_rate": 0.226
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.062,
+          "timing_not_compared": {
+            "seconds": 83.2
+          },
+          "variogram_rejection_rate": 0.038
+        }
+      },
+      "mle_size_at_null": 0.046,
+      "series": 59,
+      "status": "CALIBRATED",
+      "tau2_used": 0.6217870551868769
+    },
+    "mls|defence": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.046,
+          "timing_not_compared": {
+            "seconds": 83.3
+          },
+          "variogram_rejection_rate": 0.026
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 1.0,
+          "timing_not_compared": {
+            "seconds": 84.1
+          },
+          "variogram_rejection_rate": 0.828
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.178,
+          "timing_not_compared": {
+            "seconds": 83.0
+          },
+          "variogram_rejection_rate": 0.074
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.046,
+          "timing_not_compared": {
+            "seconds": 83.2
+          },
+          "variogram_rejection_rate": 0.028
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.656,
+          "timing_not_compared": {
+            "seconds": 82.8
+          },
+          "variogram_rejection_rate": 0.218
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.062,
+          "timing_not_compared": {
+            "seconds": 83.3
+          },
+          "variogram_rejection_rate": 0.038
+        }
+      },
+      "mle_size_at_null": 0.046,
+      "series": 59,
+      "status": "CALIBRATED",
+      "tau2_used": 0.6406575152087254
+    },
+    "premier_league|attack": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.042,
+          "timing_not_compared": {
+            "seconds": 57.0
+          },
+          "variogram_rejection_rate": 0.03
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.964,
+          "timing_not_compared": {
+            "seconds": 57.2
+          },
+          "variogram_rejection_rate": 0.422
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.148,
+          "timing_not_compared": {
+            "seconds": 56.8
+          },
+          "variogram_rejection_rate": 0.062
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.048,
+          "timing_not_compared": {
+            "seconds": 56.7
+          },
+          "variogram_rejection_rate": 0.036
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.476,
+          "timing_not_compared": {
+            "seconds": 56.7
+          },
+          "variogram_rejection_rate": 0.12
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.074,
+          "timing_not_compared": {
+            "seconds": 56.8
+          },
+          "variogram_rejection_rate": 0.04
+        }
+      },
+      "mle_size_at_null": 0.042,
+      "series": 40,
+      "status": "CALIBRATED",
+      "tau2_used": 0.5919883148843391
+    },
+    "premier_league|defence": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.042,
+          "timing_not_compared": {
+            "seconds": 56.9
+          },
+          "variogram_rejection_rate": 0.03
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.954,
+          "timing_not_compared": {
+            "seconds": 57.0
+          },
+          "variogram_rejection_rate": 0.396
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.14,
+          "timing_not_compared": {
+            "seconds": 56.8
+          },
+          "variogram_rejection_rate": 0.06
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.048,
+          "timing_not_compared": {
+            "seconds": 56.8
+          },
+          "variogram_rejection_rate": 0.036
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.45,
+          "timing_not_compared": {
+            "seconds": 56.5
+          },
+          "variogram_rejection_rate": 0.112
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.074,
+          "timing_not_compared": {
+            "seconds": 56.8
+          },
+          "variogram_rejection_rate": 0.04
+        }
+      },
+      "mle_size_at_null": 0.042,
+      "series": 40,
+      "status": "CALIBRATED",
+      "tau2_used": 0.6221133480979251
+    },
+    "primeira_liga|attack": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.048,
+          "timing_not_compared": {
+            "seconds": 50.4
+          },
+          "variogram_rejection_rate": 0.032
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.976,
+          "timing_not_compared": {
+            "seconds": 50.6
+          },
+          "variogram_rejection_rate": 0.408
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.134,
+          "timing_not_compared": {
+            "seconds": 50.3
+          },
+          "variogram_rejection_rate": 0.044
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.058,
+          "timing_not_compared": {
+            "seconds": 50.6
+          },
+          "variogram_rejection_rate": 0.034
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.446,
+          "timing_not_compared": {
+            "seconds": 50.1
+          },
+          "variogram_rejection_rate": 0.104
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.08,
+          "timing_not_compared": {
+            "seconds": 50.4
+          },
+          "variogram_rejection_rate": 0.04
+        }
+      },
+      "mle_size_at_null": 0.048,
+      "series": 36,
+      "status": "CALIBRATED",
+      "tau2_used": 0.5134449038593818
+    },
+    "primeira_liga|defence": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.048,
+          "timing_not_compared": {
+            "seconds": 50.2
+          },
+          "variogram_rejection_rate": 0.032
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.936,
+          "timing_not_compared": {
+            "seconds": 50.5
+          },
+          "variogram_rejection_rate": 0.334
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.128,
+          "timing_not_compared": {
+            "seconds": 50.3
+          },
+          "variogram_rejection_rate": 0.044
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.058,
+          "timing_not_compared": {
+            "seconds": 50.3
+          },
+          "variogram_rejection_rate": 0.034
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.366,
+          "timing_not_compared": {
+            "seconds": 50.2
+          },
+          "variogram_rejection_rate": 0.084
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.078,
+          "timing_not_compared": {
+            "seconds": 50.2
+          },
+          "variogram_rejection_rate": 0.038
+        }
+      },
+      "mle_size_at_null": 0.048,
+      "series": 36,
+      "status": "CALIBRATED",
+      "tau2_used": 0.6035757869005431
+    },
+    "serie_a|attack": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.046,
+          "timing_not_compared": {
+            "seconds": 56.3
+          },
+          "variogram_rejection_rate": 0.028
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.992,
+          "timing_not_compared": {
+            "seconds": 56.4
+          },
+          "variogram_rejection_rate": 0.494
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.206,
+          "timing_not_compared": {
+            "seconds": 56.3
+          },
+          "variogram_rejection_rate": 0.056
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.046,
+          "timing_not_compared": {
+            "seconds": 56.2
+          },
+          "variogram_rejection_rate": 0.028
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.556,
+          "timing_not_compared": {
+            "seconds": 56.1
+          },
+          "variogram_rejection_rate": 0.11
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.066,
+          "timing_not_compared": {
+            "seconds": 56.2
+          },
+          "variogram_rejection_rate": 0.032
+        }
+      },
+      "mle_size_at_null": 0.046,
+      "series": 40,
+      "status": "CALIBRATED",
+      "tau2_used": 0.46249611237924865
+    },
+    "serie_a|defence": {
+      "grid": {
+        "0.0e+00": {
+          "mle_rejection_rate": 0.046,
+          "timing_not_compared": {
+            "seconds": 56.4
+          },
+          "variogram_rejection_rate": 0.028
+        },
+        "1.0e-03": {
+          "mle_rejection_rate": 0.992,
+          "timing_not_compared": {
+            "seconds": 56.7
+          },
+          "variogram_rejection_rate": 0.484
+        },
+        "1.0e-04": {
+          "mle_rejection_rate": 0.196,
+          "timing_not_compared": {
+            "seconds": 56.1
+          },
+          "variogram_rejection_rate": 0.056
+        },
+        "1.0e-05": {
+          "mle_rejection_rate": 0.046,
+          "timing_not_compared": {
+            "seconds": 56.2
+          },
+          "variogram_rejection_rate": 0.028
+        },
+        "3.0e-04": {
+          "mle_rejection_rate": 0.544,
+          "timing_not_compared": {
+            "seconds": 56.0
+          },
+          "variogram_rejection_rate": 0.104
+        },
+        "3.0e-05": {
+          "mle_rejection_rate": 0.062,
+          "timing_not_compared": {
+            "seconds": 56.1
+          },
+          "variogram_rejection_rate": 0.032
+        }
+      },
+      "mle_size_at_null": 0.046,
+      "series": 40,
+      "status": "CALIBRATED",
+      "tau2_used": 0.4838974813758861
+    }
+  },
+  "equivalence_check": {
+    "cell": "allsvenskan|attack",
+    "compared_fields": [
+      "mle_rejection_rate",
+      "variogram_rejection_rate"
+    ],
+    "comparisons": [
+      {
+        "artefact_value": 0.04,
+        "equal": true,
+        "field": "mle_rejection_rate",
+        "grid_point": "0.0e+00",
+        "recomputed_value": 0.04
+      },
+      {
+        "artefact_value": 0.028,
+        "equal": true,
+        "field": "variogram_rejection_rate",
+        "grid_point": "0.0e+00",
+        "recomputed_value": 0.028
+      },
+      {
+        "artefact_value": 0.896,
+        "equal": true,
+        "field": "mle_rejection_rate",
+        "grid_point": "1.0e-03",
+        "recomputed_value": 0.896
+      },
+      {
+        "artefact_value": 0.454,
+        "equal": true,
+        "field": "variogram_rejection_rate",
+        "grid_point": "1.0e-03",
+        "recomputed_value": 0.454
+      },
+      {
+        "artefact_value": 0.088,
+        "equal": true,
+        "field": "mle_rejection_rate",
+        "grid_point": "1.0e-04",
+        "recomputed_value": 0.088
+      },
+      {
+        "artefact_value": 0.036,
+        "equal": true,
+        "field": "variogram_rejection_rate",
+        "grid_point": "1.0e-04",
+        "recomputed_value": 0.036
+      },
+      {
+        "artefact_value": 0.036,
+        "equal": true,
+        "field": "mle_rejection_rate",
+        "grid_point": "1.0e-05",
+        "recomputed_value": 0.036
+      },
+      {
+        "artefact_value": 0.028,
+        "equal": true,
+        "field": "variogram_rejection_rate",
+        "grid_point": "1.0e-05",
+        "recomputed_value": 0.028
+      },
+      {
+        "artefact_value": 0.31,
+        "equal": true,
+        "field": "mle_rejection_rate",
+        "grid_point": "3.0e-04",
+        "recomputed_value": 0.31
+      },
+      {
+        "artefact_value": 0.088,
+        "equal": true,
+        "field": "variogram_rejection_rate",
+        "grid_point": "3.0e-04",
+        "recomputed_value": 0.088
+      },
+      {
+        "artefact_value": 0.042,
+        "equal": true,
+        "field": "mle_rejection_rate",
+        "grid_point": "3.0e-05",
+        "recomputed_value": 0.042
+      },
+      {
+        "artefact_value": 0.028,
+        "equal": true,
+        "field": "variogram_rejection_rate",
+        "grid_point": "3.0e-05",
+        "recomputed_value": 0.028
+      }
+    ],
+    "excluded_fields": [
+      "seconds"
+    ],
+    "mismatches": 0,
+    "supersedes": "EV_SE_DRIFT_V4_POWER.json recorded verified:true because a flag was passed; no comparison had been performed",
+    "tool": "scripts/ev_se_v5_verify_power.py",
+    "verified": true,
+    "why_excluded": "wall-clock timing cannot reproduce and is not evidence"
+  },
+  "population": "real_cell_geometry",
+  "protocol_commit": "4558f5ab",
+  "provenance": {
+    "canonical_script": "scripts/ev_se_v4_power.py",
+    "note": "the power computation is unchanged across v3, v4 and v5; only the output path and the provenance stamp ever differed",
+    "numbers_from": "EV_SE_DRIFT_V4_POWER.json",
+    "produced_by": "scripts/ev_se_v3_power.py",
+    "source_sha256": "f2c0c88d567f214aa34f1e708dff84da528ba455ff90795ca30033fcaeddaf2c"
+  },
+  "replications": 500,
+  "schema_version": "w2.ev_se.drift_v5.power.v1",
+  "seed": 20260826,
+  "sigma2_grid": [
+    0.0,
+    1e-05,
+    3e-05,
+    0.0001,
+    0.0003,
+    0.001
+  ]
+}
