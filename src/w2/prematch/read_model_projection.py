@@ -473,7 +473,9 @@ class AnalysisCardCanaryMaterializer:
         if len(round3_evidence) > MAX_ROUND3_EVIDENCE_ROWS_PER_FIXTURE:
             raise FrozenAnalysisError("round3 evidence input exceeds bound")
         canonical_fixture_id = (
-            fixture_id if fixture_id.startswith("api_football:") else f"api_football:{fixture_id}"
+            fixture_id
+            if fixture_id.startswith("api_football:")
+            else f"api_football:{fixture_id}"
         )
         fixture_aliases = {fixture_id, canonical_fixture_id}
         if any(str(row.get("fixture_id") or "") not in fixture_aliases for row in round3_evidence):
@@ -886,7 +888,6 @@ def validate_frozen_analysis_payload(
             raise FrozenAnalysisError("dynamic evaluation fixture identity missing")
         if lineup_identity is not None and not isinstance(lineup_identity, dict):
             raise FrozenAnalysisError("dynamic evaluation lineup identity invalid")
-
         def rebuild_evaluations(identity_version: str) -> tuple[DynamicEvaluationVersion, ...]:
             return tuple(
                 _dynamic_evaluations(
@@ -902,10 +903,9 @@ def validate_frozen_analysis_payload(
 
         evaluations = rebuild_evaluations(EVALUATION_IDENTITY_VERSION)
         stored_hashes = payload.get("source_evaluation_hashes")
-        if (
-            isinstance(stored_hashes, list)
-            and sorted(item.identity_hash for item in evaluations) != stored_hashes
-        ):
+        if isinstance(stored_hashes, list) and sorted(
+            item.identity_hash for item in evaluations
+        ) != stored_hashes:
             legacy_evaluations = rebuild_evaluations(LEGACY_EVALUATION_IDENTITY_VERSION)
             if sorted(item.identity_hash for item in legacy_evaluations) == stored_hashes:
                 evaluations = legacy_evaluations
@@ -1190,7 +1190,9 @@ def write_frozen_analysis_artifacts(
                         or existing is None
                         or existing.source_hash != expected_source_hash
                     ):
-                        raise FrozenAnalysisError("checkpoint changed after bounded repair audit")
+                        raise FrozenAnalysisError(
+                            "checkpoint changed after bounded repair audit"
+                        )
                 if existing is None:
                     existing = ReadModelCheckpointModel(
                         checkpoint_key=artifact.checkpoint_key,
@@ -1286,7 +1288,9 @@ def _dynamic_evaluations(
                         model_input_hash=str(item["model_input_hash"]),
                         evaluation_policy_version=str(item["evaluation_policy_version"]),
                         evaluation_slot_id=str(item["evaluation_slot_id"]),
-                        scheduled_checkpoint_at=_required_utc(item["scheduled_checkpoint_at"]),
+                        scheduled_checkpoint_at=_required_utc(
+                            item["scheduled_checkpoint_at"]
+                        ),
                         checkpoint_plan_identity=str(item["checkpoint_plan_identity"]),
                         source_event_identity=str(item["source_event_identity"]),
                     )
@@ -1313,10 +1317,9 @@ def _dynamic_evaluations(
         MODEL_FORECAST_DENOMINATOR_SCOPE,
         CHECKPOINT_OPPORTUNITY_SCOPE,
     }
-    if (
-        opportunity_contexts
-        and len({item.evaluation_slot_id for item in opportunity_contexts}) != 1
-    ):
+    if opportunity_contexts and len(
+        {item.evaluation_slot_id for item in opportunity_contexts}
+    ) != 1:
         raise FrozenAnalysisError("opportunity event spans multiple slots")
     if not fixture_id or evaluated_at is None:
         return []
@@ -1364,7 +1367,9 @@ def _dynamic_evaluations(
             cast(dict[str, Any], quote_identity) if isinstance(quote_identity, dict) else {}
         )
         market_probability = (
-            cast(dict[str, Any], market_probability) if isinstance(market_probability, dict) else {}
+            cast(dict[str, Any], market_probability)
+            if isinstance(market_probability, dict)
+            else {}
         )
         normalized = selection.lower().replace("_ah", "")
         quote = (quote_identity.get("quotes") or {}).get(normalized)
@@ -1383,18 +1388,22 @@ def _dynamic_evaluations(
             else None
         )
         provider = str(
-            quote.get("provider") or quote_identity.get("provider") or fixture_identity["provider"]
+            quote.get("provider")
+            or quote_identity.get("provider")
+            or fixture_identity["provider"]
         )
         if provider and provider != fixture_identity["provider"]:
             raise FrozenAnalysisError("dynamic evaluation provider identity conflict")
         distribution = model.get("settlement_distribution")
         simulation = card.get("simulation")
-        model_ready = str(
-            model.get("status") or candidate.get("model_status") or ""
-        ).upper() == "READY" or (
-            denominator_scoped
-            and isinstance(simulation, Mapping)
-            and str(simulation.get("status") or "").upper() == "READY"
+        model_ready = (
+            str(model.get("status") or candidate.get("model_status") or "").upper()
+            == "READY"
+            or (
+                denominator_scoped
+                and isinstance(simulation, Mapping)
+                and str(simulation.get("status") or "").upper() == "READY"
+            )
         )
         schema_version = (
             DYNAMIC_EVALUATION_V3_SCHEMA
@@ -1429,7 +1438,9 @@ def _dynamic_evaluations(
             int(market_mainline.get("complete_pair_bookmaker_count") or 0),
         )
         exact_line = _float_or_none(
-            quote.get("line") or quote_identity.get("selected_line") or candidate.get("line")
+            quote.get("line")
+            or quote_identity.get("selected_line")
+            or candidate.get("line")
         )
         source_observations_present = bool(
             quote_identity.get("observation_ids")
@@ -1535,7 +1546,8 @@ def _dynamic_evaluations(
             )
         if opportunity_contexts:
             versions.extend(
-                bind_evaluation_opportunity(version, context) for context in opportunity_contexts
+                bind_evaluation_opportunity(version, context)
+                for context in opportunity_contexts
             )
         else:
             versions.append(version)

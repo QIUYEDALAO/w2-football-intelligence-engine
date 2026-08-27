@@ -378,7 +378,9 @@ def test_e_upgrade_on_the_same_opportunity_is_its_own_attempt() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
     repository.append_evaluation(_same_opportunity_attempt("BASELINE_PRIOR", minutes=0))
-    repository.append_evaluation(_same_opportunity_attempt("PRODUCTION_VALIDATED", minutes=30))
+    repository.append_evaluation(
+        _same_opportunity_attempt("PRODUCTION_VALIDATED", minutes=30)
+    )
     with Session(engine) as session:
         rows = list(session.scalars(select(DynamicPrematchEvaluationModel)))
         opportunities = list(session.scalars(select(DynamicPrematchOpportunityModel)))

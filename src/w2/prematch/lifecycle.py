@@ -297,7 +297,9 @@ def bind_evaluation_opportunity(
         official_funnel_eligible=True,
         evaluation_policy_version=context.evaluation_policy_version,
         evaluation_slot_id=context.evaluation_slot_id,
-        model_forecast_capture_identity_hash=(context.model_forecast_capture_identity_hash),
+        model_forecast_capture_identity_hash=(
+            context.model_forecast_capture_identity_hash
+        ),
         opportunity_identity_hash=opportunity_hash,
         attempt_identity_hash=attempt_hash,
         scheduled_checkpoint_at=context.scheduled_checkpoint_at,
@@ -314,7 +316,9 @@ def opportunity_identity_hash(
 ) -> str:
     return _hash(
         {
-            "model_forecast_capture_identity_hash": (context.model_forecast_capture_identity_hash),
+            "model_forecast_capture_identity_hash": (
+                context.model_forecast_capture_identity_hash
+            ),
             "evaluation_policy_version": context.evaluation_policy_version,
             "evaluation_slot_id": context.evaluation_slot_id,
             "market": market,
@@ -430,7 +434,9 @@ def _classify_evaluation_with_identity(
 ) -> DynamicEvaluationVersion:
     calibration_record = calibration_authority.evidence_record(value.calibration_status)
     calibration_normalised = str(calibration_record["calibration_status"])
-    calibration_admissible = bool(calibration_record["calibration_recommendation_admissible"])
+    calibration_admissible = bool(
+        calibration_record["calibration_recommendation_admissible"]
+    )
     evaluated_at = _aware_utc(value.evaluated_at, field="evaluated_at")
     capture_at = (
         _aware_utc(value.capture_at, field="capture_at") if value.capture_at is not None else None

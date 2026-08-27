@@ -154,7 +154,8 @@ def test_model_forecast_denominator_emits_both_markets_without_candidates() -> N
     assert all(version.first_failed_gate == "MAINLINE_PARSED" for version in versions)
     assert all(version.gate_results and version.gate_results["model_ready"] for version in versions)
     assert all(
-        version.gate_results and version.gate_results["evaluated"] is False for version in versions
+        version.gate_results and version.gate_results["evaluated"] is False
+        for version in versions
     )
 
 
@@ -187,7 +188,9 @@ def test_model_forecast_denominator_write_does_not_rewrite_frozen_card(
         # projection refresh mint more of those rows would just regrow the same
         # unusable data.  Real opportunities come from the checkpoint
         # orchestrator under CHECKPOINT_EVALUATION_OPPORTUNITY_V2 instead.
-        assert all(row.denominator_scope != MODEL_FORECAST_DENOMINATOR_SCOPE for row in rows)
+        assert all(
+            row.denominator_scope != MODEL_FORECAST_DENOMINATOR_SCOPE for row in rows
+        )
 
 
 def test_projection_events_batch_round3_read_once_per_fixture_set(
@@ -1571,7 +1574,9 @@ def test_same_source_event_replay_adds_scoreline_contract_as_new_immutable_evalu
     assert legacy.evaluations[0].model_input_hash == canonical_sha256(
         {
             "simulation": legacy.payload["input_manifest"]["simulation_sha256"],
-            "analysis_evidence": legacy.payload["input_manifest"]["analysis_evidence_sha256"],
+            "analysis_evidence": legacy.payload["input_manifest"][
+                "analysis_evidence_sha256"
+            ],
             "lineup_input_hash": None,
         },
         domain=HashDomain.PREMATCH_READ_MODEL_DYNAMIC_EVALUATION,
@@ -2132,7 +2137,9 @@ def test_fallback_card_has_empty_mainlines_and_expected_zero_depth() -> None:
 
     assert "current_odds" not in card
     assert card["markets"]
-    mainlines = [card["market_candidates"][key]["market_mainline"] for key in ("ah", "ou")]
+    mainlines = [
+        card["market_candidates"][key]["market_mainline"] for key in ("ah", "ou")
+    ]
     assert all(value is None for mainline in mainlines for value in mainline.values())
     assert _depth_by_market(card) == {"ASIAN_HANDICAP": 0, "TOTALS": 0}
 
