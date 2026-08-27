@@ -224,13 +224,42 @@ def test_e_analysis_evidence_is_still_produced_when_unvalidated() -> None:
 
 def test_e_the_decision_record_now_declares_its_calibration() -> None:
     """The production record for 1570340 carried no calibration field at all, so a
-    reviewer could not tell what the delivered recommendation rested on."""
-    version = classify_evaluation(_evaluation(calibration_status="BASELINE_PRIOR"))
-    assert version.gate_results is None or "calibration_validated" in version.gate_results
-    record = calibration_authority.evidence_record("BASELINE_PRIOR")
-    assert record["calibration_status"] == "BASELINE_PRIOR"
-    assert record["calibration_recommendation_admissible"] is False
-    assert record["calibration_authority"] == "w2.domain.calibration_authority.v1"
+    reviewer could not tell what the delivered recommendation rested on.
+
+    This asserts on a denominator-scoped evaluation so `gate_results` is actually
+    populated. The earlier form of this test read
+    `gate_results is None or "calibration_validated" in gate_results`, which passed
+    without checking anything whenever the gate map was absent.
+    """
+    version = classify_evaluation(
+        DynamicEvaluationInput(
+            fixture_id=FIXTURE_ID,
+            market="TOTALS",
+            selection="UNDER",
+            exact_line=EXACT_LINE,
+            bookmaker_id="book-1",
+            capture_id="capture-1",
+            quote_identity_hash="q" * 64,
+            model_input_hash="m" * 64,
+            evaluated_at=NOW,
+            checkpoint="T-30m_VALIDATION_LOCK",
+            capture_at=NOW,
+            model_probability=0.70,
+            market_probability=0.50,
+            expected_value=0.20,
+            ev_se=0.05,
+            decimal_odds=DECIMAL_ODDS,
+            bookmaker_count=7,
+            mainline_parsed=True,
+            denominator_scope="CHECKPOINT_EVALUATION_OPPORTUNITY_V2",
+            calibration_status="BASELINE_PRIOR",
+        )
+    )
+    assert version.gate_results is not None
+    assert version.gate_results["calibration_validated"] is False
+    assert version.calibration_status == "BASELINE_PRIOR"
+    assert version.calibration_recommendation_admissible is False
+    assert version.calibration_authority == calibration_authority.AUTHORITY_VERSION
 
 
 def test_e_no_ev_cap_was_introduced() -> None:

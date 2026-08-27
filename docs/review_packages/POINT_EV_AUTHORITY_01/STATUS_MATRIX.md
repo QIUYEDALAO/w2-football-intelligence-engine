@@ -22,7 +22,7 @@ Protocol `6fdecb95`. Every `DONE` row names a file or a test that exists.
 | 4 λ / σ | **NOT RECONSTRUCTABLE** from this record | referenced by `model_forecast_capture_identity_hash` |
 | 5 score matrix | **NOT RECONSTRUCTABLE** from this record | — |
 | 6 five-state distribution | DONE | WIN 0.74813, LOSS 0.25187, others 0.0, sums to 1.0 |
-| 7 EV / EV_SE | DONE | 0.436411 / 0.386085, formula verified independently |
+| 7 EV / EV_SE | DONE | EV `0.436411`, **EV_SE `0.050326`**, EV−SE `0.386085` — R0 mislabelled the third as the second |
 | 8 candidate and notification decision | DONE | `ANALYSIS_PICK_ACTIVE`, `EVALUATED_CANDIDATE`, `CANDIDATE_T30_CONFIRMED` **DELIVERED** |
 
 Links 2–5 are reported as unreconstructable rather than inferred, as the protocol
@@ -65,6 +65,43 @@ regardless of what produced the λ.
 | API import-graph contract | passes — authority placed in `w2.domain`, not `w2.strategy` |
 | package matrix contract | passes — counts updated for `domain`, `markets`, `prematch`, `strategy` |
 | no-hardcoded-real-teams contract | passes — team names removed, sample identified by fixture ID |
+
+## R1 findings and resolution
+
+| # | Finding | Verdict | Resolution |
+|---|---|---|---|
+| 1 | calibration absent from the immutable identity; append-only swallows a different conclusion | CONFIRMED — R0 saw the trade-off and resolved it wrongly | in both identities with explicit version keys; report §12 |
+| 2 | status never reached Version / as_dict / database | CONFIRMED | four audit fields on `DynamicEvaluationVersion`; report §13 |
+| 3 | absent normalised to BASELINE_PRIOR, losing audit meaning | CONFIRMED | distinct `ABSENT`, still fails closed |
+| 4 | `gate_results is None or …` could pass vacuously | CONFIRMED | replaced with a direct assertion on a denominator-scoped evaluation |
+| 5 | 0.386085 labelled EV_SE; "whole market" overclaim | CONFIRMED | EV_SE is `0.050326`; devigged market is `0.500000`, model `24.8` points above |
+
+## R1 acceptance tests
+
+| id | requirement | status | count |
+|---|---|---|---|
+| a | BASELINE_PRIOR / READY / UNKNOWN / absent form no candidate or notification | DONE | 10 |
+| b | validated passes and still faces the EV gates | DONE | 4 |
+| c | no identity collision on calibration change | DONE | 4 |
+| d | `as_dict` and database round-trip keep the audit fields | DONE | 4 |
+| e | downgrade blocks and leaves no stale candidate; upgrade is its own attempt | DONE | 2 |
+| f | market_candidate / read_model_projection / repository / notification exercised for real | DONE | 4 |
+| g | no vacuous assertions | DONE | R0's replaced; none remain outside prose |
+| h | EV_SE distinguished from EV−SE, devig from raw implied | DONE | 2 |
+| | **total (R1 file)** | | **30** |
+| | R0 file, vacuous assertion replaced | | 29 |
+
+## Identity separation, measured
+
+Five calibration states over identical inputs:
+
+| | value |
+|---|---|
+| shared `opportunity_identity_hash` | yes — it is the same betting opportunity |
+| distinct `attempt_identity_hash` | 5 of 5 |
+| `current_ev` across all five | `0.436411`, unchanged |
+
+Frozen in `FIXTURE_1570340_REPLAY.json`, sha256 `2b44380cf79b1b9b…`.
 
 ## Boundaries
 
