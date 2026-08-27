@@ -1,0 +1,84 @@
+{
+  "after_fix_replay": {
+    "under_absent_status": {
+      "blockers": [
+        "MODEL_CALIBRATION_NOT_VALIDATED"
+      ],
+      "current_ev": 0.436411,
+      "decimal_odds": 1.92,
+      "exact_line": 3.5,
+      "selection": "UNDER",
+      "state": "NOT_READY_MODEL_INPUT"
+    },
+    "under_pipeline_ready_status": {
+      "blockers": [
+        "MODEL_CALIBRATION_NOT_VALIDATED"
+      ],
+      "current_ev": 0.436411,
+      "decimal_odds": 1.92,
+      "exact_line": 3.5,
+      "selection": "UNDER",
+      "state": "NOT_READY_MODEL_INPUT"
+    },
+    "under_production_validated": {
+      "blockers": [],
+      "current_ev": 0.436411,
+      "decimal_odds": 1.92,
+      "exact_line": 3.5,
+      "selection": "UNDER",
+      "state": "ANALYSIS_PICK_ACTIVE"
+    },
+    "under_shipped_calibration": {
+      "blockers": [
+        "MODEL_CALIBRATION_NOT_VALIDATED"
+      ],
+      "current_ev": 0.436411,
+      "decimal_odds": 1.92,
+      "exact_line": 3.5,
+      "selection": "UNDER",
+      "state": "NOT_READY_MODEL_INPUT"
+    }
+  },
+  "authority": {
+    "blocker": "MODEL_CALIBRATION_NOT_VALIDATED",
+    "module": "w2.domain.calibration_authority",
+    "non_validation_statuses": [
+      "BASELINE_PRIOR",
+      "NOT_CALIBRATED",
+      "NO_SETTLED_SAMPLE",
+      "READY",
+      "UNKNOWN",
+      "UNVALIDATED"
+    ],
+    "validated_statuses": [
+      "APPROVED_VALIDATED",
+      "PRODUCTION_VALIDATED"
+    ]
+  },
+  "before_fix_production_record": {
+    "all_failed_gates": [],
+    "blockers": [],
+    "calibration_gate_present": false,
+    "gate_results_keys": [
+      "bookmaker_depth",
+      "candidate",
+      "evaluated",
+      "mainline_parsed",
+      "model_ready",
+      "no_edge",
+      "quote_fresh"
+    ],
+    "notification": {
+      "delivery_status": "DELIVERED",
+      "event_type": "CANDIDATE_T30_CONFIRMED"
+    },
+    "official_funnel_eligible": true,
+    "opportunity_state": "EVALUATED_CANDIDATE",
+    "state": "ANALYSIS_PICK_ACTIVE"
+  },
+  "ev_untouched": "the EV is recorded unchanged in every case; no cap was introduced",
+  "fixture_id": "1570340",
+  "protocol_commit": "6fdecb95",
+  "schema_version": "w2.point_ev_authority.replay.v1",
+  "shipped_calibration_status": "BASELINE_PRIOR"
+}

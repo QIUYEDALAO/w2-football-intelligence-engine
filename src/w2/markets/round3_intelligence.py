@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 from statistics import median
 from typing import Any
 
+from w2.domain import calibration_authority
 from w2.domain.enums import SettlementOutcome
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.markets.asian_handicap_mainline import select_canonical_ah_mainline
@@ -607,12 +608,14 @@ def _model_blockers(simulation: Mapping[str, Any] | None) -> list[str]:
         blockers.append("MODEL_VERSION_MISSING")
     if not _text(simulation.get("calibration_version")):
         blockers.append("MODEL_CALIBRATION_VERSION_MISSING")
-    if _text(simulation.get("calibration_status")).upper() not in {
-        "READY",
-        "PRODUCTION_VALIDATED",
-        "APPROVED_VALIDATED",
-    }:
-        blockers.append("MODEL_CALIBRATION_NOT_READY")
+    # READY used to sit in a local allowlist here. It is the simulation pipeline's
+    # status, not a validation verdict, and accepting it let an unvalidated
+    # probability through this path while another path rejected the same value.
+    calibration_blocker = calibration_authority.recommendation_blocker(
+        simulation.get("calibration_status")
+    )
+    if calibration_blocker:
+        blockers.append(calibration_blocker)
     return blockers
 
 

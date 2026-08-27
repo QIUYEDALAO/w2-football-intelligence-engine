@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
+from w2.domain import calibration_authority
 from w2.domain.five_state_pricing import MIN_CASHFLOW_PRICE_EDGE as V4_MIN_CASHFLOW_PRICE_EDGE
 from w2.markets.devig import DevigMethod, devig
 from w2.markets.settlement_probability import effective_settlement_probability
@@ -60,6 +61,13 @@ def build_analysis_market_evidence(
         "market_probability": {},
         "model_probability": {"status": "NOT_READY"},
         "comparison": {"analysis_direction_allowed": False, "status": "NOT_READY"},
+        # Every evidence document declares the calibration behind its probability.
+        # Fixture 1570340's evaluation record carried no calibration field at all,
+        # so a reviewer could not tell whether a delivered recommendation rested on
+        # a validated probability. Consumers read the authority from here.
+        **calibration_authority.evidence_record(
+            _mapping(simulation).get("calibration_status")
+        ),
     }
     decimal_line = _decimal(line)
     if key_and_sides is None or decimal_line is None:

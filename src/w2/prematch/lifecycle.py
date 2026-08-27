@@ -9,6 +9,8 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
+from w2.domain import calibration_authority
+
 ACTIVE_DELTA_THRESHOLD = 0.05
 ACTIVE_EV_THRESHOLD = 0.0
 ACTIVE_EV_MINUS_SE_THRESHOLD = 0.0
@@ -138,6 +140,9 @@ class DynamicEvaluationInput:
     quote_fresh: bool = True
     model_ready: bool = True
     market_probability_ready: bool = True
+    # Absent means unvalidated: an evaluation that never carried a calibration
+    # status is exactly the case this gate exists to catch, so it fails closed.
+    calibration_status: str | None = None
     identity_conflict: bool = False
     model_probability: float | None = None
     market_probability: float | None = None
@@ -459,6 +464,12 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
     elif not value.model_ready or not value.market_probability_ready or not value.model_input_hash:
         state = DynamicEvaluationState.NOT_READY_MODEL_INPUT
         blockers.append("MODEL_OR_DEVIG_NOT_READY")
+    elif not calibration_authority.recommendation_admissible(value.calibration_status):
+        # The distribution, EV and EV_SE are still computed, stored and shown; only
+        # the authority to become a candidate is withheld. An unvalidated
+        # probability is analysis evidence, not a recommendation.
+        state = DynamicEvaluationState.NOT_READY_MODEL_INPUT
+        blockers.append(calibration_authority.RECOMMENDATION_BLOCKER)
     elif ev is None or delta is None or ev_minus_se is None:
         state = DynamicEvaluationState.NOT_READY_MODEL_INPUT
         blockers.append("EV_EVIDENCE_INCOMPLETE")
@@ -540,6 +551,9 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
             "bookmaker_depth": value.bookmaker_count >= MIN_DYNAMIC_BOOKMAKER_DEPTH,
             "quote_fresh": bool(value.quote_fresh),
             "evaluated": evaluation_complete,
+            "calibration_validated": calibration_authority.recommendation_admissible(
+                value.calibration_status
+            ),
             "no_edge": evaluation_complete and state == DynamicEvaluationState.NO_EDGE_CURRENT,
             "candidate": evaluation_complete
             and state == DynamicEvaluationState.ANALYSIS_PICK_ACTIVE,
@@ -555,6 +569,7 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
                 "MAINLINE_PARSED",
                 "BOOKMAKER_DEPTH",
                 "QUOTE_FRESH",
+                "CALIBRATION_VALIDATED",
                 "EVALUATION_COMPLETE",
             )
             if not bool(
@@ -564,6 +579,7 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
                         "MAINLINE_PARSED": "mainline_parsed",
                         "BOOKMAKER_DEPTH": "bookmaker_depth",
                         "QUOTE_FRESH": "quote_fresh",
+                        "CALIBRATION_VALIDATED": "calibration_validated",
                         "EVALUATION_COMPLETE": "evaluated",
                     }[gate]
                 ]
