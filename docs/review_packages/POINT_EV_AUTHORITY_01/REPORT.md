@@ -183,7 +183,7 @@ Provider calls 0, production writes 0, GitHub 0, deploys 0.
 | `PROTOCOL_FROZEN_20260827.md` | frozen before the trace |
 | `FIXTURE_1570340_EVALUATION.json` | the production record, sha256 `7c50b37f9d04630a…` |
 | `FIXTURE_1570340_TRACE.json` | the eight-link chain with independent verification |
-| `FIXTURE_1570340_REPLAY.json` | post-fix replay, sha256 `0640f066dd195129…` |
+| `FIXTURE_1570340_REPLAY.json` | post-fix replay, sha256 `2b44380cf79b1b9bec400d6a4ee6a03ae4da3e39342c40edd7bcdb1b10787cd0` |
 
 ## 9. What I could not reconstruct
 
