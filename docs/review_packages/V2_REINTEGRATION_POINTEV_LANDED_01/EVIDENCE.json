@@ -1,0 +1,59 @@
+{
+  "task": "V2-REINTEGRATION-POINTEV-LANDED-01",
+  "merge": {
+    "commit": "f3265ac00637e1b4871e5f985593cdce4f52e5bd",
+    "first_parent": "ea557bb8ff64e06add91bbe32814fe073ec64642",
+    "second_parent": "f0d201c5e0abf38107a7bbe8611fa5b9c73c1b8b",
+    "non_fast_forward": true
+  },
+  "protocol": {
+    "original_frozen_commit": "b3ac153b21155d51076bb94c8d3f30645c7226e0",
+    "appended_commit": "104a8131"
+  },
+  "identity_compatibility": {
+    "legacy_constant_present": true,
+    "read_order": [
+      "w2.dynamic_quote_evaluation.identity.v2",
+      "w2.dynamic_quote_evaluation.identity.v1_after_stored_hash_mismatch"
+    ],
+    "public_write_classifier_accepts_identity_version": false,
+    "focused_assertions": "PASS"
+  },
+  "package_matrix": {
+    "source": "tests/contract/test_src_w2_package_matrix.py::_graph/_external_callers",
+    "contract_tests": "5 passed"
+  },
+  "migration": {
+    "heads": ["0070_factor_shadow_v2_gate0"],
+    "count": 1,
+    "applied": false
+  },
+  "preregistration": {
+    "old_file_sha256": "cad4b549bc8a00d56ad29f1913bc8ebd582a21ee8524b86a4fb7e24480f936c1",
+    "successor_file_sha256": "5c6b13b50818587d381e361bafbce25f33bd7e7f52c3b090ccf02bd0def4c880",
+    "successor_semantic_sha256": "bf2b539d77a532b7c8bf9e81d2644f6f3f760ddf549719613ee2643c8aac4e98",
+    "bare_validator": "PASS"
+  },
+  "verification": {
+    "focused": "190 passed, 4 skipped",
+    "identity_and_matrix": "98 passed",
+    "full_suite": "2975 passed, 5 failed, 9 skipped",
+    "baseline_full_suite": "2902 passed, 5 failed, 9 skipped",
+    "failure_set_delta": [],
+    "ruff_check": "PASS",
+    "mypy_src_apps": "Success: no issues found in 299 source files"
+  },
+  "stop_lines": {
+    "provider_calls": 0,
+    "production_reads": 0,
+    "production_writes": 0,
+    "github_operations": 0,
+    "deployments": 0,
+    "migration_applies": 0,
+    "collector_starts": 0,
+    "alpha_beta": "NULL",
+    "gate_1": "FAIL_PENDING_PROSPECTIVE_CONFIRMATION",
+    "gate_2": "CLOSED",
+    "task_6_started": false
+  }
+}
