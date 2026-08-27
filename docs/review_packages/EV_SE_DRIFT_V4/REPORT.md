@@ -325,7 +325,107 @@ The two `mypy src apps` errors are in `expected_match_denominator.py:100` and
 not because this work caused it. The full 2,912-test suite was not run; the 54 above
 are the tests covering the paths this work binds to.
 
-## 13. Open items
+## 13. Recommended next steps
+
+Sequenced, with the decision owner named. Nothing here is an action this package
+takes; items 2 and 5 are Owner decisions and are written as recommendations.
+
+**A correction to carry forward.** v3 recommended adding an append-only xG
+observation log as "the missing record". That recommendation rested on the belief
+that `captured_at` was upsert-overwritten. It is not — ordinary ingestion is
+first-write-wins behind an immutability guard, so `captured_at` is already close to
+a first-visibility record. The recommendation below replaces it, and it is cheaper.
+
+### 1. Accept or reject this package — Codex
+
+```bash
+cd /Users/liudehua/.hermes/worktrees/w2-ev-se-variogram
+export W2_XG_CSV=/Users/liudehua/.hermes/data/ev_se_drift_v2/team_xg_match.csv
+
+python3 scripts/run_ev_se_drift_v4.py --check          # {"reproduction": "PASS"}
+python3 scripts/run_ev_se_drift_v4.py --self-test-check # counts printed, no undetected
+python3 scripts/ev_se_v4_power.py --only "allsvenskan|attack"   # must match the frozen artefact
+ruff check .                                            # all checks passed
+```
+
+The four claims worth attacking first, because each would change a conclusion if
+wrong: that the boundary mixture is the right null (section 3); that no epoch has
+three PIT-visible observations (section 8); that three mutants genuinely cannot be
+expressed against production (section 9); and that the age range production sees is
+5.9–28.2 days (section 7).
+
+### 2. Decide Contract 1 — Owner
+
+Contract 1 and the `0071` migration were held because `alpha` and `beta` were
+empty. This package's finding is that they should **stay** empty, recorded as
+`NOT_IDENTIFIABLE` rather than as `0`. That removes the stated blocker, but whether
+Contract 1 ships is the Owner's call and this package does not make it. What the
+Owner needs alongside it: Contract 1's own offline validation, which is a separate
+package, and the fact that its measured effect on `ev_se` is close to a uniform
+`sqrt(2)` rescaling.
+
+### 3. Make the point-in-time guarantee testable — engineering
+
+`captured_at` is the visibility clock a future Path C would rest on, and today its
+first-write property is a consequence of how `upsert_team_xg_matches` happens to be
+written rather than something asserted anywhere. Two cheap steps:
+
+- a regression test asserting that re-upserting an existing `team_xg_match` row
+  leaves `captured_at` unchanged, so the property cannot be refactored away silently;
+- a recorded audit entry whenever `XgRetentionService.repair_derived_lineage` runs
+  with `write_db=true`, so a later replay can state which rows had their timestamp
+  repaired and defend the ones that did not.
+
+Neither changes behaviour. Both are what make a 2027 Path C defensible.
+
+### 4. Re-run two of the three legs after enough PIT history — schedule, not now
+
+From 2026-07 onward `captured_at` accumulates real visibility history. Once roughly
+six months of it exists — call it **2027-02** — the missingness/`beta` leg and the
+Path C calibration leg become answerable for the first time. Re-run
+`ev_se_v4_calibration.py` and the `pit` basis then.
+
+**Do not re-run the alpha leg on that schedule.** Its binding constraint is not
+sample size but the 5.9–28.2 day range of window ages production states span, and
+that range does not widen with more seasons. Re-running it would spend hours to
+reproduce the same verdict.
+
+### 5. Decide what to do about production's age blindness — Owner
+
+Independent of any coefficient, the shipped chain returns byte-identical `SE` and
+`EV_SE` for a one-day-old and a four-hundred-day-old observation set. This study
+says the *variance correction* for it is not measurable. It does not say the
+blindness is safe.
+
+The option that needs no estimated coefficient is a **staleness gate** rather than a
+variance inflation: refuse or flag a pick when the observation window is
+anomalously old, in the same fail-closed spirit as the existing three-observation
+rule. One constraint has to be stated plainly, because it is what makes this a
+decision rather than a task: **the threshold may not be selected from backtested
+performance** — that is the standing Gate rule and this package would not be
+evidence for any particular value. It would have to be set on operational grounds,
+such as a coverage or data-freshness argument, and justified in its own package.
+
+I am not recommending a value. I am recommending that the blindness be an explicit
+accepted risk with a recorded rationale, rather than an unexamined default.
+
+### 6. Keep the strict-response invariants — engineering
+
+`age_term_inert` and `P3b_dispersion_response_inert` are the only checks that catch
+a formula which ignores an input entirely. That defect class appeared **twice** in
+this work, in two unrelated rules, and both times a preregistered invariant that
+only forbade a decrease was satisfied by a formula doing nothing. Any future
+invariant written as "must not decrease" should ship with its strict-increase
+companion.
+
+### 7. Run the full suite before any of this lands — engineering
+
+2,912 tests exist; 54 were run here, covering only the paths this study binds to.
+No `src/` or `apps/` file was changed, so nothing is expected to move, but the claim
+should be checked rather than assumed. Note that `make typecheck` currently fails on
+two pre-existing `src/` errors that predate this work.
+
+## 14. Open items
 
 1. **The full test suite was not run.** 2,912 tests exist; 54 were run.
 2. **Calibration has no out-of-sample basis** and will not until enough post-2026-07

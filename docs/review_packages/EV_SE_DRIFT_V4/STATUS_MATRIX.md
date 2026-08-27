@@ -127,7 +127,8 @@ facts are recorded in the artefact's `provenance` and `equivalence_check` blocks
 | Reproduction commands | DONE — report §9 |
 | Ruff / mypy / test results | DONE — report §10 |
 | Explicit list of what remains open | DONE — report §11 |
-| Independent opinion on SE, research, point EV | DONE — report §8 |
+| Independent opinion on SE, research, point EV | DONE — report §10 |
+| Sequenced next steps with the decision owner named | DONE — report §13 |
 
 ## Section 12 — constraints
 
