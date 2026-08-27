@@ -4,9 +4,8 @@ Protocol `b74766f9`, frozen before sections 3–7 were run. Clause-by-clause sta
 `STATUS_MATRIX.md`. v2 (`b34eada9`), v3 (`e429bd97`), v4 (`5a40f448`) and v5
 (`9e4e4723`) are retained unmodified.
 
-**Two artefacts are still computing at the time of writing** and their rows say so
-in the matrix, in the evidence (`present: false`) and in section 12 here. Nothing in
-this report claims a file that does not exist.
+All artefacts are frozen and the evidence carries their SHA-256s. Nothing in this
+report claims a file that does not exist.
 
 ## 1. The population was still conditioned on the future
 
@@ -76,7 +75,7 @@ A sanity check the construction passes: the share of null draws resting on the
 boundary lands at **0.52–0.58**, against the 0.5 the theory predicts for a variance
 component at its boundary.
 
-Computed values, with the artefact being refrozen to add multiplicity:
+Frozen in `EV_SE_DRIFT_V6_CONFOUND.json`:
 
 | cell | adjusted `sigma^2` | null p95 | bootstrap p |
 |---|---|---|---|
@@ -89,8 +88,10 @@ Computed values, with the artefact being refrozen to add multiplicity:
 smallest attainable p is `1/401 = 0.0025`. Bonferroni across 26 tests requires
 `0.00192`. **No cell can clear Bonferroni at this replication count however strong
 the signal is** — reaching it would need at least 520 replications. The artefact
-carries `bonferroni_is_attainable: false`. Benjamini-Hochberg is attainable and
-keeps four cells.
+carries `bonferroni_is_attainable: false`. Benjamini-Hochberg is attainable and keeps four:
+`primeira_liga|attack`, `serie_a|defence`, `allsvenskan|attack`,
+`allsvenskan|defence`. Bonferroni keeps none, and the artefact records that this is
+the replication floor rather than a statement about the signal.
 
 My technical opinion on the clause: v5 §4 was **not** met, and the honest reading is
 that it was reported met on a quantity that had the wrong meaning. It is met now,
@@ -108,17 +109,41 @@ The useful question is how much, so it is measured rather than argued. Power at
 `sigma^2 = 1e-4` — the rate that moves `SE` about 10% over 60 days — with each
 cell's series count replicated 1, 2, 4 and 8 times on its own real geometry:
 
-| cell | ×1 | ×2 | ×4 | ×8 | reaches 80% |
+| cell | series today | ×1 | ×2 | ×4 | ×8 |
 |---|---|---|---|---|---|
-| `allsvenskan\|attack` | 0.088 | 0.132 | 0.204 | 0.322 | no |
-| `allsvenskan\|defence` | 0.092 | 0.142 | 0.218 | 0.340 | no |
-| `argentina_primera\|attack` | 0.132 | 0.194 | 0.338 | 0.518 | no |
-| `argentina_primera\|defence` | 0.128 | 0.186 | 0.338 | 0.508 | no |
+| `allsvenskan\|attack` | 32 | 0.088 | 0.132 | 0.204 | 0.322 |
+| `allsvenskan\|defence` | 32 | 0.092 | 0.142 | 0.218 | 0.340 |
+| `argentina_primera\|attack` | 58 | 0.132 | 0.194 | 0.338 | 0.518 |
+| `argentina_primera\|defence` | 58 | 0.128 | 0.186 | 0.338 | 0.508 |
+| `brasileirao_serie_a\|attack` | 40 | 0.204 | 0.342 | 0.522 | 0.798 |
+| `brasileirao_serie_a\|defence` | 40 | 0.196 | 0.330 | 0.508 | 0.790 |
+| `bundesliga\|attack` | 36 | 0.112 | 0.148 | 0.226 | 0.348 |
+| `bundesliga\|defence` | 36 | 0.110 | 0.120 | 0.196 | 0.304 |
+| `chinese_super_league\|attack` | 32 | 0.090 | 0.110 | 0.160 | 0.272 |
+| `chinese_super_league\|defence` | 32 | 0.078 | 0.104 | 0.136 | 0.214 |
+| `eliteserien\|attack` | 32 | 0.118 | 0.152 | 0.218 | 0.304 |
+| `eliteserien\|defence` | 32 | 0.118 | 0.152 | 0.218 | 0.298 |
+| `eredivisie\|attack` | 36 | 0.094 | 0.176 | 0.222 | 0.362 |
+| `eredivisie\|defence` | 36 | 0.090 | 0.160 | 0.200 | 0.330 |
+| `la_liga\|attack` | 40 | 0.164 | 0.254 | 0.376 | 0.586 |
+| `la_liga\|defence` | 40 | 0.136 | 0.206 | 0.286 | 0.476 |
+| `ligue_1\|attack` | 36 | 0.112 | 0.164 | 0.224 | 0.322 |
+| `ligue_1\|defence` | 36 | 0.110 | 0.156 | 0.208 | 0.304 |
+| `mls\|attack` | 59 | 0.188 | 0.292 | 0.480 | 0.716 |
+| `mls\|defence` | 59 | 0.178 | 0.276 | 0.466 | 0.702 |
+| `premier_league\|attack` | 40 | 0.148 | 0.220 | 0.310 | 0.500 |
+| `premier_league\|defence` | 40 | 0.140 | 0.206 | 0.282 | 0.462 |
+| `primeira_liga\|attack` | 36 | 0.134 | 0.228 | 0.332 | 0.518 |
+| `primeira_liga\|defence` | 36 | 0.128 | 0.174 | 0.266 | 0.422 |
+| `serie_a\|attack` | 40 | 0.206 | 0.262 | 0.396 | 0.602 |
+| `serie_a\|defence` | 40 | 0.196 | 0.252 | 0.370 | 0.568 |
 
-*(4 of 26 cells complete; the study is still running — section 12.)*
+**0 of 26 cells reach 80% power at any scale examined.** At ×8 the rejection rate
+runs from 0.214 to 0.798 with a median of 0.462; the closest is
+`brasileirao_serie_a|attack` at 0.798.
 
-At **eight times** today's data — on the order of twenty seasons — power at the rate
-that matters is still 0.32 to 0.52. The growth is real and roughly what a
+At **eight times** today's data — on the order of twenty seasons — the median cell
+still sits at 0.46 and not one reaches 80%. The growth is real and roughly what a
 `sqrt(N)` noncentrality predicts, which means reaching 80% would take something like
 another four to eight-fold beyond that. So the corrected statement is:
 
@@ -148,8 +173,8 @@ is gone for good.
   bottom while the top runs into the tens of percent. A Gate moved by an unbounded
   amount is worse than one not moved.
 - **Not identifiable at the magnitude that matters, and not fixable by waiting.**
-  0 of 26 cells reach 80% power at `1e-4` today, and at 8× the data the completed
-  cells sit at 0.32–0.52.
+  0 of 26 cells reach 80% power at `1e-4` today, and at 8× the data none does
+  either — the median cell reaches 0.46.
 - **The largest impacts come from the regime the boundary term distrusts.** The
   longest windows cross season breaks; 4 of 26 jump terms exclude zero and 3 of those
   are negative, which is the random walk over-predicting at long lags.
@@ -245,22 +270,23 @@ git worktree add --detach /tmp/w2-v5 9e4e4723 && cd /tmp/w2-v5 && python3 script
 | `ev_se_v6_epochs.py` self-check | PASS |
 | `ev_se_v6_epochs.py --prove-it-fails` | all three guards bite |
 | `ev_se_v6_impact.py` | max 84.91%, median 11.42%, 12/15 bands reach zero |
+| `run_ev_se_drift_v6.py --check` | PASS |
+| `run_ev_se_drift_v6.py --self-test-check` | PASS, 1,622 numeric fields, 41 sampled, 0 undetected |
 | `run_ev_se_drift_v2.py --check` | PASS |
 | `pytest` on the bound production paths | 54 passed |
 
 No `src/` or `apps/` file was changed in v3, v4, v5 or v6.
 
-## 12. Still running, and what is therefore not claimed
+## 12. Artefacts
 
-1. **`EV_SE_DRIFT_V6_CONFOUND.json`** — the p-values in section 4 are computed and
-   will not change (same seed, same data); the artefact is being rewritten to add
-   the multiplicity block and the resolution note. Until the file exists the matrix
-   says IN PROGRESS.
-2. **`EV_SE_DRIFT_V6_SCALING.json`** — 4 of 26 cells complete. Section 5 reports
-   only those four and says so. The pattern across them is consistent, but four
-   cells are four cells.
-3. **`EV_SE_DRIFT_V6_EVIDENCE.json`** is emitted after both, so that it can carry
-   their SHA-256s rather than `present: false`.
+| file | SHA-256 (first 16) |
+|---|---|
+| `EV_SE_DRIFT_V6_EVIDENCE.json` | emitted `d9df83db817e44fb` |
+| `EV_SE_DRIFT_V6_IMPACT.json` | `c0866c49ca39a736` |
+| `EV_SE_DRIFT_V6_CONFOUND.json` | `eb785f2f507352e9` |
+| `EV_SE_DRIFT_V6_SCALING.json` | `cce5614ed544b936` |
+
+All three externals report `present: true` in the evidence.
 
 ## 13. Remaining uncertainty
 

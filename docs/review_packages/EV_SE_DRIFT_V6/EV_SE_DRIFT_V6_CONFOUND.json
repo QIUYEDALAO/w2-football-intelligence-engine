@@ -1,0 +1,712 @@
+{
+  "cells": {
+    "allsvenskan|attack": {
+      "jointly_adjusted_sigma2": 0.0007876267320871081,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.004987531172069825,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00034570500353225313,
+        "null_draws_at_or_above_observed": 1,
+        "null_share_at_boundary": 0.525,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.4920165390261202
+      },
+      "observations": 758,
+      "percentile_interval": {
+        "ci_high": 0.0015840165488422999,
+        "ci_low": 0.00015184903970870712,
+        "excludes_zero": true,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.005
+      }
+    },
+    "allsvenskan|defence": {
+      "jointly_adjusted_sigma2": 0.0006599124266586175,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.007481296758104738,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00033533741786521927,
+        "null_draws_at_or_above_observed": 2,
+        "null_share_at_boundary": 0.525,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.477103865449273
+      },
+      "observations": 758,
+      "percentile_interval": {
+        "ci_high": 0.001686787977421682,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.07
+      }
+    },
+    "argentina_primera|attack": {
+      "jointly_adjusted_sigma2": 0.000258499159494828,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.03740648379052369,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00023220242955793725,
+        "null_draws_at_or_above_observed": 14,
+        "null_share_at_boundary": 0.575,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.3338213561442597
+      },
+      "observations": 1264,
+      "percentile_interval": {
+        "ci_high": 0.0008722080614743207,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.1625
+      }
+    },
+    "argentina_primera|defence": {
+      "jointly_adjusted_sigma2": 8.927288391634409e-05,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.22693266832917705,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00023154550915203192,
+        "null_draws_at_or_above_observed": 90,
+        "null_share_at_boundary": 0.575,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.33302112263480704
+      },
+      "observations": 1264,
+      "percentile_interval": {
+        "ci_high": 0.00026987282183600365,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.2175
+      }
+    },
+    "brasileirao_serie_a|attack": {
+      "jointly_adjusted_sigma2": 0.00021012382689885483,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.022443890274314215,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.0001643268955850138,
+        "null_draws_at_or_above_observed": 8,
+        "null_share_at_boundary": 0.5625,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.4037318787435798
+      },
+      "observations": 1518,
+      "percentile_interval": {
+        "ci_high": 0.0004168988826367025,
+        "ci_low": 4.7435860898817264e-05,
+        "excludes_zero": true,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.0125
+      }
+    },
+    "brasileirao_serie_a|defence": {
+      "jointly_adjusted_sigma2": 0.00016604062599765248,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.04987531172069826,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00016398871194761255,
+        "null_draws_at_or_above_observed": 19,
+        "null_share_at_boundary": 0.5625,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.4029672100811296
+      },
+      "observations": 1518,
+      "percentile_interval": {
+        "ci_high": 0.00045364068998925865,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.05
+      }
+    },
+    "bundesliga|attack": {
+      "jointly_adjusted_sigma2": 0.00012320284549424107,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.26433915211970077,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.0003767111431430424,
+        "null_draws_at_or_above_observed": 105,
+        "null_share_at_boundary": 0.5275,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.5134301072309665
+      },
+      "observations": 882,
+      "percentile_interval": {
+        "ci_high": 0.0005257984804458366,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.28
+      }
+    },
+    "bundesliga|defence": {
+      "jointly_adjusted_sigma2": 0.0,
+      "null_bootstrap": {
+        "bootstrap_p_value": 1.0,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.0003831434739632345,
+        "null_draws_at_or_above_observed": 400,
+        "null_share_at_boundary": 0.5275,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.522036849754816
+      },
+      "observations": 882,
+      "percentile_interval": {
+        "ci_high": 0.0005057328228292518,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.5325
+      }
+    },
+    "chinese_super_league|attack": {
+      "jointly_adjusted_sigma2": 0.0003925768963945606,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.059850374064837904,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.0004306329079887096,
+        "null_draws_at_or_above_observed": 23,
+        "null_share_at_boundary": 0.495,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.5852241164490933
+      },
+      "observations": 834,
+      "percentile_interval": {
+        "ci_high": 0.0008600999101022617,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.06
+      }
+    },
+    "chinese_super_league|defence": {
+      "jointly_adjusted_sigma2": 0.0,
+      "null_bootstrap": {
+        "bootstrap_p_value": 1.0,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.0004409724592594875,
+        "null_draws_at_or_above_observed": 400,
+        "null_share_at_boundary": 0.495,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.5994184619812596
+      },
+      "observations": 834,
+      "percentile_interval": {
+        "ci_high": 0.0001256380035148991,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.8825
+      }
+    },
+    "eliteserien|attack": {
+      "jointly_adjusted_sigma2": 0.0,
+      "null_bootstrap": {
+        "bootstrap_p_value": 1.0,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00033894097166570745,
+        "null_draws_at_or_above_observed": 400,
+        "null_share_at_boundary": 0.5,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.5528179641229511
+      },
+      "observations": 866,
+      "percentile_interval": {
+        "ci_high": 8.596797148316754e-05,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.8925
+      }
+    },
+    "eliteserien|defence": {
+      "jointly_adjusted_sigma2": 0.00014635865163871445,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.26433915211970077,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00033781682892497413,
+        "null_draws_at_or_above_observed": 105,
+        "null_share_at_boundary": 0.5,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.5510358774607239
+      },
+      "observations": 866,
+      "percentile_interval": {
+        "ci_high": 0.0007633085473950044,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.3125
+      }
+    },
+    "eredivisie|attack": {
+      "jointly_adjusted_sigma2": 4.172302479471472e-05,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.3865336658354115,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.0003331422393813515,
+        "null_draws_at_or_above_observed": 154,
+        "null_share_at_boundary": 0.5,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.5140269410485929
+      },
+      "observations": 922,
+      "percentile_interval": {
+        "ci_high": 0.00038689804275898813,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.375
+      }
+    },
+    "eredivisie|defence": {
+      "jointly_adjusted_sigma2": 0.000296408880417557,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.0773067331670823,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00033969944101363875,
+        "null_draws_at_or_above_observed": 30,
+        "null_share_at_boundary": 0.5,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.5243399524628118
+      },
+      "observations": 922,
+      "percentile_interval": {
+        "ci_high": 0.0006012605941947851,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.0325
+      }
+    },
+    "la_liga|attack": {
+      "jointly_adjusted_sigma2": 0.0,
+      "null_bootstrap": {
+        "bootstrap_p_value": 1.0,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.0002259772809561492,
+        "null_draws_at_or_above_observed": 400,
+        "null_share_at_boundary": 0.5025,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.4788278025441523
+      },
+      "observations": 1102,
+      "percentile_interval": {
+        "ci_high": 0.0001253542616041612,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.76
+      }
+    },
+    "la_liga|defence": {
+      "jointly_adjusted_sigma2": 9.582205027916564e-05,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.2518703241895262,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.0002258912147767354,
+        "null_draws_at_or_above_observed": 100,
+        "null_share_at_boundary": 0.5025,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.47890539540014804
+      },
+      "observations": 1102,
+      "percentile_interval": {
+        "ci_high": 0.00039033935706369775,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.2225
+      }
+    },
+    "ligue_1|attack": {
+      "jointly_adjusted_sigma2": 0.0,
+      "null_bootstrap": {
+        "bootstrap_p_value": 1.0,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00040788925968304404,
+        "null_draws_at_or_above_observed": 400,
+        "null_share_at_boundary": 0.5075,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.6378708145141795
+      },
+      "observations": 900,
+      "percentile_interval": {
+        "ci_high": 8.116866235068896e-05,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.8875
+      }
+    },
+    "ligue_1|defence": {
+      "jointly_adjusted_sigma2": 0.0,
+      "null_bootstrap": {
+        "bootstrap_p_value": 1.0,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.0004043302762318532,
+        "null_draws_at_or_above_observed": 400,
+        "null_share_at_boundary": 0.5075,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.632144823388126
+      },
+      "observations": 900,
+      "percentile_interval": {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 1.0
+      }
+    },
+    "mls|attack": {
+      "jointly_adjusted_sigma2": 0.00017966924606340297,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.05486284289276808,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00020835499109722822,
+        "null_draws_at_or_above_observed": 21,
+        "null_share_at_boundary": 0.565,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.5640237466867182
+      },
+      "observations": 2124,
+      "percentile_interval": {
+        "ci_high": 0.00043806519091363236,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.0575
+      }
+    },
+    "mls|defence": {
+      "jointly_adjusted_sigma2": 5.106801581327635e-05,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.26433915211970077,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00021075498744812702,
+        "null_draws_at_or_above_observed": 105,
+        "null_share_at_boundary": 0.565,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.570479387809346
+      },
+      "observations": 2124,
+      "percentile_interval": {
+        "ci_high": 0.00023161148161945173,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.3225
+      }
+    },
+    "premier_league|attack": {
+      "jointly_adjusted_sigma2": 0.0003179873322420381,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.04738154613466334,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00030012097457513665,
+        "null_draws_at_or_above_observed": 18,
+        "null_share_at_boundary": 0.505,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.509598385545004
+      },
+      "observations": 1132,
+      "percentile_interval": {
+        "ci_high": 0.0007888155428563196,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.0375
+      }
+    },
+    "premier_league|defence": {
+      "jointly_adjusted_sigma2": 0.00027980334634734454,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.06483790523690773,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00030460387300326497,
+        "null_draws_at_or_above_observed": 25,
+        "null_share_at_boundary": 0.505,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.517192939700022
+      },
+      "observations": 1132,
+      "percentile_interval": {
+        "ci_high": 0.0007618990271581898,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.04
+      }
+    },
+    "primeira_liga|attack": {
+      "jointly_adjusted_sigma2": 0.0011609110706246064,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.0024937655860349127,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.0002763530375855204,
+        "null_draws_at_or_above_observed": 0,
+        "null_share_at_boundary": 0.4875,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.4460585611088446
+      },
+      "observations": 896,
+      "percentile_interval": {
+        "ci_high": 0.0024021709228962645,
+        "ci_low": 0.00045774909376703355,
+        "excludes_zero": true,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.0
+      }
+    },
+    "primeira_liga|defence": {
+      "jointly_adjusted_sigma2": 0.00022089646347313064,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.08728179551122195,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00027645951762916057,
+        "null_draws_at_or_above_observed": 34,
+        "null_share_at_boundary": 0.4875,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.44585821116382485
+      },
+      "observations": 896,
+      "percentile_interval": {
+        "ci_high": 0.0004847948211076736,
+        "ci_low": 1.4126205851103705e-05,
+        "excludes_zero": true,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.0225
+      }
+    },
+    "serie_a|attack": {
+      "jointly_adjusted_sigma2": 0.0,
+      "null_bootstrap": {
+        "bootstrap_p_value": 1.0,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.00023096209253615192,
+        "null_draws_at_or_above_observed": 400,
+        "null_share_at_boundary": 0.485,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.4155432255889667
+      },
+      "observations": 1090,
+      "percentile_interval": {
+        "ci_high": 3.281815978428573e-05,
+        "ci_low": 0.0,
+        "excludes_zero": false,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.9475
+      }
+    },
+    "serie_a|defence": {
+      "jointly_adjusted_sigma2": 0.0004626354431890587,
+      "null_bootstrap": {
+        "bootstrap_p_value": 0.0024937655860349127,
+        "construction": "parametric bootstrap under sigma^2 = 0, both stages refitted",
+        "null_distribution_p95": 0.000234011088681392,
+        "null_draws_at_or_above_observed": 0,
+        "null_share_at_boundary": 0.485,
+        "replications": 400,
+        "seed": 20260826,
+        "status": "COMPUTED",
+        "tau2_under_null": 0.4209942943303476
+      },
+      "observations": 1090,
+      "percentile_interval": {
+        "ci_high": 0.0009940296351952092,
+        "ci_low": 1.474263340243473e-05,
+        "excludes_zero": true,
+        "note": "a percentile interval; share_at_boundary is not a p-value",
+        "share_at_boundary": 0.015
+      }
+    }
+  },
+  "cells_with_bootstrap_p_below_0_05": [
+    "allsvenskan|attack",
+    "argentina_primera|attack",
+    "brasileirao_serie_a|attack",
+    "premier_league|attack",
+    "primeira_liga|attack",
+    "allsvenskan|defence",
+    "brasileirao_serie_a|defence",
+    "serie_a|defence"
+  ],
+  "claim_discipline": "this reports what the adjustment does to the estimate. It does not establish that confounding is ruled out: opponent identity proxies opponent strength with error, and congestion, competition and personnel are absent from the model. These p-values carry no multiplicity correction",
+  "method": "joint two-way fixed effects by alternating projections, then the local level MLE on the residuals",
+  "multiplicity": {
+    "benjamini_hochberg_meaning": "false discovery rate control: the expected proportion of false rejections among those reported is at most 5%",
+    "benjamini_hochberg_survivors": [
+      "primeira_liga|attack",
+      "serie_a|defence",
+      "allsvenskan|attack",
+      "allsvenskan|defence"
+    ],
+    "bonferroni_is_attainable": false,
+    "bonferroni_survivors": [],
+    "bonferroni_threshold": 0.0019230769230769232,
+    "resolution_note": "with 400 replications the smallest p this construction can produce is 0.0025. The Bonferroni threshold across 26 tests is 0.00192, so no cell can clear it however strong the signal. Reaching it would need at least 520 replications. This is a limit of the procedure, not evidence about football",
+    "smallest_attainable_p": 0.0024937655860349127,
+    "sorted_p_values": [
+      [
+        "primeira_liga|attack",
+        0.0024937655860349127
+      ],
+      [
+        "serie_a|defence",
+        0.0024937655860349127
+      ],
+      [
+        "allsvenskan|attack",
+        0.004987531172069825
+      ],
+      [
+        "allsvenskan|defence",
+        0.007481296758104738
+      ],
+      [
+        "brasileirao_serie_a|attack",
+        0.022443890274314215
+      ],
+      [
+        "argentina_primera|attack",
+        0.03740648379052369
+      ],
+      [
+        "premier_league|attack",
+        0.04738154613466334
+      ],
+      [
+        "brasileirao_serie_a|defence",
+        0.04987531172069826
+      ],
+      [
+        "mls|attack",
+        0.05486284289276808
+      ],
+      [
+        "chinese_super_league|attack",
+        0.059850374064837904
+      ],
+      [
+        "premier_league|defence",
+        0.06483790523690773
+      ],
+      [
+        "eredivisie|defence",
+        0.0773067331670823
+      ],
+      [
+        "primeira_liga|defence",
+        0.08728179551122195
+      ],
+      [
+        "argentina_primera|defence",
+        0.22693266832917705
+      ],
+      [
+        "la_liga|defence",
+        0.2518703241895262
+      ],
+      [
+        "bundesliga|attack",
+        0.26433915211970077
+      ],
+      [
+        "eliteserien|defence",
+        0.26433915211970077
+      ],
+      [
+        "mls|defence",
+        0.26433915211970077
+      ],
+      [
+        "eredivisie|attack",
+        0.3865336658354115
+      ],
+      [
+        "bundesliga|defence",
+        1.0
+      ],
+      [
+        "chinese_super_league|defence",
+        1.0
+      ],
+      [
+        "eliteserien|attack",
+        1.0
+      ],
+      [
+        "la_liga|attack",
+        1.0
+      ],
+      [
+        "ligue_1|attack",
+        1.0
+      ],
+      [
+        "ligue_1|defence",
+        1.0
+      ],
+      [
+        "serie_a|attack",
+        1.0
+      ]
+    ],
+    "tests": 26
+  },
+  "protocol_clause": "v5 section 4 required an interval AND a bootstrap p-value; v5 shipped only the interval. Both are present here",
+  "protocol_commit": "b74766f9",
+  "schema_version": "w2.ev_se.drift_v6.confound.v1"
+}

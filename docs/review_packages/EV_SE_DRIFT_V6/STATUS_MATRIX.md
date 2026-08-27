@@ -40,7 +40,7 @@ attempted.
 | Clause | Status | Where |
 |---|---|---|
 | Joint two-way fixed effects | DONE | carried from v5, `fit_effects` |
-| Parametric bootstrap under the null | **IN PROGRESS** | implemented and run once; artefact re-running with multiplicity added |
+| Parametric bootstrap under the null | DONE | `EV_SE_DRIFT_V6_CONFOUND.json`, `null_bootstrap.construction` |
 | Both stages refitted per replicate | DONE | FE and drift refitted on every null replicate |
 | `p = (1 + #{≥ observed}) / (1 + reps)` | DONE | `bootstrap_p_value` |
 | 400 replications, seed 20260826 | DONE | `replications`, `seed` |
@@ -48,9 +48,8 @@ attempted.
 | `share_at_boundary` not renamed | DONE | kept under its own name on both the observed and null sides |
 | Unmet clauses reported rather than substituted | DONE — none unmet | — |
 
-The confound and scaling rows are deliberately not `DONE`: at the time of writing
-neither artefact exists on disk, and the evidence reports `present: false` for both.
-They move to `DONE` only when the files are there.
+Both artefacts now exist and the evidence carries their SHA-256s with
+`present: true`.
 
 A limit of the construction is recorded rather than hidden: with 400 replications the
 smallest attainable p is `1/401 = 0.0025`, while Bonferroni across 26 tests needs
@@ -61,10 +60,10 @@ the signal.** `bonferroni_is_attainable: false` says so in the artefact.
 
 | Clause | Status | Where |
 |---|---|---|
-| Power repeated at series scale {1,2,4,8} | **IN PROGRESS** | `scripts/ev_se_v6_scaling.py`; artefact absent until the run completes |
+| Power repeated at series scale {1,2,4,8} | DONE | `EV_SE_DRIFT_V6_SCALING.json`, 26 cells × 4 scales × 500 replications |
 | At the rate that moves SE ~10% over 60 days | DONE | `sigma2: 1e-4` |
 | Same real geometry | DONE | series replicated from each cell's own timestamps |
-| Report the multiple reaching 80%, or that none does | **IN PROGRESS** | pending the artefact |
+| Report the multiple reaching 80%, or that none does | DONE | none does; `cells_reaching_80pc_within_range: []`, report §5 |
 
 ## Section 7 — recomputation
 

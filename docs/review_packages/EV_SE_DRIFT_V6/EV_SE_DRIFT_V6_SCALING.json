@@ -1,0 +1,306 @@
+{
+  "cells": {
+    "allsvenskan|attack": {
+      "power_by_scale": {
+        "x1": 0.088,
+        "x2": 0.132,
+        "x4": 0.204,
+        "x8": 0.322
+      },
+      "series_today": 32,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.5309320983983744
+    },
+    "allsvenskan|defence": {
+      "power_by_scale": {
+        "x1": 0.092,
+        "x2": 0.142,
+        "x4": 0.218,
+        "x8": 0.34
+      },
+      "series_today": 32,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.5023979269104382
+    },
+    "argentina_primera|attack": {
+      "power_by_scale": {
+        "x1": 0.132,
+        "x2": 0.194,
+        "x4": 0.338,
+        "x8": 0.518
+      },
+      "series_today": 58,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.3658817225487182
+    },
+    "argentina_primera|defence": {
+      "power_by_scale": {
+        "x1": 0.128,
+        "x2": 0.186,
+        "x4": 0.338,
+        "x8": 0.508
+      },
+      "series_today": 58,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.37055433161713014
+    },
+    "brasileirao_serie_a|attack": {
+      "power_by_scale": {
+        "x1": 0.204,
+        "x2": 0.342,
+        "x4": 0.522,
+        "x8": 0.798
+      },
+      "series_today": 40,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.47372561609930947
+    },
+    "brasileirao_serie_a|defence": {
+      "power_by_scale": {
+        "x1": 0.196,
+        "x2": 0.33,
+        "x4": 0.508,
+        "x8": 0.79
+      },
+      "series_today": 40,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.48093366875283544
+    },
+    "bundesliga|attack": {
+      "power_by_scale": {
+        "x1": 0.112,
+        "x2": 0.148,
+        "x4": 0.226,
+        "x8": 0.348
+      },
+      "series_today": 36,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.5977897375510204
+    },
+    "bundesliga|defence": {
+      "power_by_scale": {
+        "x1": 0.11,
+        "x2": 0.12,
+        "x4": 0.196,
+        "x8": 0.304
+      },
+      "series_today": 36,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.6654447631715653
+    },
+    "chinese_super_league|attack": {
+      "power_by_scale": {
+        "x1": 0.09,
+        "x2": 0.11,
+        "x4": 0.16,
+        "x8": 0.272
+      },
+      "series_today": 32,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.7287933705449191
+    },
+    "chinese_super_league|defence": {
+      "power_by_scale": {
+        "x1": 0.078,
+        "x2": 0.104,
+        "x4": 0.136,
+        "x8": 0.214
+      },
+      "series_today": 32,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.8319862575885042
+    },
+    "eliteserien|attack": {
+      "power_by_scale": {
+        "x1": 0.118,
+        "x2": 0.152,
+        "x4": 0.218,
+        "x8": 0.304
+      },
+      "series_today": 32,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.6875146395133204
+    },
+    "eliteserien|defence": {
+      "power_by_scale": {
+        "x1": 0.118,
+        "x2": 0.152,
+        "x4": 0.218,
+        "x8": 0.298
+      },
+      "series_today": 32,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.6894237823538034
+    },
+    "eredivisie|attack": {
+      "power_by_scale": {
+        "x1": 0.094,
+        "x2": 0.176,
+        "x4": 0.222,
+        "x8": 0.362
+      },
+      "series_today": 36,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.6339597098236994
+    },
+    "eredivisie|defence": {
+      "power_by_scale": {
+        "x1": 0.09,
+        "x2": 0.16,
+        "x4": 0.2,
+        "x8": 0.33
+      },
+      "series_today": 36,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.6754888940198042
+    },
+    "la_liga|attack": {
+      "power_by_scale": {
+        "x1": 0.164,
+        "x2": 0.254,
+        "x4": 0.376,
+        "x8": 0.586
+      },
+      "series_today": 40,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.5485615982214461
+    },
+    "la_liga|defence": {
+      "power_by_scale": {
+        "x1": 0.136,
+        "x2": 0.206,
+        "x4": 0.286,
+        "x8": 0.476
+      },
+      "series_today": 40,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.6540835263192566
+    },
+    "ligue_1|attack": {
+      "power_by_scale": {
+        "x1": 0.112,
+        "x2": 0.164,
+        "x4": 0.224,
+        "x8": 0.322
+      },
+      "series_today": 36,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.7477487329409049
+    },
+    "ligue_1|defence": {
+      "power_by_scale": {
+        "x1": 0.11,
+        "x2": 0.156,
+        "x4": 0.208,
+        "x8": 0.304
+      },
+      "series_today": 36,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.8005542704264433
+    },
+    "mls|attack": {
+      "power_by_scale": {
+        "x1": 0.188,
+        "x2": 0.292,
+        "x4": 0.48,
+        "x8": 0.716
+      },
+      "series_today": 59,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.6217870551868769
+    },
+    "mls|defence": {
+      "power_by_scale": {
+        "x1": 0.178,
+        "x2": 0.276,
+        "x4": 0.466,
+        "x8": 0.702
+      },
+      "series_today": 59,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.6406575152087254
+    },
+    "premier_league|attack": {
+      "power_by_scale": {
+        "x1": 0.148,
+        "x2": 0.22,
+        "x4": 0.31,
+        "x8": 0.5
+      },
+      "series_today": 40,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.5919883148843391
+    },
+    "premier_league|defence": {
+      "power_by_scale": {
+        "x1": 0.14,
+        "x2": 0.206,
+        "x4": 0.282,
+        "x8": 0.462
+      },
+      "series_today": 40,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.6221133480979251
+    },
+    "primeira_liga|attack": {
+      "power_by_scale": {
+        "x1": 0.134,
+        "x2": 0.228,
+        "x4": 0.332,
+        "x8": 0.518
+      },
+      "series_today": 36,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.5134449038593818
+    },
+    "primeira_liga|defence": {
+      "power_by_scale": {
+        "x1": 0.128,
+        "x2": 0.174,
+        "x4": 0.266,
+        "x8": 0.422
+      },
+      "series_today": 36,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.6035757869005431
+    },
+    "serie_a|attack": {
+      "power_by_scale": {
+        "x1": 0.206,
+        "x2": 0.262,
+        "x4": 0.396,
+        "x8": 0.602
+      },
+      "series_today": 40,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.46249611237924865
+    },
+    "serie_a|defence": {
+      "power_by_scale": {
+        "x1": 0.196,
+        "x2": 0.252,
+        "x4": 0.37,
+        "x8": 0.568
+      },
+      "series_today": 40,
+      "smallest_scale_reaching_80pc": null,
+      "tau2_used": 0.4838974813758861
+    }
+  },
+  "cells_reaching_80pc_within_range": [],
+  "population": "real_cell_geometry, series count replicated",
+  "protocol_commit": "b74766f9",
+  "reading": "scaling the series count is the shape more seasons take: the cells are fixed, the series inside them are not. This measures what that buys and does not model anything else more data would change",
+  "replications": 500,
+  "scales": [
+    1,
+    2,
+    4,
+    8
+  ],
+  "schema_version": "w2.ev_se.drift_v6.scaling.v1",
+  "seed": 20260826,
+  "sigma2": 0.0001,
+  "sigma2_meaning": "the drift rate that moves SE about 10% over 60 days",
+  "target_power": 0.8
+}
