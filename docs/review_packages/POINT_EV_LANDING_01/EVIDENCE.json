@@ -1,0 +1,101 @@
+{
+  "schema_version": "w2.point_ev_landing.evidence.v1",
+  "observed_at": "2026-08-27T15:54:36Z",
+  "release": {
+    "source_commit": "ea557bb8ff64e06add91bbe32814fe073ec64642",
+    "previous_release": "fc70b48ebddb8bbafda144424dc7255d6437c2fe",
+    "authority_epoch_start": "2026-08-27T14:59:21Z",
+    "python_digest": "sha256:b8d491db5940c6ffc9dd508f9469ed162d86eec69e243280d7032e79811a5440",
+    "web_digest": "sha256:fa4ee355673d49cbc2eab420ad620f10332d9cc8d1c1b80f45aebc385dbdd65c",
+    "schema": "0070_notification_delivery_routing",
+    "container_health": {
+      "api": "healthy",
+      "worker": "healthy",
+      "scheduler": "healthy",
+      "web": "healthy",
+      "postgres": "healthy",
+      "redis": "healthy"
+    },
+    "exact_revision_match": true
+  },
+  "backup": {
+    "successful_release_backup": "20260827T145846Z",
+    "successful_release_dump_bytes": 184830384,
+    "automatic_rollback_backup": "20260827T145616Z",
+    "automatic_rollback_dump_bytes": 184830379,
+    "schema": "0070_notification_delivery_routing",
+    "retention_keep": 1000000
+  },
+  "automatic_rollback": {
+    "occurred": true,
+    "code_failure": false,
+    "cause": "ACCEPTANCE_URL_MISSING_V1_PREFIX",
+    "observed_http_status": 404,
+    "recovered_release": "fc70b48ebddb8bbafda144424dc7255d6437c2fe",
+    "recovery_health_passed": true,
+    "retry_script": "deploy-retry1.sh",
+    "retry_succeeded": true
+  },
+  "post_epoch": {
+    "evaluation_count": 18,
+    "evaluation_first_at": "2026-08-27T15:00:52Z",
+    "evaluation_last_at": "2026-08-27T15:30:50.882563Z",
+    "baseline_prior_count": 18,
+    "calibration_inadmissible_count": 18,
+    "not_ready_model_input_count": 18,
+    "calibration_blocker_count": 18,
+    "five_state_distribution_present_count": 18,
+    "five_state_distribution_sum_one_count": 18,
+    "ev_present_count": 18,
+    "ev_minus_se_present_count": 18,
+    "ev_min": -0.056129,
+    "ev_max": 0.31138,
+    "ev_se_min": 0.048317,
+    "ev_se_max": 0.063831,
+    "blocked_opportunity_count": 2,
+    "promoted_opportunity_count": 0,
+    "candidate_count": 0,
+    "outbox_count": 0,
+    "candidate_or_bark_log_count": 0,
+    "new_model_forecast_capture_count": 0
+  },
+  "sample": {
+    "fixture_id": "1570336",
+    "market": "ASIAN_HANDICAP",
+    "checkpoint": "T3_ODDS",
+    "ev": 0.178263,
+    "ev_se": 0.049679,
+    "ev_minus_se": 0.128584,
+    "five_state": {
+      "WIN": 0.6438593441397455,
+      "HALF_WIN": 0.0,
+      "PUSH": 0.0,
+      "HALF_LOSS": 0.0,
+      "LOSS": 0.35614065586025445
+    },
+    "state": "NOT_READY_MODEL_INPUT",
+    "opportunity_state": "BLOCKED_BY_GATE",
+    "blocker": "MODEL_CALIBRATION_NOT_VALIDATED",
+    "calibration_status": "BASELINE_PRIOR",
+    "calibration_recommendation_admissible": false
+  },
+  "read_contract": {
+    "provider_calls": 0,
+    "db_writes": 0,
+    "no_call_on_read": true,
+    "would_write_checkpoint": false,
+    "workspace_http_status": 200
+  },
+  "boundaries": {
+    "github_ghcr_operations": 0,
+    "provider_calls_by_landing_task": 0,
+    "v1_probability_parameter_changes": 0,
+    "five_state_formula_changes": 0,
+    "historical_recommendation_changes": 0,
+    "historical_settlement_changes": 0,
+    "alpha": null,
+    "beta": null,
+    "contract_1_implemented": false,
+    "v2_deployed": false
+  }
+}
