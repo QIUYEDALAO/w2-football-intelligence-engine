@@ -27,6 +27,7 @@ from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     CandidateNotificationOutboxModel,
     DynamicPrematchEvaluationModel,
+    DynamicPrematchOpportunityModel,
 )
 from w2.markets.market_candidate import build_market_candidates
 from w2.prematch.lifecycle import (
@@ -99,6 +100,28 @@ def _context(slot: str, suffix: str) -> EvaluationOpportunityContext:
         scheduled_checkpoint_at=NOW + timedelta(minutes=len(suffix)),
         checkpoint_plan_identity=f"plan-{suffix}",
         source_event_identity=f"event-{suffix}",
+    )
+
+
+SAME_OPPORTUNITY = EvaluationOpportunityContext(
+    model_forecast_capture_identity_hash="1" * 64,
+    model_input_hash="2" * 64,
+    evaluation_policy_version="candidate-eval.v1",
+    evaluation_slot_id="T15_ODDS",
+    scheduled_checkpoint_at=NOW,
+    checkpoint_plan_identity="plan-same",
+    source_event_identity="event-same",
+)
+
+
+def _same_opportunity_attempt(calibration_status: object, *, minutes: int = 0) -> Any:
+    """Two of these differ only in calibration: same capture, slot, quote, model
+    input, checkpoint and source event. That is the case a downgrade actually is."""
+    return bind_evaluation_opportunity(
+        classify_evaluation(
+            _input(calibration_status=calibration_status, suffix="s", minutes=minutes)
+        ),
+        SAME_OPPORTUNITY,
     )
 
 
@@ -212,15 +235,75 @@ def test_d_absent_status_is_recorded_as_absent_not_as_baseline_prior() -> None:
     assert payload["calibration_recommendation_admissible"] is False
 
 
-def test_d_database_round_trip_preserves_the_audit_fields() -> None:
+def _reappend(engine, attempt) -> Any:  # type: ignore[no-untyped-def]
+    """Append twice and return what the repository rebuilds on the second call.
+
+    The second call takes the existing-record path, which is the one that rebuilds a
+    DynamicEvaluationVersion from the persisted payload. Reading `row.payload` as
+    JSON, which is what the earlier version of these tests did, never exercises it.
+    """
+    repository = DynamicPrematchRepository(engine)
+    repository.append_evaluation(attempt)
+    rebuilt, created = repository.append_evaluation(attempt)
+    assert created is False, "the second append should have taken the existing path"
+    return rebuilt
+
+
+@pytest.mark.parametrize(
+    ("status", "expected_status", "expected_raw", "expected_admissible"),
+    [
+        ("BASELINE_PRIOR", "BASELINE_PRIOR", "BASELINE_PRIOR", False),
+        ("READY", "READY", "READY", False),
+        (None, calibration_authority.ABSENT_STATUS, None, False),
+        ("PRODUCTION_VALIDATED", "PRODUCTION_VALIDATED", "PRODUCTION_VALIDATED", True),
+    ],
+)
+def test_d_repository_rebuild_preserves_the_audit_fields(
+    status: object, expected_status: str, expected_raw: str | None, expected_admissible: bool
+) -> None:
+    rebuilt = _reappend(_engine(), _attempt(status))
+    assert rebuilt.calibration_status == expected_status
+    assert rebuilt.calibration_status_raw == expected_raw
+    assert rebuilt.calibration_recommendation_admissible is expected_admissible
+    assert rebuilt.calibration_authority == calibration_authority.AUTHORITY_VERSION
+
+
+def test_d_legacy_payload_rebuilds_as_unrecorded_and_fails_closed() -> None:
+    """A row written before this authority carries none of these keys. It must not
+    reconstruct as validated, and it must stay distinguishable from ABSENT."""
+    engine = _engine()
+    DynamicPrematchRepository(engine).append_evaluation(_attempt("PRODUCTION_VALIDATED"))
+    with Session(engine) as session:
+        row = session.scalars(select(DynamicPrematchEvaluationModel)).one()
+        payload = dict(row.payload if isinstance(row.payload, dict) else json.loads(row.payload))
+        for key in (
+            "calibration_status",
+            "calibration_status_raw",
+            "calibration_recommendation_admissible",
+            "calibration_authority",
+        ):
+            payload.pop(key, None)
+        row.payload = payload
+        session.commit()
+
+    repository = DynamicPrematchRepository(engine)
+    rebuilt, created = repository.append_evaluation(_attempt("PRODUCTION_VALIDATED"))
+    assert created is False
+    assert rebuilt.calibration_status == calibration_authority.UNRECORDED_STATUS
+    assert rebuilt.calibration_recommendation_admissible is False
+    # no authority stamp is what separates a legacy row from one that ran under the
+    # authority and declared nothing
+    assert rebuilt.calibration_authority is None
+    assert rebuilt.calibration_status != calibration_authority.ABSENT_STATUS
+
+
+def test_d_stored_payload_also_carries_the_fields() -> None:
     engine = _engine()
     DynamicPrematchRepository(engine).append_evaluation(_attempt("BASELINE_PRIOR"))
     with Session(engine) as session:
         row = session.scalars(select(DynamicPrematchEvaluationModel)).one()
         stored = row.payload if isinstance(row.payload, dict) else json.loads(row.payload)
     assert stored["calibration_status"] == "BASELINE_PRIOR"
-    assert stored["calibration_status_raw"] == "BASELINE_PRIOR"
-    assert stored["calibration_recommendation_admissible"] is False
     assert stored["calibration_authority"] == calibration_authority.AUTHORITY_VERSION
     assert stored["gate_results"]["calibration_validated"] is False
 
@@ -242,39 +325,67 @@ def test_d_round_trip_distinguishes_absent_from_declared_baseline() -> None:
 
 
 # --- (e) a downgrade blocks and does not leave a stale candidate -------------
-def test_e_downgrade_blocks_and_does_not_keep_the_old_candidate_state() -> None:
+def test_e_downgrade_on_the_same_opportunity_withdraws_the_candidate() -> None:
+    """One opportunity, one quote, one model input, one checkpoint. Only the
+    calibration changes, and the whole chain has to notice."""
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
-    formed = _attempt("PRODUCTION_VALIDATED", slot="T45_ODDS", suffix="a", minutes=0)
+    formed = _same_opportunity_attempt("PRODUCTION_VALIDATED", minutes=0)
+    downgraded = _same_opportunity_attempt("BASELINE_PRIOR", minutes=30)
+
+    assert formed.opportunity_identity_hash == downgraded.opportunity_identity_hash
+    assert formed.attempt_identity_hash != downgraded.attempt_identity_hash
+
     repository.append_evaluation(formed)
-    downgraded = _attempt("BASELINE_PRIOR", slot="T15_ODDS", suffix="b", minutes=30)
     repository.append_evaluation(downgraded)
 
-    assert formed.opportunity_state is OpportunityState.EVALUATED_CANDIDATE
-    assert downgraded.opportunity_state is OpportunityState.BLOCKED_BY_GATE
     with Session(engine) as session:
-        rows = sorted(
-            session.scalars(select(DynamicPrematchEvaluationModel)),
-            key=lambda row: row.evaluation_id,
+        rows = list(session.scalars(select(DynamicPrematchEvaluationModel)))
+        opportunities = list(session.scalars(select(DynamicPrematchOpportunityModel)))
+        outbox = sorted(
+            session.scalars(select(CandidateNotificationOutboxModel)),
+            key=lambda event: event.created_at,
         )
+
+    # both attempts survive append-only
     assert len(rows) == 2
     latest = max(rows, key=lambda row: row.evaluated_at)
+    assert latest.attempt_identity_hash == downgraded.attempt_identity_hash
     assert latest.original_state == "NOT_READY_MODEL_INPUT"
 
+    # one opportunity, and it is no longer a candidate
+    assert len(opportunities) == 1
+    assert opportunities[0].state == OpportunityState.BLOCKED_BY_GATE.value
+    assert opportunities[0].opportunity_identity_hash == formed.opportunity_identity_hash
 
-def test_e_upgrade_is_recorded_as_its_own_attempt() -> None:
+    # the notification chain formed and then withdrew, exactly once each
+    assert [event.event_type for event in outbox] == [
+        "CANDIDATE_FORMED",
+        "CANDIDATE_WITHDRAWN",
+    ]
+    withdrawal = outbox[-1]
+    assert withdrawal.previous_state == OpportunityState.EVALUATED_CANDIDATE.value
+    assert withdrawal.current_state == OpportunityState.BLOCKED_BY_GATE.value
+
+
+def test_e_upgrade_on_the_same_opportunity_is_its_own_attempt() -> None:
     """The reverse direction must not be swallowed either."""
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
-    repository.append_evaluation(_attempt("BASELINE_PRIOR", slot="T45_ODDS", suffix="a"))
-    repository.append_evaluation(_attempt("PRODUCTION_VALIDATED", slot="T15_ODDS", suffix="b"))
+    repository.append_evaluation(_same_opportunity_attempt("BASELINE_PRIOR", minutes=0))
+    repository.append_evaluation(
+        _same_opportunity_attempt("PRODUCTION_VALIDATED", minutes=30)
+    )
     with Session(engine) as session:
         rows = list(session.scalars(select(DynamicPrematchEvaluationModel)))
+        opportunities = list(session.scalars(select(DynamicPrematchOpportunityModel)))
     assert len(rows) == 2
     assert {row.original_state for row in rows} == {
         "NOT_READY_MODEL_INPUT",
         "ANALYSIS_PICK_ACTIVE",
     }
+    assert len(opportunities) == 1
+    assert opportunities[0].state == OpportunityState.EVALUATED_CANDIDATE.value
 
 
 # --- (f) real coverage of the other three surfaces ---------------------------

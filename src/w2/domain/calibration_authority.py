@@ -38,6 +38,12 @@ from typing import Any
 #: between "we know it was unvalidated" and "we do not know what this was".
 ABSENT_STATUS = "ABSENT"
 
+#: A persisted record written before this authority existed, so it carries no
+#: calibration fields at all. Distinct from ABSENT: ABSENT says the authority ran
+#: and nothing was declared, UNRECORDED says no authority ever looked. Both are
+#: inadmissible; only one of them is a statement about the pipeline.
+UNRECORDED_STATUS = "UNRECORDED"
+
 RECOMMENDATION_BLOCKER = "MODEL_CALIBRATION_NOT_VALIDATED"
 AUTHORITY_VERSION = "w2.domain.calibration_authority.v1"
 
@@ -63,6 +69,7 @@ NON_VALIDATION_STATUSES = frozenset(
         "NO_SETTLED_SAMPLE",
         "UNKNOWN",
         ABSENT_STATUS,
+        UNRECORDED_STATUS,
     }
 )
 
@@ -95,6 +102,42 @@ def status_of(simulation: Mapping[str, Any] | None) -> str:
     if not isinstance(simulation, Mapping):
         return normalise_status(None)
     return normalise_status(simulation.get("calibration_status"))
+
+
+def reconstruct_from_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Rebuild the calibration audit fields from a persisted payload.
+
+    A payload written before this authority existed carries none of these keys.
+    That record must never reconstruct as validated, and it must not be confused
+    with one that ran under the authority and declared nothing: the first is
+    ``UNRECORDED`` with no authority stamp, the second is ``ABSENT`` with one.
+    The presence of ``calibration_authority`` is what separates them, which is why
+    a legacy record leaves it ``None`` rather than being back-stamped.
+
+    Admissibility is never taken from the stored boolean. It is recomputed from the
+    status under the current authority, so a record cannot carry its own permission
+    forward across a change in what counts as validated.
+    """
+    if "calibration_authority" not in payload and "calibration_status" not in payload:
+        return {
+            "calibration_status_raw": None,
+            "calibration_status": UNRECORDED_STATUS,
+            "calibration_recommendation_admissible": False,
+            "calibration_authority": None,
+        }
+    stored = payload.get("calibration_status")
+    normalised = normalise_status(stored)
+    raw = payload.get("calibration_status_raw")
+    return {
+        "calibration_status_raw": None if raw is None else str(raw),
+        "calibration_status": normalised,
+        "calibration_recommendation_admissible": recommendation_admissible(normalised),
+        "calibration_authority": (
+            str(payload["calibration_authority"])
+            if payload.get("calibration_authority")
+            else None
+        ),
+    }
 
 
 def evidence_record(status: object) -> dict[str, Any]:

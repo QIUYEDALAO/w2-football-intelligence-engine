@@ -12,6 +12,7 @@ from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from w2.domain import calibration_authority
 from w2.domain.canonical_serialization import (
     CURRENT_SERIALIZER_VERSION,
     HashDomain,
@@ -560,9 +561,20 @@ class DynamicPrematchRepository:
 
 
 def _version_from_payload(payload: dict[str, Any]) -> DynamicEvaluationVersion:
+    # Rebuilt rather than defaulted: without this the four calibration fields came
+    # back None on every existing-record return, so a caller that read them off a
+    # duplicate append saw nothing and could not tell an unvalidated record from a
+    # validated one. Legacy payloads reconstruct as UNRECORDED and inadmissible.
+    calibration = calibration_authority.reconstruct_from_payload(payload)
     return DynamicEvaluationVersion(
         evaluation_id=str(payload["evaluation_id"]),
         identity_hash=str(payload["identity_hash"]),
+        calibration_status_raw=calibration["calibration_status_raw"],
+        calibration_status=calibration["calibration_status"],
+        calibration_recommendation_admissible=(
+            calibration["calibration_recommendation_admissible"]
+        ),
+        calibration_authority=calibration["calibration_authority"],
         fixture_id=str(payload["fixture_id"]),
         market=str(payload["market"]),
         selection=str(payload["selection"]),
