@@ -1,4 +1,4 @@
-# W2 × Penaltyblog：EV、概率与模型验证优化计划 V1.4
+# W2 × Penaltyblog：EV、概率与模型验证优化计划 V1.4.1
 
 文档状态：`PROPOSED_NOT_AUTHORIZED`
 
@@ -6,7 +6,7 @@
 
 创建日期：2026-08-29（Asia/Shanghai）
 
-当前修订：V1.4（按 `main@3b7f87db` 重建代码事实、五态现金流定价合同与双轨评价 Gate）
+当前修订：V1.4.1（收窄 `S` 的经济术语、冻结 Phase 4 estimand 层级并校正 D2 devig 边界）
 
 实施状态：未开始
 
@@ -58,7 +58,7 @@
 
 | 建议 | 处置 | 修订结论 |
 |---|---|---|
-| 将 devig authority 提升为 market-relative 轨道显式前置 | `ACCEPT_WITH_V1_4_SCOPE_CORRECTION` | `analysis_calculator.py` 实际做 PROPORTIONAL 归一，却标记来源为 POWER；必须分开计算算法、provenance 标签和持久化方法身份。V1.4 进一步限定：该冲突只阻断 `MODEL_VS_MARKET`、Gate D2 与 `MARKET_VALUE_SHADOW`，不阻断 Phase 4 primary、`MODEL_VS_MODEL` 或 Gate D1。 |
+| 将 devig authority 提升为 market-relative 轨道显式前置 | `ACCEPT_WITH_V1_4_1_SCOPE_CORRECTION` | `analysis_calculator.py` 实际做 PROPORTIONAL 归一，却标记来源为 POWER；必须分开计算算法、provenance 标签和持久化方法身份。该冲突只阻断 `MODEL_VS_MARKET`、Gate D2 的 market-relative probability benchmark 与 `MARKET_VALUE_SHADOW` 的对应组件；不阻断 Phase 4、`MODEL_VS_MODEL`、Gate D1 或继承 Phase 4 合同的 EV realization。 |
 | Gate 0B 增加历史 `devig_method` 非空覆盖率 | `ACCEPT_AND_FAIL_CLOSED_FOR_MARKET_TRACK` | 按 evidence source/release/schema/market/checkpoint 统计 null、单一方法和混合方法，并检查方法标签能否由当时代码身份证明。混合或大量 null 时，market-relative 轨道只能用可归因子集，否则返回 `BLOCKED_BY_DEVIG` 或 `NOT_IDENTIFIABLE`；不得阻断 model-quality 轨道。 |
 
 ### 1.4 V1.4 交接单处置
@@ -97,7 +97,7 @@
 
 ### 2.1 权威与版本边界
 
-V1.4 所有当前代码断言、符号和行号统一以本地已有 Git 对象 `3b7f87db2f0cb49d75582313ca593d30262c0d3d` 为基线。当前 checkout 落后该基线 310 个提交，不得再作为 V1.4 代码事实来源。
+V1.4.1 所有当前代码断言、符号和行号统一以本地已有 Git 对象 `3b7f87db2f0cb49d75582313ca593d30262c0d3d` 为基线。当前 checkout 落后该基线 310 个提交，不得再作为 V1.4.1 代码事实来源。
 
 本轮没有连接 VPS，因此 `main@3b7f87db` 是 PR base 与静态审计基线，不是本轮已核验的 production exact runtime。生产 release、schema、capability、历史 cohort 和 `devig_method` 覆盖仍必须经 Gate 0B 只读核验。
 
@@ -114,13 +114,23 @@ Canonical 定义位于 `src/w2/domain/five_state_pricing.py:6-82`。`src/w2/mark
 |---|---|---|
 | `W` | `WIN + 0.5 × HALF_WIN` | 每单位名义本金的有效赢面暴露 |
 | `L` | `LOSS + 0.5 × HALF_LOSS` | 每单位名义本金的有效输面暴露 |
-| `S` | `W + L` | 进入输赢结算的本金比例，即在险本金比例 |
+| `S` | `W + L` | 期望结算暴露本金比例，即期望非退款结算本金比例 |
 | `F*` | `S / W` | 未量化 fair decimal odds |
 | `Fq` | `1 + quantize(L/W, 0.0001, ROUND_HALF_UP)` | 代码实际四位 fair decimal odds |
 | `edge*` | `d/F* - 1 = EV/S` | 未量化 cashflow price edge，严格恒等式 |
 | `edge_code` | `d/Fq - 1` | 当前代码实际 `cashflow_price_edge` |
 | `T*` | `0.05 × S` | 未量化 5% 归一化政策对应的 raw-EV 门槛 |
 | `Tq` | `1.05 × Fq × W - S` | 四位量化后的代码实际 raw-EV 门槛 |
+
+本文“结算暴露本金”专指非 PUSH/退款部分的期望本金暴露，不等同于赛前资金占用、最大可能损失，或 Kelly 意义的 risk capital。令单位名义 stake 的实现收益为 `Y`，非退款结算暴露比例为 `R`，则：
+
+```text
+R: WIN 1 | HALF_WIN 0.5 | PUSH 0 | HALF_LOSS 0.5 | LOSS 1
+E[R] = W + L = S
+EV/S = E[Y] / E[R]
+```
+
+`EV/S` 是期望利润与期望结算暴露之比，不是 `E[Y/R]`；PUSH 时 `R=0`，`Y/R` 无定义。
 
 其中 `d` 为 executable decimal odds。五态 EV 为：
 
@@ -139,7 +149,7 @@ F*    = S / W
 edge* = d / F* - 1 = EV / S
 ```
 
-`cashflow_price_edge` 是 EV 经结算现金流质量 `S = W + L` 确定性归一化后的价格优势表示；当前实现另受 fair odds 4 位量化影响，因此代码层非逐值严格相等。
+`cashflow_price_edge` 是 EV 经期望结算暴露比例 `S = W + L` 确定性归一化后的价格优势表示；当前实现另受 fair odds 4 位量化影响，因此代码层非逐值严格相等。
 
 量化误差满足：
 
@@ -169,7 +179,7 @@ edge* = d / F* - 1 = EV / S
 按本金去向展开：PUSH 全额退回，HALF_WIN/HALF_LOSS 退回一半，WIN/LOSS 全额进入输赢结算。
 
 ```text
-E[进入输赢结算的本金比例]
+E[结算暴露本金比例]
   = WIN × 1 + HALF_WIN × 0.5 + HALF_LOSS × 0.5 + LOSS × 1
   = W + L
   = S
@@ -179,17 +189,30 @@ E[进入输赢结算的本金比例]
 
 ```text
 EV                  = 每单位名义本金的期望利润
-cashflow_price_edge = 每单位在险本金的期望利润（受 Fq 量化影响的代码表示）
+cashflow_price_edge ≈ 每单位期望结算暴露本金的期望利润
+                    = E[Y] / E[R]（受 Fq 量化影响的代码表示）
 ```
 
-当前 5% 门槛是一个在险资本回报率政策，不是独立于 EV 的第二个模型信号，也不是机械副作用。Owner 的政策选择应按 binding constraint 解释：
+```text
+INTENDED_NORMALIZATION_IDENTIFIED
+  已确认：当前代码有意以 S 做结算暴露归一化；该结构不是 algebra 副作用，
+  recommendation authority 收敛记录也表明 5pp probability delta
+  -> EV + EV-SE + cashflow edge 是有意迁移。
+
+POLICY_JUSTIFICATION_PENDING_EVIDENCE
+  未确认：没有代码或设计证据表明 Owner 的经济目标明确是
+  “每单位期望结算暴露至少 5%”，也没有证据表明该尺度优于
+  名义本金 / 资金占用 / 回撤 / log-growth / 流动性消耗 / 盘口限额。
+```
+
+`cashflow_price_edge` 不是独立于 EV 的第二个模型信号。Owner 的政策选择仍须按 binding constraint 预注册检验：
 
 | binding constraint | 政策候选 |
 |---|---|
-| 风险资本（本金 / 回撤 / Kelly 分注） | 保持当前 `EV/S` 结算归一化 |
+| 结算暴露归一化 | 保持当前 `EV/S` 结算归一化 |
 | 周转量 / 流动性 / 盘口限额 | 评估恒定名义 EV 政策 |
 
-按资金规模分注时，分注原本就作用于在险资本，因此先验倾向保持当前归一化政策；但这不是 V1.4 的实证结论，仍须 Phase 4 预注册证据裁决。
+两种政策候选的经济正当性均未在本计划中确认，须由 Phase 4 的单一预注册 decision rule 裁决。
 
 ### 2.6 当前 recommendation admission 与 legacy 平行合同
 
@@ -289,7 +312,7 @@ Penaltyblog 项目路径：
 1. 建立唯一、可验证的 EV 语义合同；
 2. 证明所有 EV 入口对同一五态分布与报价数值一致；
 3. 建立从原始点时输入到 λ、score grid、settlement distribution、EV、EV-SE、decision 的完整血缘；
-4. 评估 V4 的 `EV/S` 结算归一化 admission 政策，并区分名义本金与在险本金空间；
+4. 评估 V4 的 `EV/S` 结算归一化 admission 政策，并区分名义本金与期望结算暴露归一化空间；
 5. 先验证 W2 当前 `BASELINE_PRIOR` 的参数来源、覆盖、clipping、概率质量和稳定性；
 6. 将误导性的模型/校准名称与生产事实分开；
 7. 用冻结的最小预检决定是否值得建设 Penaltyblog shadow adapter；
@@ -443,15 +466,20 @@ Gate C0-MODEL = PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH
   -> Phase 7 Gate D1 Probability Quality
 
 Phase 6 PASS
+  -> Phase 7 EV realization on the PB paired cohort
+     inheriting the frozen Phase 4 contract; no devig prerequisite
+
+Phase 6 PASS
 and Gate C0-MARKET = PASS
 and DEVIG_AUTHORITY_RESOLVED
-  -> Phase 7 Gate D2 Market Value / EV Realization
+  -> Phase 7 Gate D2 Market-Relative Probability Benchmark
 
 Gate D1 passes
   -> separate Owner request for PROBABILITY_SHADOW
 
-Gate D2 passes with DEVIG_AUTHORITY_RESOLVED
-  -> separate Owner request for MARKET_VALUE_SHADOW
+Gate D2 market-relative benchmark passes
+  -> may support the corresponding component of a separate Owner request
+     for MARKET_VALUE_SHADOW; inherited EV realization remains separately identified
 ```
 
 Gate 0A 完成后可以继续纯静态审计；任何“当前生产 exact state/row count”声明必须等待 Gate 0B。Phase 1 与 Phase 2 可以由不同 Agent 独立审查，但不得在 Gate 0B 前假定生产 identity。Phase 3 与 Phase 4 不得并行修改同一 EV/threshold 路径。Phase 4.5–7 必须串行，以保证预检、合同、实现和结果的时间顺序。
@@ -793,19 +821,34 @@ ALGORITHM_CHANGE
 
 状态：`PREREGISTRATION_REQUIRED`
 
-目标：评价 V4 的结算归一化 admission 政策，而不是重新评价 legacy `probability_delta >= 0.05`。Primary estimand 为 `EV_CALIBRATION`：`predicted_EV` 对权威结算后 `realized_unit_return`。
-
-必须在两个空间同时报告：
+目标：评价 V4 的结算归一化 admission 政策，而不是重新评价 legacy `probability_delta >= 0.05`。Estimand 层级固定如下：
 
 ```text
-NOMINAL_SPACE
-  realized_return_per_nominal_stake ~ EV
+PRIMARY
+  NOMINAL_EV_CALIBRATION
+  realized_unit_return Y_i ~ EV_i
+  理由：canonical EV 的定义即为每单位名义 stake 的期望利润，
+        该 estimand 最不可争议。
 
-AT_RISK_SPACE
-  realized_return_per_at_risk_stake ~ EV/S
+KEY SECONDARY
+  EXPOSURE_NORMALIZED_CALIBRATION
+  Y_i / S_asof,i ~ EV_i / S_asof,i
 ```
 
-只报名义空间会把 `S` 的异质性混入残差。`cashflow_price_edge` 是受 `Fq` 量化影响的 `EV/S` 代码表示，不是独立于 EV 的新信号。硬禁止把 `cashflow_price_edge` 与 EV 当作两个独立 predictor 做交叉归因。
+硬合同：
+
+```text
+S_asof = 该 fixture 在预测时点、由模型五态分布导出的 S。
+S_asof 在预测时点即固定，因此 E[Y/S_asof] = EV/S_asof 成立。
+
+禁止使用赛后实现的 R 作为分母。
+理由：PUSH 时 R=0 除零；且以 outcome state 作分母会改变 estimand，
+      构成 outcome conditioning。
+```
+
+两个空间必须同时报告，但只有 `NOMINAL_EV_CALIBRATION` 是 primary；`EXPOSURE_NORMALIZED_CALIBRATION` 是 key secondary，不得单独覆盖 primary 裁决。`cashflow_price_edge` 是受 `Fq` 量化影响的 `EV/S_asof` 代码表示，不是独立于 EV 的新信号。硬禁止把 `cashflow_price_edge` 与 EV 当作两个独立 predictor 做交叉归因。
+
+政策裁决必须冻结为单一 decision rule，不得根据哪个空间的回归 p 值更好看而选择政策。若 Owner 坚持双 primary，必须事前同时冻结 multiplicity control、joint success rule、两个独立 MME，以及 `BOTH PASS` 或 hierarchical gatekeeping；未冻结这些内容时禁止称 co-primary。
 
 在查看新结果前必须冻结：
 
@@ -813,8 +856,8 @@ AT_RISK_SPACE
 - fixture、executable quote、cutoff 和 authority result binding；
 - AH/OU 分开报告；
 - half/integer/quarter line 覆盖与分层；
-- `S` 作为连续量的分层/交互报告方式；
-- nominal-space 与 at-risk-space 的 primary estimand、MME、cluster 和 power design；
+- `S_asof` 作为连续量的分层/交互报告方式；
+- primary 与 key-secondary 的 estimand、MME、cluster、power design 和单一政策 decision rule；
 - failure/coverage Gate、futility rule 与 one-look rule；
 - 政策门槛不允许根据结果移动。
 
@@ -822,7 +865,7 @@ AT_RISK_SPACE
 
 ```text
 predicted_EV
-S
+S_asof
 Fq
 Tq
 EV_threshold_margin = predicted_EV - Tq
@@ -834,9 +877,9 @@ realized_unit_return
 fixture / quote / model / calibration identity
 ```
 
-Evaluability check 必须确认 threshold margin 两侧、各 line type 和 `S` 区间都有可绑定结果的样本，并按 fixture 去重/聚类，分开 current/superseded、official/shadow、market、checkpoint 和 model/calibration identity。不足时返回 `RECORD_FIRST_EVALUATE_LATER`，不得以推荐集代替完整 evaluation universe。
+Evaluability check 必须确认 threshold margin 两侧、各 line type 和 `S_asof` 区间都有可绑定结果的样本，并按 fixture 去重/聚类，分开 current/superseded、official/shadow、market、checkpoint 和 model/calibration identity。不足时返回 `RECORD_FIRST_EVALUATE_LATER`，不得以推荐集代替完整 evaluation universe。
 
-Half-line 的 `S=1` 只是结算归一化的边界特例，不代表 integer/quarter line 的 admission 行为。因此 Phase 4 不得只在 half-line 上评价，必须覆盖全部 line type 并以 `S` 为连续量分层。
+Half-line 的 `S_asof=1` 只是结算归一化的边界特例，不代表 integer/quarter line 的 admission 行为。因此 Phase 4 不得只在 half-line 上评价，必须覆盖全部 line type 并以 `S_asof` 为连续量分层。
 
 Devig authority 不是 Phase 4 的入口前置：本阶段的 primary 使用模型五态分布、executable price 和实现结算回报，不需要 latent market probability。任何附加 `MODEL_VS_MARKET` 分析仍必须遵守 `DEVIG_AUTHORITY_RESOLVED`。
 
@@ -850,7 +893,7 @@ NOT_IDENTIFIABLE
 RECORD_FIRST_EVALUATE_LATER
 ```
 
-`REPLACE_WITH_CONSTANT_NOMINAL_EV_POLICY` 必须另行预注册，不得由本阶段直接改代码。Owner 裁决必须显式引用 §2.5 的经济含义表：风险资本约束对应 `EV/S`，周转量/流动性/盘口限额约束才对应恒定名义 EV。
+`REPLACE_WITH_CONSTANT_NOMINAL_EV_POLICY` 必须另行预注册，不得由本阶段直接改代码。Owner 裁决必须显式引用 §2.5 的两段式证据状态与经济含义表；当前文档既未证明结算暴露归一化优于名义 EV，也未证明相反结论。
 
 本阶段只出决策包，不直接改阈值。
 
@@ -922,7 +965,7 @@ analysis_direction_allowed, cashflow_price_edge threshold,
 candidate status, recommendation status, or realized outcome.
 ```
 
-在 half-line 上 `S=1`，因此它是 settlement normalization 的边界特例，适合作为 W2-vs-PB 二元概率质量 primary；但它不代表 integer/quarter line 的 `S<1` admission 行为。Phase 4 的政策评价仍必须覆盖全部 line type 并以 `S` 为连续量分层。
+在 half-line 上 `S_asof=1`，因此它是 settlement normalization 的边界特例，适合作为 W2-vs-PB 二元概率质量 primary；但它不代表 integer/quarter line 的 `S_asof<1` admission 行为。Phase 4 的政策评价仍必须覆盖全部 line type 并以 `S_asof` 为连续量分层。
 
 在不查看 outcome metric 的 coverage-only preflight 后，预注册文件必须冻结：
 
@@ -1116,16 +1159,24 @@ CHALLENGER_PROBABILITY_VALUE_IDENTIFIED
 
 它不授权 edge、recommendation、profitability、market value 或 production admission 结论。
 
-#### Phase 7 D2 — Market Value / EV Realization
+Phase 7 的 EV realization 不在 D2 内重新定义，也不以 `DEVIG_AUTHORITY_RESOLVED` 为前置。其 estimand、MME、cluster 定义与 power design 一律继承 Phase 4 已冻结的 `NOMINAL_EV_CALIBRATION` 合同；这里只声明 cohort 差异：
 
-D2 必须在 D1 身份合同之外证明 `DEVIG_AUTHORITY_RESOLVED`、同 bookmaker/checkpoint 的 quote-pair identity、executable price 与 market attribution。Computed algorithm、declared label、persisted method/version/overround 或 primary cohort attribution 任一未闭合时，D2 返回 `BLOCKED_BY_DEVIG` 或 `NOT_IDENTIFIABLE`；不得用事后 sensitivity 分层替代冻结。
+```text
+Phase 4 cohort = 全部 official evaluation opportunities
+D1/D2 cohort   = PB 配对集
+```
+
+不得在 Phase 7 为同一 EV realization estimand 建立第二套合同。
+
+#### Phase 7 D2 — Market-Relative Probability Benchmark
+
+D2 必须在 D1 身份合同之外证明 `DEVIG_AUTHORITY_RESOLVED`、同 bookmaker/checkpoint 的 quote-pair identity、executable price 与 market attribution。Computed algorithm、declared label、persisted method/version/overround 或 primary cohort attribution 任一未闭合时，D2 返回 `BLOCKED_BY_DEVIG` 或 `NOT_IDENTIFIABLE`；不得用事后 sensitivity 分层替代冻结。该硬前置只约束 market-relative probability benchmark，不回溯阻断上文继承 Phase 4 合同的 EV realization。
 
 ```text
 EVAL_D2 =
 EVAL_D1
 ∩ exact executable quote identity valid
 ∩ frozen market attribution valid
-∩ authority settlement return valid
 ```
 
 D2 按预注册分别评价：
@@ -1133,9 +1184,7 @@ D2 按预注册分别评价：
 ```text
 METHOD_SPECIFIC_DEVIG_MARKET_BENCHMARK LogLoss / Brier
 model-vs-market paired proper-score delta on identifiable subsets
-predicted EV vs realized unit return calibration
-EV calibration intercept/slope with clustered uncertainty
-five-state NLL/Brier/RPS and settlement calibration where identifiable
+market probability boundary metrics
 coverage / failure / method-version / overround
 ```
 
@@ -1162,8 +1211,14 @@ PROBABILITY_SHADOW
   purpose: prospective paired probability quality only
 
 MARKET_VALUE_SHADOW
-  entry: Gate D2 PASS, including resolved devig and executable quote attribution
-  purpose: prospective market-value / EV realization only
+  market-relative component entry: Gate D2 PASS, including resolved devig,
+                                   quote-pair identity, executable price
+                                   and market attribution
+  EV realization component entry: Phase 4 contract frozen + Phase 6 PASS;
+                                  inherits NOMINAL_EV_CALIBRATION and has
+                                  no devig prerequisite
+  purpose: prospective market-relative benchmark and EV realization,
+           with their entry conditions kept separate
 ```
 
 共同要求：
@@ -1327,10 +1382,15 @@ Phase 2.5/4.5 另需：
 - method-specific devig benchmark naming guard；
 - mixed-method pooling forbidden test；
 - Phase 4 primary does not require devig authority test；
-- Phase 4 covers all line types and stratifies continuously by `S` test；
+- Phase 4 primary/key-secondary hierarchy and single decision-rule test；
+- Phase 4 covers all line types and stratifies continuously by `S_asof` test；
+- `S_asof` fixed from the prediction-time five-state distribution test；
+- realized `R` denominator forbidden / PUSH division-by-zero guard；
 - Phase 4 forbids treating EV and cashflow edge as independent predictors test；
 - Phase 4.5/D1 remains evaluable when devig is unresolved test；
 - Phase 4.5 market track/D2 blocks when devig is unresolved test；
+- Phase 7 EV realization inherits the Phase 4 contract and does not require devig test；
+- D2 scope contains only market-relative probability benchmark metrics test；
 - Gate D1/D2 conclusion-authority separation test；
 - D1 cannot produce edge, recommendation or profitability claims test；
 - `PROBABILITY_SHADOW`/`MARKET_VALUE_SHADOW` entry separation test；
@@ -1434,9 +1494,11 @@ NOT_IDENTIFIABLE
 
 D1 PASS 只能表示 `CHALLENGER_PROBABILITY_VALUE_IDENTIFIED`，不得出现 market edge、recommendation、profitability 或 production-admission 结论。
 
-#### Gate D2 — Market Value / EV Realization
+继承 Phase 4 合同的 EV realization 可在 devig authority 未解决时运行；其 `NOMINAL_EV_CALIBRATION` estimand、MME、cluster 定义与 power design 不得在 Gate D 重定义。cohort 差异固定为：Phase 4 使用全部 official evaluation opportunities，Phase 7 使用 PB 配对集。
 
-D2 的硬前置为 `DEVIG_AUTHORITY_RESOLVED`、quote identity、executable price 与 market attribution。该状态必须覆盖 primary cohort 的方法归因；任何 null、mixed pooled、label/algorithm mismatch 或事后选取 sensitivity method，均使 D2 返回 `BLOCKED_BY_DEVIG` 或 `NOT_IDENTIFIABLE`。D2 结论只允许：
+#### Gate D2 — Market-Relative Probability Benchmark
+
+D2 的硬前置为 `DEVIG_AUTHORITY_RESOLVED`、quote-pair identity、executable price 与 market attribution。该状态必须覆盖 primary cohort 的方法归因；任何 null、mixed pooled、label/algorithm mismatch 或事后选取 sensitivity method，均使 D2 返回 `BLOCKED_BY_DEVIG` 或 `NOT_IDENTIFIABLE`。该硬前置仅适用于 `METHOD_SPECIFIC_DEVIG_MARKET_BENCHMARK`、model-vs-market LogLoss/Brier 与 market probability boundary metrics，不适用于继承 Phase 4 合同的 EV realization。D2 结论只允许：
 
 ```text
 MARKET_EDGE_SUPPORTED
@@ -1462,8 +1524,8 @@ No real-edge or profitability claim is permitted without the market-relative tra
 
 | D1 | D2 | 允许解释 | Shadow eligibility |
 |---|---|---|---|
-| PASS | 未运行 / `BLOCKED_BY_DEVIG` / `NOT_IDENTIFIABLE` | 只识别 challenger 概率价值；不得声称报价可利用 | 仅可另行申请 `PROBABILITY_SHADOW` |
-| PASS | PASS | 概率价值与 market-relative 价值分别通过各自 Gate；仍非生产授权 | 可分别另行申请两类 shadow |
+| PASS | 未运行 / `BLOCKED_BY_DEVIG` / `NOT_IDENTIFIABLE` | 只识别 challenger 概率价值；EV realization 仍按 Phase 4 继承合同独立解释；不得声称 market-relative 报价可利用 | 可另行申请 `PROBABILITY_SHADOW`；若 Phase 6 PASS，可另行申请 `MARKET_VALUE_SHADOW` 的 EV realization component，不得进入 market-relative component |
+| PASS | PASS | 概率价值与 market-relative benchmark 分别通过各自 Gate；EV realization 仍继承 Phase 4 合同；均非生产授权 | 可分别另行申请两类 shadow 及其已满足 entry 的组件 |
 | FAIL / `NO_CHALLENGER_PROBABILITY_VALUE` | 任意 | 不继续 PB adapter model research；D2 不得替代 D1 | 两类 shadow 均不可进入 |
 | `INSUFFICIENT_POWER_DO_NOT_SCORE` / `NOT_IDENTIFIABLE` | 任意 | 不评分、不外推 | 两类 shadow 均不可进入 |
 
@@ -1478,7 +1540,7 @@ No real-edge or profitability claim is permitted without the market-relative tra
 
 ### Gate E — Prospective Shadow
 
-`PROBABILITY_SHADOW` 仅可由 D1 PASS 支持；`MARKET_VALUE_SHADOW` 必须由 D2 PASS 支持。两者均为 `NOT_AUTHORIZED_BY_THIS_PLAN`，即使后续独立 PASS，也只能提交 Owner decision packet，不自动产生 production admission。
+`PROBABILITY_SHADOW` 仅可由 D1 PASS 支持。`MARKET_VALUE_SHADOW` 的 market-relative component 必须由 D2 PASS 支持；其 EV realization component 则继承 Phase 4 合同并要求 Phase 6 PASS，不以 devig 为前置。两者均为 `NOT_AUTHORIZED_BY_THIS_PLAN`，即使后续独立 PASS，也只能提交 Owner decision packet，不自动产生 production admission。
 
 Gate E entry 继续受以下不变量约束：
 
@@ -1510,8 +1572,9 @@ No real-edge or profitability claim is permitted without the market-relative tra
 | PROPORTIONAL/POWER 等 devig 权威冲突 | 事后选取有利的 market benchmark | Phase 1/2 核实 authority；方法未冻结或冲突时仅 market-relative 轨道 fail closed，model-quality 轨道不受阻断 |
 | 只信 `POWER` source 字符串而不核对实际计算 | 把 PROPORTIONAL 历史行错分为 POWER | computed/declared/persisted 三身份分开审计；不可重建时 `METHOD_NOT_ATTRIBUTABLE` |
 | 混合或 nullable `devig_method` 行直接 pooled 做 market-relative 评价 | 模型效果与方法变更混杂 | Gate 0B 覆盖率计数；D2 只评价 100% 可归因同质子集，否则 `BLOCKED_BY_DEVIG` / `NOT_IDENTIFIABLE` |
-| 把 EV 与 `cashflow_price_edge` 当两个独立 predictor | 对同一结算信息重复归因 | Phase 4 只比较名义/在险两个预注册空间，禁止交叉归因 |
-| 把 `.0500/.0440/.03975` 固化为 line-type 门槛 | 忽略同一盘型逐场 `S` 差异 | 门槛逐行由 `S/W/Fq` 推导，按连续 `S` 分层 |
+| 把 EV 与 `cashflow_price_edge` 当两个独立 predictor | 对同一结算信息重复归因 | Phase 4 固定名义 EV primary 与期望结算暴露 key secondary，禁止交叉归因 |
+| 用赛后实现 `R` 归一化回报 | PUSH 除零并形成 outcome conditioning | `S_asof` 必须在预测时点由模型五态分布固定；禁止 realized `R` 作分母 |
+| 把 `.0500/.0440/.03975` 固化为 line-type 门槛 | 忽略同一盘型逐场 `S_asof` 差异 | 门槛逐行由 `S_asof/W/Fq` 推导，按连续 `S_asof` 分层 |
 | 只在 half-line 上评价 V4 policy | 把 `S=1` 边界误外推到 integer/quarter | Phase 4 覆盖全部 line type；half-line 只作 model-quality primary |
 | 把 D1 PASS 解读为 market edge | 从概率改进跳到报价可利用性 | D1/D2 分轨；edge/profitability 结论只允许 D2 |
 | 使用量化无感的统一 epsilon | 正确黄金向量假失败或全域误放行 | Decimal 精确断言 + 逐样本量化误差界 |
@@ -1603,7 +1666,7 @@ REJECT_PLAN
 ## 14. 建议的 Agent 回复格式
 
 ```markdown
-# Review: W2 × Penaltyblog EV Optimization Plan V1.4
+# Review: W2 × Penaltyblog EV Optimization Plan V1.4.1
 
 Agent role:
 Review date:
@@ -1638,7 +1701,7 @@ ACCEPT_PLAN / ACCEPT_WITH_REVISIONS / REJECT_PLAN
 
 ## 15. Owner 决策点
 
-完成 V1.4 后，建议本轮只裁定以下本地只读范围：
+完成 V1.4.1 后，建议本轮只裁定以下本地只读范围：
 
 ```text
 Gate 0A + Phase 1 + Phase 2 + Phase 2.5
@@ -1665,3 +1728,4 @@ PRODUCTION_CHANGE = FORBIDDEN
 | V1.2 | 2026-08-29 | 吸收 Claude 第二轮意见：增加 cohort burn ledger 分类保护、baseline 不可识别 hard block、exact half-line 产品 primary、method-specific devig benchmark 与对应 Gate/测试/风险闭环 | `NOT_AUTHORIZED` |
 | V1.3 | 2026-08-29 | 将 devig authority 与历史方法归因提升为 Phase 4/7 硬前置；增加 Gate 0B `devig_method` 覆盖率、computed/declared/persisted 三身份、方法敏感性边界和混合/null fail-closed 规则 | `NOT_AUTHORIZED` |
 | V1.4 | 2026-08-29 | 按 `main@3b7f87db` 重建代码事实与 canonical pricing；明确 V4 EV/结算归一化 admission、逐场 `S` 与量化边界；拆分 model/market、C0-MODEL/C0-MARKET、D1/D2 及双 shadow | `NOT_AUTHORIZED` |
+| V1.4.1 | 2026-08-29 | 收窄 `S` 为期望结算暴露本金比例；明确 `EV/S = E[Y]/E[R]` 而非 `E[Y/R]`；冻结 Phase 4 primary/key-secondary 与 `S_asof`；将 D2 限定为 market-relative probability benchmark，EV realization 继承 Phase 4 合同 | `NOT_AUTHORIZED` |
