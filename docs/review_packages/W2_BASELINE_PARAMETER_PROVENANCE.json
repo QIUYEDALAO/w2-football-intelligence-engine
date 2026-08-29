@@ -1,0 +1,79 @@
+{
+  "schema_version": "w2.baseline_parameter_provenance.v1",
+  "artifact_status": "PARTIALLY_COMPLETE_STATIC_EVIDENCE_ONLY",
+  "audit_baseline": "origin/main@3b7f87db",
+  "source_handoff": "docs/review_packages/PHASE_2_5A_FINDINGS_HANDOFF.md",
+  "calibration_version": "w2.formal.lambda_baseline_prior.v1",
+  "calibration_status": "BASELINE_PRIOR",
+  "introduction": {
+    "commit": "d4ca41b7",
+    "date": "2026-06-29",
+    "subject": "Add simulation-based formal recommendation engine (#96)",
+    "fitting_code_exists": false,
+    "fitting_evidence_exists": false,
+    "subsequent_parameter_change_identified": false
+  },
+  "parameters": [
+    {
+      "name": "home_advantage_goals",
+      "current_value": 0.12,
+      "introduced_commit": "d4ca41b7",
+      "introduced_date": "2026-06-29",
+      "fitting_code_exists": false,
+      "tests_pinning_value": [
+        "tests/unit/test_simulation_engine.py:163"
+      ]
+    },
+    {
+      "name": "elo_gap_weight",
+      "current_value": 0.28,
+      "introduced_commit": "d4ca41b7",
+      "introduced_date": "2026-06-29",
+      "fitting_code_exists": false,
+      "tests_pinning_value": []
+    },
+    {
+      "name": "squad_value_log_weight",
+      "current_value": 0.18,
+      "introduced_commit": "d4ca41b7",
+      "introduced_date": "2026-06-29",
+      "fitting_code_exists": false,
+      "tests_pinning_value": []
+    },
+    {
+      "name": "lineup_adjustment_weight",
+      "current_value": 0.08,
+      "introduced_commit": "d4ca41b7",
+      "introduced_date": "2026-06-29",
+      "fitting_code_exists": false,
+      "tests_pinning_value": []
+    },
+    {
+      "name": "dixon_coles_rho",
+      "current_value": 0.0,
+      "introduced_commit": "d4ca41b7",
+      "introduced_date": "2026-06-29",
+      "fitting_code_exists": false,
+      "tests_pinning_value": [],
+      "runtime_interpretation": "DEFAULT_TAU_CORRECTION_IS_NO_OP"
+    }
+  ],
+  "non_fitting_references": [
+    "scripts/debug_w2_modeling_sanity.py"
+  ],
+  "direct_test_assertion_evidence": {
+    "identified": [
+      "tests/unit/test_simulation_engine.py:163 asserts home_advantage_goals == 0.12"
+    ],
+    "other_direct_parameter_value_assertions_identified_in_handoff": false
+  },
+  "conclusion_fields": [
+    "BASELINE_PROVENANCE_IDENTIFIED_NO_FITTING_EVIDENCE",
+    "BASELINE_CALIBRATION_DEFICIENCY_EVIDENCED_SINGLE_FOLD"
+  ],
+  "prohibitions": {
+    "production_parameter_change_authorized": false,
+    "temperature_0_88_authorized_for_production": false,
+    "gate_0b_requested": false
+  }
+}

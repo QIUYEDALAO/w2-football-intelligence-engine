@@ -1,0 +1,70 @@
+{
+  "schema": "EXACT_AUTHORITY_SNAPSHOT_V1",
+  "gate": "0A_LOCAL_STATIC_ONLY",
+  "generated_at": "2026-08-29",
+  "generated_by": "Claude Code, read-only static audit",
+  "audit_baseline": {
+    "ref": "origin/main",
+    "commit": "3b7f87db2f0cb49d75582313ca593d30262c0d3d",
+    "subject": "Fix checkpoint collection truth (#533)",
+    "method": "detached worktree; user working tree not modified"
+  },
+  "local_working_tree": {
+    "branch": "codex/eval-02b-write-side-implementation-04",
+    "commit": "11c26e1e",
+    "behind_origin_main": 310,
+    "ahead_of_merge_base": 1,
+    "verdict": "NOT_AN_AUDIT_AUTHORITY"
+  },
+  "production_runtime": {
+    "api": "UNKNOWN_REQUIRES_GATE_0B",
+    "worker": "UNKNOWN_REQUIRES_GATE_0B",
+    "scheduler": "UNKNOWN_REQUIRES_GATE_0B",
+    "web": "UNKNOWN_REQUIRES_GATE_0B",
+    "note": "Vault records POINT-EV release ea557bb8; not verified this round"
+  },
+  "migration_head": {
+    "head": "0051_apply_seven_day_collection_policy",
+    "down_revision": "0050_gate_a_runtime_selection",
+    "chain": "linear, single head at static inspection",
+    "applied_head_in_production": "UNKNOWN_REQUIRES_GATE_0B"
+  },
+  "capability_manifest": {
+    "path": "config/capabilities/recommendation_capabilities.v1.json",
+    "sha256_prefix": "bfc737aa640c0257",
+    "production_enabled_count": 0,
+    "production_enabled_capabilities": [],
+    "feature_enabled_and_public": ["analysis_ah","analysis_ou","shadow_candidate","lineup_confirmation_gate","official_performance_reporting"],
+    "feature_disabled": ["formal_ah","formal_ou","recommendation_lock","production_recommendation","lineup_numeric_adjustment_ah","lineup_numeric_adjustment_ou"],
+    "isolated_runtime_verified_count": 0,
+    "staging_canary_passed_count": 0,
+    "policy_threshold_unvalidated": ["analysis_ah","analysis_ou","formal_ah","recommendation_lock","production_recommendation"],
+    "runtime_state_in_production": "UNKNOWN_REQUIRES_GATE_0B"
+  },
+  "authority_file_sha256_prefix": {
+    "src/w2/domain/five_state_pricing.py": "275071f980be266e",
+    "src/w2/domain/recommendation_decision_v4.py": "b125d8e47c2dc64b",
+    "src/w2/markets/analysis_evidence.py": "3d17833ec66db104",
+    "src/w2/strategy/calibration.py": "6f3e0a7798daf376",
+    "src/w2/markets/devig.py": "779b5d5121f07a51",
+    "src/w2/prematch/lifecycle.py": "e9059320ed29a72e"
+  },
+  "local_data_availability": {
+    "historical_prediction_outcome_dataset": false,
+    "database": "postgres via docker-compose, empty locally",
+    "fixtures_bytes": 44000,
+    "fixture_file_count": 9,
+    "consequence": "Phase 2.5 quantitative half NOT EXECUTABLE locally"
+  },
+  "blocking_findings": [
+    "PHASE_2_5_METRICS_BLOCKED_NO_LOCAL_DATA",
+    "PRODUCTION_RUNTIME_IDENTITY_UNKNOWN_REQUIRES_GATE_0B"
+  ],
+  "actions_taken": {
+    "provider_calls": 0,
+    "business_writes": 0,
+    "deployments": 0,
+    "vps_access": 0,
+    "user_working_tree_modified": false
+  }
+}
