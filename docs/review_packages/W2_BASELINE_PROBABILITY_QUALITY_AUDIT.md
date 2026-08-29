@@ -15,7 +15,7 @@ BASELINE_PROVENANCE_IDENTIFIED_NO_FITTING_EVIDENCE
 BASELINE_CALIBRATION_DEFICIENCY_EVIDENCED_SINGLE_FOLD
 ```
 
-这两个字段分别表示：当前 `BASELINE_PRIOR` 参数来源已经识别，但没有拟合代码或拟合证据；既有单折 1X2 对照为校准缺陷提供证据，但不足以确立 AH/OU 五态、跨联赛、跨时间或生产运行态结论。
+这两个字段分别表示：当前生产公式 `strategy/calibration.py::calibrate_lambdas` 的 `BASELINE_PRIOR` 参数来源已经识别，但没有拟合代码或拟合证据；既有单折 1X2 证据只能支持离线对照 `models/independent.py::predict_from_features` 的校准缺陷。本报告不含生产 champion 的概率质量结论；其 1X2、AH/OU 五态、跨联赛、跨时间和生产运行态概率质量至今未测。
 
 ## 2. Parameter Provenance and Fitting Identity
 
@@ -74,7 +74,7 @@ lambda_away = clamp((total - adjusted_delta) / 2, 0.15, 4.25)
 | calibration version and status | `IDENTIFIED` | `w2.formal.lambda_baseline_prior.v1` / `BASELINE_PRIOR` |
 | lambda and total-goals clipping frequency | `NOT_EXECUTABLE_LOCALLY_REQUIRES_GATE_0B_OR_EXPORT` | local PostgreSQL is empty; no historical prediction/outcome dataset |
 | input availability and fail-closed coverage | `NOT_EXECUTABLE_LOCALLY_REQUIRES_GATE_0B_OR_EXPORT` | local fixtures corpus is insufficient for production-like coverage |
-| 1X2 LogLoss / Brier / RPS / ECE | `SINGLE_FOLD_ARCHIVED_EVIDENCE_ONLY` | 2026-07-07 Understat validation, N=453 |
+| 1X2 LogLoss / Brier / RPS / ECE | `SINGLE_FOLD_ARCHIVED_EVIDENCE_ONLY` | 2026-07-07 Understat fitted challenger vs offline `predict_from_features` comparator, N=453; not production champion |
 | AH/OU five-state NLL / Brier / RPS | `NOT_EXECUTABLE_LOCALLY_REQUIRES_GATE_0B_OR_EXPORT` | archived evidence is 1X2, not AH/OU five-state |
 | league and chronological-block stability | `ARCHIVED_ROBUSTNESS_EVIDENCE_EXISTS` | `ROBUST_IMPROVEMENT`, 2026-07-07 archived report; cross-season + four-fold rolling-origin |
 | fixture-set digest and row-conservation ledger | `NOT_EXECUTABLE_LOCALLY_REQUIRES_GATE_0B_OR_EXPORT` | archived document reports counts but no Phase 2.5 local export/digest |
@@ -100,15 +100,15 @@ Validation metrics, N=453:
 |---|---:|---:|---:|---:|
 | uniform | 1.098612 | 0.666667 | 0.240250 | 0.086093 |
 | Elo-only | 1.028208 | 0.617209 | 0.220493 | 0.080288 |
-| **baseline prior（生产）** | **1.005268** | 0.600625 | 0.213034 | **0.114102** |
+| baseline prior（离线对照 `models/independent.py::predict_from_features`, `INDEPENDENT_POISSON`） | **1.005268** | 0.600625 | 0.213034 | **0.114102** |
 | fitted raw | 0.970488 | 0.577814 | 0.202277 | 0.048973 |
 | fitted + temperature | 0.969900 | 0.577688 | 0.202153 | 0.041136 |
 
-生产 `BASELINE_PRIOR` 具备判别力——其 log_loss `1.005268` 优于 uniform 的 `1.098612`；但其校准度 ECE `0.114102` 劣于 uniform 的 `0.086093` 与 Elo-only 的 `0.080288`，是该对照表中最差。这是典型的“有判别力但过度自信”特征。
+离线对照 `models/independent.py::predict_from_features` 具备判别力——其 log_loss `1.005268` 优于 uniform 的 `1.098612`；但其校准度 ECE `0.114102` 劣于 uniform 的 `0.086093` 与 Elo-only 的 `0.080288`，是该对照表中最差。这是该离线对照“有判别力但过度自信”的特征。生产 `strategy/calibration.py::calibrate_lambdas` 的 `BASELINE_PRIOR` 函数形式、常数、输入与 caller graph 均不同，其概率质量尚未测量。
 
-单折 fitted + temperature 相对 baseline prior 的 log_loss 为 `-0.035368`、ECE 为 `-0.072966`。`-0.035368` 保留为历史记录；稳健性报告明确将该单折结果自述为乐观值，不应用作主效应量。
+单折 fitted + temperature 相对上述离线 `predict_from_features` 对照的 log_loss 为 `-0.035368`、ECE 为 `-0.072966`。`-0.035368` 保留为历史记录；稳健性报告明确将该单折结果自述为乐观值，不应用作主效应量，也不得归给生产 champion。
 
-主效应量采用滚动 origin 四折稳健值：mean delta log_loss `-0.026376` nats，sd `0.009400`，4/4 折均优于 baseline prior 与 Elo-only。跨季双向 delta log_loss 为 `-0.024113` 与 `-0.032057`。研究中拟合出的 temperature `0.88` 从未进入 `src/w2/strategy/calibration.py`，本报告不授权将其写入生产路径。
+主效应量采用滚动 origin 四折稳健值：mean delta log_loss `-0.026376` nats，sd `0.009400`，4/4 折均优于离线 `predict_from_features` 对照与 Elo-only。跨季双向 delta log_loss 为 `-0.024113` 与 `-0.032057`。`-0.026376` 是相对离线对照的效应，不是相对生产 champion；后者的概率质量和与 challenger 的差距至今未测。研究中拟合出的 temperature `0.88` 从未进入 `src/w2/strategy/calibration.py`，本报告不授权将其写入生产路径。
 
 稳健性报告还给出：train 2,236 / validation 959 的 fitted + temperature train/validation gap 为 log_loss `+0.008477`、Brier `+0.007031`、RPS `+0.008246`、ECE `+0.022574`；报告判定无明显过拟合。
 
@@ -123,13 +123,13 @@ Validation metrics, N=453:
 
 ### 待验证时间趋势假设
 
-拟合模型的四折优势从 `-0.0402` 单调收缩至 `-0.0161`，幅度约衰减 60%；同期 baseline prior 四折约为 `1.0172 / 1.0127 / 1.0185 / 1.0166`，没有相同的单调恶化。因此，“后期验证窗口对所有模型都更难”不足以单独解释该趋势，一个待验证解释是拟合模型在后期窗口特异地丢失优势。
+拟合模型相对离线 `predict_from_features` 对照的四折优势从 `-0.0402` 单调收缩至 `-0.0161`，幅度约衰减 60%；同期该离线对照四折约为 `1.0172 / 1.0127 / 1.0185 / 1.0166`，没有相同的单调恶化。因此，“后期验证窗口对所有模型都更难”不足以单独解释该趋势，一个待验证解释是拟合模型在后期窗口特异地丢失优势。
 
 这只是警告信号，不是结论：只有 4 个点，训练集彼此嵌套，验证窗口相邻，折间观测不独立。必须在新的预注册 robustness 设计中验证，不得据此修改模型或生产路径。
 
 ## 7. Identifiability Limits
 
-本节的 `BASELINE_CALIBRATION_DEFICIENCY_EVIDENCED_SINGLE_FOLD` 结论字段严格限于：
+本节的 `BASELINE_CALIBRATION_DEFICIENCY_EVIDENCED_SINGLE_FOLD` 结论字段主语是离线 `predict_from_features` 对照，严格限于：
 
 ```text
 single fold
@@ -138,13 +138,13 @@ N = 453
 five major leagues using Understat xG only
 ```
 
-它不是 AH/OU 五态指标。后续 robustness workorder 位于 `docs/league_whitelist/W2_UNDERSTAT_MODEL_ITERATION_1_ROBUSTNESS_WORKORDER.md`，验证结论已归档于 `docs/archive/league_whitelist/W2_UNDERSTAT_MODEL_ITERATION_1_ROBUSTNESS_20260707.md`，状态为 `ROBUST_IMPROVEMENT`。该报告通过 train/validation gap、跨季双向和四折 rolling-origin 证明离线 fitted challenger 的改善具有稳健性；这不等于当前生产 baseline 已被确证有缺陷，也不能外推为 AH/OU 五态或 production runtime 结论。
+它不是 AH/OU 五态指标。后续 robustness workorder 位于 `docs/league_whitelist/W2_UNDERSTAT_MODEL_ITERATION_1_ROBUSTNESS_WORKORDER.md`，验证结论已归档于 `docs/archive/league_whitelist/W2_UNDERSTAT_MODEL_ITERATION_1_ROBUSTNESS_20260707.md`，状态为 `ROBUST_IMPROVEMENT`。该报告通过 train/validation gap、跨季双向和四折 rolling-origin 证明离线 fitted challenger 相对离线 `predict_from_features` 对照的改善具有稳健性；这不等于当前生产 baseline 已被测量或确证有缺陷，也不能外推为 AH/OU 五态或 production runtime 结论。
 
-EV 对概率水平是线性的，良好判别力不能替代概率校准；不过单折校准缺陷证据仍不能单独裁定生产参数、阈值或模型身份。
+EV 对概率水平是线性的，良好判别力不能替代概率校准；但这里的单折校准缺陷证据只属于离线对照，不能用于裁定生产参数、阈值或模型身份。
 
 ## 8. Relationship to Other Evidence
 
-- Understat fitted candidate 与 temperature `0.88` 是研究身份，不是当前生产 baseline 身份，也没有进入生产路径。其稳健效应量以 rolling-origin 四折均值约 `-0.026376` nats 为准；单折 `-0.035368` 仅作报告自述的乐观历史值。
+- Understat fitted candidate 与 temperature `0.88` 是研究身份，不是当前生产 baseline 身份，也没有进入生产路径。其相对离线 `predict_from_features` 对照的稳健效应量以 rolling-origin 四折均值约 `-0.026376` nats 为准；单折 `-0.035368` 仅作报告自述的乐观历史值。它们都不是相对生产 champion 的效应。
 - Factor V2 的 TRAIN-only temperature `0.928709586` 是另一个 prospective candidate identity；其 Gate 1 因 ECE 恶化保持 FAIL，不能用于证明当前 baseline 有效，也不能覆盖本报告的单折边界。
 - Factor V2 的 frozen `N=5500` 和 one-look 只服务其原始 successor 问题，不得借给 Penaltyblog 研究。
 
@@ -157,7 +157,7 @@ replacement for closed #193 after dependent base branch deletion
 BASELINE_PRIOR remains online champion
 ```
 
-`8e82c4b6` 已验证为 `origin/main` 的祖先，稳健性报告于 2026-07-29 经 `daf935fb` 归档进 main。因此这不是工程失败或工作丢失：模型已建立、已验证 `ROBUST_IMPROVEMENT`、代码已落地 main、报告已归档；未发生的是晋级裁决。
+`8e82c4b6` 已验证为 `origin/main` 的祖先，稳健性报告于 2026-07-29 经 `daf935fb` 归档进 main。因此这不是工程失败或工作丢失：模型已建立、已验证 `ROBUST_IMPROVEMENT`、代码已落地 main、报告已归档；未发生的是晋级裁决。提交信息中的 `BASELINE_PRIOR remains online champion` 是历史状态描述，不能把回测变量 `baseline_prior` 等同于生产 `calibrate_lambdas`。
 
 复现与实现入口仍在：
 
@@ -174,6 +174,6 @@ src/w2/backtest/free_tier_2024.py::build_understat_model_robustness_report
 
 ## 9. Phase 2.5b Disposition
 
-本轮不重复执行 Phase 2.5b：本地没有可执行数据，且 2026-07-07 已存在单折 + 稳健性（跨季双向 + 四折 rolling-origin）定量证据。只有当 Owner 要求验证新的时间趋势假设并批准合法新窗口/导出时，才需要继续定量工作。
+本轮不重复执行 Phase 2.5b：本地没有可执行数据，且 2026-07-07 已存在 fitted challenger 相对离线 `predict_from_features` 对照的单折 + 稳健性（跨季双向 + 四折 rolling-origin）定量证据。这不填补生产 champion 概率质量仍未测的空白。U2 另行预注册，本轮不执行。
 
 本报告不申请 Gate 0B，不继续 Phase 1/2，不改变阶段顺序，不修改 `calibration.py` 或任何生产参数。

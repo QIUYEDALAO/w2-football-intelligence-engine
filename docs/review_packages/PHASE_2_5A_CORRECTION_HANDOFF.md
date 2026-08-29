@@ -169,3 +169,34 @@ src/w2/backtest/free_tier_2024.py
 不改业务代码、不重跑 backtest、不获取 Understat 数据、不申请 Gate 0B、
 不把任何拟合结果写入生产路径、不更新 Obsidian、不改 A–J 与 Gate 结构。
 计划书状态保持唯一一处 `PROPOSED_NOT_AUTHORIZED`。
+
+---
+
+## 6. U1 对照身份更正（2026-08-29）
+
+本交接单第 2.2 节与第 4.7 节把 `-0.026376` nats 写成相对“当前 champion”的效应，该归属错误。原文保留在上方，本节追加更正以保留审计轨迹。
+
+本地 `main@3b7f87db` 静态复核确认：
+
+```text
+free_tier_2024.py:1375
+  -> models/independent.py::predict_from_features(INDEPENDENT_POISSON)
+
+strategy/simulate.py:128
+  -> strategy/calibration.py::calibrate_lambdas
+```
+
+两条路径的函数形式、常数、输入与调用点不同，不是同一模型。因此正确记录为：
+
+```text
+Understat fitted vs 离线 predict_from_features 对照
+  rolling-origin mean delta log_loss = -0.026376 nats
+
+Understat fitted vs 生产 calibrate_lambdas champion
+  NOT_MEASURED
+
+生产 calibrate_lambdas champion 自身概率质量
+  NOT_MEASURED
+```
+
+单折 `-0.035368`、四折均值 `-0.026376` 与 ECE `0.114102` 均不得归给生产 `BASELINE_PRIOR`。本更正不改变 `ROBUST_IMPROVEMENT` 只对离线 challenger-vs-offline-comparator 关系成立的事实，不升级结论字段，不授权 U2 执行或生产替换。

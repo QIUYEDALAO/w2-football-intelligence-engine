@@ -704,7 +704,7 @@ MISLEADING_API_DECISION_PACKET.md
 
 状态：`PARTIALLY_COMPLETE`
 
-Phase 2.5a 参数来源审计已完成；Phase 2.5b 定量部分本地不可执行，且仓库已有 2026-07-07 的单折 + 稳健性（跨季双向 + 四折 rolling-origin）1X2 Understat 证据。本轮不重复执行 Phase 2.5b，除非 Owner 为新的 robustness 问题批准合法新窗口或导出。当前只允许以下两个结论字段：
+Phase 2.5a 参数来源审计已完成；仓库已有 2026-07-07 的单折 + 稳健性（跨季双向 + 四折 rolling-origin）1X2 Understat 证据，但该证据比较的是 fitted challenger 与离线 `models/independent.py::predict_from_features` 对照，不是生产 `strategy/calibration.py::calibrate_lambdas` champion。生产 champion 的概率质量至今未测；U2 另行预注册且本轮不执行。当前只允许以下两个结论字段：
 
 ```text
 BASELINE_PROVENANCE_IDENTIFIED_NO_FITTING_EVIDENCE
@@ -792,9 +792,9 @@ Phase 2.5 的工程验收与统计结论必须分开：artifact/row-conservation
 
 #### Phase 2.5 优先级问题 — `OWNER_DECISION_REQUIRED`
 
-在 `BASELINE_PRIOR` 的校准缺陷得到处置之前，Phase 4 的 EV calibration、Phase 4.5 的 W2-vs-PB 配对与 Phase 7 全部内容，都是以一个校准度未达标的基准作对照。挑战者相对该基准的胜负不具可解释性。
+在生产 `strategy/calibration.py::calibrate_lambdas` 的 `BASELINE_PRIOR` 概率质量完成合法测量之前，Phase 4 的 EV calibration、Phase 4.5 的 W2-vs-PB 配对与 Phase 7 全部内容都缺少已验证的生产基准。不得把离线 `predict_from_features` 对照的校准缺陷归给生产 champion。
 
-已存在一个经稳健性验证、优于当前 champion 约 `0.026` nats 的离线拟合模型，其晋级裁决从未作出；该事实应纳入 Owner 的优先级判断。该证据证明的是离线 challenger 的稳健改善，不升级当前两个 Phase 2.5 结论字段，也不授权生产替换。
+已存在一个经稳健性验证、优于某离线 `predict_from_features` 对照约 `0.026` nats 的拟合模型；其相对生产 champion 的差距未测，晋级裁决从未作出。该事实应纳入 Owner 的优先级判断，但不升级当前两个 Phase 2.5 结论字段，也不授权生产替换。
 
 是否重排优先级、是否冻结 Penaltyblog 轨道，属 Owner 裁决；本文档不自行改变阶段顺序。本记录不授权继续 Phase 1/2、执行 Phase 2.5b、修改生产 calibration，或申请 Gate 0B。
 
