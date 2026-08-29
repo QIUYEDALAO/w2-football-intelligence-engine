@@ -1,4 +1,4 @@
-# W2 × Penaltyblog：EV、概率与模型验证优化计划 V1
+# W2 × Penaltyblog：EV、概率与模型验证优化计划 V1.4
 
 文档状态：`PROPOSED_NOT_AUTHORIZED`
 
@@ -6,7 +6,7 @@
 
 创建日期：2026-08-29（Asia/Shanghai）
 
-当前修订：V1.3（已吸收三轮 Claude Code 评审，并按当前代码与冻结证据修正）
+当前修订：V1.4（按 `main@3b7f87db` 重建代码事实、五态现金流定价合同与双轨评价 Gate）
 
 实施状态：未开始
 
@@ -28,12 +28,12 @@
 - W2 存在多个 EV 实现入口，需要做语义、单位、盘口方向和数值等价审计；
 - W2 的正式 simulation 并不调用 `models/dixon_coles.fit_dixon_coles()`，不能把该离线模型直接称为生产概率源；
 - `models/calibration.py` 中的 PLATT、ISOTONIC、BETA 等名称与实现不符，但目前没有证据表明它进入正式 production simulation；
-- `MIN_MARKET_ANCHOR_DIVERGENCE = 0.05` 确实参与 analysis candidate 判定，但其 W2 专属预测效力未被验证；
-- 当前代码同时存在 PROPORTIONAL 计算、POWER 历史身份与“计算实为 PROPORTIONAL、来源却标 POWER”的 provenance 不一致；在方法 authority 和历史行可归因性闭合前，5% 政策回顾与 market-relative proper score 都不得评分；
+- `RecommendationDecisionV4` 的现役准入为 `EV > 0`、`cashflow_price_edge >= 0.05` 与 `EV - uncertainty > 0`；`probability_delta` 只作诊断，legacy/parallel dynamic evaluation 中的 5pp 门不得冒充现役 public gate；
+- 当前代码同时存在 PROPORTIONAL 计算与“计算实为 PROPORTIONAL、来源却标 POWER”的 provenance 不一致；方法 authority 和历史行可归因性未闭合时，只阻断 market-relative 评价，不阻断 W2-vs-PB 的严格配对模型评价；
 - Penaltyblog 六模型在已完成的竞彩结算 1X2 研究中没有击败市场，Phase 3 为零 survivor；该结果否决“直接替换即可提升”，但不能直接外推到 W2 的 AH/OU 同时点可执行报价；
 - 第一优先级应是只读的 EV/概率血缘审计和 W2 `BASELINE_PRIOR` 概率质量审计，而不是修改公式、删除安全门或接入六模型；
 - 完整 Penaltyblog adapter 前先做一个冻结的 `MINIMAL_FROZEN_FEASIBILITY_PROBE`。预检仍必须有 fixture/cutoff/outcome parity 和不可变 artifact，不能用无身份的一次性脚本；
-- 只有预检结论为 `PROCEED_TO_ADAPTER`，才建设隔离的 Poisson parity adapter；
+- 只有 C0-MODEL 预检结论为 `PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH`，才建设隔离的 Poisson parity adapter；
 - 本计划不包含生产晋级。任何生产准入必须另立决策包和 Owner 授权。
 
 ### 1.1 首轮 Claude Code 评审处置
@@ -51,126 +51,190 @@
 | 建议 | 处置 | 修订结论 |
 |---|---|---|
 | Phase 2.5 增加 cohort burn ledger | `ACCEPT_WITH_CLASSIFICATION_GUARD` | 增加 `W2_COHORT_BURN_LEDGER.json`；逐项记录 fit/tune/select/evaluate/descriptive 用途和 outcome visibility，禁止把“曾查看”粗暴外推为对所有新问题永久不可用。 |
-| `BASELINE_QUALITY_NOT_IDENTIFIABLE` 时闭合 Phase 4.5 分支 | `ACCEPT_AND_HARD_BLOCK` | W2-vs-PB 集成预检不得运行或晋级。market-only 可以另立预注册研究，但不能返回 `PROCEED_TO_ADAPTER`。 |
-| Phase 4.5 加入 AH/OU 半盘子集 | `ACCEPT_WITH_DEVIG_CORRECTION` | 半盘结算确为二态，提升为产品市场 primary；但两边赔率并不唯一决定无水概率，必须冻结去水方法并标记 method-specific benchmark。1X2 仅作 secondary diagnostic。 |
+| `BASELINE_QUALITY_NOT_IDENTIFIABLE` 时闭合 Phase 4.5 分支 | `ACCEPT_AND_HARD_BLOCK` | W2-vs-PB model-quality 预检不得运行或晋级。market-only 可以另立预注册研究，但不能返回 `PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH`。 |
+| Phase 4.5 加入 AH/OU 半盘子集 | `ACCEPT_WITH_V1_4_TRACK_SPLIT` | 半盘结算确为二态，提升为 `MODEL_QUALITY_TRACK` primary；该配对模型评价不需要 devig。只有附加 market-relative 轨道才需冻结去水方法并标记 method-specific benchmark。1X2 仅作 secondary diagnostic。 |
 
 ### 1.3 第三轮 Claude Code 评审处置
 
 | 建议 | 处置 | 修订结论 |
 |---|---|---|
-| 将 devig authority 提升为 Phase 4/7 显式前置 | `ACCEPT_WITH_CODE_CORRECTION` | 提升为跨阶段必要事实 `DEVIG_AUTHORITY_RESOLVED`。代码不只是 PROPORTIONAL/POWER 并存：`analysis_calculator.py` 实际做 PROPORTIONAL 归一，却标记来源为 POWER。因此必须分开计算算法、provenance 标签和持久化方法身份；不得仅凭字符串断言历史行真正使用 POWER。 |
-| Gate 0B 增加历史 `devig_method` 非空覆盖率 | `ACCEPT_AND_FAIL_CLOSED` | 按 evidence source/release/schema/market/checkpoint 统计 null、单一方法和混合方法，并检查方法标签能否由当时代码身份证明。混合或大量 null 时，Phase 4 只能用可归因子集，否则 `RECORD_FIRST_EVALUATE_LATER`。 |
+| 将 devig authority 提升为 market-relative 轨道显式前置 | `ACCEPT_WITH_V1_4_SCOPE_CORRECTION` | `analysis_calculator.py` 实际做 PROPORTIONAL 归一，却标记来源为 POWER；必须分开计算算法、provenance 标签和持久化方法身份。V1.4 进一步限定：该冲突只阻断 `MODEL_VS_MARKET`、Gate D2 与 `MARKET_VALUE_SHADOW`，不阻断 Phase 4 primary、`MODEL_VS_MODEL` 或 Gate D1。 |
+| Gate 0B 增加历史 `devig_method` 非空覆盖率 | `ACCEPT_AND_FAIL_CLOSED_FOR_MARKET_TRACK` | 按 evidence source/release/schema/market/checkpoint 统计 null、单一方法和混合方法，并检查方法标签能否由当时代码身份证明。混合或大量 null 时，market-relative 轨道只能用可归因子集，否则返回 `BLOCKED_BY_DEVIG` 或 `NOT_IDENTIFIABLE`；不得阻断 model-quality 轨道。 |
 
-本轮复核锚点：
+### 1.4 V1.4 交接单处置
 
-- `src/w2/strategy/calibration.py:6-22,35-132`：生产 calibration identity、默认权重和 clamp；
+| 项目 | 处置 | V1.4 结论 |
+|---|---|---|
+| 在 `main@3b7f87db` 上重建代码事实 | `ACCEPT_AFTER_INDEPENDENT_CHECK` | 不再使用落后 checkout 的符号定义或行号；当前生产 exact runtime 仍须 Gate 0B。 |
+| 将 5% 政策重写为结算归一化 EV admission | `ACCEPT` | 未量化时 `edge* = EV/S`；代码使用四位量化 `Fq`，因此 `edge_code` 只是量化感知近似。 |
+| exact half-line 保留为 model-quality primary | `ACCEPT_WITH_BOUNDARY_NOTE` | `S=1` 是归一化边界特例，不能代表 integer/quarter line 的 admission 行为。 |
+| Phase 4.5、Phase 7 与 Gate C0/D 拆成 model/market 两轨 | `ACCEPT` | devig authority 只阻断 `MODEL_VS_MARKET`，不阻断严格配对的 `MODEL_VS_MODEL`。 |
+| Phase 8 拆成两类 shadow | `ACCEPT` | `PROBABILITY_SHADOW` 与 `MARKET_VALUE_SHADOW` 均不在本计划授权范围。 |
+
+本轮复核锚点（均为 `main@3b7f87db`）：
+
+- `src/w2/domain/five_state_pricing.py:6-82`：canonical 五态分布、EV、四位量化 fair odds 与 `cashflow_price_edge`；
+- `src/w2/markets/value_engine.py:9-24`：上述 canonical 定义的 compatibility re-export；
+- `src/w2/domain/recommendation_decision_v4.py:54-70,418-442`：概率字段仅为 optional diagnostic；现役 admission 使用 EV、cashflow edge 与 EV-minus-uncertainty；
+- `docs/operations/W2_RECOMMENDATION_AUTHORITY_IMPLEMENTATION_MATRIX.md:34-44`：V4 是当前 recommendation 决策/方向权威；
+- `src/w2/dashboard/workspace.py:14-16`、`src/w2/dashboard/intelligence.py:15-16` 与 `src/w2/dashboard/day_view.py:150-160`：Intelligence Workspace 是 public product/display authority，V4 在其投影中是 diagnostic input；
+- `src/w2/strategy/calibration.py:6-22,35-132`：production calibration identity、默认先验权重和 clamp；
 - `src/w2/strategy/simulate.py:128-163`：正式 simulation 调用 `calibrate_lambdas()` 后生成 score matrix；
-- `src/w2/markets/value_engine.py:214-221`：五态 EV 公式；
-- `src/w2/prematch/lifecycle.py:12-19,270-343`：5% 门、`NO_EDGE_CURRENT` 和两侧 delta/shortfall payload；
+- `src/w2/markets/analysis_evidence.py:124-140,204-240`：显式 PROPORTIONAL devig；`probability_delta_admission_gate = False`，准入使用 EV、cashflow edge 与 EV-minus-SE；
+- `src/w2/prematch/lifecycle.py:12-20,245-353`：legacy/parallel dynamic evaluation 的 5pp delta 合同；
 - `src/w2/prematch/repository.py:94-138`：dynamic evaluation append-only payload 持久化；
 - `src/w2/domain/odds.py:10-21,45-107`：半盘不拆分且整数比分无法在半球线上 push，因此 AH/OU exact half-line 仅有 WIN/LOSS；
 - `src/w2/markets/devig.py:9-114`：同一报价支持四种去水方法，证明 market-implied probability 依赖冻结的方法身份；
-- `src/w2/markets/analysis_evidence.py:86-137,233-305`：同盘口双边身份检查、当前 PROPORTIONAL 去水及从 score matrix 派生 AH/OU settlement distribution；
+- `src/w2/markets/analysis_evidence.py:86-140,184-240`：同盘口双边身份检查、当前 PROPORTIONAL 去水及现役 analysis admission；
 - `src/w2/markets/score_baseline.py:202-218`：当前 score baseline 也显式使用 PROPORTIONAL；
-- `src/w2/prematch/analysis_calculator.py:4812-4853,5695-5709`：实际按 implied probability 总和归一，与 PROPORTIONAL 等价，但 source 字符串写为 `POWER devig from matchday_market_observations`；
-- `src/w2/settlement/settle.py:23-58` 与 `migrations/versions/0022_extend_recommendation_lock_snapshot.py:123-126`：`devig_method` 可持久化但为 nullable，因此必须核验实际覆盖率；
+- `src/w2/prematch/analysis_calculator.py:5213-5254,6122-6135`：实际按 implied probability 总和归一，与 PROPORTIONAL 等价，但 source 字符串写为 `POWER devig from matchday_market_observations`；
+- `src/w2/settlement/settle.py:24-50` 与 `migrations/versions/0022_extend_recommendation_lock_snapshot.py:123-126`：`devig_method` 可持久化但为 nullable，因此必须核验实际覆盖率；
 - local commit `22dc0dbe` 的 `V2_GATE1_CALIBRATION_RECOVERY_01/REPORT.md`：temperature `0.928709586`、NLL 小幅改善、各 ECE bin 变差、candidate-only；
 - local commit `f0d201c5` 的 successor preregistration：Factor V2 one-look `5,500` 与 `2028-02-01T00:05:00Z` 的专属身份；
 - `/Users/liudehua/.hermes/workspace/penalty-football-research/src/penalty_research/validation_design.py:22-29`：boundary score 是 1X2 log-pool 在 `w=0` 的导数，不能绕过概率/结果配对合同或扩展为 AH/OU 五态结论。
 
-## 2. 当前事实基线
+## 2. `main@3b7f87db` 事实基线
 
 ### 2.1 权威与版本边界
 
-本计划编写时观察到三套不同时间点事实：
+V1.4 所有当前代码断言、符号和行号统一以本地已有 Git 对象 `3b7f87db2f0cb49d75582313ca593d30262c0d3d` 为基线。当前 checkout 落后该基线 310 个提交，不得再作为 V1.4 代码事实来源。
 
-- 当前本地 checkout：`11c26e1ed00750b6d9ee7cb839e77900f3e44bc1`，且存在用户所有的未跟踪文件；
-- `origin/context/current`：内容更新时间为 2026-08-14，明确要求先核对 exact runtime identity；
-- W2 Vault `当前状态.md`：最后核验为 2026-08-28，记录生产 POINT-EV release 为 `ea557bb8ff64e06add91bbe32814fe073ec64642`。
+本轮没有连接 VPS，因此 `main@3b7f87db` 是 PR base 与静态审计基线，不是本轮已核验的 production exact runtime。生产 release、schema、capability、历史 cohort 和 `devig_method` 覆盖仍必须经 Gate 0B 只读核验。
 
-本轮没有连接 VPS，因此不能把任何一套本地文件直接称为当前生产 exact source。纯静态工作先完成 Gate 0A；所有 production-exact 声明和生产 cohort 计数必须完成 Gate 0B。
+权威分层不得混同：
 
-### 2.2 W2 已确认的 EV 事实
+- `RecommendationDecisionV4` 是当前 public recommendation 的决策与方向权威；V3 仅历史/结算用；
+- `NEW_INTELLIGENCE_WORKSPACE_ONLY` 是公共产品展示权威；workspace 将 V4 作为受验证的诊断输入，不意味着 V4 可以越过 workspace 成为整个公共产品投影权威。
 
-W2 对 AH/可走盘 OU 使用五态结算：
+### 2.2 Canonical 五态定价与符号
+
+Canonical 定义位于 `src/w2/domain/five_state_pricing.py:6-82`。`src/w2/markets/value_engine.py:9-24` 只作 compatibility re-export，不再是 `SettlementDistribution`、`expected_value()`、`fair_decimal_odds()` 或 `cashflow_price_edge()` 的定义者。
+
+| 符号 | 定义 | 含义 |
+|---|---|---|
+| `W` | `WIN + 0.5 × HALF_WIN` | 每单位名义本金的有效赢面暴露 |
+| `L` | `LOSS + 0.5 × HALF_LOSS` | 每单位名义本金的有效输面暴露 |
+| `S` | `W + L` | 进入输赢结算的本金比例，即在险本金比例 |
+| `F*` | `S / W` | 未量化 fair decimal odds |
+| `Fq` | `1 + quantize(L/W, 0.0001, ROUND_HALF_UP)` | 代码实际四位 fair decimal odds |
+| `edge*` | `d/F* - 1 = EV/S` | 未量化 cashflow price edge，严格恒等式 |
+| `edge_code` | `d/Fq - 1` | 当前代码实际 `cashflow_price_edge` |
+| `T*` | `0.05 × S` | 未量化 5% 归一化政策对应的 raw-EV 门槛 |
+| `Tq` | `1.05 × Fq × W - S` | 四位量化后的代码实际 raw-EV 门槛 |
+
+其中 `d` 为 executable decimal odds。五态 EV 为：
 
 ```text
-EV =
-P(WIN)      × (decimal_odds - 1)
-+ P(HALF_WIN) × 0.5 × (decimal_odds - 1)
-- P(HALF_LOSS) × 0.5
-- P(LOSS)
+EV = (d - 1) × W - L = d × W - S
 ```
 
-当前可见实现包括：
+`p × odds - 1` 只是 `S=1` 且无 HALF/PUSH 的二态特例，不能作为 W2 全市场通用定义。
 
-- `src/w2/markets/value_engine.py::expected_value`
-- `src/w2/strategy/simulate.py::ah_expected_value`
-- `src/w2/matchday/cards.py::_expected_value`
-- `src/w2/analysis/market_movement.py::_distribution_expected_value`（转调 canonical candidate）
-- `src/w2/markets/analysis_evidence.py`（转调 `value_engine.expected_value`）
+### 2.3 `cashflow_price_edge` 与 EV 的精确关系
 
-`p × odds - 1` 只适用于无走盘/半赢/半输的二态投注，不能作为 W2 全市场通用 EV 定义。
-
-### 2.3 W2 当前概率主链
-
-当前可见正式 simulation 路径为：
+未量化时：
 
 ```text
-point-in-time W2 inputs
+F*    = S / W
+edge* = d / F* - 1 = EV / S
+```
+
+`cashflow_price_edge` 是 EV 经结算现金流质量 `S = W + L` 确定性归一化后的价格优势表示；当前实现另受 fair odds 4 位量化影响，因此代码层非逐值严格相等。
+
+量化误差满足：
+
+```text
+|edge_code - EV/S| = d × |Fq - F*| / (F* × Fq)
+|Fq - F*| <= 0.00005
+```
+
+测试不得使用统一硬编码 epsilon。应先对 `expected_value()` 和 `fair_decimal_odds()` 做 Decimal 精确断言，再用上述样本特定量化界验证 `edge_code` 与 `EV/S` 的差。
+
+### 2.4 三条黄金向量
+
+以 `d = 1.95` 复算：
+
+| 盘型 | distribution | W | L | S | EV | F* | Fq | edge_code | EV/S | 量化残差 | Tq |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 半盘 | WIN .55 / LOSS .45 | .55 | .45 | 1.000 | .072500 | 1.8181818182 | 1.8182 | .0724892751 | .0725000000 | -1.072e-5 | .05001050 |
+| 整数盘 | WIN .45 / PUSH .12 / LOSS .43 | .45 | .43 | .880 | -.002500 | 1.9555555556 | 1.9556 | -.0028635713 | -.0028409091 | -2.266e-5 | .04402100 |
+| 四分盘 | WIN .42 / HALF_WIN .10 / PUSH .08 / HALF_LOSS .15 / LOSS .25 | .470 | .325 | .795 | .121500 | 1.6914893617 | 1.6915 | .1528229382 | .1528301887 | -7.250e-6 | .039755250 |
+
+对这三条向量，`abs_tol = 3e-5` 可作为有界样例检查；`abs_tol = 1e-5` 会让半盘和整数盘产生假失败，禁止使用。`3e-5` 也不是全域 property test 的通用容差，全域必须使用逐样本量化感知界。
+
+对应的未量化 `T*` 为 `.0500 / .0440 / .03975`。这些只是黄金向量示例，不是 line-type 常数。真正决定门槛的是逐场 `S`；同为整数盘的不同比赛也可有不同 PUSH 概率、不同 `S` 和不同门槛。
+
+### 2.5 `S` 的经济含义
+
+按本金去向展开：PUSH 全额退回，HALF_WIN/HALF_LOSS 退回一半，WIN/LOSS 全额进入输赢结算。
+
+```text
+E[进入输赢结算的本金比例]
+  = WIN × 1 + HALF_WIN × 0.5 + HALF_LOSS × 0.5 + LOSS × 1
+  = W + L
+  = S
+```
+
+四分盘黄金向量中，`S = 0.795`，而 `1-S = 0.205 = PUSH + 0.5 × (HALF_WIN + HALF_LOSS) = 0.08 + 0.125`。因此：
+
+```text
+EV                  = 每单位名义本金的期望利润
+cashflow_price_edge = 每单位在险本金的期望利润（受 Fq 量化影响的代码表示）
+```
+
+当前 5% 门槛是一个在险资本回报率政策，不是独立于 EV 的第二个模型信号，也不是机械副作用。Owner 的政策选择应按 binding constraint 解释：
+
+| binding constraint | 政策候选 |
+|---|---|
+| 风险资本（本金 / 回撤 / Kelly 分注） | 保持当前 `EV/S` 结算归一化 |
+| 周转量 / 流动性 / 盘口限额 | 评估恒定名义 EV 政策 |
+
+按资金规模分注时，分注原本就作用于在险资本，因此先验倾向保持当前归一化政策；但这不是 V1.4 的实证结论，仍须 Phase 4 预注册证据裁决。
+
+### 2.6 当前 recommendation admission 与 legacy 平行合同
+
+`src/w2/domain/recommendation_decision_v4.py:54-70,418-442` 表明：
+
+- `RecommendationDecisionV4` 的必需定价输入包含 `settlement_distribution / fair_odds / expected_value / uncertainty`；
+- `model_probability / market_probability / probability_delta_diagnostic` 都属 `_OPTIONAL_DIAGNOSTIC_FIELDS`；
+- 当前 recommendation admission 是 `EV > 0` + `cashflow_price_edge >= 0.05` + `EV - uncertainty > 0`，再叠加 readiness/capability/formal admission；
+- `src/w2/markets/analysis_evidence.py:204-240` 同样明确写入 `probability_delta_admission_gate = False`。
+
+`src/w2/prematch/lifecycle.py:12-20,250-353` 中的 `ACTIVE_DELTA_THRESHOLD = 0.05` 仍存在，但它属 `LEGACY / PARALLEL DYNAMIC EVALUATION CONTRACT`，不是现役 public recommendation gate。Phase 1/2 必须继续追踪其 writer/read consumer，但 Phase 4 不得把 legacy probability-delta 5pp 误当成 V4 政策 estimand。
+
+### 2.7 W2 当前概率主链与卫生问题
+
+`main@3b7f87db` 的静态 simulation 路径为：
+
+```text
+point-in-time xG / eligible Elo / squad value / lineup inputs
   -> strategy.calibration.calibrate_lambdas()
   -> lambda_home / lambda_away / uncertainty
   -> exact score matrix with optional DC tau correction
   -> AH / OU five-state settlement distribution
   -> executable quote
-  -> EV / EV-SE / readiness gates
+  -> canonical five-state EV / cashflow price edge / EV-SE / readiness
+  -> RecommendationDecisionV4
 ```
 
-`src/w2/models/dixon_coles.py::fit_dixon_coles()` 当前只在 backtest/测试路径被直接调用。正式 simulation 仅复用其中的 `tau_correction()`。
+`strategy.calibration` 仍明确标记 `CALIBRATION_VERSION = w2.formal.lambda_baseline_prior.v1` 和 `CALIBRATION_STATUS = BASELINE_PRIOR`。默认参数仍包括主场优势 `.12`、Elo `.28`、身价 log `.18`、首发 `.08`、单边 λ `.15–4.25`、总进球 `1.35–4.40` 和 `dixon_coles_rho = 0.0`。这些是 baseline prior 参数，不得写成已由历史拟合或前瞻验证。
 
-当前生产主链的 λ 校准身份明确写为：
+两项卫生结论仍保留：
 
-```text
-CALIBRATION_VERSION = w2.formal.lambda_baseline_prior.v1
-CALIBRATION_STATUS = BASELINE_PRIOR
-```
+1. `models/dixon_coles.fit_dixon_coles()` 只有 backtest/测试直接调用，未进入正式 simulation；其实现为收缩场均进失球加 rho 网格，不是标准联合 MLE Dixon-Coles；
+2. `models/calibration.py` 的 PLATT/ISOTONIC/BETA/DIRICHLET_MULTICLASS 是 power-strength heuristic，命名不符标准算法；当前直接调用仍是测试/离线边界，不得称为生产 EV 根因。
 
-源码默认参数包括主场优势 `0.12`、Elo 权重 `0.28`、身价 log 权重 `0.18`、首发权重 `0.08`、单边 λ 边界 `0.15–4.25`、总进球边界 `1.35–4.40`。当前搜索到的是行为/边界测试和若干离线 challenger 证据，不能据此声称这组生产默认参数已经由历史拟合或前瞻验证。
+### 2.8 Devig 权威与可识别边界
 
-### 2.4 两项代码卫生问题
+`main@3b7f87db` 仍存在：
 
-1. `models/dixon_coles.fit_dixon_coles()` 实际是收缩场均进失球加 rho 网格搜索，不是标准的联合 MLE Dixon-Coles；
-2. `models/calibration.py` 的 PLATT、ISOTONIC、BETA、DIRICHLET_MULTICLASS 实际为不同常数的 power-strength heuristic，不是对应标准算法。
+- `analysis_evidence.py:124-140` 与 `score_baseline.py:202-218` 显式使用 PROPORTIONAL；
+- `analysis_calculator.py:5213-5254` 实际也做 reciprocal-odds normalization，数学上是 PROPORTIONAL，但 `analysis_calculator.py:6122-6135` 声明 source 为 POWER；
+- `LockedPrediction.devig_method` 与 migration `recommendation_locks.devig_method` 仍 nullable。
 
-这两项需要修复命名与边界，但在完成调用血缘审计前，不得称为生产 EV 根因。
+因此 `COMPUTED = PROPORTIONAL / DECLARED = POWER` 的 provenance 错标已证实；历史行实际方法覆盖与可归因性仍待 Gate 0B。该冲突只阻断 `MODEL_VS_MARKET` 与任何 market-edge 声明，不阻断使用完全相同 fixture/outcome 交集的 `MODEL_VS_MODEL` 概率质量评价。
 
-### 2.5 Market divergence 与正式推荐边界
-
-`src/w2/markets/analysis_evidence.py` 当前要求：
-
-```text
-current_ev > 0
-probability_delta >= 0.05
-current_ev - ev_se > 0
-```
-
-才允许 `analysis_direction_allowed=true`。
-
-正式 AH 生成路径另有：
-
-```text
-EV >= 0.035
-EV >= 0.035 + EV_SE
-EV <= 0.15
-exact executable quote
-model uncertainty ready
-direction/readiness gates
-capability gate
-```
-
-当前仓库 capability manifest 中 `formal_ah`、`production_recommendation` 均未启用。Vault 记录 POINT-EV 权威上线后未验证概率均被 fail closed，但必须由 Gate 0B 重新核验线上 exact state。
-
-### 2.6 Penaltyblog 已有证据
+### 2.9 Penaltyblog 已有证据
 
 Penaltyblog 项目路径：
 
@@ -203,7 +267,9 @@ Penaltyblog 项目路径：
 - 不把 `p × odds - 1` 强行用于 AH 或可走盘 OU；
 - 不因当前 EV 表现不佳而修改五态公式；
 - 不删除 `expected_value > 0` 的 payload 合法性检查；
-- 不把 5% divergence 直接定性为已证明的“反向筛选器”；
+- 不把 legacy probability-delta 5pp 平行合同误当成现役 V4 admission；
+- 不把 `cashflow_price_edge` 与 EV 当作两个独立 predictor 做交叉归因；
+- 不把黄金向量的 `.0500/.0440/.03975` 写成半盘/整数盘/四分盘的固定门槛；
 - 不使用旧报告中的小样本盈亏、命中率或 point EV 选择模型、校准参数、阈值或 EV-SE 系数；当前生产 settled N 必须经 Gate 0B 重新计数，不能把旧 `65` 当成当前事实；
 - 不把跨 bookmaker 更高赔率自动称为正 EV；除非严格构成套利，否则它只是价格改善；
 - 不同时接入六个 Penaltyblog 模型；
@@ -223,7 +289,7 @@ Penaltyblog 项目路径：
 1. 建立唯一、可验证的 EV 语义合同；
 2. 证明所有 EV 入口对同一五态分布与报价数值一致；
 3. 建立从原始点时输入到 λ、score grid、settlement distribution、EV、EV-SE、decision 的完整血缘；
-4. 评估 5% market-anchor divergence 的真实角色与证据边界；
+4. 评估 V4 的 `EV/S` 结算归一化 admission 政策，并区分名义本金与在险本金空间；
 5. 先验证 W2 当前 `BASELINE_PRIOR` 的参数来源、覆盖、clipping、概率质量和稳定性；
 6. 将误导性的模型/校准名称与生产事实分开；
 7. 用冻结的最小预检决定是否值得建设 Penaltyblog shadow adapter；
@@ -355,31 +421,49 @@ Phase 1 accepted and no devig conflict
   -> optional Phase 3 EV Contract Convergence
 
 DEVIG_AUTHORITY_CONFLICT
-  -> Phase 3 devig contract resolution is required before Phase 4/4.5/7
+  -> Phase 3 devig contract resolution is required only before market-relative tracks
 
 Gate 0B + Phase 1 + Phase 2 accepted
-and DEVIG_AUTHORITY_RESOLVED
-  -> Phase 4 Market-Anchor Preregistration
+  -> Phase 4 V4 EV Admission Policy Preregistration
 
 Phase 2.5 = BASELINE_QUALITY_IDENTIFIED
 and W2_COHORT_BURN_LEDGER has an eligible development cohort
-and DEVIG_AUTHORITY_RESOLVED
-  -> Phase 4.5 Minimal Frozen PB Feasibility Probe
+  -> Phase 4.5 MODEL_QUALITY_TRACK
+
+Phase 4.5 MODEL_VALUE_TRACK
+  -> additionally requires DEVIG_AUTHORITY_RESOLVED
 
 Phase 2.5 = BASELINE_QUALITY_NOT_IDENTIFIABLE
 or cohort classification = UNKNOWN_BLOCKED
   -> BLOCK_PB_VS_W2_FEASIBILITY
 
-Phase 4.5 = PROCEED_TO_ADAPTER
+Gate C0-MODEL = PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH
   -> Phase 5 PB Adapter Preregistration
   -> Phase 6 Engineering Parity
-  -> Phase 7 Paired Evaluation only while DEVIG_AUTHORITY_RESOLVED remains true
+  -> Phase 7 Gate D1 Probability Quality
 
-Phase 7 passes a frozen gate
-  -> separate Owner request for Phase 8
+Phase 6 PASS
+and Gate C0-MARKET = PASS
+and DEVIG_AUTHORITY_RESOLVED
+  -> Phase 7 Gate D2 Market Value / EV Realization
+
+Gate D1 passes
+  -> separate Owner request for PROBABILITY_SHADOW
+
+Gate D2 passes with DEVIG_AUTHORITY_RESOLVED
+  -> separate Owner request for MARKET_VALUE_SHADOW
 ```
 
 Gate 0A 完成后可以继续纯静态审计；任何“当前生产 exact state/row count”声明必须等待 Gate 0B。Phase 1 与 Phase 2 可以由不同 Agent 独立审查，但不得在 Gate 0B 前假定生产 identity。Phase 3 与 Phase 4 不得并行修改同一 EV/threshold 路径。Phase 4.5–7 必须串行，以保证预检、合同、实现和结果的时间顺序。
+
+以上两轨必须保持下列不变量：
+
+```text
+D1 PASS does not imply D2 PASS.
+Probability improvement may improve EV estimation accuracy.
+Probability improvement is not evidence that quoted prices are exploitable.
+No real-edge or profitability claim is permitted without the market-relative track.
+```
 
 建议评审角色：
 
@@ -434,9 +518,9 @@ LOCAL_AUTHORITY_RECONCILIATION.md
 1. 核对 API/worker/scheduler/Web release 和 OCI revision；
 2. 核对 Alembic head 与 capability 实际开关；
 3. 核对 POINT-EV 当前 production identity；
-4. 只读计数 dynamic evaluation 中 `delta < 0.05`、`delta >= 0.05`、各自有权威结算结果的行数及 fixture 去重数；
+4. 只读计数 V4 可评价行的 `EV - Tq` 两侧、line type、连续 `S` 区间、权威结算覆盖与 fixture 去重数；legacy dynamic evaluation 的 `delta < 0.05` / `>= 0.05` 仅作平行合同盘点，不作为 Phase 4 primary；
 5. 只读计数当前 official/shadow settled rows，并按 schema/model/calibration identity 分层；
-6. 对可能用于 Phase 4/7 的历史 evaluation/lock/settlement 行计数 `devig_method` 非空覆盖率、未知率和方法分布，至少按 evidence source、release/schema、market、checkpoint 和 model/calibration identity 分层；
+6. 对可能用于 Phase 4 附加 market track 或 Phase 7 D2 的历史 evaluation/lock/settlement 行计数 `devig_method` 非空覆盖率、未知率和方法分布，至少按 evidence source、release/schema、market、checkpoint 和 model/calibration identity 分层；
 7. 区分“持久化字符串”与“可由当时代码复算的实际算法”，计数 declared/computed mismatch；当历史 release source 不可证明时标 `METHOD_NOT_ATTRIBUTABLE`，不得根据当前代码反推；
 8. 保存查询文本、时间、结果 hash 和零写入证据。
 
@@ -453,7 +537,7 @@ PRODUCTION_AUTHORITY_RECONCILIATION.md
 
 - Python/Web/worker/scheduler identity 明确；
 - schema 与 capability 明确；
-- 两侧阈值样本与结算覆盖可复算；
+- `EV - Tq` 两侧、各 line type、`S` 区间与结算覆盖可复算；
 - `devig_method` 非空/未知/混合覆盖可复算，且 declared method 与 computed algorithm 的可归因性明确；
 - GitHub/GHCR 访问 0；
 - Provider 调用 0；
@@ -470,7 +554,7 @@ STOP 条件：任何组件 identity 无法确定时，只允许继续静态审�
 
 审计范围：
 
-- 所有 `expected_value`、`risk_adjusted_ev`、`probability_edge`、`fair_odds`、`implied_probability`；
+- canonical `domain.five_state_pricing` 定义者与所有 compatibility re-export/重复 `expected_value`、`risk_adjusted_ev`、`probability_edge`、`fair_odds`、`implied_probability`；
 - 所有五态/三态/二态 settlement 转换；
 - opening/current/reference/executable/settlement quote 的来源和用途；
 - 每条 market probability 路径的 computed devig algorithm、declared source label、persisted method/version/overround 是否一致；
@@ -494,6 +578,35 @@ STOP 条件：任何组件 identity 无法确定时，只允许继续静态审�
 - 主客符号互换后结算一致；
 - reference quote 不能进入 EV；
 - stale/incomplete quote 必须 fail closed。
+
+新增的固定合同断言：
+
+```text
+W = WIN + 0.5 * HALF_WIN
+L = LOSS + 0.5 * HALF_LOSS
+S = W + L
+S = 1 - PUSH - 0.5 * (HALF_WIN + HALF_LOSS)
+EV = (d - 1) * W - L = d * W - S
+F* = S / W
+edge* = d / F* - 1 = EV / S
+Fq = 1 + quantize(L / W, 0.0001, ROUND_HALF_UP)
+edge_code = d / Fq - 1
+Tq = 1.05 * Fq * W - S
+```
+
+黄金向量 artifact 每条必须完整保存：
+
+```text
+distribution / odds / W / L / S / EV / F* / Fq
+edge_code / EV_over_S / quantization_residual / Tq
+```
+
+测试顺序必须是：
+
+1. `expected_value()` 对三条向量做 Decimal 精确相等；
+2. `fair_decimal_odds()` 对 `Fq` 做 Decimal 精确相等；
+3. 按逐样本 `d × |Fq-F*|/(F*×Fq)` 上界验证 `edge_code` 与 `EV/S`；
+4. 只对这三条有界向量可用 `abs_tol=3e-5` 作附加检查；禁止 `abs_tol=1e-5`，禁止把 `3e-5` 当全域容差。
 
 输出：
 
@@ -634,7 +747,7 @@ Phase 2.5 的工程验收与统计结论必须分开：artifact/row-conservation
 
 候选改动顺序：
 
-1. 优先复用 `markets.value_engine.expected_value`；
+1. 优先复用 canonical `domain.five_state_pricing.expected_value`；保留 `markets.value_engine` compatibility re-export；
 2. 删除或薄封装重复公式；
 3. 保留现有公开 schema 和历史 artifact 兼容；
 4. 增加最小参数化合同测试；
@@ -650,12 +763,13 @@ LABEL_OR_PERSISTENCE_ONLY
 
 ALGORITHM_CHANGE
   canonical computed method would change, for example PROPORTIONAL -> POWER
-  this is a new market-probability identity and can change the 5pp candidate set
+  this is a new market-probability identity and can change legacy/parallel
+  delta classifications and every market-relative score
   requires separate preregistration, compatibility plan, Owner authorization,
   and prospective-only activation; it cannot masquerade as a naming fix
 ```
 
-禁止根据哪个 devig 方法让历史 5pp 通过率、LogLoss、EV 或推荐更好而选择方法。禁止回写、猜测或清洗无法归因的历史 `devig_method`。
+禁止根据哪个 devig 方法让历史 delta 通过率、market-relative LogLoss、EV 归因或推荐更好而选择方法。禁止回写、猜测或清洗无法归因的历史 `devig_method`。
 
 验收：
 
@@ -675,105 +789,68 @@ ALGORITHM_CHANGE
 
 如果当前实现已经数值一致、computed/declared/persisted devig identity 也一致，且没有维护风险，Phase 3 可以结论为 `NO_CHANGE_REQUIRED`。当前已确认 `analysis_calculator.py` 存在 label/algorithm mismatch，因此 devig 分支不满足 `NO_CHANGE_REQUIRED`。
 
-### Phase 4 — Market-Anchor 5% Policy Evaluation
+### Phase 4 — V4 EV Admission Policy & Settlement-Normalization Evaluation
 
 状态：`PREREGISTRATION_REQUIRED`
 
-目标：判断 5% divergence 是有证据的稳定性门、无效门，还是单位/语义混用。
+目标：评价 V4 的结算归一化 admission 政策，而不是重新评价 legacy `probability_delta >= 0.05`。Primary estimand 为 `EV_CALIBRATION`：`predicted_EV` 对权威结算后 `realized_unit_return`。
 
-先做 evaluability check：
-
-- 当前代码会把低于 5% 的完整 evaluation 保存为 `NO_EDGE_CURRENT`；payload 同时保留 `current_delta`、`required_delta` 与 `shortfall`，因此 schema/代码设计并未天然形成“只保存通过门槛者”的幸存者集合；
-- 但代码能力不等于生产样本充足。必须使用 Gate 0B 的只读计数，确认 `delta < 0.05` 与 `delta >= 0.05` 两侧都有足够、同身份、可绑定权威结果的行；
-- 必须按 fixture 去重，并分开 current/superseded、official/shadow、market、checkpoint、model/calibration identity；
-- 必须使用 Gate 0B 的 `PRODUCTION_DEVIG_ATTRIBUTION_COUNTS.json` 确认每条候选历史行的 computed algorithm、declared label 和 persisted `devig_method` 能够归因；
-- Phase 4 primary cohort 必须对方法身份 100% 可归因且在预先声明的同质方法子集上评价。混合方法只能分层报告，禁止 pooled 5pp 结论；null、标签/计算冲突或无法重建历史算法的行必须进 failure ledger，不得静默丢失；
-- 如果任一侧不足或结果绑定不足，结论为 `RECORD_FIRST_EVALUATE_LATER`，不得只评价 selected/recommended rows。
-
-#### Devig authority 硬前置
-
-当前代码事实不能简化为“两条路径真正分别在跑 PROPORTIONAL 与 POWER”：
-
-- `analysis_evidence.py` 和 `score_baseline.py` 显式调用 PROPORTIONAL；
-- `analysis_calculator.py::_market_probabilities_from_observations()` 实际也是 reciprocal-odds normalization，数学上等价于 PROPORTIONAL；
-- 同一 `analysis_calculator.py` 对这个结果的 source 标签却写为 POWER；
-- 历史测试、artifact 与 nullable `devig_method` 字段中仍存在 POWER 身份。
-
-因此当前状态是 `DEVIG_AUTHORITY_CONFLICT`，并包含已证明的 provenance 假标与待 Gate 0B 核验的历史方法混用两个问题。只有当下列条件全部成立时，才可改为 `DEVIG_AUTHORITY_RESOLVED`：
+必须在两个空间同时报告：
 
 ```text
-canonical computed algorithm identified
-declared label matches computed algorithm
-persisted method/version/overround contract defined
-historical primary cohort method attribution = 100%
-mixed-method rows are not pooled
-unknown/mismatch rows persist with explicit reason
+NOMINAL_SPACE
+  realized_return_per_nominal_stake ~ EV
+
+AT_RISK_SPACE
+  realized_return_per_at_risk_stake ~ EV/S
 ```
 
-使用 W2 当前 `devig.py` 对合成报价的确定性敏感性复算显示：
-
-| 市场形状 | 报价 | max \|PROPORTIONAL - POWER\| | 占 5pp 门 |
-|---|---:|---:|---:|
-| 1X2 均势 | 2.60 / 3.30 / 2.75 | 0.207pp | 4.1% |
-| 1X2 强客 | 6.00 / 4.30 / 1.55 | 1.351pp | 27.0% |
-| 1X2 强主 | 1.50 / 4.20 / 6.50 | 1.879pp | 37.6% |
-| 1X2 大热 | 1.25 / 6.00 / 11.0 | 2.788pp | 55.8% |
-| 双边常见均衡 | 1.91 / 1.97 | 0.036pp | 0.7% |
-| 双边中度偏离 | 1.70 / 2.20 | 0.413pp | 8.3% |
-| 双边强偏离 | 1.50 / 2.70 | 0.797pp | 15.9% |
-| 双边极端偏离 | 1.25 / 4.00 | 2.045pp | 40.9% |
-
-这些是算法敏感性样例，不是 W2 生产报价分布或历史门槛效果的估计。1X2 的 55.8% 不得外推成 AH/OU 生产影响；双边例子也只证明极端报价下方法差可与 5pp 门同尺度。Penaltyblog 项目的 `0.0025 nats` MME 只能作跨项目尺度参照，不是 W2 的 MME 或 Gate。
+只报名义空间会把 `S` 的异质性混入残差。`cashflow_price_edge` 是受 `Fq` 量化影响的 `EV/S` 代码表示，不是独立于 EV 的新信号。硬禁止把 `cashflow_price_edge` 与 EV 当作两个独立 predictor 做交叉归因。
 
 在查看新结果前必须冻结：
 
-- evaluation universe；
-- fixture、quote 和 cutoff 规则；
-- AH/OU 分开评价；
-- primary metric；
-- MME/non-inferiority margin；
-- league/time-block stability；
-- failure/coverage Gate；
-- futility rule；
-- threshold 本身不允许根据结果移动。
+- evaluation universe，且不得只看 selected/recommended rows；
+- fixture、executable quote、cutoff 和 authority result binding；
+- AH/OU 分开报告；
+- half/integer/quarter line 覆盖与分层；
+- `S` 作为连续量的分层/交互报告方式；
+- nominal-space 与 at-risk-space 的 primary estimand、MME、cluster 和 power design；
+- failure/coverage Gate、futility rule 与 one-look rule；
+- 政策门槛不允许根据结果移动。
 
-评价必须覆盖全部 official evaluation opportunities，而不是只看被选中的推荐，避免 selection bias。
-
-至少并列记录：
+每行至少记录：
 
 ```text
-model_market_probability_delta
-five_state_EV
+predicted_EV
+S
+Fq
+Tq
+EV_threshold_margin = predicted_EV - Tq
+cashflow_price_edge
+line_type
 EV_SE
 EV_minus_SE
-realized_settlement_return
-quote_age
-bookmaker_depth
-model/calibration identity
+realized_unit_return
+fixture / quote / model / calibration identity
 ```
 
-重要识别边界：
+Evaluability check 必须确认 threshold margin 两侧、各 line type 和 `S` 区间都有可绑定结果的样本，并按 fixture 去重/聚类，分开 current/superseded、official/shadow、market、checkpoint 和 model/calibration identity。不足时返回 `RECORD_FIRST_EVALUATE_LATER`，不得以推荐集代替完整 evaluation universe。
 
-- exact half-line（`line × 2` 为奇整数）上的 AH/OU 最终结算只有 WIN/LOSS；在同 bookmaker、同 captured_at/checkpoint、同盘口双边完整且去水方法已冻结时，可以建立 method-specific 二元 market benchmark；
-- 即使是半盘，两边赔率也不能脱离去水假设唯一识别 latent market probability；W2 的四种去水方法会产生不同概率，必须保存 method/version/overround；
-- 整数盘含 PUSH，四分盘可含 HALF_WIN/HALF_LOSS；两边赔率通常不能唯一识别其三态/五态概率分布；
-- 如果 integer/quarter line 的 market settlement distribution 无法由证据唯一确定，必须报告 `MARKET_THREE_OR_FIVE_STATE_NOT_IDENTIFIABLE`；兼容旧报告时可同时保留 `MARKET_FIVE_STATE_NOT_IDENTIFIABLE` note；
-- 禁止凭一个 scalar effective probability 伪造 market 五态 LogLoss；
-- 可以报告模型 settlement-state Brier/RPS/NLL、EV calibration 与 realized unit return；
-- 半盘可以对 actual WIN/LOSS 做模型 proper score，并与冻结 devig 方法的 market benchmark 比较；不得把方法特定 benchmark 写成唯一真实市场概率；
-- 其他盘口只有在完整 market state distribution 有独立证据时，才做严格 model-vs-market proper-score 比较。
+Half-line 的 `S=1` 只是结算归一化的边界特例，不代表 integer/quarter line 的 admission 行为。因此 Phase 4 不得只在 half-line 上评价，必须覆盖全部 line type 并以 `S` 为连续量分层。
+
+Devig authority 不是 Phase 4 的入口前置：本阶段的 primary 使用模型五态分布、executable price 和实现结算回报，不需要 latent market probability。任何附加 `MODEL_VS_MARKET` 分析仍必须遵守 `DEVIG_AUTHORITY_RESOLVED`。
 
 可能结论只允许：
 
 ```text
-KEEP_5PP_POLICY
+KEEP_NORMALIZED_EDGE_POLICY
+REPLACE_WITH_CONSTANT_NOMINAL_EV_POLICY
 REVISE_POLICY_WITH_NEW_PREREGISTRATION
-REMOVE_POLICY_WITH_EVIDENCE
 NOT_IDENTIFIABLE
 RECORD_FIRST_EVALUATE_LATER
 ```
 
-当 `DEVIG_AUTHORITY_RESOLVED` 不成立，或没有方法身份 100% 可归因且两侧门槛均可评价的同质子集时，Phase 4 只能返回 `NOT_IDENTIFIABLE` 或 `RECORD_FIRST_EVALUATE_LATER`。
+`REPLACE_WITH_CONSTANT_NOMINAL_EV_POLICY` 必须另行预注册，不得由本阶段直接改代码。Owner 裁决必须显式引用 §2.5 的经济含义表：风险资本约束对应 `EV/S`，周转量/流动性/盘口限额约束才对应恒定名义 EV。
 
 本阶段只出决策包，不直接改阈值。
 
@@ -781,14 +858,22 @@ RECORD_FIRST_EVALUATE_LATER
 
 状态：`REQUIRES_BASELINE_QUALITY_IDENTIFIED_AND_ELIGIBLE_COHORT`
 
-目标：在建设完整 adapter、迁移或长期 ledger 前，以最小成本判断 Penaltyblog 独立 Poisson 在 W2 实际产品市场上是否提供可评分的增量证据。
+目标：在建设完整 adapter、迁移或长期 ledger 前，以最小成本分别回答“PB 是否增加 W2 的概率信息”和“PB 是否相对报价产生可利用价值”。两个问题必须拆轨：
+
+```text
+MODEL_QUALITY_TRACK
+  does not require devig authority
+
+MODEL_VALUE_TRACK
+  requires DEVIG_AUTHORITY_RESOLVED
+```
 
 依赖闭合：
 
 - `W2_BASELINE_PROBABILITY_QUALITY_AUDIT` 必须给出可评分的 W2 baseline identity、预测与结果绑定；
 - `W2_COHORT_BURN_LEDGER.json` 必须存在明确允许作本问题 development probe 的 cohort；
-- 如果 Phase 2.5 为 `BASELINE_QUALITY_NOT_IDENTIFIABLE`，本阶段返回 `BLOCK_PB_VS_W2_FEASIBILITY`，不得改用 market-only 结果批准 adapter；
-- market-only 研究如有价值，必须另立问题、协议和授权，其结论不能是 `PROCEED_TO_ADAPTER`。
+- 如果 Phase 2.5 为 `BASELINE_QUALITY_NOT_IDENTIFIABLE`，`MODEL_QUALITY_TRACK` 返回 `NOT_IDENTIFIABLE`，不得改用 market-only 结果批准 adapter；
+- devig authority 未解决时，只将 `MODEL_VALUE_TRACK` 标为 `MARKET_TRACK = NOT_IDENTIFIABLE`，不得阻断合法的 `MODEL_QUALITY_TRACK`。
 
 这不是无合同的一次性脚本。查看任何 probe 指标前，必须冻结：
 
@@ -802,8 +887,8 @@ actual outcome binding rule
 primary estimand and sign convention
 boundary/futility rule
 coverage and failure rule
-product-market primary hierarchy
-devig method and method identity
+track hierarchy and track-specific estimands
+devig method and method identity for MODEL_VALUE_TRACK only
 seed/bootstrap or uncertainty method
 ```
 
@@ -819,11 +904,11 @@ seed/bootstrap or uncertainty method
 - 不建 migration、production ledger、worker、UI 或 runtime dependency；
 - 不把 Penaltyblog 的信息集称为 W2 的严格子集；
 - Penaltyblog 使用历史进球，W2 使用 PIT xG/Elo/身价/首发；“进球减 xG 的残差可能携带终结效率信息”只作为待检验机制，不得在结果前写成已证明增量；
-- 1X2 只能作为 secondary diagnostic；1X2 单独为正不得返回 `PROCEED_TO_ADAPTER`。
+- 1X2 只能作为 secondary diagnostic；1X2 单独为正不得返回 `PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH`。
 
-#### Phase 4.5 产品市场 primary
+#### Phase 4.5 `MODEL_QUALITY_TRACK`
 
-产品市场 primary 必须来自 exact half-line binary subset：
+概率质量 primary 必须来自 exact half-line binary subset：
 
 ```text
 AH: home/away exact lines at n + 0.5, opposite-side line identity exact
@@ -831,23 +916,49 @@ OU: over/under exact line at n + 0.5, same-line identity exact
 settlement outcomes: WIN / LOSS only
 ```
 
+```text
+Cohort membership MUST NOT depend on
+analysis_direction_allowed, cashflow_price_edge threshold,
+candidate status, recommendation status, or realized outcome.
+```
+
+在 half-line 上 `S=1`，因此它是 settlement normalization 的边界特例，适合作为 W2-vs-PB 二元概率质量 primary；但它不代表 integer/quarter line 的 `S<1` admission 行为。Phase 4 的政策评价仍必须覆盖全部 line type 并以 `S` 为连续量分层。
+
 在不查看 outcome metric 的 coverage-only preflight 后，预注册文件必须冻结：
 
 - `AH_HALF_LINE`、`OU_HALF_LINE` 或二者的预先定义 hierarchical/co-primary 角色；
-- 同 bookmaker、同 capture/checkpoint、同 fixture、互补 selection、精确 line 的 quote pair；
 - W2/PB 从各自 score matrix 派生的同 selection 二元 WIN/LOSS 概率；
 - fixture 内多 market/checkpoint 的相关性和去重/cluster 规则；
 - primary proper-score paired difference：`W2 LogLoss - PB LogLoss`；
 - primary incremental diagnostic：在 `w=0` 向 W2 log pool 加入 PB 的二元 boundary score；
-- model-vs-market 指标的冻结去水方法与 provenance。
+- LogLoss / Brier / `PB_TO_W2_BOUNDARY_SCORE` / coverage / failure 的符号、failure Gate 与 uncertainty method。
 
-半盘的结果空间是二态，因此 W2-vs-PB 可以做严格 paired LogLoss/Brier。两边赔率仍包含 overround，且 W2 支持 `PROPORTIONAL/SHIN/POWER/LOGARITHMIC` 多种去水；因此 model-vs-market 只能报告：
+`MODEL_QUALITY_TRACK` 不使用 market probability，也不需要 devig authority。结论集只允许：
+
+```text
+PROBABILITY_INCREMENT_IDENTIFIED
+NO_PROBABILITY_INCREMENT
+NOT_IDENTIFIABLE
+```
+
+#### Phase 4.5 `MODEL_VALUE_TRACK`
+
+本轨在 exact half-line 上增加同 bookmaker、同 capture/checkpoint、同 fixture、互补 selection、精确 line 的 quote-pair 要求。两边赔率仍包含 overround，model-vs-market 只能报告：
 
 ```text
 METHOD_SPECIFIC_DEVIG_MARKET_BENCHMARK
 ```
 
-不得称为唯一 latent market probability。Primary devig method 必须在 outcome metric 前冻结；其他预声明方法只能做 sensitivity，不得事后挑选。`PB_TO_W2_BOUNDARY_SCORE` 不需要 market benchmark，但必须使用相同 fixture IDs、W2/PB 二元概率和合法 outcome binding；任何 `MODEL_TO_MARKET_BOUNDARY_SCORE` 则必须绑定冻结 devig method。如果 Gate 0A/Phase 2 发现 PROPORTIONAL/POWER 等 authority 冲突，market benchmark 标 `DEVIG_AUTHORITY_CONFLICT` 并失去晋级权，不能事后挑方法。
+不得称为唯一 latent market probability。Primary devig method 必须在 outcome metric 前冻结；其他预声明方法只能做 sensitivity，不得事后挑选。任何 `MODEL_TO_MARKET_BOUNDARY_SCORE` 必须绑定冻结 devig method。如果 `DEVIG_AUTHORITY_RESOLVED` 不成立，本轨标 `MARKET_TRACK = NOT_IDENTIFIABLE`，不得影响 `MODEL_QUALITY_TRACK` 的合法结论。
+
+两轨共同不变量：
+
+```text
+D1 PASS does not imply D2 PASS.
+Probability improvement may improve EV estimation accuracy.
+Probability improvement is not evidence that quoted prices are exploitable.
+No real-edge or profitability claim is permitted without the market-relative track.
+```
 
 输出：
 
@@ -858,22 +969,13 @@ PB_MINIMAL_FEASIBILITY_RESULT.json
 PB_MINIMAL_FEASIBILITY_EXECUTION_RECEIPT.md
 ```
 
-结果只允许：
+是否进入 adapter model research 只由 Gate C0-MODEL 裁决；market-only 结果、1X2 secondary 或 C0-MARKET 均不得替代 C0-MODEL。
 
-```text
-PROCEED_TO_ADAPTER
-STOP_PB_INTEGRATION_RESEARCH
-NOT_IDENTIFIABLE
-BLOCK_PB_VS_W2_FEASIBILITY
-```
-
-`PROCEED_TO_ADAPTER` 必须由预注册的 half-line product-market primary 触发；1X2 secondary、未冻结 devig 方法或 market-only 结果均无晋级权。
-
-`STOP_PB_INTEGRATION_RESEARCH` 只停止 Penaltyblog challenger 集成，不否定 Phase 1–4 的 W2 EV/baseline 治理改进。
+`NO_PROBABILITY_INCREMENT` 只停止 Penaltyblog challenger 集成，不否定 Phase 1–4 的 W2 EV/baseline 治理改进。
 
 ### Phase 5 — PB Adapter Preregistration & Contract
 
-状态：`OWNER_AUTHORIZATION_REQUIRED_AND_PHASE_4_5_PROCEED_ONLY`
+状态：`OWNER_AUTHORIZATION_REQUIRED_AND_C0_MODEL_PASS_ONLY`
 
 目标：冻结一个只产生 shadow probability artifact 的最小接口。
 
@@ -978,85 +1080,93 @@ Parity PASS 不代表模型有效，只代表接口可信。
 
 状态：`NEW_PREREGISTRATION_REQUIRED`
 
-目标：在 W2 自己的时间点、市场和报价语境中评价 challenger。
+目标：在 W2 自己的 PIT 时间与盘口语境中，将 challenger 的概率质量与报价可利用性分开评价。Phase 7 不再以 `DEVIG_AUTHORITY_RESOLVED` 作为整体硬前置，而是拆为 D1/D2 两轨。
 
-硬前置：`DEVIG_AUTHORITY_RESOLVED`。Phase 7 不得与 devig authority 调查并行；computed algorithm、declared label、persisted method/version/overround 或历史 cohort attribution 任一未闭合，market-relative proper score 必须停止。不得用“在结果中分层解释”替代事前冻结。
+两轨分别冻结 W2 专属 power design，不得共享拍脑袋样本门槛。必须用允许的 development data 估计 paired/clustered variance，处理同 matchday、联赛、重复 checkpoint/fixture 的相关性，并预先批准 MME、alpha、power、look rule 与 attrition。`N≈2500/6900` 只是依赖未验证方差、EV dispersion 与独立观测的敏感性示例，不是 Gate；Factor V2 的 `N=5500` 也只服务其原始 successor 对照，不得搬用。若当前 N、覆盖或可达 MDE 不满足相应冻结设计，该轨返回 `INSUFFICIENT_POWER_DO_NOT_SCORE`，不得先看结果再移动 MME、primary metric 或阈值。
 
-执行前必须先冻结 W2 专属 power design，并至少分成两个不同 estimand：
+#### Phase 7 D1 — Probability Quality
 
-1. 同 fixture 的 proper-score paired difference（例如 1X2 LogLoss delta）；
-2. `realized_return ~ predicted_EV` 的 calibration intercept/slope 或其他事先批准的 EV calibration estimand。
-
-两者不得共享一个拍脑袋样本门槛。功效设计必须用 W2 可用 development data 估计 paired/clustered variance，处理同 matchday、联赛、重复 checkpoint/fixture 的相关性，并先批准 MME、alpha、power、look rule 与 attrition。Claude 评审提出的 `N≈2500/6900` 仅是基于 `sigma_return≈1`、`sigma_EV≈0.04` 和独立观测的未验证敏感性示例，不是 Gate。Factor V2 已冻结的 `N=5500` 也只服务其原始 successor 对照，不得搬用。
-
-如果 Gate 0B 核验后的当前 settled N、覆盖或可达 MDE 不满足冻结设计，结论必须为 `INSUFFICIENT_POWER_DO_NOT_SCORE`。不得以当前小样本先看结果、再移动 MME、primary metric 或阈值。
-
-每个模型使用自己的 paired set：
+D1 不使用 market probability，不需要 devig authority。Primary 是 exact half-line binary subset 上 W2 与 PB 的同 selection、同 line、同 fixture 配对概率质量；1X2 只作 secondary diagnostic。
 
 ```text
-EVAL_M =
-W2 opportunity eligible
+EVAL_D1 =
+predefined fixture/market/selection/line eligible
 ∩ actual outcome valid
-∩ exact quote identity valid
-∩ model M prediction valid
+∩ W2 prediction valid
+∩ PB prediction valid
 ```
 
-必须分别报告：
-
-```text
-N
-coverage
-failure_rate
-fixture-set digest
-league/time-block coverage
-```
-
-1X2 与 exact half-line binary 集合：
+每个模型/配对集合必须报告 `N / coverage / failure_rate / fixture-set digest / league/time-block coverage`。D1 至少报告：
 
 ```text
 W2 LogLoss / Brier
 PB LogLoss / Brier
 W2-minus-PB paired DeltaLogLoss
 PB-to-W2 boundary score at w=0
-Method-specific devig Market LogLoss / Brier
-RPS
-ECE
-devig method/version/overround
+ECE where preregistered and powered
+AH/OU separate intersection N
+fixture-clustered uncertainty
 ```
 
-exact half-line 必须单独报告 AH/OU、intersection N、quote-pair identity 和 fixture-clustered uncertainty。市场对照必须使用预冻结 devig method；不同 devig sensitivity 不得改变 primary decision。
-
-AH/OU：
+模型间冗余只在两模型交集上评价，报告 `intersection N`、lambda/probability correlation、mean absolute probability difference 与 direction agreement；禁止使用所有模型共同成功集作为唯一集合。D1 PASS 的唯一含义是：
 
 ```text
-five-state NLL/Brier/RPS
-settlement calibration by outcome
+CHALLENGER_PROBABILITY_VALUE_IDENTIFIED
+```
+
+它不授权 edge、recommendation、profitability、market value 或 production admission 结论。
+
+#### Phase 7 D2 — Market Value / EV Realization
+
+D2 必须在 D1 身份合同之外证明 `DEVIG_AUTHORITY_RESOLVED`、同 bookmaker/checkpoint 的 quote-pair identity、executable price 与 market attribution。Computed algorithm、declared label、persisted method/version/overround 或 primary cohort attribution 任一未闭合时，D2 返回 `BLOCKED_BY_DEVIG` 或 `NOT_IDENTIFIABLE`；不得用事后 sensitivity 分层替代冻结。
+
+```text
+EVAL_D2 =
+EVAL_D1
+∩ exact executable quote identity valid
+∩ frozen market attribution valid
+∩ authority settlement return valid
+```
+
+D2 按预注册分别评价：
+
+```text
+METHOD_SPECIFIC_DEVIG_MARKET_BENCHMARK LogLoss / Brier
+model-vs-market paired proper-score delta on identifiable subsets
 predicted EV vs realized unit return calibration
-EV calibration intercept/slope with uncertainty
-coverage and failure rate
+EV calibration intercept/slope with clustered uncertainty
+five-state NLL/Brier/RPS and settlement calibration where identifiable
+coverage / failure / method-version / overround
 ```
 
-对于无法识别 market 三态/五态概率的整数盘或四分盘，禁止伪造 market LogLoss；只报告可识别指标和限制。
+整数盘或四分盘无法从双边赔率识别 market 三态/五态概率时，禁止伪造 market LogLoss；只报告可识别指标与限制。只有 D2 可以支持 `MARKET_EDGE_SUPPORTED` 类结论。
 
-模型间冗余只在两模型交集上评价：
+Phase 7 必须保持下列不变量：
 
 ```text
-intersection N
-corr(lambda_home/lambda_away)
-corr relevant probabilities
-mean absolute probability difference
-decision-direction agreement
+D1 PASS does not imply D2 PASS.
+Probability improvement may improve EV estimation accuracy.
+Probability improvement is not evidence that quoted prices are exploitable.
+No real-edge or profitability claim is permitted without the market-relative track.
 ```
-
-禁止使用所有模型共同成功集作为唯一评价集合。
 
 ### Phase 8 — Prospective Shadow
 
 状态：`NOT_AUTHORIZED_BY_THIS_PLAN`
 
-只有 Phase 7 通过预注册 Gate 后才可单独申请。
+Phase 8 分为两个互不替代的 shadow；两者都必须另行申请，均为 `NOT_AUTHORIZED_BY_THIS_PLAN`：
 
-要求：
+```text
+PROBABILITY_SHADOW
+  entry: Gate D1 PASS
+  purpose: prospective paired probability quality only
+
+MARKET_VALUE_SHADOW
+  entry: Gate D2 PASS, including resolved devig and executable quote attribution
+  purpose: prospective market-value / EV realization only
+```
+
+共同要求：
 
 - 独立 shadow registry/ledger；
 - cohort start 在首条 row 前冻结；
@@ -1068,7 +1178,16 @@ decision-direction agreement
 - outcome 只在结算后绑定；
 - 不根据早期盈亏改阈值或模型。
 
-Phase 8 结束后只形成 Owner decision packet，不自动生产晋级。
+`PROBABILITY_SHADOW` 不得生成 edge、profitability 或 production-admission 结论；`MARKET_VALUE_SHADOW` 也只形成 Owner decision packet，不自动晋级生产。
+
+Phase 8 entry 必须保持下列不变量：
+
+```text
+D1 PASS does not imply D2 PASS.
+Probability improvement may improve EV estimation accuracy.
+Probability improvement is not evidence that quoted prices are exploitable.
+No real-edge or profitability claim is permitted without the market-relative track.
+```
 
 ## 8. 数据与评价合同
 
@@ -1144,14 +1263,18 @@ EVALUATION_NOT_IDENTIFIABLE
 
 ### 9.1 EV 合同测试
 
-- five-state formula golden vectors；
+- `expected_value()` / `fair_decimal_odds()` 的 Decimal 精确黄金向量断言；
+- 每条保存 `distribution / odds / W / L / S / EV / F* / Fq / edge_code / EV/S / quantization residual / Tq`；
+- 未量化 `edge* = EV/S` 恒等式与量化后 `edge_code = d/Fq - 1` 定义；
+- 逐样本量化界 `d × |Fq-F*| / (F* × Fq)`；
+- 禁止以 `abs_tol=1e-5` 验证黄金向量；`3e-5` 只允许用于三条已界定样例，不得作全域容差；
+- `Tq = 1.05 × Fq × W - S` 与逐场 `S` 门槛测试，禁止把黄金向量门槛固化为 line-type 常数；
 - quarter-line split；
 - integer push；
 - side symmetry；
 - odds monotonicity；
 - distribution normalization；
 - invalid/stale/reference quote fail closed；
-- Decimal/float tolerance；
 - duplicate implementation parity。
 
 ### 9.2 Probability Adapter 测试
@@ -1179,8 +1302,11 @@ Phase 2.5/4.5 另需：
 - bookmaker/fixture/market/line/checkpoint/captured-at quote-pair parity test；
 - devig method/version/overround persistence test；
 - `BASELINE_QUALITY_NOT_IDENTIFIABLE` hard-block test；
-- 1X2 secondary cannot promote to `PROCEED_TO_ADAPTER` test；
-- `DEVIG_AUTHORITY_CONFLICT` fail-closed test；
+- cohort membership independent of `analysis_direction_allowed`、cashflow edge threshold、candidate/recommendation status 与 realized outcome；
+- half-line `S=1` boundary test，且不得外推 integer/quarter policy；
+- 1X2 secondary cannot promote to `PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH` test；
+- C0-MODEL/C0-MARKET separation test；
+- `DEVIG_AUTHORITY_CONFLICT` blocks market track but not model-quality track test；
 - computed devig algorithm versus declared provenance parity test；
 - nullable/mixed `devig_method` coverage and row-conservation test；
 - unattributable historical method persistence test；
@@ -1189,7 +1315,8 @@ Phase 2.5/4.5 另需：
 
 ### 9.3 Evaluation 测试
 
-- Model/Market fixture parity；
+- W2/PB Model-vs-Model fixture parity；
+- Model/Market fixture parity on D2 only；
 - per-model EVAL set equality；
 - pairwise intersection；
 - no silent row loss；
@@ -1199,7 +1326,14 @@ Phase 2.5/4.5 另需：
 - market-five-state identifiability guard；
 - method-specific devig benchmark naming guard；
 - mixed-method pooling forbidden test；
-- Phase 4/7 `DEVIG_AUTHORITY_RESOLVED` prerequisite test；
+- Phase 4 primary does not require devig authority test；
+- Phase 4 covers all line types and stratifies continuously by `S` test；
+- Phase 4 forbids treating EV and cashflow edge as independent predictors test；
+- Phase 4.5/D1 remains evaluable when devig is unresolved test；
+- Phase 4.5 market track/D2 blocks when devig is unresolved test；
+- Gate D1/D2 conclusion-authority separation test；
+- D1 cannot produce edge, recommendation or profitability claims test；
+- `PROBABILITY_SHADOW`/`MARKET_VALUE_SHADOW` entry separation test；
 - preregistration hash check。
 
 ### 9.4 Production Isolation 测试
@@ -1241,13 +1375,40 @@ NOT IDENTIFIABLE：没有合法 cohort、结果绑定或可核验的 cohort 用�
 
 ### Gate C0 — Minimal PB Feasibility
 
-PASS：冻结的 exact half-line product-market primary 返回 `PROCEED_TO_ADAPTER`，且 fixture/cutoff/training-row/outcome/quote-pair mismatch 与 silent loss 均为 0；devig 方法身份已在赛果指标之前冻结，且不存在 `DEVIG_AUTHORITY_CONFLICT`。
+#### Gate C0-MODEL
 
-STOP：`STOP_PB_INTEGRATION_RESEARCH` 时不建设 Phase 5–8。
+PASS：冻结的 exact half-line `MODEL_QUALITY_TRACK` 返回 `PROBABILITY_INCREMENT_IDENTIFIED`，且 fixture/cutoff/training-row/outcome mismatch 与 silent loss 均为 0。Gate 结论为：
 
-NOT IDENTIFIABLE：先补合同/合法 cohort，禁止凭不完整结果继续 adapter。`BASELINE_QUALITY_NOT_IDENTIFIABLE`、`UNKNOWN_BLOCKED` cohort、未冻结 devig 或 `DEVIG_AUTHORITY_CONFLICT` 均属阻断态。
+```text
+PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH
+```
 
-1X2 只是 secondary diagnostic；即使单独为正，也不得触发 `PROCEED_TO_ADAPTER`。Market-only 研究不得触发本 Gate PASS。
+STOP：`NO_PROBABILITY_INCREMENT` 时停止 Penaltyblog challenger 集成，不建设 Phase 5–8，但不否定 Phase 1–4 的 W2 治理工作。
+
+NOT IDENTIFIABLE：`BASELINE_QUALITY_NOT_IDENTIFIABLE`、只有 `UNKNOWN_BLOCKED` cohort、身份/结果合同不完整或功效不足时，不得凭不完整结果继续 adapter。Devig 冲突本身不阻断 C0-MODEL。
+
+1X2 只是 secondary diagnostic；即使单独为正，也不得触发 C0-MODEL PASS。C0-MODEL PASS 不授予 edge claim、recommendation claim、profitability claim 或 production admission。
+
+#### Gate C0-MARKET
+
+只评价 `MODEL_VALUE_TRACK` 的可识别性与冻结完整性，允许结论：
+
+```text
+PASS
+BLOCKED_BY_DEVIG
+NOT_IDENTIFIABLE
+```
+
+C0-MARKET PASS 不能替代 C0-MODEL；C0-MARKET blocked 也不能推翻合法的 C0-MODEL 结果。
+
+Gate C0 必须保持下列不变量：
+
+```text
+D1 PASS does not imply D2 PASS.
+Probability improvement may improve EV estimation accuracy.
+Probability improvement is not evidence that quoted prices are exploitable.
+No real-edge or profitability claim is permitted without the market-relative track.
+```
 
 ### Gate C — Adapter Parity
 
@@ -1257,20 +1418,76 @@ FAIL：任何结果都不用于模型判断。
 
 ### Gate D — Retrospective Paired Evaluation
 
-入口前必须再次证明 `DEVIG_AUTHORITY_RESOLVED`；该状态不得仅由当前配置文件声明，必须覆盖 primary cohort 的方法归因。任何 null、mixed pooled、label/algorithm mismatch 或事后选取 sensitivity method 均使 market-relative 结果无晋级权。
+两个 Gate 都必须在执行前冻结各自的 W2 专属 power design；不得硬编码 `2500/6900`，也不得复用 Factor V2 的 `5500`。
 
-数值 Gate 必须在执行前通过 W2 专属 power design 冻结。proper-score paired difference 与 EV calibration 的 power、MME 和相关结构分别设计；不得硬编码 Claude 的 `2500/6900`，也不得复用 Factor V2 的 `5500`。结果只允许：
+#### Gate D1 — Probability Quality
+
+D1 可在 devig authority 未解决时运行。必须基于严格配对的 W2/PB model probabilities、actual outcome 与预冻结 exact half-line cohort；结论只允许：
 
 ```text
-CONTINUE_TO_PROSPECTIVE_SHADOW
+CHALLENGER_PROBABILITY_VALUE_IDENTIFIED
+NO_CHALLENGER_PROBABILITY_VALUE
 REVISE_ADAPTER_OR_PROTOCOL
-STOP_PB_INTEGRATION_RESEARCH
 INSUFFICIENT_POWER_DO_NOT_SCORE
+NOT_IDENTIFIABLE
+```
+
+D1 PASS 只能表示 `CHALLENGER_PROBABILITY_VALUE_IDENTIFIED`，不得出现 market edge、recommendation、profitability 或 production-admission 结论。
+
+#### Gate D2 — Market Value / EV Realization
+
+D2 的硬前置为 `DEVIG_AUTHORITY_RESOLVED`、quote identity、executable price 与 market attribution。该状态必须覆盖 primary cohort 的方法归因；任何 null、mixed pooled、label/algorithm mismatch 或事后选取 sensitivity method，均使 D2 返回 `BLOCKED_BY_DEVIG` 或 `NOT_IDENTIFIABLE`。D2 结论只允许：
+
+```text
+MARKET_EDGE_SUPPORTED
+MARKET_EDGE_NOT_SUPPORTED
+REVISE_MARKET_PROTOCOL
+INSUFFICIENT_POWER_DO_NOT_SCORE
+BLOCKED_BY_DEVIG
+NOT_IDENTIFIABLE
+```
+
+只有 D2 允许出现 `MARKET_EDGE_SUPPORTED` 类结论。
+
+Gate D 必须保持下列不变量：
+
+```text
+D1 PASS does not imply D2 PASS.
+Probability improvement may improve EV estimation accuracy.
+Probability improvement is not evidence that quoted prices are exploitable.
+No real-edge or profitability claim is permitted without the market-relative track.
+```
+
+#### D1/D2 决策矩阵
+
+| D1 | D2 | 允许解释 | Shadow eligibility |
+|---|---|---|---|
+| PASS | 未运行 / `BLOCKED_BY_DEVIG` / `NOT_IDENTIFIABLE` | 只识别 challenger 概率价值；不得声称报价可利用 | 仅可另行申请 `PROBABILITY_SHADOW` |
+| PASS | PASS | 概率价值与 market-relative 价值分别通过各自 Gate；仍非生产授权 | 可分别另行申请两类 shadow |
+| FAIL / `NO_CHALLENGER_PROBABILITY_VALUE` | 任意 | 不继续 PB adapter model research；D2 不得替代 D1 | 两类 shadow 均不可进入 |
+| `INSUFFICIENT_POWER_DO_NOT_SCORE` / `NOT_IDENTIFIABLE` | 任意 | 不评分、不外推 | 两类 shadow 均不可进入 |
+
+决策矩阵同样受以下不变量约束：
+
+```text
+D1 PASS does not imply D2 PASS.
+Probability improvement may improve EV estimation accuracy.
+Probability improvement is not evidence that quoted prices are exploitable.
+No real-edge or profitability claim is permitted without the market-relative track.
 ```
 
 ### Gate E — Prospective Shadow
 
-不在本计划授权范围内。即使 PASS，也只能提交 Owner production-admission decision packet。
+`PROBABILITY_SHADOW` 仅可由 D1 PASS 支持；`MARKET_VALUE_SHADOW` 必须由 D2 PASS 支持。两者均为 `NOT_AUTHORIZED_BY_THIS_PLAN`，即使后续独立 PASS，也只能提交 Owner decision packet，不自动产生 production admission。
+
+Gate E entry 继续受以下不变量约束：
+
+```text
+D1 PASS does not imply D2 PASS.
+Probability improvement may improve EV estimation accuracy.
+Probability improvement is not evidence that quoted prices are exploitable.
+No real-edge or profitability claim is permitted without the market-relative track.
+```
 
 ## 11. 风险登记
 
@@ -1290,9 +1507,14 @@ INSUFFICIENT_POWER_DO_NOT_SCORE
 | baseline 未验证就只审 challenger | challenger 结论无法解释 | Phase 2.5 先审 W2 `BASELINE_PRIOR` |
 | cohort 使用历史错分或把“曾看过赛果”当作对所有新问题永久烧毁 | 伪造污染或伪造可用 cohort | burn ledger 保存实验身份、estimand、outcome visibility 和用途分类；无法核实时 `UNKNOWN_BLOCKED` |
 | 无身份 futility probe | fixture/cutoff/outcome 污染 | Phase 4.5 最小冻结合同与 immutable receipt |
-| PROPORTIONAL/POWER 等 devig 权威冲突 | 事后选取有利的 market benchmark | Phase 1/2 核实 authority；方法未冻结或冲突时 `DEVIG_AUTHORITY_CONFLICT` fail closed |
+| PROPORTIONAL/POWER 等 devig 权威冲突 | 事后选取有利的 market benchmark | Phase 1/2 核实 authority；方法未冻结或冲突时仅 market-relative 轨道 fail closed，model-quality 轨道不受阻断 |
 | 只信 `POWER` source 字符串而不核对实际计算 | 把 PROPORTIONAL 历史行错分为 POWER | computed/declared/persisted 三身份分开审计；不可重建时 `METHOD_NOT_ATTRIBUTABLE` |
-| 混合或 nullable `devig_method` 行直接 pooled 评价 5pp | 阈值效果与方法变更混杂 | Gate 0B 覆盖率计数；只评价 100% 可归因同质子集，否则先记录后评价 |
+| 混合或 nullable `devig_method` 行直接 pooled 做 market-relative 评价 | 模型效果与方法变更混杂 | Gate 0B 覆盖率计数；D2 只评价 100% 可归因同质子集，否则 `BLOCKED_BY_DEVIG` / `NOT_IDENTIFIABLE` |
+| 把 EV 与 `cashflow_price_edge` 当两个独立 predictor | 对同一结算信息重复归因 | Phase 4 只比较名义/在险两个预注册空间，禁止交叉归因 |
+| 把 `.0500/.0440/.03975` 固化为 line-type 门槛 | 忽略同一盘型逐场 `S` 差异 | 门槛逐行由 `S/W/Fq` 推导，按连续 `S` 分层 |
+| 只在 half-line 上评价 V4 policy | 把 `S=1` 边界误外推到 integer/quarter | Phase 4 覆盖全部 line type；half-line 只作 model-quality primary |
+| 把 D1 PASS 解读为 market edge | 从概率改进跳到报价可利用性 | D1/D2 分轨；edge/profitability 结论只允许 D2 |
+| 使用量化无感的统一 epsilon | 正确黄金向量假失败或全域误放行 | Decimal 精确断言 + 逐样本量化误差界 |
 | 用 1X2 结果外推 AH/OU 产品市场 | 预检通过但产品 estimand 未被验证 | exact half-line AH/OU 为 primary；1X2 只作 secondary，无单独晋级权 |
 | 把 method-specific devig benchmark 称为真实 market probability | 过度声明可识别性 | 强制名称 `METHOD_SPECIFIC_DEVIG_MARKET_BENCHMARK`，持久化 method/version/overround |
 | calibration 名称误导 | 假安全感 | 调用审计、重命名/隔离决策包 |
@@ -1326,6 +1548,8 @@ W2_BASELINE_PROBABILITY_QUALITY_AUDIT.md
 W2_BASELINE_PROBABILITY_METRICS.json
 W2_BASELINE_PARAMETER_PROVENANCE.json
 W2_COHORT_BURN_LEDGER.json
+V4_EV_ADMISSION_POLICY_PREREGISTRATION.md
+V4_EV_ADMISSION_POLICY_RESULT.json
 PB_MINIMAL_FEASIBILITY_PREREGISTRATION.md
 PB_MINIMAL_FEASIBILITY_MANIFEST.json
 PB_MINIMAL_FEASIBILITY_RESULT.json
@@ -1334,7 +1558,8 @@ PB_ADAPTER_PREREGISTRATION.md
 PB_ADAPTER_CONTRACT.json
 PB_ADAPTER_FAILURE_TAXONOMY.json
 PB_PARITY_EXECUTION_RECEIPT.md
-W2_PB_PAIRED_EVALUATION_RECEIPT.md
+W2_PB_PROBABILITY_QUALITY_RECEIPT.md
+W2_PB_MARKET_VALUE_RECEIPT.md
 W2_PB_PRODUCTION_ADMISSION_DECISION_PACKET.md
 ```
 
@@ -1347,8 +1572,8 @@ W2_PB_PRODUCTION_ADMISSION_DECISION_PACKET.md
 1. 当前 exact production probability path 是什么？是否遗漏任何实际 writer/read path？
 2. W2 是否存在数学上不等价的 EV 实现？请提供固定向量复算。
 3. `effective_settlement_probability` 的当前使用是否存在语义误用？
-4. `MIN_MARKET_ANCHOR_DIVERGENCE` 在不同模块中的单位和角色是否一致？
-5. 5% threshold 的既有证据是什么？若无，最小可识别实验是什么？
+4. `MIN_MARKET_ANCHOR_DIVERGENCE` 在 legacy/parallel dynamic evaluation 与 V4 optional diagnostic 中的角色是否被正确区分？
+5. V4 的 `EV > 0`、`cashflow_price_edge >= 0.05`、`EV - uncertainty > 0` 是否在全部 public recommendation path 一致？
 6. `models/dixon_coles.py` 与 `models/calibration.py` 是否进入 production？请给完整 caller graph。
 7. AH/OU 市场五态概率能否由当前双边赔率唯一识别？若不能，哪些指标仍可合法比较？
 8. Penaltyblog adapter 最小输入是否足以复现训练？是否缺联赛/赛季/球队身份或权重语义？
@@ -1361,10 +1586,13 @@ W2_PB_PRODUCTION_ADMISSION_DECISION_PACKET.md
 15. W2 当前 `BASELINE_PRIOR` 的默认 λ 参数是如何产生的？其 clipping、1X2/AH/OU 概率质量、分联赛/时间稳定性和 calibration status 有哪些可复算证据？
 16. Claude 提出的 `2500/6900` 是否能由 W2 的真实 clustered variance、EV dispersion 和 attrition 重现？若不能，正确的 power estimand/design 是什么？
 17. 各历史 cohort 曾被哪个实验用于 `FIT/TUNE/SELECT/EVALUATE/DESCRIPTIVE_ONLY`？对当前 PB-vs-W2 estimand 是否仍可用，证据是什么？
-18. exact half-line 的 quote-pair authority 和 primary devig authority 分别是什么？`analysis_evidence.py`/`formal_recommendation.py` 的 PROPORTIONAL 与历史 POWER 要求是否冲突？
+18. exact half-line 的 quote-pair authority 和 primary devig authority 分别是什么？`analysis_evidence.py` / `score_baseline.py` 的显式 PROPORTIONAL 与 `analysis_calculator.py` 的 computed-PROPORTIONAL/declared-POWER 是否冲突？
 19. 哪些报告或 API 可能把 `METHOD_SPECIFIC_DEVIG_MARKET_BENCHMARK` 误表述为唯一真实 market probability？最小命名与 provenance 修复是什么？
 20. `analysis_calculator.py` 的 computed PROPORTIONAL 与 declared POWER 冲突影响了哪些历史行？哪些 release 可以从 exact source 归因，哪些必须标 `METHOD_NOT_ATTRIBUTABLE`？
-21. 你的最终建议是：
+21. `cashflow_price_edge` 与 `EV/S` 的四位 fair-odds 量化残差，是否逐样本满足量化感知界？
+22. Phase 4 是否覆盖全部 line type，并把逐场 `S` 作为连续量，而不是使用固定盘型门槛？
+23. Gate D1 的任何结论是否越权暗示 market edge、profitability 或 production admission？
+24. 你的最终建议是：
 
 ```text
 ACCEPT_PLAN
@@ -1375,7 +1603,7 @@ REJECT_PLAN
 ## 14. 建议的 Agent 回复格式
 
 ```markdown
-# Review: W2 × Penaltyblog EV Optimization Plan V1
+# Review: W2 × Penaltyblog EV Optimization Plan V1.4
 
 Agent role:
 Review date:
@@ -1410,14 +1638,13 @@ ACCEPT_PLAN / ACCEPT_WITH_REVISIONS / REJECT_PLAN
 
 ## 15. Owner 决策点
 
-在收集多 Agent 意见后，Owner 先分别裁定两个权限边界：
+完成 V1.4 后，建议本轮只裁定以下本地只读范围：
 
 ```text
-1. 是否授权 Gate 0A + Phase 1 + Phase 2 + Phase 2.5 的本地只读静态审计？
-2. 是否单独授权 Gate 0B 的 VPS 只读核验？
+Gate 0A + Phase 1 + Phase 2 + Phase 2.5
 ```
 
-Gate 0B 不需要 GitHub/GHCR 权限，且必须保持 Provider 调用 0、业务写入 0、部署 0。上述审计不改变模型、阈值、生产数据或运行状态。Phase 4.5 需要另行授权；只有其返回 `PROCEED_TO_ADAPTER`，才讨论 Phase 5–7。
+Gate 0B 仍保留为未来的独立 Owner 决策点，但不包含在本轮建议授权范围；若未来授权，也不得访问 GitHub/GHCR，且必须保持 Provider 调用 0、业务写入 0、部署 0。Phase 4.5、adapter、D1/D2 与两类 shadow 均需后续分别授权；本计划不授权其中任何一项。
 
 ## 16. 最终建议
 
@@ -1437,3 +1664,4 @@ PRODUCTION_CHANGE = FORBIDDEN
 | V1.1 | 2026-08-29 | 按真实 caller graph、`BASELINE_PRIOR`、dynamic evaluation persistence、Factor V2 frozen power 与 Claude 首轮意见，新增 Gate 0A/0B、Phase 2.5、Phase 4.5 和独立 power 前置 | `NOT_AUTHORIZED` |
 | V1.2 | 2026-08-29 | 吸收 Claude 第二轮意见：增加 cohort burn ledger 分类保护、baseline 不可识别 hard block、exact half-line 产品 primary、method-specific devig benchmark 与对应 Gate/测试/风险闭环 | `NOT_AUTHORIZED` |
 | V1.3 | 2026-08-29 | 将 devig authority 与历史方法归因提升为 Phase 4/7 硬前置；增加 Gate 0B `devig_method` 覆盖率、computed/declared/persisted 三身份、方法敏感性边界和混合/null fail-closed 规则 | `NOT_AUTHORIZED` |
+| V1.4 | 2026-08-29 | 按 `main@3b7f87db` 重建代码事实与 canonical pricing；明确 V4 EV/结算归一化 admission、逐场 `S` 与量化边界；拆分 model/market、C0-MODEL/C0-MARKET、D1/D2 及双 shadow | `NOT_AUTHORIZED` |
