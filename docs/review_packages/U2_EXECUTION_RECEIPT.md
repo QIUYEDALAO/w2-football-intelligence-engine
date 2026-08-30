@@ -89,3 +89,38 @@ challenger 进入生产路径   否
 validation 分数读取       否
 本结论不授权 champion 晋级或任何生产变更
 ```
+
+---
+
+## 事后更正 — cohort league 标签
+
+`DISCLOSED_CORRECTION_CONCLUSION_UNAFFECTED`
+
+本地 join 采用 last-wins 解析 fixture→league；部分 payload 的
+`parameters.league` 为空，导致 706 个 fixture 被标为 `UNLABELLED`，
+而它们在另一个 payload 中有真实 league id。
+
+该缺陷由一条独立的服务端 join 在后台完成后交叉比对发现。
+
+```text
+原 digest      40802614114c06ebc7bf4a3eb93578a313631fd50c6440803c1ff1622f86469c
+修正 digest    c74eaf0fc3b780f6b04c20353e55e5e83ffdebd213a4c1bbb83b0dcc903ce44e
+修正规则       同一 fixture 出现空与非空 league 时，取非空
+UNLABELLED     706 -> 0        competition 数 14 -> 13
+```
+
+**数据本体未变**：19,102 行的 `fixture_id / kickoff_at / team ids / xg / goals`
+与服务端独立提取逐字节一致，只有 `league_id` 列改变。
+
+**结论未受影响，且经重跑验证**：`league_id` 从未进入特征构造、comparator、
+challenger 拟合或 futility 计算。在修正 cohort 上重跑全链，
+`train_mean / train_sd / clustered_se / N_val / mde` 逐位相同，
+8,659 个 fixture 中 `lambda / raw_delta / elo_delta / 比分 / split` 零差异。
+结论仍为 `INSUFFICIENT_POWER_DO_NOT_SCORE`。
+
+**这不是设计变更**：它修正的是数据标注缺陷，未触及 split、`min_history`、
+线网格、cluster 定义、MME 或任何决策规则；且是先验证「结论不变」才采纳，
+不是为改变结论而采纳。
+
+**对后续的影响**：per-competition 分层报告必须使用修正后的 13 联赛分布；
+原冻结表中的 `UNLABELLED` 处置规则随之失效（无 UNLABELLED fixture）。

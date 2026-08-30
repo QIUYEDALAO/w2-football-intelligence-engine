@@ -1,4 +1,4 @@
-# W2 × Penaltyblog：EV、概率与模型验证优化计划 V1.4.1
+# W2 × Penaltyblog：EV、概率与模型验证优化计划 V2.0
 
 文档状态：`PROPOSED_NOT_AUTHORIZED`
 
@@ -6,13 +6,24 @@
 
 创建日期：2026-08-29（Asia/Shanghai）
 
-当前修订：V1.4.1（已同步 Gate 0B、Phase 2.5a、U2 comparator 静态纠错与 U2 执行结果；不改变 A–J、Gate 结构或阶段顺序）
+当前修订：V2.0（重新定位：已完成工作归入 Phase 4.5 的测量能力建设，Phase 4.5 复用 U2 冻结管线并接入 Penaltyblog challenger；不改变 A–J、Gate 结构或阶段顺序）
 
 实施状态：Gate 0A、Gate 0B 与 Phase 2.5a 的只读/静态审计已部分完成；U2 已执行并在评分前因功效不足停止；业务实施未授权
 
 生产影响：无
 
 > 本文不是实施授权、模型晋级决定、阈值变更批准或部署指令。任何代码修改、模型重训、生产写入、Provider 调用、候选准入或部署，都必须经过对应阶段的 Owner 授权。
+
+## 当前状态速览
+
+| 状态 | 当前事实 |
+|---|---|
+| 研究问题 | Penaltyblog 能否为 W2 的 EV 提供增量概率信息 |
+| 当前答案 | 未测量。测量能力已建成，但功效不足以在 `MME=0.0025` 下评分 |
+| 已建成 | cohort 冻结 / PIT / 五态管线 / futility（见 U2） |
+| 已查清 | 生产 λ 在 11 个启用联赛上是纯 rolling-xG |
+| 待解决 | MME 是否应为 `0.0025`（同时卡住 U2 / champion 晋级与 Phase 4.5 / Penaltyblog 增量检验） |
+| 下一步 | Phase 4.5：把 Penaltyblog 接入 U2 管线，先算 futility |
 
 ## 1. Executive Summary
 
@@ -24,100 +35,25 @@
 
 当前最合理的结论是：
 
-- W2 的亚洲盘五态 EV 公式已经存在，尚无证据证明核心算术错误；
-- W2 存在多个 EV 实现入口，需要做语义、单位、盘口方向和数值等价审计；
-- W2 的正式 simulation 并不调用 `models/dixon_coles.fit_dixon_coles()`，不能把该离线模型直接称为生产概率源；
+- **研究问题仍未测量：**Penaltyblog 能否为 W2 的 EV 提供增量概率信息，当前没有评分结论。生产 champion 的概率质量与 challenger 相对它的差距也未测量；此前第一优先级是只读的 EV/概率血缘审计和 W2 `BASELINE_PRIOR` 概率质量审计，而不是修改公式、删除安全门或接入六模型；
+- **测量能力已经建成：**Gate 0A/0B、Phase 2.5a、U1 与 U2 共同建立正确 comparator、cohort、PIT、五态管线和 futility。U2 状态为 `EXECUTED`，结论为 `INSUFFICIENT_POWER_DO_NOT_SCORE`；冻结的 futility 规则在评分前触发，validation 五态分数未被读取。对照身份为 `PRODUCTION_FORMULA_XG_WITH_PROXY_ELO`；对任意非零 `raw_delta`，`elo_delta/raw_delta = 0.14` 的绝对容差为 `1e-9`，零 `raw_delta` 时必须有零 `elo_delta`。真实 cohort 逐 fixture 断言首次通过：违反 `0` 例，且 `3` 例 `raw_delta == 0` 全部满足 `elo_delta == 0`。旧 `PRODUCTION_FORMULA_XG_ONLY` 只作为 `SUPERSEDED_BY_STATIC_CODE_VERIFICATION` 审计轨迹保留；
+- **生产 comparator 已查清：**生产在当前 11 个启用联赛上的实际 λ 形态已静态查清，是纯 rolling-xG，非本文 §2.7 原描述的 xG+Elo+身价+首发四路融合；Elo 是 rolling-xG proxy，使 `raw_delta` 放大 14%；身价与首发两项当前为零贡献，`rho=0`；这不等于生产概率质量已经测量；
+- **共同瓶颈是 MME：**`MME=0.0025` 从 1X2 LogLoss 搬用到五态 AH/OU NLL，尚无理论依据；它同时决定 U2 / champion 晋级与 Phase 4.5 / Penaltyblog 增量检验的功效；
+- **下一步规格是 Phase 4.5：**在 U2 已冻结管线上替换为 Penaltyblog challenger，并先算 futility。Penaltyblog 六模型在已完成的竞彩结算 1X2 研究中没有击败市场，Phase 3 为零 survivor；该结果否决“直接替换即可提升”，但不能直接外推到 W2 的 AH/OU 同时点可执行报价。完整 Penaltyblog adapter 前的 `MINIMAL_FROZEN_FEASIBILITY_PROBE` 仍必须有 fixture/cutoff/outcome parity 和不可变 artifact，不能用无身份的一次性脚本；
+- 只有 C0-MODEL 预检结论为 `PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH`，才建设隔离的 Poisson parity adapter；
 - Gate 0B 已确认生产权威为 `ea557bb8 / schema 0070`；`origin/main@3b7f87db / schema 0051` 落后生产 19 个 migration，但四个核心审计文件跨基线逐字节相同，因此对应静态结论存活；
-- 生产在当前 11 个启用联赛上的实际 λ 形态已静态查清：Elo 是 rolling-xG proxy，使 `raw_delta` 放大 14%；身价与首发两项当前为零贡献，`rho=0`；这不等于生产概率质量已经测量；
+- W2 的正式 simulation 并不调用 `models/dixon_coles.fit_dixon_coles()`，不能把该离线模型直接称为生产概率源；
+- W2 的亚洲盘五态 EV 公式已经存在，尚无证据证明核心算术错误；W2 同时存在多个 EV 实现入口，需要做语义、单位、盘口方向和数值等价审计；
 - `models/calibration.py` 中的 PLATT、ISOTONIC、BETA 等名称与实现不符，但目前没有证据表明它进入正式 production simulation；
 - `RecommendationDecisionV4` 的现役准入为 `EV > 0`、`cashflow_price_edge >= 0.05` 与 `EV - uncertainty > 0`；`probability_delta` 只作诊断，legacy/parallel dynamic evaluation 中的 5pp 门不得冒充现役 public gate；
 - 当前代码同时存在 PROPORTIONAL 计算与“计算实为 PROPORTIONAL、来源却标 POWER”的 provenance 不一致；方法 authority 和历史行可归因性未闭合时，只阻断 market-relative 评价，不阻断 W2-vs-PB 的严格配对模型评价；
-- Penaltyblog 六模型在已完成的竞彩结算 1X2 研究中没有击败市场，Phase 3 为零 survivor；该结果否决“直接替换即可提升”，但不能直接外推到 W2 的 AH/OU 同时点可执行报价；
-- 第一优先级应是只读的 EV/概率血缘审计和 W2 `BASELINE_PRIOR` 概率质量审计，而不是修改公式、删除安全门或接入六模型；
-- 完整 Penaltyblog adapter 前先做一个冻结的 `MINIMAL_FROZEN_FEASIBILITY_PROBE`。预检仍必须有 fixture/cutoff/outcome parity 和不可变 artifact，不能用无身份的一次性脚本；
-- 只有 C0-MODEL 预检结论为 `PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH`，才建设隔离的 Poisson parity adapter；
 - 本计划不包含生产晋级。任何生产准入必须另立决策包和 Owner 授权。
-
-U2 状态为 `EXECUTED`，结论为 `INSUFFICIENT_POWER_DO_NOT_SCORE`。冻结的 futility 规则在评分前触发，validation 五态分数未被读取。对照身份为 `PRODUCTION_FORMULA_XG_WITH_PROXY_ELO`；对任意非零 `raw_delta`，`elo_delta/raw_delta = 0.14` 的绝对容差为 `1e-9`，零 `raw_delta` 时必须有零 `elo_delta`。真实 cohort 逐 fixture 断言首次通过：违反 `0` 例，且 `3` 例 `raw_delta == 0` 全部满足 `elo_delta == 0`。旧 `PRODUCTION_FORMULA_XG_ONLY` 只作为 `SUPERSEDED_BY_STATIC_CODE_VERIFICATION` 审计轨迹保留。
-
-### 1.1 首轮 Claude Code 评审处置
-
-| 建议 | 处置 | 修订结论 |
-|---|---|---|
-| 完整 adapter 前增加 futility-first 预检 | `ACCEPT_WITH_CORRECTION` | 增加 Phase 4.5；但预检必须先冻结最小身份、PIT、配对和结果绑定合同。Penaltyblog 历史进球信息也不能表述为 W2 信息集的严格数学子集。 |
-| Gate D 硬设 `N_settled >= 2500` | `REJECT_AS_HARD_GATE` | `2500/6900` 依赖未由 W2 验证的方差、EV 离散度和独立性假设。Phase 7 必须先做 W2 专属 power design，并分开 proper-score 与 EV calibration estimand。 |
-| Gate 0 拆成本地静态与 VPS 只读 | `ACCEPT` | 拆为 Gate 0A/0B；0B 需 Owner 单独授权，但不需要 GitHub/GHCR，也不允许 Provider 调用、业务写入或部署。 |
-| 先核验 5% 阈值两侧是否都有已结算样本 | `ACCEPT_WITH_CODE_CLARIFICATION` | 代码合同已保存 `NO_EDGE_CURRENT/current_delta/required_delta/shortfall`，设计上未天然丢弃阈值下方；Gate 0B 已关闭生产身份，但实际两侧行数和结算覆盖仍属未来独立授权的 Phase 4 evaluability 只读计数。 |
-| 先验证 W2 当前 λ champion/baseline | `ACCEPT` | 新增 Phase 2.5，优先于 PB feasibility probe；不得把既有 Factor V2 candidate 证据冒充生产 `BASELINE_PRIOR` 已验证。 |
-
-### 1.2 第二轮 Claude Code 评审处置
-
-| 建议 | 处置 | 修订结论 |
-|---|---|---|
-| Phase 2.5 增加 cohort burn ledger | `ACCEPT_WITH_CLASSIFICATION_GUARD` | 增加 `W2_COHORT_BURN_LEDGER.json`；逐项记录 fit/tune/select/evaluate/descriptive 用途和 outcome visibility，禁止把“曾查看”粗暴外推为对所有新问题永久不可用。 |
-| `BASELINE_QUALITY_NOT_IDENTIFIABLE` 时闭合 Phase 4.5 分支 | `ACCEPT_AND_HARD_BLOCK` | W2-vs-PB model-quality 预检不得运行或晋级。market-only 可以另立预注册研究，但不能返回 `PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH`。 |
-| Phase 4.5 加入 AH/OU 半盘子集 | `ACCEPT_WITH_V1_4_TRACK_SPLIT` | 半盘结算确为二态，提升为 `MODEL_QUALITY_TRACK` primary；该配对模型评价不需要 devig。只有附加 market-relative 轨道才需冻结去水方法并标记 method-specific benchmark。1X2 仅作 secondary diagnostic。 |
-
-### 1.3 第三轮 Claude Code 评审处置
-
-| 建议 | 处置 | 修订结论 |
-|---|---|---|
-| 将 devig authority 提升为 market-relative 轨道显式前置 | `ACCEPT_WITH_V1_4_1_SCOPE_CORRECTION` | `analysis_calculator.py` 实际做 PROPORTIONAL 归一，却标记来源为 POWER；必须分开计算算法、provenance 标签和持久化方法身份。该冲突只阻断 `MODEL_VS_MARKET`、Gate D2 的 market-relative probability benchmark 与 `MARKET_VALUE_SHADOW` 的对应组件；不阻断 Phase 4、`MODEL_VS_MODEL`、Gate D1 或继承 Phase 4 合同的 EV realization。 |
-| Gate 0B 增加历史 `devig_method` 非空覆盖率 | `ACCEPT_AND_FAIL_CLOSED_FOR_MARKET_TRACK` | 按 evidence source/release/schema/market/checkpoint 统计 null、单一方法和混合方法，并检查方法标签能否由当时代码身份证明。混合或大量 null 时，market-relative 轨道只能用可归因子集，否则返回 `BLOCKED_BY_DEVIG` 或 `NOT_IDENTIFIABLE`；不得阻断 model-quality 轨道。 |
-
-### 1.4 V1.4 交接单处置
-
-| 项目 | 处置 | V1.4 结论 |
-|---|---|---|
-| 在 `main@3b7f87db` 上重建代码事实 | `ACCEPT_AFTER_INDEPENDENT_CHECK` | 不再使用落后 checkout 的符号定义或行号；后续 Gate 0B 已确认生产 exact runtime 为 `ea557bb8 / 0070`。 |
-| 将 5% 政策重写为结算归一化 EV admission | `ACCEPT` | 未量化时 `edge* = EV/S`；代码使用四位量化 `Fq`，因此 `edge_code` 只是量化感知近似。 |
-| exact half-line 保留为 model-quality primary | `ACCEPT_WITH_BOUNDARY_NOTE` | `S=1` 是归一化边界特例，不能代表 integer/quarter line 的 admission 行为。 |
-| Phase 4.5、Phase 7 与 Gate C0/D 拆成 model/market 两轨 | `ACCEPT` | devig authority 只阻断 `MODEL_VS_MARKET`，不阻断严格配对的 `MODEL_VS_MODEL`。 |
-| Phase 8 拆成两类 shadow | `ACCEPT` | `PROBABILITY_SHADOW` 与 `MARKET_VALUE_SHADOW` 均不在本计划授权范围。 |
-
-### 1.5 Gate 0B 与 U2 comparator 事实同步
-
-| 项目 | 当前事实 | 计划影响 |
-|---|---|---|
-| 生产权威 | `ea557bb8 / schema 0070`；`3b7f87db / schema 0051` 落后 19 个 migration | 生产事实服从 Gate 0B；既有静态结论仅在逐字节相同文件上存活 |
-| 生产 Elo | 从 rolling xG 确定性构造，`is_independent_signal=False` | `elo_gap_weight` 不是死代码，而是 `raw_delta` 的 14% 放大器 |
-| 生产身价 | 当前启用联赛与 `team_values` artifact 交集为空 | 当前为零贡献；不得外推到有匹配 artifact 的其他联赛 |
-| 生产首发数值项 | 唯一 `SimulationInputs` 构造点不填充，capability 为 `NOT_IMPLEMENTED` | 当前生产构造路径恒为零贡献 |
-| U2 comparator 与执行 | `PRODUCTION_FORMULA_XG_WITH_PROXY_ELO`；`EXECUTED` | 旧 `XG_ONLY` 已被静态核验取代；冻结链与训练前缀 refit 已完成，futility 在 validation 五态评分前触发，结论为 `INSUFFICIENT_POWER_DO_NOT_SCORE` |
-
-本轮复核锚点（均为 `main@3b7f87db`）：
-
-- `src/w2/domain/five_state_pricing.py:6-82`：canonical 五态分布、EV、四位量化 fair odds 与 `cashflow_price_edge`；
-- `src/w2/markets/value_engine.py:9-24`：上述 canonical 定义的 compatibility re-export；
-- `src/w2/domain/recommendation_decision_v4.py:54-70,418-442`：概率字段仅为 optional diagnostic；现役 admission 使用 EV、cashflow edge 与 EV-minus-uncertainty；
-- `docs/operations/W2_RECOMMENDATION_AUTHORITY_IMPLEMENTATION_MATRIX.md:34-44`：V4 是当前 recommendation 决策/方向权威；
-- `src/w2/dashboard/workspace.py:14-16`、`src/w2/dashboard/intelligence.py:15-16` 与 `src/w2/dashboard/day_view.py:150-160`：Intelligence Workspace 是 public product/display authority，V4 在其投影中是 diagnostic input；
-- `src/w2/strategy/calibration.py:6-22,35-132`：production calibration identity、默认先验权重和 clamp；
-- `src/w2/strategy/simulate.py:128-163`：正式 simulation 调用 `calibrate_lambdas()` 后生成 score matrix；
-- `src/w2/markets/analysis_evidence.py:124-140,204-240`：显式 PROPORTIONAL devig；`probability_delta_admission_gate = False`，准入使用 EV、cashflow edge 与 EV-minus-SE；
-- `src/w2/prematch/lifecycle.py:12-20,245-353`：legacy/parallel dynamic evaluation 的 5pp delta 合同；
-- `src/w2/prematch/repository.py:94-138`：dynamic evaluation append-only payload 持久化；
-- `src/w2/domain/odds.py:10-21,45-107`：半盘不拆分且整数比分无法在半球线上 push，因此 AH/OU exact half-line 仅有 WIN/LOSS；
-- `src/w2/markets/devig.py:9-114`：同一报价支持四种去水方法，证明 market-implied probability 依赖冻结的方法身份；
-- `src/w2/markets/analysis_evidence.py:86-140,184-240`：同盘口双边身份检查、当前 PROPORTIONAL 去水及现役 analysis admission；
-- `src/w2/markets/score_baseline.py:202-218`：当前 score baseline 也显式使用 PROPORTIONAL；
-- `src/w2/prematch/analysis_calculator.py:5213-5254,6122-6135`：实际按 implied probability 总和归一，与 PROPORTIONAL 等价，但 source 字符串写为 `POWER devig from matchday_market_observations`；
-- `src/w2/settlement/settle.py:24-50` 与 `migrations/versions/0022_extend_recommendation_lock_snapshot.py:123-126`：`devig_method` 可持久化但为 nullable，因此必须核验实际覆盖率；
-- local commit `22dc0dbe` 的 `V2_GATE1_CALIBRATION_RECOVERY_01/REPORT.md`：temperature `0.928709586`、NLL 小幅改善、各 ECE bin 变差、candidate-only；
-- local commit `f0d201c5` 的 successor preregistration：Factor V2 one-look `5,500` 与 `2028-02-01T00:05:00Z` 的专属身份；
-- `/Users/liudehua/.hermes/workspace/penalty-football-research/src/penalty_research/validation_design.py:22-29`：boundary score 是 1X2 log-pool 在 `w=0` 的导数，不能绕过概率/结果配对合同或扩展为 AH/OU 五态结论。
-- `docs/review_packages/GATE_0B_EXECUTION_RECEIPT.md`：生产 `ea557bb8 / 0070` 身份、只读零写入证明与 U2 disposition；
-- `docs/review_packages/PRODUCTION_LAMBDA_EFFECTIVE_FORM.md`：五系数生产效果、proxy Elo 代数推导与当前启用联赛有效闭式；
-- `docs/review_packages/U2_PREREGISTRATION.md`：`PRODUCTION_FORMULA_XG_WITH_PROXY_ELO` 的预注册控制合同与 refit/非可比性约束；
-- `docs/review_packages/U2_ARMING_FREEZE.json`：任何拟合与评分前写入的 cohort、切分、模型、断言、线网格、cluster 与 MME 冻结证据；
-- `docs/review_packages/U2_EXECUTION_RECEIPT.md`：U2 执行链、真实数据 proxy Elo 断言、futility 数字、停止位置与零生产影响证据。
-- `docs/review_packages/W2_BASELINE_PARAMETER_PROVENANCE.json`：五项 `production_effect` 与 production effective closed form。
 
 ## 2. `main@3b7f87db` 事实基线
 
 ### 2.1 权威与版本边界
 
-V1.4.1 原始代码断言、符号和行号统一以本地已有 Git 对象 `3b7f87db2f0cb49d75582313ca593d30262c0d3d` 为 PR 静态基线。当前 checkout 落后该基线 310 个提交，不得作为这些行号的代码事实来源。
+V2.0 继承的 V1.4.1 原始代码断言、符号和行号统一以本地已有 Git 对象 `3b7f87db2f0cb49d75582313ca593d30262c0d3d` 为 PR 静态基线。当前 checkout 落后该基线 310 个提交，不得作为这些行号的代码事实来源。
 
 后续 Gate 0B 已只读确认：生产 exact runtime 权威为 `ea557bb8ff64e06add91bbe32814fe073ec64642 / 0070_notification_delivery_routing`；`origin/main@3b7f87db / 0051_apply_seven_day_collection_policy` 是落后 19 个 migration 的选择性历史静态快照。`strategy/calibration.py`、`domain/five_state_pricing.py`、`models/independent.py` 与 `backtest/free_tier_2024.py` 在两基线逐字节相同，因此其已登记静态结论存活；其他生产事实不得从旧 snapshot 外推。
 
@@ -493,13 +429,19 @@ Gate 0B + Phase 1 + Phase 2 accepted
 
 Phase 2.5 = BASELINE_QUALITY_IDENTIFIED
 and W2_COHORT_BURN_LEDGER has an eligible development cohort
-  -> Phase 4.5 MODEL_QUALITY_TRACK
+  -> Phase 4.5 MODEL_QUALITY_TRACK preregistration may proceed
+
+U1 input/cohort readiness COMPLETE
+and U2 frozen pipeline EXECUTED
+  -> Phase 4.5 preregistration: frozen U2 pipeline + Penaltyblog challenger
+  -> futility before validation scoring
 
 Phase 4.5 MODEL_VALUE_TRACK
   -> additionally requires DEVIG_AUTHORITY_RESOLVED
 
 Phase 2.5 = BASELINE_QUALITY_NOT_IDENTIFIABLE
 or cohort classification = UNKNOWN_BLOCKED
+or comparator identity/PIT/outcome binding not reproducible
   -> BLOCK_PB_VS_W2_FEASIBILITY
 
 Gate C0-MODEL = PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH
@@ -602,7 +544,7 @@ docs/review_packages/U2_PREREGISTRATION.md
 
 Gate 0B 当时已确认生产 `ea557bb8 / schema 0070`、四服务 revision parity、历史 snapshot 落后 19 个 migration、生产 `team_xg_match` 汇总元数据，以及 Provider/业务写入/导出/部署/U2 执行均为 0。当时的候选 cohort 规模为 `9,502` 场 / `19,004` 行，xG 非空率 `100%`，时间范围 `2024-02-22 → 2026-08-29`；这是 U2 冻结前的只读元数据快照，不是最终执行 cohort。
 
-后续 U2 已另行完成导出与冻结：最终 cohort 为 `9,551` 场，SHA-256 `40802614114c06ebc7bf4a3eb93578a313631fd50c6440803c1ff1622f86469c`，league 映射与 home/away 映射各为 `9,551 / 9,551 = 100%`。`docs/review_packages/U2_ARMING_FREEZE.json` 写于任何拟合与评分之前；执行结果与停止位置见 `docs/review_packages/U2_EXECUTION_RECEIPT.md`。该后续事实不扩大 Gate 0B 的 Phase 4/devig 只读范围。
+后续 U2 已另行完成导出、冻结与披露更正：最终可复用 cohort 为 `9,551` 场，修正后的权威 SHA-256 为 `c74eaf0fc3b780f6b04c20353e55e5e83ffdebd213a4c1bbb83b0dcc903ce44e`，competition 数为 `13`、`UNLABELLED=0`，league 映射与 home/away 映射各为 `9,551 / 9,551 = 100%`。`docs/review_packages/U2_ARMING_FREEZE.json` 写于任何拟合与评分之前，并在 `cohort_label_correction` 块披露事后标签更正；执行结果与停止位置见 `docs/review_packages/U2_EXECUTION_RECEIPT.md`。该后续事实不扩大 Gate 0B 的 Phase 4/devig 只读范围。
 
 原 Gate 0B 任务 4–7 所要求的 Phase 4 evaluability counts、official/shadow settled 分层、历史 `devig_method` 覆盖和 declared/computed attribution 尚未产生计划所列的完整 artifacts，继续保持 `PENDING_RECHECK_ON_PRODUCTION_BASELINE`。不得因为 authority scope 已 PASS 而把这些统计前置写成已通过。
 
@@ -768,37 +710,9 @@ MISLEADING_API_DECISION_PACKET.md
 
 状态：`PARTIALLY_COMPLETE`
 
-Phase 2.5a 参数来源审计与五系数生产效果静态核验已完成；仓库已有 2026-07-07 的单折 + 稳健性（跨季双向 + 四折 rolling-origin）1X2 Understat 证据，但该证据比较的是 fitted challenger 与离线 `models/independent.py::predict_from_features` 对照，不是生产 `strategy/calibration.py::calibrate_lambdas` champion。生产 champion 的概率质量至今未测。
+Phase 2.5a 参数来源审计与五系数生产效果静态核验已完成。生产 champion 的概率质量至今未测。
 
-U2 已按新生产静态事实更正为 `PRODUCTION_FORMULA_XG_WITH_PROXY_ELO` 并执行完成：
-
-```text
-U2_STATUS = EXECUTED
-U2_CONCLUSION = INSUFFICIENT_POWER_DO_NOT_SCORE
-VALIDATION_FIVE_STATE_SCORES_READ = 0
-STOP_POSITION = FUTILITY_BEFORE_SCORING
-```
-
-冻结链完整成立：最终 cohort 为 `9,551` 场，SHA-256 为 `40802614114c06ebc7bf4a3eb93578a313631fd50c6440803c1ff1622f86469c`；league 映射和 home/away 映射均为 `100%`；`U2_ARMING_FREEZE.json` 写于任何拟合与评分之前。冻结后按 `min_history=5` 得到 eligible `8,659` 场，其中 train `5,869`、validation `2,790`。证据权威仅为：
-
-```text
-docs/review_packages/U2_ARMING_FREEZE.json
-docs/review_packages/U2_EXECUTION_RECEIPT.md
-```
-
-proxy Elo 的 `elo_delta = 0.14 × raw_delta` 不再只有代数推导：它第一次在真实 cohort 上完成逐 fixture 验证，违反为 `0` 例；`3` 例 `raw_delta == 0` 均满足 `elo_delta == 0`。旧 `PRODUCTION_FORMULA_XG_ONLY` 只保留为 `SUPERSEDED_BY_STATIC_CODE_VERIFICATION` 历史轨迹。
-
-futility 在读取任何 validation 五态分数之前触发：train `n=5,869`，`d_i` 的 `sd=0.078733`；按 kickoff 日聚类得到 `SE=0.001005`、`G=455` 天；validation `N=2,790` 的预计 `SE=0.001457`。80% power、单侧 5% 下，MDE 约为 `0.003624` nats（执行回执以六位小数展示为 `0.003623`），高于冻结的 `MME=0.0025`，因此必须返回 `INSUFFICIENT_POWER_DO_NOT_SCORE`，不得读取 validation 五态分数或形成模型优劣结论。
-
-保持当前方差与设计不变，所需 validation 样本量按 `2,790 × (0.003623 / 0.0025)^2` 估算约为 `5,859`，即当前的约 `2.10` 倍，缺口约 `3,069` 场。按本次 validation cohort 的积累速度，约需再等待 `0.9` 年；这是功效规划估算，不是新的执行结果。
-
-U2 的硬约束：不得为换取功效而修改切分比例、`min_history`、线网格、cluster 定义或下调 MME。上述任一改动都属于在看到 futility 结果之后调整设计。若要在更小 MME 下重做，必须另立新的预注册；不得修订本版 U2 合同。
-
-**U2 描述性观察 — `NON_CONCLUSION`**
-
-对照 λ 均值为主 `1.414` / 客 `1.302`（差 `0.11`），实际进球均值为主 `1.560` / 客 `1.250`（差 `0.31`）。challenger 在训练前缀拟合的 `home_field=+0.2175`（对数尺度，约 `+24%`）；生产 `home_advantage_goals=0.12` 在 λ≈`1.35` 上约为 `+9%`。这提示生产主场项可能偏低，但仅属训练集内描述性观察，未经任何 out-of-sample 检验，不得作为 challenger 晋级、生产参数修改或任何模型优劣结论的依据。
-
-Phase 2.5a 静态审计仍只允许以下两个结论字段；U2 的 `INSUFFICIENT_POWER_DO_NOT_SCORE` 是独立执行结论，不改写它们：
+Phase 2.5a 静态审计仍只允许以下两个结论字段：
 
 ```text
 BASELINE_PROVENANCE_IDENTIFIED_NO_FITTING_EVIDENCE
@@ -811,9 +725,6 @@ BASELINE_CALIBRATION_DEFICIENCY_EVIDENCED_SINGLE_FOLD
 docs/review_packages/W2_BASELINE_PROBABILITY_QUALITY_AUDIT.md
 docs/review_packages/W2_BASELINE_PARAMETER_PROVENANCE.json
 docs/review_packages/PRODUCTION_LAMBDA_EFFECTIVE_FORM.md
-docs/review_packages/U2_PREREGISTRATION.md
-docs/review_packages/U2_ARMING_FREEZE.json
-docs/review_packages/U2_EXECUTION_RECEIPT.md
 ```
 
 目标：先回答 W2 当前 `BASELINE_PRIOR` 自身的概率质量和证据边界，再评价外部 challenger。
@@ -824,7 +735,6 @@ docs/review_packages/U2_EXECUTION_RECEIPT.md
 - 默认 λ 参数直接存在于 `LambdaCalibrationParams`；
 - 当前启用联赛的生产有效式为非中立场 `adjusted_delta = 1.14 * raw_delta + 0.12`、中立场 `1.14 * raw_delta`；Elo 是 rolling-xG proxy 放大器，身价与首发当前为零，默认 `rho=0`；
 - 上述有效式已静态识别，不等于它的 LogLoss/Brier/RPS/ECE 或五态概率质量已建立；
-- 既有 Understat/历史回测证明过其他离线 fitted candidate 的局部表现；
 - Factor V2 B0/B1/B2 消融已产生历史证据，但 Gate 1 因 ECE 恶化保持 FAIL；
 - TRAIN-only temperature `0.928709586` 只形成 prospective candidate identity，OOF NLL 轻微改善且各 bin ECE 均恶化，不能晋级或证明当前 baseline 有效；
 - 已冻结的 Factor V2 `5,500` 场、`2028-02-01T00:05:00Z` one-look 只属于该 successor B2-vs-B0 问题，不得复用于 PB。
@@ -878,7 +788,6 @@ UNKNOWN_BLOCKED
 - 不用结果改生产权重、clamp、阈值或模型身份；
 - 不把离线 candidate 的指标归给 production `BASELINE_PRIOR`；
 - 如果没有可合法评分的 paired set，结论为 `BASELINE_QUALITY_NOT_IDENTIFIABLE`，不得补造数据。
-- 不得为换取 U2 功效而修改已冻结的切分比例、`min_history`、线网格、cluster 定义或下调 MME；更小 MME 只能进入另立的新预注册，不得修订本版。
 
 输出：
 
@@ -891,15 +800,95 @@ W2_COHORT_BURN_LEDGER.json
 
 Phase 2.5 的工程验收与统计结论必须分开：artifact/row-conservation 可以 PASS，但统计结论仍可为 `BASELINE_QUALITY_NOT_IDENTIFIABLE`。本阶段只建立 baseline，不选择 champion，不批准模型替换。
 
-#### Phase 2.5 优先级问题 — `OWNER_DECISION_REQUIRED`
+### U1 — Challenger Promotion Readiness Audit
+
+状态：`COMPLETE`
+
+产物：
+
+```text
+docs/review_packages/U1_PROMOTION_READINESS_AUDIT.md
+```
+
+仓库已有 2026-07-07 的单折 + 稳健性（跨季双向 + 四折 rolling-origin）1X2 Understat 证据，但该证据比较的是 fitted challenger 与离线 `models/independent.py::predict_from_features` 对照，不是生产 `strategy/calibration.py::calibrate_lambdas` champion。
+
+既有 Understat/历史回测证明过其他离线 fitted candidate 的局部表现。
+
+晋级裁决：`OWNER_DECISION_REQUIRED`
 
 在生产 `strategy/calibration.py::calibrate_lambdas` 的 `BASELINE_PRIOR` 概率质量完成合法测量之前，Phase 4 的 EV calibration、Phase 4.5 的 W2-vs-PB 配对与 Phase 7 全部内容都缺少已验证的生产基准。不得把离线 `predict_from_features` 对照的校准缺陷归给生产 champion。
 
 已存在一个经稳健性验证、优于某离线 `predict_from_features` 对照约 `0.026` nats 的拟合模型；其相对生产 champion 的差距未测，晋级裁决从未作出。该事实应纳入 Owner 的优先级判断，但不升级当前两个 Phase 2.5 结论字段，也不授权生产替换。
 
+是否重排优先级、是否冻结 Penaltyblog 轨道，属 Owner 裁决；本文档不自行改变阶段顺序。本记录不授权继续 Phase 1/2、执行 Phase 2.5b、修改生产 calibration，或补跑 Gate 0B 尚未完成的 Phase 4 evaluability/devig attribution 范围。
+
+### U2 — Five-State Pipeline Validation（Understat challenger，非 Penaltyblog）
+
+U2 使用 Understat 重拟合模型作 challenger，**不含 Penaltyblog**；它验证的是管线，不是本文的研究问题。
+
+U2 已按新生产静态事实更正为 `PRODUCTION_FORMULA_XG_WITH_PROXY_ELO` 并执行完成：
+
+```text
+U2_STATUS = EXECUTED
+U2_CONCLUSION = INSUFFICIENT_POWER_DO_NOT_SCORE
+VALIDATION_FIVE_STATE_SCORES_READ = 0
+STOP_POSITION = FUTILITY_BEFORE_SCORING
+```
+
+冻结链与披露更正共同成立：最终可复用 cohort 为 `9,551` 场，修正后的权威 SHA-256 为 `c74eaf0fc3b780f6b04c20353e55e5e83ffdebd213a4c1bbb83b0dcc903ce44e`；competition 数为 `13`、`UNLABELLED=0`，league 映射和 home/away 映射均为 `100%`；`U2_ARMING_FREEZE.json` 写于任何拟合与评分之前。冻结后按 `min_history=5` 得到 eligible `8,659` 场，其中 train `5,869`、validation `2,790`。证据权威仅为：
+
+```text
+docs/review_packages/U2_ARMING_FREEZE.json
+docs/review_packages/U2_EXECUTION_RECEIPT.md
+```
+
+**cohort league 标签更正 — `DISCLOSED_CORRECTION_CONCLUSION_UNAFFECTED`**
+
+原 digest `40802614114c06ebc7bf4a3eb93578a313631fd50c6440803c1ff1622f86469c` → 修正 digest `c74eaf0fc3b780f6b04c20353e55e5e83ffdebd213a4c1bbb83b0dcc903ce44e`；`UNLABELLED 706 → 0`，competition `14 → 13`。缺陷是本地 join 以 last-wins 解析 fixture→league，部分 payload 的 `parameters.league` 为空，导致实际有 league id 的 `706` 场被错标为 `UNLABELLED`；修正规则为同一 fixture 同时出现空与非空 league 时取非空。
+
+三项复核均已完成：数据本体 `fixture_id / kickoff / team ids / xg / goals` 经两条独立提取路径逐字节互证；league 标签修正经第三条独立路径确证，覆盖 `9,551 / 9,551`，不一致 `0` 例；修正 cohort 全链重跑后，`train_mean / train_sd / clustered_se / N_val / mde` 逐位相同，`8,659` 场中 `λ / raw_delta / elo_delta / 比分 / split` 零差异，结论仍为 `INSUFFICIENT_POWER_DO_NOT_SCORE`。
+
+这不是设计变更：未触及 split、`min_history`、线网格、cluster、MME 或决策规则，且先验证“结论不变”才采纳修正。详情仅引用 `docs/review_packages/U2_ARMING_FREEZE.json` 的 `cohort_label_correction` 块与 `docs/review_packages/U2_EXECUTION_RECEIPT.md` 末节，不在本计划复制完整证据。
+
+proxy Elo 的 `elo_delta = 0.14 × raw_delta` 不再只有代数推导：它第一次在真实 cohort 上完成逐 fixture 验证，违反为 `0` 例；`3` 例 `raw_delta == 0` 均满足 `elo_delta == 0`。旧 `PRODUCTION_FORMULA_XG_ONLY` 只保留为 `SUPERSEDED_BY_STATIC_CODE_VERIFICATION` 历史轨迹。
+
+futility 在读取任何 validation 五态分数之前触发：train `n=5,869`，`d_i` 的 `sd=0.078733`；按 kickoff 日聚类得到 `SE=0.001005`、`G=455` 天；validation `N=2,790` 的预计 `SE=0.001457`。80% power、单侧 5% 下，MDE 约为 `0.003624` nats（执行回执以六位小数展示为 `0.003623`），高于冻结的 `MME=0.0025`，因此必须返回 `INSUFFICIENT_POWER_DO_NOT_SCORE`，不得读取 validation 五态分数或形成模型优劣结论。
+
+保持当前方差与设计不变，所需 validation 样本量按 `2,790 × (0.003623 / 0.0025)^2` 估算约为 `5,859`，即当前的约 `2.10` 倍，缺口约 `3,069` 场。按本次 validation cohort 的积累速度，约需再等待 `0.9` 年；这是功效规划估算，不是新的执行结果。
+
+U2 的硬约束：不得为换取功效而修改切分比例、`min_history`、线网格、cluster 定义或下调 MME。上述任一改动都属于在看到 futility 结果之后调整设计。若要在更小 MME 下重做，必须另立新的预注册；不得修订本版 U2 合同。
+
+**U2 描述性观察 — `NON_CONCLUSION`**
+
+对照 λ 均值为主 `1.414` / 客 `1.302`（差 `0.11`），实际进球均值为主 `1.560` / 客 `1.250`（差 `0.31`）。challenger 在训练前缀拟合的 `home_field=+0.2175`（对数尺度，约 `+24%`）；生产 `home_advantage_goals=0.12` 在 λ≈`1.35` 上约为 `+9%`。这提示生产主场项可能偏低，但仅属训练集内描述性观察，未经任何 out-of-sample 检验，不得作为 challenger 晋级、生产参数修改或任何模型优劣结论的依据。
+
 生产 comparator 的工程身份已从 `XG_ONLY` 更正为 `PRODUCTION_FORMULA_XG_WITH_PROXY_ELO`，且真实 cohort 的 `0.14` 断言已通过。U2 已执行，但因 futility 在评分前返回 `INSUFFICIENT_POWER_DO_NOT_SCORE`；因此“对照概率质量如何”的统计问题仍未被 validation 结果回答，也不产生任何晋级或生产修改授权。
 
-是否重排优先级、是否冻结 Penaltyblog 轨道，属 Owner 裁决；本文档不自行改变阶段顺序。本记录不授权继续 Phase 1/2、执行 Phase 2.5b、修改生产 calibration，或补跑 Gate 0B 尚未完成的 Phase 4 evaluability/devig attribution 范围。
+### 已建立的测量能力（为 Phase 4.5 服务）
+
+| 已完成工作 | 建立的能力 | 对 Phase 4.5 的作用 |
+|---|---|---|
+| Gate 0A / Gate 0B | 确定生产权威 `ea557bb8 / 0070`，查清生产 λ 的实际闭式 | comparator 才有正确身份 |
+| Phase 2.5a | 确证 `BASELINE_PRIOR` 五系数硬编码、无拟合证据 | 说明 comparator 是什么、不是什么 |
+| U1 | 输入可得性、联赛范围、cohort 可行性 | 构成 Phase 4.5 的数据前置 |
+| U2 | cohort 冻结、PIT 特征、五态管线、futility 机制全部跑通 | Phase 4.5 直接复用，只需替换 challenger |
+
+这些工作不是脱离 Penaltyblog × W2 研究问题的平行 champion 轨道，而是让 Phase 4.5 可以用正确 comparator、合法数据和评分前功效门回答原研究问题的测量能力建设。
+
+### OPEN_QUESTION_MME — Five-State NLL Minimum Meaningful Effect
+
+`MME=0.0025` nats 从 Penaltyblog 项目的 1X2 LogLoss 搬用到五态 AH/OU NLL，**没有理论依据**，是一个待外部独立论证的假设。
+
+该数字同时决定两件事：
+
+```text
+U2 / champion 晋级是否有功效
+Phase 4.5 / Penaltyblog 增量检验是否有功效
+```
+
+当前 U2 的 `MDE=0.003624`。若 MME 应更大，两条路当时都有功效；若 MME 应更小，两条路都要等待更久。Phase 4.5 因 challenger 改为 Penaltyblog，仍必须用自己的 `d_i` 离散度重新估计 MDE，不得直接复用 U2 的方差结果。
+
+在 MME 得到独立论证之前，不得以任何理由在本版内调整 `MME=0.0025`。
 
 ### Phase 3 — EV Contract Convergence
 
@@ -1031,11 +1020,27 @@ RECORD_FIRST_EVALUATE_LATER
 
 本阶段只出决策包，不直接改阈值。
 
-### Phase 4.5 — Minimal Frozen PB Feasibility Probe
+### Phase 4.5 — Frozen U2 Pipeline with Penaltyblog Challenger
 
-状态：`REQUIRES_BASELINE_QUALITY_IDENTIFIED_AND_ELIGIBLE_COHORT`
+状态：`REQUIRES_BASELINE_QUALITY_IDENTIFIED_AND_ELIGIBLE_COHORT`；未执行，且需要新的 Phase 4.5 预注册与 Owner 授权。
 
-目标：在建设完整 adapter、迁移或长期 ledger 前，以最小成本分别回答“PB 是否增加 W2 的概率信息”和“PB 是否相对报价产生可利用价值”。两个问题必须拆轨：
+定位：Phase 4.5 不再从零建设 minimal probe，而是复用 U2 已冻结并跑通的测量管线，把 challenger 替换为 Penaltyblog 独立 Poisson，从而直接回答“Penaltyblog 是否为 W2 增加概率信息”。
+
+| 合同项 | Phase 4.5 冻结规格 | 来源 |
+|---|---|---|
+| comparator | `PRODUCTION_FORMULA_XG_WITH_PROXY_ELO`；已冻结、已验证 | U2 comparator 与真实数据 `0.14` 断言 |
+| cohort | 沿用 U2 修正后的权威 cohort，SHA-256 `c74eaf0fc3b780f6b04c20353e55e5e83ffdebd213a4c1bbb83b0dcc903ce44e`，`9,551` 场、`13` 个 competition、`UNLABELLED=0` | `U2_ARMING_FREEZE.json` 的 `cohort_label_correction` |
+| PIT / 切分 | 沿用 U2：`min_history=5`，split `2025-11-11 00:15:00+00`；目标 fixture 不进入自身特征 | `U2_ARMING_FREEZE.json` |
+| primary | 五态 NLL 逐 fixture 配对差；合成线网格、market/line-type 分层与 cluster 均沿用 U2 | U2 `primary_estimand` / `line_grid` |
+| challenger | Penaltyblog 独立 Poisson，在同一训练前缀上拟合 | Phase 4.5 新增且必须预冻结的唯一模型变更 |
+
+以下是 Phase 4.5 未来执行的新增流程前置，不是对 U2 已冻结项的追溯修改：在 cohort 冻结之前，必须至少由两条独立路径产出同一份数据并逐字段比对；全部字段一致后，才允许计算 digest 并冻结。U2 的 `706` 个 league 标签缺陷是在冻结后由偶然完成的后台交叉比对发现；本前置将该偶然检查固化为流程。
+
+禁止搬用任何既有系数。Penaltyblog 的模型版本、拟合公式、正则化/优化器、收敛规则、失败处理和任何超参数必须在看结果前冻结；不得把 U2 的 Understat challenger 系数或 2026-07 的既有系数带入 Phase 4.5。
+
+原 Phase 4.5 预估的大部分基础设施成本已经沉没进 U2：cohort 身份、PIT 特征、chronological split、五态结算/评分、合成线网格、分层、cluster、futility 顺序和零 silent-loss 约束均已有可复用实现与证据。剩余工作是接入 Penaltyblog、在相同训练前缀重新拟合，并为新的 `d_i` 重新估计功效。
+
+两个问题继续拆轨：
 
 ```text
 MODEL_QUALITY_TRACK
@@ -1049,21 +1054,18 @@ MODEL_VALUE_TRACK
 
 - `W2_BASELINE_PROBABILITY_QUALITY_AUDIT` 必须给出可评分的 W2 baseline identity、预测与结果绑定；
 - W2 baseline 必须按 `PRODUCTION_FORMULA_XG_WITH_PROXY_ELO` 复现；任意非零 `raw_delta` 的 `elo_delta/raw_delta` 必须在 `1e-9` 内等于 `0.14`，零 `raw_delta` 必须对应零 `elo_delta`，否则 fail closed；
-- `W2_COHORT_BURN_LEDGER.json` 必须存在明确允许作本问题 development probe 的 cohort；
-- 如果 Phase 2.5 为 `BASELINE_QUALITY_NOT_IDENTIFIABLE`，`MODEL_QUALITY_TRACK` 返回 `NOT_IDENTIFIABLE`，不得改用 market-only 结果批准 adapter；
+- Phase 4.5 必须逐字节复用 U2 cohort digest、PIT、切分、`min_history`、线网格、cluster 与 `MME=0.0025`；
+- `W2_COHORT_BURN_LEDGER.json` 必须如实记录该 cohort 已用于 U2 fit/futility，并给出 Phase 4.5 用途分类；不得把已查看状态伪装为 virgin confirmation；
+- 如果 Phase 2.5 为 `BASELINE_QUALITY_NOT_IDENTIFIABLE`，或 comparator identity、PIT、预测/结果绑定、cohort 用途不可复现，`MODEL_QUALITY_TRACK` 返回 `NOT_IDENTIFIABLE`，不得改用 market-only 结果批准 adapter；
 - devig authority 未解决时，只将 `MODEL_VALUE_TRACK` 标为 `MARKET_TRACK = NOT_IDENTIFIABLE`，不得阻断合法的 `MODEL_QUALITY_TRACK`。
 
-这不是无合同的一次性脚本。查看任何 probe 指标前，必须冻结：
+这不是无合同的一次性脚本。U2 已冻结合同不得改写；查看任何 Phase 4.5 指标前，只允许另行冻结 Penaltyblog challenger 与本次执行特有部分：
 
 ```text
-development cohort and permitted outcome visibility
-canonical fixture IDs and digest
-prediction cutoff and source-row eligibility
-W2 baseline probability identity
-Penaltyblog version/model/config identity
-actual outcome binding rule
-primary estimand and sign convention
-boundary/futility rule
+Penaltyblog version / independent-Poisson model / fit configuration
+training-prefix fit rule and coefficient artifact identity
+per-fixture paired d_i implementation and sign check
+futility variance estimator and clustered-SE implementation
 coverage and failure rule
 track hierarchy and track-specific estimands
 devig method and method identity for MODEL_VALUE_TRACK only
@@ -1072,10 +1074,9 @@ seed/bootstrap or uncertainty method
 
 最小实现边界：
 
-- 优先复用已冻结的 Factor V2 PIT dataset、fixture identity 和 score-matrix helper，但必须生成本预检自己的 manifest/hash；历史 artifact 只读且不得改写；
 - 只做 `INDEPENDENT_POISSON_FEASIBILITY_ONLY`；
-- 只使用明确允许的 development cohort；旧 Factor V2 VALIDATION/HOLDOUT、已关闭的 confirmatory cohort 和任何目标比赛赛后信息不得参与 fit/config 选择；
-- `training_date < prediction_cutoff`，目标 fixture 不进入自身训练；
+- 复用 U2 cohort、fixture identity、PIT rows、score-matrix/five-state helpers 和冻结 split，不生成可漂移的替代 cohort；
+- Penaltyblog challenger 只能在相同训练前缀拟合，validation outcome 不得参与 fit/config 选择；
 - 每个候选 fixture 必须证明 fixture、cutoff、training rows 和 actual outcome parity；
 - 失败 fixture 保留 reason，silent loss 为 0；
 - 产生一个 immutable analysis artifact 和 execution receipt；
@@ -1086,13 +1087,17 @@ seed/bootstrap or uncertainty method
 
 #### Phase 4.5 `MODEL_QUALITY_TRACK`
 
-概率质量 primary 必须来自 exact half-line binary subset：
+primary 完整沿用 U2 的五态合同：
 
 ```text
-AH: home/away exact lines at n + 0.5, opposite-side line identity exact
-OU: over/under exact line at n + 0.5, same-line identity exact
-settlement outcomes: WIN / LOSS only
+d_i = NLL_comparator_i - NLL_penaltyblog_i
+positive favours the Penaltyblog challenger
+reporting = stratified by market and line type
+cluster = matchday (kickoff date) and league
+pooled primary uses all 13 corrected league labels; UNLABELLED = 0
 ```
+
+合成线网格保持冻结：OU `[1.5, 2.0, 2.5, 3.0, 3.5]`；AH `[-1.5, -1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 1.5]`；分层保持 `EXACT_HALF_LINE / INTEGER_LINE / QUARTER_LINE`。
 
 ```text
 Cohort membership MUST NOT depend on
@@ -1100,18 +1105,17 @@ analysis_direction_allowed, cashflow_price_edge threshold,
 candidate status, recommendation status, or realized outcome.
 ```
 
-在 half-line 上 `S_asof=1`，因此它是 settlement normalization 的边界特例，适合作为 W2-vs-PB 二元概率质量 primary；但它不代表 integer/quarter line 的 `S_asof<1` admission 行为。Phase 4 的政策评价仍必须覆盖全部 line type 并以 `S_asof` 为连续量分层。
+exact half-line WIN/LOSS LogLoss/Brier 与 `PB_TO_W2_BOUNDARY_SCORE` 只保留为预注册 secondary diagnostic；它们不得替代五态 NLL primary。1X2 同样只是 secondary diagnostic。
 
-在不查看 outcome metric 的 coverage-only preflight 后，预注册文件必须冻结：
+先算 futility，再决定是否读取 validation 五态分数。U2 在同一 cohort/切分上得到 `MDE=0.003624 > MME=0.0025`；Phase 4.5 因 challenger 与 `d_i` 均已变化，必须只用训练前缀重新估计自己的 `d_i` 离散度和 clustered SE。若新的 MDE 仍高于 `MME=0.0025`，必须在评分前返回：
 
-- `AH_HALF_LINE`、`OU_HALF_LINE` 或二者的预先定义 hierarchical/co-primary 角色；
-- W2/PB 从各自 score matrix 派生的同 selection 二元 WIN/LOSS 概率；
-- fixture 内多 market/checkpoint 的相关性和去重/cluster 规则；
-- primary proper-score paired difference：`W2 LogLoss - PB LogLoss`；
-- primary incremental diagnostic：在 `w=0` 向 W2 log pool 加入 PB 的二元 boundary score；
-- LogLoss / Brier / `PB_TO_W2_BOUNDARY_SCORE` / coverage / failure 的符号、failure Gate 与 uncertainty method。
+```text
+INSUFFICIENT_POWER_DO_NOT_SCORE
+```
 
-`MODEL_QUALITY_TRACK` 不使用 market probability，也不需要 devig authority。结论集只允许：
+此时不得读取 validation 五态分数。不得为换取功效而修改 cohort、切分比例、`min_history`、线网格、cluster 定义或下调 MME。
+
+`MODEL_QUALITY_TRACK` 不使用 market probability，也不需要 devig authority。除评分前的功效停止外，原结论集保持：
 
 ```text
 PROBABILITY_INCREMENT_IDENTIFIED
@@ -1572,7 +1576,7 @@ NOT IDENTIFIABLE：没有合法 cohort、结果绑定或可核验的 cohort 用�
 
 #### Gate C0-MODEL
 
-PASS：冻结的 exact half-line `MODEL_QUALITY_TRACK` 返回 `PROBABILITY_INCREMENT_IDENTIFIED`，且 fixture/cutoff/training-row/outcome mismatch 与 silent loss 均为 0。Gate 结论为：
+PASS：复用 U2 冻结管线的五态 `MODEL_QUALITY_TRACK` 返回 `PROBABILITY_INCREMENT_IDENTIFIED`，且 fixture/cutoff/training-row/outcome mismatch 与 silent loss 均为 0。Gate 结论为：
 
 ```text
 PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH
@@ -1580,7 +1584,7 @@ PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH
 
 STOP：`NO_PROBABILITY_INCREMENT` 时停止 Penaltyblog challenger 集成，不建设 Phase 5–8，但不否定 Phase 1–4 的 W2 治理工作。
 
-NOT IDENTIFIABLE：`BASELINE_QUALITY_NOT_IDENTIFIABLE`、只有 `UNKNOWN_BLOCKED` cohort、身份/结果合同不完整或功效不足时，不得凭不完整结果继续 adapter。Devig 冲突本身不阻断 C0-MODEL。
+NOT IDENTIFIABLE：`BASELINE_QUALITY_NOT_IDENTIFIABLE`、只有 `UNKNOWN_BLOCKED` cohort、comparator/PIT 身份或预测/结果合同不完整时，不得凭不完整结果继续 adapter。功效不足时返回 `INSUFFICIENT_POWER_DO_NOT_SCORE`，同样不得继续 adapter。Devig 冲突本身不阻断 C0-MODEL。
 
 1X2 只是 secondary diagnostic；即使单独为正，也不得触发 C0-MODEL PASS。C0-MODEL PASS 不授予 edge claim、recommendation claim、profitability claim 或 production admission。
 
@@ -1713,7 +1717,7 @@ No real-edge or profitability claim is permitted without the market-relative tra
 | 只在 half-line 上评价 V4 policy | 把 `S=1` 边界误外推到 integer/quarter | Phase 4 覆盖全部 line type；half-line 只作 model-quality primary |
 | 把 D1 PASS 解读为 market edge | 从概率改进跳到报价可利用性 | D1/D2 分轨；edge/profitability 结论只允许 D2 |
 | 使用量化无感的统一 epsilon | 正确黄金向量假失败或全域误放行 | Decimal 精确断言 + 逐样本量化误差界 |
-| 用 1X2 结果外推 AH/OU 产品市场 | 预检通过但产品 estimand 未被验证 | exact half-line AH/OU 为 primary；1X2 只作 secondary，无单独晋级权 |
+| 用 1X2 结果外推 AH/OU 产品市场 | 预检通过但产品 estimand 未被验证 | U2 冻结合成线网格上的五态 AH/OU NLL 为 primary；exact half-line binary 与 1X2 只作 secondary，无单独晋级权 |
 | 把 method-specific devig benchmark 称为真实 market probability | 过度声明可识别性 | 强制名称 `METHOD_SPECIFIC_DEVIG_MARKET_BENCHMARK`，持久化 method/version/overround |
 | calibration 名称误导 | 假安全感 | 调用审计、重命名/隔离决策包 |
 | threshold 事后移动 | 研究失效 | preregistration hash |
@@ -1803,7 +1807,7 @@ REJECT_PLAN
 ## 14. 建议的 Agent 回复格式
 
 ```markdown
-# Review: W2 × Penaltyblog EV Optimization Plan V1.4.1
+# Review: W2 × Penaltyblog EV Optimization Plan V2.0
 
 Agent role:
 Review date:
@@ -1840,22 +1844,26 @@ ACCEPT_PLAN / ACCEPT_WITH_REVISIONS / REJECT_PLAN
 
 Gate 0A、Gate 0B authority/U2 cohort scope、Phase 2.5a 静态审计与 U2 执行均已有证据。U2 的独立执行授权已经消耗并以 `INSUFFICIENT_POWER_DO_NOT_SCORE` 终止；它不延伸为继续 Phase 1/2、补跑 Gate 0B 的 Phase 4/devig 统计、再次导出或重切 cohort、重新拟合、读取 validation 五态分数、模型晋级或生产修改的授权。
 
-Owner 当前只在以下两项中裁定，保持既定阶段顺序不自动推进：
+Owner 当前需要分别审阅两项，不得把任一项视为本计划内的实施授权：
 
 ```text
-WAIT_FOR_ADDITIONAL_VALIDATION_DATA_APPROX_0_9_YEARS
-or
-CREATE_A_NEW_PREREGISTRATION_TO_REJUSTIFY_A_SMALLER_MME
+REVIEW_A_NEW_PHASE_4_5_PREREGISTRATION
+  frozen U2 pipeline + Penaltyblog challenger + futility before scoring
+
+REQUEST_INDEPENDENT_MME_JUSTIFICATION
+  whether 0.0025 nats is meaningful for five-state AH/OU NLL
 ```
 
-选择等待数据时，保持本版切分、`min_history`、线网格、cluster 与 `MME=0.0025` 不变，积累到 validation 约 `5,859` 场后再按新冻结 cohort 执行。若希望在更小 MME 下重做，必须另立新的预注册并从科学与产品意义上重新论证 MME；不得在本版内调整 MME，也不得修改其他冻结设计来换取功效。
+Phase 4.5 的新预注册只能复用本版冻结的 comparator、cohort、PIT、切分、`min_history`、线网格、cluster 与 `MME=0.0025`，并只新增 Penaltyblog challenger 的预冻结拟合合同；执行仍需另行授权。MME 论证是两条路共同的外部论证事项，不得在本版内据此改数值。若未来主张更小 MME，U2 / champion 与 Phase 4.5 / Penaltyblog 均须另立新的预注册；不得修订本版。
+
+U2 / champion 分支原有选择仍保留：在 `MME=0.0025` 下等待 validation 约 `5,859` 场（约再 `0.9` 年），或在 MME 获得独立论证后另立新预注册。该分支不再取代本文 Penaltyblog 研究问题的 Phase 4.5 下一步。
 
 Gate 0B 剩余的 Phase 4 evaluability 与 devig attribution 统计范围仍需未来独立授权；任何新生产访问授权不得继承既有授权。Phase 4.5、adapter、D1/D2 与两类 shadow 均需后续分别授权；本计划不授权其中任何一项。
 
 ## 16. 最终建议
 
 ```text
-NEXT_ACTION = OWNER_DECISION_WAIT_DATA_OR_NEW_PREREGISTRATION
+NEXT_ACTION = REVIEW_PHASE_4_5_PREREGISTRATION_AND_INDEPENDENT_MME_JUSTIFICATION
 IMPLEMENTATION = NOT_AUTHORIZED
 PRODUCTION_CHANGE = FORBIDDEN
 ```
@@ -1871,6 +1879,83 @@ PRODUCTION_CHANGE = FORBIDDEN
 | V1.2 | 2026-08-29 | 吸收 Claude 第二轮意见：增加 cohort burn ledger 分类保护、baseline 不可识别 hard block、exact half-line 产品 primary、method-specific devig benchmark 与对应 Gate/测试/风险闭环 | `NOT_AUTHORIZED` |
 | V1.3 | 2026-08-29 | 将 devig authority 与历史方法归因提升为 Phase 4/7 硬前置；增加 Gate 0B `devig_method` 覆盖率、computed/declared/persisted 三身份、方法敏感性边界和混合/null fail-closed 规则 | `NOT_AUTHORIZED` |
 | V1.4 | 2026-08-29 | 按 `main@3b7f87db` 重建代码事实与 canonical pricing；明确 V4 EV/结算归一化 admission、逐场 `S` 与量化边界；拆分 model/market、C0-MODEL/C0-MARKET、D1/D2 及双 shadow | `NOT_AUTHORIZED` |
-| V1.4.1 | 2026-08-29 | 收窄 `S` 为期望结算暴露本金比例；明确 `EV/S = E[Y]/E[R]` 而非 `E[Y/R]`；冻结 Phase 4 primary/key-secondary 与 `S_asof`；将 D2 限定为 market-relative probability benchmark，EV realization 继承 Phase 4 合同 | `NOT_AUTHORIZED` |
-| V1.4.1 status sync | 2026-08-30 | 同步 Gate 0B 生产权威、Phase 2.5a 五系数静态核验与 U2 `PRODUCTION_FORMULA_XG_WITH_PROXY_ELO` 更正；保留原阶段顺序与全部授权边界 | `NOT_AUTHORIZED` |
-| V1.4.1 U2 execution sync | 2026-08-30 | 并入 U2 冻结链、真实数据 proxy Elo 断言、评分前 futility、描述性观察与 Owner 二选一；A–J、Gate 结构和阶段顺序不变 | `NOT_AUTHORIZED` |
+| V1.4.1 | 2026-08-29 | 措辞勘误：`S` 术语、Kelly、`S_asof` 与 D2 前置；不改变 A–J、Gate 结构或阶段顺序 | `NOT_AUTHORIZED` |
+| V1.5 | 2026-08-30 | Gate 0B：生产权威更正 + 生产 λ 闭式 | `NOT_AUTHORIZED` |
+| V1.6 | 2026-08-30 | U1 完成 + U2 预注册 V2 | `NOT_AUTHORIZED` |
+| V1.7 | 2026-08-30 | U2 执行 + `INSUFFICIENT_POWER_DO_NOT_SCORE` | `NOT_AUTHORIZED` |
+| V2.0 | 2026-08-30 | 重新定位：测量能力建设归位，Phase 4.5 复用 U2 冻结管线并接入 Penaltyblog challenger | `NOT_AUTHORIZED` |
+
+## 附录 A — 四轮评审处置与事实同步
+
+### A.1 首轮 Claude Code 评审处置
+
+| 建议 | 处置 | 修订结论 |
+|---|---|---|
+| 完整 adapter 前增加 futility-first 预检 | `ACCEPT_WITH_CORRECTION` | 增加 Phase 4.5；但预检必须先冻结最小身份、PIT、配对和结果绑定合同。Penaltyblog 历史进球信息也不能表述为 W2 信息集的严格数学子集。 |
+| Gate D 硬设 `N_settled >= 2500` | `REJECT_AS_HARD_GATE` | `2500/6900` 依赖未由 W2 验证的方差、EV 离散度和独立性假设。Phase 7 必须先做 W2 专属 power design，并分开 proper-score 与 EV calibration estimand。 |
+| Gate 0 拆成本地静态与 VPS 只读 | `ACCEPT` | 拆为 Gate 0A/0B；0B 需 Owner 单独授权，但不需要 GitHub/GHCR，也不允许 Provider 调用、业务写入或部署。 |
+| 先核验 5% 阈值两侧是否都有已结算样本 | `ACCEPT_WITH_CODE_CLARIFICATION` | 代码合同已保存 `NO_EDGE_CURRENT/current_delta/required_delta/shortfall`，设计上未天然丢弃阈值下方；Gate 0B 已关闭生产身份，但实际两侧行数和结算覆盖仍属未来独立授权的 Phase 4 evaluability 只读计数。 |
+| 先验证 W2 当前 λ champion/baseline | `ACCEPT` | 新增 Phase 2.5，优先于 PB feasibility probe；不得把既有 Factor V2 candidate 证据冒充生产 `BASELINE_PRIOR` 已验证。 |
+
+### A.2 第二轮 Claude Code 评审处置
+
+| 建议 | 处置 | 修订结论 |
+|---|---|---|
+| Phase 2.5 增加 cohort burn ledger | `ACCEPT_WITH_CLASSIFICATION_GUARD` | 增加 `W2_COHORT_BURN_LEDGER.json`；逐项记录 fit/tune/select/evaluate/descriptive 用途和 outcome visibility，禁止把“曾查看”粗暴外推为对所有新问题永久不可用。 |
+| `BASELINE_QUALITY_NOT_IDENTIFIABLE` 时闭合 Phase 4.5 分支 | `ACCEPT_AND_HARD_BLOCK` | W2-vs-PB model-quality 预检不得运行或晋级。market-only 可以另立预注册研究，但不能返回 `PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH`。 |
+| Phase 4.5 加入 AH/OU 半盘子集 | `ACCEPT_WITH_V1_4_TRACK_SPLIT` | 半盘结算确为二态，提升为 `MODEL_QUALITY_TRACK` primary；该配对模型评价不需要 devig。只有附加 market-relative 轨道才需冻结去水方法并标记 method-specific benchmark。1X2 仅作 secondary diagnostic。 |
+
+### A.3 第三轮 Claude Code 评审处置
+
+| 建议 | 处置 | 修订结论 |
+|---|---|---|
+| 将 devig authority 提升为 market-relative 轨道显式前置 | `ACCEPT_WITH_V1_4_1_SCOPE_CORRECTION` | `analysis_calculator.py` 实际做 PROPORTIONAL 归一，却标记来源为 POWER；必须分开计算算法、provenance 标签和持久化方法身份。该冲突只阻断 `MODEL_VS_MARKET`、Gate D2 的 market-relative probability benchmark 与 `MARKET_VALUE_SHADOW` 的对应组件；不阻断 Phase 4、`MODEL_VS_MODEL`、Gate D1 或继承 Phase 4 合同的 EV realization。 |
+| Gate 0B 增加历史 `devig_method` 非空覆盖率 | `ACCEPT_AND_FAIL_CLOSED_FOR_MARKET_TRACK` | 按 evidence source/release/schema/market/checkpoint 统计 null、单一方法和混合方法，并检查方法标签能否由当时代码身份证明。混合或大量 null 时，market-relative 轨道只能用可归因子集，否则返回 `BLOCKED_BY_DEVIG` 或 `NOT_IDENTIFIABLE`；不得阻断 model-quality 轨道。 |
+
+### A.4 V1.4 交接单处置
+
+| 项目 | 处置 | V1.4 结论 |
+|---|---|---|
+| 在 `main@3b7f87db` 上重建代码事实 | `ACCEPT_AFTER_INDEPENDENT_CHECK` | 不再使用落后 checkout 的符号定义或行号；后续 Gate 0B 已确认生产 exact runtime 为 `ea557bb8 / 0070`。 |
+| 将 5% 政策重写为结算归一化 EV admission | `ACCEPT` | 未量化时 `edge* = EV/S`；代码使用四位量化 `Fq`，因此 `edge_code` 只是量化感知近似。 |
+| exact half-line 保留为 model-quality primary | `ACCEPT_WITH_BOUNDARY_NOTE` | `S=1` 是归一化边界特例，不能代表 integer/quarter line 的 admission 行为。 |
+| Phase 4.5、Phase 7 与 Gate C0/D 拆成 model/market 两轨 | `ACCEPT` | devig authority 只阻断 `MODEL_VS_MARKET`，不阻断严格配对的 `MODEL_VS_MODEL`。 |
+| Phase 8 拆成两类 shadow | `ACCEPT` | `PROBABILITY_SHADOW` 与 `MARKET_VALUE_SHADOW` 均不在本计划授权范围。 |
+
+### A.5 Gate 0B 与 U2 comparator 事实同步
+
+| 项目 | 当前事实 | 计划影响 |
+|---|---|---|
+| 生产权威 | `ea557bb8 / schema 0070`；`3b7f87db / schema 0051` 落后 19 个 migration | 生产事实服从 Gate 0B；既有静态结论仅在逐字节相同文件上存活 |
+| 生产 Elo | 从 rolling xG 确定性构造，`is_independent_signal=False` | `elo_gap_weight` 不是死代码，而是 `raw_delta` 的 14% 放大器 |
+| 生产身价 | 当前启用联赛与 `team_values` artifact 交集为空 | 当前为零贡献；不得外推到有匹配 artifact 的其他联赛 |
+| 生产首发数值项 | 唯一 `SimulationInputs` 构造点不填充，capability 为 `NOT_IMPLEMENTED` | 当前生产构造路径恒为零贡献 |
+| U2 comparator 与执行 | `PRODUCTION_FORMULA_XG_WITH_PROXY_ELO`；`EXECUTED` | 旧 `XG_ONLY` 已被静态核验取代；冻结链与训练前缀 refit 已完成，futility 在 validation 五态评分前触发，结论为 `INSUFFICIENT_POWER_DO_NOT_SCORE` |
+
+本轮复核锚点（均为 `main@3b7f87db`）：
+
+- `src/w2/domain/five_state_pricing.py:6-82`：canonical 五态分布、EV、四位量化 fair odds 与 `cashflow_price_edge`；
+- `src/w2/markets/value_engine.py:9-24`：上述 canonical 定义的 compatibility re-export；
+- `src/w2/domain/recommendation_decision_v4.py:54-70,418-442`：概率字段仅为 optional diagnostic；现役 admission 使用 EV、cashflow edge 与 EV-minus-uncertainty；
+- `docs/operations/W2_RECOMMENDATION_AUTHORITY_IMPLEMENTATION_MATRIX.md:34-44`：V4 是当前 recommendation 决策/方向权威；
+- `src/w2/dashboard/workspace.py:14-16`、`src/w2/dashboard/intelligence.py:15-16` 与 `src/w2/dashboard/day_view.py:150-160`：Intelligence Workspace 是 public product/display authority，V4 在其投影中是 diagnostic input；
+- `src/w2/strategy/calibration.py:6-22,35-132`：production calibration identity、默认先验权重和 clamp；
+- `src/w2/strategy/simulate.py:128-163`：正式 simulation 调用 `calibrate_lambdas()` 后生成 score matrix；
+- `src/w2/markets/analysis_evidence.py:124-140,204-240`：显式 PROPORTIONAL devig；`probability_delta_admission_gate = False`，准入使用 EV、cashflow edge 与 EV-minus-SE；
+- `src/w2/prematch/lifecycle.py:12-20,245-353`：legacy/parallel dynamic evaluation 的 5pp delta 合同；
+- `src/w2/prematch/repository.py:94-138`：dynamic evaluation append-only payload 持久化；
+- `src/w2/domain/odds.py:10-21,45-107`：半盘不拆分且整数比分无法在半球线上 push，因此 AH/OU exact half-line 仅有 WIN/LOSS；
+- `src/w2/markets/devig.py:9-114`：同一报价支持四种去水方法，证明 market-implied probability 依赖冻结的方法身份；
+- `src/w2/markets/analysis_evidence.py:86-140,184-240`：同盘口双边身份检查、当前 PROPORTIONAL 去水及现役 analysis admission；
+- `src/w2/markets/score_baseline.py:202-218`：当前 score baseline 也显式使用 PROPORTIONAL；
+- `src/w2/prematch/analysis_calculator.py:5213-5254,6122-6135`：实际按 implied probability 总和归一，与 PROPORTIONAL 等价，但 source 字符串写为 `POWER devig from matchday_market_observations`；
+- `src/w2/settlement/settle.py:24-50` 与 `migrations/versions/0022_extend_recommendation_lock_snapshot.py:123-126`：`devig_method` 可持久化但为 nullable，因此必须核验实际覆盖率；
+- local commit `22dc0dbe` 的 `V2_GATE1_CALIBRATION_RECOVERY_01/REPORT.md`：temperature `0.928709586`、NLL 小幅改善、各 ECE bin 变差、candidate-only；
+- local commit `f0d201c5` 的 successor preregistration：Factor V2 one-look `5,500` 与 `2028-02-01T00:05:00Z` 的专属身份；
+- `/Users/liudehua/.hermes/workspace/penalty-football-research/src/penalty_research/validation_design.py:22-29`：boundary score 是 1X2 log-pool 在 `w=0` 的导数，不能绕过概率/结果配对合同或扩展为 AH/OU 五态结论。
+- `docs/review_packages/GATE_0B_EXECUTION_RECEIPT.md`：生产 `ea557bb8 / 0070` 身份、只读零写入证明与 U2 disposition；
+- `docs/review_packages/PRODUCTION_LAMBDA_EFFECTIVE_FORM.md`：五系数生产效果、proxy Elo 代数推导与当前启用联赛有效闭式；
+- `docs/review_packages/U2_PREREGISTRATION.md`：`PRODUCTION_FORMULA_XG_WITH_PROXY_ELO` 的预注册控制合同与 refit/非可比性约束；
+- `docs/review_packages/U2_ARMING_FREEZE.json`：任何拟合与评分前写入的 cohort、切分、模型、断言、线网格、cluster 与 MME 冻结证据；
+- `docs/review_packages/U2_EXECUTION_RECEIPT.md`：U2 执行链、真实数据 proxy Elo 断言、futility 数字、停止位置与零生产影响证据。
+- `docs/review_packages/W2_BASELINE_PARAMETER_PROVENANCE.json`：五项 `production_effect` 与 production effective closed form。
