@@ -129,6 +129,22 @@ Branch: codex/v1-recalibration-evidence-01
 - 定向回归 `91 passed`；未部署、未写生产。旧两份预注册尚未作废，第三份须等实际部署时刻
   已知后另行冻结。
 
+### V1-RECALIBRATION-EVIDENCE-01 (B1-FIX 5af584db acceptance supplement)
+
+```text
+Status: ACCEPTANCE_EVIDENCE_IMPLEMENTED_PENDING_OWNER_ACCEPTANCE
+Implementation: 5af584dbe842ed7dca90944c3306576f230e0abc
+Deployed baseline: 7024cb18f2856a98fd1569c1f87b79dfd2b633cb
+Runtime status: LOCAL_IMPLEMENTED_PENDING_DEPLOYMENT
+```
+
+- 补充验收包逐文件冻结 `7024cb18..5af584db` 精确 diff 与 patch SHA-256，未混入后续
+  A1/A2/A3 或市场形状审计提交。
+- 两条直接测试证明 `calibration_identity` 与完整 1X2 向量写入最终 payload，且追加前后
+  frozen evaluation `identity_hash` 完全不变。
+- 该验收材料不构成部署授权；Provider 0、生产读 0、生产写 0、migration 0、部署 0。
+- 验收包：`docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/B1_FIX_5AF584DB_ACCEPTANCE.md`。
+
 ### V1-RECALIBRATION-EVIDENCE-01 (market shape audit)
 
 ```text
