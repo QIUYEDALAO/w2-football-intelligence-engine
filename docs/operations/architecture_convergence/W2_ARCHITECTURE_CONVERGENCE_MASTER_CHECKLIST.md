@@ -103,6 +103,18 @@ T_EXTRACT: 2026-08-30T15:58:43Z
 - 重做使用服务端 COPY 与无 LIMIT SQL；紧凑工作集断言全部通过：433 / 283 / 283 / 118015 / 14 / 178 / 105。
 - 新 artifact SHA-256：`34c7bf6e7e6babae52daebc57fc0e74a139659a24a169bea8a2ce0ecf1b7bd7b`。
 
+### V1-RECALIBRATION-EVIDENCE-01 (A2)
+
+```text
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Commit: eca8a1af
+```
+
+- 同一 A1 冻结输入分别运行 0.12（X）与 0.30（Y）两轨 `run_simulation`；每轨 283 场，
+  snapshot/rebuild 仍分别保留 178/105。
+- A2 artifact SHA-256：`3842446d5838bffaa721e1fb9d5e11956bcd1ff32140e5df24fa55fd2eb2b2e8`。
+- 尚未读取赛果；A3 冻结与 A4 结算待完成，不能据此宣称生产有效性。
+
 ---
 
 ## 一、基线（2026-07-24 核验）
