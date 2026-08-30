@@ -1,0 +1,81 @@
+{
+  "preregistration_id": "V1-HOME-ADVANTAGE-FORWARD-EVALUATION-20260831",
+  "task_id": "V1-RECALIBRATION-EVIDENCE-01-B1",
+  "status": "FROZEN_BEFORE_FIRST_FORWARD_SETTLEMENT",
+  "frozen_at": "2026-08-30T16:10:00Z",
+  "supersedes_entry_rule_of": "V1-HOME-ADVANTAGE-FORWARD-EVALUATION-20260830",
+  "cohort": {
+    "evaluation_time_rule": "dynamic_prematch_evaluations.evaluated_at > 2026-08-30T14:27:00Z",
+    "calibration_identity": "21960a863fd93dcae01ff8804e73fd0ef9d8360e8f2b8073313f226322e5db71",
+    "identity_change_rule": "INVALIDATE_SAMPLE_AND_FREEZE_A_NEW_PREREGISTRATION",
+    "cross_identity_pooling": "FORBIDDEN",
+    "unit": "distinct provider fixture",
+    "deduplication": "Latest eligible pre-kickoff frozen evaluation by (evaluated_at, recorded_at, evaluation_id); a fixture contributes once per metric family."
+  },
+  "evidence_authority": {
+    "source": "Production dynamic_prematch_evaluations records frozen before kickoff",
+    "recomputation": "FORBIDDEN",
+    "outcome_join": "Only after this file is committed, and only for authoritative FT/AET/PEN fixtures with an authoritative final score.",
+    "required_frozen_fields": [
+      "fixture_id",
+      "evaluated_at",
+      "original_state",
+      "market",
+      "selection",
+      "exact_line",
+      "decimal_odds",
+      "calibration_identity",
+      "one_x_two_probabilities.home",
+      "one_x_two_probabilities.draw",
+      "one_x_two_probabilities.away"
+    ],
+    "missing_field_rule": "Fixture is ineligible; identity must not be inferred from status and probabilities must not be recomputed."
+  },
+  "metrics": {
+    "one_x_two_relative_bias": "For each of home/draw/away: (mean predicted probability - observed rate) / observed rate.",
+    "bootstrap": {
+      "resampling_unit": "fixture",
+      "resamples": 2000,
+      "seed": 20260831,
+      "reported_probability": "P(abs(relative_bias) > 0.05)"
+    },
+    "acceptance": "All three sides must independently have P(abs(relative_bias) > 0.05) <= 0.05.",
+    "asian_handicap_structure": "Report AWAY count, HOME count, and AWAY/HOME ratio without smoothing.",
+    "calibration_curve": "For each side use 10 fixed equal-width probability bins [0.0,0.1), ..., [0.9,1.0].",
+    "ece": "sum(bin_count / N * abs(mean predicted probability - observed rate)); empty bins have zero weight."
+  },
+  "power_and_sample_size": {
+    "anchors": {
+      "n_2790_relative_bias_95pct_half_width": 0.055,
+      "n_7159_relative_bias_95pct_half_width": 0.034
+    },
+    "derivation": "CI width scales as 1/sqrt(N): ceil(2790 * (0.055 / 0.05)^2) = ceil(3375.9) = 3376.",
+    "required_settled_distinct_fixtures": 3376,
+    "coverage_assumption_fixtures_per_month": 200,
+    "expected_months": 16.88,
+    "terminal_evaluation_not_before": "2028-02-02T00:05:00Z",
+    "date_rationale": "3376 / 200 = 16.88 months from 2026-08-30; this does not alter the separately frozen V2 look at 2028-02-01T00:05:00Z."
+  },
+  "look_policy": {
+    "terminal": "Look exactly once only after both settled N >= 3376 and UTC time >= 2028-02-02T00:05:00Z.",
+    "interim_fault_detection": {
+      "maximum_looks": 1,
+      "not_before_settled_n": 600,
+      "not_before": "2027-03-01T00:05:00Z",
+      "trigger": "absolute relative bias > 0.15 on any one of home, draw, or away",
+      "allowed_use": "Operational stop-loss only",
+      "forbidden_uses": [
+        "promotion",
+        "parameter selection",
+        "threshold selection",
+        "validation claim",
+        "resetting this preregistration"
+      ]
+    },
+    "before_allowed_look": "Report counts and evidence-field blockers only; do not compute, emit, log, or serialize metric values."
+  },
+  "immutable_boundaries": [
+    "No result may be used to choose parameters or thresholds.",
+    "No model, ledger, allowlist, migration, deployment, Provider, production-write, or V2 runtime change is authorized."
+  ]
+}
