@@ -145,6 +145,25 @@ Runtime status: LOCAL_IMPLEMENTED_PENDING_DEPLOYMENT
 - 该验收材料不构成部署授权；Provider 0、生产读 0、生产写 0、migration 0、部署 0。
 - 验收包：`docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/B1_FIX_5AF584DB_ACCEPTANCE.md`。
 
+### V1-SLOPE-RECALIBRATION-PREREG-01
+
+```text
+Status: FROZEN_PENDING_OWNER_ACCEPTANCE
+Branch: codex/v1-recalibration-evidence-01
+Fit status: NOT_STARTED_NOT_AUTHORIZED
+```
+
+- 冻结单参数 `raw_delta_scale` 的 TRAIN-only 拟合、rolling-origin OOF 诊断和全新前向
+  validation/test 合同；已参与选择的 8,659 场与 283 场不得进入验证或最终验收。
+- 主验收必须同时覆盖净胜球斜率、AH fair-minus-market 与弱队侧 cashflow price edge；
+  1X2 仅作有界次级回归护栏，不能替代任何 AH 条件。
+- 候选预测必须在 kickoff 与赛果访问前由 append-only shadow writer 冻结；T0 只能在拟合值、
+  新 calibration identity 与 writer revision 冻结后产生，禁止事后回放充当前向证据。
+- TOTALS 偏差 `-0.090106` 单列为 `V1-TOTALS-RECALIBRATION-PREREG-01`，状态
+  `SEPARATE_TASK_NOT_AUTHORIZED`；本任务不得宣称 TOTALS 或全市场 EV 已修复。
+- 预注册 SHA-256：`815deff6f59b15e5adb73de54b3bbdd027ff0c24e0e255176a29c3b8cdd7a0f0`；
+  TOTALS 边界 SHA-256：`21b5749dde82749c1b60147581e6f881ec16a3c316df36ecb05772ba0b1cab3f`。
+
 ### V1-RECALIBRATION-EVIDENCE-01 (market shape audit)
 
 ```text

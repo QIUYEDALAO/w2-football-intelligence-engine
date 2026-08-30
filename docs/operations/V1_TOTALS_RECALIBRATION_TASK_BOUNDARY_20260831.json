@@ -1,0 +1,29 @@
+{
+  "task_id": "V1-TOTALS-RECALIBRATION-PREREG-01",
+  "status": "SEPARATE_TASK_NOT_AUTHORIZED",
+  "recorded_at": "2026-08-30T20:10:34Z",
+  "trigger_evidence": {
+    "artifact": "docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/MARKET_SHAPE_AUDIT.json",
+    "artifact_sha256": "47ede4e8c1e40fbf4217d2adcd713141f0cb410de0f62430ffefdb68b25b2698",
+    "fair_minus_market_mean_X_0_12": -0.090989,
+    "fair_minus_market_mean_Y_0_30": -0.090106
+  },
+  "structural_boundary": "home_advantage_goals and raw_delta_scale redistribute lambda_home versus lambda_away while leaving the pre-individual-clamp total unchanged; individual lambda clamps can alter the final lambda sum for boundary fixtures, which must be reported separately and cannot be treated as a TOTALS calibration",
+  "conclusion": "V1-SLOPE-RECALIBRATION-PREREG-01 has no authority to fit, validate, grant or deploy a TOTALS change",
+  "future_preregistration_must_freeze": [
+    "a total-goals scale hypothesis",
+    "untouched train/validation/test cohorts",
+    "PIT total-market selection",
+    "OVER and UNDER five-state cashflow edge distributions",
+    "fair-total-minus-market distribution",
+    "outcome-based total-goals calibration",
+    "look and failure rules"
+  ],
+  "not_authorized": [
+    "TOTALS parameter fitting",
+    "TOTALS code changes",
+    "ledger registration",
+    "deployment",
+    "threshold changes"
+  ]
+}

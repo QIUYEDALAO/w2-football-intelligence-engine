@@ -1,0 +1,284 @@
+{
+  "preregistration_id": "V1-SLOPE-RECALIBRATION-PREREG-01",
+  "status": "FROZEN_BEFORE_ANY_SLOPE_FIT",
+  "frozen_at": "2026-08-30T20:10:34Z",
+  "frozen_by": "codex-executor-pending-independent-acceptance",
+  "authority_boundary": {
+    "authorized_now": "preregistration only",
+    "not_authorized": [
+      "parameter fitting",
+      "production code changes",
+      "calibration ledger changes",
+      "allowlist changes",
+      "EV threshold changes",
+      "new blockers",
+      "migration",
+      "deployment",
+      "Provider calls",
+      "GitHub operations"
+    ],
+    "next_gate": "OWNER_EXPLICIT_AUTHORIZATION_TO_BEGIN_FIT"
+  },
+  "known_evidence_not_to_be_recomputed": {
+    "outcome_margin_regression": {
+      "observed_margin_on_model_home_away_difference_slope": 1.848,
+      "confidence_interval_95": [1.758, 1.939],
+      "fixture_count": 8659,
+      "interpretation": "The model expresses about 54 percent of observed strength-difference amplitude."
+    },
+    "market_shape": {
+      "artifact": "docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/MARKET_SHAPE_AUDIT.json",
+      "artifact_sha256": "47ede4e8c1e40fbf4217d2adcd713141f0cb410de0f62430ffefdb68b25b2698",
+      "favorite_strength_shortfall_goals_at_current_0_30": 0.713393,
+      "underdog_mean_cashflow_price_edge_at_current_0_30": 0.207143,
+      "fixture_count": 283
+    },
+    "intercept_cannot_repair_slope": {
+      "home_favorite_shortfall_change_X_to_Y": -0.164365,
+      "away_favorite_shortfall_change_X_to_Y": 0.159091,
+      "all_favorite_shortfall_net_change_X_to_Y": -0.05,
+      "interpretation": "A home intercept helps home favorites and harms away favorites; it cannot correct global amplitude."
+    }
+  },
+  "contamination_disclosure": {
+    "historical_8659": {
+      "kickoff_range": "2024-03-30 through 2026-08-30",
+      "prior_preregistration": "docs/operations/V1_HOME_ADVANTAGE_RECALIBRATION_PREREGISTRATION_20260830.json",
+      "prior_preregistration_sha256": "5aba03f2a4428df184dfbb6e804d5c443806bb8d648f2c923b97f8e8851ac3b6",
+      "already_used_for": [
+        "home-advantage parameter selection",
+        "slope diagnosis",
+        "model-structure diagnosis"
+      ],
+      "allowed_role_here": "TRAIN_AND_DEVELOPMENT_DIAGNOSTICS_ONLY",
+      "forbidden_roles": ["VALIDATION", "TEST", "FINAL_ACCEPTANCE"]
+    },
+    "market_283": {
+      "kickoff_window": "2026-07-22T00:00:00Z through 2026-08-31T00:00:00Z exclusive",
+      "a1_artifact": "docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/A1_PIT_EVIDENCE_REDO.json",
+      "a1_sha256": "34c7bf6e7e6babae52daebc57fc0e74a139659a24a169bea8a2ce0ecf1b7bd7b",
+      "already_used_for": [
+        "0.12 versus 0.30 market comparison",
+        "AH slope problem diagnosis",
+        "acceptance metric design"
+      ],
+      "allowed_role_here": "DEVELOPMENT_DIAGNOSTICS_ONLY",
+      "forbidden_roles": ["VALIDATION", "TEST", "FINAL_ACCEPTANCE"]
+    },
+    "rule": "No fixture appearing in either disclosed set may enter validation or test, regardless of later re-extraction or identity spelling."
+  },
+  "model_change_hypothesis": {
+    "single_free_parameter": "raw_delta_scale",
+    "current_formula": "adjusted_delta = raw_delta + 0.30",
+    "candidate_formula": "adjusted_delta = raw_delta_scale * raw_delta + 0.30",
+    "raw_delta": "base_home - base_away before home advantage and optional enhancements",
+    "home_advantage_goals_fixed": 0.3,
+    "unchanged": [
+      "total = base_home + base_away subject to existing total clamps",
+      "dixon_coles_rho",
+      "elo_gap_weight and _eligible_elo behavior",
+      "squad-value and lineup terms",
+      "lambda minimum/maximum clamps",
+      "market selectors",
+      "proportional devig",
+      "EV, cashflow_price_edge and EV-SE thresholds"
+    ],
+    "forbidden_interpretation": "This slope task does not recalibrate total-goals expectation."
+  },
+  "cohort_contract": {
+    "universe": {
+      "competitions": "The exact production-enabled competition set resolved at fixture kickoff; freeze its IDs in each extraction artifact.",
+      "fixture_identity": "canonical provider fixture ID",
+      "completion": "authoritative FT, AET or PEN result with unambiguous home and away regulation-plus-extra-time goals under the existing settlement authority",
+      "duplicate_rule": "one row per canonical fixture; identity conflict fails closed",
+      "minimum_team_history": 5
+    },
+    "train": {
+      "identity": "the disclosed 8,659-fixture development cohort only",
+      "ordering": "ascending (kickoff_at, fixture_id)",
+      "role": "fit raw_delta_scale and produce rolling-origin OOF development diagnostics",
+      "acceptance_authority": "NONE"
+    },
+    "validation": {
+      "start": "T0 is the activation timestamp recorded by an immutable pre-kickoff shadow-evaluation receipt after the fitted parameter, candidate calibration identity and writer code revision are frozen; T0 must precede every included fixture kickoff",
+      "selection": "the first 2,500 eligible fixtures with kickoff_at > T0 in ascending (kickoff_at, fixture_id) order after excluding every disclosed development fixture",
+      "required_fixture_count": 2500,
+      "role": "one-shot go/no-go validation; never parameter or threshold selection",
+      "look_rule": "outcomes and metrics remain sealed until all 2,500 model records and outcomes are eligible",
+      "not_before": "T0 plus 12.5 months"
+    },
+    "test": {
+      "selection": "the next 4,000 eligible fixtures immediately after the frozen validation set in ascending (kickoff_at, fixture_id) order",
+      "required_fixture_count": 4000,
+      "role": "single final acceptance set",
+      "look_rule": "do not open, aggregate or serialize any test outcome or metric before validation has passed unchanged and all 4,000 test fixtures are eligible",
+      "not_before": "T0 plus 32.5 months"
+    },
+    "cross_split_rules": [
+      "A fixture belongs to exactly one split.",
+      "No competition, season or direction may be removed after counts or metrics are observed.",
+      "Missing PIT input is an exclusion with a recorded reason before outcome access, never an imputation from later data.",
+      "Validation and test boundaries are determined by eligible fixture order, not by metric values."
+    ]
+  },
+  "point_in_time_rules": {
+    "xg_input": {
+      "preferred": "team_xg_rolling_snapshot whose as_of_fixture_id equals the target fixture and whose source rows are strictly pre-kickoff",
+      "fallback": "rebuild running means from team_xg_match rows with kickoff_at strictly earlier than target kickoff",
+      "window": "the same latest-five production point-estimate semantics used by the deployed V1 path",
+      "snapshot_and_rebuild": "report separately; never pool without also reporting each path"
+    },
+    "non_xg_inputs": {
+      "elo": "pass only through existing _eligible_elo; proxy-only values remain zero contribution",
+      "squad_value": "use only values visible before kickoff under the existing production as-of rule",
+      "lineup": "use only confirmed lineup evidence captured before the frozen evaluation checkpoint",
+      "missing": "retain existing zero/absent contribution; no backfill from future evidence"
+    },
+    "market_input": {
+      "source": "matchday_market_observations",
+      "join": "o.provider_fixture_id = x.fixture_id",
+      "filters": [
+        "captured_at < kickoff_at",
+        "captured_at <= frozen extraction time",
+        "live = false",
+        "suspended = false",
+        "at least 3 bookmakers"
+      ],
+      "AH_selector": "canonical_bookmaker_mainline_majority_v1",
+      "devig": "PROPORTIONAL as implemented, regardless of provenance labels",
+      "checkpoint": "use the existing production checkpoint and mainline-selection rule; record quote IDs, bookmaker depth, selected line, prices and captured_at"
+    },
+    "anti_leakage_freeze": "For every validation and test fixture, an append-only shadow writer must freeze the candidate prediction, post-clamp lambdas, fair AH line, selected market quote, input-path label, calibration identity and model identity before kickoff and before any outcome access. The activation receipt fixes T0, writer revision and candidate identity before the first eligible kickoff. Each artifact receives a SHA-256; a fixture without a pre-kickoff record is excluded with a pre-outcome reason and may never be reconstructed later for acceptance."
+  },
+  "fit_method": {
+    "parameter": "raw_delta_scale",
+    "bounds": [0.5, 3.0],
+    "objective": "fixture-level Dixon-Coles-corrected Poisson negative log likelihood of the observed scoreline under the unchanged production lambda clamps",
+    "optimizer": "deterministic golden-section search on the closed interval [0.5, 3.0] until interval width <= 0.000001; ties choose the smaller value",
+    "fit_data": "TRAIN only",
+    "home_advantage": "fixed at 0.30",
+    "other_parameters": "fixed at deployed values",
+    "precision": "store the optimizer result at 6 decimal places; code uses exactly that stored decimal",
+    "no_manual_override": true
+  },
+  "oof_method": {
+    "purpose": "development estimator stability only; it grants no acceptance authority",
+    "ordering": "ascending (kickoff_at, fixture_id)",
+    "warmup_fixtures": 1500,
+    "folds": 10,
+    "method": "rolling-origin expanding window; fit only fixtures strictly earlier than the fold, predict the fold once",
+    "report": [
+      "per-fold fitted raw_delta_scale",
+      "per-fold fixture count and kickoff range",
+      "OOF net-margin regression",
+      "OOF AH fair-minus-market and underdog cashflow edge when PIT quotes exist"
+    ],
+    "forbidden_use": "OOF results may not change this method, bounds, metrics or thresholds"
+  },
+  "identity_contract": {
+    "calibration_version": "must be incremented before implementation because the lambda formula changes",
+    "params": "LambdaCalibrationParams must add raw_delta_scale and retain every existing field",
+    "identity_function": "w2.domain.calibration_validation_registry.calibration_identity(calibration_version, complete params snapshot)",
+    "safety_property": "Any formula-version or parameter change produces a different calibration identity; old 0.30 authorization cannot carry forward.",
+    "model_identity": "bind exact code revision, formula version and complete params snapshot separately from calibration identity",
+    "config_hash": "bind the canonical digest of every runtime-effective non-secret model configuration value",
+    "grant_rule": "No ledger registration until validation and test both pass and their immutable evidence digests are available."
+  },
+  "acceptance_metrics": {
+    "primary_AH_spread": {
+      "net_margin_regression": {
+        "definition": "OLS of observed home-minus-away final margin on the frozen pre-match model lambda_home-minus-lambda_away after the production total clamp and individual lambda clamps, with intercept; fixture is the resampling unit",
+        "required_point_slope_interval": [0.9, 1.1],
+        "required_95pct_bootstrap_interval_contained_in": [0.8, 1.2],
+        "required_absolute_intercept_max_goals": 0.1
+      },
+      "fair_minus_market": {
+        "fair_line": "home-perspective quarter line minimizing absolute five-state expected cashflow at decimal odds 2.00",
+        "favorite_strength_shortfall": "signed so positive means the market makes the favorite stronger than the model; report all, home-favorite and away-favorite separately",
+        "required_absolute_mean_max_goals": 0.15,
+        "required_absolute_median_max_goals": 0.25,
+        "required_bootstrap_probability_abs_mean_exceeds_0_25_max": 0.05
+      },
+      "underdog_cashflow_price_edge": {
+        "definition": "production five-state cashflow_price_edge at the selected executable underdog quote; underdog is determined from the market AH line, not home/away label",
+        "required_mean_upper_95pct_bootstrap_bound_max": 0.05,
+        "required_median_max": 0.05,
+        "required_fraction_above_0_05_max": 0.35,
+        "report_threshold_counts": [0.05, 0.1, 0.2]
+      },
+      "all_required": true
+    },
+    "secondary_1X2": {
+      "metrics": [
+        "home/draw/away relative bias",
+        "10-bin equal-width reliability curves",
+        "ECE",
+        "multiclass log loss"
+      ],
+      "binding_guard": "for each of home, draw and away, the fixture-bootstrap probability that absolute relative bias exceeds 0.05 must be <= 0.05",
+      "report_only": ["10-bin reliability curves", "ECE", "multiclass log loss"],
+      "role": "binding regression guard only; passing 1X2 can never substitute for a failed AH metric, and failure cannot be averaged against AH results"
+    },
+    "descriptive_only": [
+      "recommendation count",
+      "home/away and favorite/underdog recommendation ratios",
+      "P&L",
+      "hit rate"
+    ],
+    "forbidden_for_selection": ["P&L", "hit rate", "recommendation count"]
+  },
+  "uncertainty": {
+    "bootstrap_resamples": 5000,
+    "bootstrap_seed": 20260831,
+    "resampling_unit": "fixture",
+    "confidence_level": 0.95,
+    "multiple_metric_rule": "Every primary AH condition must pass on validation and again on test; no averaging or compensation across metrics."
+  },
+  "power_and_timing": {
+    "observed_slope_ci_anchor": {
+      "fixture_count": 8659,
+      "confidence_interval_half_width": 0.0905
+    },
+    "scaling_rule": "Approximate slope CI half-width scales as 1/sqrt(N) with the same fixture mix.",
+    "validation_expected_half_width": "0.0905 * sqrt(8659 / 2500) = 0.1685",
+    "test_expected_half_width": "0.0905 * sqrt(8659 / 4000) = 0.1331",
+    "market_coverage_anchor_per_month": 200,
+    "validation_minimum_elapsed_months": 12.5,
+    "test_cumulative_minimum_elapsed_months": 32.5,
+    "rule": "Both the required eligible count and the not-before timestamp must be satisfied; calendar time alone never opens metrics."
+  },
+  "look_and_failure_rules": {
+    "before_validation_look": "report eligible counts and exclusion reasons only; do not calculate or expose validation metrics",
+    "validation_look": "exactly once at N=2500 and not before T0 plus 12.5 months, after every prediction artifact was frozen before kickoff and outcome access",
+    "on_validation_failure": [
+      "do not open test metrics",
+      "do not change the fitted value, model threshold or blocker",
+      "do not grant or deploy",
+      "report failure and stop",
+      "a different hypothesis requires a new preregistration and new untouched cohorts"
+    ],
+    "on_validation_pass": "freeze the pass receipt and unchanged fitted parameter before opening test",
+    "test_look": "exactly once at N=4000 and not before T0 plus 32.5 months",
+    "on_test_failure": [
+      "no grant",
+      "no deployment",
+      "no reinterpretation of secondary metrics",
+      "report failure and stop"
+    ],
+    "on_test_pass": "prepare an evidence-bound APPROVED_VALIDATED registration proposal for the new identity; registration and deployment remain separate Owner-authorized actions",
+    "interim_fault_look": "none; this is an undeployed candidate and has no operational stop-loss need"
+  },
+  "totals_exclusion": {
+    "separate_task_id": "V1-TOTALS-RECALIBRATION-PREREG-01",
+    "status": "SEPARATE_TASK_NOT_AUTHORIZED",
+    "known_fair_minus_market_mean_at_0_30": -0.090106,
+    "reason": "home_advantage_goals and raw_delta_scale conserve the pre-individual-clamp total by construction. Individual lambda clamps can still move the final lambda sum for boundary fixtures, so clamp-hit fixtures must be reported separately; that incidental effect is neither a TOTALS fit nor evidence that TOTALS is repaired.",
+    "forbidden_claims": [
+      "TOTALS fixed",
+      "TOTALS validated",
+      "EV model globally fixed",
+      "all markets production validated"
+    ],
+    "required_future_action": "Freeze a separate TOTALS-specific preregistration with a total-scale hypothesis, untouched cohorts and TOTALS acceptance metrics before any TOTALS fit."
+  }
+}
