@@ -1,4 +1,9 @@
-"""Evidence-bound, append-only calibration validation registry."""
+"""Evidence-bound, append-only calibration validation registry.
+
+Grants cannot be revoked. If a grant is found to be wrong, the only legitimate
+remedy is to increment ``CALIBRATION_VERSION`` so the old identity no longer
+matches; existing ledger lines must never be edited or deleted.
+"""
 
 from __future__ import annotations
 
@@ -75,16 +80,27 @@ def lookup_calibration_verdict(
 def validate_calibration_ledger(
     *,
     ledger_path: Path | None = None,
-    repository_root: Path = DEFAULT_REPOSITORY_ROOT,
+    repository_root: Path | None = None,
 ) -> int:
-    """Validate every record and its repository-owned preregistration document."""
+    """Validate the shipped ledger from a source checkout or CI environment only.
+
+    The default repository root is derived from this module's source location;
+    installed wheels are intentionally unsupported and fail clearly instead of
+    searching for a repository at production runtime.
+    """
+    root = repository_root or DEFAULT_REPOSITORY_ROOT
+    if repository_root is None and not (root / "pyproject.toml").is_file():
+        raise CalibrationValidationRegistryError(
+            "default repository root is unavailable; ledger validation requires "
+            "a source checkout or CI environment"
+        )
     records = _read_records(ledger_path or DEFAULT_LEDGER_PATH)
     for record in records:
         _validate_record(record)
         _verify_preregistration_document(
             path=record["preregistration_document_path"],
             expected_sha256=record["preregistration_document_sha256"],
-            repository_root=repository_root,
+            repository_root=root,
         )
     return len(records)
 

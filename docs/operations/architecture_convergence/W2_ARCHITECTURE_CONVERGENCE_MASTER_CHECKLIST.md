@@ -37,6 +37,22 @@ Production ancestor: ea557bb8ff64e06add91bbe32814fe073ec64642
 - 资产账本：新增 1 个 domain registry、1 个空 JSONL ledger、1 个单元测试文件；
   新增 migration 0、表 0、运行时 DB/Provider/config/env/CLI 注入面 0。
 
+### W2-CALIBRATION-AUTHORITY-WRITE-SIDE-2A
+
+```text
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Branch: codex/calibration-authority-write-side-01
+Parent implementation: 27b075a974a58e5c9a84c46d82d90c603a334902
+```
+
+- CI 对出厂默认 ledger 执行全记录校验，并核对每条记录绑定的预注册文档 SHA-256；
+  返回记录数必须等于 ledger 非空行数。交付 ledger 仍为零记录。
+- 默认仓库根校验明确限定为源码检出/CI 离线审计；wheel 安装中不搜索生产仓库根，
+  无法解析时响亮失败。
+- 授权登记不可撤销；发现错误授权只能提升 `CALIBRATION_VERSION` 使旧 identity 自然失效，
+  禁止编辑或删除既有 ledger 行，撤销类 verdict 继续被拒绝。
+- 资产账本：新增 migration 0、表 0、生产运行时依赖 0、Provider/config/env/CLI 注入面 0。
+
 ---
 
 ## 一、基线（2026-07-24 核验）
