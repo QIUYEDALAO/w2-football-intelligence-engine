@@ -1,5 +1,23 @@
 # 0.05 语义登记册
 
+当前状态：`PENDING_RECHECK_ON_PRODUCTION_BASELINE`
+
+生产权威：`ea557bb8ff64e06add91bbe32814fe073ec64642 / 0070_notification_delivery_routing`
+
+历史静态基线：`origin/main@3b7f87db / 0051_apply_seven_day_collection_policy`（落后生产 19 个 migration，不是生产权威）
+
+Gate 0B 已确认 `src/w2/markets/analysis_evidence.py` 在生产基线相对该静态快照变更 `+34` 行，`src/w2/prematch/lifecycle.py` 变更 `+339` 行。因此下方既有内容完整保留作为 Gate 0A 历史记录，但在按生产 `ea557bb8` 重核具体行号、caller 和决策角色之前，不得引用为当前生产登记结论。
+
+三个关键常量在两基线的出现次数一致：
+
+```text
+MIN_MARKET_ANCHOR_DIVERGENCE = 3 + 0
+ACTIVE_DELTA_THRESHOLD = 0 + 6
+probability_delta_admission_gate = 1 + 0
+```
+
+这只是重核线索，不足以取消 `PENDING_RECHECK_ON_PRODUCTION_BASELINE`。本轮不删除、改写或重排下方现有登记内容。
+
 Gate: `0A_LOCAL_STATIC` / Phase 1 首查项
 基线：`origin/main@3b7f87db`
 方法：只读静态审计，detached worktree，未修改用户工作树

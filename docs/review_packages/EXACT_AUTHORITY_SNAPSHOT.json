@@ -1,47 +1,71 @@
 {
-  "schema": "EXACT_AUTHORITY_SNAPSHOT_V1",
-  "gate": "0A_LOCAL_STATIC_ONLY",
-  "generated_at": "2026-08-29",
-  "generated_by": "Claude Code, read-only static audit",
-  "audit_baseline": {
+  "schema": "EXACT_AUTHORITY_SNAPSHOT_V2",
+  "gate": "0A_LOCAL_STATIC_PLUS_0B_PRODUCTION_READ_ONLY",
+  "updated_at": "2026-08-30",
+  "evidence_handoff": "docs/review_packages/GATE_0B_AND_U2_COHORT_HANDOFF.md",
+  "authority_decision": {
+    "production_is_authority": true,
+    "production_release": "ea557bb8ff64e06add91bbe32814fe073ec64642",
+    "production_schema": "0070_notification_delivery_routing",
+    "production_host": "root@45.207.194.97",
+    "origin_main_is_selective_snapshot": true,
+    "origin_main_commit": "3b7f87db2f0cb49d75582313ca593d30262c0d3d",
+    "origin_main_schema": "0051_apply_seven_day_collection_policy",
+    "origin_main_migrations_behind_production": 19,
+    "binding_statement": "Production ea557bb8/schema 0070 is authoritative. origin/main@3b7f87db/schema 0051 is a selective static snapshot, not runtime authority."
+  },
+  "gate_0a_historical_snapshot": {
     "ref": "origin/main",
     "commit": "3b7f87db2f0cb49d75582313ca593d30262c0d3d",
     "subject": "Fix checkpoint collection truth (#533)",
-    "method": "detached worktree; user working tree not modified"
+    "method": "detached worktree static audit",
+    "authority_classification": "HISTORICAL_STATIC_SNAPSHOT_NOT_PRODUCTION_AUTHORITY"
   },
-  "local_working_tree": {
+  "gate_0a_local_working_tree": {
     "branch": "codex/eval-02b-write-side-implementation-04",
     "commit": "11c26e1e",
     "behind_origin_main": 310,
     "ahead_of_merge_base": 1,
     "verdict": "NOT_AN_AUDIT_AUTHORITY"
   },
-  "production_runtime": {
-    "api": "UNKNOWN_REQUIRES_GATE_0B",
-    "worker": "UNKNOWN_REQUIRES_GATE_0B",
-    "scheduler": "UNKNOWN_REQUIRES_GATE_0B",
-    "web": "UNKNOWN_REQUIRES_GATE_0B",
-    "note": "Vault records POINT-EV release ea557bb8; not verified this round"
-  },
-  "migration_head": {
+  "gate_0a_migration_snapshot": {
     "head": "0051_apply_seven_day_collection_policy",
     "down_revision": "0050_gate_a_runtime_selection",
     "chain": "linear, single head at static inspection",
-    "applied_head_in_production": "UNKNOWN_REQUIRES_GATE_0B"
+    "production_relation": "HISTORICAL_SNAPSHOT_19_MIGRATIONS_BEHIND_PRODUCTION_0070"
   },
-  "capability_manifest": {
+  "gate_0a_capability_manifest": {
     "path": "config/capabilities/recommendation_capabilities.v1.json",
     "sha256_prefix": "bfc737aa640c0257",
     "production_enabled_count": 0,
     "production_enabled_capabilities": [],
-    "feature_enabled_and_public": ["analysis_ah","analysis_ou","shadow_candidate","lineup_confirmation_gate","official_performance_reporting"],
-    "feature_disabled": ["formal_ah","formal_ou","recommendation_lock","production_recommendation","lineup_numeric_adjustment_ah","lineup_numeric_adjustment_ou"],
+    "feature_enabled_and_public": [
+      "analysis_ah",
+      "analysis_ou",
+      "shadow_candidate",
+      "lineup_confirmation_gate",
+      "official_performance_reporting"
+    ],
+    "feature_disabled": [
+      "formal_ah",
+      "formal_ou",
+      "recommendation_lock",
+      "production_recommendation",
+      "lineup_numeric_adjustment_ah",
+      "lineup_numeric_adjustment_ou"
+    ],
     "isolated_runtime_verified_count": 0,
     "staging_canary_passed_count": 0,
-    "policy_threshold_unvalidated": ["analysis_ah","analysis_ou","formal_ah","recommendation_lock","production_recommendation"],
-    "runtime_state_in_production": "UNKNOWN_REQUIRES_GATE_0B"
+    "policy_threshold_unvalidated": [
+      "analysis_ah",
+      "analysis_ou",
+      "formal_ah",
+      "recommendation_lock",
+      "production_recommendation"
+    ],
+    "classification": "RETAINED_GATE_0A_STATIC_EVIDENCE_NOT_PRODUCTION_RUNTIME_STATE"
   },
-  "authority_file_sha256_prefix": {
+  "gate_0a_authority_file_sha256_prefix": {
     "src/w2/domain/five_state_pricing.py": "275071f980be266e",
     "src/w2/domain/recommendation_decision_v4.py": "b125d8e47c2dc64b",
     "src/w2/markets/analysis_evidence.py": "3d17833ec66db104",
@@ -49,22 +73,119 @@
     "src/w2/markets/devig.py": "779b5d5121f07a51",
     "src/w2/prematch/lifecycle.py": "e9059320ed29a72e"
   },
-  "local_data_availability": {
+  "gate_0a_local_data_availability": {
     "historical_prediction_outcome_dataset": false,
     "database": "postgres via docker-compose, empty locally",
     "fixtures_bytes": 44000,
     "fixture_file_count": 9,
-    "consequence": "Phase 2.5 quantitative half NOT EXECUTABLE locally"
+    "consequence": "Phase 2.5 quantitative production-formula quality was not executable locally"
   },
-  "blocking_findings": [
-    "PHASE_2_5_METRICS_BLOCKED_NO_LOCAL_DATA",
-    "PRODUCTION_RUNTIME_IDENTITY_UNKNOWN_REQUIRES_GATE_0B"
+  "gate_0a_blocking_findings": [
+    "PHASE_2_5_PRODUCTION_FORMULA_METRICS_BLOCKED_NO_LOCAL_DATA",
+    "PRODUCTION_RUNTIME_IDENTITY_WAS_UNKNOWN_BEFORE_GATE_0B_NOW_RESOLVED"
   ],
-  "actions_taken": {
+  "gate_0b_production_runtime": {
+    "verification_status": "VERIFIED_READ_ONLY",
+    "host_label": "HK112037094063",
+    "host_uptime_at_check": "8 days",
+    "release": "ea557bb8ff64e06add91bbe32814fe073ec64642",
+    "schema": "0070_notification_delivery_routing",
+    "api": "HEALTHY_EXACT_RELEASE",
+    "worker": "HEALTHY_EXACT_RELEASE",
+    "scheduler": "HEALTHY_EXACT_RELEASE",
+    "web": "HEALTHY_EXACT_RELEASE",
+    "image_revision_parity": true
+  },
+  "core_file_survival": [
+    {
+      "path": "src/w2/strategy/calibration.py",
+      "comparison": "BYTE_IDENTICAL_3b7f87db_VS_ea557bb8",
+      "conclusion": "BASELINE_PRIOR hard-coded coefficients and no fitting evidence",
+      "survival": "SURVIVES"
+    },
+    {
+      "path": "src/w2/domain/five_state_pricing.py",
+      "comparison": "BYTE_IDENTICAL_3b7f87db_VS_ea557bb8",
+      "conclusion": "pre-quantization EV/S identity; code-layer cashflow_price_edge is approximate after fair-odds quantization",
+      "survival": "SURVIVES"
+    },
+    {
+      "path": "src/w2/models/independent.py",
+      "comparison": "BYTE_IDENTICAL_3b7f87db_VS_ea557bb8",
+      "conclusion": "offline comparator identity mismatch",
+      "survival": "SURVIVES"
+    },
+    {
+      "path": "src/w2/backtest/free_tier_2024.py",
+      "comparison": "BYTE_IDENTICAL_3b7f87db_VS_ea557bb8",
+      "conclusion": "historical U1 input availability and five-league Understat scope",
+      "survival": "SURVIVES_AS_HISTORICAL_STATIC_CONCLUSION"
+    }
+  ],
+  "production_recheck_required": [
+    {
+      "path": "src/w2/markets/analysis_evidence.py",
+      "comparison": "CHANGED_PLUS_34_LINES",
+      "affected_artifact": "docs/review_packages/FIVE_PERCENT_SEMANTIC_REGISTRY.md",
+      "status": "PENDING_RECHECK_ON_PRODUCTION_BASELINE"
+    },
+    {
+      "path": "src/w2/prematch/lifecycle.py",
+      "comparison": "CHANGED_PLUS_339_LINES",
+      "affected_artifact": "docs/review_packages/FIVE_PERCENT_SEMANTIC_REGISTRY.md",
+      "status": "PENDING_RECHECK_ON_PRODUCTION_BASELINE"
+    }
+  ],
+  "production_data_readiness": {
+    "team_xg_match_rows": 19004,
+    "fixture_count": 9502,
+    "xg_non_null_rows": 19004,
+    "xg_non_null_rate": 1.0,
+    "kickoff_min": "2024-02-22",
+    "kickoff_max": "2026-08-29",
+    "rows_by_year": {
+      "2024": 2963,
+      "2025": 4181,
+      "2026": 2358
+    },
+    "source_system": "api_football_statistics",
+    "team_rating_snapshots_rows": 16,
+    "team_rating_snapshots_team_count": 16,
+    "team_rating_snapshots_interval": "2026-07-17/2026-07-20",
+    "team_value_asof_artifacts_rows": 0,
+    "player_valuation_observations_rows": 31507,
+    "transfermarkt_player_references_rows": 50149,
+    "input_usage_inference": {
+      "statement": "Elo and squad-value terms probably had no effect for most historical production fixtures because their source tables were absent or extremely sparse.",
+      "classification": "INFERRED_FROM_SOURCE_TABLE_EMPTINESS_NOT_RUNTIME_VERIFIED",
+      "runtime_payload_confirmation": "NOT_AVAILABLE"
+    }
+  },
+  "u2_authority": {
+    "comparator_identity": "PRODUCTION_FORMULA_XG_ONLY",
+    "cohort_source": "team_xg_match",
+    "cohort_status": "METADATA_ONLY_NOT_EXPORTED_NOT_FROZEN",
+    "challenger_refit_required": true,
+    "refit_scope": "NEW_COHORT_TRAINING_PREFIX_ONLY_AFTER_RULE_FREEZE",
+    "reuse_understat_coefficients": false,
+    "compare_new_results_to_2026_07_delta_minus_0_026376": false
+  },
+  "gate_0b_actions": {
+    "allowed_command_classes": [
+      "docker ps",
+      "docker inspect",
+      "psql -tAc SELECT"
+    ],
     "provider_calls": 0,
     "business_writes": 0,
+    "ddl_or_dml": 0,
+    "production_exports": 0,
     "deployments": 0,
-    "vps_access": 0,
-    "user_working_tree_modified": false
-  }
+    "verification_class": "READ_ONLY_ZERO_WRITE"
+  },
+  "open_findings": [
+    "PRODUCTION_FORMULA_PROBABILITY_QUALITY_NOT_MEASURED",
+    "FIVE_PERCENT_REGISTRY_PENDING_RECHECK_ON_PRODUCTION_BASELINE",
+    "U2_NEW_COHORT_REQUIRES_FREEZE_AND_CHALLENGER_REFIT"
+  ]
 }

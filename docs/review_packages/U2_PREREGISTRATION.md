@@ -1,3 +1,175 @@
+# U2 Five-State Incremental Validation Preregistration V2
+
+文档状态：`V2_DRAFT_NOT_ARMED_U2_NOT_EXECUTED`
+
+生产权威基线：`ea557bb8ff64e06add91bbe32814fe073ec64642 / 0070_notification_delivery_routing`
+
+静态快照：`origin/main@3b7f87db / 0051_apply_seven_day_collection_policy`（落后生产 19 个 migration）
+
+```text
+COMPARATOR_IDENTITY = PRODUCTION_FORMULA_XG_ONLY
+MISSING_PRODUCTION_INPUT_1 = ELO
+MISSING_PRODUCTION_INPUT_2 = HISTORICAL_CLUB_SQUAD_VALUE
+MISSING_PRODUCTION_INPUT_3 = LINEUP
+COMPARATOR_IS_PRODUCTION_RUNTIME = FALSE
+COMPARATOR_IS_PRODUCTION_CHAMPION = FALSE
+COHORT_SOURCE = production.team_xg_match
+COHORT_STATUS = METADATA_ONLY_NOT_EXPORTED_NOT_FROZEN
+CHALLENGER_REFIT_REQUIRED = TRUE
+U2_EXECUTION_COUNT = 0
+```
+
+**Elo、身价与首发三路生产输入缺失。** 本对照只是生产公式在新 cohort 可得 xG 输入子集上的实例，不是完整生产运行态，也不得称为“生产 champion”。
+
+```text
+INFERRED_FROM_SOURCE_TABLE_EMPTINESS_NOT_RUNTIME_VERIFIED
+```
+
+上述标记限定了以下推论：根据 `team_rating_snapshots` 极稀疏且 `team_value_asof_artifacts` 为空，`PRODUCTION_FORMULA_XG_ONLY` **可能**接近多数历史 fixture 的实际形态。持久化 evaluation/capture/lock payload 不含 calibration 输入，所以这不是运行时实证。任何引用都必须同时保留 `INFERRED_FROM_SOURCE_TABLE_EMPTINESS_NOT_RUNTIME_VERIFIED` 标记。
+
+本 V2 是唯一当前控制层。本轮只修订预注册：不执行 U2、不导出生产数据、不重新拟合 challenger、不读取或计算 U2 结果。
+
+## V2.1 Authority and Code Survival
+
+生产 `ea557bb8 / schema 0070` 是权威，`origin/main@3b7f87db / schema 0051` 不是。但 Gate 0B 已证明下列与 U2 直接相关的文件在两个 commit 间逐字节相同：
+
+```text
+src/w2/strategy/calibration.py
+src/w2/models/independent.py
+src/w2/backtest/free_tier_2024.py
+```
+
+因此公式身份、offline comparator 错配和原研究拟合代码的静态结论存活；生产权威基线的更正不等于审计作废。
+
+## V2.2 Comparator Identity
+
+```text
+identity = PRODUCTION_FORMULA_XG_ONLY
+function = src/w2/strategy/calibration.py::calibrate_lambdas
+params = LambdaCalibrationParams() at production ea557bb8
+
+home_xg_for / home_xg_against / away_xg_for / away_xg_against
+  = rolling team_xg_match xG strictly before fixture kickoff
+home_elo = None
+away_elo = None
+home_squad_value_eur = None
+away_squad_value_eur = None
+lineup_strength_adjustment = 0.0
+lineup_ah_adjustment = 0.0
+lineup_totals_adjustment = 0.0
+lineup_ah_evidence_enabled = False
+lineup_totals_evidence_enabled = False
+```
+
+中立场必须传 `apply_home_advantage = False`，其余 fixture 为 `True`。输入缺失、total/lambda clamp 触发和模型失败必须逐 fixture 持久化到未来的 U2 failure ledger；本轮不创建该 ledger。
+
+## V2.3 Replacement Cohort
+
+原 2026-07 Understat cache 在本地与生产均不存在，原 1,510 场 cohort 不可复现。V2 候选 cohort 改为生产 `team_xg_match`，但当前只允许下列汇总元数据：
+
+| item | Gate 0B read-only value |
+|---|---:|
+| team rows | 19,004 |
+| fixtures | 9,502 |
+| xG non-null | 19,004 / 19,004 = 100% |
+| kickoff interval | 2024-02-22 through 2026-08-29 |
+| rows in 2024 | 2,963 |
+| rows in 2025 | 4,181 |
+| rows in 2026 | 2,358 |
+| source | `api_football_statistics` 100% |
+
+本轮没有导出 fixture IDs 或任何生产数据行，所以上表**不是冻结 cohort**。执行前必须重新冻结：
+
+```text
+fixture cohort digest
+competition set and per-competition N
+train/validation chronological split
+min_history threshold
+PIT source visibility rule
+row-conservation contract
+```
+
+## V2.4 Challenger Refit Contract
+
+换 cohort 后 challenger **必须在新 cohort 的训练前缀上重新拟合**。原 Understat 系数与 temperature 禁止直接搬用；那会把跨数据源搬用冒充为合法 challenger。
+
+在读取任何 validation outcome 或结果前，必须冻结：
+
+```text
+feature set
+training-prefix definition and cutoff
+fitting algorithm
+L2 / iterations / learning rate
+temperature fitting rule and its allowed metric scope
+random seed, if any
+artifact schema and SHA-256
+no-result-based retry/fallback rule
+```
+
+本轮 `CHALLENGER_REFIT_EXECUTION_COUNT = 0`。本 V2 不改变原 V1 对 temperature-to-five-state 映射的身份防护：五态 primary 不得偷偷扩展只在 1X2 上定义的 temperature 缩放。
+
+## V2.5 Non-Comparability With July 2026
+
+新 cohort 的任何未来结果**不得**与 2026-07 报告的 `-0.026376` / `-0.035368` 直接比较。数据源、样本、时间、competition 集合与 challenger artifact 均已改变。原数字只作 Understat 历史研究记录，不是 V2 baseline、MME、prior 或 acceptance threshold。
+
+## V2.6 Frozen Items Retained From V1
+
+下列合同保持不变，具体定义见本文历史 V1 部分：
+
+- AH/OU 固定合成线网格；
+- primary 为五态 NLL 逐 fixture 配对差，正值表示 challenger 更好；
+- `EXACT_HALF_LINE / INTEGER_LINE / QUARTER_LINE` 分层；
+- cluster = `matchday + league`；
+- futility 必须先算再评分；
+- 只允许四个结论字段；
+- 不授权生产替换或写入生产路径。
+
+## V2.7 Pre-Execution Re-Arming Checklist
+
+| freeze item | V2 requirement | current status |
+|---|---|---|
+| production authority | `ea557bb8 / schema 0070` | `FROZEN_FROM_GATE_0B` |
+| comparator identity | `PRODUCTION_FORMULA_XG_ONLY`; Elo/value `None`; lineup zero/gates false | `FROZEN_IN_V2_SPEC` |
+| inference boundary | runtime-use claim always carries `INFERRED_FROM_SOURCE_TABLE_EMPTINESS_NOT_RUNTIME_VERIFIED` | `FROZEN_IN_V2_SPEC` |
+| cohort source | `team_xg_match`, `api_football_statistics` | `SOURCE_FROZEN_METADATA_ONLY` |
+| exact fixture cohort/digest | exported only after separate authority; exact SHA-256 | `PENDING_BEFORE_ARMING` |
+| competition set and N | exact set and per-competition counts | `PENDING_BEFORE_ARMING` |
+| split/min-history | chronological split and minimum prior history | `PENDING_BEFORE_ARMING` |
+| challenger fitting rule | full rule frozen before result access | `PENDING_BEFORE_ARMING` |
+| challenger refit artifact | new-cohort training-prefix fit, artifact SHA-256 | `PENDING_BEFORE_ARMING` |
+| old coefficients/temperature reuse | forbidden | `FROZEN_IN_V2_SPEC` |
+| July-2026 direct comparison | forbidden | `FROZEN_IN_V2_SPEC` |
+| line grid / estimand / strata / clusters | inherit V1 unchanged | `FROZEN_IN_V2_SPEC` |
+| MME / power / futility | numeric values and executable decision contract | `PENDING_BEFORE_ARMING` |
+| coverage/failure/no-silent-loss | exact thresholds and reason taxonomy | `PENDING_BEFORE_ARMING` |
+| outcome access guard | no score viewed before all freeze artifacts | `PENDING_BEFORE_ARMING` |
+| Owner execution/export authority | separate explicit authorization | `NOT_AUTHORIZED` |
+
+## V2.8 Allowed Conclusions and Stop Record
+
+```text
+CHALLENGER_FIVE_STATE_BETTER
+NO_FIVE_STATE_IMPROVEMENT
+NOT_IDENTIFIABLE
+INSUFFICIENT_POWER_DO_NOT_SCORE
+```
+
+```text
+U2_EXECUTED = FALSE
+PRODUCTION_DATA_EXPORTED = FALSE
+CHALLENGER_REFIT_EXECUTED = FALSE
+BACKTEST_RUN = FALSE
+BUSINESS_CODE_CHANGED = FALSE
+PRODUCTION_PATH_CHANGED = FALSE
+DEPLOYMENT_COUNT = 0
+```
+
+---
+
+# Historical V1 — Superseded, Retained for Audit Trail
+
+以下为 2026-08-29 的 V1 原文，完整保留作为历史轨迹。其 `PRODUCTION_FORMULA_XG_ELO_ONLY`、Understat cohort 和 Gate 0B 未执行状态均已被上方 V2 取代，不得作为当前执行合同。
+
 # U2 Five-State Incremental Validation Preregistration
 
 文档状态：`PREREGISTRATION_DRAFT_NOT_ARMED`
