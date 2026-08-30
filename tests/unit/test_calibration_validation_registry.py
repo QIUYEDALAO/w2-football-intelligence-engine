@@ -167,6 +167,14 @@ def test_non_validation_verdict_is_rejected_without_writing(tmp_path: Path, verd
     assert not values["ledger_path"].exists()
 
 
+@pytest.mark.parametrize("verdict", ["REVOKED", "WITHDRAWN", "INVALIDATED", "PRODUCTION_REVOKED"])
+def test_revocation_verdict_is_rejected_without_writing(tmp_path: Path, verdict: str) -> None:
+    values = _registration(tmp_path, verdict=verdict)
+    with pytest.raises(CalibrationValidationRegistryError, match="verdict"):
+        register_calibration_validation(**values)
+    assert not values["ledger_path"].exists()
+
+
 def test_each_required_evidence_field_is_rejected_without_writing(tmp_path: Path) -> None:
     required = {
         "calibration_version",
@@ -223,11 +231,25 @@ def test_registration_only_appends_and_preserves_existing_record(tmp_path: Path)
     assert len(rows) == 2
 
 
-def test_repository_ledger_is_empty_and_valid() -> None:
+def test_repository_ledger_record_count_and_evidence_are_valid() -> None:
     import w2.domain.calibration_validation_registry as registry
 
-    assert registry.DEFAULT_LEDGER_PATH.read_bytes() == b""
-    assert validate_calibration_ledger() == 0
+    ledger_lines = [
+        line
+        for line in registry.DEFAULT_LEDGER_PATH.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert validate_calibration_ledger() == len(ledger_lines)
+
+
+def test_default_ledger_validation_requires_source_checkout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import w2.domain.calibration_validation_registry as registry
+
+    monkeypatch.setattr(registry, "DEFAULT_REPOSITORY_ROOT", tmp_path)
+    with pytest.raises(CalibrationValidationRegistryError, match="source checkout or CI"):
+        validate_calibration_ledger()
 
 
 def test_params_and_verdict_have_no_environment_or_config_injection_surface() -> None:
