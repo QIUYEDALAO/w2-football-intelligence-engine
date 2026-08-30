@@ -13,6 +13,32 @@
 
 ---
 
+## 零、当前补缺任务变更记录
+
+### W2-CALIBRATION-AUTHORITY-WRITE-SIDE
+
+```text
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Branch: codex/calibration-authority-write-side-01
+Baseline: 4d00314b228faf4452960db7397f00f6babb6f73
+Production ancestor: ea557bb8ff64e06add91bbe32814fe073ec64642
+```
+
+- 在 `w2.domain` 增加按 `CALIBRATION_VERSION` 与完整 `LambdaCalibrationParams`
+  快照计算的 canonical identity，以及证据完整性校验后的 append-only JSONL 登记能力。
+- 登记强制绑定预注册文档路径及实文件摘要、cohort、样本量、评价窗口与时间、
+  折外指标、代码 revision、config 摘要、verdict、授权时间与授权人；verdict 仍只允许
+  `PRODUCTION_VALIDATED` / `APPROVED_VALIDATED`。
+- `strategy/calibration.py` 按当前 identity 查询随代码部署的 ledger；未命中继续明确声明
+  `BASELINE_PRIOR`。交付 ledger 为零记录，本任务不授予 V1/V2 状态，不恢复正式推荐。
+- 第 1 步只读审计：
+  `docs/review_packages/CALIBRATION_AUTHORITY_WRITE_PATH_AUDIT.md`，SHA-256
+  `1e7175e2135f39aef48976929d2c75e38f33247a5772bf2059f9471285de91db`。
+- 资产账本：新增 1 个 domain registry、1 个空 JSONL ledger、1 个单元测试文件；
+  新增 migration 0、表 0、运行时 DB/Provider/config/env/CLI 注入面 0。
+
+---
+
 ## 一、基线（2026-07-24 核验）
 
 - `github-w2/main` 顶端：`75e4993`（PR #388，ARCH-P1-04B 收尾）

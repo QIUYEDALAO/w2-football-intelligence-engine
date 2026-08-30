@@ -3,8 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import log
 
+from w2.domain.calibration_validation_registry import lookup_calibration_verdict
+
 CALIBRATION_VERSION = "w2.formal.lambda_baseline_prior.v1"
-CALIBRATION_STATUS = "BASELINE_PRIOR"
+BASELINE_CALIBRATION_STATUS = "BASELINE_PRIOR"
 MAX_LINEUP_AH_DELTA = 0.25
 MAX_LINEUP_TOTALS_DELTA = 0.30
 
@@ -51,6 +53,10 @@ def calibrate_lambdas(
     params: LambdaCalibrationParams | None = None,
 ) -> LambdaCalibrationOutput:
     params = params or LambdaCalibrationParams()
+    calibration_status = (
+        lookup_calibration_verdict(calibration_version=CALIBRATION_VERSION, params=params)
+        or BASELINE_CALIBRATION_STATUS
+    )
     base_home = (float(home_xg_for) + float(away_xg_against)) / 2.0
     base_away = (float(away_xg_for) + float(home_xg_against)) / 2.0
     total = _clamp(
@@ -104,7 +110,7 @@ def calibrate_lambdas(
     )
     return LambdaCalibrationOutput(
         calibration_version=CALIBRATION_VERSION,
-        calibration_status=CALIBRATION_STATUS,
+        calibration_status=calibration_status,
         lambda_home=round(lambda_home, 6),
         lambda_away=round(lambda_away, 6),
         params={

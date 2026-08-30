@@ -172,15 +172,28 @@ def test_c_market_implied_probability_still_reads_as_decimal_odds() -> None:
 def test_d_fixture_1570340_yields_no_candidate_under_the_shipped_calibration() -> None:
     """The reported case, with its own recorded numbers, now holds instead of firing.
 
-    `w2.strategy.calibration.CALIBRATION_STATUS` is BASELINE_PRIOR, so this is what
-    the shipped model produces today.
+    The repository ledger has no grant for the shipped parameters, so the strategy
+    declares BASELINE_PRIOR today.
     """
-    from w2.strategy.calibration import CALIBRATION_STATUS
+    from w2.prematch import analysis_calculator
+    from w2.strategy.simulate import SimulationInputs
 
-    assert CALIBRATION_STATUS == "BASELINE_PRIOR"
+    simulation = analysis_calculator.run_simulation(
+        SimulationInputs(
+            fixture_id=FIXTURE_ID,
+            home_team_id="home",
+            away_team_id="away",
+            home_xg_for=1.0,
+            home_xg_against=1.0,
+            away_xg_for=1.0,
+            away_xg_against=1.0,
+        )
+    )
+    calibration_status = simulation.calibration_status
+    assert calibration_status == "BASELINE_PRIOR"
     version = classify_evaluation(
         _evaluation(
-            calibration_status=CALIBRATION_STATUS,
+            calibration_status=calibration_status,
             ev=RECORDED_EV,
             delta=RECORDED_DELTA,
         )
