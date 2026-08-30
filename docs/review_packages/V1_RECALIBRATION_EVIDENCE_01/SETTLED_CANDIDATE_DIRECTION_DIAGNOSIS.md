@@ -7,7 +7,7 @@
 - 导出使用服务端 `COPY (...) TO STDOUT WITH CSV HEADER`，无 `LIMIT` 或客户端分页；导出后进程已退出，生产 `pg_stat_activity`（排除当前检查会话）active `COPY` 为 0。
 - 评价 CSV SHA-256：`da64955c4d97444b4253994f6e5560a4fc126d3af0ccc9d2e9212913c2a87554`
 - 报价 CSV SHA-256：`9132606a9481ccf2bfe63ac7a51f007aeb09703dfdfcb79b9c0aa494c3b9d1fd`
-- 逐注分析 JSON SHA-256：`52f2b0dd91436f2007addd2dc05304567b32e60e7e79ac538eae41a98192ebda`
+- 逐注分析 JSON SHA-256：`00317832d251d4558de84343df61d9205e910ffa499b99271b798601d748dfec`
 
 可复核命令：
 
@@ -20,7 +20,7 @@ PYTHONPATH=src python3 scripts/audit_settled_candidate_directions.py \
 
 ## 复算口径
 
-逐注使用评价 payload 的完整五态 `model_settlement_distribution`（因此与生产 `current_ev` 的绝对差均值约 `2.5e-7`），并在同一 capture、同一 bookmaker、同一 canonical line 取得反方向报价。AH 反方向按 `HOME -x ↔ AWAY +x` 的结算语义转换；TOTALS 反方向共用同一总进球线。市场概率和价格优势使用生产实现的 proportional 去水（`src/w2/markets/devig.py`），不是 provenance 标签中的 POWER。
+逐注使用评价 payload 的完整五态 `model_settlement_distribution`（因此与生产 `current_ev` 的绝对差均值约 `2.5e-7`）。AH 原始 observation 的 line 符号不能稳定充当双边配对身份；旧版脚本按 raw line 配对会把 `HOME +x / AWAY -x` 配错，已明确作废。修正版以生产持久化的 `current_delta` 和模型有效概率恢复当时 proportional-devig 市场概率，再由选中侧赔率反解同一双边 overround 下的反向赔率。AH 结算仍按 `HOME -x ↔ AWAY +x`，TOTALS 共用同一总进球线。
 
 反方向分布由五态互补得到：`WIN↔LOSS`、`HALF_WIN↔HALF_LOSS`、`PUSH` 不变。这比 capture 中低精度的 deterministic ladder 更准确，因为评价 payload 已包含生产不确定性混合后的分布。
 
@@ -30,17 +30,16 @@ PYTHONPATH=src python3 scripts/audit_settled_candidate_directions.py \
 
 | 市场 | 注数 | 推荐 WIN/HALF_WIN | 推荐 LOSS/HALF_LOSS | 推荐 EV 均值 | 反方向 EV 均值 | 推荐 edge 均值 | 反方向 edge 均值 |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| AH | 58 | 26 | 30 | 0.258039 | -0.378328 | 0.281646 | -0.412510 |
-| TOTALS | 52 | 25 | 26 | 0.166526 | -0.265556 | 0.190309 | -0.306365 |
-| 合计 | 110 | 44 | 56 | 0.214778 | -0.325017 | 0.238469 | -0.371843 |
+| AH | 58 | 26 | 30 | 0.258039 | -0.397959 | 0.281646 | -0.435136 |
+| TOTALS | 52 | 25 | 26 | 0.166526 | -0.265556 | 0.190309 | -0.306364 |
+| 合计 | 110 | 44 | 56 | 0.214778 | -0.335368 | 0.238469 | -0.374262 |
 
 结算分布：`WIN 40`、`HALF_WIN 4`、`PUSH 10`、`HALF_LOSS 7`、`LOSS 49`。按既有 `WIN_UNITS` 结算，本快照 P&L 为 **-17.045 单位**（仅症状展示，不用于调参）。
 
 最关键的反事实结果：
 
-- 推荐方向出现不利结算（`LOSS/HALF_LOSS`）共 **56 注**；反方向确实结算为 `WIN/HALF_WIN`，但在冻结赛前证据下，**同 bookmaker/同盘口反方向 0/110 通过 EV>0 与 edge≥5% 两项硬门**。
-- 放宽为同 capture、同 canonical line 的所有 bookmaker，取反方向最高赔率，反方向 EV>0 仍为 **0/110**（最佳值也为负）。因此没有证据表明“选择器本来应选另一边但选错了”；证据指向模型概率/输入对实际赛果失真，而非方向排序把一个已过门的反方向丢掉。
-- 推荐记录本身有门不一致：110 注中 EV>0 为 110、EV-SE>0 为 110，但 cashflow edge≥5% 仅 108、按本地同口径 delta≥5% 仅 105。至少两注（`1492348 AH AWAY`、`1493078 AH AWAY`）edge 低于 5% 仍进入最终候选；这说明动态评价/候选链实际执行的门并非统一“四门”。
+- 推荐方向出现不利结算（`LOSS/HALF_LOSS`）共 **56 注**；反方向确实结算为 `WIN/HALF_WIN`，但按生产持久化 devig 恢复，反方向 **0/110** 通过 EV>0 与 edge≥5% 两项硬门。因此没有证据表明“选择器本来应选另一边但选错了”；证据指向模型概率在高分歧子集失真。
+- 推荐记录的持久化 delta≥5% 实为 **110/110**，原先的 105/110 来自错误 AH raw-line 配对，已作废。cashflow edge≥5% 仍为 **108/110**：`1492348 AH AWAY` 与 `1493078 AH AWAY` 的 edge 分别约 `4.66% / 4.60%`。代码路径确认 lifecycle 只检查 EV、delta、EV-SE，而 `analysis_evidence/market_candidate` 检查 EV、cashflow edge、EV-SE；这是两个真实的 admission contract 漂移样本。
 
 ## “为什么会选这一边、改哪里会切换”
 
