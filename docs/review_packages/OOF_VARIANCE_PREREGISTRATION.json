@@ -1,0 +1,76 @@
+{
+  "schema": "NEW_PREREGISTERED_POWER_REESTIMATION_V1",
+  "id": "OOF_VAR_01",
+  "status": "FROZEN_BEFORE_ANY_COMPUTATION",
+  "frozen_at": "2026-08-30",
+  "origin": "External expert review of plan V2.0 recommended a TRAIN-only out-of-fold variance re-estimation as the one legitimate way to test the power floor without waiting for new data",
+  "purpose": "Re-estimate the nuisance variance of the per-fixture paired five-state NLL difference using out-of-fold predictions only, and re-derive the validation-N detectable effect under a cluster contract that is actually implemented as written.",
+  "explicitly_not_a_model_experiment": "This produces no model comparison conclusion. It does not rank comparator against challenger, does not authorise promotion, and does not modify or reopen U2.",
+
+  "relationship_to_u2": {
+    "u2_status": "CLOSED at INSUFFICIENT_POWER_DO_NOT_SCORE; not reopened, not amended",
+    "reuse": ["cohort digest c74eaf0f...", "PIT rule", "min_history=5", "comparator identity", "line grid", "outcome construction"],
+    "does_not_reuse": ["U2 cluster implementation", "U2 MME role", "U2 power claim"],
+    "u2_defects_this_addresses": ["DISCLOSED_EXECUTION_DEVIATION (cluster)", "DISCLOSED_PRIMARY_SCORE_IDENTITY_OMISSION"]
+  },
+
+  "data_boundary": {
+    "uses": "TRAIN prefix only, kickoff_at < 2025-11-11 00:15:00+00",
+    "validation": "SEALED. No validation fixture is loaded, scored, or inspected.",
+    "penaltyblog": "NOT INVOLVED"
+  },
+
+  "primary_score_identity": {
+    "note": "frozen here because U2 omitted it",
+    "line_grid_OU": [1.5, 2.0, 2.5, 3.0, 3.5],
+    "line_grid_AH": [-1.5, -1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 1.5],
+    "market_weights": "OU and AH enter with equal total weight per market",
+    "line_weights": "equal within each market",
+    "within_fixture_aggregation": "d_i = mean over markets of (mean over that market's lines of (NLL_comparator - NLL_challenger))",
+    "note_on_change_from_u2": "U2 used a flat mean over all 16 lines, which weights AH 11/16 and OU 5/16. This preregistration switches to equal weight per market and reports both, so the scale difference is measurable rather than hidden."
+  },
+
+  "fold_design": {
+    "type": "expanding-origin rolling cross-fit within TRAIN",
+    "blocks": "TRAIN fixtures sorted by kickoff_at then fixture_id, cut into 6 contiguous blocks of equal fixture count",
+    "folds": "for k in 1..5: fit challenger on blocks 1..k, produce OOF predictions for block k+1",
+    "oof_coverage": "blocks 2..6",
+    "challenger_fit": "identical algorithm to U2: L2 Poisson IRLS, features [intercept, home_field, attack_xg_for, opponent_xg_against, elo_gap], lambda_l2=1.0, max_iter=100, tol=1e-10, deterministic",
+    "temperature": "NOT refitted; temperature is a 1X2-scope object and does not enter the five-state primary",
+    "comparator": "PRODUCTION_FORMULA_XG_WITH_PROXY_ELO, unchanged, no fitting"
+  },
+
+  "cluster_contract": {
+    "basic_unit": "fixture",
+    "estimator": "block bootstrap over (league x calendar-month) cells, resampling cells with replacement",
+    "replicates": 2000,
+    "seed": 20260830,
+    "rationale": "the reviewer noted 13 leagues is too few for standard cluster-robust asymptotics; a cell bootstrap over league-month avoids relying on small-G asymptotics while still respecting both league and time structure",
+    "also_reported": ["iid SE", "one-way kickoff-date clustered SE (for comparability with the U2 figure)"],
+    "implementation_must_match_contract": "if the implemented estimator differs from this text in any respect, the run fails closed and the deviation is disclosed rather than silently accepted"
+  },
+
+  "outputs": {
+    "required": [
+      "OOF d_i count and coverage",
+      "mean and SD of OOF d_i (mean reported as nuisance context only, NOT as an effect estimate)",
+      "SE under all three estimators",
+      "implied detectable effect at validation N = 2790 for a one-sided 5% test at 80% power against H0: delta <= 0",
+      "comparison against the U2 figure 0.003624",
+      "per-market and per-line-type SD breakdown"
+    ],
+    "forbidden": [
+      "any statement that one model is better",
+      "any promotion or feasibility conclusion",
+      "any use of the OOF mean as evidence of effect",
+      "any adjustment to MME, split, min_history, line grid, or cohort based on these numbers"
+    ]
+  },
+
+  "interpretation_rule": {
+    "if_se_similar": "the U2 power floor is corroborated; the waiting-time estimate stands",
+    "if_se_materially_smaller": "the U2 floor was pessimistic; a new power design may be worth preregistering, but no existing conclusion changes",
+    "if_se_materially_larger": "the U2 floor was optimistic and the required N is larger than 5,859",
+    "in_all_cases": "this does not by itself authorise executing any scoring experiment; MME role and decision utility remain open questions for external argument"
+  }
+}
