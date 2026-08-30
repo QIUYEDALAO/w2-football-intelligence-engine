@@ -6,7 +6,7 @@
 
 创建日期：2026-08-29（Asia/Shanghai）
 
-当前修订：V2.0（重新定位：已完成工作归入 Phase 4.5 的测量能力建设，Phase 4.5 复用 U2 冻结管线并接入 Penaltyblog challenger；不改变 A–J、Gate 结构或阶段顺序）
+当前修订：V2.0（专家反馈修订：Phase 4.5 只复用 U2 数据身份合同；补齐 MME 角色、primary score identity、OOF 方差与 cluster 对齐要求；不改变 A–J、Gate 结构或阶段顺序）
 
 实施状态：Gate 0A、Gate 0B 与 Phase 2.5a 的只读/静态审计已部分完成；U2 已执行并在评分前因功效不足停止；业务实施未授权
 
@@ -19,11 +19,135 @@
 | 状态 | 当前事实 |
 |---|---|
 | 研究问题 | Penaltyblog 能否为 W2 的 EV 提供增量概率信息 |
-| 当前答案 | 未测量。测量能力已建成，但功效不足以在 `MME=0.0025` 下评分 |
+| 当前答案 | 未测量。测量能力已建成；U2 在评分前停止，但其 MME 角色、cluster 执行和 primary score identity 均有已披露缺口 |
 | 已建成 | cohort 冻结 / PIT / 五态管线 / futility（见 U2） |
 | 已查清 | 生产 λ 在 11 个启用联赛上是纯 rolling-xG |
-| 待解决 | MME 是否应为 `0.0025`（同时卡住 U2 / champion 晋级与 Phase 4.5 / Penaltyblog 增量检验） |
-| 下一步 | Phase 4.5：把 Penaltyblog 接入 U2 管线，先算 futility |
+| 待解决 | 先拆分 promotion threshold 与 design alternative，再分别论证 champion 与低成本 challenger 的 decision utility |
+| 下一步 | 外部独立 MME 论证；TRAIN-only OOF 方差重估与 cluster 合同对齐（均不接 Penaltyblog、不读 validation outcomes） |
+
+## 0. 专家评审请求
+
+评审范围：本系统的**模型与评价方法学**。不含工程实现质量、部署与运维。
+
+**请把本文的所有结论都当作待质疑对象。** 本轮工作中，我们在「某个东西是不是它名字所指的东西」上连续错了五次（见 §0.7）。任何标注为已验证的结论都欢迎推翻。
+
+### 0.1 定价层
+
+生产使用五态结算 EV，见 §2.2。准入所用的 `cashflow_price_edge` 与 EV 是同一个量（§2.3）：
+`cashflow_price_edge = EV / S`，其中 `S` 为期望结算暴露本金比例（§2.5）。
+半盘上 `S = 1`，两个准入门逐值相等；有走盘或半赢半输质量的盘口，`edge >= 0.05` 实为 `EV >= 0.05 * S`，门槛随盘口结构浮动。
+
+```text
+Q1.1  以 EV/S（在险资本回报率）而非 EV（名义本金回报率）作准入门，
+      经济上是否正确？binding constraint 是风险资本还是周转量？
+Q1.2  门槛随盘口结构浮动，是设计意图还是副作用？
+Q1.3  五态公式本身、报价绑定、四位量化，是否存在我们未发现的问题？
+```
+
+### 0.2 概率层
+
+生产 λ 的实际闭式见 §2.7 与 `PRODUCTION_LAMBDA_EFFECTIVE_FORM.md`：纯 rolling-xG、独立 Poisson、`rho = 0`。五个硬编码系数从未拟合，全仓无拟合代码；其中 Elo 是同一份 xG 的确定性 proxy，只起 14% 放大作用，身价与首发两项当前零贡献。
+
+```text
+Q2.1  该模型结构本身有何根本缺陷？我们目前只观察到主场项偏低
+      （模型主客差 0.11，实际 0.31，见 U2 章节 NON_CONCLUSION）
+Q2.2  以简单平均 rolling xG 作强度估计——无对手强度校正、无时间衰减、
+      无收缩——损失有多大？
+Q2.3  独立 Poisson 且 rho=0，完全忽略进球相关性，对 AH/OU 五态影响多大？
+Q2.4  clamp 边界 [0.15, 4.25] 与 [1.35, 4.40] 是否合理？触发频率尚未测量。
+```
+
+### 0.3 决策层
+
+现役准入为 `EV > 0` 且 `cashflow_price_edge >= 0.05` 且 `EV - SE > 0`（§2.6）；另有一套已降级为诊断的 legacy 5pp 概率差门并行运行；全部 capability 的 `production_enabled` 均为 false。
+
+```text
+Q3.1  三条件准入（其中两条如上所述是同一个量）设计是否合理？
+Q3.2  EV - SE > 0 这类不确定性扣减，阈值应如何确定？
+Q3.3  现役门与 legacy 门并存的风险在哪？
+```
+
+### 0.4 评价方法学（我们最没有把握的部分）
+
+nats 作为 log-score 单位可比；`ΔNLL=0.0025` 对应真实结果概率的几何平均改善 `e^0.0025 - 1 ≈ 0.2503%`。这只解释现有数值的单位，不把它或其他数字列为 Q4.1 的候选答案。
+
+```text
+Q4.1  MME 应先按什么原则定义？nats 作为 log-score 单位可比，但五态 AH/OU
+      产品、模型替换成本与下注决策后果所需的 practical/economic justification
+      尚未建立。design effect 与 promotion threshold 是否必须拆分？生产
+      champion 与低成本 challenger 的 decision utility 不同时，是否应共用 MME？
+Q4.2  我们以固定合成线网格上的五态 NLL 作产品级指标，理由是不需要赔率、
+      绕开 de-vig 权威未定。该替代是否可接受？还是只有「预测 EV vs
+      实现回报」才算数？
+Q4.3  冻结合同写 cluster = matchday + league，U2 实际只按 kickoff date
+      一路聚类；13 个 league 也不足以直接依赖常规 cluster-robust 渐近推断。
+      下一版应如何组合 fixture 基本单位、league/time-block bootstrap 与
+      wild-cluster 修正？
+Q4.4  U2 以训练前缀估 d_i 离散度并把 MDE 与同一个 MME 比较，但未区分
+      H0: Δ≤0 的 design effect 与 H0: Δ≤MME 的 promotion threshold；后者
+      也未冻结阈值之上的 design alternative。该功效合同应如何重建？
+Q4.5  [评审已答复] NEW_PREREGISTERED_POWER_REESTIMATION：仅在 TRAIN 内部做
+      rolling-origin 交叉拟合，以未参与 challenger 拟合的 OOF 预测形成每个
+      d_i，并重估 Var(d_i) 与 clustered SE；validation outcomes 全程封存。
+      它只改进 nuisance variance，不给模型结论，也不追溯改写已结束的 U2。
+```
+
+### 0.5 数据与推断有效性
+
+cohort 为 9,551 场、2024-02 至 2026-08、xG 零缺失、来源 `api_football_statistics`；PIT 已逐 fixture 重放验证；de-vig 计算实为 PROPORTIONAL 但 provenance 标签为 POWER，历史行方法归因不可恢复（§2.8）。
+
+```text
+Q5.1  API-Football 的 xG 质量如何？有哪些已知系统性偏差？
+Q5.2  de-vig 权威未定，我们据此只阻断 model-vs-market 轨道，
+      不阻断 model-vs-model 配对比较。该切分是否正确？
+Q5.3  cohort 跨 13 个联赛混合，只做分层报告不做分层建模，是否有问题？
+```
+
+### 0.6 程序层面
+
+```text
+Q6.1  先修 champion 还是先测 challenger？我们的判断是「拿未验证的基准
+      评价挑战者，结论不可解释」，但也意识到配对比较并不需要基准的
+      绝对质量。哪个判断正确？
+Q6.2  Penaltyblog 六模型在竞彩结算 1X2 上全部未击败市场、boundary score
+      全负（§2.9）。该先验应在多大程度上影响是否继续？
+Q6.3  整个程序的优先级排序是否有更好的安排？
+```
+
+### 0.7 请优先检查我们声称已验证的结论
+
+本轮工作中出现五次同类错误——**把名字相同的东西当成同一个东西**：
+
+```text
+1. dixon_coles.py 在仓库中     -> 误以为生产在用 Dixon-Coles（实际不在生产路径）
+2. provenance 标签写 POWER     -> 误以为算法是 power（实际为 proportional）
+3. 变量名为 baseline_prior     -> 误以为是生产 baseline（实际是另一离线模型）
+4. 查 payload 时用错表          -> 差点把「字段不存在」当成「值为零」
+5. Elo 来自 team_rating_snapshots -> 实际生产由 xG 构造 proxy
+```
+
+第 3 条影响最大：它使我们连续数轮认为「存在一个比生产好 `0.026` nats 的模型」，而该数字实为相对另一个离线对照，**与生产 champion 的差距至今未测**。
+
+因此请优先检查下列我们声称已验证的结论：
+
+```text
+生产 λ 闭式是否确为生产实际运行的形态
+elo_delta = 0.14 * raw_delta 的推导
+cohort 的 PIT 完整性
+futility 的算术与其假设
+```
+
+### 0.8 建议的阅读顺序
+
+```text
+1. §0 本节 + 当前状态速览
+2. PRODUCTION_LAMBDA_EFFECTIVE_FORM.md    生产模型闭式与推导
+3. U2_EXECUTION_RECEIPT.md                完整执行链与停止位置
+4. W2_BASELINE_PARAMETER_PROVENANCE.json  五系数来源与真实效果
+5. 其余章节与证据附件按需查阅
+```
+
+---
 
 ## 1. Executive Summary
 
@@ -38,8 +162,8 @@
 - **研究问题仍未测量：**Penaltyblog 能否为 W2 的 EV 提供增量概率信息，当前没有评分结论。生产 champion 的概率质量与 challenger 相对它的差距也未测量；此前第一优先级是只读的 EV/概率血缘审计和 W2 `BASELINE_PRIOR` 概率质量审计，而不是修改公式、删除安全门或接入六模型；
 - **测量能力已经建成：**Gate 0A/0B、Phase 2.5a、U1 与 U2 共同建立正确 comparator、cohort、PIT、五态管线和 futility。U2 状态为 `EXECUTED`，结论为 `INSUFFICIENT_POWER_DO_NOT_SCORE`；冻结的 futility 规则在评分前触发，validation 五态分数未被读取。对照身份为 `PRODUCTION_FORMULA_XG_WITH_PROXY_ELO`；对任意非零 `raw_delta`，`elo_delta/raw_delta = 0.14` 的绝对容差为 `1e-9`，零 `raw_delta` 时必须有零 `elo_delta`。真实 cohort 逐 fixture 断言首次通过：违反 `0` 例，且 `3` 例 `raw_delta == 0` 全部满足 `elo_delta == 0`。旧 `PRODUCTION_FORMULA_XG_ONLY` 只作为 `SUPERSEDED_BY_STATIC_CODE_VERIFICATION` 审计轨迹保留；
 - **生产 comparator 已查清：**生产在当前 11 个启用联赛上的实际 λ 形态已静态查清，是纯 rolling-xG，非本文 §2.7 原描述的 xG+Elo+身价+首发四路融合；Elo 是 rolling-xG proxy，使 `raw_delta` 放大 14%；身价与首发两项当前为零贡献，`rho=0`；这不等于生产概率质量已经测量；
-- **共同瓶颈是 MME：**`MME=0.0025` 从 1X2 LogLoss 搬用到五态 AH/OU NLL，尚无理论依据；它同时决定 U2 / champion 晋级与 Phase 4.5 / Penaltyblog 增量检验的功效；
-- **下一步规格是 Phase 4.5：**在 U2 已冻结管线上替换为 Penaltyblog challenger，并先算 futility。Penaltyblog 六模型在已完成的竞彩结算 1X2 研究中没有击败市场，Phase 3 为零 survivor；该结果否决“直接替换即可提升”，但不能直接外推到 W2 的 AH/OU 同时点可执行报价。完整 Penaltyblog adapter 前的 `MINIMAL_FROZEN_FEASIBILITY_PROBE` 仍必须有 fixture/cutoff/outcome parity 和不可变 artifact，不能用无身份的一次性脚本；
+- **共同瓶颈是 MME 决策合同：**nats 作为 log-score 单位可比；`ΔNLL=0.0025` 对应真实结果概率的几何平均改善 `e^0.0025 - 1 ≈ 0.2503%`。缺失的不是单位可比性，而是针对五态 AH/OU 产品、模型替换成本与下注决策后果的 task-specific practical/economic justification，以及 promotion threshold 与 design alternative 的角色拆分；
+- **下一步先修方法合同：**先做外部独立 MME 角色/decision-utility 论证，以及不接 Penaltyblog 的 TRAIN-only OOF nuisance variance 重估与 cluster 合同对齐；之后的 Phase 4.5 只复用 U2 数据身份合同，再另冻 Penaltyblog challenger、`PRIMARY_SCORE_IDENTITY`、MME/design alternative 与推断合同。Penaltyblog 六模型在已完成的竞彩结算 1X2 研究中没有击败市场，Phase 3 为零 survivor；该结果否决“直接替换即可提升”，但不能直接外推到 W2 的 AH/OU 同时点可执行报价；
 - 只有 C0-MODEL 预检结论为 `PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH`，才建设隔离的 Poisson parity adapter；
 - Gate 0B 已确认生产权威为 `ea557bb8 / schema 0070`；`origin/main@3b7f87db / schema 0051` 落后生产 19 个 migration，但四个核心审计文件跨基线逐字节相同，因此对应静态结论存活；
 - W2 的正式 simulation 并不调用 `models/dixon_coles.fit_dixon_coles()`，不能把该离线模型直接称为生产概率源；
@@ -433,7 +557,9 @@ and W2_COHORT_BURN_LEDGER has an eligible development cohort
 
 U1 input/cohort readiness COMPLETE
 and U2 frozen pipeline EXECUTED
-  -> Phase 4.5 preregistration: frozen U2 pipeline + Penaltyblog challenger
+  -> external MME role / decision-utility justification
+  -> TRAIN-only OOF nuisance-variance reestimation + cluster contract alignment
+  -> only then Phase 4.5 preregistration: frozen data identity + Penaltyblog challenger
   -> futility before validation scoring
 
 Phase 4.5 MODEL_VALUE_TRACK
@@ -850,13 +976,23 @@ docs/review_packages/U2_EXECUTION_RECEIPT.md
 
 这不是设计变更：未触及 split、`min_history`、线网格、cluster、MME 或决策规则，且先验证“结论不变”才采纳修正。详情仅引用 `docs/review_packages/U2_ARMING_FREEZE.json` 的 `cohort_label_correction` 块与 `docs/review_packages/U2_EXECUTION_RECEIPT.md` 末节，不在本计划复制完整证据。
 
+**聚类执行偏差 — `DISCLOSED_EXECUTION_DEVIATION`**
+
+冻结合同写的是 `cluster = matchday (kickoff date) and league`，实际执行只按 kickoff date 一路聚类；league 没有进入实际 clustered SE。执行回执中的 `SE=0.001005 / G=455` 因而只能解释为日聚类结果，不得表述为 matchday + league 合同已执行。即使补做 league 聚类，当前只有 `13` 个 league，small-G 不足以直接依赖常规 cluster-robust 渐近推断。下一版必须以 fixture 为基本单位，并把 league/time-block bootstrap 或 wild-cluster 修正列为预冻结 sensitivity；实际实现必须与冻结的 cluster 合同逐项对齐。
+
+**primary score identity 冻结缺失 — `DISCLOSED_PRIMARY_SCORE_IDENTITY_OMISSION`**
+
+U2 实际将每场 fixture 的 `16` 条合成线（OU `5` 条、AH `11` 条）等权平均，形成一个 `d_i`；该 within-fixture 聚合规则从未写入冻结文档。增删任一条线、改变 market 权重、line 权重或聚合方式都会改变 primary 的尺度，因此 U2 的 `0.0025` nats 在项目内部也没有脱离完整 score identity 的稳定含义。validation 五态分数未被读取，所以该缺失不产生模型优劣结论；但 U2 的 primary 尺度与功效结果不得直接作为 Phase 4.5 的完整冻结合同复用。
+
 proxy Elo 的 `elo_delta = 0.14 × raw_delta` 不再只有代数推导：它第一次在真实 cohort 上完成逐 fixture 验证，违反为 `0` 例；`3` 例 `raw_delta == 0` 均满足 `elo_delta == 0`。旧 `PRODUCTION_FORMULA_XG_ONLY` 只保留为 `SUPERSEDED_BY_STATIC_CODE_VERIFICATION` 历史轨迹。
 
-futility 在读取任何 validation 五态分数之前触发：train `n=5,869`，`d_i` 的 `sd=0.078733`；按 kickoff 日聚类得到 `SE=0.001005`、`G=455` 天；validation `N=2,790` 的预计 `SE=0.001457`。80% power、单侧 5% 下，MDE 约为 `0.003624` nats（执行回执以六位小数展示为 `0.003623`），高于冻结的 `MME=0.0025`，因此必须返回 `INSUFFICIENT_POWER_DO_NOT_SCORE`，不得读取 validation 五态分数或形成模型优劣结论。
+futility 在读取任何 validation 五态分数之前触发：train `n=5,869`，`d_i` 的 `sd=0.078733`；实际按 kickoff 日一路聚类得到 `SE=0.001005`、`G=455` 天；validation `N=2,790` 的预计 `SE=0.001457`。80% power、单侧 5% 下，历史执行得到 MDE 约 `0.003624` nats（执行回执以六位小数展示为 `0.003623`），并与冻结值 `0.0025` 比较后返回 `INSUFFICIENT_POWER_DO_NOT_SCORE`；validation 五态分数未被读取，也没有形成模型优劣结论。
 
-保持当前方差与设计不变，所需 validation 样本量按 `2,790 × (0.003623 / 0.0025)^2` 估算约为 `5,859`，即当前的约 `2.10` 倍，缺口约 `3,069` 场。按本次 validation cohort 的积累速度，约需再等待 `0.9` 年；这是功效规划估算，不是新的执行结果。
+上述比较在执行上隐式把 `0.0025` 当作检验 `H0: Δ≤0` 时希望以 80% 功效检测的 design effect；但文档同时把它称为“值得晋级的最小改善”，后者对应 `H0: Δ≤MME`。若 `MME_ROLE=PROMOTION_THRESHOLD`，必须另给严格大于阈值的 design alternative；真值恰为阈值时不可能有 80% 拒绝功效。U2 没有冻结该 alternative，因此不得把原 MDE 比较称为“对晋级阈值有 80% 功效”。
 
-U2 的硬约束：不得为换取功效而修改切分比例、`min_history`、线网格、cluster 定义或下调 MME。上述任一改动都属于在看到 futility 结果之后调整设计。若要在更小 MME 下重做，必须另立新的预注册；不得修订本版 U2 合同。
+历史样本量计算 `2,790 × (0.003623 / 0.0025)^2 ≈ 5,859`、缺口约 `3,069` 场、约再等待 `0.9` 年，只在把 `0.0025` 当作 `H0: Δ≤0` 下的 design effect 且接受原方差/聚类合同时成立；它不是 `H0: Δ≤MME` 晋级检验的有效样本量要求，也不再是本计划的 Minimal next action。
+
+U2 的硬约束：不得为换取功效而修改切分比例、`min_history`、线网格、cluster 定义或下调 MME。上述任一改动都属于在看到 futility 结果之后调整设计。若要在更小 MME 下重做，必须另立新的预注册；不得修订本版 U2 合同。未来新预注册对 cluster 合同、score identity、MME 角色或 nuisance variance 的修复，不得回写成 U2 当时已经具备这些控制。
 
 **U2 描述性观察 — `NON_CONCLUSION`**
 
@@ -871,24 +1007,43 @@ U2 的硬约束：不得为换取功效而修改切分比例、`min_history`、�
 | Gate 0A / Gate 0B | 确定生产权威 `ea557bb8 / 0070`，查清生产 λ 的实际闭式 | comparator 才有正确身份 |
 | Phase 2.5a | 确证 `BASELINE_PRIOR` 五系数硬编码、无拟合证据 | 说明 comparator 是什么、不是什么 |
 | U1 | 输入可得性、联赛范围、cohort 可行性 | 构成 Phase 4.5 的数据前置 |
-| U2 | cohort 冻结、PIT 特征、五态管线、futility 机制全部跑通 | Phase 4.5 直接复用，只需替换 challenger |
+| U2 | cohort、PIT、五态 outcome 管线与评分前停止顺序跑通，同时暴露 cluster 执行偏差和 score identity 冻结缺失 | Phase 4.5 只复用数据身份合同；推断与决策合同必须重建 |
 
 这些工作不是脱离 Penaltyblog × W2 研究问题的平行 champion 轨道，而是让 Phase 4.5 可以用正确 comparator、合法数据和评分前功效门回答原研究问题的测量能力建设。
 
-### OPEN_QUESTION_MME — Five-State NLL Minimum Meaningful Effect
+### OPEN_QUESTION_MME — Role, Decision Utility & Power Design
 
-`MME=0.0025` nats 从 Penaltyblog 项目的 1X2 LogLoss 搬用到五态 AH/OU NLL，**没有理论依据**，是一个待外部独立论证的假设。
-
-该数字同时决定两件事：
+令 `Δ = NLL_comparator - NLL_challenger`，正值有利于 challenger。必须区分两个不同问题：
 
 ```text
-U2 / champion 晋级是否有功效
-Phase 4.5 / Penaltyblog 增量检验是否有功效
+DESIGN_EFFECT_TEST
+  H0: Δ ≤ 0
+  design alternative: Δ = δ_design > 0
+
+PROMOTION_THRESHOLD_TEST
+  H0: Δ ≤ MME
+  design alternative: Δ = δ_promotion > MME
 ```
 
-当前 U2 的 `MDE=0.003624`。若 MME 应更大，两条路当时都有功效；若 MME 应更小，两条路都要等待更久。Phase 4.5 因 challenger 改为 Penaltyblog，仍必须用自己的 `d_i` 离散度重新估计 MDE，不得直接复用 U2 的方差结果。
+本计划对后续决策合同写死：
 
-在 MME 得到独立论证之前，不得以任何理由在本版内调整 `MME=0.0025`。
+```text
+MME_ROLE = PROMOTION_THRESHOLD
+MME_U2_CHAMPION_PROMOTION = 0.0025 nats
+  historical frozen value; task-specific justification remains open
+DESIGN_ALTERNATIVE_U2 = NOT_FROZEN
+
+MME_PB_FEASIBILITY = UNSET_PENDING_EXTERNAL_JUSTIFICATION
+DESIGN_ALTERNATIVE_PB = UNSET_MUST_BE_STRICTLY_ABOVE_MME_PB_FEASIBILITY
+```
+
+因此 U2 保留其已结束的 `INSUFFICIENT_POWER_DO_NOT_SCORE`，但不得声称已建立对 `H0: Δ≤0.0025` 的 80% 功效；它缺少阈值之上的 design alternative。Phase 4.5 的新预注册必须同时冻结 `MME_PB_FEASIBILITY` 与 `DESIGN_ALTERNATIVE_PB`，再按后者计算目标功效。
+
+nats 作为 log-score 单位可比：`ΔNLL=0.0025` 对应真实结果概率的几何平均改善 `e^0.0025 - 1 ≈ 0.2503%`。缺失的不是 1X2 与五态 NLL 的单位可比性，而是针对五态 AH/OU 产品、模型替换成本与下注决策后果的 task-specific practical/economic justification。
+
+`MME_U2_CHAMPION_PROMOTION` 与 `MME_PB_FEASIBILITY` 服务不同决策：替换生产 champion 与决定是否继续一个低成本 Penaltyblog feasibility challenger。只有外部论证认定两者的 decision utility 相同，才允许赋相同数值。Penaltyblog 尚未评分；在任何 PB validation outcome 之前为其独立冻结经外部论证的 MME 与 design alternative，不属于看到 PB 结果后的 tuning，也不修改 U2 已冻结合同。
+
+合法的近期功效路径为 `NEW_PREREGISTERED_POWER_REESTIMATION`：先为本次 nuisance 估计预冻结 `PRIMARY_SCORE_IDENTITY` 与 cluster/sensitivity 合同，再只在 TRAIN 内部按既有 U2 Understat challenger 规格做 rolling-origin 交叉拟合，确保每个 `d_i` 来自未参与 challenger 拟合的 OOF 预测，据此重估 `Var(d_i)` 与 clustered SE；validation outcomes 全程封存。该步骤不接 Penaltyblog，只提供更可信的 nuisance variance，不提供模型结论，不执行评分，也不得回头篡改已结束的 U2。
 
 ### Phase 3 — EV Contract Convergence
 
@@ -971,7 +1126,7 @@ S_asof 在预测时点即固定，因此 E[Y/S_asof] = EV/S_asof 成立。
 
 两个空间必须同时报告，但只有 `NOMINAL_EV_CALIBRATION` 是 primary；`EXPOSURE_NORMALIZED_CALIBRATION` 是 key secondary，不得单独覆盖 primary 裁决。`cashflow_price_edge` 是受 `Fq` 量化影响的 `EV/S_asof` 代码表示，不是独立于 EV 的新信号。硬禁止把 `cashflow_price_edge` 与 EV 当作两个独立 predictor 做交叉归因。
 
-政策裁决必须冻结为单一 decision rule，不得根据哪个空间的回归 p 值更好看而选择政策。若 Owner 坚持双 primary，必须事前同时冻结 multiplicity control、joint success rule、两个独立 MME，以及 `BOTH PASS` 或 hierarchical gatekeeping；未冻结这些内容时禁止称 co-primary。
+政策裁决必须冻结为单一 decision rule，不得根据哪个空间的回归 p 值更好看而选择政策。若 Owner 坚持双 primary，必须事前同时冻结 multiplicity control、joint success rule、两个独立的 `MME_ROLE` / promotion threshold / design alternative，以及 `BOTH PASS` 或 hierarchical gatekeeping；未冻结这些内容时禁止称 co-primary。
 
 在查看新结果前必须冻结：
 
@@ -980,7 +1135,7 @@ S_asof 在预测时点即固定，因此 E[Y/S_asof] = EV/S_asof 成立。
 - AH/OU 分开报告；
 - half/integer/quarter line 覆盖与分层；
 - `S_asof` 作为连续量的分层/交互报告方式；
-- primary 与 key-secondary 的 estimand、MME、cluster、power design 和单一政策 decision rule；
+- primary 与 key-secondary 的 estimand、`MME_ROLE`、promotion threshold、design alternative、cluster、power design 和单一政策 decision rule；
 - failure/coverage Gate、futility rule 与 one-look rule；
 - 政策门槛不允许根据结果移动。
 
@@ -1020,7 +1175,7 @@ RECORD_FIRST_EVALUATE_LATER
 
 本阶段只出决策包，不直接改阈值。
 
-### Phase 4.5 — Frozen U2 Pipeline with Penaltyblog Challenger
+### Phase 4.5 — U2 Data-Identity Reuse with Penaltyblog Challenger
 
 状态：`REQUIRES_BASELINE_QUALITY_IDENTIFIED_AND_ELIGIBLE_COHORT`；未执行，且需要新的 Phase 4.5 预注册与 Owner 授权。
 
@@ -1031,14 +1186,16 @@ RECORD_FIRST_EVALUATE_LATER
 | comparator | `PRODUCTION_FORMULA_XG_WITH_PROXY_ELO`；已冻结、已验证 | U2 comparator 与真实数据 `0.14` 断言 |
 | cohort | 沿用 U2 修正后的权威 cohort，SHA-256 `c74eaf0fc3b780f6b04c20353e55e5e83ffdebd213a4c1bbb83b0dcc903ce44e`，`9,551` 场、`13` 个 competition、`UNLABELLED=0` | `U2_ARMING_FREEZE.json` 的 `cohort_label_correction` |
 | PIT / 切分 | 沿用 U2：`min_history=5`，split `2025-11-11 00:15:00+00`；目标 fixture 不进入自身特征 | `U2_ARMING_FREEZE.json` |
-| primary | 五态 NLL 逐 fixture 配对差；合成线网格、market/line-type 分层与 cluster 均沿用 U2 | U2 `primary_estimand` / `line_grid` |
+| line grid / outcome construction | 沿用 U2 固定的 OU `5` 条、AH `11` 条合成线与五态 outcome construction | U2 `line_grid` 与五态管线 |
+| primary score identity | 新预注册必须冻结固定线网格、market 权重、line 权重和 within-fixture 聚合规则 | `PRIMARY_SCORE_IDENTITY`；不得从 U2 的未冻结等权实现默示继承 |
+| cluster / sensitivity | 新预注册必须使实际 cluster 实现与合同一致，并冻结 fixture 基本单位、league/time-block bootstrap 或 wild-cluster sensitivity | U2 `DISCLOSED_EXECUTION_DEVIATION` 的修复前置 |
 | challenger | Penaltyblog 独立 Poisson，在同一训练前缀上拟合 | Phase 4.5 新增且必须预冻结的唯一模型变更 |
 
 以下是 Phase 4.5 未来执行的新增流程前置，不是对 U2 已冻结项的追溯修改：在 cohort 冻结之前，必须至少由两条独立路径产出同一份数据并逐字段比对；全部字段一致后，才允许计算 digest 并冻结。U2 的 `706` 个 league 标签缺陷是在冻结后由偶然完成的后台交叉比对发现；本前置将该偶然检查固化为流程。
 
 禁止搬用任何既有系数。Penaltyblog 的模型版本、拟合公式、正则化/优化器、收敛规则、失败处理和任何超参数必须在看结果前冻结；不得把 U2 的 Understat challenger 系数或 2026-07 的既有系数带入 Phase 4.5。
 
-原 Phase 4.5 预估的大部分基础设施成本已经沉没进 U2：cohort 身份、PIT 特征、chronological split、五态结算/评分、合成线网格、分层、cluster、futility 顺序和零 silent-loss 约束均已有可复用实现与证据。剩余工作是接入 Penaltyblog、在相同训练前缀重新拟合，并为新的 `d_i` 重新估计功效。
+原 Phase 4.5 预估的大部分数据基础设施成本已经沉没进 U2：cohort 身份、PIT 特征、chronological split、五态 outcome construction、合成线网格和零 silent-loss 约束均有可复用实现与证据。U2 的 cluster 合同/执行不一致、primary score identity 未冻结、MME 角色混用均不得复用；剩余前置是外部 MME 论证、TRAIN-only OOF nuisance variance 重估和 cluster 合同对齐，之后才是接入 Penaltyblog 并在相同训练前缀重新拟合。
 
 两个问题继续拆轨：
 
@@ -1054,7 +1211,7 @@ MODEL_VALUE_TRACK
 
 - `W2_BASELINE_PROBABILITY_QUALITY_AUDIT` 必须给出可评分的 W2 baseline identity、预测与结果绑定；
 - W2 baseline 必须按 `PRODUCTION_FORMULA_XG_WITH_PROXY_ELO` 复现；任意非零 `raw_delta` 的 `elo_delta/raw_delta` 必须在 `1e-9` 内等于 `0.14`，零 `raw_delta` 必须对应零 `elo_delta`，否则 fail closed；
-- Phase 4.5 必须逐字节复用 U2 cohort digest、PIT、切分、`min_history`、线网格、cluster 与 `MME=0.0025`；
+- Phase 4.5 只复用 U2 的数据身份合同：cohort、PIT、split、`min_history`、固定线网格与 outcome construction；不得把 U2 的 cluster 执行、未冻结的 within-fixture 聚合或 `0.0025` 决策阈值列入复用范围；
 - `W2_COHORT_BURN_LEDGER.json` 必须如实记录该 cohort 已用于 U2 fit/futility，并给出 Phase 4.5 用途分类；不得把已查看状态伪装为 virgin confirmation；
 - 如果 Phase 2.5 为 `BASELINE_QUALITY_NOT_IDENTIFIABLE`，或 comparator identity、PIT、预测/结果绑定、cohort 用途不可复现，`MODEL_QUALITY_TRACK` 返回 `NOT_IDENTIFIABLE`，不得改用 market-only 结果批准 adapter；
 - devig authority 未解决时，只将 `MODEL_VALUE_TRACK` 标为 `MARKET_TRACK = NOT_IDENTIFIABLE`，不得阻断合法的 `MODEL_QUALITY_TRACK`。
@@ -1065,7 +1222,11 @@ MODEL_VALUE_TRACK
 Penaltyblog version / independent-Poisson model / fit configuration
 training-prefix fit rule and coefficient artifact identity
 per-fixture paired d_i implementation and sign check
-futility variance estimator and clustered-SE implementation
+PRIMARY_SCORE_IDENTITY = fixed line grid + market weights + line weights + within-fixture aggregation
+MME_ROLE = PROMOTION_THRESHOLD
+MME_PB_FEASIBILITY + DESIGN_ALTERNATIVE_PB (> MME_PB_FEASIBILITY)
+TRAIN-only rolling-origin OOF variance estimator
+cluster contract + exact implementation + bootstrap/wild-cluster sensitivity
 coverage and failure rule
 track hierarchy and track-specific estimands
 devig method and method identity for MODEL_VALUE_TRACK only
@@ -1087,17 +1248,25 @@ seed/bootstrap or uncertainty method
 
 #### Phase 4.5 `MODEL_QUALITY_TRACK`
 
-primary 完整沿用 U2 的五态合同：
+primary 的五态 estimand 方向沿用 U2，但 score identity 与推断合同必须在 Phase 4.5 新预注册中补全：
 
 ```text
 d_i = NLL_comparator_i - NLL_penaltyblog_i
 positive favours the Penaltyblog challenger
 reporting = stratified by market and line type
-cluster = matchday (kickoff date) and league
 pooled primary uses all 13 corrected league labels; UNLABELLED = 0
+
+PRIMARY_SCORE_IDENTITY =
+  fixed line grid
+  + frozen market weights
+  + frozen line weights
+  + frozen within-fixture aggregation rule
+
+inference base unit = fixture
+cluster/sensitivity = preregistered league/time-block bootstrap or wild-cluster correction
 ```
 
-合成线网格保持冻结：OU `[1.5, 2.0, 2.5, 3.0, 3.5]`；AH `[-1.5, -1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 1.5]`；分层保持 `EXACT_HALF_LINE / INTEGER_LINE / QUARTER_LINE`。
+合成线网格本身保持冻结：OU `[1.5, 2.0, 2.5, 3.0, 3.5]`；AH `[-1.5, -1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 1.5]`；分层保持 `EXACT_HALF_LINE / INTEGER_LINE / QUARTER_LINE`。MME 必须绑定完整 `PRIMARY_SCORE_IDENTITY`；只绑定“nats”或线网格不足以得到稳定决策单位。
 
 ```text
 Cohort membership MUST NOT depend on
@@ -1107,13 +1276,20 @@ candidate status, recommendation status, or realized outcome.
 
 exact half-line WIN/LOSS LogLoss/Brier 与 `PB_TO_W2_BOUNDARY_SCORE` 只保留为预注册 secondary diagnostic；它们不得替代五态 NLL primary。1X2 同样只是 secondary diagnostic。
 
-先算 futility，再决定是否读取 validation 五态分数。U2 在同一 cohort/切分上得到 `MDE=0.003624 > MME=0.0025`；Phase 4.5 因 challenger 与 `d_i` 均已变化，必须只用训练前缀重新估计自己的 `d_i` 离散度和 clustered SE。若新的 MDE 仍高于 `MME=0.0025`，必须在评分前返回：
+先完成外部 MME 论证和 `NEW_PREREGISTERED_POWER_REESTIMATION`，再决定是否读取 validation 五态分数。Phase 4.5 必须在 TRAIN 内部以 rolling-origin 交叉拟合产生 OOF `d_i`，重估 `Var(d_i)` 与预注册 cluster/sensitivity 下的 SE；validation outcomes 始终封存。功效设计使用：
+
+```text
+H0: Δ ≤ MME_PB_FEASIBILITY
+power evaluated at DESIGN_ALTERNATIVE_PB > MME_PB_FEASIBILITY
+```
+
+若在冻结的 design alternative 上仍达不到目标功效，必须在评分前返回：
 
 ```text
 INSUFFICIENT_POWER_DO_NOT_SCORE
 ```
 
-此时不得读取 validation 五态分数。不得为换取功效而修改 cohort、切分比例、`min_history`、线网格、cluster 定义或下调 MME。
+此时不得读取 validation 五态分数。Phase 4.5 的 `MME_PB_FEASIBILITY` 尚未设值，且 Penaltyblog validation outcomes 从未读取；因此在新预注册中依据外部 task-specific practical/economic 论证独立冻结 MME，不属于事后 tuning。冻结之后，不得为换取功效而修改 cohort、切分比例、`min_history`、线网格、`PRIMARY_SCORE_IDENTITY`、cluster 定义、MME 或 design alternative。
 
 `MODEL_QUALITY_TRACK` 不使用 market probability，也不需要 devig authority。除评分前的功效停止外，原结论集保持：
 
@@ -1264,7 +1440,7 @@ Parity PASS 不代表模型有效，只代表接口可信。
 
 目标：在 W2 自己的 PIT 时间与盘口语境中，将 challenger 的概率质量与报价可利用性分开评价。Phase 7 不再以 `DEVIG_AUTHORITY_RESOLVED` 作为整体硬前置，而是拆为 D1/D2 两轨。
 
-两轨分别冻结 W2 专属 power design，不得共享拍脑袋样本门槛。必须用允许的 development data 估计 paired/clustered variance，处理同 matchday、联赛、重复 checkpoint/fixture 的相关性，并预先批准 MME、alpha、power、look rule 与 attrition。`N≈2500/6900` 只是依赖未验证方差、EV dispersion 与独立观测的敏感性示例，不是 Gate；Factor V2 的 `N=5500` 也只服务其原始 successor 对照，不得搬用。若当前 N、覆盖或可达 MDE 不满足相应冻结设计，该轨返回 `INSUFFICIENT_POWER_DO_NOT_SCORE`，不得先看结果再移动 MME、primary metric 或阈值。
+两轨分别冻结 W2 专属 power design，不得共享拍脑袋样本门槛。必须用允许的 development data 估计 paired/clustered variance，处理同 matchday、联赛、重复 checkpoint/fixture 的相关性，并预先批准 `MME_ROLE`、promotion threshold、严格更大的 design alternative、alpha、power、look rule 与 attrition。`N≈2500/6900` 只是依赖未验证方差、EV dispersion 与独立观测的敏感性示例，不是 Gate；Factor V2 的 `N=5500` 也只服务其原始 successor 对照，不得搬用。若当前 N、覆盖或可达 MDE 不满足相应冻结设计，该轨返回 `INSUFFICIENT_POWER_DO_NOT_SCORE`，不得先看结果再移动 MME、primary metric 或阈值。
 
 #### Phase 7 D1 — Probability Quality
 
@@ -1491,6 +1667,11 @@ Phase 2.5/4.5 另需：
 - development-cohort allowlist guard，且 `UNKNOWN_BLOCKED` 不得进入预检；
 - forbidden holdout/outcome-access guard；
 - probe preregistration hash check；
+- `MME_ROLE=PROMOTION_THRESHOLD`、`MME_PB_FEASIBILITY` 与严格更大的 `DESIGN_ALTERNATIVE_PB` 完整性检查；
+- `MME_U2_CHAMPION_PROMOTION` 与 `MME_PB_FEASIBILITY` 禁止无 decision-utility 证据直接复用；
+- `PRIMARY_SCORE_IDENTITY` 完整绑定固定线网格、market 权重、line 权重与 within-fixture 聚合规则；
+- TRAIN-only rolling-origin OOF `d_i` 检查，且 validation outcome access 为 0；
+- frozen cluster contract 与实际实现逐项一致，并执行预注册的 league/time-block bootstrap 或 wild-cluster sensitivity；
 - W2/PB fixture、cutoff、training-row、outcome parity；
 - exact half-line binary/no-push classification test；
 - bookmaker/fixture/market/line/checkpoint/captured-at quote-pair parity test；
@@ -1576,7 +1757,7 @@ NOT IDENTIFIABLE：没有合法 cohort、结果绑定或可核验的 cohort 用�
 
 #### Gate C0-MODEL
 
-PASS：复用 U2 冻结管线的五态 `MODEL_QUALITY_TRACK` 返回 `PROBABILITY_INCREMENT_IDENTIFIED`，且 fixture/cutoff/training-row/outcome mismatch 与 silent loss 均为 0。Gate 结论为：
+PASS：在复用 U2 数据身份合同的基础上，Phase 4.5 新冻结的五态 `MODEL_QUALITY_TRACK` 返回 `PROBABILITY_INCREMENT_IDENTIFIED`，且 `PRIMARY_SCORE_IDENTITY`、MME/design alternative、cluster 实现与 sensitivity 完整，fixture/cutoff/training-row/outcome mismatch 与 silent loss 均为 0。Gate 结论为：
 
 ```text
 PROCEED_TO_ADAPTER_FOR_MODEL_RESEARCH
@@ -1699,6 +1880,9 @@ No real-edge or profitability claim is permitted without the market-relative tra
 | 只评价被推荐比赛 | selection bias | 评价全部 official opportunities |
 | 用旧小样本或未核验的当前 N 调参数 | outcome-driven overfit | 未来独立授权的 Phase 4 evaluability 范围重计数；新冻结 cohort；不足则不评分 |
 | 用 `2500/6900` 或别的粗略近似作硬门 | 错误功效与虚假确定性 | proper-score/EV calibration 分开做 W2 专属 clustered power design |
+| 把 design effect 与 promotion threshold 都叫 MME | 错把检验 `Δ>0` 的功效当作超过晋级阈值的功效 | 写死 `MME_ROLE`；promotion threshold 必须另冻严格更大的 design alternative |
+| primary score identity 未冻结 | 增删线或改权重会改变 `d_i` 尺度，使 MME 失去稳定单位 | 同时冻结线网格、market/line 权重与 within-fixture 聚合规则 |
+| cluster 合同与执行不一致，或对 13 个 league 直接套常规渐近 SE | 功效与不确定性失真 | fixture 基本单位；合同/实现一致；league/time-block bootstrap 或 wild-cluster sensitivity |
 | 把 Factor V2 的 5,500 借给 PB | estimand/identity 混用 | 原预注册保持不变，PB 单独冻结 power |
 | 用 scalar probability 代替五态 | AH/OU EV 错误 | 保存完整五态分布 |
 | 两边赔率伪造 market 五态 | 不可识别问题被隐藏 | `MARKET_FIVE_STATE_NOT_IDENTIFIABLE` |
@@ -1837,33 +2021,42 @@ ACCEPT_PLAN / ACCEPT_WITH_REVISIONS / REJECT_PLAN
 - condition
 
 ## Minimal next action
-- one bounded action only
+- external independent MME role / decision-utility justification
+- TRAIN-only OOF nuisance-variance reestimation + cluster contract alignment
 ```
 
 ## 15. Owner 决策点
 
 Gate 0A、Gate 0B authority/U2 cohort scope、Phase 2.5a 静态审计与 U2 执行均已有证据。U2 的独立执行授权已经消耗并以 `INSUFFICIENT_POWER_DO_NOT_SCORE` 终止；它不延伸为继续 Phase 1/2、补跑 Gate 0B 的 Phase 4/devig 统计、再次导出或重切 cohort、重新拟合、读取 validation 五态分数、模型晋级或生产修改的授权。
 
-Owner 当前需要分别审阅两项，不得把任一项视为本计划内的实施授权：
+Owner 当前只需分别审阅以下两项，不得把任一项扩展为接入 Penaltyblog、读取 validation outcomes 或重开 U2 的授权：
 
 ```text
-REVIEW_A_NEW_PHASE_4_5_PREREGISTRATION
-  frozen U2 pipeline + Penaltyblog challenger + futility before scoring
+REQUEST_EXTERNAL_INDEPENDENT_MME_JUSTIFICATION
+  first settle MME_ROLE = PROMOTION_THRESHOLD
+  then justify MME_U2_CHAMPION_PROMOTION and MME_PB_FEASIBILITY separately
+  freeze a design alternative strictly above each promotion threshold before power claims
 
-REQUEST_INDEPENDENT_MME_JUSTIFICATION
-  whether 0.0025 nats is meaningful for five-state AH/OU NLL
+AUTHORIZE_NEW_PREREGISTERED_POWER_REESTIMATION
+  pre-freeze PRIMARY_SCORE_IDENTITY and cluster/sensitivity contract
+  TRAIN-only rolling-origin OOF d_i
+  nuisance Var(d_i) + clustered SE only
+  align frozen cluster contract with implementation and small-G sensitivity
 ```
 
-Phase 4.5 的新预注册只能复用本版冻结的 comparator、cohort、PIT、切分、`min_history`、线网格、cluster 与 `MME=0.0025`，并只新增 Penaltyblog challenger 的预冻结拟合合同；执行仍需另行授权。MME 论证是两条路共同的外部论证事项，不得在本版内据此改数值。若未来主张更小 MME，U2 / champion 与 Phase 4.5 / Penaltyblog 均须另立新的预注册；不得修订本版。
+第一项先解决角色与 decision utility，不用候选数字锚定专家。第二项只使用 TRAIN，validation outcomes 全程封存；它只更新未来设计所需的 nuisance variance，不提供模型结论。两项均不接 Penaltyblog，也不需要等待约 `0.9` 年。
 
-U2 / champion 分支原有选择仍保留：在 `MME=0.0025` 下等待 validation 约 `5,859` 场（约再 `0.9` 年），或在 MME 获得独立论证后另立新预注册。该分支不再取代本文 Penaltyblog 研究问题的 Phase 4.5 下一步。
+U2 已结束，既有 cohort、split、`min_history`、线网格、validation 封存状态与停止结论均不得追溯改写。未来 Phase 4.5 只能复用 cohort / PIT / split / `min_history` / 固定线网格 / outcome construction 的数据身份合同；cluster、`PRIMARY_SCORE_IDENTITY`、`MME_PB_FEASIBILITY` 与 design alternative 必须新预注册。Penaltyblog 尚未评分，因此在任何 PB validation outcome 之前独立冻结这些决策与推断合同不属于事后 tuning。
 
 Gate 0B 剩余的 Phase 4 evaluability 与 devig attribution 统计范围仍需未来独立授权；任何新生产访问授权不得继承既有授权。Phase 4.5、adapter、D1/D2 与两类 shadow 均需后续分别授权；本计划不授权其中任何一项。
 
 ## 16. 最终建议
 
 ```text
-NEXT_ACTION = REVIEW_PHASE_4_5_PREREGISTRATION_AND_INDEPENDENT_MME_JUSTIFICATION
+NEXT_ACTION_A = EXTERNAL_INDEPENDENT_MME_ROLE_AND_DECISION_UTILITY_JUSTIFICATION
+NEXT_ACTION_B = TRAIN_ONLY_OOF_POWER_REESTIMATION_AND_CLUSTER_CONTRACT_ALIGNMENT
+PENALTYBLOG_CONNECTION = NOT_AUTHORIZED
+VALIDATION_SCORING = FORBIDDEN
 IMPLEMENTATION = NOT_AUTHORIZED
 PRODUCTION_CHANGE = FORBIDDEN
 ```
@@ -1883,7 +2076,7 @@ PRODUCTION_CHANGE = FORBIDDEN
 | V1.5 | 2026-08-30 | Gate 0B：生产权威更正 + 生产 λ 闭式 | `NOT_AUTHORIZED` |
 | V1.6 | 2026-08-30 | U1 完成 + U2 预注册 V2 | `NOT_AUTHORIZED` |
 | V1.7 | 2026-08-30 | U2 执行 + `INSUFFICIENT_POWER_DO_NOT_SCORE` | `NOT_AUTHORIZED` |
-| V2.0 | 2026-08-30 | 重新定位：测量能力建设归位，Phase 4.5 复用 U2 冻结管线并接入 Penaltyblog challenger | `NOT_AUTHORIZED` |
+| V2.0 | 2026-08-30 | 重新定位并吸收专家方法学反馈：测量能力建设归位；Phase 4.5 仅复用 U2 数据身份合同；补齐 MME 角色、primary score identity、TRAIN-only OOF 方差与 cluster 对齐要求 | `NOT_AUTHORIZED` |
 
 ## 附录 A — 四轮评审处置与事实同步
 
