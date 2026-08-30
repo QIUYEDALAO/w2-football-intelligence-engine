@@ -13,7 +13,7 @@ MAX_LINEUP_TOTALS_DELTA = 0.30
 
 @dataclass(frozen=True, kw_only=True)
 class LambdaCalibrationParams:
-    home_advantage_goals: float = 0.12
+    home_advantage_goals: float = 0.30
     elo_gap_weight: float = 0.28
     squad_value_log_weight: float = 0.18
     lineup_adjustment_weight: float = 0.08
