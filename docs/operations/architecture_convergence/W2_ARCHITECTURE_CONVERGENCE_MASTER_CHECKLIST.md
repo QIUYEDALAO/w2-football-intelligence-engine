@@ -75,6 +75,22 @@ Preregistration SHA-256: 5aba03f2a4428df184dfbb6e804d5c443806bb8d648f2c923b97f8e
 - 资产账本：新增预注册 JSON 1、ledger 授权记录 1；修改参数常数 1、治理回归与本清单；
   migration 0、表 0、Provider 调用 0、生产 DB 写入 0、V2 role 0。
 
+### V1-RECALIBRATION-EVIDENCE-01 (A1)
+
+```text
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Branch: codex/v1-recalibration-evidence-01
+Baseline: 7024cb18f2856a98fd1569c1f87b79dfd2b633cb
+A1 commit: e649b223
+```
+
+- 已冻结仅含赛前输入的 A1 JSON artifact，SHA-256：
+  `56c77520389e3a873d50a44e6ea1c0718b64c36b54f28b003765ab9f24245f34`。
+- 查询未读取结果/比分字段，赔率 join 使用
+  `provider_fixture_id = team_xg_match.fixture_id`。
+- 当前只读导出实测覆盖 24 个满足报价深度的 fixture（17 snapshot、7 rebuild），
+  与任务给定 283 场不一致；该覆盖差异已作为 blocker 固化，未推断或补读赛果。
+
 ---
 
 ## 一、基线（2026-07-24 核验）
