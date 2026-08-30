@@ -1,0 +1,113 @@
+{
+  "preregistration_id": "V1-HOME-ADVANTAGE-RECALIBRATION-01",
+  "frozen_at": "2026-08-30T00:00:00Z",
+  "frozen_by": "claude-code-independent-verifier",
+  "status": "FROZEN_BEFORE_PRODUCTION_PATH_RECOMPUTATION",
+  "supersedes": null,
+  "relates_to": {
+    "write_side_capability": "W2-CALIBRATION-AUTHORITY-WRITE-SIDE step 2 + 2A",
+    "audit": "docs/review_packages/CALIBRATION_AUTHORITY_WRITE_PATH_AUDIT.md",
+    "audit_sha256": "1e7175e2135f39aef48976929d2c75e38f33247a5772bf2059f9471285de91db"
+  },
+
+  "problem": {
+    "statement": "src/w2/strategy/calibration.py home_advantage_goals=0.12 covers roughly one third of the true home advantage, producing a systematic same-direction 1X2 bias on every fixture.",
+    "production_measured_bias_out_of_sample": {
+      "home": -0.092, "draw": 0.002, "away": 0.131,
+      "worst_side_probability_exceeding_five_percent": 1.0
+    },
+    "consequence": "Against a hypothetical zero-vig fair market the away side alone shows a fake cashflow_price_edge far above the 0.05 admission threshold; this is a per-fixture directional bias, not dispersion."
+  },
+
+  "cohort": {
+    "source_of_xg_and_goals": "team_xg_match",
+    "source_of_home_away_identity": "raw_payload WHERE endpoint='fixtures'",
+    "note_on_rejected_sources": "fixtures is empty (0 rows); results holds 380 rows with result_status in (FT,AET,PEN) and no goals-by-side join key; matchday_fixture_identities holds only 557 rows. None of these can supply the cohort.",
+    "reproducible_extraction": {
+      "home_away": "COPY (WITH ex AS (SELECT rp.captured_at, (r->'fixture'->>'id') fixture_id, (r->'league'->>'id') league_id, (r->'teams'->'home'->>'id') home_id, (r->'teams'->'away'->>'id') away_id FROM raw_payload rp, json_array_elements(rp.payload->'response') r WHERE rp.endpoint='fixtures'), ranked AS (SELECT *, row_number() OVER (PARTITION BY fixture_id ORDER BY captured_at DESC, home_id) rn FROM ex WHERE fixture_id IS NOT NULL AND home_id IS NOT NULL AND away_id IS NOT NULL) SELECT fixture_id, home_id, away_id, league_id FROM ranked WHERE rn=1) TO STDOUT WITH CSV HEADER",
+      "xg": "COPY (SELECT fixture_id, kickoff_at, team_id, opponent_team_id, xg_for, xg_against, goals_for, goals_against FROM team_xg_match ORDER BY kickoff_at, fixture_id, team_id) TO STDOUT WITH CSV HEADER"
+    },
+    "expected_extraction_counts": {
+      "home_away_fixtures": 38255,
+      "team_xg_match_rows": 19102,
+      "team_xg_match_fixtures": 9551
+    },
+    "point_in_time_construction": {
+      "ordering": "ascending (kickoff_at, fixture_id)",
+      "team_state": "running mean of xg_for and xg_against over that team's strictly prior matches only",
+      "minimum_history_per_team": 5,
+      "eligibility": "both the home and the away team of the fixture must appear in team_xg_match for that fixture",
+      "state_update": "every fixture updates team state, including fixtures that are themselves ineligible"
+    },
+    "expected_eligible_fixtures": 8659,
+    "kickoff_range": "2024-03-30 .. 2026-08-30"
+  },
+
+  "model_structure": {
+    "unchanged": "src/w2/strategy/calibration.py calibrate_lambdas, structure identical to release ea557bb8",
+    "base_home": "(home_xg_for + away_xg_against) / 2",
+    "base_away": "(away_xg_for + home_xg_against) / 2",
+    "total": "clamp(base_home + base_away, minimum_total_goals, maximum_total_goals)",
+    "adjusted_delta": "raw_delta + home_advantage_goals",
+    "elo_term_is_zero_in_production": {
+      "reason": "the only production rating construction tags source=rolling_xg_proxy / collection_status=PROXY_ONLY, and strategy/simulate.py _eligible_elo returns None for those, so elo_delta is 0 for every production fixture",
+      "corroboration": "team_rating_snapshots holds 16 rows for 16 teams with max observed_at 2026-07-20, against 314 teams carrying xG",
+      "consequence": "elo_gap_weight is not identifiable and MUST NOT be treated as a free parameter"
+    }
+  },
+
+  "estimator": {
+    "method": "rolling-origin cross-validation, expanding window",
+    "warmup_fixtures": 1500,
+    "folds": 10,
+    "fit_rule": "at each fold, fit on all cohort fixtures strictly before the fold and predict only that fold",
+    "objective": "Dixon-Coles-corrected Poisson negative log likelihood of the observed scoreline",
+    "out_of_sample_prediction_count": 7159,
+    "uncertainty": "2000-resample bootstrap over fixtures, seed 20260830"
+  },
+
+  "change_under_test": {
+    "parameter": "src/w2/strategy/calibration.py LambdaCalibrationParams.home_advantage_goals",
+    "from": 0.12,
+    "to": 0.30,
+    "everything_else": "unchanged",
+    "explicitly_not_changed": [
+      "elo_gap_weight (unidentifiable; the elo term is disabled in production)",
+      "dixon_coles_rho (stays 0.0; fitting it moved the draw side the wrong way)",
+      "squad_value_log_weight, lineup_adjustment_weight, lambda and total clamps",
+      "no new parameter is introduced; a total scale and a raw_delta scale were tested and made the out-of-sample result worse"
+    ]
+  },
+
+  "acceptance_criteria": {
+    "primary": "for each of home, draw and away, the bootstrap probability that the absolute relative bias exceeds 0.05 must be at most 0.05",
+    "evaluated_on": "the same cohort and estimator defined above, but with probabilities produced by the real production simulation path rather than a closed form",
+    "all_three_sides_required": true,
+    "on_failure": "do not change the constant, do not register any grant, report and stop"
+  },
+
+  "reference_values_measured_by_the_verifier": {
+    "method_note": "closed-form Poisson / Dixon-Coles, NOT the production Monte Carlo path; the production recomputation may differ slightly and the acceptance criteria are what bind",
+    "home_advantage_goals_0.12": {"home": -0.092, "draw": 0.002, "away": 0.131, "worst_side_p_exceed": 1.00},
+    "home_advantage_goals_0.28": {"home": -0.008, "draw": -0.007, "away": 0.017, "worst_side_p_exceed": 0.03},
+    "home_advantage_goals_0.30": {"home": 0.003, "draw": -0.009, "away": 0.003, "worst_side_p_exceed": 0.02},
+    "home_advantage_goals_0.32": {"home": 0.014, "draw": -0.011, "away": -0.011, "worst_side_p_exceed": 0.02},
+    "home_advantage_goals_0.34": {"home": 0.025, "draw": -0.013, "away": -0.025, "worst_side_p_exceed": 0.06},
+    "passing_band": "[0.28, 0.32]",
+    "per_fold_maximum_likelihood_estimates": [0.344, 0.323, 0.295, 0.280, 0.269, 0.268, 0.279, 0.283, 0.296, 0.302],
+    "full_cohort_maximum_likelihood_estimate": 0.299,
+    "chosen_value_rationale": "0.30 sits at the centre of the passing band and adjacent to both the full-cohort estimate 0.299 and the final-fold estimate 0.302"
+  },
+
+  "evidence_status_disclosure": {
+    "this_cohort_is_development_data": true,
+    "reason": "the 2024-03-30 .. 2026-08-30 cohort has been observed more than once during diagnosis; it cannot serve as a clean forward holdout",
+    "implication": "a grant made on this evidence is a development-set grant and must be recorded as such in the calibration validation ledger",
+    "forward_monitoring_required": true
+  },
+
+  "superseded_claims": {
+    "session_handoff_section_3_table": "NOT REPRODUCIBLE. It reported actual lambda 1.528/1.247 diff 0.281; the reproducible values are 1.560/1.250 diff 0.310. The Obsidian current-state page is correct and the handoff table is not.",
+    "session_handoff_1_14_coefficient": "INCORRECT. The handoff states adjusted_delta = 1.14 * raw_delta + 0.12. The production coefficient is 1.0 because the proxy elo is filtered out before calibration."
+  }
+}
