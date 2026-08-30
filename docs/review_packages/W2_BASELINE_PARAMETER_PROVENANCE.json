@@ -1,8 +1,15 @@
 {
-  "schema_version": "w2.baseline_parameter_provenance.v1",
+  "schema_version": "w2.baseline_parameter_provenance.v2",
   "artifact_status": "PARTIALLY_COMPLETE_STATIC_EVIDENCE_ONLY",
   "audit_baseline": "origin/main@3b7f87db",
   "source_handoff": "docs/review_packages/PHASE_2_5A_FINDINGS_HANDOFF.md",
+  "production_effect_handoff": "docs/review_packages/U2_COMPARATOR_CORRECTION_HANDOFF.md",
+  "production_effect_authority": {
+    "release": "ea557bb8ff64e06add91bbe32814fe073ec64642",
+    "schema": "0070_notification_delivery_routing",
+    "verification_method": "PRODUCTION_IMAGE_STATIC_CODE_AND_ARTIFACT_VERIFICATION",
+    "all_five_parameters_verified": true
+  },
   "calibration_version": "w2.formal.lambda_baseline_prior.v1",
   "calibration_status": "BASELINE_PRIOR",
   "introduction": {
@@ -20,6 +27,12 @@
       "introduced_commit": "d4ca41b7",
       "introduced_date": "2026-06-29",
       "fitting_code_exists": false,
+      "production_effect": {
+        "identity": "SOLE_REAL_ADDITIVE_CONSTANT",
+        "effective_value": 0.12,
+        "scope": "NON_NEUTRAL_FIXTURES_WHEN_HOME_ADVANTAGE_IS_APPLIED",
+        "verified": true
+      },
       "tests_pinning_value": [
         "tests/unit/test_simulation_engine.py:163"
       ]
@@ -30,6 +43,14 @@
       "introduced_commit": "d4ca41b7",
       "introduced_date": "2026-06-29",
       "fitting_code_exists": false,
+      "production_effect": {
+        "identity": "ROLLING_XG_DELTA_MULTIPLIER_NOT_INDEPENDENT_ELO_SIGNAL",
+        "proxy_source": "rolling_xg_proxy",
+        "derivation": "elo_delta=((2*raw_delta*100)/400)*0.28=0.14*raw_delta",
+        "elo_delta_to_raw_delta_ratio": 0.14,
+        "effective_adjusted_delta_multiplier_contribution": 0.14,
+        "verified": true
+      },
       "tests_pinning_value": []
     },
     {
@@ -38,6 +59,15 @@
       "introduced_commit": "d4ca41b7",
       "introduced_date": "2026-06-29",
       "fitting_code_exists": false,
+      "production_effect": {
+        "identity": "ZERO_CONTRIBUTION_FOR_CURRENT_ENABLED_COMPETITIONS",
+        "reason": "NO_ENABLED_COMPETITION_HAS_A_MATCHING_TEAM_VALUES_ARTIFACT",
+        "artifact_scope_observed": [
+          "world_cup_2026"
+        ],
+        "scope_limitation": "MAY_BECOME_ACTIVE_FOR_A_COMPETITION_WITH_A_MATCHING_TEAM_VALUES_ARTIFACT",
+        "verified": true
+      },
       "tests_pinning_value": []
     },
     {
@@ -46,6 +76,11 @@
       "introduced_commit": "d4ca41b7",
       "introduced_date": "2026-06-29",
       "fitting_code_exists": false,
+      "production_effect": {
+        "identity": "ZERO_CONTRIBUTION_IN_CURRENT_PRODUCTION_CONSTRUCTION_PATH",
+        "reason": "SOLE_SIMULATIONINPUTS_CONSTRUCTION_SITE_LEAVES_ALL_LINEUP_FIELDS_AT_ZERO_OR_FALSE_AND_CAPABILITY_IS_NOT_IMPLEMENTED",
+        "verified": true
+      },
       "tests_pinning_value": []
     },
     {
@@ -55,9 +90,32 @@
       "introduced_date": "2026-06-29",
       "fitting_code_exists": false,
       "tests_pinning_value": [],
-      "runtime_interpretation": "DEFAULT_TAU_CORRECTION_IS_NO_OP"
+      "runtime_interpretation": "DEFAULT_TAU_CORRECTION_IS_NO_OP",
+      "production_effect": {
+        "identity": "DEFAULT_TAU_CORRECTION_NO_OP",
+        "effective_value": 0.0,
+        "verified": true
+      }
     }
   ],
+  "effective_closed_form": {
+    "scope": "CURRENT_11_ENABLED_PRODUCTION_COMPETITIONS",
+    "base_home": "(xgF_h + xgA_a) / 2",
+    "base_away": "(xgF_a + xgA_h) / 2",
+    "total": "clamp(base_home + base_away, 1.35, 4.40)",
+    "raw_delta": "base_home - base_away",
+    "proxy_elo_home": "1500.0 + (xgF_h - xgA_h) * 100.0",
+    "proxy_elo_away": "1500.0 + (xgF_a - xgA_a) * 100.0",
+    "elo_delta_derivation": "((proxy_elo_home - proxy_elo_away) / 400) * 0.28 = ((2 * raw_delta * 100) / 400) * 0.28 = 0.14 * raw_delta",
+    "adjusted_delta_non_neutral": "1.14 * raw_delta + 0.12",
+    "adjusted_delta_neutral": "1.14 * raw_delta",
+    "lambda_home": "clamp((total + adjusted_delta) / 2, 0.15, 4.25)",
+    "lambda_away": "clamp((total - adjusted_delta) / 2, 0.15, 4.25)",
+    "squad_value_delta": 0.0,
+    "lineup_delta": 0.0,
+    "dixon_coles_rho": 0.0,
+    "classification": "PURE_ROLLING_XG_FOR_CURRENT_ENABLED_COMPETITIONS_WITH_CONSTANTS_AND_CLAMPS"
+  },
   "non_fitting_references": [
     "scripts/debug_w2_modeling_sanity.py"
   ],

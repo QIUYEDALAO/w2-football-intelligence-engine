@@ -7,10 +7,10 @@
 静态快照：`origin/main@3b7f87db / 0051_apply_seven_day_collection_policy`（落后生产 19 个 migration）
 
 ```text
-COMPARATOR_IDENTITY = PRODUCTION_FORMULA_XG_ONLY
-MISSING_PRODUCTION_INPUT_1 = ELO
-MISSING_PRODUCTION_INPUT_2 = HISTORICAL_CLUB_SQUAD_VALUE
-MISSING_PRODUCTION_INPUT_3 = LINEUP
+COMPARATOR_IDENTITY = PRODUCTION_FORMULA_XG_WITH_PROXY_ELO
+PROXY_ELO_SOURCE = ROLLING_XG_PROXY
+SQUAD_VALUE_INPUT = NONE_MATCHES_CURRENT_ENABLED_LEAGUES
+LINEUP_INPUTS = ZERO_MATCHES_PRODUCTION_CONSTRUCTION
 COMPARATOR_IS_PRODUCTION_RUNTIME = FALSE
 COMPARATOR_IS_PRODUCTION_CHAMPION = FALSE
 COHORT_SOURCE = production.team_xg_match
@@ -19,13 +19,27 @@ CHALLENGER_REFIT_REQUIRED = TRUE
 U2_EXECUTION_COUNT = 0
 ```
 
-**Elo、身价与首发三路生产输入缺失。** 本对照只是生产公式在新 cohort 可得 xG 输入子集上的实例，不是完整生产运行态，也不得称为“生产 champion”。
+**本对照复现生产在当前启用联赛上的实际公式形态，包括 Elo 的 rolling-xG proxy 构造。** 身价传 `None` 不是简化，而是与生产一致：当前启用联赛均无对应的 `team_values` artifact。lineup 数值项传 `0.0`、两个 evidence gate 传 `False` 同样与生产唯一 `SimulationInputs` 构造点和 capability manifest 一致。本对照仍不是一次生产运行态重放，也不得称为“生产 champion”。
+
+## V2.0 Superseded Comparator Record
+
+以下是本 V2 先前的对照身份与推论原文。为保留审计轨迹不删除，但已被生产镜像静态代码验证取代：
+
+```text
+SUPERSEDED_BY_STATIC_CODE_VERIFICATION
+COMPARATOR_IDENTITY = PRODUCTION_FORMULA_XG_ONLY
+MISSING_PRODUCTION_INPUT_1 = ELO
+MISSING_PRODUCTION_INPUT_2 = HISTORICAL_CLUB_SQUAD_VALUE
+MISSING_PRODUCTION_INPUT_3 = LINEUP
+```
 
 ```text
 INFERRED_FROM_SOURCE_TABLE_EMPTINESS_NOT_RUNTIME_VERIFIED
 ```
 
 上述标记限定了以下推论：根据 `team_rating_snapshots` 极稀疏且 `team_value_asof_artifacts` 为空，`PRODUCTION_FORMULA_XG_ONLY` **可能**接近多数历史 fixture 的实际形态。持久化 evaluation/capture/lock payload 不含 calibration 输入，所以这不是运行时实证。任何引用都必须同时保留 `INFERRED_FROM_SOURCE_TABLE_EMPTINESS_NOT_RUNTIME_VERIFIED` 标记。
+
+更正：该推论的源表判断错误。生产 Elo 不读取 `team_rating_snapshots`，身价也不读取 `team_value_asof_artifacts`。它仅作为 `SUPERSEDED_BY_STATIC_CODE_VERIFICATION` 历史记录保留，不得继续作为当前事实引用。
 
 本 V2 是唯一当前控制层。本轮只修订预注册：不执行 U2、不导出生产数据、不重新拟合 challenger、不读取或计算 U2 结果。
 
@@ -44,14 +58,16 @@ src/w2/backtest/free_tier_2024.py
 ## V2.2 Comparator Identity
 
 ```text
-identity = PRODUCTION_FORMULA_XG_ONLY
+identity = PRODUCTION_FORMULA_XG_WITH_PROXY_ELO
 function = src/w2/strategy/calibration.py::calibrate_lambdas
 params = LambdaCalibrationParams() at production ea557bb8
 
 home_xg_for / home_xg_against / away_xg_for / away_xg_against
   = rolling team_xg_match xG strictly before fixture kickoff
-home_elo = None
-away_elo = None
+home_elo
+  = 1500.0 + (home_xg_for - home_xg_against) * 100.0
+away_elo
+  = 1500.0 + (away_xg_for - away_xg_against) * 100.0
 home_squad_value_eur = None
 away_squad_value_eur = None
 lineup_strength_adjustment = 0.0
@@ -60,6 +76,24 @@ lineup_totals_adjustment = 0.0
 lineup_ah_evidence_enabled = False
 lineup_totals_evidence_enabled = False
 ```
+
+proxy Elo 必须复现生产 `analysis_calculator.py:4674-4692` 的 `rolling_xg_proxy` 构造；代码自身将其标记为 `is_independent_signal = False` 与 `PROXY_ONLY`。其对公式的效果不是死代码，也不是独立 Elo 信息，而是 xG 差值的确定性放大：
+
+```text
+raw_delta = (xgF_h + xgA_a)/2 - (xgF_a + xgA_h)/2
+
+elo_h - elo_a
+  = [(xgF_h - xgA_h) - (xgF_a - xgA_a)] * 100
+  = (xgF_h - xgA_h - xgF_a + xgA_a) * 100
+  = 2 * raw_delta * 100
+
+elo_delta
+  = ((elo_h - elo_a) / 400) * 0.28
+  = (2 * raw_delta * 100 / 400) * 0.28
+  = 0.14 * raw_delta
+```
+
+因此当前启用联赛上、启用 home advantage 的非中立 fixture 有效式为 `adjusted_delta = 1.14 * raw_delta + 0.12`；中立场移除 `+ 0.12`。身价与首发两项为零贡献。`elo_gap_weight` 不得描述为死代码。
 
 中立场必须传 `apply_home_advantage = False`，其余 fixture 为 `True`。输入缺失、total/lambda clamp 触发和模型失败必须逐 fixture 持久化到未来的 U2 failure ledger；本轮不创建该 ledger。
 
@@ -129,8 +163,9 @@ no-result-based retry/fallback rule
 | freeze item | V2 requirement | current status |
 |---|---|---|
 | production authority | `ea557bb8 / schema 0070` | `FROZEN_FROM_GATE_0B` |
-| comparator identity | `PRODUCTION_FORMULA_XG_ONLY`; Elo/value `None`; lineup zero/gates false | `FROZEN_IN_V2_SPEC` |
-| inference boundary | runtime-use claim always carries `INFERRED_FROM_SOURCE_TABLE_EMPTINESS_NOT_RUNTIME_VERIFIED` | `FROZEN_IN_V2_SPEC` |
+| comparator identity | `PRODUCTION_FORMULA_XG_WITH_PROXY_ELO`; rolling-xG proxy Elo; value `None`; lineup zero/gates false | `FROZEN_IN_V2_SPEC` |
+| proxy Elo algebra | for every fixture with `raw_delta != 0`, `elo_delta / raw_delta = 0.14` within `1e-9`; when `raw_delta = 0`, require `elo_delta = 0`; any violation fails closed before scoring | `FROZEN_IN_V2_SPEC` |
+| superseded inference | original `PRODUCTION_FORMULA_XG_ONLY` inference retained only as `SUPERSEDED_BY_STATIC_CODE_VERIFICATION` | `FROZEN_IN_V2_SPEC` |
 | cohort source | `team_xg_match`, `api_football_statistics` | `SOURCE_FROZEN_METADATA_ONLY` |
 | exact fixture cohort/digest | exported only after separate authority; exact SHA-256 | `PENDING_BEFORE_ARMING` |
 | competition set and N | exact set and per-competition counts | `PENDING_BEFORE_ARMING` |
