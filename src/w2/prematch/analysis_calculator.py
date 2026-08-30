@@ -466,6 +466,9 @@ def _simulation_output_from_mapping(simulation: Any) -> SimulationOutput | None:
         calibration_status=simulation.get("calibration_status")
         if simulation.get("calibration_status") is not None
         else None,
+        calibration_identity=simulation.get("calibration_identity")
+        if simulation.get("calibration_identity") is not None
+        else None,
         lambda_home=_float_or_none(simulation.get("lambda_home")),
         lambda_away=_float_or_none(simulation.get("lambda_away")),
         lambda_sigma_home=_float_or_none(simulation.get("lambda_sigma_home")),

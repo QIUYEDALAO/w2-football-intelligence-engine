@@ -10,11 +10,12 @@ from decimal import Decimal
 from math import exp
 from typing import Any
 
+from w2.domain.calibration_validation_registry import calibration_identity
 from w2.domain.enums import SettlementOutcome
 from w2.domain.odds import settle_asian_handicap
 from w2.markets.poisson import round_to_quarter
 from w2.models.dixon_coles import tau_correction
-from w2.strategy.calibration import calibrate_lambdas
+from w2.strategy.calibration import LambdaCalibrationParams, calibrate_lambdas
 
 SIMULATION_MODEL_VERSION = "w2.formal.exact_dc_poisson.v1"
 READY = "READY"
@@ -71,6 +72,7 @@ class SimulationOutput:
     status: str
     simulations: int
     seed: int
+    calibration_identity: str | None = None
     calibration: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
@@ -95,6 +97,7 @@ def run_simulation(
             model_version=SIMULATION_MODEL_VERSION,
             calibration_version=None,
             calibration_status=None,
+            calibration_identity=None,
             lambda_home=None,
             lambda_away=None,
             lambda_sigma_home=None,
@@ -210,6 +213,10 @@ def run_simulation(
         model_version=SIMULATION_MODEL_VERSION,
         calibration_version=calibration.calibration_version,
         calibration_status=calibration.calibration_status,
+        calibration_identity=calibration_identity(
+            calibration_version=calibration.calibration_version,
+            params=LambdaCalibrationParams(),
+        ),
         lambda_home=calibration.lambda_home,
         lambda_away=calibration.lambda_away,
         lambda_sigma_home=round(sigma_home, 6),

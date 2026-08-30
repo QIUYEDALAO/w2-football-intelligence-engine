@@ -15,6 +15,7 @@ passes when the thing under test was never produced.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -23,6 +24,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from w2.domain import calibration_authority
+from w2.domain.calibration_validation_registry import calibration_identity
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     CandidateNotificationOutboxModel,
@@ -42,6 +44,7 @@ from w2.prematch.lifecycle import (
 )
 from w2.prematch.read_model_projection import _dynamic_evaluations
 from w2.prematch.repository import DynamicPrematchRepository
+from w2.strategy.calibration import CALIBRATION_VERSION, LambdaCalibrationParams
 
 NOW = datetime(2026, 8, 26, 18, 30, tzinfo=UTC)
 
@@ -54,6 +57,36 @@ MODEL_WIN_PROBABILITY = 0.7481305152250234
 
 UNADMISSIBLE = ("BASELINE_PRIOR", "READY", "UNKNOWN", None, "")
 ADMISSIBLE = ("PRODUCTION_VALIDATED", "APPROVED_VALIDATED")
+
+
+def test_f_read_model_projection_appends_forward_fields_without_rekeying() -> None:
+    manifest = {
+        "evaluated_at": "2026-08-26T18:30:00Z",
+        "simulation_sha256": "simulation",
+        "analysis_evidence_sha256": "evidence",
+        "dynamic_evaluation_denominator_scope": MODEL_FORECAST_DENOMINATOR_SCOPE,
+    }
+    fixture_identity = {"competition_id": "140", "season": "2026", "provider": "api_football"}
+    baseline_simulation = _simulation("APPROVED_VALIDATED")
+    enriched_simulation = {
+        **baseline_simulation,
+        "calibration_identity": "a" * 64,
+        "score_matrix_summary": {"home_win": 0.46, "draw": 0.24, "away_win": 0.30},
+    }
+    baseline = _dynamic_evaluations(
+        {"fixture_id": "1570340", "simulation": baseline_simulation}, manifest,
+        fixture_identity=fixture_identity, lineup_identity=None,
+    )
+    enriched = _dynamic_evaluations(
+        {"fixture_id": "1570340", "simulation": enriched_simulation}, manifest,
+        fixture_identity=fixture_identity, lineup_identity=None,
+    )
+    assert [item.identity_hash for item in enriched] == [item.identity_hash for item in baseline]
+    for item in enriched:
+        assert item.as_dict()["calibration_identity"] == "a" * 64
+        assert item.as_dict()["one_x_two_probabilities"] == {
+            "home": 0.46, "draw": 0.24, "away": 0.30,
+        }
 
 
 def _engine():  # type: ignore[no-untyped-def]
@@ -87,6 +120,29 @@ def _input(
         denominator_scope=CHECKPOINT_OPPORTUNITY_SCOPE,
         calibration_status=calibration_status,  # type: ignore[arg-type]
     )
+
+
+def test_forward_evidence_fields_are_persisted_without_changing_identity_hash() -> None:
+    baseline = classify_evaluation(_input(calibration_status="APPROVED_VALIDATED"))
+    expected_calibration_identity = calibration_identity(
+        calibration_version=CALIBRATION_VERSION,
+        params=LambdaCalibrationParams(),
+    )
+    enriched_input = replace(
+        _input(calibration_status="APPROVED_VALIDATED"),
+        calibration_identity=expected_calibration_identity,
+        one_x_two_probabilities={"home": 0.46, "draw": 0.24, "away": 0.30},
+    )
+    enriched = classify_evaluation(enriched_input)
+
+    assert enriched.identity_hash == baseline.identity_hash
+    payload = enriched.as_dict()
+    assert payload["calibration_identity"] == expected_calibration_identity
+    assert payload["one_x_two_probabilities"] == {
+        "home": 0.46,
+        "draw": 0.24,
+        "away": 0.30,
+    }
 
 
 def _context(slot: str, suffix: str) -> EvaluationOpportunityContext:

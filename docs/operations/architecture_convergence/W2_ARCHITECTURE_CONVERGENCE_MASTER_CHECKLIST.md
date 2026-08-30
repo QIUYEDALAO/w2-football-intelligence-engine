@@ -115,6 +115,20 @@ Commit: eca8a1af
 - A2 artifact SHA-256：`3842446d5838bffaa721e1fb9d5e11956bcd1ff32140e5df24fa55fd2eb2b2e8`。
 - 尚未读取赛果；A3 冻结与 A4 结算待完成，不能据此宣称生产有效性。
 
+### V1-RECALIBRATION-EVIDENCE-01 (B1-FIX)
+
+```text
+Status: LOCAL_IMPLEMENTED_PENDING_DEPLOYMENT_AUTHORIZATION
+Branch: codex/v1-recalibration-evidence-01
+```
+
+- future dynamic evaluation payload 追加当前 `LambdaCalibrationParams` 的 canonical
+  calibration identity 与完整 home/draw/away 概率向量；不从 status 反推，不以 top-N 重建。
+- 两字段明确排除在既有 evaluation/attempt identity hash 口径之外，追加前后 frozen
+  evaluation identity 完全一致；旧 schema 读侧继续兼容。
+- 定向回归 `91 passed`；未部署、未写生产。旧两份预注册尚未作废，第三份须等实际部署时刻
+  已知后另行冻结。
+
 ---
 
 ## 一、基线（2026-07-24 核验）

@@ -166,6 +166,8 @@ class DynamicEvaluationInput:
     bookmaker_count: int = 0
     mainline_parsed: bool = False
     denominator_scope: str | None = None
+    calibration_identity: str | None = None
+    one_x_two_probabilities: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -229,6 +231,10 @@ class DynamicEvaluationVersion:
     calibration_status: str | None = None
     calibration_recommendation_admissible: bool | None = None
     calibration_authority: str | None = None
+    # Evidence-only payload additions. They deliberately do not participate in
+    # identity_payload so existing frozen evaluation identities remain stable.
+    calibration_identity: str | None = None
+    one_x_two_probabilities: dict[str, float] | None = None
 
     def as_dict(
         self,
@@ -637,6 +643,8 @@ def classify_evaluation(
         calibration_status=calibration_record["calibration_status"],
         calibration_recommendation_admissible=calibration_admissible,
         calibration_authority=calibration_record["calibration_authority"],
+        calibration_identity=value.calibration_identity,
+        one_x_two_probabilities=_one_x_two_probabilities(value.one_x_two_probabilities),
         fixture_id=str(value.fixture_id),
         market=str(value.market),
         selection=str(value.selection),
@@ -674,6 +682,24 @@ def classify_evaluation(
         all_failed_gates=failed_gates,
         gate_results=gate_results,
     )
+
+
+def _one_x_two_probabilities(raw: Mapping[str, Any] | None) -> dict[str, float] | None:
+    if raw is None:
+        return None
+    if set(raw) != {"home", "draw", "away"}:
+        raise ValueError("DYNAMIC_EVALUATION_1X2_INVALID")
+    try:
+        probabilities = {side: float(raw[side]) for side in ("home", "draw", "away")}
+    except (TypeError, ValueError):
+        raise ValueError("DYNAMIC_EVALUATION_1X2_INVALID") from None
+    if any(not math.isfinite(value) or value < 0 for value in probabilities.values()):
+        raise ValueError("DYNAMIC_EVALUATION_1X2_INVALID")
+    # Simulation public probabilities are rounded to six decimals; the three
+    # rounded values can differ from one by at most 1.5e-6.
+    if abs(sum(probabilities.values()) - 1.0) > 2e-6:
+        raise ValueError("DYNAMIC_EVALUATION_1X2_INVALID")
+    return probabilities
 
 
 def _v2_distribution(value: DynamicEvaluationInput) -> dict[str, float] | None:

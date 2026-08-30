@@ -1395,6 +1395,25 @@ def _dynamic_evaluations(
             raise FrozenAnalysisError("dynamic evaluation provider identity conflict")
         distribution = model.get("settlement_distribution")
         simulation = card.get("simulation")
+        score_matrix_summary = (
+            simulation.get("score_matrix_summary")
+            if isinstance(simulation, Mapping)
+            and isinstance(simulation.get("score_matrix_summary"), Mapping)
+            else None
+        )
+        one_x_two_probabilities = (
+            {
+                "home": score_matrix_summary.get("home_win"),
+                "draw": score_matrix_summary.get("draw"),
+                "away": score_matrix_summary.get("away_win"),
+            }
+            if score_matrix_summary is not None
+            and all(
+                score_matrix_summary.get(side) is not None
+                for side in ("home_win", "draw", "away_win")
+            )
+            else None
+        )
         model_ready = (
             str(model.get("status") or candidate.get("model_status") or "").upper()
             == "READY"
@@ -1529,6 +1548,13 @@ def _dynamic_evaluations(
             bookmaker_count=bookmaker_count,
             mainline_parsed=exact_line is not None,
             denominator_scope=denominator_scope if denominator_scoped else None,
+            calibration_identity=(
+                str(simulation.get("calibration_identity"))
+                if isinstance(simulation, Mapping)
+                and simulation.get("calibration_identity")
+                else None
+            ),
+            one_x_two_probabilities=one_x_two_probabilities,
         )
         version = classify_evaluation(value, identity_version=evaluation_identity_version)
         if version.state.value == "ANALYSIS_PICK_ACTIVE" and build_scoreline_reference:
