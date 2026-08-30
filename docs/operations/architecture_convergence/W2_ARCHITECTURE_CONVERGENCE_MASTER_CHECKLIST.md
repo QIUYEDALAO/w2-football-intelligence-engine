@@ -56,10 +56,11 @@ Parent implementation: 27b075a974a58e5c9a84c46d82d90c603a334902
 ### V1-HOME-ADVANTAGE-RECALIBRATION-01
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Status: DEPLOYED_PENDING_ACCEPTANCE
 Branch: codex/v1-home-advantage-recalibration-01
 Production baseline: ea557bb8ff64e06add91bbe32814fe073ec64642
 Parameter implementation: 46e8a98976ef68167b067cce5ac614ca63ef51ae
+Deployed release: 7024cb18f2856a98fd1569c1f87b79dfd2b633cb
 Preregistration SHA-256: 5aba03f2a4428df184dfbb6e804d5c443806bb8d648f2c923b97f8e8851ac3b6
 ```
 
@@ -74,6 +75,17 @@ Preregistration SHA-256: 5aba03f2a4428df184dfbb6e804d5c443806bb8d648f2c923b97f8e
   identity 不命中。
 - 资产账本：新增预注册 JSON 1、ledger 授权记录 1；修改参数常数 1、治理回归与本清单；
   migration 0、表 0、Provider 调用 0、生产 DB 写入 0、V2 role 0。
+- `2026-08-30T14:27Z` 以固定 runtime-base、loopback registry 与不可变 digest warm
+  switch；未运行 migration。Python/Web RootFS `12/13`、AppleDouble `0/0`、镜像配置
+  白名单、release-sync、`/ready`、schema `0070_notification_delivery_routing`、Web proxy
+  workspace HTTP `200` 全部通过，四业务容器 healthy 且 restart `0`。
+- 部署前备份 `20260830T142404Z`，dump `235,785,929` bytes，SHA-256
+  `90fc3f4b3a955618c579a7fa0cadc5392341e98a4fa277f7b6356dc18056ebe4`；release record
+  明确 `public_response_schema_touched=false / workspace_http_status=PASS / migration_applied=false`。
+- 首个自然观察窗 `30` 条评价 / `8` 场，`calibration_status=APPROVED_VALIDATED` 为
+  `30/30`、`MODEL_CALIBRATION_NOT_VALIDATED=0`。正式候选按 fixture 去重：AH
+  `AWAY/HOME=2/2`，相对停摆前 `703/228` 已从约 `3.1:1` 收敛至 `1:1`；TOTALS
+  `UNDER/OVER=4/0`，仅四场早期样本，不作长期比例结论。
 
 ---
 
