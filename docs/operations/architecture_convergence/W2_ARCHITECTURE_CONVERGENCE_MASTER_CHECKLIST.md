@@ -91,6 +91,18 @@ A1 commit: e649b223
 - 当前只读导出实测覆盖 24 个满足报价深度的 fixture（17 snapshot、7 rebuild），
   与任务给定 283 场不一致；该覆盖差异已作为 blocker 固化，未推断或补读赛果。
 
+### V1-RECALIBRATION-EVIDENCE-01 (A1 redo)
+
+```text
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Redo commit: pending
+T_EXTRACT: 2026-08-30T15:58:43Z
+```
+
+- `e649b223` A1 artifact 作废：market 导出被隐含行数上限截断，仅覆盖 19 个 fixture。
+- 重做使用服务端 COPY 与无 LIMIT SQL；紧凑工作集断言全部通过：433 / 283 / 283 / 118015 / 14 / 178 / 105。
+- 新 artifact SHA-256：`34c7bf6e7e6babae52daebc57fc0e74a139659a24a169bea8a2ce0ecf1b7bd7b`。
+
 ---
 
 ## 一、基线（2026-07-24 核验）
