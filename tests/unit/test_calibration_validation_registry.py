@@ -132,6 +132,15 @@ def test_registered_identity_matches_and_every_parameter_change_misses(
         == "PRODUCTION_VALIDATED"
     )
     assert validate_calibration_ledger(ledger_path=ledger_path, repository_root=tmp_path) == 1
+    previous_params = replace(params, home_advantage_goals=0.12)
+    assert (
+        lookup_calibration_verdict(
+            calibration_version=CALIBRATION_VERSION,
+            params=previous_params,
+            ledger_path=ledger_path,
+        )
+        is None
+    )
     for field in fields(LambdaCalibrationParams):
         changed = replace(params, **{field.name: getattr(params, field.name) + 0.1})
         assert (

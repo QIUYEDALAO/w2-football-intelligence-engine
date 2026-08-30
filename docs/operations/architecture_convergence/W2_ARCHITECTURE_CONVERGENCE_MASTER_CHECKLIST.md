@@ -53,6 +53,28 @@ Parent implementation: 27b075a974a58e5c9a84c46d82d90c603a334902
   禁止编辑或删除既有 ledger 行，撤销类 verdict 继续被拒绝。
 - 资产账本：新增 migration 0、表 0、生产运行时依赖 0、Provider/config/env/CLI 注入面 0。
 
+### V1-HOME-ADVANTAGE-RECALIBRATION-01
+
+```text
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Branch: codex/v1-home-advantage-recalibration-01
+Production baseline: ea557bb8ff64e06add91bbe32814fe073ec64642
+Parameter implementation: 46e8a98976ef68167b067cce5ac614ca63ef51ae
+Preregistration SHA-256: 5aba03f2a4428df184dfbb6e804d5c443806bb8d648f2c923b97f8e8851ac3b6
+```
+
+- 生产只读抽取精确命中 `home/away=38,255`、`team_xg_match=19,102` 行 / `9,551`
+  场；严格 PIT 构造得到 `8,659` 场，warmup `1,500` 后折外评价 `7,159` 场。
+- `home_advantage_goals=0.30` 经真实 `calibrate_lambdas -> run_simulation` 路径评价：
+  主胜相对偏差 `+0.003119383` / `P(|bias|>0.05)=0.0000`，平局
+  `-0.008928493 / 0.0175`，客胜 `+0.002891269 / 0.0050`，三侧均通过冻结门槛。
+- ledger 追加恰好一条 `APPROVED_VALIDATED`：identity
+  `21960a863fd93dcae01ff8804e73fd0ef9d8360e8f2b8073313f226322e5db71`，绑定改后
+  完整 params、实现 revision、预注册、OOF cohort/config 摘要与三侧指标；旧 `0.12`
+  identity 不命中。
+- 资产账本：新增预注册 JSON 1、ledger 授权记录 1；修改参数常数 1、治理回归与本清单；
+  migration 0、表 0、Provider 调用 0、生产 DB 写入 0、V2 role 0。
+
 ---
 
 ## 一、基线（2026-07-24 核验）
@@ -471,7 +493,7 @@ DELETED_PACKAGE_COUNT = 0
 | `competitions` | 9 | apps:1;scripts:16;migrations:2;tests:28 | api,backtest,dashboard,features,ingestion,matchday,monitoring,operations,prematch,strategy | infrastructure,providers | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `dashboard` | 18 | apps:1;scripts:2;migrations:0;tests:20 | api,matchday,prematch,replay | competitions,domain,prematch,settlement,strategy | SCC-1 | - | YES | YES | PYTHON_IMAGE | PUBLIC_READ | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `data_assets` | 2 | apps:0;scripts:1;migrations:0;tests:1 | - | - | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;ASSET_REGISTRY |
-| `domain` | 18 | apps:0;scripts:7;migrations:0;tests:35 | analysis,api,audit_export,backtest,dashboard,factor_model,features,historical,identity,infrastructure,ingestion,markets,matchday,migration,models,monitoring,normalization,operations,prematch,pricing,readiness,recovery,replay,reporting,schemas,settlement,strategy,tracking | lineups,readiness,tracking | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `domain` | 19 | apps:0;scripts:7;migrations:0;tests:36 | analysis,api,audit_export,backtest,dashboard,factor_model,features,historical,identity,infrastructure,ingestion,markets,matchday,migration,models,monitoring,normalization,operations,prematch,pricing,readiness,recovery,replay,reporting,schemas,settlement,strategy,tracking | lineups,readiness,tracking | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `factor_model` | 2 | apps:0;scripts:2;migrations:0;tests:1 | - | domain,features,identity,infrastructure,ingestion,matchday,providers,ratings | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;OFFLINE_REMEDIATION |
 | `features` | 8 | apps:0;scripts:1;migrations:0;tests:7 | factor_model,ingestion,prematch,ratings,strategy | competitions,domain,markets | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `formal` | 2 | apps:0;scripts:1;migrations:0;tests:2 | prematch,strategy | - | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
@@ -502,7 +524,7 @@ DELETED_PACKAGE_COUNT = 0
 | `security` | 2 | apps:0;scripts:1;migrations:0;tests:1 | - | operations | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;BACKUP_SECURITY_BASELINE |
 | `settlement` | 3 | apps:0;scripts:2;migrations:0;tests:2 | api,dashboard,prematch,tracking | domain,infrastructure | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `shadow` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | strategy | - | w2-shadow-comparison-import | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT;COMPARISON_IMPORT |
-| `strategy` | 13 | apps:0;scripts:3;migrations:0;tests:16 | dashboard,gates,markets,matchday,prematch,pricing,shadow | competitions,domain,features,formal,infrastructure,markets,models | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `strategy` | 13 | apps:0;scripts:3;migrations:0;tests:17 | dashboard,gates,markets,matchday,prematch,pricing,shadow | competitions,domain,features,formal,infrastructure,markets,models | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `tracking` | 15 | apps:2;scripts:6;migrations:0;tests:21 | api,audit_export,domain,prematch,replay | domain,infrastructure,ingestion,markets,prematch,settlement | SCC-1 | w2-finished-match-scoring | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 
 ```text

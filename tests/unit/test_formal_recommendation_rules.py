@@ -1059,10 +1059,10 @@ def test_reverse_value_requires_explicit_price_value_copy() -> None:
 def test_neutral_fair_line_allows_price_value_on_receiving_side() -> None:
     balanced = simulation(
         fixture_id="formal-neutral-value",
-        home_xg_for=1.35,
-        home_xg_against=1.25,
-        away_xg_for=1.25,
-        away_xg_against=1.35,
+        home_xg_for=1.25,
+        home_xg_against=1.35,
+        away_xg_for=1.35,
+        away_xg_against=1.25,
         home_elo=1600.0,
         away_elo=1595.0,
         home_squad_value_eur=420_000_000.0,

@@ -168,12 +168,12 @@ def test_c_market_implied_probability_still_reads_as_decimal_odds() -> None:
     assert 1 / DECIMAL_ODDS == pytest.approx(0.520833, abs=1e-6)
 
 
-# --- (d) fixture 1570340 under the current unvalidated model -> no candidate --
-def test_d_fixture_1570340_yields_no_candidate_under_the_shipped_calibration() -> None:
-    """The reported case, with its own recorded numbers, now holds instead of firing.
+# --- (d) fixture 1570340 under the current approved model ---------------------
+def test_d_fixture_1570340_uses_the_shipped_approved_calibration() -> None:
+    """The shipped parameter identity now carries its evidence-bound grant.
 
-    The repository ledger has no grant for the shipped parameters, so the strategy
-    declares BASELINE_PRIOR today.
+    The authority still depends on exact identity; this assertion changes only
+    because the shipped parameters now have an APPROVED_VALIDATED ledger record.
     """
     from w2.prematch import analysis_calculator
     from w2.strategy.simulate import SimulationInputs
@@ -190,7 +190,7 @@ def test_d_fixture_1570340_yields_no_candidate_under_the_shipped_calibration() -
         )
     )
     calibration_status = simulation.calibration_status
-    assert calibration_status == "BASELINE_PRIOR"
+    assert calibration_status == "APPROVED_VALIDATED"
     version = classify_evaluation(
         _evaluation(
             calibration_status=calibration_status,
@@ -198,8 +198,8 @@ def test_d_fixture_1570340_yields_no_candidate_under_the_shipped_calibration() -
             delta=RECORDED_DELTA,
         )
     )
-    assert version.state is not DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
-    assert calibration_authority.RECOMMENDATION_BLOCKER in version.blockers
+    assert version.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
+    assert calibration_authority.RECOMMENDATION_BLOCKER not in version.blockers
     # the EV that was reported is still recorded, unmodified and uncapped
     assert version.current_ev == pytest.approx(RECORDED_EV)
 
