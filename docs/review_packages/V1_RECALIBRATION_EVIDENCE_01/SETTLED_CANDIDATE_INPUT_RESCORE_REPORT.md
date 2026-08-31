@@ -49,6 +49,6 @@ AH 方向：主队 20、客队 46；TOTALS：大 22、小 33。输注不是简�
 
 方向层的逐注重评分已另行冻结，见
 `SETTLED_CANDIDATE_DIRECTION_RESCORE_REPORT.md` 与
-`SETTLED_CANDIDATE_DIRECTION_RESCORE.json`。该 artifact 以完整比分矩阵计算
-AH/TOTALS 两侧模型方向，并单列 PUSH、主场项反事实及未启用因子；不要把本报告的
+`SETTLED_CANDIDATE_DIRECTION_RESCORE.json`。该 artifact 以 evaluation 绑定的 immutable capture ladder 计算
+AH/TOTALS 两侧模型方向，并单列 PUSH 及未启用因子；不要把本报告的
 EV/P&L 汇总误读为方向选择器诊断。
