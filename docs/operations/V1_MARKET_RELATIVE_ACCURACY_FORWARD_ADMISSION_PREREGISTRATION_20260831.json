@@ -1,0 +1,114 @@
+{
+  "schema_version": "w2.market_relative_accuracy_forward_admission_preregistration.v1",
+  "task_id": "V1-ADMISSION-CONTRACT-CONVERGENCE-01",
+  "status": "FROZEN_BEFORE_IMPLEMENTATION",
+  "frozen_at": "2026-08-31T01:56:14Z",
+  "purpose": "Prospectively determine whether each deployed V1 market model is at least as accurate as its frozen devigged market benchmark on the opportunities selected by the production admission policy.",
+  "retrospective_evidence_exclusion": {
+    "forbidden_for_threshold_or_parameter_selection": true,
+    "artifacts": [
+      "docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/admission_relative_accuracy_20260830T212500Z.csv",
+      "docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/ADMISSION_RELATIVE_ACCURACY_AUDIT.json"
+    ],
+    "reason": "The 354 rows and their outcomes were inspected before this protocol was frozen; they may justify the problem statement but may not select a threshold, parameter, or verdict."
+  },
+  "economic_admission_contract": {
+    "version": "w2.economic_admission.cashflow.v1",
+    "required_gates": {
+      "expected_value_strictly_greater_than": 0.0,
+      "cashflow_price_edge_greater_than_or_equal_to": 0.05,
+      "expected_value_minus_standard_error_strictly_greater_than": 0.0
+    },
+    "probability_delta": {
+      "role": "DIAGNOSTIC_ONLY",
+      "admission_gate": false
+    },
+    "authority": "Existing Recommendation Decision V4 five-state cashflow contract; this protocol does not select a new per-pick threshold."
+  },
+  "cohort": {
+    "window_start_rule": "First frozen dynamic_prematch_evaluations row produced after deployment by evaluation_policy_version=candidate-eval.v2 and economic_admission_contract_version=w2.economic_admission.cashflow.v1.",
+    "markets": [
+      "ASIAN_HANDICAP",
+      "TOTALS"
+    ],
+    "include": [
+      "official_funnel_eligible=true",
+      "final evaluated opportunity for fixture x market x registered slot",
+      "calibration_identity exactly equals the identity named by the eventual registry grant",
+      "model_identity and evaluation_policy_version exactly equal the identities named by the eventual registry grant",
+      "authoritative result confirmed after the evaluation was frozen",
+      "model and devigged market probabilities persisted before kickoff"
+    ],
+    "exclude": [
+      "any row evaluated under candidate-eval.v1 or another policy version",
+      "any row before the implementation deployment instant",
+      "recomputed or replayed decisions",
+      "rows whose calibration, model, policy, scoring, or market identity changed",
+      "rows without an authoritative settled result"
+    ],
+    "identity_change_rule": "Any model_identity, calibration_identity, evaluation_policy_version, economic admission contract version, scoring contract version, or market change invalidates pooling and starts a new cohort."
+  },
+  "scoring": {
+    "contract_version": "w2.market_relative_accuracy.scalar_settlement_brier.v1",
+    "realised_target": {
+      "WIN": 1.0,
+      "HALF_WIN": 0.5,
+      "PUSH": 0.5,
+      "HALF_LOSS": 0.0,
+      "LOSS": 0.0
+    },
+    "primary_metric": "paired fixture-cluster mean(model_brier - market_brier)",
+    "confidence_interval": "deterministic 10000-replicate fixture-cluster bootstrap, one-sided 95% upper bound",
+    "diagnostics_only": [
+      "model and market absolute error",
+      "delta bins",
+      "EV bins",
+      "candidate count and direction structure",
+      "P&L and hit rate"
+    ]
+  },
+  "sample_size": {
+    "minimum_settled_fixtures_per_market": 1500,
+    "derivation": "Without using observed retrospective variance, a bounded paired-loss planning bound for one-sided alpha=0.05 and epsilon=0.05 gives ceil(ln(1/0.05)/(2*0.05^2))=600 independent fixtures. Apply a frozen design-effect multiplier of 2 for within-fixture and schedule dependence and divide by 0.8 for unusable/identity-break attrition: ceil(600*2/0.8)=1500 per market.",
+    "earliest_evaluation_at": "2027-06-01T00:00:00Z",
+    "view_rule": "Primary metrics may be viewed exactly once only when both markets have at least 1500 settled fixtures and the earliest evaluation timestamp has passed."
+  },
+  "verdict": {
+    "accepted_value": "MARKET_RELATIVE_ACCURACY_VALIDATED",
+    "pass_rule": "For ASIAN_HANDICAP and TOTALS separately, the one-sided 95% upper bound of mean(model_brier - market_brier) must be <= 0. Both markets must pass; results may not be pooled.",
+    "failure_rule": "No grant is written. Do not change thresholds from this cohort. A changed model or admission policy requires a new preregistration and a new identity-isolated cohort.",
+    "scope": "A pass authorises only the exact bound model x calibration x market x evaluation-policy x scoring-contract identities. It does not certify profitability."
+  },
+  "interim_safety_view": {
+    "allowed_once": true,
+    "not_before_settled_fixtures_per_market": 500,
+    "trigger": "Either market has point estimate mean(model_brier - market_brier) > 0.10.",
+    "authority": "STOP_OR_ROLLBACK_ONLY",
+    "may_grant_or_promote": false
+  },
+  "registration_evidence_required": [
+    "admission_identity",
+    "model_identity",
+    "calibration_identity",
+    "market",
+    "evaluation_policy_version",
+    "economic_admission_contract_version",
+    "scoring_contract_version",
+    "preregistration_document_path and sha256",
+    "cohort_sha256",
+    "sample_size and fixture_count",
+    "evaluation_window_start and evaluation_window_end",
+    "metrics including point estimate and one-sided upper bound",
+    "code_revision",
+    "config_sha256",
+    "evaluated_at, granted_at, and granter"
+  ],
+  "prohibitions": [
+    "No retrospective threshold selection.",
+    "No cross-identity or cross-market pooling.",
+    "No replayed decision may enter the forward cohort.",
+    "No P&L, hit rate, current picks, or 1X2 metric may grant admission.",
+    "No ledger record may be edited, deleted, revoked, or inserted through a database or environment variable.",
+    "No deployment is authorised by this preregistration."
+  ]
+}
