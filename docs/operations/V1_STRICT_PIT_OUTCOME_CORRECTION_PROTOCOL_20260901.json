@@ -1,0 +1,93 @@
+{
+  "protocol_id": "V1-STRICT-PIT-OUTCOME-CORRECTION-20260901",
+  "status": "FROZEN_BEFORE_CORRECTED_OOF_SCORING",
+  "frozen_at": "2026-09-01T03:03:21+08:00",
+  "purpose": "Decide whether the already fitted raw_delta_scale=1.102038 is a locally implementable V1 development candidate using strictly pre-kickoff Football-API four-field xG and outcomes, without treating market agreement or selected bets as ground truth.",
+  "disclosed_known_results": {
+    "candidate_value_already_known": 1.102038,
+    "strict_pit_current_scale_net_margin_slope_already_observed": 1.184837,
+    "strict_pit_candidate_net_margin_slope_already_observed": 1.075132,
+    "legacy_claim_1_848": "Previously supplied without a runnable artifact; contradicted by the strict-PIT reconstruction and not reproducible from the committed evidence.",
+    "market_conditioning_issue": "Selecting the side labelled favorite by the market before averaging fair-minus-market induces a conditional-selection effect; favorite-conditioned means are diagnostic only."
+  },
+  "fixed_comparison": {
+    "current": {
+      "home_advantage_goals": 0.30,
+      "raw_delta_scale": 1.0
+    },
+    "candidate": {
+      "home_advantage_goals": 0.30,
+      "raw_delta_scale": 1.102038
+    },
+    "no_other_candidate_may_be_added": true,
+    "no_parameter_or_threshold_may_change_after_scoring": true
+  },
+  "data_contract": {
+    "development_rows": 8659,
+    "ordering": "ascending (kickoff_at, fixture_id)",
+    "point_in_time": "For each team use only its latest five team_xg_match rows whose kickoff is strictly earlier than the target kickoff; append the target row only after producing the target input.",
+    "inputs": "home_xg_for, home_xg_against, away_xg_for, away_xg_against only",
+    "outcomes": "authoritative target fixture home and away goals from the frozen team_xg_match pair",
+    "rolling_origin": {
+      "warmup": 1500,
+      "folds": 10,
+      "oof_rows": 7159,
+      "candidate_prediction": "fit raw_delta_scale on rows strictly earlier than each fold, then score the fold once",
+      "current_prediction": "score the same fold with raw_delta_scale=1.0"
+    },
+    "development_only": true,
+    "not_final_certification": true
+  },
+  "binding_local_implementation_checks": {
+    "paired_oof_poisson_nll": "candidate mean must be lower than current and the 95% fixture bootstrap upper bound for candidate-minus-current must be <= 0",
+    "net_margin_calibration": "candidate absolute distance of OOF slope from 1 must be lower than current; absolute OOF intercept must be <= 0.10 goals",
+    "fold_stability": "candidate must lower mean Poisson NLL in at least 7 of 10 rolling-origin folds",
+    "totals_invariance": "candidate must leave the pre-individual-clamp total unchanged; any individual-lambda clamp effects must be counted and reported",
+    "all_required": true
+  },
+  "bootstrap": {
+    "resamples": 2000,
+    "seed": 20260901,
+    "unit": "fixture",
+    "interval": "percentile 95%"
+  },
+  "market_diagnostic_only": {
+    "cohort": "the already disclosed strict-PIT 259-fixture market replay",
+    "required_outputs": [
+      "OLS of market-implied home-minus-away delta on raw model delta",
+      "signed home-perspective fair-minus-market mean",
+      "favorite-conditioned fair-minus-market mean shown separately"
+    ],
+    "forbidden_as_gate": [
+      "favorite-conditioned shortfall",
+      "underdog edge selected by the market favorite label",
+      "forcing the model to reproduce the market line"
+    ]
+  },
+  "settled_candidate_diagnostic_only": {
+    "cohort": "121 already observed settled candidates",
+    "allowed": "Explain the frozen probability, odds, EV selection and observed settlement per bet.",
+    "forbidden": "Parameter selection, threshold selection, acceptance, grant or deployment decision."
+  },
+  "implementation_if_all_checks_pass": {
+    "scope": [
+      "add raw_delta_scale to LambdaCalibrationParams and apply it once to raw_delta",
+      "bump calibration and simulation model versions",
+      "align empirical xG standard-error rows to the same latest-five window as the point estimate"
+    ],
+    "calibration_identity_must_change": true,
+    "ledger_grant": "FORBIDDEN_IN_THIS_TASK",
+    "deployment": "FORBIDDEN_IN_THIS_TASK",
+    "expected_runtime_status_without_new_grant": "BASELINE_PRIOR"
+  },
+  "stop_lines": {
+    "provider_calls": 0,
+    "production_reads": 0,
+    "production_writes": 0,
+    "ledger_writes": 0,
+    "migrations": 0,
+    "deployments": 0,
+    "github_operations": 0,
+    "v2_factors": "FORBIDDEN"
+  }
+}
