@@ -19,7 +19,7 @@ PYTHONPATH=src .venv/bin/python scripts/audit_settled_candidate_direction_rescor
   --output docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/SETTLED_CANDIDATE_DIRECTION_RESCORE.json
 ```
 
-artifact SHA-256：`92c4fd6578ae44651fafd9647caa8f7e504e416159211e77f96df7938f2e3ceb`。
+artifact SHA-256：`e3edcdb4e10aab940b3dd5aa22c859913033d916ccbf2ef8f3d586f17df6e2be`。
 
 ## 定义
 
@@ -57,22 +57,16 @@ artifact SHA-256：`92c4fd6578ae44651fafd9647caa8f7e504e416159211e77f96df7938f2e
 - 121 条中只有 `1` 条方向翻转：AH fixture `1492352`，生产轨主队 → 去主场项客队；该场实际方向为主队，因此去掉主场项并没有修正它。
 - 其余 `120` 条方向不变；“主场项导致大量选错边”在这批数据上不成立。
 
-### Elo、身价、首发
+### V1 / V2 边界
 
-冻结 capture 明确记录（这些不是 V1 必需因素；这里只为确认没有被偷偷计入模型）：
-
-- `ratings_used_in_lambda=False`：121/121；
-- `squad_value_used_in_lambda=False`：121/121；
-- lineup `numeric_adjustment_enabled=False`：121/121。
-
-因此这三类反事实没有真实的当时数值可以重放，artifact 对 121 条分别标为 `NOT_AVAILABLE`。不使用赛果倒推或伪造输入；它们属于 V2 扩展，不构成 V1 缺陷或 V1 修复前提。
+Elo、身价、首发属于 V2 扩展，不是 V1 必需输入。本 V1 artifact 不对这些因子做反事实，也不把它们的缺失列为 V1 缺陷。
 
 ### 当前实际驱动因子
 
-121 条均为 `xG READY`，并保留四字段 xG 快照（每队 5 场窗口摘要及其组成身份）。所以该批次的真实生产方向主要由四字段 xG、固定主场项和 Poisson/Dixon-Coles 模拟驱动，而不是一个已经启用的多因子评分器。
+121 条均为 `xG READY`，并保留四字段 xG 快照（每队 5 场窗口摘要及其组成身份）。这正是 V1 的设计范围：四字段 xG、固定主场项和 Poisson/Dixon-Coles 模拟；V2 才扩展其它因子。
 
 ## 结论边界与下一步
 
-本审计证明了：原候选方向确实等于当时模型方向；在这 121 条被准入的已结算样本中，AH 决定性方向命中 32/64、TOTALS 19/47，亏损不是简单的“系统选了错误的另一边后又被 EV 过滤掉”。它同时显示，去掉主场项几乎不改变方向，Elo/身价/首发因缺失无法评估。
+本审计证明了：原候选方向确实等于当时模型方向；在这 121 条被准入的已结算样本中，AH 决定性方向命中 32/64、TOTALS 19/47，亏损不是简单的“系统选了错误的另一边后又被 EV 过滤掉”。去掉主场项几乎不改变方向；V2 因子不进入 V1 结论。
 
 这不是“EV 已修复”、不是“生产有效性已验证”，也不授权直接调参。V1 下一步应先解释 35/121 条 capture 与 checkpoint simulation identity 漂移，并校准 xG/主客强弱与盘口链；首发、身价等 V2 因子不纳入 V1 修复。任何参数或准入修改都必须另行预注册。

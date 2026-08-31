@@ -32,7 +32,7 @@ AH 方向：主队 20、客队 46；TOTALS：大 22、小 33。输注不是简�
 
 121 注的真实运行 simulation 都使用四字段 xG，xG 状态 `READY=121/121`。但其它增强因子在实际 λ 中全部未启用：`ratings_used_in_lambda=False`、`squad_value_used_in_lambda=False` 均为 121/121；H2H 与历史 form 均未就绪，lineup 未形成有效输入。feature status 汇总为：F1 市场移动 `UNAVAILABLE=121`、F2 机构分歧 `UNAVAILABLE=121`、F3 休息 `INSUFFICIENT_DATA=121`、F4 比赛重要性 `READY=121`、F5 近期 AH `UNAVAILABLE=121`、F6 H2H `UNAVAILABLE=121`、F7 实力/状态 `INSUFFICIENT_DATA=121`、F8 身价 `UNAVAILABLE=121`、F9 True XG 解释因子 `UNAVAILABLE=121`。
 
-因此当前推荐实质上主要由 xG 四字段 + 固定主场项 `0.30` + Poisson/Dixon-Coles 经济链驱动；不是“多因子综合评分”在 121 注上共同投票。98 注仍为 `BASELINE_PRIOR` 时期，23 注为 `APPROVED_VALIDATED` 时期；不能跨 calibration identity 合并成一个授权结论。
+因此当前 V1 推荐按设计由 xG 四字段 + 固定主场项 `0.30` + Poisson/Dixon-Coles 经济链驱动。Elo/身价/首发属于 V2 扩展，不是 V1 的必需输入或缺陷。98 注仍为 `BASELINE_PRIOR` 时期，23 注为 `APPROVED_VALIDATED` 时期；不能跨 calibration identity 合并成一个授权结论。
 
 另有 35/121 条的 immutable capture simulation input hash 与当时 analysis checkpoint hash 不同，86/121 相同。这是持久化 projection 与 capture identity 的可审计漂移，不能静默当作同一输入；后续修复必须先解释这 35 条的来源，再谈任何重训。
 
@@ -40,12 +40,12 @@ AH 方向：主队 20、客队 46；TOTALS：大 22、小 33。输注不是简�
 
 1. AH：平均预测净胜差 `0.135`，实际 `0.303`，再次显示实力差被压缩；这能解释客侧/受让侧假 edge，但不能单独解释 TOTALS 的 `-11.320`。
 2. TOTALS：总进球均值预测 `2.746`、实际 `2.855`，偏差远小于 AH 净差轴；亏损更像准入挑选模型与市场分歧最大样本造成的逆向选择，而非已证明的总进球斜率错误。
-3. 121 注上所有增强因子都没有真正进入 λ，说明要修复“Football-API 数据→因子评分→λ”闭环，优先应修持久化输入可见性、as-of 身份和因子启用条件，而不是先调 EV 阈值或把方向反转。
+3. V1 修复范围是四字段 xG 的 PIT 身份、主客强弱/主场项、比分概率、盘口赔率和准入经济链；不得把 V2 的 Elo/身价/首发扩展列为 V1 修复前提，也不应先调 EV 阈值或把方向反转。
 4. 这些 121 注已经是被查看并参与开发诊断的 cohort；本报告不授权选择新常数、权重、阈值或 calibration verdict。任何参数修复必须另行预注册，并使用未参与选择的新证据验证。
 
 ## 结论边界
 
-本报告已经完成 121 注的逐注输入、λ、模拟、赔率/EV、方向和赛果重放，并定位到“xG 主导、Elo/身价/首发未实际贡献、AH 净差压缩、35 条 identity 漂移”这些可复核事实；它不是“EV 已修复”或“生产有效性已验证”的声明。下一步只能在本报告验收后，针对 35 条 identity 漂移与各因子持久化缺口建立独立修复/预注册任务。
+本报告已经完成 121 注的逐注输入、λ、模拟、赔率/EV、方向和赛果重放，并定位到“V1 的 xG 主导链、AH 净差压缩、35 条 identity 漂移”这些可复核事实；它不是“EV 已修复”或“生产有效性已验证”的声明。下一步只能在本报告验收后，针对 35 条 identity 漂移和 V1 的 xG/强弱/盘口链建立独立修复或预注册任务。
 
 方向层的逐注重评分已另行冻结，见
 `SETTLED_CANDIDATE_DIRECTION_RESCORE_REPORT.md` 与

@@ -3,10 +3,8 @@
 
 The input is the frozen, read-only CSV export produced by
 ``settled_candidate_rescore_export.sql``.  It contains no provider or database
-calls.  Direction is derived from the persisted full score matrix; the only
-counterfactual currently possible from the capture is removing the persisted
-home-advantage shift.  Missing Elo, squad-value, and lineup values are reported
-as NOT_AVAILABLE rather than reconstructed from outcomes.
+calls.  Direction is derived from the persisted full score matrix; the V1
+counterfactual removes only the persisted home-advantage shift.
 """
 
 from __future__ import annotations
@@ -201,17 +199,9 @@ def _replay_row(raw: dict[str, str]) -> dict[str, Any]:
         "model_version": simulation.get("model_version"),
         "input": {
             "four_field_xg": four_fields,
-            "input_readiness": readiness,
-            "ratings_used_in_lambda": bool(readiness.get("ratings_used_in_lambda")),
-            "squad_value_used_in_lambda": bool(readiness.get("squad_value_used_in_lambda")),
-            "lineup_numeric_adjustment_enabled": bool(
-                checkpoint.get("analysis_card", {})
-                .get("lineup_provenance", {})
-                .get("numeric_adjustment_enabled")
-            ),
-            "elo_counterfactual": "NOT_AVAILABLE",
-            "squad_value_counterfactual": "NOT_AVAILABLE",
-            "lineup_counterfactual": "NOT_AVAILABLE",
+            "xg_status": readiness.get("xg_status"),
+            "xg_ready": readiness.get("xg_ready"),
+            "home_advantage_applied": readiness.get("home_advantage_applied"),
         },
         "production_replay": {
             "lambda_home": _float(simulation.get("lambda_home")),
@@ -286,11 +276,6 @@ def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
             != row["production_replay"]["predicted"]["predicted"]
             for row in rows
         ),
-        "unavailable_counterfactuals": {
-            "elo": len(rows),
-            "squad_value": len(rows),
-            "lineup": len(rows),
-        },
     }
 
 
@@ -308,10 +293,6 @@ def audit(path: Path) -> dict[str, Any]:
             (
                 "This is a diagnostic replay of an already observed cohort; no parameter "
                 "or threshold selection is authorized."
-            ),
-            (
-                "Elo, squad value, and lineup numeric inputs were absent/disabled in the "
-                "frozen captures, so their counterfactuals are NOT_AVAILABLE."
             ),
             (
                 "Direction is compared separately from admission and P&L; a correct "
