@@ -685,6 +685,37 @@ def test_empirical_xg_uncertainty_requires_three_real_xg_matches(monkeypatch) ->
     assert uncertainty["lambda_uncertainty_input_hash"]
 
 
+def test_xg_uncertainty_uses_same_latest_five_window_as_point_estimate() -> None:
+    service = ReadModelService(repository=cast(Any, FakeReadRepository()))
+    rows = [
+        {
+            "fixture_id": f"history-{index}",
+            "team_id": "10",
+            "kickoff_at": (NOW - timedelta(days=7 - index)).isoformat(),
+            "captured_at": (NOW - timedelta(days=7 - index, hours=1)).isoformat(),
+            "xg_for": 1.0 + index / 10,
+            "xg_against": 0.8 + index / 10,
+            "raw_payload_sha256": f"raw-{index}",
+            "source_system": "api_football_statistics",
+        }
+        for index in range(7)
+    ]
+
+    selected = service._xg_uncertainty_rows(  # noqa: SLF001
+        rows,
+        team_id="10",
+        before=NOW,
+    )
+
+    assert [row["fixture_id"] for row in selected] == [
+        "history-2",
+        "history-3",
+        "history-4",
+        "history-5",
+        "history-6",
+    ]
+
+
 def test_public_bounded_uncertainty_excludes_xg_captured_after_evaluation_time(
     monkeypatch,
 ) -> None:
@@ -817,7 +848,7 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert simulation["lambda_sigma_home"] > 0
     assert simulation["lambda_sigma_away"] > 0
     assert simulation["calibration"]["lambda_uncertainty_method"] == (
-        "empirical_xg_standard_error.v1"
+        "empirical_xg_standard_error.v2_latest_five"
     )
     assert simulation["calibration"]["lambda_uncertainty_status"] == "ANALYSIS_READY"
     uncertainty_audit = simulation["calibration"]["lambda_uncertainty_audit"]

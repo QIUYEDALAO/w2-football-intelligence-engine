@@ -1,55 +1,64 @@
 # V1 模型修复进度与证据边界
 
-状态：`CANDIDATE_REJECTED_BY_FROZEN_DEVELOPMENT_GATES`（本地只读分析；Provider 0；生产写入 0；未部署）
+状态：`PARTIAL_ROOT_FIX_IMPLEMENTED_CANDIDATE_REJECTED`（本地；Provider 0；生产读写 0；未部署）
 
-## 已确认的真实进展
+## 已完成的确定性修复
 
-- 按冻结预注册截点导出 `team_xg_match`，得到 `19,102` 行 / `9,551` 场；
-  SHA-256 `16fcaaad812e8007c7e828c964d7029bc223e361cdac87b122c56eba9e8e3522`，
-  与既有冻结来源一致。
-- 按严格“目标开赛前、双方各至少 5 场历史”重建训练集，得到 `8,659` 场。
-- 按预注册公式 `adjusted_delta = raw_delta_scale × raw_delta + 0.30`、
-  现有 total/lambda clamps、Dixon-Coles rho `0.0` 和确定性 golden-section，
-  训练集拟合值为 `raw_delta_scale=1.102038`。
-- 10 折 rolling-origin OOF（warmup `1,500`）拟合值范围 `1.113134–1.166136`，
-  OOF 净胜球回归斜率 `1.028712`、截距 `0.022801`。这些是开发诊断，
-  不是授权或上线判据。
+V1 的四字段 xG 点估计使用最近 5 场，但原
+`empirical_xg_standard_error.v1` 对仓库返回的最多 20 场计算标准误。点估计和不确定性
+因此描述了不同估计量。冻结协议
+`V1_XG_UNCERTAINTY_WINDOW_CORRECTION_20260901.json` 后，代码只在既有 PIT、source、
+digest 和 kickoff 检查全部通过后保留最近 5 场，并将方法身份提升为
+`empirical_xg_standard_error.v2_latest_five`。点估计、模型参数、准入阈值、ledger 和
+白名单均未改变。
 
-## 发现并撤回的 283 场证据
+这修复了 EV-SE 置信度链的真实缺陷，但不能单独证明模型点概率或全部 EV 已修复。
 
-旧 `A1_PIT_EVIDENCE_REDO.json` 的 `teams.xg_for/xg_against` 实际来自目标比赛自身
-的 `team_xg_match` 行，而不是目标开赛前滚动状态。例：fixture `1490136` 的目标行
-为 `0.87/0.40`，旧 A2 因此产生 X 轨 `lambda_home=0.97 / lambda_away=0.38`。
-这违反 PIT 规则；不能用于候选模型验收。按完整历史 xG 严格重建时，105 场 rebuild
-中只有 `81` 场双方均有至少 5 条先前记录，`24` 场输入不足，详见
-`A1_PIT_REBUILD_COVERAGE_AUDIT.json`。
+## 斜率候选的最终裁决
 
-因此现有 `A2_SIMULATION_OUTPUTS.json` 和基于它的 market-shape 数字已撤回，不能
-支持“候选优于现役”或任何部署决定。严格 PIT 重跑按冻结的缺失输入规则排除 24 场，
-最终使用 178 场真实 snapshot 与 81 场赛前 latest-five rebuild，共 259 场。
+严格 PIT `8,659` 场开发集上，现役 `scale=1.0` 的净胜球回归 slope/intercept 为
+`1.184837/-0.011194`；固定候选 `1.102038` 为 `1.075132/0.021717`。此前转述的
+`1.848 [1.758, 1.939]` 没有生成脚本或不可变逐行 artifact，不能从仓库证据复现；若把
+`1.848` 直接作为 scale，严格 PIT 结果反而是 slope `0.642919`、mean NLL
+`2.993250392`，劣于现役 `2.960601796`。
 
-## 严格 PIT 市场门结果
+rolling-origin OOF（warmup `1,500`、10 折、`7,159` 场）结果：
 
-三轨重跑为 X=`0.12/1.0`、Y=`0.30/1.0`、Z=`0.30/1.102038`。只从旧市场审计中
-复用冻结的盘口、赔率、机构与 `captured_at`，旧模型 λ、概率、edge 和公平线均未复用。
-实际去水实现为 `PROPORTIONAL`。A2 artifact SHA-256 为
-`d7c6eaf9ab39a62265438d661cc2f606cf0c7d4dfd4b5ac5fb8a41999c95266f`；市场审计
-artifact SHA-256 为 `e4550c7dc4183a0bc1e0bc9b5e1c1c72540c0174b4569c44dc5b085564363f5b`。
+- 现役 slope/intercept：`1.173055/-0.020455`；
+- 候选 slope/intercept：`1.028712/0.022801`；
+- 候选改善 `7/10` folds；
+- paired NLL candidate-current 均值 `-0.000415741`；
+- 95% bootstrap CI `[-0.001435234, +0.000619995]`。
 
-Z 相对 Y 有改善，但未通过三项冻结开发门：
+CI 上界仍高于 0，未通过预先冻结的 OOF 门。因此 `raw_delta_scale=1.102038` 保持
+`REJECTED`：未写入生产参数、未递增 calibration version、未登记 ledger、未授权、未部署。
 
-- 弱队侧 cashflow price edge 均值 `0.095440`，要求 `<=0.05`；
-- 弱队侧 edge 超过 5% 的比例 `142/256=0.554688`，要求 `<=0.35`；
-- 强队盘口幅度缺口绝对均值 `0.349609` 球，要求 `<=0.25`。
+## 市场证据的解释更正
 
-其余不过冲、主/客强队不恶化与 TOTALS 变动门通过；本 cohort 无 X→Y individual-lambda
-夹断场次。审计使用严格 PIT 点估计与 sigma=0 的完整比分矩阵，适合本次盘口形状门，
-但不得冒充包含生产 xG uncertainty 的完整 EV-SE 重放。
+旧 283 场 A2 使用目标比赛自身赛后 xG，已作废。严格 PIT 市场重跑只有
+`178 snapshot + 81 rebuild = 259` 场；24 场因赛前历史不足而排除。
+
+旧市场门先用市场盘口定义 favorite，再计算模型与市场的差，属于条件选择：市场噪声越极端，
+越容易被选为“强队侧”。因此 favorite-conditioned `0.349609` 只保留为开发诊断，不能当作
+outcome-validity 或强迫模型复制盘口的部署门。signed HOME fair-minus-market 均值为
+X `0.176641`、Y `0.005792`、Z `0.014479`；市场只参与价格比较，不是预测真值。
+
+## 121 注已结算候选能证明什么
+
+- evaluation→model capture identity 与 model-input manifest 均为 `121/121` 一致；
+- 保存 EV 可由 evaluation 自己冻结的五态分布和赔率在 `1e-6` 内 `121/121` 复现；
+- 原推荐方向与较高有效概率方向 `121/121` 一致；
+- 决定性方向：AH `32/64=50.0%`，TOTALS `19/47=40.4%`，合计
+  `51/111=45.9%`。
+
+这些结果说明没有发现展示层 EV 算错或方向选择器拿错另一边；模型概率方向本身表现差。
+该 cohort 已被查看，只能解释错误，不能选参或充当验证集。更早的 capture ladder 和后来覆盖的
+latest checkpoint 都不能替代 evaluation 当时冻结的五态分布。
 
 ## 治理边界
 
-- `raw_delta_scale=1.102038` 已被冻结开发门否决，未写入生产参数、ledger 或白名单，
-  不得授权或部署，也未改变当前推荐行为。
-- 121 条已结算候选仅用于诊断，不用于选择该值；283 场市场集同样不用于最终认证。
-- V1 不引入 Elo、身价或首发；这些属于 V2 独立轨道。
-- 下一候选必须另立预注册/假设；不得查看本结果后回头修改本次参数并继续使用同一门作验收。
+- V1 只使用 Football-API 四字段 xG、主场项、Poisson/Dixon-Coles 与 AH/TOTALS 经济链；
+  Elo、身价、首发属于 V2，不进入本修复。
+- 当前可交付代码修复只有 xG uncertainty latest-five 对齐；它仍为本地待独立验收。
+- 不得把本状态写成“EV 已完全修复”。新的点概率候选必须另立预注册和未查看验证证据，
+  不能回头使用这 `8,659/259/121` 场挑参数。

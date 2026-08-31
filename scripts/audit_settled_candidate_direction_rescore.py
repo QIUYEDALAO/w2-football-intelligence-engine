@@ -3,8 +3,9 @@
 
 The input is the frozen, read-only CSV export produced by
 ``settled_candidate_rescore_export.sql``.  It contains no provider or database
-calls.  Direction is derived from the immutable model capture bound to each
-evaluation, never from the later mutable shadow checkpoint.
+calls. Direction and EV are reproduced from each evaluation's own frozen
+five-state distribution, never from an earlier model capture or later mutable
+shadow checkpoint.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from w2.domain.five_state_pricing import SettlementDistribution, expected_value
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.markets.settlement_probability import effective_settlement_probability
 
@@ -38,32 +40,56 @@ def _effective(distribution: dict[str, Any]) -> float:
     return float(value)
 
 
-def _direction_from_capture(
-    market: str, selection: str, line: Decimal, capture: dict[str, Any]
+def _reverse_distribution(distribution: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "WIN": distribution["LOSS"],
+        "HALF_WIN": distribution["HALF_LOSS"],
+        "PUSH": distribution["PUSH"],
+        "HALF_LOSS": distribution["HALF_WIN"],
+        "LOSS": distribution["WIN"],
+    }
+
+
+def _pricing_distribution(distribution: dict[str, Any]) -> SettlementDistribution:
+    return SettlementDistribution(
+        full_win_probability=Decimal(str(distribution["WIN"])),
+        half_win_probability=Decimal(str(distribution["HALF_WIN"])),
+        push_probability=Decimal(str(distribution["PUSH"])),
+        half_loss_probability=Decimal(str(distribution["HALF_LOSS"])),
+        full_loss_probability=Decimal(str(distribution["LOSS"])),
+    )
+
+
+def _direction_from_evaluation(
+    selection: str,
+    evaluation: dict[str, Any],
 ) -> dict[str, Any]:
-    sides = ("HOME", "AWAY") if market == "ASIAN_HANDICAP" else ("OVER", "UNDER")
-    if market == "ASIAN_HANDICAP":
-        canonical_line = -line if selection == "AWAY" else line
-        ladder = capture.get("ah_settlement_distributions", {}).get("ladder", [])
-        item = next(
-            (row for row in ladder if Decimal(str(row.get("home_line"))) == canonical_line),
-            None,
-        )
-        keys = {"HOME": "home_settlement_distribution", "AWAY": "away_settlement_distribution"}
-    else:
-        ladder = capture.get("ou_settlement_distributions", {}).get("ladder", [])
-        item = next((row for row in ladder if Decimal(str(row.get("line"))) == line), None)
-        keys = {"OVER": "over_settlement_distribution", "UNDER": "under_settlement_distribution"}
-    if item is None:
-        raise ValueError(f"capture ladder has no {market} line {line}")
-    distributions = {side: item[keys[side]] for side in sides}
+    opposite = SIDES[selection]
+    target_distribution = evaluation.get("model_settlement_distribution")
+    if not isinstance(target_distribution, dict) or set(target_distribution) != set(OUTCOMES):
+        raise ValueError("evaluation has no complete five-state model distribution")
+    distributions = {
+        selection: target_distribution,
+        opposite: _reverse_distribution(target_distribution),
+    }
+    sides = (selection, opposite)
     probabilities = {side: round(_effective(dist), 6) for side, dist in distributions.items()}
     ordered = sorted(sides, key=lambda side: (-probabilities[side], side))
+    recomputed_ev = expected_value(
+        Decimal(str(evaluation["decimal_odds"])),
+        _pricing_distribution(target_distribution),
+    )
+    stored_ev = Decimal(str(evaluation["current_ev"]))
     return {
-        "predicted": ordered[0],
+        "higher_probability_side": ordered[0],
         "probabilities": probabilities,
         "settlement_distributions": distributions,
         "margin": round(probabilities[ordered[0]] - probabilities[ordered[1]], 6),
+        "recommended_side": selection,
+        "decimal_odds": float(evaluation["decimal_odds"]),
+        "stored_ev": float(stored_ev),
+        "recomputed_ev": round(float(recomputed_ev), 6),
+        "ev_matches": abs(recomputed_ev - stored_ev) <= Decimal("0.000001"),
     }
 
 
@@ -103,7 +129,7 @@ def _replay_row(raw: dict[str, str]) -> dict[str, Any]:
     selection = str(raw["selection"]).upper().replace("_AH", "").replace("_TOTALS", "")
     line = Decimal(str(evaluation["exact_line"]))
     home, away = int(raw["home_goals"]), int(raw["away_goals"])
-    predicted = _direction_from_capture(market, selection, line, capture)
+    predicted = _direction_from_evaluation(selection, evaluation)
     actual = _actual(market, selection, line, home, away)
     four_fields = capture.get("four_field_xg_identity", {}).get("four_fields", {})
     return {
@@ -124,14 +150,16 @@ def _replay_row(raw: dict[str, str]) -> dict[str, Any]:
                 "identity_hash"
             ),
         },
-        "immutable_capture_replay": {
+        "frozen_evaluation_replay": {
             "predicted": predicted,
             "original_selection": selection,
-            "original_selection_matches_model": predicted["predicted"] == selection,
+            "original_selection_matches_model": (
+                predicted["higher_probability_side"] == selection
+            ),
         },
         "actual": actual,
         "settlement_outcome": actual["target_settlement"],
-        "direction_correct": predicted["predicted"] == actual["direction"],
+        "direction_correct": predicted["higher_probability_side"] == actual["direction"],
         "original_bet_direction_correct": selection == actual["direction"],
         "settlement": raw.get("result_status"),
     }
@@ -144,12 +172,15 @@ def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         by_market[market] = {
             "count": len(scoped),
             "model_predicted_direction": dict(
-                Counter(row["immutable_capture_replay"]["predicted"]["predicted"] for row in scoped)
+                Counter(
+                    row["frozen_evaluation_replay"]["predicted"]["higher_probability_side"]
+                    for row in scoped
+                )
             ),
             "actual_direction": dict(Counter(row["actual"]["direction"] for row in scoped)),
             "model_direction_correct": sum(row["direction_correct"] for row in scoped),
             "original_selection_matches_model": sum(
-                row["immutable_capture_replay"]["original_selection_matches_model"]
+                row["frozen_evaluation_replay"]["original_selection_matches_model"]
                 for row in scoped
             ),
             "original_bet_direction_correct": sum(
@@ -175,10 +206,13 @@ def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         },
         "model_direction_correct": sum(row["direction_correct"] for row in rows),
         "original_selection_matches_model": sum(
-            row["immutable_capture_replay"]["original_selection_matches_model"] for row in rows
+            row["frozen_evaluation_replay"]["original_selection_matches_model"] for row in rows
         ),
         "original_bet_direction_correct": sum(
             row["original_bet_direction_correct"] for row in rows
+        ),
+        "stored_ev_recomputed_exactly": sum(
+            row["frozen_evaluation_replay"]["predicted"]["ev_matches"] for row in rows
         ),
     }
 
@@ -187,6 +221,8 @@ def audit(path: Path) -> dict[str, Any]:
     rows = [_replay_row(raw) for raw in csv.DictReader(path.open(newline="", encoding="utf-8"))]
     if not rows:
         raise ValueError("input export is empty")
+    if not all(row["frozen_evaluation_replay"]["predicted"]["ev_matches"] for row in rows):
+        raise ValueError("stored evaluation EV does not reproduce from its five-state distribution")
     result = {
         "schema_version": "w2.settled_candidate_direction_rescore.v2",
         "input_rows": len(rows),
@@ -203,8 +239,8 @@ def audit(path: Path) -> dict[str, Any]:
                 "direction can still lose because of the AH line or totals line."
             ),
             (
-                "The prior no-home-advantage counterfactual was withdrawn because it used "
-                "a later shadow checkpoint rather than the evaluation-bound immutable capture."
+                "The earlier model capture and later shadow checkpoint are not substitutes for "
+                "the five-state distribution frozen in the evaluated recommendation itself."
             ),
         ],
     }

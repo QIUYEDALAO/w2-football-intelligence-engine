@@ -332,6 +332,11 @@ def write_report(payload: dict[str, Any], path: Path) -> None:
     lines = [
         "# V1 严格 PIT 斜率候选市场复核",
         "",
+        "> **后续解释已取代本报告的上线门含义：** favorite-conditioned 指标先用市场",
+        "> 自身决定强弱侧，再衡量模型与市场差异，会条件选择市场噪声。以下数字保留为",
+        "> 开发诊断，不再作为 outcome-validity 或部署门；最终裁决见",
+        "> `STRICT_PIT_OUTCOME_CORRECTION.md`。",
+        "",
         "> 结论边界：259 场均为开发数据；本报告不能证明生产有效性或 EV 已完全修复。",
         "",
         f"- A2 strict-PIT SHA-256: `{payload['sources']['a2_pit_sha256']}`",

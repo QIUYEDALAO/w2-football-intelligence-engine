@@ -63,16 +63,10 @@ def audit(path: Path) -> dict[str, Any]:
                 "odds": float(evaluation["decimal_odds"]),
                 "evaluated_at": raw["evaluated_at"],
                 "capture_at": raw["capture_at"],
-                "checkpoint_created_at": raw.get("checkpoint_created_at"),
-                "calibration_status": simulation.get("calibration_status")
-                or capture.get("calibration_status"),
+                "capture_calibration_status": capture.get("calibration_status"),
+                "capture_calibration_version": capture.get("calibration_version"),
                 "calibration_identity": evaluation.get("calibration_identity"),
-                "model_version": simulation.get("model_version"),
-                "lambda_home": simulation.get("lambda_home"),
-                "lambda_away": simulation.get("lambda_away"),
-                "simulation_input_hash": simulation.get("calibration", {}).get(
-                    "simulation_input_hash"
-                ),
+                "capture_model_version": capture.get("model_version"),
                 "capture_simulation_input_hash": capture.get("source_artifact_hashes", {}).get(
                     "simulation_input_hash"
                 ),
@@ -90,8 +84,20 @@ def audit(path: Path) -> dict[str, Any]:
                     simulation.get("calibration", {}).get("simulation_input_hash")
                     == capture.get("source_artifact_hashes", {}).get("simulation_input_hash")
                 ),
-                "input_readiness": readiness,
-                "factor_status": factor_status,
+                "latest_checkpoint_non_authoritative": {
+                    "created_at": raw.get("checkpoint_created_at"),
+                    "source_evaluation_id": raw.get("source_evaluation_id"),
+                    "model_version": simulation.get("model_version"),
+                    "calibration_version": simulation.get("calibration_version"),
+                    "calibration_status": simulation.get("calibration_status"),
+                    "lambda_home": simulation.get("lambda_home"),
+                    "lambda_away": simulation.get("lambda_away"),
+                    "simulation_input_hash": simulation.get("calibration", {}).get(
+                        "simulation_input_hash"
+                    ),
+                    "input_readiness": readiness,
+                    "factor_status": factor_status,
+                },
                 "model_settlement_distribution": evaluation.get("model_settlement_distribution"),
                 "current_ev": evaluation.get("current_ev"),
                 "current_ev_minus_se": evaluation.get("current_ev_minus_se"),
@@ -105,21 +111,15 @@ def audit(path: Path) -> dict[str, Any]:
         )
     factor_counts: dict[str, Counter[str]] = {}
     for row in rows:
-        for factor, value in row["factor_status"].items():
+        for factor, value in row["latest_checkpoint_non_authoritative"]["factor_status"].items():
             factor_counts.setdefault(factor, Counter())[str(value.get("status"))] += 1
     return {
         "input_rows": len(rows),
         "fixture_count": len({row["fixture_id"] for row in rows}),
         "by_market": dict(Counter(row["market"] for row in rows)),
         "by_settlement": dict(Counter(row["settlement"] for row in rows)),
-        "by_calibration_status": dict(Counter(str(row["calibration_status"]) for row in rows)),
-        "simulation_status": dict(
-            Counter(
-                "READY"
-                if row["lambda_home"] is not None and row["lambda_away"] is not None
-                else "UNAVAILABLE"
-                for row in rows
-            )
+        "by_capture_calibration_status": dict(
+            Counter(str(row["capture_calibration_status"]) for row in rows)
         ),
         "evaluation_capture_identity_match": dict(
             Counter(str(row["evaluation_capture_identity_match"]) for row in rows)
@@ -130,8 +130,15 @@ def audit(path: Path) -> dict[str, Any]:
         "latest_checkpoint_simulation_matches_capture": dict(
             Counter(str(row["latest_checkpoint_simulation_matches_capture"]) for row in rows)
         ),
-        "input_readiness": {
-            key: dict(Counter(str(row["input_readiness"].get(key)) for row in rows))
+        "latest_checkpoint_input_readiness_non_authoritative": {
+            key: dict(
+                Counter(
+                    str(
+                        row["latest_checkpoint_non_authoritative"]["input_readiness"].get(key)
+                    )
+                    for row in rows
+                )
+            )
             for key in (
                 "xg_status",
                 "ratings_used_in_lambda",
@@ -142,7 +149,9 @@ def audit(path: Path) -> dict[str, Any]:
                 "proxy_elo_excluded",
             )
         },
-        "factor_status": {factor: dict(counts) for factor, counts in sorted(factor_counts.items())},
+        "latest_checkpoint_factor_status_non_authoritative": {
+            factor: dict(counts) for factor, counts in sorted(factor_counts.items())
+        },
         "rows": rows,
     }
 

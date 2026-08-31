@@ -4,7 +4,7 @@
   "limitations": [
     "This is a diagnostic replay of an already observed cohort; no parameter or threshold selection is authorized.",
     "Direction is compared separately from admission and P&L; a correct direction can still lose because of the AH line or totals line.",
-    "The prior no-home-advantage counterfactual was withdrawn because it used a later shadow checkpoint rather than the evaluation-bound immutable capture."
+    "The earlier model capture and later shadow checkpoint are not substitutes for the five-state distribution frozen in the evaluated recommendation itself."
   ],
   "rows": [
     {
@@ -21,32 +21,37 @@
       "evaluated_at": "2026-08-19 22:52:50.948733+00",
       "evaluation_id": "dqe-8238b5ca13fc05aa58e66d28c415a7ac84e767cc54da8147ee85a7e642101982",
       "fixture_id": "1490391",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.280264,
-          "predicted": "OVER",
+          "decimal_odds": 1.87,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.281104,
           "probabilities": {
-            "OVER": 0.640132,
-            "UNDER": 0.359868
+            "OVER": 0.640552,
+            "UNDER": 0.359448
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.197832,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.359867656654,
+              "LOSS": 0.3594483378543654,
               "PUSH": 0.0,
-              "WIN": 0.640132343347
+              "WIN": 0.6405516621456345
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.640132343347,
+              "LOSS": 0.6405516621456345,
               "PUSH": 0.0,
-              "WIN": 0.359867656654
+              "WIN": 0.3594483378543654
             }
-          }
+          },
+          "stored_ev": 0.197832
         }
       },
       "input": {
@@ -80,32 +85,37 @@
       "evaluated_at": "2026-08-19 22:52:51.637438+00",
       "evaluation_id": "dqe-c8cc5fccf94cada4609e691ab7681ba8a62b56bfefa09988dbcd8dbfb3b9cd15",
       "fixture_id": "1490392",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.23792,
-          "predicted": "AWAY",
+          "decimal_odds": 1.87,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.23805,
           "probabilities": {
-            "AWAY": 0.61896,
-            "HOME": 0.38104
+            "AWAY": 0.619025,
+            "HOME": 0.380975
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.157577,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.38104,
+              "LOSS": 0.3809750043032953,
               "PUSH": 0.0,
-              "WIN": 0.61896
+              "WIN": 0.6190249956967047
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.61896,
+              "LOSS": 0.6190249956967047,
               "PUSH": 0.0,
-              "WIN": 0.38104
+              "WIN": 0.3809750043032953
             }
-          }
+          },
+          "stored_ev": 0.157577
         }
       },
       "input": {
@@ -139,32 +149,37 @@
       "evaluated_at": "2026-08-19 22:52:52.929337+00",
       "evaluation_id": "dqe-e38f1bacff9939362b3b6137e88017db0e7c07d4fc4e7fccbe5958835dcccc85",
       "fixture_id": "1490394",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.146246,
-          "predicted": "OVER",
+          "decimal_odds": 1.8,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.146922,
           "probabilities": {
-            "OVER": 0.573123,
-            "UNDER": 0.426877
+            "OVER": 0.573461,
+            "UNDER": 0.426539
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.053774,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.319301290787,
-              "PUSH": 0.215150476386,
-              "WIN": 0.46554823283
+              "LOSS": 0.3188174793675037,
+              "PUSH": 0.21544348166012137,
+              "WIN": 0.46573903897237495
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.46554823283,
-              "PUSH": 0.215150476386,
-              "WIN": 0.319301290787
+              "LOSS": 0.46573903897237495,
+              "PUSH": 0.21544348166012137,
+              "WIN": 0.3188174793675037
             }
-          }
+          },
+          "stored_ev": 0.053774
         }
       },
       "input": {
@@ -198,32 +213,37 @@
       "evaluated_at": "2026-08-19 22:52:54.218302+00",
       "evaluation_id": "dqe-065cec5409dc5953b4bd80f5e6f9d4391bbd4d9b7e705daf4c239c9773011cbd",
       "fixture_id": "1490396",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.259232,
-          "predicted": "AWAY",
+          "decimal_odds": 1.77,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.259488,
           "probabilities": {
-            "AWAY": 0.568225,
-            "HOME": 0.308993
+            "AWAY": 0.568316,
+            "HOME": 0.308828
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.128775,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.245564,
-              "LOSS": 0.308993,
+              "HALF_WIN": 0.2457108312640617,
+              "LOSS": 0.3088284282166305,
               "PUSH": 0.0,
-              "WIN": 0.445443
+              "WIN": 0.44546074051930784
             },
             "HOME": {
-              "HALF_LOSS": 0.245564,
+              "HALF_LOSS": 0.2457108312640617,
               "HALF_WIN": 0.0,
-              "LOSS": 0.445443,
+              "LOSS": 0.44546074051930784,
               "PUSH": 0.0,
-              "WIN": 0.308993
+              "WIN": 0.3088284282166305
             }
-          }
+          },
+          "stored_ev": 0.128775
         }
       },
       "input": {
@@ -257,32 +277,37 @@
       "evaluated_at": "2026-08-19 23:50:48.684942+00",
       "evaluation_id": "dqe-3b97f34ae85b297e43c1f3e9f4c042123ff0b06e75df0bbca525ce648cc316dd",
       "fixture_id": "1490398",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.176384,
-          "predicted": "UNDER",
+          "decimal_odds": 1.95,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.176164,
           "probabilities": {
-            "OVER": 0.411808,
-            "UNDER": 0.588192
+            "OVER": 0.411918,
+            "UNDER": 0.588082
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.152309,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.477422445871,
-              "PUSH": 0.221539976444,
-              "WIN": 0.301037577688
+              "LOSS": 0.4771164200724812,
+              "PUSH": 0.221932014334767,
+              "WIN": 0.3009515655927518
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.301037577688,
-              "PUSH": 0.221539976444,
-              "WIN": 0.477422445871
+              "LOSS": 0.3009515655927518,
+              "PUSH": 0.221932014334767,
+              "WIN": 0.4771164200724812
             }
-          }
+          },
+          "stored_ev": 0.152309
         }
       },
       "input": {
@@ -316,32 +341,37 @@
       "evaluated_at": "2026-08-19 23:50:48.684942+00",
       "evaluation_id": "dqe-6dea3e9711e0c46631cbb61520e59f1d97070f35dd5f13f02932fb580d30654e",
       "fixture_id": "1490398",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.292248,
-          "predicted": "AWAY",
+          "decimal_odds": 1.88,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.292902,
           "probabilities": {
-            "AWAY": 0.646124,
-            "HOME": 0.353876
+            "AWAY": 0.646451,
+            "HOME": 0.353549
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.215329,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.353876,
+              "LOSS": 0.3535485279299349,
               "PUSH": 0.0,
-              "WIN": 0.646124
+              "WIN": 0.6464514720700651
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.646124,
+              "LOSS": 0.6464514720700651,
               "PUSH": 0.0,
-              "WIN": 0.353876
+              "WIN": 0.3535485279299349
             }
-          }
+          },
+          "stored_ev": 0.215329
         }
       },
       "input": {
@@ -375,32 +405,37 @@
       "evaluated_at": "2026-08-20 00:22:32.149069+00",
       "evaluation_id": "dqe-a820b19b2343c3f6b640f0472cab06d4c8e047335ff79c1841d63645d480ce1e",
       "fixture_id": "1490399",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.142326,
-          "predicted": "UNDER",
+          "decimal_odds": 1.81,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.142082,
           "probabilities": {
-            "OVER": 0.428837,
-            "UNDER": 0.571163
+            "OVER": 0.428959,
+            "UNDER": 0.571041
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.054777,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.45979842704,
-              "PUSH": 0.222728560835,
-              "WIN": 0.317473012126
+              "LOSS": 0.4595024957753196,
+              "PUSH": 0.22307765143656644,
+              "WIN": 0.31741985278811397
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.317473012126,
-              "PUSH": 0.222728560835,
-              "WIN": 0.45979842704
+              "LOSS": 0.31741985278811397,
+              "PUSH": 0.22307765143656644,
+              "WIN": 0.4595024957753196
             }
-          }
+          },
+          "stored_ev": 0.054777
         }
       },
       "input": {
@@ -434,32 +469,37 @@
       "evaluated_at": "2026-08-20 01:23:22.294448+00",
       "evaluation_id": "dqe-cb36eb761e1915d79fa71e91c9bdd5d43aec8fbd332df240150f41efeae25686",
       "fixture_id": "1490400",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.345723,
-          "predicted": "HOME",
+          "decimal_odds": 1.55,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.34614,
           "probabilities": {
-            "AWAY": 0.264706,
-            "HOME": 0.610429
+            "AWAY": 0.264455,
+            "HOME": 0.610595
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.071372,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.24973,
+              "HALF_LOSS": 0.2499005068429212,
               "HALF_WIN": 0.0,
-              "LOSS": 0.485564,
+              "LOSS": 0.4856442469856961,
               "PUSH": 0.0,
-              "WIN": 0.264706
+              "WIN": 0.2644552461713827
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.24973,
-              "LOSS": 0.264706,
+              "HALF_WIN": 0.2499005068429212,
+              "LOSS": 0.2644552461713827,
               "PUSH": 0.0,
-              "WIN": 0.485564
+              "WIN": 0.4856442469856961
             }
-          }
+          },
+          "stored_ev": 0.071372
         }
       },
       "input": {
@@ -493,32 +533,37 @@
       "evaluated_at": "2026-08-20 01:23:22.732367+00",
       "evaluation_id": "dqe-1e06359dd5b0dda84c4096a63e3f17d76274661e16d3ddb1ac9043681698a1b7",
       "fixture_id": "1490401",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.271973,
-          "predicted": "AWAY",
+          "decimal_odds": 1.75,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.271855,
           "probabilities": {
-            "AWAY": 0.581171,
-            "HOME": 0.309198
+            "AWAY": 0.581004,
+            "HOME": 0.309149
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.126604,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.219263,
+              "HALF_LOSS": 0.21969393426779935,
               "HALF_WIN": 0.0,
-              "LOSS": 0.199566,
+              "LOSS": 0.19930180016445226,
               "PUSH": 0.0,
-              "WIN": 0.581171
+              "WIN": 0.5810042655677484
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.219263,
-              "LOSS": 0.581171,
+              "HALF_WIN": 0.21969393426779935,
+              "LOSS": 0.5810042655677484,
               "PUSH": 0.0,
-              "WIN": 0.199566
+              "WIN": 0.19930180016445226
             }
-          }
+          },
+          "stored_ev": 0.126604
         }
       },
       "input": {
@@ -552,32 +597,37 @@
       "evaluated_at": "2026-08-20 01:23:23.105688+00",
       "evaluation_id": "dqe-b8f300e146a6f225d01c0681af2a047b2d3d4aff44130c7c3c21e074055aad08",
       "fixture_id": "1490402",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.208376,
-          "predicted": "AWAY",
+          "decimal_odds": 1.88,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.208426,
           "probabilities": {
-            "AWAY": 0.604188,
-            "HOME": 0.395812
+            "AWAY": 0.604213,
+            "HOME": 0.395787
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.135921,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.395812,
+              "LOSS": 0.39578652866017766,
               "PUSH": 0.0,
-              "WIN": 0.604188
+              "WIN": 0.6042134713398223
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.604188,
+              "LOSS": 0.6042134713398223,
               "PUSH": 0.0,
-              "WIN": 0.395812
+              "WIN": 0.39578652866017766
             }
-          }
+          },
+          "stored_ev": 0.135921
         }
       },
       "input": {
@@ -611,32 +661,37 @@
       "evaluated_at": "2026-08-20 02:19:40.007468+00",
       "evaluation_id": "dqe-a028f38aab7acb29be6a54493999b92761d008c220c4f80e046c269197ce1067",
       "fixture_id": "1490404",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.262968,
-          "predicted": "UNDER",
+          "decimal_odds": 1.89,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.262815,
           "probabilities": {
-            "OVER": 0.316891,
-            "UNDER": 0.579859
+            "OVER": 0.316853,
+            "UNDER": 0.579668
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.199051,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.206499282362,
-              "LOSS": 0.579859357791,
+              "HALF_WIN": 0.20695926041535795,
+              "LOSS": 0.5796675856707707,
               "PUSH": 0.0,
-              "WIN": 0.213641359844
+              "WIN": 0.21337315391387132
             },
             "UNDER": {
-              "HALF_LOSS": 0.206499282362,
+              "HALF_LOSS": 0.20695926041535795,
               "HALF_WIN": 0.0,
-              "LOSS": 0.213641359844,
+              "LOSS": 0.21337315391387132,
               "PUSH": 0.0,
-              "WIN": 0.579859357791
+              "WIN": 0.5796675856707707
             }
-          }
+          },
+          "stored_ev": 0.199051
         }
       },
       "input": {
@@ -670,32 +725,37 @@
       "evaluated_at": "2026-08-20 02:19:40.007468+00",
       "evaluation_id": "dqe-dcce9cbc34b514381e0029c9cd3d03ddc487a0352c6aaf82b2b03ca76e76e340",
       "fixture_id": "1490404",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.421838,
-          "predicted": "AWAY",
+          "decimal_odds": 1.87,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.421984,
           "probabilities": {
-            "AWAY": 0.710919,
-            "HOME": 0.289081
+            "AWAY": 0.710992,
+            "HOME": 0.289008
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.344046,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.177831,
-              "PUSH": 0.2225,
-              "WIN": 0.599669
+              "LOSS": 0.17754270299761862,
+              "PUSH": 0.22293033186895017,
+              "WIN": 0.5995269651334312
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.599669,
-              "PUSH": 0.2225,
-              "WIN": 0.177831
+              "LOSS": 0.5995269651334312,
+              "PUSH": 0.22293033186895017,
+              "WIN": 0.17754270299761862
             }
-          }
+          },
+          "stored_ev": 0.344046
         }
       },
       "input": {
@@ -729,32 +789,37 @@
       "evaluated_at": "2026-08-20 02:19:40.418113+00",
       "evaluation_id": "dqe-42d1e53a67b9ec4450daf688b8c4ea93fd57d85fa70770e04d2d7728ec9191b2",
       "fixture_id": "1490405",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.429642,
-          "predicted": "UNDER",
+          "decimal_odds": 1.9,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.429948,
           "probabilities": {
-            "OVER": 0.285179,
-            "UNDER": 0.714821
+            "OVER": 0.285026,
+            "UNDER": 0.714974
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.35845,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.714820664766,
+              "LOSS": 0.7149738919711103,
               "PUSH": 0.0,
-              "WIN": 0.285179335229
+              "WIN": 0.2850261080288897
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.285179335229,
+              "LOSS": 0.2850261080288897,
               "PUSH": 0.0,
-              "WIN": 0.714820664766
+              "WIN": 0.7149738919711103
             }
-          }
+          },
+          "stored_ev": 0.35845
         }
       },
       "input": {
@@ -788,32 +853,37 @@
       "evaluated_at": "2026-08-20 02:19:40.418113+00",
       "evaluation_id": "dqe-9f9231b0ad652335e45d822a1c62eb4dca005b47d6fcaf9fa9ff079d0ff8626c",
       "fixture_id": "1490405",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.164104,
-          "predicted": "HOME",
+          "decimal_odds": 1.85,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.164562,
           "probabilities": {
-            "AWAY": 0.417948,
-            "HOME": 0.582052
+            "AWAY": 0.417719,
+            "HOME": 0.582281
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.077219,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.582052,
+              "LOSS": 0.582280679835059,
               "PUSH": 0.0,
-              "WIN": 0.417948
+              "WIN": 0.41771932016494095
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.417948,
+              "LOSS": 0.41771932016494095,
               "PUSH": 0.0,
-              "WIN": 0.582052
+              "WIN": 0.582280679835059
             }
-          }
+          },
+          "stored_ev": 0.077219
         }
       },
       "input": {
@@ -847,32 +917,37 @@
       "evaluated_at": "2026-08-22 23:21:13.233388+00",
       "evaluation_id": "dqe-6dd9c7b76c9ba30cbdbe81d75de752afc8b18e12aa43dd22f3bb0a8659d76bba",
       "fixture_id": "1490406",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.129168,
-          "predicted": "UNDER",
+          "decimal_odds": 1.85,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.128978,
           "probabilities": {
-            "OVER": 0.435416,
-            "UNDER": 0.564584
+            "OVER": 0.435511,
+            "UNDER": 0.564489
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.058904,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.467400074713,
-              "PUSH": 0.194368090608,
-              "WIN": 0.33823183468
+              "LOSS": 0.46716397819847105,
+              "PUSH": 0.19465056939183908,
+              "WIN": 0.33818545240968984
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.33823183468,
-              "PUSH": 0.194368090608,
-              "WIN": 0.467400074713
+              "LOSS": 0.33818545240968984,
+              "PUSH": 0.19465056939183908,
+              "WIN": 0.46716397819847105
             }
-          }
+          },
+          "stored_ev": 0.058904
         }
       },
       "input": {
@@ -906,32 +981,37 @@
       "evaluated_at": "2026-08-22 23:21:13.233388+00",
       "evaluation_id": "dqe-068fe1e85395f2b6647b6c384a89caece2d643c51435979fb22e40c2f2846131",
       "fixture_id": "1490406",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.38132,
-          "predicted": "AWAY",
+          "decimal_odds": 1.78,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.381604,
           "probabilities": {
-            "AWAY": 0.649474,
-            "HOME": 0.268154
+            "AWAY": 0.64958,
+            "HOME": 0.267976
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.238696,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.164744,
+              "HALF_LOSS": 0.16488702558938892,
               "HALF_WIN": 0.0,
-              "LOSS": 0.185782,
+              "LOSS": 0.18553275639943298,
               "PUSH": 0.0,
-              "WIN": 0.649474
+              "WIN": 0.649580218011178
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.164744,
-              "LOSS": 0.649474,
+              "HALF_WIN": 0.16488702558938892,
+              "LOSS": 0.649580218011178,
               "PUSH": 0.0,
-              "WIN": 0.185782
+              "WIN": 0.18553275639943298
             }
-          }
+          },
+          "stored_ev": 0.238696
         }
       },
       "input": {
@@ -965,32 +1045,37 @@
       "evaluated_at": "2026-08-22 23:21:13.631022+00",
       "evaluation_id": "dqe-538c5d3946b0ef47a12abd2d7513fd90fd6771dfc3399a5f315fb51c2b126d5f",
       "fixture_id": "1490407",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.135802,
-          "predicted": "UNDER",
+          "decimal_odds": 1.87,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.135562,
           "probabilities": {
-            "OVER": 0.432099,
-            "UNDER": 0.567901
+            "OVER": 0.432219,
+            "UNDER": 0.567781
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.06175,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.567901352951,
+              "LOSS": 0.5677807135831271,
               "PUSH": 0.0,
-              "WIN": 0.432098647048
+              "WIN": 0.4322192864168729
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.432098647048,
+              "LOSS": 0.4322192864168729,
               "PUSH": 0.0,
-              "WIN": 0.567901352951
+              "WIN": 0.5677807135831271
             }
-          }
+          },
+          "stored_ev": 0.06175
         }
       },
       "input": {
@@ -1024,32 +1109,37 @@
       "evaluated_at": "2026-08-22 23:21:15.353448+00",
       "evaluation_id": "dqe-d7bc675a41da5d526bd21d79a1717500a35d84d7b731a58c452a342c543a0d25",
       "fixture_id": "1490411",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.314758,
-          "predicted": "AWAY",
+          "decimal_odds": 1.82,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.315036,
           "probabilities": {
-            "AWAY": 0.60894,
-            "HOME": 0.294182
+            "AWAY": 0.609042,
+            "HOME": 0.294006
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.205409,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.193755,
+              "HALF_LOSS": 0.1939026092776358,
               "HALF_WIN": 0.0,
-              "LOSS": 0.197304,
+              "LOSS": 0.19705495537441622,
               "PUSH": 0.0,
-              "WIN": 0.60894
+              "WIN": 0.609042435347948
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.193755,
-              "LOSS": 0.60894,
+              "HALF_WIN": 0.1939026092776358,
+              "LOSS": 0.609042435347948,
               "PUSH": 0.0,
-              "WIN": 0.197304
+              "WIN": 0.19705495537441622
             }
-          }
+          },
+          "stored_ev": 0.205409
         }
       },
       "input": {
@@ -1083,32 +1173,37 @@
       "evaluated_at": "2026-08-23 00:15:55.118131+00",
       "evaluation_id": "dqe-3ba881852dce215ad0edf12b140abb977202009dc92d61c82e85ba56fef19f95",
       "fixture_id": "1490412",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.350933,
-          "predicted": "AWAY",
+          "decimal_odds": 1.85,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.351139,
           "probabilities": {
-            "AWAY": 0.626095,
-            "HOME": 0.275162
+            "AWAY": 0.626158,
+            "HOME": 0.275019
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.257215,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.197485,
+              "HALF_LOSS": 0.1976449140692127,
               "HALF_WIN": 0.0,
-              "LOSS": 0.17642,
+              "LOSS": 0.17619699870606884,
               "PUSH": 0.0,
-              "WIN": 0.626095
+              "WIN": 0.6261580872247184
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.197485,
-              "LOSS": 0.626095,
+              "HALF_WIN": 0.1976449140692127,
+              "LOSS": 0.6261580872247184,
               "PUSH": 0.0,
-              "WIN": 0.17642
+              "WIN": 0.17619699870606884
             }
-          }
+          },
+          "stored_ev": 0.257215
         }
       },
       "input": {
@@ -1142,32 +1237,37 @@
       "evaluated_at": "2026-08-23 00:45:13.140382+00",
       "evaluation_id": "dqe-803d0e3166c9ca2d9a143e3a6bf7b119b4db8e5f4313af7a8cc7defcea4c70f2",
       "fixture_id": "1490413",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.126302,
-          "predicted": "AWAY",
+          "decimal_odds": 1.91,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.126606,
           "probabilities": {
-            "AWAY": 0.563151,
-            "HOME": 0.436849
+            "AWAY": 0.563303,
+            "HOME": 0.436697
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.075909,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.436849,
+              "LOSS": 0.436697106254103,
               "PUSH": 0.0,
-              "WIN": 0.563151
+              "WIN": 0.5633028937458969
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.563151,
+              "LOSS": 0.5633028937458969,
               "PUSH": 0.0,
-              "WIN": 0.436849
+              "WIN": 0.436697106254103
             }
-          }
+          },
+          "stored_ev": 0.075909
         }
       },
       "input": {
@@ -1201,32 +1301,37 @@
       "evaluated_at": "2026-08-23 00:15:55.536189+00",
       "evaluation_id": "dqe-02c88aedfeb29b772a9fd1953454e2b91694f24faf416490b456cc3be751b22b",
       "fixture_id": "1490414",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.181744,
-          "predicted": "UNDER",
+          "decimal_odds": 1.98,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.181484,
           "probabilities": {
-            "OVER": 0.409128,
-            "UNDER": 0.590872
+            "OVER": 0.409258,
+            "UNDER": 0.590742
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.16967,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.590871738985,
+              "LOSS": 0.5907421791910192,
               "PUSH": 0.0,
-              "WIN": 0.409128261015
+              "WIN": 0.40925782080898077
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.409128261015,
+              "LOSS": 0.40925782080898077,
               "PUSH": 0.0,
-              "WIN": 0.590871738985
+              "WIN": 0.5907421791910192
             }
-          }
+          },
+          "stored_ev": 0.16967
         }
       },
       "input": {
@@ -1260,32 +1365,37 @@
       "evaluated_at": "2026-08-23 01:15:29.925382+00",
       "evaluation_id": "dqe-e972d572d3d5a5ef3f3bfdb9547e0a73ebef4cd55ee1cc84c8d2b8296a226a87",
       "fixture_id": "1490415",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.201851,
-          "predicted": "AWAY",
+          "decimal_odds": 2.02,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.201836,
           "probabilities": {
-            "AWAY": 0.600926,
-            "HOME": 0.399075
+            "AWAY": 0.600918,
+            "HOME": 0.399082
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.211555,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.284215,
-              "PUSH": 0.22972,
-              "WIN": 0.486066
+              "LOSS": 0.28406492015900614,
+              "PUSH": 0.23003326698317583,
+              "WIN": 0.485901812857818
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.486066,
-              "PUSH": 0.22972,
-              "WIN": 0.284215
+              "LOSS": 0.485901812857818,
+              "PUSH": 0.23003326698317583,
+              "WIN": 0.28406492015900614
             }
-          }
+          },
+          "stored_ev": 0.211555
         }
       },
       "input": {
@@ -1319,32 +1429,37 @@
       "evaluated_at": "2026-08-23 02:15:09.584451+00",
       "evaluation_id": "dqe-ef0c78fb8d576eb6d21f160481e7c03612315d675bf74e69887b14a68477393e",
       "fixture_id": "1490416",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.263184,
-          "predicted": "UNDER",
+          "decimal_odds": 1.98,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.263124,
           "probabilities": {
-            "OVER": 0.312803,
-            "UNDER": 0.575987
+            "OVER": 0.312738,
+            "UNDER": 0.575862
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.251607,
           "settlement_distributions": {
             "OVER": {
-              "HALF_LOSS": 0.222420467536,
+              "HALF_LOSS": 0.22279902959454942,
               "HALF_WIN": 0.0,
-              "LOSS": 0.464776511508,
+              "LOSS": 0.464462901567058,
               "PUSH": 0.0,
-              "WIN": 0.312803020955
+              "WIN": 0.3127380688383926
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.222420467536,
-              "LOSS": 0.312803020955,
+              "HALF_WIN": 0.22279902959454942,
+              "LOSS": 0.3127380688383926,
               "PUSH": 0.0,
-              "WIN": 0.464776511508
+              "WIN": 0.464462901567058
             }
-          }
+          },
+          "stored_ev": 0.251607
         }
       },
       "input": {
@@ -1378,32 +1493,37 @@
       "evaluated_at": "2026-08-23 02:15:09.584451+00",
       "evaluation_id": "dqe-997ef598cb7e583fb371389821f4a230be0a636f2d3900bebfff9ff80f1404dd",
       "fixture_id": "1490416",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.610668,
-          "predicted": "AWAY",
+          "decimal_odds": 1.9,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.611042,
           "probabilities": {
-            "AWAY": 0.769118,
-            "HOME": 0.15845
+            "AWAY": 0.769255,
+            "HOME": 0.158213
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.534116,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.144864,
+              "HALF_LOSS": 0.1450652055226833,
               "HALF_WIN": 0.0,
-              "LOSS": 0.086018,
+              "LOSS": 0.08568029056273967,
               "PUSH": 0.0,
-              "WIN": 0.769118
+              "WIN": 0.7692545039145771
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.144864,
-              "LOSS": 0.769118,
+              "HALF_WIN": 0.1450652055226833,
+              "LOSS": 0.7692545039145771,
               "PUSH": 0.0,
-              "WIN": 0.086018
+              "WIN": 0.08568029056273967
             }
-          }
+          },
+          "stored_ev": 0.534116
         }
       },
       "input": {
@@ -1437,32 +1557,37 @@
       "evaluated_at": "2026-08-23 02:15:10.191117+00",
       "evaluation_id": "dqe-62fb87082a58a126a32a131aac5b6c1113ddfd0909f4c4238a4e142b6d23c301",
       "fixture_id": "1490417",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.27004,
-          "predicted": "UNDER",
+          "decimal_odds": 1.9,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.269908,
           "probabilities": {
-            "OVER": 0.36498,
-            "UNDER": 0.63502
+            "OVER": 0.365046,
+            "UNDER": 0.634954
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.217233,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.527133547242,
-              "PUSH": 0.215772976003,
-              "WIN": 0.257093476754
+              "LOSS": 0.526745227439173,
+              "PUSH": 0.21641752305426087,
+              "WIN": 0.25683724950656617
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.257093476754,
-              "PUSH": 0.215772976003,
-              "WIN": 0.527133547242
+              "LOSS": 0.25683724950656617,
+              "PUSH": 0.21641752305426087,
+              "WIN": 0.526745227439173
             }
-          }
+          },
+          "stored_ev": 0.217233
         }
       },
       "input": {
@@ -1496,32 +1621,37 @@
       "evaluated_at": "2026-08-23 02:15:10.191117+00",
       "evaluation_id": "dqe-3595cd50a7a24d69de08fafa994c134d3f61d94ebfd99457e5fb77a2ee4a5b86",
       "fixture_id": "1490417",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.35971,
-          "predicted": "AWAY",
+          "decimal_odds": 1.89,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.360634,
           "probabilities": {
-            "AWAY": 0.679855,
-            "HOME": 0.320145
+            "AWAY": 0.680317,
+            "HOME": 0.319683
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.285799,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.320145,
+              "LOSS": 0.31968320629655483,
               "PUSH": 0.0,
-              "WIN": 0.679855
+              "WIN": 0.6803167937034451
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.679855,
+              "LOSS": 0.6803167937034451,
               "PUSH": 0.0,
-              "WIN": 0.320145
+              "WIN": 0.31968320629655483
             }
-          }
+          },
+          "stored_ev": 0.285799
         }
       },
       "input": {
@@ -1555,32 +1685,37 @@
       "evaluated_at": "2026-08-23 22:45:39.280065+00",
       "evaluation_id": "dqe-56199a1fb8fa7d5c4228aa1ab27636b5c3ac1d7ff1fece34343fae5a6452de1e",
       "fixture_id": "1490420",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.03786,
-          "predicted": "UNDER",
+          "decimal_odds": 1.92,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.113312,
           "probabilities": {
-            "OVER": 0.48107,
-            "UNDER": 0.51893
+            "OVER": 0.443344,
+            "UNDER": 0.556656
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.077728,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.407177576197,
-              "PUSH": 0.22350515839,
-              "WIN": 0.369317265415
+              "LOSS": 0.44480723951694295,
+              "PUSH": 0.22369779107811671,
+              "WIN": 0.33149496940494033
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.369317265415,
-              "PUSH": 0.22350515839,
-              "WIN": 0.407177576197
+              "LOSS": 0.33149496940494033,
+              "PUSH": 0.22369779107811671,
+              "WIN": 0.44480723951694295
             }
-          }
+          },
+          "stored_ev": 0.077728
         }
       },
       "input": {
@@ -1614,32 +1749,37 @@
       "evaluated_at": "2026-08-23 22:45:39.280065+00",
       "evaluation_id": "dqe-1d27888370f14b04fdbd9b3c96bf626f9fc5bb2961f922abc728e0c21f9aece6",
       "fixture_id": "1490420",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.132468,
-          "predicted": "AWAY",
+          "decimal_odds": 1.86,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.271787,
           "probabilities": {
-            "AWAY": 0.510938,
-            "HOME": 0.37847
+            "AWAY": 0.583325,
+            "HOME": 0.311538
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.190122,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.221183,
+              "HALF_LOSS": 0.210274164620307,
               "HALF_WIN": 0.0,
-              "LOSS": 0.267879,
+              "LOSS": 0.20640042806850836,
               "PUSH": 0.0,
-              "WIN": 0.510938
+              "WIN": 0.5833254073111847
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.221183,
-              "LOSS": 0.510938,
+              "HALF_WIN": 0.210274164620307,
+              "LOSS": 0.5833254073111847,
               "PUSH": 0.0,
-              "WIN": 0.267879
+              "WIN": 0.20640042806850836
             }
-          }
+          },
+          "stored_ev": 0.190122
         }
       },
       "input": {
@@ -1673,32 +1813,37 @@
       "evaluated_at": "2026-08-30 20:15:15.711719+00",
       "evaluation_id": "dqe-4fb3aba6dd97b7bf95bc8dea9ca045c09177465bee7784a517d8557447e8a55a",
       "fixture_id": "1490427",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.3811,
-          "predicted": "AWAY",
+          "decimal_odds": 1.98,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.306895,
           "probabilities": {
-            "AWAY": 0.632018,
-            "HOME": 0.250918
+            "AWAY": 0.593361,
+            "HOME": 0.286466
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.295028,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.23413,
-              "LOSS": 0.250918,
+              "HALF_WIN": 0.240344964314267,
+              "LOSS": 0.28646628160502613,
               "PUSH": 0.0,
-              "WIN": 0.514953
+              "WIN": 0.4731887540807069
             },
             "HOME": {
-              "HALF_LOSS": 0.23413,
+              "HALF_LOSS": 0.240344964314267,
               "HALF_WIN": 0.0,
-              "LOSS": 0.514953,
+              "LOSS": 0.4731887540807069,
               "PUSH": 0.0,
-              "WIN": 0.250918
+              "WIN": 0.28646628160502613
             }
-          }
+          },
+          "stored_ev": 0.295028
         }
       },
       "input": {
@@ -1732,32 +1877,37 @@
       "evaluated_at": "2026-08-30 22:45:37.978846+00",
       "evaluation_id": "dqe-4a1694e4fd9be1e5a3a770d86726401d8cb7aa1d742ef498416c8a3d07c3bb29",
       "fixture_id": "1490435",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.39062,
-          "predicted": "UNDER",
+          "decimal_odds": 1.85,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.421574,
           "probabilities": {
-            "OVER": 0.30469,
-            "UNDER": 0.69531
+            "OVER": 0.289213,
+            "UNDER": 0.710787
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.329932,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.593499761928,
-              "PUSH": 0.203619739421,
-              "WIN": 0.202880498654
+              "LOSS": 0.6109405503130801,
+              "PUSH": 0.1996919196461114,
+              "WIN": 0.18936753004080845
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.202880498654,
-              "PUSH": 0.203619739421,
-              "WIN": 0.593499761928
+              "LOSS": 0.18936753004080845,
+              "PUSH": 0.1996919196461114,
+              "WIN": 0.6109405503130801
             }
-          }
+          },
+          "stored_ev": 0.329932
         }
       },
       "input": {
@@ -1791,32 +1941,37 @@
       "evaluated_at": "2026-08-23 18:24:41.172121+00",
       "evaluation_id": "dqe-94261c0c5c55581b8456b73901370befe444fee9c09c1f2327dec670b75679e6",
       "fixture_id": "1492341",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.202984,
-          "predicted": "UNDER",
+          "decimal_odds": 1.85,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.216544,
           "probabilities": {
-            "OVER": 0.398508,
-            "UNDER": 0.601492
+            "OVER": 0.391728,
+            "UNDER": 0.608272
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.125304,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.601491834728,
+              "LOSS": 0.6082723388598602,
               "PUSH": 0.0,
-              "WIN": 0.398508165271
+              "WIN": 0.39172766114013985
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.398508165271,
+              "LOSS": 0.39172766114013985,
               "PUSH": 0.0,
-              "WIN": 0.601491834728
+              "WIN": 0.6082723388598602
             }
-          }
+          },
+          "stored_ev": 0.125304
         }
       },
       "input": {
@@ -1850,32 +2005,37 @@
       "evaluated_at": "2026-08-23 18:24:41.172121+00",
       "evaluation_id": "dqe-99e54da862ec81826f92699114a1905865e9314007cbb1273bca97bec78033d2",
       "fixture_id": "1492341",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.375961,
-          "predicted": "AWAY",
+          "decimal_odds": 2.05,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.248718,
           "probabilities": {
-            "AWAY": 0.634661,
-            "HOME": 0.2587
+            "AWAY": 0.564954,
+            "HOME": 0.316236
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.276966,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.213277,
+              "HALF_LOSS": 0.23762018200564997,
               "HALF_WIN": 0.0,
-              "LOSS": 0.152062,
+              "LOSS": 0.19742580377763996,
               "PUSH": 0.0,
-              "WIN": 0.634661
+              "WIN": 0.5649540142167101
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.213277,
-              "LOSS": 0.634661,
+              "HALF_WIN": 0.23762018200564997,
+              "LOSS": 0.5649540142167101,
               "PUSH": 0.0,
-              "WIN": 0.152062
+              "WIN": 0.19742580377763996
             }
-          }
+          },
+          "stored_ev": 0.276966
         }
       },
       "input": {
@@ -1909,32 +2069,37 @@
       "evaluated_at": "2026-08-23 22:15:26.047378+00",
       "evaluation_id": "dqe-06e5b132198a12bc76f917973e2a8ffb3d543e4c9c3145af16e20663e76236ff",
       "fixture_id": "1492343",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.10368,
-          "predicted": "UNDER",
+          "decimal_odds": 1.88,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.144684,
           "probabilities": {
-            "OVER": 0.44816,
-            "UNDER": 0.55184
+            "OVER": 0.427658,
+            "UNDER": 0.572342
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.092189,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.416734073631,
-              "PUSH": 0.270212733527,
-              "WIN": 0.313053192835
+              "LOSS": 0.4374547097415499,
+              "PUSH": 0.26977401616759766,
+              "WIN": 0.29277127409085246
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.313053192835,
-              "PUSH": 0.270212733527,
-              "WIN": 0.416734073631
+              "LOSS": 0.29277127409085246,
+              "PUSH": 0.26977401616759766,
+              "WIN": 0.4374547097415499
             }
-          }
+          },
+          "stored_ev": 0.092189
         }
       },
       "input": {
@@ -1968,32 +2133,37 @@
       "evaluated_at": "2026-08-22 23:10:34.087535+00",
       "evaluation_id": "dqe-8e396e136421b35f7767533ee754a474b5d50ca33ec80183957b180acf5efc28",
       "fixture_id": "1492344",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.155372,
-          "predicted": "UNDER",
+          "decimal_odds": 1.86,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.155132,
           "probabilities": {
-            "OVER": 0.422314,
-            "UNDER": 0.577686
+            "OVER": 0.422434,
+            "UNDER": 0.577566
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.074273,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.577686304667,
+              "LOSS": 0.5775659938411054,
               "PUSH": 0.0,
-              "WIN": 0.422313695336
+              "WIN": 0.42243400615889465
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.422313695336,
+              "LOSS": 0.42243400615889465,
               "PUSH": 0.0,
-              "WIN": 0.577686304667
+              "WIN": 0.5775659938411054
             }
-          }
+          },
+          "stored_ev": 0.074273
         }
       },
       "input": {
@@ -2027,32 +2197,37 @@
       "evaluated_at": "2026-08-22 18:52:49.430781+00",
       "evaluation_id": "dqe-224eb28fd687423c93f35dabb98e88654a97ee2ba96d00e80781d95342771661",
       "fixture_id": "1492345",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.149246,
-          "predicted": "AWAY",
+          "decimal_odds": 1.88,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.149282,
           "probabilities": {
-            "AWAY": 0.574623,
-            "HOME": 0.425377
+            "AWAY": 0.574641,
+            "HOME": 0.425359
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.095932,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.295398,
-              "PUSH": 0.259958,
-              "WIN": 0.444644
+              "LOSS": 0.2953028503706816,
+              "PUSH": 0.26011252605251517,
+              "WIN": 0.44458462357680323
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.444644,
-              "PUSH": 0.259958,
-              "WIN": 0.295398
+              "LOSS": 0.44458462357680323,
+              "PUSH": 0.26011252605251517,
+              "WIN": 0.2953028503706816
             }
-          }
+          },
+          "stored_ev": 0.095932
         }
       },
       "input": {
@@ -2086,32 +2261,37 @@
       "evaluated_at": "2026-08-22 21:15:11.029817+00",
       "evaluation_id": "dqe-2f180145f4ee99edd3f6122a26cc6d45c6a65d14ac9de85f8408b481c7c242d7",
       "fixture_id": "1492346",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.47765,
-          "predicted": "AWAY",
+          "decimal_odds": 1.8,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.47789,
           "probabilities": {
-            "AWAY": 0.738825,
-            "HOME": 0.261175
+            "AWAY": 0.738945,
+            "HOME": 0.261055
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.330101,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.261175,
+              "LOSS": 0.261054828875238,
               "PUSH": 0.0,
-              "WIN": 0.738825
+              "WIN": 0.738945171124762
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.738825,
+              "LOSS": 0.738945171124762,
               "PUSH": 0.0,
-              "WIN": 0.261175
+              "WIN": 0.261054828875238
             }
-          }
+          },
+          "stored_ev": 0.330101
         }
       },
       "input": {
@@ -2145,32 +2325,37 @@
       "evaluated_at": "2026-08-23 18:24:41.959633+00",
       "evaluation_id": "dqe-955fa3c3cf8f416af85b72b57217d5a2b321aaa67fc89e53682dbdb5fd7e3e31",
       "fixture_id": "1492347",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.117438,
-          "predicted": "UNDER",
+          "decimal_odds": 1.84,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.208018,
           "probabilities": {
-            "OVER": 0.441281,
-            "UNDER": 0.558719
+            "OVER": 0.395991,
+            "UNDER": 0.604009
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.111377,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.55871932906,
+              "LOSS": 0.6040094956192833,
               "PUSH": 0.0,
-              "WIN": 0.441280670936
+              "WIN": 0.3959905043807167
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.441280670936,
+              "LOSS": 0.3959905043807167,
               "PUSH": 0.0,
-              "WIN": 0.55871932906
+              "WIN": 0.6040094956192833
             }
-          }
+          },
+          "stored_ev": 0.111377
         }
       },
       "input": {
@@ -2204,32 +2389,37 @@
       "evaluated_at": "2026-08-23 18:24:41.959633+00",
       "evaluation_id": "dqe-e8d1c6274c0316def953519cc12a27515360abd1b7e7476950ea42bebbbaf742",
       "fixture_id": "1492347",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.30074,
-          "predicted": "AWAY",
+          "decimal_odds": 2.02,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.360467,
           "probabilities": {
-            "AWAY": 0.595024,
-            "HOME": 0.294284
+            "AWAY": 0.625965,
+            "HOME": 0.265498
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.372987,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.221385,
+              "HALF_LOSS": 0.21707321423787812,
               "HALF_WIN": 0.0,
-              "LOSS": 0.183591,
+              "LOSS": 0.15696147636820454,
               "PUSH": 0.0,
-              "WIN": 0.595024
+              "WIN": 0.6259653093939174
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.221385,
-              "LOSS": 0.595024,
+              "HALF_WIN": 0.21707321423787812,
+              "LOSS": 0.6259653093939174,
               "PUSH": 0.0,
-              "WIN": 0.183591
+              "WIN": 0.15696147636820454
             }
-          }
+          },
+          "stored_ev": 0.372987
         }
       },
       "input": {
@@ -2263,32 +2453,37 @@
       "evaluated_at": "2026-08-23 21:16:00.811612+00",
       "evaluation_id": "dqe-ada31d6b49b987dbf5afc6ada76174a178988f4eaafc999a72b173d1028a311c",
       "fixture_id": "1492348",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.224548,
-          "predicted": "AWAY",
+          "decimal_odds": 1.87,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.119364,
           "probabilities": {
-            "AWAY": 0.612274,
-            "HOME": 0.387726
+            "AWAY": 0.559682,
+            "HOME": 0.440318
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.046605,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.387726,
+              "LOSS": 0.44031825831023186,
               "PUSH": 0.0,
-              "WIN": 0.612274
+              "WIN": 0.5596817416897681
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.612274,
+              "LOSS": 0.5596817416897681,
               "PUSH": 0.0,
-              "WIN": 0.387726
+              "WIN": 0.44031825831023186
             }
-          }
+          },
+          "stored_ev": 0.046605
         }
       },
       "input": {
@@ -2318,36 +2513,41 @@
       "calibration_identity": null,
       "calibration_status": "BASELINE_PRIOR",
       "calibration_version": "w2.formal.lambda_baseline_prior.v1",
-      "direction_correct": false,
+      "direction_correct": true,
       "evaluated_at": "2026-08-30 22:15:19.712761+00",
       "evaluation_id": "dqe-15425e61c4bffefbbb0be414cd4142f49f1ff3efa3b75d90dc0677714853c6c1",
       "fixture_id": "1492352",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
-        "original_selection_matches_model": false,
+        "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.049522,
-          "predicted": "AWAY",
+          "decimal_odds": 1.93,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.125134,
           "probabilities": {
-            "AWAY": 0.524761,
-            "HOME": 0.475239
+            "AWAY": 0.437433,
+            "HOME": 0.562567
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.085754,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.475239,
+              "LOSS": 0.5625668599118845,
               "PUSH": 0.0,
-              "WIN": 0.524761
+              "WIN": 0.43743314008811557
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.524761,
+              "LOSS": 0.43743314008811557,
               "PUSH": 0.0,
-              "WIN": 0.475239
+              "WIN": 0.5625668599118845
             }
-          }
+          },
+          "stored_ev": 0.085754
         }
       },
       "input": {
@@ -2381,32 +2581,37 @@
       "evaluated_at": "2026-08-30 18:45:30.264679+00",
       "evaluation_id": "dqe-1d1ea7e29baa91af4509cc39f724ef7b6f0b1c54cc9c7af7cf4d02f847e42058",
       "fixture_id": "1492353",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.161698,
-          "predicted": "AWAY",
+          "decimal_odds": 1.88,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.209078,
           "probabilities": {
-            "AWAY": 0.580849,
-            "HOME": 0.419151
+            "AWAY": 0.604539,
+            "HOME": 0.395461
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.136534,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.419151,
+              "LOSS": 0.395460501455892,
               "PUSH": 0.0,
-              "WIN": 0.580849
+              "WIN": 0.6045394985441079
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.580849,
+              "LOSS": 0.6045394985441079,
               "PUSH": 0.0,
-              "WIN": 0.419151
+              "WIN": 0.395460501455892
             }
-          }
+          },
+          "stored_ev": 0.136534
         }
       },
       "input": {
@@ -2440,32 +2645,37 @@
       "evaluated_at": "2026-08-30 18:45:30.661841+00",
       "evaluation_id": "dqe-870e5f1e7678601b1f41906a1a1fc7d601b581ed060237e1605c01d0c1690f2c",
       "fixture_id": "1492354",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.33117,
-          "predicted": "AWAY",
+          "decimal_odds": 1.92,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.336918,
           "probabilities": {
-            "AWAY": 0.605243,
-            "HOME": 0.274073
+            "AWAY": 0.606989,
+            "HOME": 0.270071
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.288358,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.241366,
-              "LOSS": 0.274073,
+              "HALF_WIN": 0.2458801861148299,
+              "LOSS": 0.27007136627925216,
               "PUSH": 0.0,
-              "WIN": 0.48456
+              "WIN": 0.484048447605918
             },
             "HOME": {
-              "HALF_LOSS": 0.241366,
+              "HALF_LOSS": 0.2458801861148299,
               "HALF_WIN": 0.0,
-              "LOSS": 0.48456,
+              "LOSS": 0.484048447605918,
               "PUSH": 0.0,
-              "WIN": 0.274073
+              "WIN": 0.27007136627925216
             }
-          }
+          },
+          "stored_ev": 0.288358
         }
       },
       "input": {
@@ -2499,32 +2709,37 @@
       "evaluated_at": "2026-08-30 21:15:49.235312+00",
       "evaluation_id": "dqe-d37140e70786dc336485dc971df091eaf41c6fcc3be93fe68fdcf52bac12dffc",
       "fixture_id": "1492355",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.059028,
-          "predicted": "UNDER",
+          "decimal_odds": 1.97,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.09122,
           "probabilities": {
-            "OVER": 0.470486,
-            "UNDER": 0.529514
+            "OVER": 0.45439,
+            "UNDER": 0.54561
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.074852,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.529513540552,
+              "LOSS": 0.5456099792856312,
               "PUSH": 0.0,
-              "WIN": 0.470486459449
+              "WIN": 0.45439002071436885
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.470486459449,
+              "LOSS": 0.45439002071436885,
               "PUSH": 0.0,
-              "WIN": 0.529513540552
+              "WIN": 0.5456099792856312
             }
-          }
+          },
+          "stored_ev": 0.074852
         }
       },
       "input": {
@@ -2558,32 +2773,37 @@
       "evaluated_at": "2026-08-30 21:15:49.235312+00",
       "evaluation_id": "dqe-7d6aa6ddd2e3e26502297827433daeded80c7df997ba9bc0e45c1360e0900c79",
       "fixture_id": "1492355",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.368043,
-          "predicted": "AWAY",
+          "decimal_odds": 1.93,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.41051,
           "probabilities": {
-            "AWAY": 0.684021,
-            "HOME": 0.315978
+            "AWAY": 0.705255,
+            "HOME": 0.294745
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.368835,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.203812,
-              "PUSH": 0.224332,
-              "WIN": 0.571855
+              "LOSS": 0.18484898228347782,
+              "PUSH": 0.21979187725833338,
+              "WIN": 0.5953591404581888
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.571855,
-              "PUSH": 0.224332,
-              "WIN": 0.203812
+              "LOSS": 0.5953591404581888,
+              "PUSH": 0.21979187725833338,
+              "WIN": 0.18484898228347782
             }
-          }
+          },
+          "stored_ev": 0.368835
         }
       },
       "input": {
@@ -2617,32 +2837,37 @@
       "evaluated_at": "2026-08-30 21:15:49.697137+00",
       "evaluation_id": "dqe-ba20d47e7299e0edf29eec170cf14c222d214f2e0834a6a4020c83d772f04d87",
       "fixture_id": "1492356",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.288082,
-          "predicted": "HOME",
+          "decimal_odds": 1.82,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.277686,
           "probabilities": {
-            "AWAY": 0.355959,
-            "HOME": 0.644041
+            "AWAY": 0.361157,
+            "HOME": 0.638843
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.162694,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.644041,
+              "LOSS": 0.6388430960829548,
               "PUSH": 0.0,
-              "WIN": 0.355959
+              "WIN": 0.36115690391704525
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.355959,
+              "LOSS": 0.36115690391704525,
               "PUSH": 0.0,
-              "WIN": 0.644041
+              "WIN": 0.6388430960829548
             }
-          }
+          },
+          "stored_ev": 0.162694
         }
       },
       "input": {
@@ -2676,32 +2901,37 @@
       "evaluated_at": "2026-08-21 17:15:19.977626+00",
       "evaluation_id": "dqe-30fae8d8bed9158b55c35a789ccd66b55a781311af9bd6eef4bd90cd88abfdb2",
       "fixture_id": "1493077",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.111408,
-          "predicted": "UNDER",
+          "decimal_odds": 1.88,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.111012,
           "probabilities": {
-            "OVER": 0.444296,
-            "UNDER": 0.555704
+            "OVER": 0.444494,
+            "UNDER": 0.555506
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.06058,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.420683135081,
-              "PUSH": 0.270041817433,
-              "WIN": 0.309275047481
+              "LOSS": 0.42026365041853636,
+              "PUSH": 0.2704844225403361,
+              "WIN": 0.3092519270411276
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.309275047481,
-              "PUSH": 0.270041817433,
-              "WIN": 0.420683135081
+              "LOSS": 0.3092519270411276,
+              "PUSH": 0.2704844225403361,
+              "WIN": 0.42026365041853636
             }
-          }
+          },
+          "stored_ev": 0.06058
         }
       },
       "input": {
@@ -2735,32 +2965,37 @@
       "evaluated_at": "2026-08-22 18:56:50.905897+00",
       "evaluation_id": "dqe-aaa6cbb5a7fd47fddd1b306dd5b1f8359b4c88b4f7af19f3a6405d65cf33e16a",
       "fixture_id": "1493078",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.150792,
-          "predicted": "OVER",
+          "decimal_odds": 1.87,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.151336,
           "probabilities": {
-            "OVER": 0.575396,
-            "UNDER": 0.424604
+            "OVER": 0.575668,
+            "UNDER": 0.424332
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.093294,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.295524352447,
-              "PUSH": 0.258160200611,
-              "WIN": 0.446315446942
+              "LOSS": 0.2951323698793156,
+              "PUSH": 0.2584001240528346,
+              "WIN": 0.4464675060678498
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.446315446942,
-              "PUSH": 0.258160200611,
-              "WIN": 0.295524352447
+              "LOSS": 0.4464675060678498,
+              "PUSH": 0.2584001240528346,
+              "WIN": 0.2951323698793156
             }
-          }
+          },
+          "stored_ev": 0.093294
         }
       },
       "input": {
@@ -2794,32 +3029,37 @@
       "evaluated_at": "2026-08-22 18:56:50.905897+00",
       "evaluation_id": "dqe-2d64ca9de9c6556c67e592b5a90cb189023e16cb1e9dc2daf17c4f36ecb0adbe",
       "fixture_id": "1493078",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.255292,
-          "predicted": "AWAY",
+          "decimal_odds": 1.62,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.255566,
           "probabilities": {
-            "AWAY": 0.566247,
-            "HOME": 0.310955
+            "AWAY": 0.56637,
+            "HOME": 0.310804
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.040345,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.245596,
+              "HALF_LOSS": 0.2456516418922991,
               "HALF_WIN": 0.0,
-              "LOSS": 0.188157,
+              "LOSS": 0.1879784515413167,
               "PUSH": 0.0,
-              "WIN": 0.566247
+              "WIN": 0.5663699065663842
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.245596,
-              "LOSS": 0.566247,
+              "HALF_WIN": 0.2456516418922991,
+              "LOSS": 0.5663699065663842,
               "PUSH": 0.0,
-              "WIN": 0.188157
+              "WIN": 0.1879784515413167
             }
-          }
+          },
+          "stored_ev": 0.040345
         }
       },
       "input": {
@@ -2853,32 +3093,37 @@
       "evaluated_at": "2026-08-23 17:30:28.321568+00",
       "evaluation_id": "dqe-dd9cbafc865ef0bb8f2cb9379c7a963c6398188763408958ac2e853d42bb0fd0",
       "fixture_id": "1493079",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.454458,
-          "predicted": "HOME",
+          "decimal_odds": 1.54,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.505188,
           "probabilities": {
-            "AWAY": 0.195073,
-            "HOME": 0.649531
+            "AWAY": 0.174544,
+            "HOME": 0.679732
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.192511,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.310792,
+              "HALF_LOSS": 0.29144736289311574,
               "HALF_WIN": 0.0,
-              "LOSS": 0.494135,
+              "LOSS": 0.5340082560174302,
               "PUSH": 0.0,
-              "WIN": 0.195073
+              "WIN": 0.17454438108945408
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.310792,
-              "LOSS": 0.195073,
+              "HALF_WIN": 0.29144736289311574,
+              "LOSS": 0.17454438108945408,
               "PUSH": 0.0,
-              "WIN": 0.494135
+              "WIN": 0.5340082560174302
             }
-          }
+          },
+          "stored_ev": 0.192511
         }
       },
       "input": {
@@ -2912,32 +3157,37 @@
       "evaluated_at": "2026-08-23 19:45:21.965397+00",
       "evaluation_id": "dqe-2f714a3615b5f793e40bc4d18a1db39985e92700c5ac804852e5af3c778a4a71",
       "fixture_id": "1493080",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.214178,
-          "predicted": "OVER",
+          "decimal_odds": 1.78,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.21729,
           "probabilities": {
-            "OVER": 0.607089,
-            "UNDER": 0.392911
+            "OVER": 0.608645,
+            "UNDER": 0.391355
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.110959,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.267495354939,
-              "PUSH": 0.250831082137,
-              "WIN": 0.481673562922
+              "LOSS": 0.2660360129814479,
+              "PUSH": 0.2506376759622607,
+              "WIN": 0.48332631105629137
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.481673562922,
-              "PUSH": 0.250831082137,
-              "WIN": 0.267495354939
+              "LOSS": 0.48332631105629137,
+              "PUSH": 0.2506376759622607,
+              "WIN": 0.2660360129814479
             }
-          }
+          },
+          "stored_ev": 0.110959
         }
       },
       "input": {
@@ -2971,32 +3221,37 @@
       "evaluated_at": "2026-08-23 19:45:21.965397+00",
       "evaluation_id": "dqe-04d6127135dfc5799883670db2d9e2cccfebcd632c9074ad3782f7df2c610e5f",
       "fixture_id": "1493080",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.338976,
-          "predicted": "AWAY",
+          "decimal_odds": 1.95,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.40205,
           "probabilities": {
-            "AWAY": 0.669488,
-            "HOME": 0.330512
+            "AWAY": 0.701025,
+            "HOME": 0.298975
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.366999,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.330512,
+              "LOSS": 0.2989748756477812,
               "PUSH": 0.0,
-              "WIN": 0.669488
+              "WIN": 0.7010251243522189
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.669488,
+              "LOSS": 0.7010251243522189,
               "PUSH": 0.0,
-              "WIN": 0.330512
+              "WIN": 0.2989748756477812
             }
-          }
+          },
+          "stored_ev": 0.366999
         }
       },
       "input": {
@@ -3030,32 +3285,37 @@
       "evaluated_at": "2026-08-21 22:45:21.259249+00",
       "evaluation_id": "dqe-9b45210bad48e7325e5c50ce9b922abb8d83eb2e4a50cdebca263ea1c77c50aa",
       "fixture_id": "1493081",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.273756,
-          "predicted": "OVER",
+          "decimal_odds": 1.79,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.275742,
           "probabilities": {
-            "OVER": 0.636878,
-            "UNDER": 0.363122
+            "OVER": 0.637871,
+            "UNDER": 0.362129
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.141789,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.363122110237,
+              "LOSS": 0.36212890769271905,
               "PUSH": 0.0,
-              "WIN": 0.636877889761
+              "WIN": 0.6378710923072809
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.636877889761,
+              "LOSS": 0.6378710923072809,
               "PUSH": 0.0,
-              "WIN": 0.363122110237
+              "WIN": 0.36212890769271905
             }
-          }
+          },
+          "stored_ev": 0.141789
         }
       },
       "input": {
@@ -3089,32 +3349,37 @@
       "evaluated_at": "2026-08-22 18:56:51.366896+00",
       "evaluation_id": "dqe-1682ff01be4104844b93fb1711aa40c5198f4ba9629512be88ada603b221e53d",
       "fixture_id": "1493082",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.176004,
-          "predicted": "OVER",
+          "decimal_odds": 1.85,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.177402,
           "probabilities": {
-            "OVER": 0.588002,
-            "UNDER": 0.411998
+            "OVER": 0.588701,
+            "UNDER": 0.411299
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.108263,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.284501674269,
-              "PUSH": 0.254992843609,
-              "WIN": 0.460505482122
+              "LOSS": 0.2835220929977526,
+              "PUSH": 0.2555543427987174,
+              "WIN": 0.4609235642035299
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.460505482122,
-              "PUSH": 0.254992843609,
-              "WIN": 0.284501674269
+              "LOSS": 0.4609235642035299,
+              "PUSH": 0.2555543427987174,
+              "WIN": 0.2835220929977526
             }
-          }
+          },
+          "stored_ev": 0.108263
         }
       },
       "input": {
@@ -3148,32 +3413,37 @@
       "evaluated_at": "2026-08-22 23:45:38.970734+00",
       "evaluation_id": "dqe-e21caaf94d8c9ecf4e0ec87f27efd5e971fc7c5e40aa53acb8a36d0703c2d5a6",
       "fixture_id": "1493083",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.25977,
-          "predicted": "OVER",
+          "decimal_odds": 1.8,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.260624,
           "probabilities": {
-            "OVER": 0.629885,
-            "UNDER": 0.370115
+            "OVER": 0.630312,
+            "UNDER": 0.369688
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.134561,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.370114855654,
+              "LOSS": 0.3696880556297546,
               "PUSH": 0.0,
-              "WIN": 0.629885144342
+              "WIN": 0.6303119443702454
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.629885144342,
+              "LOSS": 0.6303119443702454,
               "PUSH": 0.0,
-              "WIN": 0.370114855654
+              "WIN": 0.3696880556297546
             }
-          }
+          },
+          "stored_ev": 0.134561
         }
       },
       "input": {
@@ -3207,32 +3477,37 @@
       "evaluated_at": "2026-08-22 21:17:29.007631+00",
       "evaluation_id": "dqe-8e9232e3de0eb838f12ceae9117962f4b4a88e6a872d1a61ae717a651c1f6b29",
       "fixture_id": "1493084",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.387286,
-          "predicted": "AWAY",
+          "decimal_odds": 1.84,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.387514,
           "probabilities": {
-            "AWAY": 0.625124,
-            "HOME": 0.237838
+            "AWAY": 0.625222,
+            "HOME": 0.237708
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.287478,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.274078,
-              "LOSS": 0.237838,
+              "HALF_WIN": 0.27413984238577915,
+              "LOSS": 0.23770808788884562,
               "PUSH": 0.0,
-              "WIN": 0.488085
+              "WIN": 0.4881520697253752
             },
             "HOME": {
-              "HALF_LOSS": 0.274078,
+              "HALF_LOSS": 0.27413984238577915,
               "HALF_WIN": 0.0,
-              "LOSS": 0.488085,
+              "LOSS": 0.4881520697253752,
               "PUSH": 0.0,
-              "WIN": 0.237838
+              "WIN": 0.23770808788884562
             }
-          }
+          },
+          "stored_ev": 0.287478
         }
       },
       "input": {
@@ -3266,32 +3541,37 @@
       "evaluated_at": "2026-08-25 00:00:03.24784+00",
       "evaluation_id": "dqe-dd37c51cfa85ec680404a426e856dbdff47e04629a15b48a60e5177c54bf92a4",
       "fixture_id": "1493085",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.122422,
-          "predicted": "OVER",
+          "decimal_odds": 2.0,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.182206,
           "probabilities": {
-            "OVER": 0.561211,
-            "UNDER": 0.438789
+            "OVER": 0.591103,
+            "UNDER": 0.408897
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.182206,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.308292556921,
-              "PUSH": 0.260992210954,
-              "WIN": 0.430715232124
+              "LOSS": 0.28139794053485745,
+              "PUSH": 0.2549980852066312,
+              "WIN": 0.4636039742585113
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.430715232124,
-              "PUSH": 0.260992210954,
-              "WIN": 0.308292556921
+              "LOSS": 0.4636039742585113,
+              "PUSH": 0.2549980852066312,
+              "WIN": 0.28139794053485745
             }
-          }
+          },
+          "stored_ev": 0.182206
         }
       },
       "input": {
@@ -3325,32 +3605,37 @@
       "evaluated_at": "2026-08-24 00:15:18.873542+00",
       "evaluation_id": "dqe-61c7cf5bc77e427a5866aeb64abeafa2af20384de4553ba2cf7b8591dcd3efaf",
       "fixture_id": "1493087",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.191966,
-          "predicted": "OVER",
+          "decimal_odds": 1.87,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.192662,
           "probabilities": {
-            "OVER": 0.595983,
-            "UNDER": 0.404017
+            "OVER": 0.596331,
+            "UNDER": 0.403669
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.131634,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.277271180377,
-              "PUSH": 0.253490880966,
-              "WIN": 0.46923793866
+              "LOSS": 0.27679194101322785,
+              "PUSH": 0.2537533757607845,
+              "WIN": 0.46945468322598766
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.46923793866,
-              "PUSH": 0.253490880966,
-              "WIN": 0.277271180377
+              "LOSS": 0.46945468322598766,
+              "PUSH": 0.2537533757607845,
+              "WIN": 0.27679194101322785
             }
-          }
+          },
+          "stored_ev": 0.131634
         }
       },
       "input": {
@@ -3384,32 +3669,37 @@
       "evaluated_at": "2026-08-23 17:30:28.823373+00",
       "evaluation_id": "dqe-503b8b045e6a4ac3629f837f2f30dd33ebe597eacc0e5435c954bd25e163bca2",
       "fixture_id": "1493089",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.201158,
-          "predicted": "OVER",
+          "decimal_odds": 1.84,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.219502,
           "probabilities": {
-            "OVER": 0.600579,
-            "UNDER": 0.399421
+            "OVER": 0.609751,
+            "UNDER": 0.390249
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.14197,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.273194393407,
-              "PUSH": 0.252452924658,
-              "WIN": 0.47435268194
+              "LOSS": 0.2650760905459379,
+              "PUSH": 0.25034513996368285,
+              "WIN": 0.48457876949037926
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.47435268194,
-              "PUSH": 0.252452924658,
-              "WIN": 0.273194393407
+              "LOSS": 0.48457876949037926,
+              "PUSH": 0.25034513996368285,
+              "WIN": 0.2650760905459379
             }
-          }
+          },
+          "stored_ev": 0.14197
         }
       },
       "input": {
@@ -3443,32 +3733,37 @@
       "evaluated_at": "2026-08-25 00:00:04.450553+00",
       "evaluation_id": "dqe-151b4d0487283cd9576771ecce5f021eeef8a7a5fc9793c7d9b6e481e93ad71d",
       "fixture_id": "1493090",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.184386,
-          "predicted": "OVER",
+          "decimal_odds": 1.86,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.287956,
           "probabilities": {
-            "OVER": 0.592193,
-            "UNDER": 0.407807
+            "OVER": 0.643978,
+            "UNDER": 0.356022
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.214618,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.280576496977,
-              "PUSH": 0.254460680204,
-              "WIN": 0.464962822813
+              "LOSS": 0.23588883387344178,
+              "PUSH": 0.24026591002945186,
+              "WIN": 0.5238452560971064
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.464962822813,
-              "PUSH": 0.254460680204,
-              "WIN": 0.280576496977
+              "LOSS": 0.5238452560971064,
+              "PUSH": 0.24026591002945186,
+              "WIN": 0.23588883387344178
             }
-          }
+          },
+          "stored_ev": 0.214618
         }
       },
       "input": {
@@ -3502,32 +3797,37 @@
       "evaluated_at": "2026-08-30 17:45:54.090239+00",
       "evaluation_id": "dqe-77fe7f97e07dc398d30828f6e8719e82a2a245b9492724678ebbc05f977b12f1",
       "fixture_id": "1493094",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.303946,
-          "predicted": "HOME",
+          "decimal_odds": 1.84,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.384551,
           "probabilities": {
-            "AWAY": 0.292712,
-            "HOME": 0.596658
+            "AWAY": 0.256055,
+            "HOME": 0.640606
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.282054,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.221261,
-              "LOSS": 0.596658,
+              "HALF_WIN": 0.20667837610588627,
+              "LOSS": 0.6406056085856815,
               "PUSH": 0.0,
-              "WIN": 0.182081
+              "WIN": 0.15271601530843226
             },
             "HOME": {
-              "HALF_LOSS": 0.221261,
+              "HALF_LOSS": 0.20667837610588627,
               "HALF_WIN": 0.0,
-              "LOSS": 0.182081,
+              "LOSS": 0.15271601530843226,
               "PUSH": 0.0,
-              "WIN": 0.596658
+              "WIN": 0.6406056085856815
             }
-          }
+          },
+          "stored_ev": 0.282054
         }
       },
       "input": {
@@ -3561,32 +3861,37 @@
       "evaluated_at": "2026-08-30 22:00:11.683995+00",
       "evaluation_id": "dqe-32c3cc5ea7512252c99a4136eaa362313debc8ddbc9d6d4659e1dddcf2aad840",
       "fixture_id": "1493100",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.36872,
-          "predicted": "AWAY",
+          "decimal_odds": 1.87,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.261208,
           "probabilities": {
-            "AWAY": 0.630436,
-            "HOME": 0.261716
+            "AWAY": 0.569891,
+            "HOME": 0.308683
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.187122,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.215696,
+              "HALF_LOSS": 0.24285226894307793,
               "HALF_WIN": 0.0,
-              "LOSS": 0.153868,
+              "LOSS": 0.1872571435606864,
               "PUSH": 0.0,
-              "WIN": 0.630436
+              "WIN": 0.5698905874962357
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.215696,
-              "LOSS": 0.630436,
+              "HALF_WIN": 0.24285226894307793,
+              "LOSS": 0.5698905874962357,
               "PUSH": 0.0,
-              "WIN": 0.153868
+              "WIN": 0.1872571435606864
             }
-          }
+          },
+          "stored_ev": 0.187122
         }
       },
       "input": {
@@ -3620,32 +3925,37 @@
       "evaluated_at": "2026-08-30 14:45:47.606454+00",
       "evaluation_id": "dqe-662b2d35546463baf2b39d0dddfda331bc9d11e78a1df4f047b2a5e107c40371",
       "fixture_id": "1494741",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.272808,
-          "predicted": "UNDER",
+          "decimal_odds": 1.75,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.272724,
           "probabilities": {
-            "OVER": 0.363596,
-            "UNDER": 0.636404
+            "OVER": 0.363638,
+            "UNDER": 0.636362
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.140658,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.528517475209,
-              "PUSH": 0.215772560307,
-              "WIN": 0.255709964483
+              "LOSS": 0.528263768699748,
+              "PUSH": 0.2161968290596032,
+              "WIN": 0.25553940224064886
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.255709964483,
-              "PUSH": 0.215772560307,
-              "WIN": 0.528517475209
+              "LOSS": 0.25553940224064886,
+              "PUSH": 0.2161968290596032,
+              "WIN": 0.528263768699748
             }
-          }
+          },
+          "stored_ev": 0.140658
         }
       },
       "input": {
@@ -3679,32 +3989,37 @@
       "evaluated_at": "2026-08-30 14:45:48.482273+00",
       "evaluation_id": "dqe-24b13a8a1e32ea8b17f4ff5c53fd54a3b04c41148a1d16284797fb4c6514b3a5",
       "fixture_id": "1494744",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.21207,
-          "predicted": "HOME",
+          "decimal_odds": 1.75,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.291195,
           "probabilities": {
-            "AWAY": 0.3364,
-            "HOME": 0.54847
+            "AWAY": 0.299218,
+            "HOME": 0.590413
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.143592,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.230259,
-              "LOSS": 0.54847,
+              "HALF_WIN": 0.2207365560849432,
+              "LOSS": 0.5904134393509591,
               "PUSH": 0.0,
-              "WIN": 0.22127
+              "WIN": 0.18885000456409773
             },
             "HOME": {
-              "HALF_LOSS": 0.230259,
+              "HALF_LOSS": 0.2207365560849432,
               "HALF_WIN": 0.0,
-              "LOSS": 0.22127,
+              "LOSS": 0.18885000456409773,
               "PUSH": 0.0,
-              "WIN": 0.54847
+              "WIN": 0.5904134393509591
             }
-          }
+          },
+          "stored_ev": 0.143592
         }
       },
       "input": {
@@ -3738,32 +4053,37 @@
       "evaluated_at": "2026-08-30 14:45:49.683491+00",
       "evaluation_id": "dqe-8cf56a24464d0ff1a416806a09221b3c72591c181ffac532904ca665d8638d46",
       "fixture_id": "1494747",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.185074,
-          "predicted": "UNDER",
+          "decimal_odds": 1.77,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.18499,
           "probabilities": {
-            "OVER": 0.407463,
-            "UNDER": 0.592537
+            "OVER": 0.407505,
+            "UNDER": 0.592495
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.070903,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.496177241394,
-              "PUSH": 0.192719810808,
-              "WIN": 0.311102947805
+              "LOSS": 0.4960336278331873,
+              "PUSH": 0.19292311961630415,
+              "WIN": 0.3110432525505086
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.311102947805,
-              "PUSH": 0.192719810808,
-              "WIN": 0.496177241394
+              "LOSS": 0.3110432525505086,
+              "PUSH": 0.19292311961630415,
+              "WIN": 0.4960336278331873
             }
-          }
+          },
+          "stored_ev": 0.070903
         }
       },
       "input": {
@@ -3797,32 +4117,37 @@
       "evaluated_at": "2026-08-30 14:45:49.683491+00",
       "evaluation_id": "dqe-b4d59a0bb333560386ebf80db2a4703cbf533ed6ed25fa0d298d310908b712cf",
       "fixture_id": "1494747",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.556181,
-          "predicted": "AWAY",
+          "decimal_odds": 1.8,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.501576,
           "probabilities": {
-            "AWAY": 0.77809,
-            "HOME": 0.221909
+            "AWAY": 0.750788,
+            "HOME": 0.249212
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.367513,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.14677,
-              "PUSH": 0.150278,
-              "WIN": 0.702951
+              "LOSS": 0.16873841658522193,
+              "PUSH": 0.16094679576592044,
+              "WIN": 0.6703147876488577
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.702951,
-              "PUSH": 0.150278,
-              "WIN": 0.14677
+              "LOSS": 0.6703147876488577,
+              "PUSH": 0.16094679576592044,
+              "WIN": 0.16873841658522193
             }
-          }
+          },
+          "stored_ev": 0.367513
         }
       },
       "input": {
@@ -3856,32 +4181,37 @@
       "evaluated_at": "2026-08-23 18:31:25.393573+00",
       "evaluation_id": "dqe-65833c1a13713cd82c5cbb82a9cdff6c6c64b2579a581e8abaa2f0c3e6cab21e",
       "fixture_id": "1550088",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.384912,
-          "predicted": "AWAY",
+          "decimal_odds": 1.9,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.385256,
           "probabilities": {
-            "AWAY": 0.692456,
-            "HOME": 0.307544
+            "AWAY": 0.692628,
+            "HOME": 0.307372
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.326706,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.200569,
-              "PUSH": 0.213951,
-              "WIN": 0.58548
+              "LOSS": 0.20023771029919032,
+              "PUSH": 0.21426895793924852,
+              "WIN": 0.5854933317615612
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.58548,
-              "PUSH": 0.213951,
-              "WIN": 0.200569
+              "LOSS": 0.5854933317615612,
+              "PUSH": 0.21426895793924852,
+              "WIN": 0.20023771029919032
             }
-          }
+          },
+          "stored_ev": 0.326706
         }
       },
       "input": {
@@ -3915,32 +4245,37 @@
       "evaluated_at": "2026-08-22 16:18:43.948529+00",
       "evaluation_id": "dqe-9ccccd7da06246fc514ba57d92934cbc8dd2212a5cc3924b349fda53928ca736",
       "fixture_id": "1550092",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.159304,
-          "predicted": "UNDER",
+          "decimal_odds": 1.95,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.159088,
           "probabilities": {
-            "OVER": 0.420348,
-            "UNDER": 0.579652
+            "OVER": 0.420456,
+            "UNDER": 0.579544
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.135674,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.468542408317,
-              "PUSH": 0.22221856171,
-              "WIN": 0.309239029973
+              "LOSS": 0.4682626906487615,
+              "PUSH": 0.22256217381825263,
+              "WIN": 0.30917513553298587
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.309239029973,
-              "PUSH": 0.22221856171,
-              "WIN": 0.468542408317
+              "LOSS": 0.30917513553298587,
+              "PUSH": 0.22256217381825263,
+              "WIN": 0.4682626906487615
             }
-          }
+          },
+          "stored_ev": 0.135674
         }
       },
       "input": {
@@ -3974,32 +4309,37 @@
       "evaluated_at": "2026-08-22 16:18:43.948529+00",
       "evaluation_id": "dqe-08549b5a350a9d7dc01b6f6c9c2128c5f7b0dc1375c645ce887db7e51ca1f7a7",
       "fixture_id": "1550092",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.526544,
-          "predicted": "AWAY",
+          "decimal_odds": 1.92,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.5269,
           "probabilities": {
-            "AWAY": 0.763272,
-            "HOME": 0.236728
+            "AWAY": 0.76345,
+            "HOME": 0.23655
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.472792,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.149711,
-              "PUSH": 0.174033,
-              "WIN": 0.676256
+              "LOSS": 0.14945302533420604,
+              "PUSH": 0.1741932703017587,
+              "WIN": 0.6763537043640352
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.676256,
-              "PUSH": 0.174033,
-              "WIN": 0.149711
+              "LOSS": 0.6763537043640352,
+              "PUSH": 0.1741932703017587,
+              "WIN": 0.14945302533420604
             }
-          }
+          },
+          "stored_ev": 0.472792
         }
       },
       "input": {
@@ -4033,32 +4373,37 @@
       "evaluated_at": "2026-08-22 18:32:38.544543+00",
       "evaluation_id": "dqe-f1163f232fb1b0a7ddecf948d49946f9656ad9950698c464cfb5f13b9a26e3f2",
       "fixture_id": "1550093",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.354138,
-          "predicted": "OVER",
+          "decimal_odds": 1.82,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.354942,
           "probabilities": {
-            "OVER": 0.677069,
-            "UNDER": 0.322931
+            "OVER": 0.677471,
+            "UNDER": 0.322529
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.253561,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.208761876915,
-              "PUSH": 0.228338795273,
-              "WIN": 0.562899327811
+              "LOSS": 0.208290982217083,
+              "PUSH": 0.22847511851415975,
+              "WIN": 0.5632338992687572
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.562899327811,
-              "PUSH": 0.228338795273,
-              "WIN": 0.208761876915
+              "LOSS": 0.5632338992687572,
+              "PUSH": 0.22847511851415975,
+              "WIN": 0.208290982217083
             }
-          }
+          },
+          "stored_ev": 0.253561
         }
       },
       "input": {
@@ -4092,32 +4437,37 @@
       "evaluated_at": "2026-08-23 18:31:25.823087+00",
       "evaluation_id": "dqe-e8d2fb34ca4cffccdc5d6dd44e5baf1c74f1a280f5e137732e9a7de95cf29d85",
       "fixture_id": "1550094",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.22426,
-          "predicted": "OVER",
+          "decimal_odds": 1.98,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.225064,
           "probabilities": {
-            "OVER": 0.61213,
-            "UNDER": 0.38787
+            "OVER": 0.612532,
+            "UNDER": 0.387468
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.212814,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.387869536878,
+              "LOSS": 0.3874676649474365,
               "PUSH": 0.0,
-              "WIN": 0.612130463125
+              "WIN": 0.6125323350525634
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.612130463125,
+              "LOSS": 0.6125323350525634,
               "PUSH": 0.0,
-              "WIN": 0.387869536878
+              "WIN": 0.3874676649474365
             }
-          }
+          },
+          "stored_ev": 0.212814
         }
       },
       "input": {
@@ -4151,32 +4501,37 @@
       "evaluated_at": "2026-08-23 18:31:25.823087+00",
       "evaluation_id": "dqe-ef861122f3284a8dd63124cf432cdc5342ff2291c01db66134327722c98479bc",
       "fixture_id": "1550094",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.299212,
-          "predicted": "HOME",
+          "decimal_odds": 1.88,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.299442,
           "probabilities": {
-            "AWAY": 0.350394,
-            "HOME": 0.649606
+            "AWAY": 0.350279,
+            "HOME": 0.649721
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.221476,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.649606,
+              "LOSS": 0.6497213129128439,
               "PUSH": 0.0,
-              "WIN": 0.350394
+              "WIN": 0.35027868708715615
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.350394,
+              "LOSS": 0.35027868708715615,
               "PUSH": 0.0,
-              "WIN": 0.649606
+              "WIN": 0.6497213129128439
             }
-          }
+          },
+          "stored_ev": 0.221476
         }
       },
       "input": {
@@ -4210,32 +4565,37 @@
       "evaluated_at": "2026-08-22 16:18:44.531461+00",
       "evaluation_id": "dqe-9785206f4e3e4697a23ff4147143ac1b9835ad45148ee43ac09cb759f37754d8",
       "fixture_id": "1550095",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.080428,
-          "predicted": "HOME",
+          "decimal_odds": 1.97,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.080078,
           "probabilities": {
-            "AWAY": 0.459786,
-            "HOME": 0.540214
+            "AWAY": 0.459961,
+            "HOME": 0.540039
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.063876,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.540214,
+              "LOSS": 0.5400385402321882,
               "PUSH": 0.0,
-              "WIN": 0.459786
+              "WIN": 0.4599614597678118
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.459786,
+              "LOSS": 0.4599614597678118,
               "PUSH": 0.0,
-              "WIN": 0.540214
+              "WIN": 0.5400385402321882
             }
-          }
+          },
+          "stored_ev": 0.063876
         }
       },
       "input": {
@@ -4269,32 +4629,37 @@
       "evaluated_at": "2026-08-23 16:15:03.89465+00",
       "evaluation_id": "dqe-8293af190e50a0cc18581a0888d91788097c34d4d249dabe7dd653d4f34abc28",
       "fixture_id": "1550096",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.209626,
-          "predicted": "AWAY",
+          "decimal_odds": 1.84,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.209514,
           "probabilities": {
-            "AWAY": 0.604813,
-            "HOME": 0.395187
+            "AWAY": 0.604757,
+            "HOME": 0.395243
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.112753,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.395187,
+              "LOSS": 0.3952427383776291,
               "PUSH": 0.0,
-              "WIN": 0.604813
+              "WIN": 0.6047572616223709
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.604813,
+              "LOSS": 0.6047572616223709,
               "PUSH": 0.0,
-              "WIN": 0.395187
+              "WIN": 0.3952427383776291
             }
-          }
+          },
+          "stored_ev": 0.112753
         }
       },
       "input": {
@@ -4328,32 +4693,37 @@
       "evaluated_at": "2026-08-30 18:30:18.889758+00",
       "evaluation_id": "dqe-484c2bd60279334b86e1946324a3c2a6a6638b54ca5afc5c82cabce98ca4a2ba",
       "fixture_id": "1550099",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.481823,
-          "predicted": "HOME",
+          "decimal_odds": 1.96,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.5477,
           "probabilities": {
-            "AWAY": 0.204867,
-            "HOME": 0.68669
+            "AWAY": 0.174965,
+            "HOME": 0.722665
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.518793,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.216887,
+              "HALF_LOSS": 0.20473990551823662,
               "HALF_WIN": 0.0,
-              "LOSS": 0.578246,
+              "LOSS": 0.6202951178958146,
               "PUSH": 0.0,
-              "WIN": 0.204867
+              "WIN": 0.17496497658594873
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.216887,
-              "LOSS": 0.204867,
+              "HALF_WIN": 0.20473990551823662,
+              "LOSS": 0.17496497658594873,
               "PUSH": 0.0,
-              "WIN": 0.578246
+              "WIN": 0.6202951178958146
             }
-          }
+          },
+          "stored_ev": 0.518793
         }
       },
       "input": {
@@ -4387,32 +4757,37 @@
       "evaluated_at": "2026-08-22 16:32:30.872148+00",
       "evaluation_id": "dqe-0eec0cb86090e08aae36e53790ec15f7509946bd7c9ca21e480947de824a7c40",
       "fixture_id": "1552137",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.244298,
-          "predicted": "OVER",
+          "decimal_odds": 1.91,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.245005,
           "probabilities": {
-            "OVER": 0.568161,
-            "UNDER": 0.323863
+            "OVER": 0.568449,
+            "UNDER": 0.323444
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.193845,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.215952533441,
-              "LOSS": 0.323862633105,
+              "HALF_WIN": 0.21621230497329957,
+              "LOSS": 0.3234444485419137,
               "PUSH": 0.0,
-              "WIN": 0.460184833458
+              "WIN": 0.46034324648478675
             },
             "UNDER": {
-              "HALF_LOSS": 0.215952533441,
+              "HALF_LOSS": 0.21621230497329957,
               "HALF_WIN": 0.0,
-              "LOSS": 0.460184833458,
+              "LOSS": 0.46034324648478675,
               "PUSH": 0.0,
-              "WIN": 0.323862633105
+              "WIN": 0.3234444485419137
             }
-          }
+          },
+          "stored_ev": 0.193845
         }
       },
       "input": {
@@ -4446,32 +4821,37 @@
       "evaluated_at": "2026-08-22 18:24:32.368004+00",
       "evaluation_id": "dqe-fdb5461bfbe2c2f30fdf494a7c8f2604f336cc35c29d7e836b1a1dc087b24486",
       "fixture_id": "1552138",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.251876,
-          "predicted": "UNDER",
+          "decimal_odds": 1.92,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.251812,
           "probabilities": {
-            "OVER": 0.318358,
-            "UNDER": 0.570234
+            "OVER": 0.318312,
+            "UNDER": 0.570124
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.206202,
           "settlement_distributions": {
             "OVER": {
-              "HALF_LOSS": 0.222816227,
+              "HALF_LOSS": 0.2231266005609856,
               "HALF_WIN": 0.0,
-              "LOSS": 0.458825428312,
+              "LOSS": 0.4585611324869544,
               "PUSH": 0.0,
-              "WIN": 0.318358344691
+              "WIN": 0.31831226695206
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.222816227,
-              "LOSS": 0.318358344691,
+              "HALF_WIN": 0.2231266005609856,
+              "LOSS": 0.31831226695206,
               "PUSH": 0.0,
-              "WIN": 0.458825428312
+              "WIN": 0.4585611324869544
             }
-          }
+          },
+          "stored_ev": 0.206202
         }
       },
       "input": {
@@ -4505,32 +4885,37 @@
       "evaluated_at": "2026-08-22 18:24:32.368004+00",
       "evaluation_id": "dqe-f0613fe47f8c7b7905899d5039b88b0442c1bf86d9700428157f89bf62638395",
       "fixture_id": "1552138",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.31088,
-          "predicted": "AWAY",
+          "decimal_odds": 1.87,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.31111,
           "probabilities": {
-            "AWAY": 0.65544,
-            "HOME": 0.34456
+            "AWAY": 0.655555,
+            "HOME": 0.344445
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.240303,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.233755,
-              "PUSH": 0.221611,
-              "WIN": 0.544634
+              "LOSS": 0.23356306686678424,
+              "PUSH": 0.22176362318955534,
+              "WIN": 0.5446733099436605
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.544634,
-              "PUSH": 0.221611,
-              "WIN": 0.233755
+              "LOSS": 0.5446733099436605,
+              "PUSH": 0.22176362318955534,
+              "WIN": 0.23356306686678424
             }
-          }
+          },
+          "stored_ev": 0.240303
         }
       },
       "input": {
@@ -4564,32 +4949,37 @@
       "evaluated_at": "2026-08-23 12:15:37.382165+00",
       "evaluation_id": "dqe-206031c240a016eec69872e07f5896f46393449dc3b781c41a9b498c508a8ad2",
       "fixture_id": "1552140",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.391766,
-          "predicted": "UNDER",
+          "decimal_odds": 1.99,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.391907,
           "probabilities": {
-            "OVER": 0.262624,
-            "UNDER": 0.65439
+            "OVER": 0.262494,
+            "UNDER": 0.654401
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.385363,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.165971641069,
-              "LOSS": 0.654389951776,
+              "HALF_WIN": 0.16621046044971693,
+              "LOSS": 0.6544008620930122,
               "PUSH": 0.0,
-              "WIN": 0.179638407155
+              "WIN": 0.1793886774572709
             },
             "UNDER": {
-              "HALF_LOSS": 0.165971641069,
+              "HALF_LOSS": 0.16621046044971693,
               "HALF_WIN": 0.0,
-              "LOSS": 0.179638407155,
+              "LOSS": 0.1793886774572709,
               "PUSH": 0.0,
-              "WIN": 0.654389951776
+              "WIN": 0.6544008620930122
             }
-          }
+          },
+          "stored_ev": 0.385363
         }
       },
       "input": {
@@ -4623,32 +5013,37 @@
       "evaluated_at": "2026-08-23 12:15:37.382165+00",
       "evaluation_id": "dqe-c59bf2a699865f12ffeb00a6e71ef9bca80d950bb2ad124dca949cd49fea6965",
       "fixture_id": "1552140",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.486858,
-          "predicted": "AWAY",
+          "decimal_odds": 1.9,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.487275,
           "probabilities": {
-            "AWAY": 0.703094,
-            "HOME": 0.216236
+            "AWAY": 0.703289,
+            "HOME": 0.216014
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.416946,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.161339,
+              "HALF_LOSS": 0.16139366097061436,
               "HALF_WIN": 0.0,
-              "LOSS": 0.135567,
+              "LOSS": 0.13531715567362507,
               "PUSH": 0.0,
-              "WIN": 0.703094
+              "WIN": 0.7032891833557606
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.161339,
-              "LOSS": 0.703094,
+              "HALF_WIN": 0.16139366097061436,
+              "LOSS": 0.7032891833557606,
               "PUSH": 0.0,
-              "WIN": 0.135567
+              "WIN": 0.13531715567362507
             }
-          }
+          },
+          "stored_ev": 0.416946
         }
       },
       "input": {
@@ -4682,32 +5077,37 @@
       "evaluated_at": "2026-08-30 14:30:38.680529+00",
       "evaluation_id": "dqe-9ea4bb65f13ea7834a96ce290fffd833878057ae58eee0f957309717ae6de49d",
       "fixture_id": "1552151",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.308336,
-          "predicted": "UNDER",
+          "decimal_odds": 1.95,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.308354,
           "probabilities": {
-            "OVER": 0.345832,
-            "UNDER": 0.654168
+            "OVER": 0.345823,
+            "UNDER": 0.654177
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.275645,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.654168456818,
+              "LOSS": 0.6541768255036675,
               "PUSH": 0.0,
-              "WIN": 0.345831543175
+              "WIN": 0.3458231744963325
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.345831543175,
+              "LOSS": 0.3458231744963325,
               "PUSH": 0.0,
-              "WIN": 0.654168456818
+              "WIN": 0.6541768255036675
             }
-          }
+          },
+          "stored_ev": 0.275645
         }
       },
       "input": {
@@ -4741,32 +5141,37 @@
       "evaluated_at": "2026-08-30 14:30:38.680529+00",
       "evaluation_id": "dqe-62358e958b9d6899ec4024d5c4da4896a6d97166391f8606344aeab319e157a2",
       "fixture_id": "1552151",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.491096,
-          "predicted": "HOME",
+          "decimal_odds": 1.76,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.55534,
           "probabilities": {
-            "AWAY": 0.254452,
-            "HOME": 0.745548
+            "AWAY": 0.22233,
+            "HOME": 0.77767
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.368699,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.745548,
+              "LOSS": 0.777669712423489,
               "PUSH": 0.0,
-              "WIN": 0.254452
+              "WIN": 0.22233028757651094
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.254452,
+              "LOSS": 0.22233028757651094,
               "PUSH": 0.0,
-              "WIN": 0.745548
+              "WIN": 0.777669712423489
             }
-          }
+          },
+          "stored_ev": 0.368699
         }
       },
       "input": {
@@ -4800,32 +5205,37 @@
       "evaluated_at": "2026-08-30 17:45:53.379437+00",
       "evaluation_id": "dqe-f1bd7325d10cdf4a9da05bccf65418cb31f531a6228ff353ebe7438eadabd75f",
       "fixture_id": "1552152",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.33452,
-          "predicted": "HOME",
+          "decimal_odds": 1.94,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.403496,
           "probabilities": {
-            "AWAY": 0.33274,
-            "HOME": 0.66726
+            "AWAY": 0.298252,
+            "HOME": 0.701748
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.361391,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.66726,
+              "LOSS": 0.7017477993739912,
               "PUSH": 0.0,
-              "WIN": 0.33274
+              "WIN": 0.2982522006260087
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.33274,
+              "LOSS": 0.2982522006260087,
               "PUSH": 0.0,
-              "WIN": 0.66726
+              "WIN": 0.7017477993739912
             }
-          }
+          },
+          "stored_ev": 0.361391
         }
       },
       "input": {
@@ -4859,32 +5269,37 @@
       "evaluated_at": "2026-08-23 12:45:49.168622+00",
       "evaluation_id": "dqe-70d6add4837636a30689485867e6c21ea2b488603a9358ab3371410681138122",
       "fixture_id": "1552729",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.17656,
-          "predicted": "UNDER",
+          "decimal_odds": 1.87,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.176198,
           "probabilities": {
-            "OVER": 0.41172,
-            "UNDER": 0.58828
+            "OVER": 0.411901,
+            "UNDER": 0.588099
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.099746,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.588279863018,
+              "LOSS": 0.5880992836891358,
               "PUSH": 0.0,
-              "WIN": 0.411720136973
+              "WIN": 0.4119007163108642
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.411720136973,
+              "LOSS": 0.4119007163108642,
               "PUSH": 0.0,
-              "WIN": 0.588279863018
+              "WIN": 0.5880992836891358
             }
-          }
+          },
+          "stored_ev": 0.099746
         }
       },
       "input": {
@@ -4918,32 +5333,37 @@
       "evaluated_at": "2026-08-23 15:00:36.698614+00",
       "evaluation_id": "dqe-07b44f6963afd74e3421ca6ea8b837a245700436226f5a7261b4a859747c830d",
       "fixture_id": "1552730",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.248043,
-          "predicted": "UNDER",
+          "decimal_odds": 1.96,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.247897,
           "probabilities": {
-            "OVER": 0.323924,
-            "UNDER": 0.571967
+            "OVER": 0.323903,
+            "UNDER": 0.5718
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.225025,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.208218222158,
-              "LOSS": 0.571967302704,
+              "HALF_WIN": 0.20859306970282243,
+              "LOSS": 0.5718002752124219,
               "PUSH": 0.0,
-              "WIN": 0.219814475138
+              "WIN": 0.21960665508475566
             },
             "UNDER": {
-              "HALF_LOSS": 0.208218222158,
+              "HALF_LOSS": 0.20859306970282243,
               "HALF_WIN": 0.0,
-              "LOSS": 0.219814475138,
+              "LOSS": 0.21960665508475566,
               "PUSH": 0.0,
-              "WIN": 0.571967302704
+              "WIN": 0.5718002752124219
             }
-          }
+          },
+          "stored_ev": 0.225025
         }
       },
       "input": {
@@ -4977,32 +5397,37 @@
       "evaluated_at": "2026-08-23 15:00:36.698614+00",
       "evaluation_id": "dqe-25a774f28dce5d1ceb1b968a8efd3b416e8b0073145e7504ad0a634a56a42e2f",
       "fixture_id": "1552730",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.288846,
-          "predicted": "HOME",
+          "decimal_odds": 1.83,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.288802,
           "probabilities": {
-            "AWAY": 0.355577,
-            "HOME": 0.644423
+            "AWAY": 0.355599,
+            "HOME": 0.644401
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.179255,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.644423,
+              "LOSS": 0.6444014073837587,
               "PUSH": 0.0,
-              "WIN": 0.355577
+              "WIN": 0.3555985926162412
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.355577,
+              "LOSS": 0.3555985926162412,
               "PUSH": 0.0,
-              "WIN": 0.644423
+              "WIN": 0.6444014073837587
             }
-          }
+          },
+          "stored_ev": 0.179255
         }
       },
       "input": {
@@ -5036,32 +5461,37 @@
       "evaluated_at": "2026-08-21 18:30:40.919978+00",
       "evaluation_id": "dqe-b8df4ed9fde39571b36483c75d5b4cc1c7fe6eca57567c5bc784ef462ff6e109",
       "fixture_id": "1552733",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.142104,
-          "predicted": "OVER",
+          "decimal_odds": 1.85,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.14292,
           "probabilities": {
-            "OVER": 0.571052,
-            "UNDER": 0.428948
+            "OVER": 0.57146,
+            "UNDER": 0.42854
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.073383,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.32125084848,
-              "PUSH": 0.215394339144,
-              "WIN": 0.463354812379
+              "LOSS": 0.3206623145667841,
+              "PUSH": 0.21575464191044166,
+              "WIN": 0.46358304352277424
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.463354812379,
-              "PUSH": 0.215394339144,
-              "WIN": 0.32125084848
+              "LOSS": 0.46358304352277424,
+              "PUSH": 0.21575464191044166,
+              "WIN": 0.3206623145667841
             }
-          }
+          },
+          "stored_ev": 0.073383
         }
       },
       "input": {
@@ -5095,32 +5525,37 @@
       "evaluated_at": "2026-08-21 18:30:40.919978+00",
       "evaluation_id": "dqe-47233f86f07bb9a8df87b44b3dd5718f7dfcbcfef69220905c0a2adb360cdbd8",
       "fixture_id": "1552733",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.240146,
-          "predicted": "AWAY",
+          "decimal_odds": 1.88,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.240458,
           "probabilities": {
-            "AWAY": 0.570843,
-            "HOME": 0.330697
+            "AWAY": 0.57094,
+            "HOME": 0.330482
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.171944,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.19692,
+              "HALF_LOSS": 0.1971561372427162,
               "HALF_WIN": 0.0,
-              "LOSS": 0.232237,
+              "LOSS": 0.2319043158272952,
               "PUSH": 0.0,
-              "WIN": 0.570843
+              "WIN": 0.5709395469299886
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.19692,
-              "LOSS": 0.570843,
+              "HALF_WIN": 0.1971561372427162,
+              "LOSS": 0.5709395469299886,
               "PUSH": 0.0,
-              "WIN": 0.232237
+              "WIN": 0.2319043158272952
             }
-          }
+          },
+          "stored_ev": 0.171944
         }
       },
       "input": {
@@ -5154,32 +5589,37 @@
       "evaluated_at": "2026-08-22 18:37:25.234241+00",
       "evaluation_id": "dqe-4a4f6571493957f9e7fd0cb3d1f9a888f658716533bc540e7461dd3c2a09ac59",
       "fixture_id": "1552736",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.191218,
-          "predicted": "OVER",
+          "decimal_odds": 1.96,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.192032,
           "probabilities": {
-            "OVER": 0.595609,
-            "UNDER": 0.404391
+            "OVER": 0.596016,
+            "UNDER": 0.403984
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.168192,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.404390617037,
+              "LOSS": 0.4039836490098901,
               "PUSH": 0.0,
-              "WIN": 0.595609382957
+              "WIN": 0.5960163509901099
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.595609382957,
+              "LOSS": 0.5960163509901099,
               "PUSH": 0.0,
-              "WIN": 0.404390617037
+              "WIN": 0.4039836490098901
             }
-          }
+          },
+          "stored_ev": 0.168192
         }
       },
       "input": {
@@ -5213,32 +5653,37 @@
       "evaluated_at": "2026-08-22 18:37:25.234241+00",
       "evaluation_id": "dqe-25c2e054253664dc8f26850bb77a87185aeb69732ffd4bc8218d048aa0e3965e",
       "fixture_id": "1552736",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.295628,
-          "predicted": "AWAY",
+          "decimal_odds": 1.93,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.295861,
           "probabilities": {
-            "AWAY": 0.589444,
-            "HOME": 0.293816
+            "AWAY": 0.58951,
+            "HOME": 0.293649
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.254596,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.23348,
-              "LOSS": 0.293816,
+              "HALF_WIN": 0.23368187557227063,
+              "LOSS": 0.2936488019534596,
               "PUSH": 0.0,
-              "WIN": 0.472704
+              "WIN": 0.47266932247426974
             },
             "HOME": {
-              "HALF_LOSS": 0.23348,
+              "HALF_LOSS": 0.23368187557227063,
               "HALF_WIN": 0.0,
-              "LOSS": 0.472704,
+              "LOSS": 0.47266932247426974,
               "PUSH": 0.0,
-              "WIN": 0.293816
+              "WIN": 0.2936488019534596
             }
-          }
+          },
+          "stored_ev": 0.254596
         }
       },
       "input": {
@@ -5272,32 +5717,37 @@
       "evaluated_at": "2026-08-30 18:30:18.895137+00",
       "evaluation_id": "dqe-b4cb12d97a41d0035caf22f9352ee92ce23d66bb09cf6faa1512c74bdb34fb6c",
       "fixture_id": "1552742",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.088814,
-          "predicted": "UNDER",
+          "decimal_odds": 1.94,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.129266,
           "probabilities": {
-            "OVER": 0.455593,
-            "UNDER": 0.544407
+            "OVER": 0.435367,
+            "UNDER": 0.564633
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.10209,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.432639653171,
-              "PUSH": 0.223534598533,
-              "WIN": 0.343825748292
+              "LOSS": 0.45293654492212515,
+              "PUSH": 0.22339285650145274,
+              "WIN": 0.3236705985764221
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.343825748292,
-              "PUSH": 0.223534598533,
-              "WIN": 0.432639653171
+              "LOSS": 0.3236705985764221,
+              "PUSH": 0.22339285650145274,
+              "WIN": 0.45293654492212515
             }
-          }
+          },
+          "stored_ev": 0.10209
         }
       },
       "input": {
@@ -5331,32 +5781,37 @@
       "evaluated_at": "2026-08-22 13:46:12.899923+00",
       "evaluation_id": "dqe-019440c1786726d47656b1392392cf175023874b697a9e1916ab8b9be346ef89",
       "fixture_id": "1557369",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.190198,
-          "predicted": "OVER",
+          "decimal_odds": 1.9,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.190728,
           "probabilities": {
-            "OVER": 0.595099,
-            "UNDER": 0.404901
+            "OVER": 0.595364,
+            "UNDER": 0.404636
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.131191,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.404900599124,
+              "LOSS": 0.4046363672945613,
               "PUSH": 0.0,
-              "WIN": 0.595099400871
+              "WIN": 0.5953636327054387
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.595099400871,
+              "LOSS": 0.5953636327054387,
               "PUSH": 0.0,
-              "WIN": 0.404900599124
+              "WIN": 0.4046363672945613
             }
-          }
+          },
+          "stored_ev": 0.131191
         }
       },
       "input": {
@@ -5390,32 +5845,37 @@
       "evaluated_at": "2026-08-22 13:46:14.241908+00",
       "evaluation_id": "dqe-669e887ac6037d23f6c34c6c1e59d364843f0ee6b0fdee3aec3a008cc88ef011",
       "fixture_id": "1557371",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.265834,
-          "predicted": "OVER",
+          "decimal_odds": 1.98,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.266584,
           "probabilities": {
-            "OVER": 0.632917,
-            "UNDER": 0.367083
+            "OVER": 0.633292,
+            "UNDER": 0.366708
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.253919,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.367082742692,
+              "LOSS": 0.36670754381721066,
               "PUSH": 0.0,
-              "WIN": 0.632917257314
+              "WIN": 0.6332924561827893
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.632917257314,
+              "LOSS": 0.6332924561827893,
               "PUSH": 0.0,
-              "WIN": 0.367082742692
+              "WIN": 0.36670754381721066
             }
-          }
+          },
+          "stored_ev": 0.253919
         }
       },
       "input": {
@@ -5449,32 +5909,37 @@
       "evaluated_at": "2026-08-22 16:23:56.444211+00",
       "evaluation_id": "dqe-3b013292b69a907b5531bce4b1d19e6a932606e800befa75b71ec4eb3ae90432",
       "fixture_id": "1557372",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.34409,
-          "predicted": "AWAY",
+          "decimal_odds": 2.04,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.344171,
           "probabilities": {
-            "AWAY": 0.608926,
-            "HOME": 0.264836
+            "AWAY": 0.608921,
+            "HOME": 0.26475
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.368527,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.252478,
-              "LOSS": 0.264836,
+              "HALF_WIN": 0.2526571317057396,
+              "LOSS": 0.26475045223307114,
               "PUSH": 0.0,
-              "WIN": 0.482687
+              "WIN": 0.48259241606118924
             },
             "HOME": {
-              "HALF_LOSS": 0.252478,
+              "HALF_LOSS": 0.2526571317057396,
               "HALF_WIN": 0.0,
-              "LOSS": 0.482687,
+              "LOSS": 0.48259241606118924,
               "PUSH": 0.0,
-              "WIN": 0.264836
+              "WIN": 0.26475045223307114
             }
-          }
+          },
+          "stored_ev": 0.368527
         }
       },
       "input": {
@@ -5508,32 +5973,37 @@
       "evaluated_at": "2026-08-23 12:49:31.954474+00",
       "evaluation_id": "dqe-32db2ddf380dfcb28623094a890142ecd08e6aef8ff00245db0ec237d48edce2",
       "fixture_id": "1557374",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.599536,
-          "predicted": "AWAY",
+          "decimal_odds": 1.7,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.59994,
           "probabilities": {
-            "AWAY": 0.799768,
-            "HOME": 0.200232
+            "AWAY": 0.79997,
+            "HOME": 0.20003
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.359949,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.200232,
+              "LOSS": 0.20002984816247463,
               "PUSH": 0.0,
-              "WIN": 0.799768
+              "WIN": 0.7999701518375254
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.799768,
+              "LOSS": 0.7999701518375254,
               "PUSH": 0.0,
-              "WIN": 0.200232
+              "WIN": 0.20002984816247463
             }
-          }
+          },
+          "stored_ev": 0.359949
         }
       },
       "input": {
@@ -5567,32 +6037,37 @@
       "evaluated_at": "2026-08-23 15:15:41.15302+00",
       "evaluation_id": "dqe-ca8b4d543b77427271ef7ffe52e333ad442251bfd0b198e7bf679020b8376bda",
       "fixture_id": "1557375",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.101368,
-          "predicted": "UNDER",
+          "decimal_odds": 1.97,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.10106,
           "probabilities": {
-            "OVER": 0.449316,
-            "UNDER": 0.550684
+            "OVER": 0.44947,
+            "UNDER": 0.55053
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.087901,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.438929412226,
-              "PUSH": 0.223509049324,
-              "WIN": 0.337561538452
+              "LOSS": 0.43859622708849016,
+              "PUSH": 0.2238665672770041,
+              "WIN": 0.33753720563450573
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.337561538452,
-              "PUSH": 0.223509049324,
-              "WIN": 0.438929412226
+              "LOSS": 0.33753720563450573,
+              "PUSH": 0.2238665672770041,
+              "WIN": 0.43859622708849016
             }
-          }
+          },
+          "stored_ev": 0.087901
         }
       },
       "input": {
@@ -5626,32 +6101,37 @@
       "evaluated_at": "2026-08-23 15:15:41.15302+00",
       "evaluation_id": "dqe-0fc6cd2dae0d847743e51166280f6dea1329b47e22873ef0da46d90eebcd1673",
       "fixture_id": "1557375",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.43258,
-          "predicted": "HOME",
+          "decimal_odds": 1.87,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.432938,
           "probabilities": {
-            "AWAY": 0.28371,
-            "HOME": 0.71629
+            "AWAY": 0.283531,
+            "HOME": 0.716469
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.339797,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.71629,
+              "LOSS": 0.7164689309083467,
               "PUSH": 0.0,
-              "WIN": 0.28371
+              "WIN": 0.28353106909165326
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.28371,
+              "LOSS": 0.28353106909165326,
               "PUSH": 0.0,
-              "WIN": 0.71629
+              "WIN": 0.7164689309083467
             }
-          }
+          },
+          "stored_ev": 0.339797
         }
       },
       "input": {
@@ -5685,32 +6165,37 @@
       "evaluated_at": "2026-08-24 18:45:55.910315+00",
       "evaluation_id": "dqe-24749aafea896e1bf89e8424e7892ac1d35e72118cbc84c6e1c4b95c49ca6730",
       "fixture_id": "1557376",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.469006,
-          "predicted": "HOME",
+          "decimal_odds": 1.95,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.46924,
           "probabilities": {
-            "AWAY": 0.265497,
-            "HOME": 0.734503
+            "AWAY": 0.26538,
+            "HOME": 0.73462
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.432508,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.734503,
+              "LOSS": 0.7346196769755287,
               "PUSH": 0.0,
-              "WIN": 0.265497
+              "WIN": 0.26538032302447134
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.265497,
+              "LOSS": 0.26538032302447134,
               "PUSH": 0.0,
-              "WIN": 0.734503
+              "WIN": 0.7346196769755287
             }
-          }
+          },
+          "stored_ev": 0.432508
         }
       },
       "input": {
@@ -5744,32 +6229,37 @@
       "evaluated_at": "2026-08-30 15:15:04.270913+00",
       "evaluation_id": "dqe-e59f7fed18bb738acdfbdb95b208608a58ecf5117c1fb53b3522de756b33dfb0",
       "fixture_id": "1557384",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.192112,
-          "predicted": "UNDER",
+          "decimal_odds": 1.94,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.191916,
           "probabilities": {
-            "OVER": 0.403944,
-            "UNDER": 0.596056
+            "OVER": 0.404042,
+            "UNDER": 0.595958
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.162796,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.485627849103,
-              "PUSH": 0.220856649301,
-              "WIN": 0.293515501593
+              "LOSS": 0.48533276435399963,
+              "PUSH": 0.2212499504796705,
+              "WIN": 0.29341728516632987
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.293515501593,
-              "PUSH": 0.220856649301,
-              "WIN": 0.485627849103
+              "LOSS": 0.29341728516632987,
+              "PUSH": 0.2212499504796705,
+              "WIN": 0.48533276435399963
             }
-          }
+          },
+          "stored_ev": 0.162796
         }
       },
       "input": {
@@ -5803,32 +6293,37 @@
       "evaluated_at": "2026-08-30 15:15:04.270913+00",
       "evaluation_id": "dqe-4f3c35b9fb9845767369d48f0e504ad91ad790fe74b715a5b5de8005db82c657",
       "fixture_id": "1557384",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.484096,
-          "predicted": "AWAY",
+          "decimal_odds": 1.87,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.413414,
           "probabilities": {
-            "AWAY": 0.742048,
-            "HOME": 0.257952
+            "AWAY": 0.706707,
+            "HOME": 0.293293
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.321543,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.257952,
+              "LOSS": 0.2932926369606807,
               "PUSH": 0.0,
-              "WIN": 0.742048
+              "WIN": 0.7067073630393194
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.742048,
+              "LOSS": 0.7067073630393194,
               "PUSH": 0.0,
-              "WIN": 0.257952
+              "WIN": 0.2932926369606807
             }
-          }
+          },
+          "stored_ev": 0.321543
         }
       },
       "input": {
@@ -5862,32 +6357,37 @@
       "evaluated_at": "2026-08-26 18:46:01.735552+00",
       "evaluation_id": "dqe-adea513f67539ee9d9d48a510fa18f86ec712c315cc889402a454cc8c42bf905",
       "fixture_id": "1570340",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.411632,
-          "predicted": "UNDER",
+          "decimal_odds": 1.92,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.496262,
           "probabilities": {
-            "OVER": 0.294184,
-            "UNDER": 0.705816
+            "OVER": 0.251869,
+            "UNDER": 0.748131
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.436411,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.705815500274,
+              "LOSS": 0.7481305152250234,
               "PUSH": 0.0,
-              "WIN": 0.294184499729
+              "WIN": 0.25186948477497656
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.294184499729,
+              "LOSS": 0.25186948477497656,
               "PUSH": 0.0,
-              "WIN": 0.705815500274
+              "WIN": 0.7481305152250234
             }
-          }
+          },
+          "stored_ev": 0.436411
         }
       },
       "input": {
@@ -5921,32 +6421,37 @@
       "evaluated_at": "2026-08-26 18:46:01.735552+00",
       "evaluation_id": "dqe-bf1861189abded14b110d5d976c27eb5a1bf1fa8260e9d4e11687fa346fe6615",
       "fixture_id": "1570340",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.535088,
-          "predicted": "AWAY",
+          "decimal_odds": 1.85,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.644434,
           "probabilities": {
-            "AWAY": 0.767544,
-            "HOME": 0.232456
+            "AWAY": 0.822217,
+            "HOME": 0.177783
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.532383,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.145641,
-              "PUSH": 0.17363,
-              "WIN": 0.680729
+              "LOSS": 0.10257475104084582,
+              "PUSH": 0.1504163125938543,
+              "WIN": 0.7470089363652999
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.680729,
-              "PUSH": 0.17363,
-              "WIN": 0.145641
+              "LOSS": 0.7470089363652999,
+              "PUSH": 0.1504163125938543,
+              "WIN": 0.10257475104084582
             }
-          }
+          },
+          "stored_ev": 0.532383
         }
       },
       "input": {
@@ -5980,32 +6485,37 @@
       "evaluated_at": "2026-08-22 14:45:58.318526+00",
       "evaluation_id": "dqe-55aa3fe1eb2d706b8f5de199ab3119677e8e13b530d5c48a904db7230c496242",
       "fixture_id": "1570343",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.269034,
-          "predicted": "AWAY",
+          "decimal_odds": 1.86,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.269159,
           "probabilities": {
-            "AWAY": 0.576058,
-            "HOME": 0.307024
+            "AWAY": 0.576043,
+            "HOME": 0.306884
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.188514,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.233837,
+              "HALF_LOSS": 0.23414666733365636,
               "HALF_WIN": 0.0,
-              "LOSS": 0.190106,
+              "LOSS": 0.18981018027944865,
               "PUSH": 0.0,
-              "WIN": 0.576058
+              "WIN": 0.576043152386895
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.233837,
-              "LOSS": 0.576058,
+              "HALF_WIN": 0.23414666733365636,
+              "LOSS": 0.576043152386895,
               "PUSH": 0.0,
-              "WIN": 0.190106
+              "WIN": 0.18981018027944865
             }
-          }
+          },
+          "stored_ev": 0.188514
         }
       },
       "input": {
@@ -6039,32 +6549,37 @@
       "evaluated_at": "2026-08-21 18:47:34.284573+00",
       "evaluation_id": "dqe-7a49c824054174e66d2aa984d1fbcc7e6dfd94dbc40d9e1cb6a92bb7bd27312c",
       "fixture_id": "1570345",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.19393,
-          "predicted": "OVER",
+          "decimal_odds": 1.84,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.19464,
           "probabilities": {
-            "OVER": 0.596965,
-            "UNDER": 0.403035
+            "OVER": 0.59732,
+            "UNDER": 0.40268
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.099068,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.403035239753,
+              "LOSS": 0.40268028920946564,
               "PUSH": 0.0,
-              "WIN": 0.596964760246
+              "WIN": 0.5973197107905344
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.596964760246,
+              "LOSS": 0.5973197107905344,
               "PUSH": 0.0,
-              "WIN": 0.403035239753
+              "WIN": 0.40268028920946564
             }
-          }
+          },
+          "stored_ev": 0.099068
         }
       },
       "input": {
@@ -6098,32 +6613,37 @@
       "evaluated_at": "2026-08-23 19:15:21.795872+00",
       "evaluation_id": "dqe-767bd76a9eb9ad6532d6055708ac6229e70b067a520462e6c71011c185058f09",
       "fixture_id": "1570346",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.612666,
-          "predicted": "UNDER",
+          "decimal_odds": 1.87,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.654474,
           "probabilities": {
-            "OVER": 0.148201,
-            "UNDER": 0.760867
+            "OVER": 0.12943,
+            "UNDER": 0.783904
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.552567,
           "settlement_distributions": {
             "OVER": {
-              "HALF_LOSS": 0.181864732086,
+              "HALF_LOSS": 0.1733330462342174,
               "HALF_WIN": 0.0,
-              "LOSS": 0.669934309315,
+              "LOSS": 0.6972372897469374,
               "PUSH": 0.0,
-              "WIN": 0.148200958604
+              "WIN": 0.12942966401884515
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.181864732086,
-              "LOSS": 0.148200958604,
+              "HALF_WIN": 0.1733330462342174,
+              "LOSS": 0.12942966401884515,
               "PUSH": 0.0,
-              "WIN": 0.669934309315
+              "WIN": 0.6972372897469374
             }
-          }
+          },
+          "stored_ev": 0.552567
         }
       },
       "input": {
@@ -6157,32 +6677,37 @@
       "evaluated_at": "2026-08-23 19:15:21.795872+00",
       "evaluation_id": "dqe-5658f3f0c91d42febb81954fc88c9b4c35028c7c30378691c0e678acbf86dce0",
       "fixture_id": "1570346",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.714686,
-          "predicted": "HOME",
+          "decimal_odds": 1.9,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.741636,
           "probabilities": {
-            "AWAY": 0.142657,
-            "HOME": 0.857343
+            "AWAY": 0.129182,
+            "HOME": 0.870818
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.654554,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.857343,
+              "LOSS": 0.8708180453353103,
               "PUSH": 0.0,
-              "WIN": 0.142657
+              "WIN": 0.12918195466468974
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.142657,
+              "LOSS": 0.12918195466468974,
               "PUSH": 0.0,
-              "WIN": 0.857343
+              "WIN": 0.8708180453353103
             }
-          }
+          },
+          "stored_ev": 0.654554
         }
       },
       "input": {
@@ -6216,32 +6741,37 @@
       "evaluated_at": "2026-08-22 19:16:47.054021+00",
       "evaluation_id": "dqe-c710d3d734d75e6834642d76cfeb06cce16ea5b765e61931d428379e4021d4e1",
       "fixture_id": "1570347",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.293898,
-          "predicted": "UNDER",
+          "decimal_odds": 1.8,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.362536,
           "probabilities": {
-            "OVER": 0.353051,
-            "UNDER": 0.646949
+            "OVER": 0.318732,
+            "UNDER": 0.681268
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.247022,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.539867280663,
-              "PUSH": 0.214163344688,
-              "WIN": 0.245969374646
+              "LOSS": 0.5775659938652854,
+              "PUSH": 0.20740339732814203,
+              "WIN": 0.21503060880657252
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.245969374646,
-              "PUSH": 0.214163344688,
-              "WIN": 0.539867280663
+              "LOSS": 0.21503060880657252,
+              "PUSH": 0.20740339732814203,
+              "WIN": 0.5775659938652854
             }
-          }
+          },
+          "stored_ev": 0.247022
         }
       },
       "input": {
@@ -6275,32 +6805,37 @@
       "evaluated_at": "2026-08-22 19:16:47.054021+00",
       "evaluation_id": "dqe-d40349a7898b925319e5bbbb1fe57b153d4d5ac1b118f7268327e730bbc7eb15",
       "fixture_id": "1570347",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.473349,
-          "predicted": "HOME",
+          "decimal_odds": 1.97,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.56773,
           "probabilities": {
-            "AWAY": 0.206487,
-            "HOME": 0.679836
+            "AWAY": 0.162401,
+            "HOME": 0.730131
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.545826,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.227353,
+              "HALF_LOSS": 0.21493549003550477,
               "HALF_WIN": 0.0,
-              "LOSS": 0.56616,
+              "LOSS": 0.6226632281185472,
               "PUSH": 0.0,
-              "WIN": 0.206487
+              "WIN": 0.16240128184594801
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.227353,
-              "LOSS": 0.206487,
+              "HALF_WIN": 0.21493549003550477,
+              "LOSS": 0.16240128184594801,
               "PUSH": 0.0,
-              "WIN": 0.56616
+              "WIN": 0.6226632281185472
             }
-          }
+          },
+          "stored_ev": 0.545826
         }
       },
       "input": {
@@ -6334,32 +6869,37 @@
       "evaluated_at": "2026-08-24 17:15:38.187731+00",
       "evaluation_id": "dqe-26087be547d377bfa95e25fda55e8c61b46847c88741a7b71314296efdfc226c",
       "fixture_id": "1570350",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.166192,
-          "predicted": "OVER",
+          "decimal_odds": 2.0,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.108536,
           "probabilities": {
-            "OVER": 0.583096,
-            "UNDER": 0.416904
+            "OVER": 0.554268,
+            "UNDER": 0.445732
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.108536,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.416904383076,
+              "LOSS": 0.44573187046601764,
               "PUSH": 0.0,
-              "WIN": 0.583095616919
+              "WIN": 0.5542681295339823
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.583095616919,
+              "LOSS": 0.5542681295339823,
               "PUSH": 0.0,
-              "WIN": 0.416904383076
+              "WIN": 0.44573187046601764
             }
-          }
+          },
+          "stored_ev": 0.108536
         }
       },
       "input": {
@@ -6393,32 +6933,37 @@
       "evaluated_at": "2026-08-24 17:15:38.187731+00",
       "evaluation_id": "dqe-36edda2729a46b4964301d5ce7432594b3ab2d51c15dfaa7e8c4ba539e856894",
       "fixture_id": "1570350",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.36594,
-          "predicted": "AWAY",
+          "decimal_odds": 1.89,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.3886,
           "probabilities": {
-            "AWAY": 0.68297,
-            "HOME": 0.31703
+            "AWAY": 0.6943,
+            "HOME": 0.3057
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.312226,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.31703,
+              "LOSS": 0.3057004738176337,
               "PUSH": 0.0,
-              "WIN": 0.68297
+              "WIN": 0.6942995261823663
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.68297,
+              "LOSS": 0.6942995261823663,
               "PUSH": 0.0,
-              "WIN": 0.31703
+              "WIN": 0.3057004738176337
             }
-          }
+          },
+          "stored_ev": 0.312226
         }
       },
       "input": {
@@ -6452,32 +6997,37 @@
       "evaluated_at": "2026-08-20 18:33:32.323507+00",
       "evaluation_id": "dqe-382bcf82fd3364f2973ace8202c0699eb4325034ac12071c66dd72b0ac1ce83c",
       "fixture_id": "1570351",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.18988,
-          "predicted": "OVER",
+          "decimal_odds": 1.82,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.190398,
           "probabilities": {
-            "OVER": 0.59494,
-            "UNDER": 0.40506
+            "OVER": 0.595199,
+            "UNDER": 0.404801
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.106124,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.278145192599,
-              "PUSH": 0.253830096614,
-              "WIN": 0.468024710778
+              "LOSS": 0.277787784723296,
+              "PUSH": 0.2540269829640582,
+              "WIN": 0.4681852323126458
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.468024710778,
-              "PUSH": 0.253830096614,
-              "WIN": 0.278145192599
+              "LOSS": 0.4681852323126458,
+              "PUSH": 0.2540269829640582,
+              "WIN": 0.277787784723296
             }
-          }
+          },
+          "stored_ev": 0.106124
         }
       },
       "input": {
@@ -6511,32 +7061,37 @@
       "evaluated_at": "2026-08-22 17:15:06.180959+00",
       "evaluation_id": "dqe-98b574168efea0d60bc78b644cea3dd04c3059f529c2984e5369b885f66d70c8",
       "fixture_id": "1570352",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.318556,
-          "predicted": "HOME",
+          "decimal_odds": 1.55,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.318734,
           "probabilities": {
-            "AWAY": 0.277566,
-            "HOME": 0.596122
+            "AWAY": 0.277444,
+            "HOME": 0.596178
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.050454,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.252624,
+              "HALF_LOSS": 0.25275563649981303,
               "HALF_WIN": 0.0,
-              "LOSS": 0.46981,
+              "LOSS": 0.469800409707472,
               "PUSH": 0.0,
-              "WIN": 0.277566
+              "WIN": 0.27744395379271497
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.252624,
-              "LOSS": 0.277566,
+              "HALF_WIN": 0.25275563649981303,
+              "LOSS": 0.27744395379271497,
               "PUSH": 0.0,
-              "WIN": 0.46981
+              "WIN": 0.469800409707472
             }
-          }
+          },
+          "stored_ev": 0.050454
         }
       },
       "input": {
@@ -6570,32 +7125,37 @@
       "evaluated_at": "2026-08-22 16:45:56.237713+00",
       "evaluation_id": "dqe-ffea9d41519c4efcd890f2db22e8437f82f6eb4a4f5ceaf42fc3a74992ed66c7",
       "fixture_id": "1575464",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.205052,
-          "predicted": "AWAY",
+          "decimal_odds": 1.85,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.205432,
           "probabilities": {
-            "AWAY": 0.602526,
-            "HOME": 0.397474
+            "AWAY": 0.602716,
+            "HOME": 0.397284
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.115025,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.397474,
+              "LOSS": 0.39728378771350165,
               "PUSH": 0.0,
-              "WIN": 0.602526
+              "WIN": 0.6027162122864983
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.602526,
+              "LOSS": 0.6027162122864983,
               "PUSH": 0.0,
-              "WIN": 0.397474
+              "WIN": 0.39728378771350165
             }
-          }
+          },
+          "stored_ev": 0.115025
         }
       },
       "input": {
@@ -6629,32 +7189,37 @@
       "evaluated_at": "2026-08-23 19:17:44.382415+00",
       "evaluation_id": "dqe-8295536cba6f040997e182181a33ac44c459052fa254080ca7c18d7400095f09",
       "fixture_id": "1575466",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.30142,
-          "predicted": "UNDER",
+          "decimal_odds": 1.73,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.26897,
           "probabilities": {
-            "OVER": 0.34929,
-            "UNDER": 0.65071
+            "OVER": 0.365515,
+            "UNDER": 0.634485
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.126885,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.544003321724,
-              "PUSH": 0.213413504845,
-              "WIN": 0.242583173428
+              "LOSS": 0.5262394986788386,
+              "PUSH": 0.21649035068580064,
+              "WIN": 0.25727015063536085
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.242583173428,
-              "PUSH": 0.213413504845,
-              "WIN": 0.544003321724
+              "LOSS": 0.25727015063536085,
+              "PUSH": 0.21649035068580064,
+              "WIN": 0.5262394986788386
             }
-          }
+          },
+          "stored_ev": 0.126885
         }
       },
       "input": {
@@ -6688,32 +7253,37 @@
       "evaluated_at": "2026-08-23 19:17:44.382415+00",
       "evaluation_id": "dqe-3f8446ea9a2fe11cd26285ee23019d24ac025afa4e0d020317a750851beb2504",
       "fixture_id": "1575466",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.408918,
-          "predicted": "AWAY",
+          "decimal_odds": 2.05,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.477994,
           "probabilities": {
-            "AWAY": 0.704459,
-            "HOME": 0.295541
+            "AWAY": 0.738997,
+            "HOME": 0.261003
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.514943,
           "settlement_distributions": {
             "AWAY": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.295541,
+              "LOSS": 0.2610033348698067,
               "PUSH": 0.0,
-              "WIN": 0.704459
+              "WIN": 0.7389966651301934
             },
             "HOME": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.704459,
+              "LOSS": 0.7389966651301934,
               "PUSH": 0.0,
-              "WIN": 0.295541
+              "WIN": 0.2610033348698067
             }
-          }
+          },
+          "stored_ev": 0.514943
         }
       },
       "input": {
@@ -6747,32 +7317,37 @@
       "evaluated_at": "2026-08-24 19:00:59.53909+00",
       "evaluation_id": "dqe-7c480380d08f6337bda7b845d18a33eb70974ec9a9431244f8c0fc489ef941cd",
       "fixture_id": "1575467",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.366867,
-          "predicted": "AWAY",
+          "decimal_odds": 1.82,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.250721,
           "probabilities": {
-            "AWAY": 0.629655,
-            "HOME": 0.262788
+            "AWAY": 0.566515,
+            "HOME": 0.315794
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.148748,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.215115,
+              "HALF_LOSS": 0.23538273846136737,
               "HALF_WIN": 0.0,
-              "LOSS": 0.155231,
+              "LOSS": 0.19810238204466854,
               "PUSH": 0.0,
-              "WIN": 0.629655
+              "WIN": 0.5665148794939641
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.215115,
-              "LOSS": 0.629655,
+              "HALF_WIN": 0.23538273846136737,
+              "LOSS": 0.5665148794939641,
               "PUSH": 0.0,
-              "WIN": 0.155231
+              "WIN": 0.19810238204466854
             }
-          }
+          },
+          "stored_ev": 0.148748
         }
       },
       "input": {
@@ -6806,32 +7381,37 @@
       "evaluated_at": "2026-08-23 16:45:12.446101+00",
       "evaluation_id": "dqe-3bd51364cc467bd4179ad5af63c44f9c71f8f5cadbb89de19125484a7be4729a",
       "fixture_id": "1575470",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.189815,
-          "predicted": "HOME",
+          "decimal_odds": 1.62,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.257739,
           "probabilities": {
-            "AWAY": 0.330612,
-            "HOME": 0.520427
+            "AWAY": 0.298156,
+            "HOME": 0.555895
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.046499,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.297922,
+              "HALF_LOSS": 0.2918965550085028,
               "HALF_WIN": 0.0,
-              "LOSS": 0.371466,
+              "LOSS": 0.40994720709334226,
               "PUSH": 0.0,
-              "WIN": 0.330612
+              "WIN": 0.29815623789815493
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.297922,
-              "LOSS": 0.330612,
+              "HALF_WIN": 0.2918965550085028,
+              "LOSS": 0.29815623789815493,
               "PUSH": 0.0,
-              "WIN": 0.371466
+              "WIN": 0.40994720709334226
             }
-          }
+          },
+          "stored_ev": 0.046499
         }
       },
       "input": {
@@ -6865,32 +7445,37 @@
       "evaluated_at": "2026-08-22 19:19:20.40153+00",
       "evaluation_id": "dqe-15e05e9e1ab90328e39be0f27780246d271a8f80953fbf9b7cfaaddd906af810",
       "fixture_id": "1575471",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "UNDER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.3125,
-          "predicted": "UNDER",
+          "decimal_odds": 1.84,
+          "ev_matches": true,
+          "higher_probability_side": "UNDER",
+          "margin": 0.312512,
           "probabilities": {
-            "OVER": 0.28864,
-            "UNDER": 0.60114
+            "OVER": 0.288555,
+            "UNDER": 0.601067
           },
+          "recommended_side": "UNDER",
+          "recomputed_ev": 0.216341,
           "settlement_distributions": {
             "OVER": {
-              "HALF_LOSS": 0.220438467819,
+              "HALF_LOSS": 0.22075532784795338,
               "HALF_WIN": 0.0,
-              "LOSS": 0.49092119594,
+              "LOSS": 0.4906895358394454,
               "PUSH": 0.0,
-              "WIN": 0.288640336242
+              "WIN": 0.2885551363126012
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.220438467819,
-              "LOSS": 0.288640336242,
+              "HALF_WIN": 0.22075532784795338,
+              "LOSS": 0.2885551363126012,
               "PUSH": 0.0,
-              "WIN": 0.49092119594
+              "WIN": 0.4906895358394454
             }
-          }
+          },
+          "stored_ev": 0.216341
         }
       },
       "input": {
@@ -6924,32 +7509,37 @@
       "evaluated_at": "2026-08-22 19:19:20.40153+00",
       "evaluation_id": "dqe-31ee7541a995f96d72019ced1862efa94b5f07a348aa6bd48ca7b5248647a52f",
       "fixture_id": "1575471",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.439115,
-          "predicted": "AWAY",
+          "decimal_odds": 1.93,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.439334,
           "probabilities": {
-            "AWAY": 0.675539,
-            "HOME": 0.236424
+            "AWAY": 0.675606,
+            "HOME": 0.236272
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.392041,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.176076,
+              "HALF_LOSS": 0.17624540355903598,
               "HALF_WIN": 0.0,
-              "LOSS": 0.148386,
+              "LOSS": 0.14814909359091125,
               "PUSH": 0.0,
-              "WIN": 0.675539
+              "WIN": 0.6756055028500527
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.176076,
-              "LOSS": 0.675539,
+              "HALF_WIN": 0.17624540355903598,
+              "LOSS": 0.6756055028500527,
               "PUSH": 0.0,
-              "WIN": 0.148386
+              "WIN": 0.14814909359091125
             }
-          }
+          },
+          "stored_ev": 0.392041
         }
       },
       "input": {
@@ -6983,32 +7573,37 @@
       "evaluated_at": "2026-08-23 14:15:19.844389+00",
       "evaluation_id": "dqe-3a944803291be62711a55760b5a333453008d74b6ad7743882c42984609c7a3f",
       "fixture_id": "1575472",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "AWAY",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.370966,
-          "predicted": "AWAY",
+          "decimal_odds": 1.84,
+          "ev_matches": true,
+          "higher_probability_side": "AWAY",
+          "margin": 0.371253,
           "probabilities": {
-            "AWAY": 0.635478,
-            "HOME": 0.264512
+            "AWAY": 0.635584,
+            "HOME": 0.264331
           },
+          "recommended_side": "AWAY",
+          "recomputed_ev": 0.269559,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.200021,
+              "HALF_LOSS": 0.20016938321175973,
               "HALF_WIN": 0.0,
-              "LOSS": 0.164501,
+              "LOSS": 0.16424673667043665,
               "PUSH": 0.0,
-              "WIN": 0.635478
+              "WIN": 0.6355838801178036
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.200021,
-              "LOSS": 0.635478,
+              "HALF_WIN": 0.20016938321175973,
+              "LOSS": 0.6355838801178036,
               "PUSH": 0.0,
-              "WIN": 0.164501
+              "WIN": 0.16424673667043665
             }
-          }
+          },
+          "stored_ev": 0.269559
         }
       },
       "input": {
@@ -7042,32 +7637,37 @@
       "evaluated_at": "2026-08-30 16:45:09.663844+00",
       "evaluation_id": "dqe-2d0ba5808c1304b9ee64f0ff674c5f2d9b60ec4e27797131d5d5c68c2b14764f",
       "fixture_id": "1575478",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "OVER",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.18245,
-          "predicted": "OVER",
+          "decimal_odds": 1.85,
+          "ev_matches": true,
+          "higher_probability_side": "OVER",
+          "margin": 0.183118,
           "probabilities": {
-            "OVER": 0.591225,
-            "UNDER": 0.408775
+            "OVER": 0.591559,
+            "UNDER": 0.408441
           },
+          "recommended_side": "OVER",
+          "recomputed_ev": 0.113502,
           "settlement_distributions": {
             "OVER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.281460474845,
-              "PUSH": 0.25462932087,
-              "WIN": 0.463910204286
+              "LOSS": 0.28099486830146947,
+              "PUSH": 0.2548912726620433,
+              "WIN": 0.4641138590364872
             },
             "UNDER": {
               "HALF_LOSS": 0.0,
               "HALF_WIN": 0.0,
-              "LOSS": 0.463910204286,
-              "PUSH": 0.25462932087,
-              "WIN": 0.281460474845
+              "LOSS": 0.4641138590364872,
+              "PUSH": 0.2548912726620433,
+              "WIN": 0.28099486830146947
             }
-          }
+          },
+          "stored_ev": 0.113502
         }
       },
       "input": {
@@ -7101,32 +7701,37 @@
       "evaluated_at": "2026-08-30 16:45:09.663844+00",
       "evaluation_id": "dqe-8d447c28aea934ab5304e44334193f100df5d37a1ea168c49f3a6db4eae69bfd",
       "fixture_id": "1575478",
-      "immutable_capture_replay": {
+      "frozen_evaluation_replay": {
         "original_selection": "HOME",
         "original_selection_matches_model": true,
         "predicted": {
-          "margin": 0.308689,
-          "predicted": "HOME",
+          "decimal_odds": 1.58,
+          "ev_matches": true,
+          "higher_probability_side": "HOME",
+          "margin": 0.388391,
           "probabilities": {
-            "AWAY": 0.280105,
-            "HOME": 0.588794
+            "AWAY": 0.241887,
+            "HOME": 0.630278
           },
+          "recommended_side": "HOME",
+          "recomputed_ev": 0.123674,
           "settlement_distributions": {
             "AWAY": {
-              "HALF_LOSS": 0.262203,
+              "HALF_LOSS": 0.25567148687448754,
               "HALF_WIN": 0.0,
-              "LOSS": 0.457692,
+              "LOSS": 0.5024417674695654,
               "PUSH": 0.0,
-              "WIN": 0.280105
+              "WIN": 0.24188674565594706
             },
             "HOME": {
               "HALF_LOSS": 0.0,
-              "HALF_WIN": 0.262203,
-              "LOSS": 0.280105,
+              "HALF_WIN": 0.25567148687448754,
+              "LOSS": 0.24188674565594706,
               "PUSH": 0.0,
-              "WIN": 0.457692
+              "WIN": 0.5024417674695654
             }
-          }
+          },
+          "stored_ev": 0.123674
         }
       },
       "input": {
@@ -7157,13 +7762,13 @@
           "PUSH": 2
         },
         "count": 66,
-        "model_direction_correct": 31,
+        "model_direction_correct": 32,
         "model_predicted_direction": {
-          "AWAY": 47,
-          "HOME": 19
+          "AWAY": 46,
+          "HOME": 20
         },
         "original_bet_direction_correct": 32,
-        "original_selection_matches_model": 65
+        "original_selection_matches_model": 66
       },
       "TOTALS": {
         "actual_direction": {
@@ -7207,12 +7812,13 @@
       },
       "WIN": {
         "count": 46,
-        "model_direction_correct": 45,
+        "model_direction_correct": 46,
         "original_bet_direction_correct": 46
       }
     },
-    "model_direction_correct": 50,
+    "model_direction_correct": 51,
     "original_bet_direction_correct": 51,
-    "original_selection_matches_model": 120
+    "original_selection_matches_model": 121,
+    "stored_ev_recomputed_exactly": 121
   }
 }

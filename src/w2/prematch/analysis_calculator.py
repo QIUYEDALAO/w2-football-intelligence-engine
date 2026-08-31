@@ -187,6 +187,7 @@ MAX_PUBLIC_FIXTURES = 512
 WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json"
 BALANCED_MAINLINE_MAX_DISTANCE = 0.06
 BALANCED_MAINLINE_MIN_DELTA = 0.03
+XG_POINT_ESTIMATE_WINDOW = 5
 
 MARKET_LABELS_CN = {
     "ASIAN_HANDICAP": "让球",
@@ -4897,7 +4898,7 @@ class ReadModelService:
         home_team_id: str,
         away_team_id: str,
     ) -> dict[str, Any]:
-        method_version = "empirical_xg_standard_error.v1"
+        method_version = "empirical_xg_standard_error.v2_latest_five"
         matches = self._team_xg_matches_for_teams(
             [home_team_id, away_team_id],
             before=as_of,
@@ -5014,7 +5015,7 @@ class ReadModelService:
                 }
             )
         selected.sort(key=lambda row: str(row["kickoff_at"]))
-        return selected
+        return selected[-XG_POINT_ESTIMATE_WINDOW:]
 
     def _xg_standard_error(
         self,
