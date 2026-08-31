@@ -46,3 +46,9 @@ AH 方向：主队 20、客队 46；TOTALS：大 22、小 33。输注不是简�
 ## 结论边界
 
 本报告已经完成 121 注的逐注输入、λ、模拟、赔率/EV、方向和赛果重放，并定位到“xG 主导、Elo/身价/首发未实际贡献、AH 净差压缩、35 条 identity 漂移”这些可复核事实；它不是“EV 已修复”或“生产有效性已验证”的声明。下一步只能在本报告验收后，针对 35 条 identity 漂移与各因子持久化缺口建立独立修复/预注册任务。
+
+方向层的逐注重评分已另行冻结，见
+`SETTLED_CANDIDATE_DIRECTION_RESCORE_REPORT.md` 与
+`SETTLED_CANDIDATE_DIRECTION_RESCORE.json`。该 artifact 以完整比分矩阵计算
+AH/TOTALS 两侧模型方向，并单列 PUSH、主场项反事实及未启用因子；不要把本报告的
+EV/P&L 汇总误读为方向选择器诊断。
