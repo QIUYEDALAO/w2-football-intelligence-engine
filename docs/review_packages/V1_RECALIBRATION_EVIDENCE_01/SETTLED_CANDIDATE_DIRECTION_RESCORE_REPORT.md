@@ -8,7 +8,7 @@
 
 `冻结的 Football-API 四字段 xG 输入 → 生产模拟比分矩阵 → 该盘口两侧概率 → 模型方向 → 与完赛方向对照`。
 
-输入 CSV 是此前冻结的 `121` 条、`91` 场候选评价。结果只在原评价/输入身份冻结后读取；不用于选择参数、阈值或授权状态。
+输入 CSV 是此前冻结的 `121` 条、`91` 场候选评价。结果只在原评价/输入身份冻结后读取；不用于选择参数、阈值或授权状态。模型方向来自每条评价绑定的 immutable model capture 中完整 AH/TOTALS settlement ladder，不读取后来覆盖的 shadow checkpoint。
 
 复核命令：
 
@@ -19,7 +19,7 @@ PYTHONPATH=src .venv/bin/python scripts/audit_settled_candidate_direction_rescor
   --output docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/SETTLED_CANDIDATE_DIRECTION_RESCORE.json
 ```
 
-artifact SHA-256：`e3edcdb4e10aab940b3dd5aa22c859913033d916ccbf2ef8f3d586f17df6e2be`。
+artifact SHA-256：以复核命令运行后重新计算为准。
 
 ## 定义
 
@@ -48,14 +48,9 @@ artifact SHA-256：`e3edcdb4e10aab940b3dd5aa22c859913033d916ccbf2ef8f3d586f17df6
 
 这说明“赢单为什么会被推荐”可以精确回答：赢单上，重评分方向与原推荐方向一致（51 条 WIN/HALF_WIN）；但这不是模型已验证的证明，因为同一模型在 LOSS 上也坚定地给了原方向，且样本是被原准入筛过的。
 
-## 反事实因子诊断
+## 输入身份纠正
 
-### 主场项
-
-对每注保留的 λ，构造仅移除 `applied_home_advantage_goals` 的诊断轨，保持总进球、sigma、Dixon-Coles 参数与其它生产值不变：主 λ 减半个主场项、客 λ 加半个主场项，并重新生成不确定性混合比分矩阵。
-
-- 121 条中只有 `1` 条方向翻转：AH fixture `1492352`，生产轨主队 → 去主场项客队；该场实际方向为主队，因此去掉主场项并没有修正它。
-- 其余 `120` 条方向不变；“主场项导致大量选错边”在这批数据上不成立。
+此前报告把历史 evaluation 与该场“开赛前最后一个”shadow checkpoint 比较，得到 `35/121` 条 simulation hash 不同，并误称为生产 identity 漂移。该关联不是 immutable child 关系；所有 121 条均指向各自的 model capture，且实测 `evaluation.model_forecast_capture_identity_hash == model_capture.capture_identity_hash` 为 `121/121`，`evaluation.model_input_hash == model_capture.model_input_manifest_hash` 为 `121/121`。因此 `35/121` 是审计假阳性，已撤回；latest-checkpoint 比较仅保留为非权威诊断。
 
 ### V1 / V2 边界
 
@@ -69,4 +64,4 @@ Elo、身价、首发属于 V2 扩展，不是 V1 必需输入。本 V1 artifact
 
 本审计证明了：原候选方向确实等于当时模型方向；在这 121 条被准入的已结算样本中，AH 决定性方向命中 32/64、TOTALS 19/47，亏损不是简单的“系统选了错误的另一边后又被 EV 过滤掉”。去掉主场项几乎不改变方向；V2 因子不进入 V1 结论。
 
-这不是“EV 已修复”、不是“生产有效性已验证”，也不授权直接调参。V1 下一步应先解释 35/121 条 capture 与 checkpoint simulation identity 漂移，并校准 xG/主客强弱与盘口链；首发、身价等 V2 因子不纳入 V1 修复。任何参数或准入修改都必须另行预注册。
+这不是“EV 已修复”、不是“生产有效性已验证”，也不授权直接调参。V1 下一步按已冻结预注册校准 xG/主客强弱与盘口链；首发、身价等 V2 因子不纳入 V1 修复。任何参数或准入修改都必须另行预注册。

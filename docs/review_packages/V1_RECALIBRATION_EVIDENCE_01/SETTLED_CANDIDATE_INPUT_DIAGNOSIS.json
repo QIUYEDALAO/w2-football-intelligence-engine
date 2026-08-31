@@ -14,6 +14,12 @@
     "PUSH": 10,
     "WIN": 46
   },
+  "evaluation_capture_identity_match": {
+    "True": 121
+  },
+  "evaluation_model_input_manifest_match": {
+    "True": 121
+  },
   "factor_status": {
     "F1_MARKET_MOVEMENT": {
       "UNAVAILABLE": 121
@@ -44,10 +50,6 @@
     }
   },
   "fixture_count": 91,
-  "frozen_input_identity_match": {
-    "False": 35,
-    "True": 86
-  },
   "input_readiness": {
     "h2h_ready": {
       "False": 121
@@ -72,6 +74,10 @@
     }
   },
   "input_rows": 121,
+  "latest_checkpoint_simulation_matches_capture": {
+    "False": 35,
+    "True": 86
+  },
   "rows": [
     {
       "blockers": [],
@@ -84,7 +90,9 @@
       "current_ev": 0.197832,
       "current_ev_minus_se": 0.147467,
       "evaluated_at": "2026-08-19 22:52:50.948733+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-8238b5ca13fc05aa58e66d28c415a7ac84e767cc54da8147ee85a7e642101982",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -154,7 +162,6 @@
         }
       },
       "fixture_id": "1490391",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -180,6 +187,7 @@
       },
       "lambda_away": 2.033,
       "lambda_home": 2.367,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -209,7 +217,9 @@
       "current_ev": 0.157577,
       "current_ev_minus_se": 0.107518,
       "evaluated_at": "2026-08-19 22:52:51.637438+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-c8cc5fccf94cada4609e691ab7681ba8a62b56bfefa09988dbcd8dbfb3b9cd15",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -279,7 +289,6 @@
         }
       },
       "fixture_id": "1490392",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -305,6 +314,7 @@
       },
       "lambda_away": 1.779,
       "lambda_home": 1.74,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -334,7 +344,9 @@
       "current_ev": 0.053774,
       "current_ev_minus_se": 0.004308,
       "evaluated_at": "2026-08-19 22:52:52.929337+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-e38f1bacff9939362b3b6137e88017db0e7c07d4fc4e7fccbe5958835dcccc85",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -404,7 +416,6 @@
         }
       },
       "fixture_id": "1490394",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -430,6 +441,7 @@
       },
       "lambda_away": 1.673,
       "lambda_home": 1.838,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -459,7 +471,9 @@
       "current_ev": 0.128775,
       "current_ev_minus_se": 0.085646,
       "evaluated_at": "2026-08-19 22:52:54.218302+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-065cec5409dc5953b4bd80f5e6f9d4391bbd4d9b7e705daf4c239c9773011cbd",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -529,7 +543,6 @@
         }
       },
       "fixture_id": "1490396",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -555,6 +568,7 @@
       },
       "lambda_away": 1.591,
       "lambda_home": 1.285,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -584,7 +598,9 @@
       "current_ev": 0.152309,
       "current_ev_minus_se": 0.098157,
       "evaluated_at": "2026-08-19 23:50:48.684942+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-3b97f34ae85b297e43c1f3e9f4c042123ff0b06e75df0bbca525ce648cc316dd",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -654,7 +670,6 @@
         }
       },
       "fixture_id": "1490398",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -680,6 +695,7 @@
       },
       "lambda_away": 1.965,
       "lambda_home": 0.803,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -709,7 +725,9 @@
       "current_ev": 0.215329,
       "current_ev_minus_se": 0.165886,
       "evaluated_at": "2026-08-19 23:50:48.684942+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-6dea3e9711e0c46631cbb61520e59f1d97070f35dd5f13f02932fb580d30654e",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -779,7 +797,6 @@
         }
       },
       "fixture_id": "1490398",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -805,6 +822,7 @@
       },
       "lambda_away": 1.965,
       "lambda_home": 0.803,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": -0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -834,7 +852,9 @@
       "current_ev": 0.054777,
       "current_ev_minus_se": 0.006938,
       "evaluated_at": "2026-08-20 00:22:32.149069+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-a820b19b2343c3f6b640f0472cab06d4c8e047335ff79c1841d63645d480ce1e",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -904,7 +924,6 @@
         }
       },
       "fixture_id": "1490399",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -930,6 +949,7 @@
       },
       "lambda_away": 1.187,
       "lambda_home": 1.655,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -959,7 +979,9 @@
       "current_ev": 0.071372,
       "current_ev_minus_se": 0.028919,
       "evaluated_at": "2026-08-20 01:23:22.294448+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-cb36eb761e1915d79fa71e91c9bdd5d43aec8fbd332df240150f41efeae25686",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -1029,7 +1051,6 @@
         }
       },
       "fixture_id": "1490400",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -1055,6 +1076,7 @@
       },
       "lambda_away": 1.104,
       "lambda_home": 1.588,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -1084,7 +1106,9 @@
       "current_ev": 0.126604,
       "current_ev_minus_se": 0.072897,
       "evaluated_at": "2026-08-20 01:23:22.732367+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-1e06359dd5b0dda84c4096a63e3f17d76274661e16d3ddb1ac9043681698a1b7",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -1154,7 +1178,6 @@
         }
       },
       "fixture_id": "1490401",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -1180,6 +1203,7 @@
       },
       "lambda_away": 1.206,
       "lambda_home": 1.418,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -1209,7 +1233,9 @@
       "current_ev": 0.135921,
       "current_ev_minus_se": 0.080734,
       "evaluated_at": "2026-08-20 01:23:23.105688+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-b8f300e146a6f225d01c0681af2a047b2d3d4aff44130c7c3c21e074055aad08",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -1279,7 +1305,6 @@
         }
       },
       "fixture_id": "1490402",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -1305,6 +1330,7 @@
       },
       "lambda_away": 1.456,
       "lambda_home": 1.535,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -1334,7 +1360,9 @@
       "current_ev": 0.199051,
       "current_ev_minus_se": 0.141535,
       "evaluated_at": "2026-08-20 02:19:40.007468+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-a028f38aab7acb29be6a54493999b92761d008c220c4f80e046c269197ce1067",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -1404,7 +1432,6 @@
         }
       },
       "fixture_id": "1490404",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -1430,6 +1457,7 @@
       },
       "lambda_away": 1.1,
       "lambda_home": 1.262,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.75,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -1459,7 +1487,9 @@
       "current_ev": 0.344046,
       "current_ev_minus_se": 0.291652,
       "evaluated_at": "2026-08-20 02:19:40.007468+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-dcce9cbc34b514381e0029c9cd3d03ddc487a0352c6aaf82b2b03ca76e76e340",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -1529,7 +1559,6 @@
         }
       },
       "fixture_id": "1490404",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -1555,6 +1584,7 @@
       },
       "lambda_away": 1.1,
       "lambda_home": 1.262,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.0,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -1584,7 +1614,9 @@
       "current_ev": 0.35845,
       "current_ev_minus_se": 0.300399,
       "evaluated_at": "2026-08-20 02:19:40.418113+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-42d1e53a67b9ec4450daf688b8c4ea93fd57d85fa70770e04d2d7728ec9191b2",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -1654,7 +1686,6 @@
         }
       },
       "fixture_id": "1490405",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -1680,6 +1711,7 @@
       },
       "lambda_away": 0.906,
       "lambda_home": 1.79,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -1709,7 +1741,9 @@
       "current_ev": 0.077219,
       "current_ev_minus_se": 0.016163,
       "evaluated_at": "2026-08-20 02:19:40.418113+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-9f9231b0ad652335e45d822a1c62eb4dca005b47d6fcaf9fa9ff079d0ff8626c",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -1779,7 +1813,6 @@
         }
       },
       "fixture_id": "1490405",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -1805,6 +1838,7 @@
       },
       "lambda_away": 0.906,
       "lambda_home": 1.79,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": -0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -1834,7 +1868,9 @@
       "current_ev": 0.058904,
       "current_ev_minus_se": 0.011178,
       "evaluated_at": "2026-08-22 23:21:13.233388+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-6dd9c7b76c9ba30cbdbe81d75de752afc8b18e12aa43dd22f3bb0a8659d76bba",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -1904,7 +1940,6 @@
         }
       },
       "fixture_id": "1490406",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -1930,6 +1965,7 @@
       },
       "lambda_away": 1.508,
       "lambda_home": 2.323,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 4.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -1959,7 +1995,9 @@
       "current_ev": 0.238696,
       "current_ev_minus_se": 0.197713,
       "evaluated_at": "2026-08-22 23:21:13.233388+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-068fe1e85395f2b6647b6c384a89caece2d643c51435979fb22e40c2f2846131",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -2029,7 +2067,6 @@
         }
       },
       "fixture_id": "1490406",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -2055,6 +2092,7 @@
       },
       "lambda_away": 1.508,
       "lambda_home": 2.323,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -2084,7 +2122,9 @@
       "current_ev": 0.06175,
       "current_ev_minus_se": 0.009276,
       "evaluated_at": "2026-08-22 23:21:13.631022+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-538c5d3946b0ef47a12abd2d7513fd90fd6771dfc3399a5f315fb51c2b126d5f",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -2154,7 +2194,6 @@
         }
       },
       "fixture_id": "1490407",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -2180,6 +2219,7 @@
       },
       "lambda_away": 1.48,
       "lambda_home": 1.877,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -2209,7 +2249,9 @@
       "current_ev": 0.205409,
       "current_ev_minus_se": 0.161007,
       "evaluated_at": "2026-08-22 23:21:15.353448+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-d7bc675a41da5d526bd21d79a1717500a35d84d7b731a58c452a342c543a0d25",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -2279,7 +2321,6 @@
         }
       },
       "fixture_id": "1490411",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -2305,6 +2346,7 @@
       },
       "lambda_away": 1.61,
       "lambda_home": 1.643,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -2334,7 +2376,9 @@
       "current_ev": 0.257215,
       "current_ev_minus_se": 0.214265,
       "evaluated_at": "2026-08-23 00:15:55.118131+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-3ba881852dce215ad0edf12b140abb977202009dc92d61c82e85ba56fef19f95",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -2404,7 +2448,6 @@
         }
       },
       "fixture_id": "1490412",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -2430,6 +2473,7 @@
       },
       "lambda_away": 1.464,
       "lambda_home": 1.452,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -2459,7 +2503,9 @@
       "current_ev": 0.075909,
       "current_ev_minus_se": 0.011055,
       "evaluated_at": "2026-08-23 00:45:13.140382+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-803d0e3166c9ca2d9a143e3a6bf7b119b4db8e5f4313af7a8cc7defcea4c70f2",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -2529,7 +2575,6 @@
         }
       },
       "fixture_id": "1490413",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -2555,6 +2600,7 @@
       },
       "lambda_away": 1.993,
       "lambda_home": 1.175,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": -0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -2584,7 +2630,9 @@
       "current_ev": 0.16967,
       "current_ev_minus_se": 0.11418,
       "evaluated_at": "2026-08-23 00:15:55.536189+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-02c88aedfeb29b772a9fd1953454e2b91694f24faf416490b456cc3be751b22b",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -2654,7 +2702,6 @@
         }
       },
       "fixture_id": "1490414",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -2680,6 +2727,7 @@
       },
       "lambda_away": 0.967,
       "lambda_home": 1.353,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -2709,7 +2757,9 @@
       "current_ev": 0.211555,
       "current_ev_minus_se": 0.153692,
       "evaluated_at": "2026-08-23 01:15:29.925382+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-e972d572d3d5a5ef3f3bfdb9547e0a73ebef4cd55ee1cc84c8d2b8296a226a87",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -2779,7 +2829,6 @@
         }
       },
       "fixture_id": "1490415",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -2805,6 +2854,7 @@
       },
       "lambda_away": 1.174,
       "lambda_home": 1.773,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.0,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -2834,7 +2884,9 @@
       "current_ev": 0.251607,
       "current_ev_minus_se": 0.197984,
       "evaluated_at": "2026-08-23 02:15:09.584451+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-ef0c78fb8d576eb6d21f160481e7c03612315d675bf74e69887b14a68477393e",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -2904,7 +2956,6 @@
         }
       },
       "fixture_id": "1490416",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -2930,6 +2981,7 @@
       },
       "lambda_away": 1.752,
       "lambda_home": 1.069,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.25,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -2959,7 +3011,9 @@
       "current_ev": 0.534116,
       "current_ev_minus_se": 0.491663,
       "evaluated_at": "2026-08-23 02:15:09.584451+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-997ef598cb7e583fb371389821f4a230be0a636f2d3900bebfff9ff80f1404dd",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -3029,7 +3083,6 @@
         }
       },
       "fixture_id": "1490416",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -3055,6 +3108,7 @@
       },
       "lambda_away": 1.752,
       "lambda_home": 1.069,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -3084,7 +3138,9 @@
       "current_ev": 0.217233,
       "current_ev_minus_se": 0.151474,
       "evaluated_at": "2026-08-23 02:15:10.191117+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-62fb87082a58a126a32a131aac5b6c1113ddfd0909f4c4238a4e142b6d23c301",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -3154,7 +3210,6 @@
         }
       },
       "fixture_id": "1490417",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -3180,6 +3235,7 @@
       },
       "lambda_away": 1.386,
       "lambda_home": 1.181,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -3209,7 +3265,9 @@
       "current_ev": 0.285799,
       "current_ev_minus_se": 0.22739,
       "evaluated_at": "2026-08-23 02:15:10.191117+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-3595cd50a7a24d69de08fafa994c134d3f61d94ebfd99457e5fb77a2ee4a5b86",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -3279,7 +3337,6 @@
         }
       },
       "fixture_id": "1490417",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -3305,6 +3362,7 @@
       },
       "lambda_away": 1.386,
       "lambda_home": 1.181,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -3334,7 +3392,9 @@
       "current_ev": 0.077728,
       "current_ev_minus_se": 0.025802,
       "evaluated_at": "2026-08-23 22:45:39.280065+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-56199a1fb8fa7d5c4228aa1ab27636b5c3ac1d7ff1fece34343fae5a6452de1e",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -3404,7 +3464,6 @@
         }
       },
       "fixture_id": "1490420",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -3430,6 +3489,7 @@
       },
       "lambda_away": 1.363,
       "lambda_home": 1.542,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 3.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -3459,7 +3519,9 @@
       "current_ev": 0.190122,
       "current_ev_minus_se": 0.141782,
       "evaluated_at": "2026-08-23 22:45:39.280065+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-1d27888370f14b04fdbd9b3c96bf626f9fc5bb2961f922abc728e0c21f9aece6",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -3529,7 +3591,6 @@
         }
       },
       "fixture_id": "1490420",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -3555,6 +3616,7 @@
       },
       "lambda_away": 1.363,
       "lambda_home": 1.542,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 0.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -3584,7 +3646,9 @@
       "current_ev": 0.295028,
       "current_ev_minus_se": 0.249223,
       "evaluated_at": "2026-08-30 20:15:15.711719+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-4fb3aba6dd97b7bf95bc8dea9ca045c09177465bee7784a517d8557447e8a55a",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -3654,7 +3718,6 @@
         }
       },
       "fixture_id": "1490427",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -3680,6 +3743,7 @@
       },
       "lambda_away": 1.676,
       "lambda_home": 1.253,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -3709,7 +3773,9 @@
       "current_ev": 0.329932,
       "current_ev_minus_se": 0.28766,
       "evaluated_at": "2026-08-30 22:45:37.978846+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-4a1694e4fd9be1e5a3a770d86726401d8cb7aa1d742ef498416c8a3d07c3bb29",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -3779,7 +3845,6 @@
         }
       },
       "fixture_id": "1490435",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -3805,6 +3870,7 @@
       },
       "lambda_away": 0.816,
       "lambda_home": 1.428,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 3.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -3834,7 +3900,9 @@
       "current_ev": 0.125304,
       "current_ev_minus_se": 0.069992,
       "evaluated_at": "2026-08-23 18:24:41.172121+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-94261c0c5c55581b8456b73901370befe444fee9c09c1f2327dec670b75679e6",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -3904,7 +3972,6 @@
         }
       },
       "fixture_id": "1492341",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -3930,6 +3997,7 @@
       },
       "lambda_away": 0.973,
       "lambda_home": 1.281,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 2.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -3959,7 +4027,9 @@
       "current_ev": 0.276966,
       "current_ev_minus_se": 0.218148,
       "evaluated_at": "2026-08-23 18:24:41.172121+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-99e54da862ec81826f92699114a1905865e9314007cbb1273bca97bec78033d2",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -4029,7 +4099,6 @@
         }
       },
       "fixture_id": "1492341",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -4055,6 +4124,7 @@
       },
       "lambda_away": 0.973,
       "lambda_home": 1.281,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 0.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -4084,7 +4154,9 @@
       "current_ev": 0.092189,
       "current_ev_minus_se": 0.04707,
       "evaluated_at": "2026-08-23 22:15:26.047378+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-06e5b132198a12bc76f917973e2a8ffb3d543e4c9c3145af16e20663e76236ff",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -4154,7 +4226,6 @@
         }
       },
       "fixture_id": "1492343",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -4180,6 +4251,7 @@
       },
       "lambda_away": 1.091,
       "lambda_home": 0.796,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 2.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -4209,7 +4281,9 @@
       "current_ev": 0.074273,
       "current_ev_minus_se": 0.027259,
       "evaluated_at": "2026-08-22 23:10:34.087535+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-8e396e136421b35f7767533ee754a474b5d50ca33ec80183957b180acf5efc28",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -4279,7 +4353,6 @@
         }
       },
       "fixture_id": "1492344",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -4305,6 +4378,7 @@
       },
       "lambda_away": 1.17,
       "lambda_home": 1.2,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -4334,7 +4408,9 @@
       "current_ev": 0.095932,
       "current_ev_minus_se": 0.056269,
       "evaluated_at": "2026-08-22 18:52:49.430781+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-224eb28fd687423c93f35dabb98e88654a97ee2ba96d00e80781d95342771661",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -4404,7 +4480,6 @@
         }
       },
       "fixture_id": "1492345",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -4430,6 +4505,7 @@
       },
       "lambda_away": 0.803,
       "lambda_home": 1.57,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.0,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -4459,7 +4535,9 @@
       "current_ev": 0.330101,
       "current_ev_minus_se": 0.287382,
       "evaluated_at": "2026-08-22 21:15:11.029817+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-2f180145f4ee99edd3f6122a26cc6d45c6a65d14ac9de85f8408b481c7c242d7",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -4529,7 +4607,6 @@
         }
       },
       "fixture_id": "1492346",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -4555,6 +4632,7 @@
       },
       "lambda_away": 1.626,
       "lambda_home": 1.115,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -4584,7 +4662,9 @@
       "current_ev": 0.111377,
       "current_ev_minus_se": 0.062163,
       "evaluated_at": "2026-08-23 18:24:41.959633+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-955fa3c3cf8f416af85b72b57217d5a2b321aaa67fc89e53682dbdb5fd7e3e31",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -4654,7 +4734,6 @@
         }
       },
       "fixture_id": "1492347",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -4680,6 +4759,7 @@
       },
       "lambda_away": 1.101,
       "lambda_home": 1.169,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 2.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -4709,7 +4789,9 @@
       "current_ev": 0.372987,
       "current_ev_minus_se": 0.324681,
       "evaluated_at": "2026-08-23 18:24:41.959633+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-e8d1c6274c0316def953519cc12a27515360abd1b7e7476950ea42bebbbaf742",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -4779,7 +4861,6 @@
         }
       },
       "fixture_id": "1492347",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -4805,6 +4886,7 @@
       },
       "lambda_away": 1.101,
       "lambda_home": 1.169,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 0.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -4834,7 +4916,9 @@
       "current_ev": 0.046605,
       "current_ev_minus_se": 0.003523,
       "evaluated_at": "2026-08-23 21:16:00.811612+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-ada31d6b49b987dbf5afc6ada76174a178988f4eaafc999a72b173d1028a311c",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -4904,7 +4988,6 @@
         }
       },
       "fixture_id": "1492348",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -4930,6 +5013,7 @@
       },
       "lambda_away": 1.204,
       "lambda_home": 1.499,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -4959,7 +5043,9 @@
       "current_ev": 0.085754,
       "current_ev_minus_se": 0.027229,
       "evaluated_at": "2026-08-30 22:15:19.712761+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-15425e61c4bffefbbb0be414cd4142f49f1ff3efa3b75d90dc0677714853c6c1",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -5029,7 +5115,6 @@
         }
       },
       "fixture_id": "1492352",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -5055,6 +5140,7 @@
       },
       "lambda_away": 0.864,
       "lambda_home": 1.662,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": -0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -5084,7 +5170,9 @@
       "current_ev": 0.136534,
       "current_ev_minus_se": 0.092845,
       "evaluated_at": "2026-08-30 18:45:30.264679+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-1d1ea7e29baa91af4509cc39f724ef7b6f0b1c54cc9c7af7cf4d02f847e42058",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -5154,7 +5242,6 @@
         }
       },
       "fixture_id": "1492353",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -5180,6 +5267,7 @@
       },
       "lambda_away": 1.043,
       "lambda_home": 1.199,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -5209,7 +5297,9 @@
       "current_ev": 0.288358,
       "current_ev_minus_se": 0.245915,
       "evaluated_at": "2026-08-30 18:45:30.661841+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-870e5f1e7678601b1f41906a1a1fc7d601b581ed060237e1605c01d0c1690f2c",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -5279,7 +5369,6 @@
         }
       },
       "fixture_id": "1492354",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -5305,6 +5394,7 @@
       },
       "lambda_away": 0.964,
       "lambda_home": 1.575,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 1.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -5334,7 +5424,9 @@
       "current_ev": 0.074852,
       "current_ev_minus_se": 0.021589,
       "evaluated_at": "2026-08-30 21:15:49.235312+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-d37140e70786dc336485dc971df091eaf41c6fcc3be93fe68fdcf52bac12dffc",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -5404,7 +5496,6 @@
         }
       },
       "fixture_id": "1492355",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -5430,6 +5521,7 @@
       },
       "lambda_away": 1.164,
       "lambda_home": 1.329,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 2.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -5459,7 +5551,9 @@
       "current_ev": 0.368835,
       "current_ev_minus_se": 0.325857,
       "evaluated_at": "2026-08-30 21:15:49.235312+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-7d6aa6ddd2e3e26502297827433daeded80c7df997ba9bc0e45c1360e0900c79",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -5529,7 +5623,6 @@
         }
       },
       "fixture_id": "1492355",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -5555,6 +5648,7 @@
       },
       "lambda_away": 1.164,
       "lambda_home": 1.329,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 1.0,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -5584,7 +5678,9 @@
       "current_ev": 0.162694,
       "current_ev_minus_se": 0.122142,
       "evaluated_at": "2026-08-30 21:15:49.697137+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-ba20d47e7299e0edf29eec170cf14c222d214f2e0834a6a4020c83d772f04d87",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -5654,7 +5750,6 @@
         }
       },
       "fixture_id": "1492356",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -5680,6 +5775,7 @@
       },
       "lambda_away": 1.317,
       "lambda_home": 1.356,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -5709,7 +5805,9 @@
       "current_ev": 0.06058,
       "current_ev_minus_se": 0.009667,
       "evaluated_at": "2026-08-21 17:15:19.977626+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-30fae8d8bed9158b55c35a789ccd66b55a781311af9bd6eef4bd90cd88abfdb2",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -5779,7 +5877,6 @@
         }
       },
       "fixture_id": "1493077",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -5805,6 +5902,7 @@
       },
       "lambda_away": 1.031,
       "lambda_home": 0.917,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -5834,7 +5932,9 @@
       "current_ev": 0.093294,
       "current_ev_minus_se": 0.050005,
       "evaluated_at": "2026-08-22 18:56:50.905897+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-aaa6cbb5a7fd47fddd1b306dd5b1f8359b4c88b4f7af19f3a6405d65cf33e16a",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -5904,7 +6004,6 @@
         }
       },
       "fixture_id": "1493078",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -5930,6 +6029,7 @@
       },
       "lambda_away": 1.637,
       "lambda_home": 0.82525,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -5959,7 +6059,9 @@
       "current_ev": 0.040345,
       "current_ev_minus_se": 0.003596,
       "evaluated_at": "2026-08-22 18:56:50.905897+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-2d64ca9de9c6556c67e592b5a90cb189023e16cb1e9dc2daf17c4f36ecb0adbe",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -6029,7 +6131,6 @@
         }
       },
       "fixture_id": "1493078",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -6055,6 +6156,7 @@
       },
       "lambda_away": 1.637,
       "lambda_home": 0.82525,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": -0.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -6084,7 +6186,9 @@
       "current_ev": 0.192511,
       "current_ev_minus_se": 0.16371,
       "evaluated_at": "2026-08-23 17:30:28.321568+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-dd9cbafc865ef0bb8f2cb9379c7a963c6398188763408958ac2e853d42bb0fd0",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -6154,7 +6258,6 @@
         }
       },
       "fixture_id": "1493079",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -6180,6 +6283,7 @@
       },
       "lambda_away": 0.608,
       "lambda_home": 1.297,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 0.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -6209,7 +6313,9 @@
       "current_ev": 0.110959,
       "current_ev_minus_se": 0.076692,
       "evaluated_at": "2026-08-23 19:45:21.965397+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-2f714a3615b5f793e40bc4d18a1db39985e92700c5ac804852e5af3c778a4a71",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -6279,7 +6385,6 @@
         }
       },
       "fixture_id": "1493080",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -6305,6 +6410,7 @@
       },
       "lambda_away": 1.456,
       "lambda_home": 1.151,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 2.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -6334,7 +6440,9 @@
       "current_ev": 0.366999,
       "current_ev_minus_se": 0.328017,
       "evaluated_at": "2026-08-23 19:45:21.965397+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-04d6127135dfc5799883670db2d9e2cccfebcd632c9074ad3782f7df2c610e5f",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -6404,7 +6512,6 @@
         }
       },
       "fixture_id": "1493080",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -6430,6 +6537,7 @@
       },
       "lambda_away": 1.456,
       "lambda_home": 1.151,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -6459,7 +6567,9 @@
       "current_ev": 0.141789,
       "current_ev_minus_se": 0.073664,
       "evaluated_at": "2026-08-21 22:45:21.259249+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-9b45210bad48e7325e5c50ce9b922abb8d83eb2e4a50cdebca263ea1c77c50aa",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -6529,7 +6639,6 @@
         }
       },
       "fixture_id": "1493081",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -6555,6 +6664,7 @@
       },
       "lambda_away": 1.27875,
       "lambda_home": 0.8905,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -6584,7 +6694,9 @@
       "current_ev": 0.108263,
       "current_ev_minus_se": 0.041462,
       "evaluated_at": "2026-08-22 18:56:51.366896+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-1682ff01be4104844b93fb1711aa40c5198f4ba9629512be88ada603b221e53d",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -6654,7 +6766,6 @@
         }
       },
       "fixture_id": "1493082",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -6680,6 +6791,7 @@
       },
       "lambda_away": 1.01375,
       "lambda_home": 1.50475,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -6709,7 +6821,9 @@
       "current_ev": 0.134561,
       "current_ev_minus_se": 0.089091,
       "evaluated_at": "2026-08-22 23:45:38.970734+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-e21caaf94d8c9ecf4e0ec87f27efd5e971fc7c5e40aa53acb8a36d0703c2d5a6",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -6779,7 +6893,6 @@
         }
       },
       "fixture_id": "1493083",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -6805,6 +6918,7 @@
       },
       "lambda_away": 1.1,
       "lambda_home": 1.039,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -6834,7 +6948,9 @@
       "current_ev": 0.287478,
       "current_ev_minus_se": 0.250429,
       "evaluated_at": "2026-08-22 21:17:29.007631+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-8e9232e3de0eb838f12ceae9117962f4b4a88e6a872d1a61ae717a651c1f6b29",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -6904,7 +7020,6 @@
         }
       },
       "fixture_id": "1493084",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -6930,6 +7045,7 @@
       },
       "lambda_away": 1.389,
       "lambda_home": 0.879,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -6959,7 +7075,9 @@
       "current_ev": 0.182206,
       "current_ev_minus_se": 0.142585,
       "evaluated_at": "2026-08-25 00:00:03.24784+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-dd37c51cfa85ec680404a426e856dbdff47e04629a15b48a60e5177c54bf92a4",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -7029,7 +7147,6 @@
         }
       },
       "fixture_id": "1493085",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -7055,6 +7172,7 @@
       },
       "lambda_away": 1.212,
       "lambda_home": 1.317,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 2.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -7084,7 +7202,9 @@
       "current_ev": 0.131634,
       "current_ev_minus_se": 0.084717,
       "evaluated_at": "2026-08-24 00:15:18.873542+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-61c7cf5bc77e427a5866aeb64abeafa2af20384de4553ba2cf7b8591dcd3efaf",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -7154,7 +7274,6 @@
         }
       },
       "fixture_id": "1493087",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -7180,6 +7299,7 @@
       },
       "lambda_away": 1.419,
       "lambda_home": 1.133,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -7209,7 +7329,9 @@
       "current_ev": 0.14197,
       "current_ev_minus_se": 0.102237,
       "evaluated_at": "2026-08-23 17:30:28.823373+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-503b8b045e6a4ac3629f837f2f30dd33ebe597eacc0e5435c954bd25e163bca2",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -7279,7 +7401,6 @@
         }
       },
       "fixture_id": "1493089",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -7305,6 +7426,7 @@
       },
       "lambda_away": 1.202,
       "lambda_home": 1.41,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 2.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -7334,7 +7456,9 @@
       "current_ev": 0.214618,
       "current_ev_minus_se": 0.174788,
       "evaluated_at": "2026-08-25 00:00:04.450553+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-151b4d0487283cd9576771ecce5f021eeef8a7a5fc9793c7d9b6e481e93ad71d",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -7404,7 +7528,6 @@
         }
       },
       "fixture_id": "1493090",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -7430,6 +7553,7 @@
       },
       "lambda_away": 1.31,
       "lambda_home": 1.462,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 2.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -7459,7 +7583,9 @@
       "current_ev": 0.282054,
       "current_ev_minus_se": 0.241666,
       "evaluated_at": "2026-08-30 17:45:54.090239+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-77fe7f97e07dc398d30828f6e8719e82a2a245b9492724678ebbc05f977b12f1",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -7529,7 +7655,6 @@
         }
       },
       "fixture_id": "1493094",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -7555,6 +7680,7 @@
       },
       "lambda_away": 1.209,
       "lambda_home": 1.223,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -7584,7 +7710,9 @@
       "current_ev": 0.187122,
       "current_ev_minus_se": 0.112354,
       "evaluated_at": "2026-08-30 22:00:11.683995+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-32c3cc5ea7512252c99a4136eaa362313debc8ddbc9d6d4659e1dddcf2aad840",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -7654,7 +7782,6 @@
         }
       },
       "fixture_id": "1493100",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -7680,6 +7807,7 @@
       },
       "lambda_away": 0.89,
       "lambda_home": 1.195,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 0.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -7709,7 +7837,9 @@
       "current_ev": 0.140658,
       "current_ev_minus_se": 0.09189,
       "evaluated_at": "2026-08-30 14:45:47.606454+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-662b2d35546463baf2b39d0dddfda331bc9d11e78a1df4f047b2a5e107c40371",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -7779,7 +7909,6 @@
         }
       },
       "fixture_id": "1494741",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -7805,6 +7934,7 @@
       },
       "lambda_away": 1.078,
       "lambda_home": 1.483,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -7834,7 +7964,9 @@
       "current_ev": 0.143592,
       "current_ev_minus_se": 0.091522,
       "evaluated_at": "2026-08-30 14:45:48.482273+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-24b13a8a1e32ea8b17f4ff5c53fd54a3b04c41148a1d16284797fb4c6514b3a5",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -7904,7 +8036,6 @@
         }
       },
       "fixture_id": "1494744",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -7930,6 +8061,7 @@
       },
       "lambda_away": 0.971,
       "lambda_home": 1.897,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": -0.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -7959,7 +8091,9 @@
       "current_ev": 0.070903,
       "current_ev_minus_se": 0.032832,
       "evaluated_at": "2026-08-30 14:45:49.683491+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-8cf56a24464d0ff1a416806a09221b3c72591c181ffac532904ca665d8638d46",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -8029,7 +8163,6 @@
         }
       },
       "fixture_id": "1494747",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -8055,6 +8188,7 @@
       },
       "lambda_away": 1.485,
       "lambda_home": 2.206,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 4.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -8084,7 +8218,9 @@
       "current_ev": 0.367513,
       "current_ev_minus_se": 0.336282,
       "evaluated_at": "2026-08-30 14:45:49.683491+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-b4d59a0bb333560386ebf80db2a4703cbf533ed6ed25fa0d298d310908b712cf",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -8154,7 +8290,6 @@
         }
       },
       "fixture_id": "1494747",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -8180,6 +8315,7 @@
       },
       "lambda_away": 1.485,
       "lambda_home": 2.206,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.0,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -8209,7 +8345,9 @@
       "current_ev": 0.326706,
       "current_ev_minus_se": 0.271716,
       "evaluated_at": "2026-08-23 18:31:25.393573+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-65833c1a13713cd82c5cbb82a9cdff6c6c64b2579a581e8abaa2f0c3e6cab21e",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -8279,7 +8417,6 @@
         }
       },
       "fixture_id": "1550088",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -8305,6 +8442,7 @@
       },
       "lambda_away": 1.286,
       "lambda_home": 1.468,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.0,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -8334,7 +8472,9 @@
       "current_ev": 0.135674,
       "current_ev_minus_se": 0.084706,
       "evaluated_at": "2026-08-22 16:18:43.948529+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-9ccccd7da06246fc514ba57d92934cbc8dd2212a5cc3924b349fda53928ca736",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -8404,7 +8544,6 @@
         }
       },
       "fixture_id": "1550092",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -8430,6 +8569,7 @@
       },
       "lambda_away": 0.992,
       "lambda_home": 1.813,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -8459,7 +8599,9 @@
       "current_ev": 0.472792,
       "current_ev_minus_se": 0.433226,
       "evaluated_at": "2026-08-22 16:18:43.948529+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-08549b5a350a9d7dc01b6f6c9c2128c5f7b0dc1375c645ce887db7e51ca1f7a7",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -8529,7 +8671,6 @@
         }
       },
       "fixture_id": "1550092",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -8555,6 +8696,7 @@
       },
       "lambda_away": 0.992,
       "lambda_home": 1.813,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.0,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -8584,7 +8726,9 @@
       "current_ev": 0.253561,
       "current_ev_minus_se": 0.212285,
       "evaluated_at": "2026-08-22 18:32:38.544543+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-f1163f232fb1b0a7ddecf948d49946f9656ad9950698c464cfb5f13b9a26e3f2",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -8654,7 +8798,6 @@
         }
       },
       "fixture_id": "1550093",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -8680,6 +8823,7 @@
       },
       "lambda_away": 1.77,
       "lambda_home": 1.17,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -8709,7 +8853,9 @@
       "current_ev": 0.212814,
       "current_ev_minus_se": 0.15933,
       "evaluated_at": "2026-08-23 18:31:25.823087+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-e8d2fb34ca4cffccdc5d6dd44e5baf1c74f1a280f5e137732e9a7de95cf29d85",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -8779,7 +8925,6 @@
         }
       },
       "fixture_id": "1550094",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -8805,6 +8950,7 @@
       },
       "lambda_away": 1.507,
       "lambda_home": 1.657,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -8834,7 +8980,9 @@
       "current_ev": 0.221476,
       "current_ev_minus_se": 0.170616,
       "evaluated_at": "2026-08-23 18:31:25.823087+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-ef861122f3284a8dd63124cf432cdc5342ff2291c01db66134327722c98479bc",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -8904,7 +9052,6 @@
         }
       },
       "fixture_id": "1550094",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -8930,6 +9077,7 @@
       },
       "lambda_away": 1.507,
       "lambda_home": 1.657,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -8959,7 +9107,9 @@
       "current_ev": 0.063876,
       "current_ev_minus_se": 0.004048,
       "evaluated_at": "2026-08-22 16:18:44.531461+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-9785206f4e3e4697a23ff4147143ac1b9835ad45148ee43ac09cb759f37754d8",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -9029,7 +9179,6 @@
         }
       },
       "fixture_id": "1550095",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -9055,6 +9204,7 @@
       },
       "lambda_away": 1.531,
       "lambda_home": 1.153,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -9084,7 +9234,9 @@
       "current_ev": 0.112753,
       "current_ev_minus_se": 0.069229,
       "evaluated_at": "2026-08-23 16:15:03.89465+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-8293af190e50a0cc18581a0888d91788097c34d4d249dabe7dd653d4f34abc28",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -9154,7 +9306,6 @@
         }
       },
       "fixture_id": "1550096",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -9180,6 +9331,7 @@
       },
       "lambda_away": 1.227,
       "lambda_home": 1.345,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -9209,7 +9361,9 @@
       "current_ev": 0.518793,
       "current_ev_minus_se": 0.475102,
       "evaluated_at": "2026-08-30 18:30:18.889758+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-484c2bd60279334b86e1946324a3c2a6a6638b54ca5afc5c82cabce98ca4a2ba",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -9279,7 +9433,6 @@
         }
       },
       "fixture_id": "1550099",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -9305,6 +9458,7 @@
       },
       "lambda_away": 1.381,
       "lambda_home": 1.346,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -9334,7 +9488,9 @@
       "current_ev": 0.193845,
       "current_ev_minus_se": 0.14623,
       "evaluated_at": "2026-08-22 16:32:30.872148+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-0eec0cb86090e08aae36e53790ec15f7509946bd7c9ca21e480947de824a7c40",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -9404,7 +9560,6 @@
         }
       },
       "fixture_id": "1552137",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -9430,6 +9585,7 @@
       },
       "lambda_away": 1.951,
       "lambda_home": 1.535,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.75,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -9459,7 +9615,9 @@
       "current_ev": 0.206202,
       "current_ev_minus_se": 0.158854,
       "evaluated_at": "2026-08-22 18:24:32.368004+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-fdb5461bfbe2c2f30fdf494a7c8f2604f336cc35c29d7e836b1a1dc087b24486",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -9529,7 +9687,6 @@
         }
       },
       "fixture_id": "1552138",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -9555,6 +9712,7 @@
       },
       "lambda_away": 1.248,
       "lambda_home": 1.598,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.25,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -9584,7 +9742,9 @@
       "current_ev": 0.240303,
       "current_ev_minus_se": 0.19841,
       "evaluated_at": "2026-08-22 18:24:32.368004+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-f0613fe47f8c7b7905899d5039b88b0442c1bf86d9700428157f89bf62638395",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -9654,7 +9814,6 @@
         }
       },
       "fixture_id": "1552138",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -9680,6 +9839,7 @@
       },
       "lambda_away": 1.248,
       "lambda_home": 1.598,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.0,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -9709,7 +9869,9 @@
       "current_ev": 0.385363,
       "current_ev_minus_se": 0.336788,
       "evaluated_at": "2026-08-23 12:15:37.382165+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-206031c240a016eec69872e07f5896f46393449dc3b781c41a9b498c508a8ad2",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -9779,7 +9941,6 @@
         }
       },
       "fixture_id": "1552140",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -9805,6 +9966,7 @@
       },
       "lambda_away": 1.154,
       "lambda_home": 1.814,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.75,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -9834,7 +9996,9 @@
       "current_ev": 0.416946,
       "current_ev_minus_se": 0.378346,
       "evaluated_at": "2026-08-23 12:15:37.382165+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-c59bf2a699865f12ffeb00a6e71ef9bca80d950bb2ad124dca949cd49fea6965",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -9904,7 +10068,6 @@
         }
       },
       "fixture_id": "1552140",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -9930,6 +10093,7 @@
       },
       "lambda_away": 1.154,
       "lambda_home": 1.814,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -9959,7 +10123,9 @@
       "current_ev": 0.275645,
       "current_ev_minus_se": 0.230136,
       "evaluated_at": "2026-08-30 14:30:38.680529+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-9ea4bb65f13ea7834a96ce290fffd833878057ae58eee0f957309717ae6de49d",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -10029,7 +10195,6 @@
         }
       },
       "fixture_id": "1552151",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -10055,6 +10220,7 @@
       },
       "lambda_away": 1.613,
       "lambda_home": 1.356,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -10084,7 +10250,9 @@
       "current_ev": 0.368699,
       "current_ev_minus_se": 0.332722,
       "evaluated_at": "2026-08-30 14:30:38.680529+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-62358e958b9d6899ec4024d5c4da4896a6d97166391f8606344aeab319e157a2",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -10154,7 +10322,6 @@
         }
       },
       "fixture_id": "1552151",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -10180,6 +10347,7 @@
       },
       "lambda_away": 1.613,
       "lambda_home": 1.356,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -10209,7 +10377,9 @@
       "current_ev": 0.361391,
       "current_ev_minus_se": 0.254382,
       "evaluated_at": "2026-08-30 17:45:53.379437+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-f1bd7325d10cdf4a9da05bccf65418cb31f531a6228ff353ebe7438eadabd75f",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -10279,7 +10449,6 @@
         }
       },
       "fixture_id": "1552152",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -10305,6 +10474,7 @@
       },
       "lambda_away": 2.02965,
       "lambda_home": 1.44765,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -10334,7 +10504,9 @@
       "current_ev": 0.099746,
       "current_ev_minus_se": 0.038707,
       "evaluated_at": "2026-08-23 12:45:49.168622+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-70d6add4837636a30689485867e6c21ea2b488603a9358ab3371410681138122",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -10404,7 +10576,6 @@
         }
       },
       "fixture_id": "1552729",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -10430,6 +10601,7 @@
       },
       "lambda_away": 1.516,
       "lambda_home": 0.814,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -10459,7 +10631,9 @@
       "current_ev": 0.225025,
       "current_ev_minus_se": 0.171089,
       "evaluated_at": "2026-08-23 15:00:36.698614+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-07b44f6963afd74e3421ca6ea8b837a245700436226f5a7261b4a859747c830d",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -10529,7 +10703,6 @@
         }
       },
       "fixture_id": "1552730",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -10555,6 +10728,7 @@
       },
       "lambda_away": 1.184,
       "lambda_home": 1.208,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.75,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -10584,7 +10758,9 @@
       "current_ev": 0.179255,
       "current_ev_minus_se": 0.127574,
       "evaluated_at": "2026-08-23 15:00:36.698614+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-25a774f28dce5d1ceb1b968a8efd3b416e8b0073145e7504ad0a634a56a42e2f",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -10654,7 +10830,6 @@
         }
       },
       "fixture_id": "1552730",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -10680,6 +10855,7 @@
       },
       "lambda_away": 1.184,
       "lambda_home": 1.208,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -10709,7 +10885,9 @@
       "current_ev": 0.073383,
       "current_ev_minus_se": 0.017029,
       "evaluated_at": "2026-08-21 18:30:40.919978+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-b8df4ed9fde39571b36483c75d5b4cc1c7fe6eca57567c5bc784ef462ff6e109",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -10779,7 +10957,6 @@
         }
       },
       "fixture_id": "1552733",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -10805,6 +10982,7 @@
       },
       "lambda_away": 1.653,
       "lambda_home": 1.848,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -10834,7 +11012,9 @@
       "current_ev": 0.171944,
       "current_ev_minus_se": 0.115187,
       "evaluated_at": "2026-08-21 18:30:40.919978+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-47233f86f07bb9a8df87b44b3dd5718f7dfcbcfef69220905c0a2adb360cdbd8",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -10904,7 +11084,6 @@
         }
       },
       "fixture_id": "1552733",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -10930,6 +11109,7 @@
       },
       "lambda_away": 1.653,
       "lambda_home": 1.848,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -10959,7 +11139,9 @@
       "current_ev": 0.168192,
       "current_ev_minus_se": 0.112975,
       "evaluated_at": "2026-08-22 18:37:25.234241+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-4a4f6571493957f9e7fd0cb3d1f9a888f658716533bc540e7461dd3c2a09ac59",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -11029,7 +11211,6 @@
         }
       },
       "fixture_id": "1552736",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -11055,6 +11236,7 @@
       },
       "lambda_away": 1.751,
       "lambda_home": 1.336,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -11084,7 +11266,9 @@
       "current_ev": 0.254596,
       "current_ev_minus_se": 0.202502,
       "evaluated_at": "2026-08-22 18:37:25.234241+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-25c2e054253664dc8f26850bb77a87185aeb69732ffd4bc8218d048aa0e3965e",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -11154,7 +11338,6 @@
         }
       },
       "fixture_id": "1552736",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -11180,6 +11363,7 @@
       },
       "lambda_away": 1.751,
       "lambda_home": 1.336,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -11209,7 +11393,9 @@
       "current_ev": 0.10209,
       "current_ev_minus_se": 0.042351,
       "evaluated_at": "2026-08-30 18:30:18.895137+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-b4cb12d97a41d0035caf22f9352ee92ce23d66bb09cf6faa1512c74bdb34fb6c",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -11279,7 +11465,6 @@
         }
       },
       "fixture_id": "1552742",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -11305,6 +11490,7 @@
       },
       "lambda_away": 1.363,
       "lambda_home": 1.507,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 3.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -11334,7 +11520,9 @@
       "current_ev": 0.131191,
       "current_ev_minus_se": 0.088015,
       "evaluated_at": "2026-08-22 13:46:12.899923+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-019440c1786726d47656b1392392cf175023874b697a9e1916ab8b9be346ef89",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -11404,7 +11592,6 @@
         }
       },
       "fixture_id": "1557369",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -11430,6 +11617,7 @@
       },
       "lambda_away": 1.346,
       "lambda_home": 1.738,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -11459,7 +11647,9 @@
       "current_ev": 0.253919,
       "current_ev_minus_se": 0.204491,
       "evaluated_at": "2026-08-22 13:46:14.241908+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-669e887ac6037d23f6c34c6c1e59d364843f0ee6b0fdee3aec3a008cc88ef011",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -11529,7 +11719,6 @@
         }
       },
       "fixture_id": "1557371",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -11555,6 +11744,7 @@
       },
       "lambda_away": 1.502,
       "lambda_home": 1.762,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -11584,7 +11774,9 @@
       "current_ev": 0.368527,
       "current_ev_minus_se": 0.317189,
       "evaluated_at": "2026-08-22 16:23:56.444211+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-3b013292b69a907b5531bce4b1d19e6a932606e800befa75b71ec4eb3ae90432",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -11654,7 +11846,6 @@
         }
       },
       "fixture_id": "1557372",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -11680,6 +11871,7 @@
       },
       "lambda_away": 1.56,
       "lambda_home": 1.087,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -11709,7 +11901,9 @@
       "current_ev": 0.359949,
       "current_ev_minus_se": 0.327779,
       "evaluated_at": "2026-08-23 12:49:31.954474+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-32db2ddf380dfcb28623094a890142ecd08e6aef8ff00245db0ec237d48edce2",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -11779,7 +11973,6 @@
         }
       },
       "fixture_id": "1557374",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -11805,6 +11998,7 @@
       },
       "lambda_away": 1.486,
       "lambda_home": 1.584,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -11834,7 +12028,9 @@
       "current_ev": 0.087901,
       "current_ev_minus_se": 0.034341,
       "evaluated_at": "2026-08-23 15:15:41.15302+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-ca8b4d543b77427271ef7ffe52e333ad442251bfd0b198e7bf679020b8376bda",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -11904,7 +12100,6 @@
         }
       },
       "fixture_id": "1557375",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -11930,6 +12125,7 @@
       },
       "lambda_away": 1.247,
       "lambda_home": 1.685,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -11959,7 +12155,9 @@
       "current_ev": 0.339797,
       "current_ev_minus_se": 0.29416,
       "evaluated_at": "2026-08-23 15:15:41.15302+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-0fc6cd2dae0d847743e51166280f6dea1329b47e22873ef0da46d90eebcd1673",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -12029,7 +12227,6 @@
         }
       },
       "fixture_id": "1557375",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -12055,6 +12252,7 @@
       },
       "lambda_away": 1.247,
       "lambda_home": 1.685,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -12084,7 +12282,9 @@
       "current_ev": 0.432508,
       "current_ev_minus_se": 0.381135,
       "evaluated_at": "2026-08-24 18:45:55.910315+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-24749aafea896e1bf89e8424e7892ac1d35e72118cbc84c6e1c4b95c49ca6730",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -12154,7 +12354,6 @@
         }
       },
       "fixture_id": "1557376",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -12180,6 +12379,7 @@
       },
       "lambda_away": 1.063,
       "lambda_home": 1.519,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -12209,7 +12409,9 @@
       "current_ev": 0.162796,
       "current_ev_minus_se": 0.109106,
       "evaluated_at": "2026-08-30 15:15:04.270913+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-e59f7fed18bb738acdfbdb95b208608a58ecf5117c1fb53b3522de756b33dfb0",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -12279,7 +12481,6 @@
         }
       },
       "fixture_id": "1557384",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -12305,6 +12506,7 @@
       },
       "lambda_away": 1.024,
       "lambda_home": 1.71,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -12334,7 +12536,9 @@
       "current_ev": 0.321543,
       "current_ev_minus_se": 0.272307,
       "evaluated_at": "2026-08-30 15:15:04.270913+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-4f3c35b9fb9845767369d48f0e504ad91ad790fe74b715a5b5de8005db82c657",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -12404,7 +12608,6 @@
         }
       },
       "fixture_id": "1557384",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -12430,6 +12633,7 @@
       },
       "lambda_away": 1.024,
       "lambda_home": 1.71,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -12459,7 +12663,9 @@
       "current_ev": 0.436411,
       "current_ev_minus_se": 0.386085,
       "evaluated_at": "2026-08-26 18:46:01.735552+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-adea513f67539ee9d9d48a510fa18f86ec712c315cc889402a454cc8c42bf905",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -12529,7 +12735,6 @@
         }
       },
       "fixture_id": "1570340",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -12555,6 +12760,7 @@
       },
       "lambda_away": 1.01,
       "lambda_home": 1.534,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 3.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -12584,7 +12790,9 @@
       "current_ev": 0.532383,
       "current_ev_minus_se": 0.494697,
       "evaluated_at": "2026-08-26 18:46:01.735552+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-bf1861189abded14b110d5d976c27eb5a1bf1fa8260e9d4e11687fa346fe6615",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -12654,7 +12862,6 @@
         }
       },
       "fixture_id": "1570340",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -12680,6 +12887,7 @@
       },
       "lambda_away": 1.01,
       "lambda_home": 1.534,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 2.0,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -12709,7 +12917,9 @@
       "current_ev": 0.188514,
       "current_ev_minus_se": 0.13327,
       "evaluated_at": "2026-08-22 14:45:58.318526+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-55aa3fe1eb2d706b8f5de199ab3119677e8e13b530d5c48a904db7230c496242",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -12779,7 +12989,6 @@
         }
       },
       "fixture_id": "1570343",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -12805,6 +13014,7 @@
       },
       "lambda_away": 0.996,
       "lambda_home": 1.261,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -12834,7 +13044,9 @@
       "current_ev": 0.099068,
       "current_ev_minus_se": 0.050801,
       "evaluated_at": "2026-08-21 18:47:34.284573+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-7a49c824054174e66d2aa984d1fbcc7e6dfd94dbc40d9e1cb6a92bb7bd27312c",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -12904,7 +13116,6 @@
         }
       },
       "fixture_id": "1570345",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -12930,6 +13141,7 @@
       },
       "lambda_away": 1.263,
       "lambda_home": 1.83,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -12959,7 +13171,9 @@
       "current_ev": 0.552567,
       "current_ev_minus_se": 0.490869,
       "evaluated_at": "2026-08-23 19:15:21.795872+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-767bd76a9eb9ad6532d6055708ac6229e70b067a520462e6c71011c185058f09",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -13029,7 +13243,6 @@
         }
       },
       "fixture_id": "1570346",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -13055,6 +13268,7 @@
       },
       "lambda_away": 0.973,
       "lambda_home": 0.951,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 3.25,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -13084,7 +13298,9 @@
       "current_ev": 0.654554,
       "current_ev_minus_se": 0.589052,
       "evaluated_at": "2026-08-23 19:15:21.795872+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-5658f3f0c91d42febb81954fc88c9b4c35028c7c30378691c0e678acbf86dce0",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -13154,7 +13370,6 @@
         }
       },
       "fixture_id": "1570346",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -13180,6 +13395,7 @@
       },
       "lambda_away": 0.973,
       "lambda_home": 0.951,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 1.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -13209,7 +13425,9 @@
       "current_ev": 0.247022,
       "current_ev_minus_se": 0.205927,
       "evaluated_at": "2026-08-22 19:16:47.054021+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-c710d3d734d75e6834642d76cfeb06cce16ea5b765e61931d428379e4021d4e1",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -13279,7 +13497,6 @@
         }
       },
       "fixture_id": "1570347",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -13305,6 +13522,7 @@
       },
       "lambda_away": 1.219,
       "lambda_home": 1.151,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 3.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -13334,7 +13552,9 @@
       "current_ev": 0.545826,
       "current_ev_minus_se": 0.506469,
       "evaluated_at": "2026-08-22 19:16:47.054021+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-d40349a7898b925319e5bbbb1fe57b153d4d5ac1b118f7268327e730bbc7eb15",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -13404,7 +13624,6 @@
         }
       },
       "fixture_id": "1570347",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -13430,6 +13649,7 @@
       },
       "lambda_away": 1.219,
       "lambda_home": 1.151,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 1.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -13459,7 +13679,9 @@
       "current_ev": 0.108536,
       "current_ev_minus_se": 0.049202,
       "evaluated_at": "2026-08-24 17:15:38.187731+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-26087be547d377bfa95e25fda55e8c61b46847c88741a7b71314296efdfc226c",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -13529,7 +13751,6 @@
         }
       },
       "fixture_id": "1570350",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -13555,6 +13776,7 @@
       },
       "lambda_away": 1.613,
       "lambda_home": 1.288,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 2.5,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -13584,7 +13806,9 @@
       "current_ev": 0.312226,
       "current_ev_minus_se": 0.262099,
       "evaluated_at": "2026-08-24 17:15:38.187731+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-36edda2729a46b4964301d5ce7432594b3ab2d51c15dfaa7e8c4ba539e856894",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -13654,7 +13878,6 @@
         }
       },
       "fixture_id": "1570350",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -13680,6 +13903,7 @@
       },
       "lambda_away": 1.613,
       "lambda_home": 1.288,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -13709,7 +13933,9 @@
       "current_ev": 0.106124,
       "current_ev_minus_se": 0.066791,
       "evaluated_at": "2026-08-20 18:33:32.323507+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-382bcf82fd3364f2973ace8202c0699eb4325034ac12071c66dd72b0ac1ce83c",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -13779,7 +14005,6 @@
         }
       },
       "fixture_id": "1570351",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -13805,6 +14030,7 @@
       },
       "lambda_away": 1.367,
       "lambda_home": 1.18,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -13834,7 +14060,9 @@
       "current_ev": 0.050454,
       "current_ev_minus_se": 0.01487,
       "evaluated_at": "2026-08-22 17:15:06.180959+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-98b574168efea0d60bc78b644cea3dd04c3059f529c2984e5369b885f66d70c8",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -13904,7 +14132,6 @@
         }
       },
       "fixture_id": "1570352",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -13930,6 +14157,7 @@
       },
       "lambda_away": 1.13,
       "lambda_home": 1.549,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -13959,7 +14187,9 @@
       "current_ev": 0.115025,
       "current_ev_minus_se": 0.063065,
       "evaluated_at": "2026-08-22 16:45:56.237713+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-ffea9d41519c4efcd890f2db22e8437f82f6eb4a4f5ceaf42fc3a74992ed66c7",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -14029,7 +14259,6 @@
         }
       },
       "fixture_id": "1575464",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -14055,6 +14284,7 @@
       },
       "lambda_away": 1.263,
       "lambda_home": 1.382,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -14084,7 +14314,9 @@
       "current_ev": 0.126885,
       "current_ev_minus_se": 0.082926,
       "evaluated_at": "2026-08-23 19:17:44.382415+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-8295536cba6f040997e182181a33ac44c459052fa254080ca7c18d7400095f09",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -14154,7 +14386,6 @@
         }
       },
       "fixture_id": "1575466",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -14180,6 +14411,7 @@
       },
       "lambda_away": 1.005,
       "lambda_home": 1.564,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 3.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -14209,7 +14441,9 @@
       "current_ev": 0.514943,
       "current_ev_minus_se": 0.466133,
       "evaluated_at": "2026-08-23 19:17:44.382415+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-3f8446ea9a2fe11cd26285ee23019d24ac025afa4e0d020317a750851beb2504",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -14279,7 +14513,6 @@
         }
       },
       "fixture_id": "1575466",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -14305,6 +14538,7 @@
       },
       "lambda_away": 1.005,
       "lambda_home": 1.564,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 1.5,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -14334,7 +14568,9 @@
       "current_ev": 0.148748,
       "current_ev_minus_se": 0.095807,
       "evaluated_at": "2026-08-24 19:00:59.53909+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-7c480380d08f6337bda7b845d18a33eb70974ec9a9431244f8c0fc489ef941cd",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -14404,7 +14640,6 @@
         }
       },
       "fixture_id": "1575467",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -14430,6 +14665,7 @@
       },
       "lambda_away": 1.001,
       "lambda_home": 1.299,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 0.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -14459,7 +14695,9 @@
       "current_ev": 0.046499,
       "current_ev_minus_se": 0.003502,
       "evaluated_at": "2026-08-23 16:45:12.446101+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-3bd51364cc467bd4179ad5af63c44f9c71f8f5cadbb89de19125484a7be4729a",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -14529,7 +14767,6 @@
         }
       },
       "fixture_id": "1575470",
-      "frozen_input_identity_match": false,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -14555,6 +14792,7 @@
       },
       "lambda_away": 0.971,
       "lambda_home": 1.192,
+      "latest_checkpoint_simulation_matches_capture": false,
       "line": 0.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -14584,7 +14822,9 @@
       "current_ev": 0.216341,
       "current_ev_minus_se": 0.171954,
       "evaluated_at": "2026-08-22 19:19:20.40153+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-15e05e9e1ab90328e39be0f27780246d271a8f80953fbf9b7cfaaddd906af810",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -14654,7 +14894,6 @@
         }
       },
       "fixture_id": "1575471",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -14680,6 +14919,7 @@
       },
       "lambda_away": 0.936,
       "lambda_home": 1.776,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 3.25,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -14709,7 +14949,9 @@
       "current_ev": 0.392041,
       "current_ev_minus_se": 0.34946,
       "evaluated_at": "2026-08-22 19:19:20.40153+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-31ee7541a995f96d72019ced1862efa94b5f07a348aa6bd48ca7b5248647a52f",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -14779,7 +15021,6 @@
         }
       },
       "fixture_id": "1575471",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -14805,6 +15046,7 @@
       },
       "lambda_away": 0.936,
       "lambda_home": 1.776,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 1.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -14834,7 +15076,9 @@
       "current_ev": 0.269559,
       "current_ev_minus_se": 0.225556,
       "evaluated_at": "2026-08-23 14:15:19.844389+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-3a944803291be62711a55760b5a333453008d74b6ad7743882c42984609c7a3f",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -14904,7 +15148,6 @@
         }
       },
       "fixture_id": "1575472",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -14930,6 +15173,7 @@
       },
       "lambda_away": 1.372,
       "lambda_home": 1.342,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.75,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {
@@ -14959,7 +15203,9 @@
       "current_ev": 0.113502,
       "current_ev_minus_se": 0.0676,
       "evaluated_at": "2026-08-30 16:45:09.663844+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-2d0ba5808c1304b9ee64f0ff674c5f2d9b60ec4e27797131d5d5c68c2b14764f",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -15029,7 +15275,6 @@
         }
       },
       "fixture_id": "1575478",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -15055,6 +15300,7 @@
       },
       "lambda_away": 0.987,
       "lambda_home": 1.544,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 2.0,
       "market": "TOTALS",
       "model_settlement_distribution": {
@@ -15084,7 +15330,9 @@
       "current_ev": 0.123674,
       "current_ev_minus_se": 0.085224,
       "evaluated_at": "2026-08-30 16:45:09.663844+00",
+      "evaluation_capture_identity_match": true,
       "evaluation_id": "dqe-8d447c28aea934ab5304e44334193f100df5d37a1ea168c49f3a6db4eae69bfd",
+      "evaluation_model_input_manifest_match": true,
       "factor_status": {
         "F1_MARKET_MOVEMENT": {
           "collection_status": "NOT_COLLECTED",
@@ -15154,7 +15402,6 @@
         }
       },
       "fixture_id": "1575478",
-      "frozen_input_identity_match": true,
       "input_readiness": {
         "away_elo_collection_status": null,
         "away_elo_source": null,
@@ -15180,6 +15427,7 @@
       },
       "lambda_away": 0.987,
       "lambda_home": 1.544,
+      "latest_checkpoint_simulation_matches_capture": true,
       "line": 0.25,
       "market": "ASIAN_HANDICAP",
       "model_settlement_distribution": {

@@ -18,7 +18,7 @@ PYTHONPATH=src .venv/bin/python scripts/audit_settled_candidate_inputs.py \
 
 ## 生产链重放结果
 
-每注均能从 immutable checkpoint 恢复 `simulation`：121/121 `READY`，并保留 λ、sigma、完整五态分布、赔率、EV、EV-SE、delta、盘口线、方向和赛果结算。按既有结算函数得到 `WIN 46 / HALF_WIN 5 / PUSH 10 / HALF_LOSS 7 / LOSS 53`，P&L `-15.145` 单位；P&L 仅作症状展示，不作调参依据。
+每注均能从 evaluation 绑定的 immutable model capture 恢复完整五态分布、赔率、EV、EV-SE、delta、盘口线、方向和赛果结算；方向审计不再使用后来覆盖的 shadow checkpoint。按既有结算函数得到 `WIN 46 / HALF_WIN 5 / PUSH 10 / HALF_LOSS 7 / LOSS 53`，P&L `-15.145` 单位；P&L 仅作症状展示，不作调参依据。
 
 | 市场 | 注数 | P&L | 平均 λ主 | 平均 λ客 | 平均预测总进球 / 实际 | 平均预测净差 / 实际 |
 |---|---:|---:|---:|---:|---:|---:|
@@ -34,7 +34,7 @@ AH 方向：主队 20、客队 46；TOTALS：大 22、小 33。输注不是简�
 
 因此当前 V1 推荐按设计由 xG 四字段 + 固定主场项 `0.30` + Poisson/Dixon-Coles 经济链驱动。Elo/身价/首发属于 V2 扩展，不是 V1 的必需输入或缺陷。98 注仍为 `BASELINE_PRIOR` 时期，23 注为 `APPROVED_VALIDATED` 时期；不能跨 calibration identity 合并成一个授权结论。
 
-另有 35/121 条的 immutable capture simulation input hash 与当时 analysis checkpoint hash 不同，86/121 相同。这是持久化 projection 与 capture identity 的可审计漂移，不能静默当作同一输入；后续修复必须先解释这 35 条的来源，再谈任何重训。
+此前报告称 35/121 条 capture 与 checkpoint simulation hash 不同，现已撤回：比较的是历史 evaluation 与后来覆盖的 latest shadow checkpoint，而非 immutable child。实测 evaluation→model-capture identity 与 model-input manifest 均为 121/121 一致；latest-checkpoint 差异仅是非权威诊断。
 
 ## 当前可支持的根因判断
 
@@ -45,7 +45,7 @@ AH 方向：主队 20、客队 46；TOTALS：大 22、小 33。输注不是简�
 
 ## 结论边界
 
-本报告已经完成 121 注的逐注输入、λ、模拟、赔率/EV、方向和赛果重放，并定位到“V1 的 xG 主导链、AH 净差压缩、35 条 identity 漂移”这些可复核事实；它不是“EV 已修复”或“生产有效性已验证”的声明。下一步只能在本报告验收后，针对 35 条 identity 漂移和 V1 的 xG/强弱/盘口链建立独立修复或预注册任务。
+本报告已经完成 121 注的逐注输入、λ、模拟、赔率/EV、方向和赛果重放，并定位到“V1 的 xG 主导链、AH 净差压缩”这些可复核事实；它不是“EV 已修复”或“生产有效性已验证”的声明。下一步按独立预注册处理 V1 的 xG/强弱/盘口链。
 
 方向层的逐注重评分已另行冻结，见
 `SETTLED_CANDIDATE_DIRECTION_RESCORE_REPORT.md` 与
