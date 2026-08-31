@@ -1,0 +1,1 @@
+COPY (SELECT fixture_id, kickoff_at, team_id, opponent_team_id, xg_for, xg_against, goals_for, goals_against FROM team_xg_match WHERE kickoff_at < '2026-08-30T05:00:00Z' ORDER BY kickoff_at, fixture_id, team_id) TO STDOUT WITH CSV HEADER;
