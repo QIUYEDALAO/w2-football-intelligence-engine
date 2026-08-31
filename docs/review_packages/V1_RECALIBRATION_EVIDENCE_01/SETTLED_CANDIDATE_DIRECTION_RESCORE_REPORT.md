@@ -59,13 +59,13 @@ artifact SHA-256：`92c4fd6578ae44651fafd9647caa8f7e504e416159211e77f96df7938f2e
 
 ### Elo、身价、首发
 
-冻结 capture 明确记录：
+冻结 capture 明确记录（这些不是 V1 必需因素；这里只为确认没有被偷偷计入模型）：
 
 - `ratings_used_in_lambda=False`：121/121；
 - `squad_value_used_in_lambda=False`：121/121；
 - lineup `numeric_adjustment_enabled=False`：121/121。
 
-因此这三类反事实没有真实的当时数值可以重放，artifact 对 121 条分别标为 `NOT_AVAILABLE`。不使用赛果倒推或伪造输入；要判断它们是否能翻转方向，必须先修复并冻结生产输入可见性，再另行预注册。
+因此这三类反事实没有真实的当时数值可以重放，artifact 对 121 条分别标为 `NOT_AVAILABLE`。不使用赛果倒推或伪造输入；它们属于 V2 扩展，不构成 V1 缺陷或 V1 修复前提。
 
 ### 当前实际驱动因子
 
@@ -75,4 +75,4 @@ artifact SHA-256：`92c4fd6578ae44651fafd9647caa8f7e504e416159211e77f96df7938f2e
 
 本审计证明了：原候选方向确实等于当时模型方向；在这 121 条被准入的已结算样本中，AH 决定性方向命中 32/64、TOTALS 19/47，亏损不是简单的“系统选了错误的另一边后又被 EV 过滤掉”。它同时显示，去掉主场项几乎不改变方向，Elo/身价/首发因缺失无法评估。
 
-这不是“EV 已修复”、不是“生产有效性已验证”，也不授权直接调参。下一步应先解释 35/121 条 capture 与 checkpoint simulation identity 漂移，并补齐因子输入的 PIT 可见性；任何参数或准入修改都必须另行预注册。
+这不是“EV 已修复”、不是“生产有效性已验证”，也不授权直接调参。V1 下一步应先解释 35/121 条 capture 与 checkpoint simulation identity 漂移，并校准 xG/主客强弱与盘口链；首发、身价等 V2 因子不纳入 V1 修复。任何参数或准入修改都必须另行预注册。
