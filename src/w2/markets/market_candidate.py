@@ -12,7 +12,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from w2.domain import calibration_authority
-from w2.domain.five_state_pricing import MIN_CASHFLOW_PRICE_EDGE
+from w2.domain.admission_contract import economic_admission_pass
 from w2.markets.analysis_evidence import build_analysis_market_evidence
 
 MARKET_CANDIDATE_SCHEMA_VERSION = "w2.market_candidate.v1"
@@ -549,9 +549,11 @@ def _admission_eligible(
         evidence_complete
         and candidate_role == "MARKET_MAINLINE"
         and calibration_authority.recommendation_admissible(calibration_status)
-        and expected_value > 0
-        and expected_value - uncertainty > 0
-        and cashflow_edge >= float(MIN_CASHFLOW_PRICE_EDGE)
+        and economic_admission_pass(
+            expected_value=expected_value,
+            ev_minus_se=expected_value - uncertainty,
+            cashflow_price_edge=cashflow_edge,
+        )
     )
 
 

@@ -72,6 +72,7 @@ def test_unknown_policy_version_fails_closed() -> None:
 
 def test_current_policy_is_registered() -> None:
     assert CURRENT_EVALUATION_POLICY in EVALUATION_SLOTS
+    assert CURRENT_EVALUATION_POLICY == "candidate-eval.v2"
 
 
 def test_posthoc_snapshot_rows_are_barred_from_the_funnel() -> None:

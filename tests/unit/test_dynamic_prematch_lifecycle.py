@@ -122,6 +122,7 @@ def _evaluation(
         "market_probability": market_probability,
         "expected_value": ev,
         "ev_se": ev_se,
+        "cashflow_price_edge": 0.10,
         # A well-formed evaluation now declares where its probability came from.
         # Tests about the EV gates say so explicitly; the calibration gate itself
         # is covered by its own tests below.
@@ -163,32 +164,43 @@ def test_new_capture_supersedes_old_and_same_capture_is_idempotent() -> None:
 
 
 def test_no_edge_can_upgrade_and_active_can_become_stale() -> None:
-    low = classify_evaluation(_evaluation(capture_id="c1", ev=0.02, delta=0.03, ev_se=0.01))
+    low = classify_evaluation(
+        _evaluation(capture_id="c1", ev=0.02, delta=0.03, ev_se=0.01, cashflow_price_edge=0.10)
+    )
     high = classify_evaluation(_evaluation(capture_id="c2", ev=0.08, delta=0.07, ev_se=0.02))
     stale = classify_evaluation(
         _evaluation(capture_id="c3", ev=0.08, delta=0.07, ev_se=0.02, quote_fresh=False)
     )
-    assert low.state is DynamicEvaluationState.NO_EDGE_CURRENT
-    assert low.shortfall["delta"] == 0.02
+    assert low.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
+    assert low.shortfall["delta"] == 0.0
     assert high.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
     assert stale.state is DynamicEvaluationState.STALE_PENDING_REFRESH
 
 
 @pytest.mark.parametrize(
-    ("ev", "delta", "ev_se", "blocker"),
+    ("ev", "delta", "ev_se", "cashflow_price_edge", "blocker"),
     [
-        (0.0, 0.06, -0.01, "EV_NOT_POSITIVE"),
-        (0.05, 0.049, 0.01, "DELTA_BELOW_THRESHOLD"),
-        (0.02, 0.06, 0.02, "EV_MINUS_SE_NOT_POSITIVE"),
+        (0.0, 0.06, -0.01, 0.10, "EV_NOT_POSITIVE"),
+        (0.05, 0.049, 0.01, 0.04, "CASHFLOW_EDGE_BELOW_THRESHOLD"),
+        (0.02, 0.06, 0.02, 0.10, "EV_MINUS_SE_NOT_POSITIVE"),
     ],
 )
 def test_active_admission_requires_all_three_robust_gates(
     ev: float,
     delta: float,
     ev_se: float,
+    cashflow_price_edge: float,
     blocker: str,
 ) -> None:
-    version = classify_evaluation(_evaluation(capture_id=blocker, ev=ev, delta=delta, ev_se=ev_se))
+    version = classify_evaluation(
+        _evaluation(
+            capture_id=blocker,
+            ev=ev,
+            delta=delta,
+            ev_se=ev_se,
+            cashflow_price_edge=cashflow_price_edge,
+        )
+    )
     assert version.state is DynamicEvaluationState.NO_EDGE_CURRENT
     assert blocker in version.blockers
 
@@ -310,6 +322,7 @@ def test_v2_distribution_fails_closed_at_one_e_minus_nine(
                 ev=0.08,
                 delta=0.06,
                 ev_se=0.02,
+                cashflow_price_edge=0.04,
                 schema_version=DYNAMIC_EVALUATION_V2_SCHEMA,
                 competition_id="competition-1",
                 season="2026",
@@ -354,6 +367,7 @@ def test_lineup_event_invalidates_old_input_until_post_lineup_quote() -> None:
             lineup_input_hash="lineup-1",
             post_lineup_quote=True,
             model_input_hash="model-lineup-1",
+            cashflow_price_edge=0.04,
         )
     )
     assert after.state is DynamicEvaluationState.NO_EDGE_CURRENT
@@ -827,9 +841,7 @@ def test_exact_pair_projector_requires_one_authoritative_event(event_count: int)
 
     assert not projection.pairs
     expected = (
-        "BLOCKED_LINEUP_EVENT_MISSING"
-        if event_count == 0
-        else "BLOCKED_LINEUP_EVENT_CONFLICT"
+        "BLOCKED_LINEUP_EVENT_MISSING" if event_count == 0 else "BLOCKED_LINEUP_EVENT_CONFLICT"
     )
     assert expected in {item.reason for item in projection.exclusions}
 
@@ -921,9 +933,7 @@ def test_exact_pair_projector_rejects_ambiguous_fixture_alias() -> None:
     projection = project_exact_eval_02b_pairs(engine)
 
     assert not projection.pairs
-    assert "BLOCKED_FIXTURE_IDENTITY_CONFLICT" in {
-        item.reason for item in projection.exclusions
-    }
+    assert "BLOCKED_FIXTURE_IDENTITY_CONFLICT" in {item.reason for item in projection.exclusions}
 
 
 def test_exact_pair_projector_keeps_superseded_original_history() -> None:

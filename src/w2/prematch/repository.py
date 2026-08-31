@@ -601,11 +601,20 @@ def _version_from_payload(payload: dict[str, Any]) -> DynamicEvaluationVersion:
         current_ev_minus_se=float(payload["current_ev_minus_se"])
         if payload.get("current_ev_minus_se") is not None
         else None,
+        current_cashflow_price_edge=(
+            float(payload["current_cashflow_price_edge"])
+            if payload.get("current_cashflow_price_edge") is not None
+            else None
+        ),
         decimal_odds=float(payload["decimal_odds"])
         if payload.get("decimal_odds") is not None
         else None,
         required_ev=float(payload["required_ev"]),
         required_delta=float(payload["required_delta"]),
+        required_cashflow_price_edge=float(payload.get("required_cashflow_price_edge", 0.05)),
+        probability_delta_admission_gate=bool(
+            payload.get("probability_delta_admission_gate", False)
+        ),
         required_ev_minus_se=float(payload["required_ev_minus_se"]),
         shortfall={str(key): float(value) for key, value in payload["shortfall"].items()},
         blockers=tuple(str(item) for item in payload.get("blockers", [])),

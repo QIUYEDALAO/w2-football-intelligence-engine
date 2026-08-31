@@ -94,6 +94,7 @@ def _attempt(
             model_probability=0.60,
             market_probability=0.50,
             expected_value=ev,
+            cashflow_price_edge=0.10,
             ev_se=0.01,
             decimal_odds=odds,
             bookmaker_count=depth,

@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import Final
 
 EVALUATION_POLICY_V1: Final = "candidate-eval.v1"
+EVALUATION_POLICY_V2: Final = "candidate-eval.v2"
 
 # Only checkpoints that both refresh odds and are expected to run a full
 # gate + Decision V4 pass belong here.  Lineup-only retries are inputs to a
@@ -30,9 +31,16 @@ EVALUATION_SLOTS: Final[dict[str, tuple[str, ...]]] = {
         "T-30m_VALIDATION_LOCK",
         "T15_ODDS",
     ),
+    EVALUATION_POLICY_V2: (
+        "T3_ODDS",
+        "T60_ODDS_LINEUPS",
+        "T45_ODDS",
+        "T-30m_VALIDATION_LOCK",
+        "T15_ODDS",
+    ),
 }
 
-CURRENT_EVALUATION_POLICY: Final = EVALUATION_POLICY_V1
+CURRENT_EVALUATION_POLICY: Final = EVALUATION_POLICY_V2
 
 
 class EvaluationSlotError(ValueError):

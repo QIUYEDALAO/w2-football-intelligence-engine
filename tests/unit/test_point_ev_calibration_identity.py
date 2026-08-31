@@ -41,6 +41,7 @@ from w2.prematch.lifecycle import (
     OpportunityState,
     bind_evaluation_opportunity,
     classify_evaluation,
+    opportunity_identity_hash,
 )
 from w2.prematch.read_model_projection import _dynamic_evaluations
 from w2.prematch.repository import DynamicPrematchRepository
@@ -74,18 +75,24 @@ def test_f_read_model_projection_appends_forward_fields_without_rekeying() -> No
         "score_matrix_summary": {"home_win": 0.46, "draw": 0.24, "away_win": 0.30},
     }
     baseline = _dynamic_evaluations(
-        {"fixture_id": "1570340", "simulation": baseline_simulation}, manifest,
-        fixture_identity=fixture_identity, lineup_identity=None,
+        {"fixture_id": "1570340", "simulation": baseline_simulation},
+        manifest,
+        fixture_identity=fixture_identity,
+        lineup_identity=None,
     )
     enriched = _dynamic_evaluations(
-        {"fixture_id": "1570340", "simulation": enriched_simulation}, manifest,
-        fixture_identity=fixture_identity, lineup_identity=None,
+        {"fixture_id": "1570340", "simulation": enriched_simulation},
+        manifest,
+        fixture_identity=fixture_identity,
+        lineup_identity=None,
     )
     assert [item.identity_hash for item in enriched] == [item.identity_hash for item in baseline]
     for item in enriched:
         assert item.as_dict()["calibration_identity"] == "a" * 64
         assert item.as_dict()["one_x_two_probabilities"] == {
-            "home": 0.46, "draw": 0.24, "away": 0.30,
+            "home": 0.46,
+            "draw": 0.24,
+            "away": 0.30,
         }
 
 
@@ -114,6 +121,7 @@ def _input(
         market_probability=0.50,
         expected_value=ev,
         ev_se=0.01,
+        cashflow_price_edge=0.10,
         decimal_odds=1.91,
         bookmaker_count=7,
         mainline_parsed=True,
@@ -143,6 +151,25 @@ def test_forward_evidence_fields_are_persisted_without_changing_identity_hash() 
         "draw": 0.24,
         "away": 0.30,
     }
+
+
+def test_cashflow_admission_evidence_does_not_change_frozen_evaluation_identity() -> None:
+    baseline_input = _input(calibration_status="APPROVED_VALIDATED")
+    baseline = classify_evaluation(baseline_input)
+    changed = classify_evaluation(replace(baseline_input, cashflow_price_edge=0.20))
+
+    assert changed.identity_hash == baseline.identity_hash
+    assert changed.current_cashflow_price_edge == 0.20
+    assert changed.probability_delta_admission_gate is False
+
+
+def test_policy_v2_starts_a_new_opportunity_identity() -> None:
+    context_v1 = SAME_OPPORTUNITY
+    context_v2 = replace(context_v1, evaluation_policy_version="candidate-eval.v2")
+
+    assert opportunity_identity_hash(context_v1, market="ASIAN_HANDICAP") != (
+        opportunity_identity_hash(context_v2, market="ASIAN_HANDICAP")
+    )
 
 
 def _context(slot: str, suffix: str) -> EvaluationOpportunityContext:
@@ -429,9 +456,7 @@ def test_e_upgrade_on_the_same_opportunity_is_its_own_attempt() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
     repository.append_evaluation(_same_opportunity_attempt("BASELINE_PRIOR", minutes=0))
-    repository.append_evaluation(
-        _same_opportunity_attempt("PRODUCTION_VALIDATED", minutes=30)
-    )
+    repository.append_evaluation(_same_opportunity_attempt("PRODUCTION_VALIDATED", minutes=30))
     with Session(engine) as session:
         rows = list(session.scalars(select(DynamicPrematchEvaluationModel)))
         opportunities = list(session.scalars(select(DynamicPrematchOpportunityModel)))

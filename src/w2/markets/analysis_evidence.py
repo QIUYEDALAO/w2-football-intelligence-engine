@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
 from w2.domain import calibration_authority
+from w2.domain.admission_contract import economic_admission_pass
 from w2.domain.five_state_pricing import MIN_CASHFLOW_PRICE_EDGE as V4_MIN_CASHFLOW_PRICE_EDGE
 from w2.markets.devig import DevigMethod, devig
 from w2.markets.settlement_probability import effective_settlement_probability
@@ -215,10 +216,10 @@ def _side_evidence(
     current_ev = float(model.get("expected_value", 0.0))
     current_ev_se = float(model.get("ev_se", 0.0))
     current_ev_minus_se = round(current_ev - current_ev_se, 6)
-    allowed = bool(
-        current_ev > 0
-        and price_edge >= MIN_CASHFLOW_PRICE_EDGE
-        and current_ev_minus_se > 0
+    allowed = economic_admission_pass(
+        expected_value=current_ev,
+        ev_minus_se=current_ev_minus_se,
+        cashflow_price_edge=price_edge,
     )
     return {
         "line": _text(line),

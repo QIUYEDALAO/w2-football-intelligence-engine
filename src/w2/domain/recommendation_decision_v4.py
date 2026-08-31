@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from typing import Any
 
+from w2.domain.admission_contract import economic_admission_pass
 from w2.domain.canonical_serialization import (
     CURRENT_SERIALIZER_VERSION,
     HashDomain,
@@ -15,7 +16,6 @@ from w2.domain.canonical_serialization import (
     canonical_sha256,
 )
 from w2.domain.five_state_pricing import (
-    MIN_CASHFLOW_PRICE_EDGE,
     SettlementDistribution,
     cashflow_price_edge,
     expected_value,
@@ -493,13 +493,14 @@ def _outcome(
     expected_value = _decimal(payload.get("expected_value"))
     uncertainty = _decimal(payload.get("uncertainty"))
     cashflow_edge = _decimal(payload.get("cashflow_price_edge"))
-    if (
-        expected_value is None
-        or uncertainty is None
-        or cashflow_edge is None
-        or expected_value <= 0
-        or expected_value - uncertainty <= 0
-        or cashflow_edge < MIN_CASHFLOW_PRICE_EDGE
+    if not economic_admission_pass(
+        expected_value=float(expected_value) if expected_value is not None else None,
+        ev_minus_se=(
+            float(expected_value - uncertainty)
+            if expected_value is not None and uncertainty is not None
+            else None
+        ),
+        cashflow_price_edge=float(cashflow_edge) if cashflow_edge is not None else None,
     ):
         return RecommendationOutcomeV4.NO_EDGE, "CASHFLOW_EDGE_INSUFFICIENT", "五态现金流优势不足"
     formal_admission = _mapping(payload.get("formal_admission"))

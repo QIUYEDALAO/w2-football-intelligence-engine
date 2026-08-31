@@ -296,7 +296,7 @@ def _patch_ready_projection(monkeypatch: pytest.MonkeyPatch) -> None:
                                     "expected_value": 0.08,
                                     "ev_se": 0.01,
                                 },
-                                "comparison": {},
+                                "comparison": {"cashflow_price_edge": 0.10},
                             }
                         },
                         "quote_identity": {

@@ -10,6 +10,10 @@ from enum import StrEnum
 from typing import Any
 
 from w2.domain import calibration_authority
+from w2.domain.admission_contract import (
+    MIN_CASHFLOW_PRICE_EDGE_FLOAT,
+    economic_admission_pass,
+)
 
 ACTIVE_DELTA_THRESHOLD = 0.05
 ACTIVE_EV_THRESHOLD = 0.0
@@ -154,6 +158,7 @@ class DynamicEvaluationInput:
     market_probability: float | None = None
     expected_value: float | None = None
     ev_se: float | None = None
+    cashflow_price_edge: float | None = None
     decimal_odds: float | None = None
     lineup_input_hash: str | None = None
     lineup_confirmed_at: datetime | None = None
@@ -198,6 +203,9 @@ class DynamicEvaluationVersion:
     blockers: tuple[str, ...]
     user_message: str | None
     next_action: str | None
+    current_cashflow_price_edge: float | None = None
+    required_cashflow_price_edge: float = MIN_CASHFLOW_PRICE_EDGE_FLOAT
+    probability_delta_admission_gate: bool = False
     supersedes_evaluation_id: str | None = None
     supersession_reason: str | None = None
     schema_version: str = DYNAMIC_EVALUATION_V1_SCHEMA
@@ -507,27 +515,32 @@ def classify_evaluation(
         # probability is analysis evidence, not a recommendation.
         state = DynamicEvaluationState.NOT_READY_MODEL_INPUT
         blockers.append(calibration_authority.RECOMMENDATION_BLOCKER)
-    elif ev is None or delta is None or ev_minus_se is None:
+    elif ev is None or delta is None or ev_minus_se is None or value.cashflow_price_edge is None:
         state = DynamicEvaluationState.NOT_READY_MODEL_INPUT
         blockers.append("EV_EVIDENCE_INCOMPLETE")
-    elif (
-        ev > ACTIVE_EV_THRESHOLD
-        and delta >= ACTIVE_DELTA_THRESHOLD
-        and ev_minus_se > ACTIVE_EV_MINUS_SE_THRESHOLD
+    elif economic_admission_pass(
+        expected_value=ev,
+        ev_minus_se=ev_minus_se,
+        cashflow_price_edge=value.cashflow_price_edge,
     ):
         state = DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
     else:
         state = DynamicEvaluationState.NO_EDGE_CURRENT
         if ev <= ACTIVE_EV_THRESHOLD:
             blockers.append("EV_NOT_POSITIVE")
-        if delta < ACTIVE_DELTA_THRESHOLD:
-            blockers.append("DELTA_BELOW_THRESHOLD")
+        if value.cashflow_price_edge < MIN_CASHFLOW_PRICE_EDGE_FLOAT:
+            blockers.append("CASHFLOW_EDGE_BELOW_THRESHOLD")
         if ev_minus_se <= ACTIVE_EV_MINUS_SE_THRESHOLD:
             blockers.append("EV_MINUS_SE_NOT_POSITIVE")
 
     shortfall = {
         "ev": round(max(ACTIVE_EV_THRESHOLD - ev, 0.0), 6) if ev is not None else 0.0,
-        "delta": round(max(ACTIVE_DELTA_THRESHOLD - delta, 0.0), 6) if delta is not None else 0.0,
+        "delta": 0.0,
+        "cashflow_price_edge": round(
+            max(MIN_CASHFLOW_PRICE_EDGE_FLOAT - value.cashflow_price_edge, 0.0), 6
+        )
+        if value.cashflow_price_edge is not None
+        else 0.0,
         "ev_minus_se": round(max(ACTIVE_EV_MINUS_SE_THRESHOLD - ev_minus_se, 0.0), 6)
         if ev_minus_se is not None
         else 0.0,
@@ -593,6 +606,7 @@ def classify_evaluation(
         and ev is not None
         and delta is not None
         and ev_minus_se is not None
+        and value.cashflow_price_edge is not None
     )
     gate_results = (
         {
@@ -661,11 +675,16 @@ def classify_evaluation(
         current_ev=round(ev, 6) if ev is not None else None,
         current_delta=round(delta, 6) if delta is not None else None,
         current_ev_minus_se=round(ev_minus_se, 6) if ev_minus_se is not None else None,
+        current_cashflow_price_edge=(
+            round(value.cashflow_price_edge, 6) if value.cashflow_price_edge is not None else None
+        ),
         decimal_odds=(
             round(float(value.decimal_odds), 6) if value.decimal_odds is not None else None
         ),
         required_ev=ACTIVE_EV_THRESHOLD,
-        required_delta=ACTIVE_DELTA_THRESHOLD,
+        required_delta=0.0,
+        required_cashflow_price_edge=MIN_CASHFLOW_PRICE_EDGE_FLOAT,
+        probability_delta_admission_gate=False,
         required_ev_minus_se=ACTIVE_EV_MINUS_SE_THRESHOLD,
         shortfall=shortfall,
         blockers=tuple(blockers),

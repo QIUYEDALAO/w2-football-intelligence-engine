@@ -1522,6 +1522,7 @@ def _dynamic_evaluations(
             market_probability=_float_or_none(devig.get(selection)),
             expected_value=_float_or_none(model.get("expected_value")),
             ev_se=_float_or_none(model.get("ev_se")),
+            cashflow_price_edge=_float_or_none(comparison.get("cashflow_price_edge")),
             decimal_odds=_float_or_none(quote.get("decimal_odds")),
             lineup_input_hash=lineup_input_hash,
             lineup_confirmed_at=(lineup_confirmed_at if post_lineup_quote else None),

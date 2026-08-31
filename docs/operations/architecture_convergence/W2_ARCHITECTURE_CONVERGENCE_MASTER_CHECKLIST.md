@@ -15,6 +15,24 @@
 
 ## 零、当前补缺任务变更记录
 
+### V1-ADMISSION-CONTRACT-CONVERGENCE-01
+
+```text
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Branch: codex/v1-recalibration-evidence-01
+Parent evidence: 6cc64bfdb2bee4d13c8cec2490e1cad60e0fb146
+Preregistration commit: 0d3b0ae3a58eb4a812fc2e9a1d2e04fd36834f34
+```
+
+- 经济准入收敛为单一 `EV > 0 + cashflow_price_edge >= 0.05 + EV-SE > 0`
+  领域合同；正式 denominator 记录将 probability delta 明确标为 diagnostic-only。
+- 新策略身份为 `candidate-eval.v2`，与 `candidate-eval.v1` 机会身份隔离；新增字段不进入
+  既有 frozen evaluation identity，旧 payload 仍可读取。
+- 冻结前向市场相对准确度协议，明确排除已查看的 354 条后验 cohort；新增 model ×
+  calibration × market × policy × economic/scoring contract 精确绑定的 append-only registry。
+- 交付 ledger 为 0 字节、授权记录 0；migration 0、Provider 0、生产读写 0、部署 0、
+  GitHub 操作 0。状态仅为本地实现待验收。
+
 ### W2-CALIBRATION-AUTHORITY-WRITE-SIDE
 
 ```text

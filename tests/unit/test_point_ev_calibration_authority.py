@@ -65,6 +65,7 @@ def _evaluation(*, calibration_status: object, ev: float = 0.20, delta: float = 
         market_probability=0.50,
         expected_value=ev,
         ev_se=0.05,
+        cashflow_price_edge=0.10,
         decimal_odds=DECIMAL_ODDS,
         calibration_status=calibration_status,  # type: ignore[arg-type]
     )
