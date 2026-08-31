@@ -20,6 +20,7 @@ from typing import Any
 
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.markets.settlement_probability import effective_settlement_probability
+
 csv.field_size_limit(sys.maxsize)
 
 SIDES = {"HOME": "AWAY", "AWAY": "HOME", "OVER": "UNDER", "UNDER": "OVER"}
@@ -148,7 +149,8 @@ def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "actual_direction": dict(Counter(row["actual"]["direction"] for row in scoped)),
             "model_direction_correct": sum(row["direction_correct"] for row in scoped),
             "original_selection_matches_model": sum(
-                row["immutable_capture_replay"]["original_selection_matches_model"] for row in scoped
+                row["immutable_capture_replay"]["original_selection_matches_model"]
+                for row in scoped
             ),
             "original_bet_direction_correct": sum(
                 row["original_bet_direction_correct"] for row in scoped
