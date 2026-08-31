@@ -181,7 +181,7 @@
     "identity_function": "w2.domain.calibration_validation_registry.calibration_identity(calibration_version, complete params snapshot)",
     "safety_property": "Any formula-version or parameter change produces a different calibration identity; old 0.30 authorization cannot carry forward.",
     "model_identity": "bind exact code revision, formula version and complete params snapshot separately from calibration identity",
-    "config_hash": "bind the canonical digest of every runtime-effective non-secret model configuration value",
+      "config_hash": "bind the canonical digest of every runtime-effective model configuration value that contains no credentials",
     "grant_rule": "No ledger registration until validation and test both pass and their immutable evidence digests are available."
   },
   "acceptance_metrics": {

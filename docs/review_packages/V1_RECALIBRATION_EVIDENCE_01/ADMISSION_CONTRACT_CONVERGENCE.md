@@ -2,6 +2,8 @@
 
 状态：`IMPLEMENTED_PENDING_ACCEPTANCE`（本地实现，未部署）
 
+生产影响更正：此前“不会改变当前生产行为”的说法错误。旧合同为 `EV>0 + delta>=0.05 + EV-SE>0`；本实现改为 `EV>0 + cashflow_price_edge>=0.05 + EV-SE>0`。生产 530 条评价中旧合同候选 216 条，76 条仅被 delta 拦截，且 76/76 的 cashflow edge 均达 0.05，理论新增候选 76 条（约放宽 35.19%）。详见 `ADMISSION_CONTRACT_CORRECTION.md`。因此本变更不得在 AH 斜率修复前单独部署。
+
 ## 变更
 
 - 统一经济准入合同为 `w2.economic_admission.cashflow.v1`：`EV > 0`、五态
