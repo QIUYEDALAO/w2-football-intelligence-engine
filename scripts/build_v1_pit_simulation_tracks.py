@@ -95,21 +95,24 @@ def build(
 
     tracks = []
     counts: dict[str, int] = defaultdict(int)
+    excluded: list[dict[str, Any]] = []
     for fixture in a1["fixtures"]:
         fixture_id = str(fixture["provider_fixture_id"])
         kickoff = _time(fixture["kickoff_at"])
         identity = identities[fixture_id]
         side_values: dict[str, tuple[float, float]] = {}
+        exclusion: str | None = None
         for side, team_key in (("home", "home_id"), ("away", "away_id")):
             team_id = identity[team_key]
             if fixture["input_path"] == "snapshot":
                 eligible = [
                     row
                     for row in snapshots[(fixture_id, team_id)]
-                    if _time(row["as_of_time"]) <= kickoff and int(row["match_count"]) >= 5
+                    if _time(row["as_of_time"]) <= kickoff and int(row["match_count"]) >= 3
                 ]
                 if not eligible:
-                    raise ValueError(f"{fixture_id}/{team_id}: missing PIT snapshot")
+                    exclusion = f"{side.upper()}_PIT_SNAPSHOT_MISSING"
+                    break
                 row = max(eligible, key=lambda item: item["as_of_time"])
                 side_values[side] = (
                     float(row["rolling_xg_for"]),
@@ -118,9 +121,13 @@ def build(
             else:
                 eligible = [row for row in histories[team_id] if _time(row["kickoff_at"]) < kickoff]
                 if len(eligible) < 5:
-                    raise ValueError(f"{fixture_id}/{team_id}: fewer than five prior xG matches")
+                    exclusion = f"{side.upper()}_PRIOR_XG_LT_5"
+                    break
                 latest = eligible[-5:]
                 side_values[side] = (_mean(latest, "xg_for"), _mean(latest, "xg_against"))
+        if exclusion:
+            excluded.append({"fixture_id": fixture_id, "reason": exclusion})
+            continue
         values = {
             "home_xg_for": side_values["home"][0],
             "home_xg_against": side_values["home"][1],
@@ -143,7 +150,7 @@ def build(
                 ("Z", 0.30, scale),
             )
         )
-    if counts != {"snapshot": 178, "rebuild": 105}:
+    if counts != {"snapshot": 178, "rebuild": 81} or len(excluded) != 24:
         raise ValueError(f"unexpected input split: {dict(counts)}")
     return {
         "schema": "w2.v1_recalibration.pit_simulation_tracks.v2",
@@ -155,6 +162,7 @@ def build(
         },
         "strictly_pre_kickoff": True,
         "input_counts": dict(counts),
+        "excluded": excluded,
         "tracks": tracks,
     }
 
