@@ -1,130 +1,165 @@
-# V1-SLOPE-FIT-AND-SHIP-01 independent acceptance packet
+# V1 model repair independent acceptance packet
 
-Status: `CANDIDATE_REJECTED_PENDING_INDEPENDENT_ACCEPTANCE`
+Status: `IMPLEMENTED_PENDING_CLAUDE_CODE_ACCEPTANCE / NOT_DEPLOYED`
 
-Evidence commit: `2bf32f26b12f423d7adcacc9660859ff7925521c`
+Implementation commit:
+`9685514aa684ca0607f27633edf4f71d8378bbe5`
 
-Runtime effect: none. The candidate was not written to `src/w2/strategy/calibration.py`,
-the calibration version was not changed, no ledger record was added, and nothing was deployed.
+Frozen protocol commits:
 
-## Claim to verify
+- strict-PIT outcome protocol: `2fbb9b05`
+- xG uncertainty latest-five protocol: `fa346cbe`
 
-The frozen TRAIN fit produced `raw_delta_scale=1.102038`, but the candidate failed three
-pre-declared development shipping gates when replayed with strictly pre-kickoff inputs. It must
-not be implemented, authorized, or deployed.
+## Acceptance claim
 
-The prior 283-fixture A2 and its market-shape values are withdrawn because its rebuild path used
-the target fixture's post-match xG. The corrected cohort is 259 fixtures: 178 production rolling
-snapshots plus 81 latest-five pre-kickoff rebuilds. Twenty-four rebuild fixtures are excluded for
-insufficient pre-kickoff history.
+This delivery fixes one deterministic V1 defect: the xG point estimate uses the latest five
+pre-kickoff matches, while `empirical_xg_standard_error.v1` used up to twenty. The implementation
+retains the latest five only after all existing PIT, source, digest and kickoff checks, and changes
+the uncertainty identity to `empirical_xg_standard_error.v2_latest_five`.
 
-Only frozen market quote fields are reused from the old market audit: line, two-sided odds,
-bookmaker identity/depth, observation identity, raw payload digest, and capture time. Old lambdas,
-probabilities, edges, and fair lines are discarded and recomputed. Devig is the actual
-`PROPORTIONAL` implementation.
+It does **not** claim that EV is fully repaired. The frozen `raw_delta_scale=1.102038` candidate
+failed the strict OOF NLL gate and was not implemented, registered or deployed.
 
-## Immutable artifacts
+## Exact implementation boundary
+
+Production code delta from the frozen protocol parent is three lines in
+`src/w2/prematch/analysis_calculator.py`:
+
+1. define `XG_POINT_ESTIMATE_WINDOW = 5`;
+2. slice validated uncertainty rows to the latest five;
+3. bump the method identity to `empirical_xg_standard_error.v2_latest_five`.
+
+Unchanged: xG point estimate, `home_advantage_goals=0.30`, Dixon-Coles rho, lambda formula,
+admission thresholds, calibration ledger, allowlist, V2 factors and database schema.
+
+## Corrected evidence claims
+
+### Strict-PIT outcome evidence
+
+Full development set, `n=8,659`:
+
+| scale | net-margin slope | intercept | mean Poisson NLL |
+|---:|---:|---:|---:|
+| current `1.0` | `1.184837` | `-0.011194` | `2.960601796` |
+| candidate `1.102038` | `1.075132` | `0.021717` | `2.960077087` |
+| legacy claim `1.848` | `0.642919` | `0.152005` | `2.993250392` |
+
+Rolling-origin OOF, `n=7,159`:
+
+- current slope/intercept: `1.173055/-0.020455`;
+- candidate slope/intercept: `1.028712/0.022801`;
+- improved folds: `7/10`;
+- paired NLL candidate-current mean: `-0.000415741`;
+- 95% bootstrap CI: `[-0.001435234,+0.000619995]`.
+
+The upper CI is above zero. The frozen candidate fails and must remain absent from params and
+ledger. The earlier `1.848 [1.758,1.939]` statement has no producing script or immutable row
+artifact and is not reproducible from repository evidence.
+
+### Market interpretation correction
+
+The strict-PIT market cohort is `178 snapshot + 81 rebuild = 259`; 24 fixtures lack the frozen
+minimum pre-kickoff history. Favorite-conditioned metrics choose orientation with the market
+itself and therefore condition on market noise. Values such as `0.349609` remain diagnostic only,
+not outcome-validity or deployment gates. Signed HOME fair-minus-market means are
+X `0.176641`, Y `0.005792`, Z `0.014479`.
+
+### Settled-candidate replay correction
+
+The 121 settled candidates are diagnostic only:
+
+- evaluation→capture identity: `121/121`;
+- evaluation→model-input manifest: `121/121`;
+- stored EV reproduced from evaluation's frozen five-state distribution and odds:
+  `121/121` within `1e-6`;
+- original recommendation equals the higher effective-probability side: `121/121`;
+- decisive direction: AH `32/64=50.0%`, TOTALS `19/47=40.4%`, total
+  `51/111=45.9%`.
+
+The model-capture ladder and a later latest checkpoint are explicitly forbidden as substitutes
+for the distribution frozen in the evaluation.
+
+## Immutable hashes
 
 | Artifact | SHA-256 |
 |---|---|
-| `A2_PIT_SIMULATION_TRACKS_REDO.json` | `d7c6eaf9ab39a62265438d661cc2f606cf0c7d4dfd4b5ac5fb8a41999c95266f` |
-| `PIT_MARKET_SHAPE_XYZ.json` | `e4550c7dc4183a0bc1e0bc9b5e1c1c72540c0174b4569c44dc5b085564363f5b` |
-| `PIT_MARKET_SHAPE_XYZ.md` | `e019c8a00c5ce854ac7c44d7829637642277f0bf8904a39df9c1f199ceb6a27c` |
+| strict-PIT outcome protocol | `3237b4cf2b7dd656f8712de31a0097c5c96b0819b6f96ee6e6f4fe4d5f7b7051` |
+| xG uncertainty protocol | `30fc5034d3f09c15dcfdd85c160891c936ba6f37e02a0a9132e53785df355571` |
+| strict-PIT outcome JSON | `d9bf28de042de3e47f73996231729819c0442b7a3ba60b84df4ebfeafc263e17` |
+| strict-PIT outcome report | `27ec3c9ec458d9221b6fa69762a719ad2a34315bfc13badb538c96af05b09e64` |
+| settled input diagnosis | `75523d53a2e238f36f9e8889b4760bf787ae9ad841b47eaad060f73e0998aae1` |
+| settled direction rescore | `15218931849bb7416250b7211787504be6077fa1e8f790edd5331db58db288e9` |
+| strict-PIT market JSON | `e4550c7dc4183a0bc1e0bc9b5e1c1c72540c0174b4569c44dc5b085564363f5b` |
+| strict-PIT market report | `b2872f8c4bf35fd545fe18856333e2313f33e006092460a064d186c773728f57` |
 
-## Binding result
-
-| Gate | Candidate Z | Limit | Result |
-|---|---:|---:|---|
-| AH underdog cashflow price edge mean | `0.095440` | `<=0.05` | FAIL |
-| AH underdog edge above 5% | `142/256 = 0.554688` | `<=0.35` | FAIL |
-| AH favorite-strength shortfall absolute mean | `0.349609` goals | `<=0.25` | FAIL |
-| No shortfall overshoot | `+0.349609` | `>-0.25` | PASS |
-| AH favorite-side edge mean | `-0.243710` | `<=0.05` | PASS |
-| Home-favorite absolute worsening vs Y | `-0.010607` goals | `<=0.10` | PASS |
-| Away-favorite absolute worsening vs Y | `-0.043956` goals | `<=0.10` | PASS |
-| TOTALS fair-minus-market mean change vs Y | `0.000000` goals | `<=0.02` | PASS |
-
-This is development evidence, not production validation. The replay uses the strict-PIT point
-estimate and a complete score matrix with sigma zero. It is sufficient for the declared market
-shape gates but is not represented as a full production EV-SE uncertainty replay.
-
-## Independent deterministic replay
-
-Requires the frozen local exports whose digests are embedded in A2:
-
-- `/tmp/v1_slope_home_away.csv`
-- `/tmp/v1_slope_xg.csv`
-- `/tmp/v1_a1_snapshot.csv`
+## Independent replay
 
 ```bash
 cd /Users/liudehua/.hermes/worktrees/w2-v1-recalibration-evidence-01
-check_dir=$(mktemp -d /private/tmp/v1-strict-pit-review.XXXXXX)
+check_dir=$(mktemp -d /private/tmp/v1-final-review.XXXXXX)
 
-PYTHONPATH=src:. .venv/bin/python scripts/build_v1_pit_simulation_tracks.py \
-  --a1 docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/A1_PIT_EVIDENCE_REDO.json \
+PYTHONPATH=src:. .venv/bin/python scripts/audit_settled_candidate_inputs.py \
+  --input /tmp/settled_rescore.csv --output "$check_dir/inputs.json"
+cmp docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/SETTLED_CANDIDATE_INPUT_DIAGNOSIS.json \
+  "$check_dir/inputs.json"
+
+PYTHONPATH=src:. .venv/bin/python scripts/audit_settled_candidate_direction_rescore.py \
+  --input /tmp/settled_rescore.csv --output "$check_dir/direction.json"
+cmp docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/SETTLED_CANDIDATE_DIRECTION_RESCORE.json \
+  "$check_dir/direction.json"
+
+PYTHONPATH=src:. .venv/bin/python scripts/audit_v1_strict_pit_outcome_correction.py \
   --home-away /tmp/v1_slope_home_away.csv \
   --xg /tmp/v1_slope_xg.csv \
-  --snapshot /tmp/v1_a1_snapshot.csv \
-  --raw-delta-scale 1.102038 \
-  --output "$check_dir/a2.json"
-
-cmp docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/A2_PIT_SIMULATION_TRACKS_REDO.json \
-  "$check_dir/a2.json"
-
-PYTHONPATH=src:. .venv/bin/python scripts/audit_v1_pit_market_shape.py \
-  --a2-pit "$check_dir/a2.json" \
-  --frozen-market-audit \
-  docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/MARKET_SHAPE_AUDIT.json \
-  --output-json "$check_dir/audit.json" \
-  --output-report "$check_dir/audit.md"
-
-cmp docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/PIT_MARKET_SHAPE_XYZ.json \
-  "$check_dir/audit.json"
-cmp docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/PIT_MARKET_SHAPE_XYZ.md \
-  "$check_dir/audit.md"
+  --market-audit docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/PIT_MARKET_SHAPE_XYZ.json \
+  --protocol docs/operations/V1_STRICT_PIT_OUTCOME_CORRECTION_PROTOCOL_20260901.json \
+  --output-json "$check_dir/outcome.json" --output-report "$check_dir/outcome.md"
+cmp docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/STRICT_PIT_OUTCOME_CORRECTION.json \
+  "$check_dir/outcome.json"
+cmp docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/STRICT_PIT_OUTCOME_CORRECTION.md \
+  "$check_dir/outcome.md"
 ```
 
-Expected builder output: `snapshot=178`, `rebuild=81`, `tracks=777`. Expected audit output:
-`all_pass=false` with exactly the three failed primary gates listed above.
+Expected: all three `cmp` groups exit 0; strict outcome reports `all_checks_pass=false`
+solely because `paired_oof_nll_upper_95_le_zero=false`.
 
-## Codex self-verification
+## Test evidence
 
-Targeted command:
+Targeted:
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m pytest -q \
-  tests/unit/test_calibration_validation_registry.py \
+PYTHONPATH=src:. .venv/bin/python -m pytest -q \
+  tests/unit/test_analysis_card_xg_materialized.py \
+  tests/unit/test_settled_candidate_audits.py \
   tests/unit/test_audit_v1_market_shape.py \
-  tests/contract/test_v1_slope_recalibration_preregistration.py \
+  tests/unit/test_calibration_validation_registry.py \
   tests/contract/test_api_projection_read_authority.py \
-  tests/contract/test_src_w2_package_matrix.py
+  tests/contract/test_src_w2_package_matrix.py \
+  tests/contract/test_v1_slope_recalibration_preregistration.py
 ```
 
-Result: `48 passed`.
+Result: `68 passed in 2.93s`.
 
-Ruff and diff check:
+Full suite:
 
 ```bash
-.venv/bin/ruff check scripts/build_v1_pit_simulation_tracks.py \
-  scripts/audit_v1_pit_market_shape.py scripts/fit_v1_raw_delta_scale.py \
-  scripts/audit_v1_pit_rebuild_coverage.py
-git diff --check
+PYTHONPATH=src:. .venv/bin/python -m pytest -q
 ```
 
-Result: PASS.
+Result: `2949 passed / 9 skipped / 5 failed / 5 warnings in 335.56s`.
 
-Full suite command: `PYTHONPATH=src .venv/bin/python -m pytest -q`.
+The five failures are unchanged host limitations outside this diff:
 
-Result: `2945 passed / 9 skipped / 5 failed / 5 warnings` in `356.57s`. All five failures are
-host limitations already present in the branch's prior acceptance record and outside this diff:
+- 2 × `test_compose_expansion_matches_authorized_runtime_delta`: Docker CLI exists but the
+  Compose plugin is absent;
+- 1 × `test_sc18_authority_artifacts_are_complete_and_self_checking`: host has `python3`
+  but no bare `python`;
+- 2 × `test_future_refresh_staging_parity`: macOS Docker bind-mounted temporary directories
+  are not materialized back to the expected `/private/...` host path.
 
-- 2 compose expansion tests: Docker CLI exists but Compose plugin is absent (`docker: unknown
-  command: docker compose`).
-- 1 SC18 authority test: the host has `python3` but no bare `python`, so its subprocess raises
-  `FileNotFoundError`.
-- 2 staging-parity runtime ownership tests: Docker bind-mounted macOS temporary directories are
-  not materialized back at the expected `/private/...` host path, so the read-only preflight sees
-  `MISSING`. This task does not modify Docker or runtime writable preflight code.
+Ruff and `git diff --check`: PASS.
 
-Safety boundary: Provider `0`; production reads `0`; production writes `0`; result records loaded
-by the market audit `0`; migrations `0`; ledger writes `0`; deployments `0`; GitHub operations `0`.
+## Stop line
+
+Provider 0; production reads 0; production writes 0; migrations 0; ledger writes 0;
+deployments 0; GitHub operations 0. This package requests independent acceptance only.

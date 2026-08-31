@@ -221,18 +221,50 @@ Runtime status: LOCAL_EVIDENCE_ONLY_NOT_DEPLOYED
 ```
 
 - 冻结 TRAIN 拟合得到 `raw_delta_scale=1.102038`；10 折 rolling-origin OOF 范围
-  `1.113134–1.166136`，OOF 净胜球斜率 `1.028712`。该结果仅为开发诊断。
+  `1.113134–1.166136`，OOF 净胜球斜率 `1.028712`。paired NLL
+  candidate-current 的 95% bootstrap CI 为
+  `[-0.001435234,+0.000619995]`，上界未小于等于 0，故候选失败。
 - 纠正旧 A2 的目标比赛赛后 xG 泄漏：旧 `A2_SIMULATION_OUTPUTS.json` 与基于它的
   `0.713393/+0.207143` 市场数字作废，不再作为候选验收或部署证据。
 - 严格 PIT 可评分 cohort 为 `178 snapshot + 81 rebuild = 259`；24 场因双方未同时
   满足 fallback latest-five 赛前输入规则，在赛果访问前排除。X/Y/Z 共 777 条模型轨迹。
-- Z 未通过三项冻结开发门：弱队 edge 均值 `0.095440>0.05`、edge>5% 比例
-  `142/256=0.554688>0.35`、强队幅度缺口 `0.349609>0.25` 球。因此不修改生产参数、
-  不递增 calibration version、不登记 ledger、不授权、不部署；不得回头用同一证据调参。
+- 旧 favorite-conditioned 市场门使用市场本身决定强弱侧，会条件选择市场噪声；
+  `0.095440/0.554688/0.349609` 只保留为开发诊断，不再作为 outcome-validity 或部署门。
+  候选由上述冻结 OOF 门否决；不修改生产参数、不递增 calibration version、不登记
+  ledger、不授权、不部署，且不得回头用同一证据调参。
+- 早先转述的净胜球回归 `1.848 [1.758,1.939]` 无生成脚本或不可变逐行 artifact，
+  无法复现；严格 PIT 现役开发集 slope 为 `1.184837`。若将 `1.848` 当作 scale，
+  slope 为 `0.642919` 且 NLL 恶化，禁止再将该旧数字写成已证事实。
 - 严格 PIT A2 SHA-256：`d7c6eaf9ab39a62265438d661cc2f606cf0c7d4dfd4b5ac5fb8a41999c95266f`；
   市场门 artifact SHA-256：`e4550c7dc4183a0bc1e0bc9b5e1c1c72540c0174b4569c44dc5b085564363f5b`。
 - 本轮 Provider 0、生产读写 0、赛果读取 0、migration 0、部署 0、GitHub 操作 0；
   V1 仍只使用四字段 xG，未引入 V2 的 Elo、身价或首发。
+
+### V1-XG-UNCERTAINTY-WINDOW-CORRECTION-20260901
+
+```text
+Status: IMPLEMENTED_PENDING_INDEPENDENT_ACCEPTANCE
+Branch: codex/v1-recalibration-evidence-01
+Protocol commit: fa346cbe7a25bb4e11e86e098934e0f182c64354
+Implementation commit: 9685514a
+Runtime status: LOCAL_ONLY_NOT_DEPLOYED
+```
+
+- 修复确定性估计量错位：V1 四字段 xG 点估计使用最近 5 场，而旧
+  `empirical_xg_standard_error.v1` 使用仓库返回的最多 20 场。新实现只在既有
+  PIT/source/digest/kickoff 检查后保留最近 5 场，并提升方法身份为
+  `empirical_xg_standard_error.v2_latest_five`。
+- 点估计、`home_advantage_goals`、Dixon-Coles、准入阈值、ledger 与白名单均未改；
+  该修复只使 EV-SE 描述与点估计相同的 latest-five 估计量，不宣称点概率或全部 EV
+  已完成校准。
+- 已结算 121 注审计口径同时修正：EV 必须由 evaluation 自己冻结的五态分布和赔率复算；
+  capture ladder 与后来 latest checkpoint 均不得替代。EV `121/121` 在 `1e-6`
+  内复现，原推荐与较高有效概率方向 `121/121` 一致。
+- 定向验收 `68 passed`；全量
+  `2949 passed / 9 skipped / 5 failed / 5 warnings`。5 个失败与既有宿主限制完全一致：
+  Docker Compose 插件缺失 2、裸 `python` 缺失 1、macOS Docker bind-mount
+  临时目录未回写 2。
+- Provider 0、生产读写 0、migration 0、ledger 写 0、部署 0、GitHub 操作 0。
 
 ---
 
