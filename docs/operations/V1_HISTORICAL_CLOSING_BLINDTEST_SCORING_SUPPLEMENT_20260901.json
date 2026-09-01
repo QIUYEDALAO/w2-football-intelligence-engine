@@ -1,0 +1,73 @@
+{
+  "schema": "w2.v1.historical_closing_blindtest.scoring_supplement.v1",
+  "task_id": "V1-HISTORICAL-CLOSING-BLINDTEST-01B",
+  "status": "FROZEN_AFTER_PREDICTIONS_BEFORE_TARGET_RESULT_READ",
+  "parent_protocol": "docs/operations/V1_HISTORICAL_CLOSING_BLINDTEST_PREREGISTRATION_20260901B.json",
+  "frozen_prediction_artifact": {
+    "path": "docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/V1_HISTORICAL_CLOSING_PREDICTIONS_PRE_RESULT.json",
+    "sha256": "33ae870095e1c27e8797ff0f86bc3e1b0c2b2bdcddebba69b911a8a84731defb",
+    "fixture_count": 858
+  },
+  "reason": "The parent protocol froze paired Brier and log-loss gates but did not define the scalar projection for five-state Asian settlement or deterministic bootstrap settings. This supplement fixes those mechanical definitions before any target score column is read; it does not change a model, cohort, comparator, threshold, or gate.",
+  "scoring": {
+    "fixture_unit": "one distinct fixture",
+    "canonical_side": {
+      "ASIAN_HANDICAP": "HOME at Football-Data AHCh",
+      "TOTALS": "OVER at 2.5"
+    },
+    "opposite_side": "The opposite quote is retained in the prediction artifact for audit and EV diagnostics but is not a second scoring unit.",
+    "actual_cashflow_score": {
+      "WIN": 1.0,
+      "HALF_WIN": 0.75,
+      "PUSH": 0.5,
+      "HALF_LOSS": 0.25,
+      "LOSS": 0.0
+    },
+    "model_probability": "P(WIN) + 0.75*P(HALF_WIN) + 0.5*P(PUSH) + 0.25*P(HALF_LOSS)",
+    "market_probability": "proportional devig of the two frozen Pinnacle closing decimal prices",
+    "brier": "(predicted_probability - actual_cashflow_score)^2",
+    "log_loss": "-actual_cashflow_score*ln(p) - (1-actual_cashflow_score)*ln(1-p), with p clamped to [1e-12,1-1e-12] only for numerical safety"
+  },
+  "comparisons": {
+    "ASIAN_HANDICAP": {
+      "candidate": "ah_candidate",
+      "production": "production"
+    },
+    "TOTALS": {
+      "candidate": "totals_candidate",
+      "production": "production"
+    },
+    "paired_difference": "candidate score minus comparator score; lower is better"
+  },
+  "bootstrap": {
+    "method": "fixture-level paired percentile bootstrap with replacement",
+    "resamples": 8000,
+    "seed_base": 20261001,
+    "upper_probability": 0.95,
+    "seed_offsets": {
+      "AH_BRIER_VS_PRODUCTION": 0,
+      "AH_LOGLOSS_VS_PRODUCTION": 1,
+      "AH_BRIER_VS_MARKET": 2,
+      "AH_LOGLOSS_VS_MARKET": 3,
+      "TOTALS_BRIER_VS_PRODUCTION": 4,
+      "TOTALS_LOGLOSS_VS_PRODUCTION": 5,
+      "TOTALS_BRIER_VS_MARKET": 6,
+      "TOTALS_LOGLOSS_VS_MARKET": 7
+    }
+  },
+  "decision": {
+    "minimum_fixture_count_per_market": 500,
+    "all_required": "For each market, all four candidate-minus-comparator Brier/log-loss one-sided 95% upper bounds must be <= 0.",
+    "failure": "REJECTED; do not change parameters, scoring, or thresholds on this cohort and do not implement, grant, or deploy the failed candidate.",
+    "success": "Eligible for local minimal implementation and self-acceptance only; ledger grant and deployment still require separate Owner authorization."
+  },
+  "stop_lines": {
+    "provider_calls_after_xg_collection": 0,
+    "production_writes": 0,
+    "ledger_writes": 0,
+    "github_operations": 0,
+    "deployment": 0,
+    "v2_changes": 0,
+    "post_result_refit": 0
+  }
+}
