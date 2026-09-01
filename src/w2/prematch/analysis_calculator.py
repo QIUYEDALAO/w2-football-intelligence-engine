@@ -3043,6 +3043,37 @@ class ReadModelService:
                 )
             ]
             self._team_xg_snapshots_by_fixture_cache[fixture_id] = snapshots
+        # Use the same validated PIT component window for the point estimate and
+        # uncertainty. Persisted snapshots contain aggregates only, so refresh
+        # their values from the authoritative component rows when available.
+        xg_matches = self._team_xg_matches_for_teams(
+            [home_id, away_id],
+            before=context.as_of,
+        )
+        aligned_snapshots: list[dict[str, Any]] = []
+        for snapshot in snapshots:
+            team_id = str(snapshot.get("team_id") or "")
+            components = self._validated_xg_component_rows(
+                xg_matches,
+                team_id=team_id,
+                before=context.as_of,
+            )
+            aligned = dict(snapshot)
+            if len(components) >= 3:
+                aligned["match_count"] = len(components)
+                aligned["rolling_xg_for"] = round(
+                    sum(float(row["xg_for"]) for row in components) / len(components),
+                    4,
+                )
+                aligned["rolling_xg_against"] = round(
+                    sum(float(row["xg_against"]) for row in components) / len(components),
+                    4,
+                )
+                aligned["component_fixture_ids"] = [
+                    str(row.get("fixture_id") or "") for row in components
+                ]
+            aligned_snapshots.append(aligned)
+        snapshots = aligned_snapshots
         home_xg = [
             self._team_xg_feature_snapshot(row, observed_at_cap=context.as_of)
             for row in snapshots
@@ -3182,6 +3213,7 @@ class ReadModelService:
             as_of=context.as_of,
             home_team_id=home_id,
             away_team_id=away_id,
+            matches=xg_matches,
         )
         half_goals: HalfGoalModelInput | None = None
         score_matrix: dict[tuple[int, int], float] | None = None
@@ -3307,6 +3339,15 @@ class ReadModelService:
             self._feature_contribution_payload(item) for item in feature_set.contributions
         ]
         payload["simulation"] = simulation_output.as_dict()
+        calibration_audit = (
+            payload["simulation"].get("calibration", {}).get("lambda_uncertainty_audit")
+        )
+        if isinstance(calibration_audit, dict):
+            calibration_audit["point_estimate_component_fixture_ids"] = {
+                str(row.get("team_id") or ""): list(row.get("component_fixture_ids") or [])
+                for row in snapshots
+                if row.get("component_fixture_ids")
+            }
         payload["scoreline_readiness"] = scoreline_readiness
         self._apply_mainline_market_selection(payload, mainline_selection)
         self._apply_lineup_gate(
@@ -4897,12 +4938,14 @@ class ReadModelService:
         as_of: datetime,
         home_team_id: str,
         away_team_id: str,
+        matches: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         method_version = "empirical_xg_standard_error.v2_latest_five"
-        matches = self._team_xg_matches_for_teams(
-            [home_team_id, away_team_id],
-            before=as_of,
-        )
+        if matches is None:
+            matches = self._team_xg_matches_for_teams(
+                [home_team_id, away_team_id],
+                before=as_of,
+            )
         home_rows = self._xg_uncertainty_rows(matches, team_id=home_team_id, before=as_of)
         away_rows = self._xg_uncertainty_rows(matches, team_id=away_team_id, before=as_of)
         home_attack = self._xg_standard_error(home_rows, field="xg_for")
@@ -4973,48 +5016,57 @@ class ReadModelService:
         team_id: str,
         before: datetime,
     ) -> list[dict[str, Any]]:
+        selected = self._validated_xg_component_rows(rows, team_id=team_id, before=before)
+        return [
+            {
+                "fixture_id": str(row.get("fixture_id") or ""),
+                "kickoff_at": parse_provider_time(row["kickoff_at"])
+                .astimezone(UTC)
+                .isoformat()
+                .replace("+00:00", "Z"),
+                "captured_at": parse_provider_time(row["captured_at"])
+                .astimezone(UTC)
+                .isoformat()
+                .replace("+00:00", "Z"),
+                "xg_for": float(row["xg_for"]),
+                "xg_against": float(row["xg_against"]),
+                "raw_payload_sha256": str(row["raw_payload_sha256"]),
+                "source_system": str(row["source_system"]),
+            }
+            for row in selected
+        ]
+
+    def _validated_xg_component_rows(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        team_id: str,
+        before: datetime,
+    ) -> list[dict[str, Any]]:
         selected: list[dict[str, Any]] = []
         for row in rows:
             if str(row.get("team_id") or "") != team_id:
                 continue
             kickoff = parse_provider_time(row.get("kickoff_at"))
-            if kickoff is None or kickoff >= before:
-                continue
             captured_at = parse_provider_time(row.get("captured_at"))
-            if captured_at is None or captured_at > before:
+            if kickoff is None or kickoff >= before or captured_at is None or captured_at >= before:
                 continue
-            source_system = self._string_or_none(row.get("source_system"))
-            if source_system != "api_football_statistics":
+            if self._string_or_none(row.get("source_system")) != "api_football_statistics":
                 continue
-            raw_payload_sha256 = self._string_or_none(row.get("raw_payload_sha256"))
-            if not raw_payload_sha256:
+            if not self._string_or_none(row.get("raw_payload_sha256")):
                 continue
-            xg_for = _float_or_none(row.get("xg_for"))
-            xg_against = _float_or_none(row.get("xg_against"))
-            if xg_for is None or xg_against is None:
+            if (
+                _float_or_none(row.get("xg_for")) is None
+                or _float_or_none(row.get("xg_against")) is None
+            ):
                 continue
-            selected.append(
-                {
-                    "fixture_id": str(row.get("fixture_id") or ""),
-                    "kickoff_at": kickoff.astimezone(UTC)
-                    .isoformat()
-                    .replace(
-                        "+00:00",
-                        "Z",
-                    ),
-                    "captured_at": captured_at.astimezone(UTC)
-                    .isoformat()
-                    .replace(
-                        "+00:00",
-                        "Z",
-                    ),
-                    "xg_for": xg_for,
-                    "xg_against": xg_against,
-                    "raw_payload_sha256": raw_payload_sha256,
-                    "source_system": source_system,
-                }
+            selected.append(row)
+        selected.sort(
+            key=lambda row: (
+                parse_provider_time(row["kickoff_at"]).astimezone(UTC),
+                str(row.get("fixture_id") or ""),
             )
-        selected.sort(key=lambda row: str(row["kickoff_at"]))
+        )
         return selected[-XG_POINT_ESTIMATE_WINDOW:]
 
     def _xg_standard_error(

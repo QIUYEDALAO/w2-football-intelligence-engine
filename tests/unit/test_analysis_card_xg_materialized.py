@@ -855,6 +855,10 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert uncertainty_audit["input_hash"]
     assert uncertainty_audit["groups"]["home_attack_xg_for"]["n"] == 5
     assert len(uncertainty_audit["groups"]["away_defence_xg_against"]["fixture_ids"]) == 5
+    assert uncertainty_audit["point_estimate_component_fixture_ids"] == {
+        "10": uncertainty_audit["groups"]["home_attack_xg_for"]["fixture_ids"],
+        "20": uncertainty_audit["groups"]["away_attack_xg_for"]["fixture_ids"],
+    }
     assert {
         key: card["current_odds"]["ah"].get(key)
         for key in ("line", "home_price", "away_price", "home_line", "away_line", "price")
@@ -890,7 +894,9 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert card["line_movement"]["ah_open"] in {"-0.5", "0.5"}
     assert card["line_movement"]["ah_current"] in {"-0.5", "0.5"}
     decisions = {market["market"]: market["decision"] for market in card["markets"]}
-    assert decisions["ASIAN_HANDICAP"] == "WATCH"
+    # The point estimate now uses the same validated five-match components as
+    # the uncertainty audit, so this fixture's economic decision is a pick.
+    assert decisions["ASIAN_HANDICAP"] == "ANALYSIS_PICK"
     assert decisions["TOTALS"] in {"PICK", "ANALYSIS_PICK"}
     assert decisions["FIRST_HALF_GOALS"] == "PICK"
     assert decisions["SCORE"] == "NO_EDGE"
@@ -913,7 +919,7 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     score_market = next(market for market in card["markets"] if market["market"] == "SCORE")
     assert ah_market["lean"] is None
     assert "跟随市场 · 无独立优势 · 仅参考" in ah_market["reason"]
-    assert totals_market["reason"].startswith("两队滚动 xG 进攻合计 2.70")
+    assert totals_market["reason"].startswith("两队滚动 xG 进攻合计 2.58")
     assert score_market["scores"] == []
     assert card["bookmaker_intent"]["intent"] in {"HOME_LEAN", "AWAY_LEAN"}
 
