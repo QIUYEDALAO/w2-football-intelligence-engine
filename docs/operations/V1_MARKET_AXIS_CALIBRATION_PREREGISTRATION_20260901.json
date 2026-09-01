@@ -1,0 +1,131 @@
+{
+  "schema": "w2.v1.market_axis_calibration_preregistration.v1",
+  "task_id": "V1-MARKET-AXIS-CALIBRATION-01",
+  "status": "FROZEN_BEFORE_MARKET_AXIS_FIT",
+  "frozen_at": "2026-09-01T02:16:08Z",
+  "frozen_revision": "5d8ca8ee6887b45d5e330716c50f6f624f54e2fe",
+  "supersedes_for_future_fit_only": "V1-AXIS-CALIBRATION-REPAIR-01",
+  "prior_failure": {
+    "artifact": "docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/V1_AXIS_CALIBRATION_FIT.json",
+    "sha256": "6265268be7c8194ee17d8423d6ce0e86df1a7fdae1910fbfb21420234b3fe0e3",
+    "decision": "AH_REJECTED_TOTALS_REJECTED_COMBINED_REJECTED",
+    "fixed_facts": [
+      "AH scoreline-NLL upper confidence bound crossed zero despite better spread slope and generic AH Brier.",
+      "TOTALS NLL and Brier improved, but the total-goals regression slope moved farther from one because the family lacked an affine centering term."
+    ]
+  },
+  "scope": {
+    "inputs": [
+      "home_xg_for",
+      "home_xg_against",
+      "away_xg_for",
+      "away_xg_against"
+    ],
+    "forbidden": [
+      "market odds as model features",
+      "settled 121 cohort for fit or acceptance",
+      "Elo",
+      "squad value",
+      "lineups",
+      "V2 factors",
+      "threshold changes",
+      "new blockers"
+    ]
+  },
+  "data": {
+    "strict_pit_8659": {
+      "home_away_sha256": "709050b581b569c874c6a8d1363ba1a6612503489d175da8b644c5df05294a02",
+      "xg_sha256": "16fcaaad812e8007c7e828c964d7029bc223e361cdac87b122c56eba9e8e3522",
+      "role": "TRAIN_AND_ROLLING_ORIGIN_OOF_DEVELOPMENT"
+    },
+    "settled_121": {
+      "sha256": "15218931849bb7416250b7211787504be6077fa1e8f790edd5331db58db288e9",
+      "role": "EXPLANATION_ONLY_NOT_LOADED"
+    },
+    "market_259": {
+      "sha256": "e4550c7dc4183a0bc1e0bc9b5e1c1c72540c0174b4569c44dc5b085564363f5b",
+      "role": "REPORT_ONLY_NOT_LOADED"
+    }
+  },
+  "candidate": {
+    "ah": {
+      "formula": "delta = home_intercept + attack_weight * (home_xg_for - away_xg_for) + defence_weight * (away_xg_against - home_xg_against)",
+      "fit": "ordinary least squares of observed home-away goals on [1, attack_difference, defence_difference]",
+      "bounds": {
+        "home_intercept": [0.0, 0.6],
+        "attack_weight": [0.0, 1.5],
+        "defence_weight": [0.0, 1.5]
+      },
+      "outside_bounds": "reject; do not clip or refit"
+    },
+    "totals": {
+      "formula": "total = clamp(total_intercept + total_scale * raw_total, 1.35, 4.40)",
+      "fit": "ordinary least squares of observed total goals on [1, raw_total]",
+      "bounds": {
+        "total_intercept": [-1.0, 1.0],
+        "total_scale": [0.4, 1.2]
+      },
+      "outside_bounds": "reject; do not clip or refit"
+    },
+    "combined": "Use independently fitted AH and TOTALS parameters without joint refitting.",
+    "precision": 6
+  },
+  "oof": {
+    "ordering": "kickoff_at, fixture_id",
+    "warmup": 1500,
+    "folds": 10,
+    "method": "expanding prefix strictly before each validation fold",
+    "fixture_count": 7159
+  },
+  "scoring": {
+    "ah_effective_score": {
+      "FULL_WIN": 1.0,
+      "HALF_WIN": 0.75,
+      "PUSH": 0.5,
+      "HALF_LOSS": 0.25,
+      "FULL_LOSS": 0.0
+    },
+    "ah_lines": [-1.5, -1.25, -1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5],
+    "totals_lines": [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5],
+    "line_weighting": "equal within market; one fixture is one paired-bootstrap unit"
+  },
+  "acceptance": {
+    "bootstrap_resamples": 2000,
+    "bootstrap_seed": 20260901,
+    "ah": {
+      "mean_ah_brier_candidate_minus_current_upper_95_le": 0.0,
+      "minimum_improved_folds": 7,
+      "minimum_improved_lines": 10,
+      "margin_slope_closer_to_one": true,
+      "absolute_margin_intercept_max": 0.1,
+      "scoreline_nll_noninferiority_upper_95_max": 0.001
+    },
+    "totals": {
+      "mean_totals_brier_candidate_minus_current_upper_95_le": 0.0,
+      "total_nll_candidate_minus_current_upper_95_le": 0.0,
+      "minimum_improved_folds": 7,
+      "minimum_improved_lines": 5,
+      "total_slope_closer_to_one": true,
+      "absolute_mean_total_bias_max": 0.1
+    },
+    "combined": {
+      "both_individual_axes_must_pass": true,
+      "scoreline_nll_candidate_minus_current_upper_95_le": 0.0,
+      "lambda_clamp_counts_must_be_reported": true
+    }
+  },
+  "decision_rules": [
+    "A failed axis is rejected and cannot be implemented.",
+    "Passing development OOF authorizes only a local candidate implementation, not a calibration grant, deployment, or profitability claim.",
+    "No metric from the settled 121 or market 259 artifacts may alter this family, fit, or gate.",
+    "A future different family requires another preregistration before fitting."
+  ],
+  "stop_lines": {
+    "provider_calls": 0,
+    "production_reads": 0,
+    "production_writes": 0,
+    "github_operations": 0,
+    "ledger_writes": 0,
+    "deployment": 0
+  }
+}
