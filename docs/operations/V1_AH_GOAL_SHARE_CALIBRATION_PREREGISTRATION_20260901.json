@@ -1,0 +1,157 @@
+{
+  "schema": "w2.v1.ah_goal_share_calibration_preregistration.v1",
+  "task_id": "V1-AH-GOAL-SHARE-CALIBRATION-01",
+  "status": "FROZEN_BEFORE_ANY_GOAL_SHARE_FIT",
+  "frozen_at": "2026-09-01T02:57:11Z",
+  "frozen_revision": "f273febe692c4a028ef29141d878c6dcb668a9e0",
+  "reason_for_new_family": {
+    "prior_artifact": "docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/V1_MARKET_AXIS_CALIBRATION_FIT.json",
+    "prior_artifact_sha256": "93f8bcf56aa4cf5ef94a225e8f3349676ef819ac3ac54374a442c7f10442b2a2",
+    "prior_ah_decision": "REJECTED",
+    "fixed_diagnosis": [
+      "The rejected AH family fit observed goal margin by ordinary least squares but was admitted by AH settlement Brier and scoreline NLL; its fit objective did not match its release gates.",
+      "The next family must optimize the home-goal share likelihood directly while holding the already accepted TOTALS axis fixed.",
+      "raw_delta_scale is permanently excluded from this family."
+    ]
+  },
+  "scope": {
+    "inputs": [
+      "home_xg_for",
+      "home_xg_against",
+      "away_xg_for",
+      "away_xg_against"
+    ],
+    "forbidden": [
+      "market odds or lines as model inputs",
+      "settled 121 cohort for fit, family choice, threshold choice, or acceptance",
+      "market 259 artifact for fit, family choice, threshold choice, or acceptance",
+      "raw_delta_scale",
+      "Elo",
+      "squad value",
+      "lineups",
+      "V2 factors",
+      "threshold changes",
+      "new blockers",
+      "ledger writes",
+      "deployment"
+    ]
+  },
+  "data": {
+    "strict_pit_8659": {
+      "home_away_sha256": "709050b581b569c874c6a8d1363ba1a6612503489d175da8b644c5df05294a02",
+      "xg_sha256": "16fcaaad812e8007c7e828c964d7029bc223e361cdac87b122c56eba9e8e3522",
+      "role": "TRAIN_AND_ROLLING_ORIGIN_OOF_DEVELOPMENT"
+    },
+    "settled_121": {
+      "sha256": "15218931849bb7416250b7211787504be6077fa1e8f790edd5331db58db288e9",
+      "role": "EXPLANATION_ONLY_NOT_LOADED"
+    },
+    "market_259": {
+      "sha256": "e4550c7dc4183a0bc1e0bc9b5e1c1c72540c0174b4569c44dc5b085564363f5b",
+      "role": "REPORT_ONLY_NOT_LOADED"
+    }
+  },
+  "fixed_totals_axis": {
+    "authority_artifact": "docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/V1_MARKET_AXIS_CALIBRATION_FIT.json",
+    "authority_artifact_sha256": "93f8bcf56aa4cf5ef94a225e8f3349676ef819ac3ac54374a442c7f10442b2a2",
+    "implementation_commit": "3671335b017da93d0f1e4b680d535c4e50d7dd71",
+    "formula": "total = clamp(0.885958 + 0.701191 * raw_total, 1.35, 4.40)",
+    "parameters": {
+      "total_goals_intercept": 0.885958,
+      "total_goals_scale": 0.701191
+    },
+    "rule": "The TOTALS parameters are fixed and may not be refit or changed by this task."
+  },
+  "candidate": {
+    "name": "conditional_goal_share_logit.v1",
+    "raw_base_home": "(home_xg_for + away_xg_against) / 2",
+    "raw_base_away": "(away_xg_for + home_xg_against) / 2",
+    "current_delta": "raw_base_home - raw_base_away + 0.30",
+    "current_share": "clamp((fixed_total + current_delta) / (2 * fixed_total), 1e-9, 1 - 1e-9)",
+    "linear_predictor": "share_intercept + share_logit_scale * log(current_share / (1 - current_share))",
+    "candidate_share": "1 / (1 + exp(-linear_predictor))",
+    "lambda_home": "fixed_total * candidate_share",
+    "lambda_away": "fixed_total * (1 - candidate_share)",
+    "dixon_coles_rho": 0.0,
+    "fit_objective": "sum over fixtures of n_goals * log(1 + exp(eta)) - home_goals * eta; zero-goal fixtures contribute zero; this is the conditional binomial share NLL and is the share-dependent term of independent-Poisson scoreline NLL when total lambda is fixed",
+    "optimizer": {
+      "method": "deterministic Newton-Raphson on the convex two-parameter objective",
+      "initial_parameters": {
+        "share_intercept": 0.0,
+        "share_logit_scale": 1.0
+      },
+      "maximum_iterations": 100,
+      "parameter_tolerance": 1e-12,
+      "gradient_tolerance": 1e-10,
+      "regularization": "none",
+      "failure": "reject; do not switch optimizer, restart, clip the fitted parameters, or redesign after viewing metrics"
+    },
+    "bounds": {
+      "share_intercept": [-1.0, 1.0],
+      "share_logit_scale": [0.25, 2.0]
+    },
+    "precision": 6,
+    "outside_bounds": "reject; do not clip or refit"
+  },
+  "comparators": {
+    "production_current": "home_advantage_goals=0.30 with uncalibrated raw total",
+    "totals_only": "fixed accepted TOTALS axis with the current linear delta allocation",
+    "candidate": "fixed accepted TOTALS axis plus conditional_goal_share_logit.v1",
+    "primary_incremental_comparator": "totals_only",
+    "release_comparator": "production_current"
+  },
+  "oof": {
+    "ordering": "kickoff_at, fixture_id",
+    "warmup": 1500,
+    "folds": 10,
+    "method": "expanding prefix strictly before each validation fold",
+    "fixture_count": 7159,
+    "no_cross_fold_parameter_reuse": true
+  },
+  "scoring": {
+    "ah_effective_score": {
+      "FULL_WIN": 1.0,
+      "HALF_WIN": 0.75,
+      "PUSH": 0.5,
+      "HALF_LOSS": 0.25,
+      "FULL_LOSS": 0.0
+    },
+    "ah_lines": [-1.5, -1.25, -1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5],
+    "line_weighting": "equal within AH; one fixture is one paired-bootstrap unit",
+    "scoreline_support": "independent Poisson score matrix on goals 0 through 12 inclusive, normalized exactly as the previous frozen market-axis evaluator"
+  },
+  "acceptance": {
+    "bootstrap_resamples": 2000,
+    "bootstrap_seed_base": 20260911,
+    "all_required": {
+      "mean_ah_brier_candidate_minus_totals_only_upper_95_le": 0.0,
+      "mean_scoreline_nll_candidate_minus_totals_only_upper_95_le": 0.0,
+      "mean_ah_brier_candidate_minus_production_current_upper_95_le": 0.0,
+      "mean_scoreline_nll_candidate_minus_production_current_upper_95_le": 0.0,
+      "minimum_improved_folds_vs_totals_only": 7,
+      "minimum_improved_lines_vs_totals_only": 10,
+      "margin_slope_closer_to_one_than_totals_only": true,
+      "absolute_margin_intercept_max": 0.1,
+      "maximum_absolute_total_lambda_difference_vs_totals_only": 1e-12,
+      "maximum_absolute_total_nll_difference_vs_totals_only": 1e-12,
+      "lambda_clamp_count": 0,
+      "fitted_parameters_inside_bounds": true
+    }
+  },
+  "decision_rules": [
+    "Every acceptance item is mandatory; one failure rejects the family.",
+    "Passing development OOF authorizes only a local candidate implementation, not a calibration grant, deployment, profitability claim, or production-validity claim.",
+    "No metric from the settled 121 or market 259 artifacts may alter this family, fit, gate, or parameter values.",
+    "The result is viewed once after this preregistration commit exists; no post-result gate edits are allowed.",
+    "A failed family is documented and stopped. Any later family requires a new preregistration committed before fitting."
+  ],
+  "stop_lines": {
+    "provider_calls": 0,
+    "production_reads": 0,
+    "production_writes": 0,
+    "github_operations": 0,
+    "ledger_writes": 0,
+    "deployment": 0,
+    "v2_changes": 0
+  }
+}
