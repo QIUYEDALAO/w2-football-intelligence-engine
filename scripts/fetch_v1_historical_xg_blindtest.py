@@ -4,12 +4,12 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import time
 from pathlib import Path
 from typing import Any
 
+from w2.domain.canonical_serialization import HashDomain, canonical_sha256
 from w2.providers.api_football import ApiFootballClient
 
 
@@ -90,17 +90,26 @@ def fetch(args: argparse.Namespace) -> dict[str, int]:
                 "status": status,
                 "http_status": response.status_code,
                 "captured_at": response.captured_at.isoformat(),
-                "source_payload_sha256": hashlib.sha256(
-                    json.dumps(
-                        response.payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-                    ).encode()
-                ).hexdigest(),
+                "source_payload_sha256": canonical_sha256(
+                    response.payload,
+                    domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+                ),
             },
         )
         if remaining is not None and int(remaining) <= args.provider_remaining_floor:
             break
         if calls % 25 == 0:
-            print(json.dumps({"calls": calls, "complete": complete, "missing": missing, "remaining": remaining}), flush=True)
+            print(
+                json.dumps(
+                    {
+                        "calls": calls,
+                        "complete": complete,
+                        "missing": missing,
+                        "remaining": remaining,
+                    }
+                ),
+                flush=True,
+            )
         time.sleep(args.pause_seconds)
     return {"calls": calls, "complete": complete, "missing": missing, "already_present": len(done)}
 
