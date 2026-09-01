@@ -1,0 +1,73 @@
+{
+  "schema": "w2.v1.historical_closing_blindtest_preregistration.v1",
+  "task_id": "V1-HISTORICAL-CLOSING-BLINDTEST-01",
+  "status": "FROZEN_BEFORE_TARGET_ROW_READ",
+  "frozen_at": "2026-09-01T07:59:20Z",
+  "purpose": "Evaluate fixed V1 probability models against an independent historical closing-market benchmark without selecting parameters from the test outcomes.",
+  "data_roles": {
+    "development": {
+      "artifact": "docs/operations/V1_AXIS_CALIBRATION_REPAIR_PREREGISTRATION_20260901.json",
+      "fixture_count": 8659,
+      "role": "already-viewed fit and OOF development only"
+    },
+    "forbidden_retrospective": [
+      "docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/PIT_MARKET_SHAPE_XYZ.json",
+      "docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/SETTLED_CANDIDATE_DIRECTION_RESCORE.json",
+      "docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/ADMISSION_RELATIVE_ACCURACY_AUDIT.json"
+    ],
+    "blind_test": {
+      "source": "Football-Data.co.uk season files plus API-Football fixture/statistics responses",
+      "seasons": ["2022-23"],
+      "competitions": ["premier_league", "la_liga", "bundesliga", "serie_a", "ligue_1"],
+      "target_rule": "Use only fixtures with at least five strictly earlier same-team API-Football statistics xG observations; fixture rows and target results remain unopened until the model manifests are frozen.",
+      "probe_exclusion": "The 2024-01 API-Football capability probe rows are outside this 2022-23 cohort and are excluded by season rule."
+    }
+  },
+  "point_in_time": {
+    "xg": "For each target fixture, use each team's latest five numeric xG observations with source kickoff strictly earlier than target kickoff; no post-kickoff fields, results, or target fixture statistics.",
+    "market": "Football-Data prices are closing/aggregate observations only. They may be used as a closing-market benchmark and hypothetical closing EV; they must not be labelled as T-30/T-15 executable quotes.",
+    "mapping": "Join by independently verified competition, season, UTC kickoff, and normalized home/away identities; ambiguous mappings are excluded and reported."
+  },
+  "fixed_models": {
+    "production": "Current deployed V1 parameters at revision 1de3c1ef; no parameter changes.",
+    "ah_candidate": "Frozen AH component-share values home_adjustment=0.208545, attack_adjustment=0.663475, defence_adjustment=-0.112027 from 8e7d654b; evaluated only as a pre-declared fixed candidate, never refit on blind rows.",
+    "totals_candidate": "Frozen TOTALS axis fit total_goals_intercept=0.885958 and total_goals_scale=0.701191; evaluated only as a pre-declared fixed candidate, never refit on blind rows."
+  },
+  "markets": {
+    "asian_handicap": "Football-Data closing AHCh plus Pinnacle closing PCAHH/PCAHA where both sides and line are present.",
+    "totals": "Football-Data 2.5 goal closing P>2.5/P<2.5 where both prices are present; this is a fixed 2.5 line diagnostic, not the full production ladder."
+  },
+  "metrics": {
+    "primary": "paired model-vs-closing-market Brier and log loss, reported separately by market and competition",
+    "economic_diagnostic": "Hypothetical closing cashflow EV and settlement P&L are descriptive only and cannot select any parameter, threshold, or model.",
+    "calibration": "Reliability bins and ECE for model and proportional-devig closing market",
+    "minimum_report": ["fixture_count", "mapping_exclusions", "model_minus_market_metric", "bootstrap_ci", "direction_counts", "hypothetical_ev_distribution"]
+  },
+  "acceptance": {
+    "bootstrap": "Deterministic 10000-replicate fixture-cluster bootstrap, seed 20260901, one-sided 95% upper bound.",
+    "candidate_vs_production": "For AH and TOTALS separately, candidate-minus-production mean Brier and mean log loss must both be < 0 and both one-sided upper bounds must be <= 0.",
+    "candidate_vs_market": "For AH and TOTALS separately, candidate-minus-proportional-devig Pinnacle closing mean Brier and mean log loss must both be < 0 and both one-sided upper bounds must be <= 0.",
+    "competition_guard": "Candidate Brier may not worsen by more than 0.005 in any one of the five competitions.",
+    "combined_rule": "No deployable verdict unless both AH and TOTALS pass every rule independently; results may not be pooled to compensate one market with the other.",
+    "one_x_two": "Diagnostic only and never a pass gate."
+  },
+  "freeze_order": [
+    "Freeze input manifest and model outputs without reading target result fields.",
+    "Hash and commit the frozen model artifact.",
+    "Only after that commit, open final results and compute settlement diagnostics."
+  ],
+  "failure_rules": [
+    "No parameter, threshold, model-family, or admission-contract change is allowed from blind-test outcomes.",
+    "If closing odds are missing or mapping is ambiguous, report the gap; do not substitute another source or fabricate a quote.",
+    "A pass is a comparative diagnostic only; it does not grant calibration authority or authorize deployment.",
+    "A failed candidate is rejected and the next candidate requires a new preregistration and a non-overlapping cohort."
+  ],
+  "stop_lines": {
+    "provider_calls_max_total": 6000,
+    "production_writes": 0,
+    "ledger_writes": 0,
+    "github_operations": 0,
+    "deployment": 0,
+    "v2_changes": 0
+  }
+}
