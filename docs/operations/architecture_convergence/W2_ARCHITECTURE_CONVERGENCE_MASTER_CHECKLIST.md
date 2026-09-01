@@ -247,6 +247,7 @@ Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Branch: codex/v1-recalibration-evidence-01
 Preregistration commit: 303ba7bc73504f3943c45df113ff2a63634036c3
 Fit evidence commit: 83f19de4ace76a4556086ce31de295b53882efda
+Implementation commit: 3671335b017da93d0f1e4b680d535c4e50d7dd71
 Runtime status: LOCAL_ONLY_NOT_DEPLOYED
 ```
 

@@ -2,6 +2,8 @@
 
 状态：`LOCAL_IMPLEMENTED_PENDING_INDEPENDENT_ACCEPTANCE`。本回执不是 calibration grant、部署授权、盈利证明或生产有效性证明。
 
+本地实现 commit：`3671335b017da93d0f1e4b680d535c4e50d7dd71`。
+
 ## 证据与决定
 
 - 冻结预注册：`docs/operations/V1_MARKET_AXIS_CALIBRATION_PREREGISTRATION_20260901.json`，SHA-256 `a8a4f0ddc55e1d30ed69c8ee3ec8697346968c3a427f1bcba588b4aca4309bbd`，commit `303ba7bc73504f3943c45df113ff2a63634036c3`。
