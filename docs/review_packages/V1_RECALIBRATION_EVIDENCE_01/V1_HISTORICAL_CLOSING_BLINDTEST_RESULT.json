@@ -1,0 +1,489 @@
+{
+  "decision": "REJECTED",
+  "markets": {
+    "ASIAN_HANDICAP": {
+      "arms": {
+        "ah_candidate": {
+          "calibration": {
+            "bins": [
+              {
+                "count": 4,
+                "lower": 0.1,
+                "mean_actual": 0.3125,
+                "mean_probability": 0.179405919,
+                "upper": 0.2
+              },
+              {
+                "count": 46,
+                "lower": 0.2,
+                "mean_actual": 0.342391304,
+                "mean_probability": 0.262517606,
+                "upper": 0.3
+              },
+              {
+                "count": 139,
+                "lower": 0.3,
+                "mean_actual": 0.487410072,
+                "mean_probability": 0.352743051,
+                "upper": 0.4
+              },
+              {
+                "count": 258,
+                "lower": 0.4,
+                "mean_actual": 0.528100775,
+                "mean_probability": 0.455242558,
+                "upper": 0.5
+              },
+              {
+                "count": 257,
+                "lower": 0.5,
+                "mean_actual": 0.507782101,
+                "mean_probability": 0.547142661,
+                "upper": 0.6
+              },
+              {
+                "count": 118,
+                "lower": 0.6,
+                "mean_actual": 0.491525424,
+                "mean_probability": 0.640235309,
+                "upper": 0.7
+              },
+              {
+                "count": 34,
+                "lower": 0.7,
+                "mean_actual": 0.617647059,
+                "mean_probability": 0.731116477,
+                "upper": 0.8
+              },
+              {
+                "count": 2,
+                "lower": 0.8,
+                "mean_actual": 0.0,
+                "mean_probability": 0.805587249,
+                "upper": 0.9
+              }
+            ],
+            "ece_10": 0.087243901
+          },
+          "cashflow_price_edge": {
+            "ge_0_05": 330,
+            "maximum": 0.642036125,
+            "mean": -0.040786445,
+            "median": -0.031881134,
+            "minimum": -0.764653796
+          },
+          "hypothetical_closing_recommendations": {
+            "count": 686,
+            "display_only_not_a_gate": true,
+            "p_and_l_units": -7.79,
+            "selection_counts": {
+              "AWAY": 356,
+              "HOME": 330
+            },
+            "settlement_counts": {
+              "HALF_LOSS": 51,
+              "HALF_WIN": 48,
+              "LOSS": 268,
+              "PUSH": 45,
+              "WIN": 274
+            }
+          },
+          "mean_brier": 0.213278431,
+          "mean_logloss": 0.71205294
+        },
+        "production": {
+          "calibration": {
+            "bins": [
+              {
+                "count": 8,
+                "lower": 0.1,
+                "mean_actual": 0.25,
+                "mean_probability": 0.175020909,
+                "upper": 0.2
+              },
+              {
+                "count": 57,
+                "lower": 0.2,
+                "mean_actual": 0.377192982,
+                "mean_probability": 0.264688686,
+                "upper": 0.3
+              },
+              {
+                "count": 145,
+                "lower": 0.3,
+                "mean_actual": 0.50862069,
+                "mean_probability": 0.354105662,
+                "upper": 0.4
+              },
+              {
+                "count": 249,
+                "lower": 0.4,
+                "mean_actual": 0.537148594,
+                "mean_probability": 0.455899856,
+                "upper": 0.5
+              },
+              {
+                "count": 243,
+                "lower": 0.5,
+                "mean_actual": 0.483539095,
+                "mean_probability": 0.547528065,
+                "upper": 0.6
+              },
+              {
+                "count": 120,
+                "lower": 0.6,
+                "mean_actual": 0.522916667,
+                "mean_probability": 0.639905167,
+                "upper": 0.7
+              },
+              {
+                "count": 35,
+                "lower": 0.7,
+                "mean_actual": 0.55,
+                "mean_probability": 0.733638624,
+                "upper": 0.8
+              },
+              {
+                "count": 1,
+                "lower": 0.8,
+                "mean_actual": 0.0,
+                "mean_probability": 0.815871883,
+                "upper": 0.9
+              }
+            ],
+            "ece_10": 0.10079179
+          },
+          "cashflow_price_edge": {
+            "ge_0_05": 327,
+            "maximum": 0.665338645,
+            "mean": -0.051690883,
+            "median": -0.038326847,
+            "minimum": -0.799774002
+          },
+          "hypothetical_closing_recommendations": {
+            "count": 700,
+            "display_only_not_a_gate": true,
+            "p_and_l_units": -7.935,
+            "selection_counts": {
+              "AWAY": 373,
+              "HOME": 327
+            },
+            "settlement_counts": {
+              "HALF_LOSS": 53,
+              "HALF_WIN": 52,
+              "LOSS": 272,
+              "PUSH": 45,
+              "WIN": 278
+            }
+          },
+          "mean_brier": 0.21421233,
+          "mean_logloss": 0.714115046
+        }
+      },
+      "candidate": "ah_candidate",
+      "checks": {
+        "brier_vs_market_upper_95_le_zero": false,
+        "brier_vs_production_upper_95_le_zero": false,
+        "logloss_vs_market_upper_95_le_zero": false,
+        "logloss_vs_production_upper_95_le_zero": false,
+        "minimum_500_fixtures": true
+      },
+      "closing_market": {
+        "calibration": {
+          "bins": [
+            {
+              "count": 397,
+              "lower": 0.4,
+              "mean_actual": 0.45906801,
+              "mean_probability": 0.479115166,
+              "upper": 0.5
+            },
+            {
+              "count": 461,
+              "lower": 0.5,
+              "mean_actual": 0.538503254,
+              "mean_probability": 0.520242967,
+              "upper": 0.6
+            }
+          ],
+          "ece_10": 0.019087078
+        },
+        "mean_brier": 0.2036465,
+        "mean_logloss": 0.691352227
+      },
+      "decision": "REJECTED",
+      "fixture_count": 858,
+      "paired_differences": {
+        "brier_vs_market": {
+          "mean": 0.009631931,
+          "resamples": 8000,
+          "seed": 20261003,
+          "upper_95": 0.015627116
+        },
+        "brier_vs_production": {
+          "mean": -0.000933899,
+          "resamples": 8000,
+          "seed": 20261001,
+          "upper_95": 0.000184033
+        },
+        "logloss_vs_market": {
+          "mean": 0.020700713,
+          "resamples": 8000,
+          "seed": 20261004,
+          "upper_95": 0.033354963
+        },
+        "logloss_vs_production": {
+          "mean": -0.002062107,
+          "resamples": 8000,
+          "seed": 20261002,
+          "upper_95": 0.000292851
+        }
+      }
+    },
+    "TOTALS": {
+      "arms": {
+        "production": {
+          "calibration": {
+            "bins": [
+              {
+                "count": 7,
+                "lower": 0.2,
+                "mean_actual": 0.285714286,
+                "mean_probability": 0.285501121,
+                "upper": 0.3
+              },
+              {
+                "count": 88,
+                "lower": 0.3,
+                "mean_actual": 0.409090909,
+                "mean_probability": 0.359821857,
+                "upper": 0.4
+              },
+              {
+                "count": 282,
+                "lower": 0.4,
+                "mean_actual": 0.453900709,
+                "mean_probability": 0.457213977,
+                "upper": 0.5
+              },
+              {
+                "count": 309,
+                "lower": 0.5,
+                "mean_actual": 0.553398058,
+                "mean_probability": 0.546784401,
+                "upper": 0.6
+              },
+              {
+                "count": 144,
+                "lower": 0.6,
+                "mean_actual": 0.631944444,
+                "mean_probability": 0.639995395,
+                "upper": 0.7
+              },
+              {
+                "count": 28,
+                "lower": 0.7,
+                "mean_actual": 0.714285714,
+                "mean_probability": 0.727079755,
+                "upper": 0.8
+              }
+            ],
+            "ece_10": 0.010294523
+          },
+          "cashflow_price_edge": {
+            "ge_0_05": 300,
+            "maximum": 0.660204249,
+            "mean": -0.008445796,
+            "median": -0.012855121,
+            "minimum": -0.492403805
+          },
+          "hypothetical_closing_recommendations": {
+            "count": 568,
+            "display_only_not_a_gate": true,
+            "p_and_l_units": 10.9,
+            "selection_counts": {
+              "OVER": 300,
+              "UNDER": 268
+            },
+            "settlement_counts": {
+              "HALF_LOSS": 0,
+              "HALF_WIN": 0,
+              "LOSS": 301,
+              "PUSH": 0,
+              "WIN": 267
+            }
+          },
+          "mean_brier": 0.243145087,
+          "mean_logloss": 0.679288982
+        },
+        "totals_candidate": {
+          "calibration": {
+            "bins": [
+              {
+                "count": 19,
+                "lower": 0.3,
+                "mean_actual": 0.368421053,
+                "mean_probability": 0.384049238,
+                "upper": 0.4
+              },
+              {
+                "count": 252,
+                "lower": 0.4,
+                "mean_actual": 0.432539683,
+                "mean_probability": 0.465850999,
+                "upper": 0.5
+              },
+              {
+                "count": 438,
+                "lower": 0.5,
+                "mean_actual": 0.538812785,
+                "mean_probability": 0.545414809,
+                "upper": 0.6
+              },
+              {
+                "count": 145,
+                "lower": 0.6,
+                "mean_actual": 0.64137931,
+                "mean_probability": 0.63371679,
+                "upper": 0.7
+              },
+              {
+                "count": 4,
+                "lower": 0.7,
+                "mean_actual": 0.75,
+                "mean_probability": 0.716834452,
+                "upper": 0.8
+              }
+            ],
+            "ece_10": 0.014949652
+          },
+          "cashflow_price_edge": {
+            "ge_0_05": 361,
+            "maximum": 0.681136979,
+            "mean": 0.030494511,
+            "median": 0.021769871,
+            "minimum": -0.395783158
+          },
+          "hypothetical_closing_recommendations": {
+            "count": 559,
+            "display_only_not_a_gate": true,
+            "p_and_l_units": -8.68,
+            "selection_counts": {
+              "OVER": 361,
+              "UNDER": 198
+            },
+            "settlement_counts": {
+              "HALF_LOSS": 0,
+              "HALF_WIN": 0,
+              "LOSS": 318,
+              "PUSH": 0,
+              "WIN": 241
+            }
+          },
+          "mean_brier": 0.243245679,
+          "mean_logloss": 0.679436875
+        }
+      },
+      "candidate": "totals_candidate",
+      "checks": {
+        "brier_vs_market_upper_95_le_zero": false,
+        "brier_vs_production_upper_95_le_zero": false,
+        "logloss_vs_market_upper_95_le_zero": false,
+        "logloss_vs_production_upper_95_le_zero": false,
+        "minimum_500_fixtures": true
+      },
+      "closing_market": {
+        "calibration": {
+          "bins": [
+            {
+              "count": 2,
+              "lower": 0.2,
+              "mean_actual": 1.0,
+              "mean_probability": 0.270874739,
+              "upper": 0.3
+            },
+            {
+              "count": 97,
+              "lower": 0.3,
+              "mean_actual": 0.329896907,
+              "mean_probability": 0.364002654,
+              "upper": 0.4
+            },
+            {
+              "count": 297,
+              "lower": 0.4,
+              "mean_actual": 0.444444444,
+              "mean_probability": 0.455401828,
+              "upper": 0.5
+            },
+            {
+              "count": 297,
+              "lower": 0.5,
+              "mean_actual": 0.565656566,
+              "mean_probability": 0.545773691,
+              "upper": 0.6
+            },
+            {
+              "count": 131,
+              "lower": 0.6,
+              "mean_actual": 0.687022901,
+              "mean_probability": 0.640558988,
+              "upper": 0.7
+            },
+            {
+              "count": 34,
+              "lower": 0.7,
+              "mean_actual": 0.705882353,
+              "mean_probability": 0.717617506,
+              "upper": 0.8
+            }
+          ],
+          "ece_10": 0.023790015
+        },
+        "mean_brier": 0.238206088,
+        "mean_logloss": 0.669323764
+      },
+      "decision": "REJECTED",
+      "fixture_count": 858,
+      "paired_differences": {
+        "brier_vs_market": {
+          "mean": 0.005039591,
+          "resamples": 8000,
+          "seed": 20261007,
+          "upper_95": 0.009400888
+        },
+        "brier_vs_production": {
+          "mean": 0.000100592,
+          "resamples": 8000,
+          "seed": 20261005,
+          "upper_95": 0.00200507
+        },
+        "logloss_vs_market": {
+          "mean": 0.010113111,
+          "resamples": 8000,
+          "seed": 20261008,
+          "upper_95": 0.019500193
+        },
+        "logloss_vs_production": {
+          "mean": 0.000147893,
+          "resamples": 8000,
+          "seed": 20261006,
+          "upper_95": 0.003997267
+        }
+      }
+    }
+  },
+  "safety": {
+    "deployment": 0,
+    "github_operations": 0,
+    "ledger_writes": 0,
+    "post_freeze_provider_calls": 0,
+    "post_result_refit": 0,
+    "production_writes": 0
+  },
+  "schema": "w2.v1.historical_closing_blindtest.result.v1",
+  "sources": {
+    "predictions_sha256": "33ae870095e1c27e8797ff0f86bc3e1b0c2b2bdcddebba69b911a8a84731defb",
+    "supplement_sha256": "aa39ce46ff230684df71caf90b5a51c329d6b857a4649e6453c5de6fee5e856d"
+  }
+}
