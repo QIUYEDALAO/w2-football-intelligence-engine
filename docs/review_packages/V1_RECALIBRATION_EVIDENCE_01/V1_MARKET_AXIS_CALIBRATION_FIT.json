@@ -1,0 +1,424 @@
+{
+  "decision": {
+    "AH": "REJECTED",
+    "TOTALS": "PASS_DEVELOPMENT",
+    "combined": "REJECTED"
+  },
+  "fixture_count": 8659,
+  "full_development_fit": {
+    "AH": {
+      "attack_weight": 0.691718,
+      "defence_weight": 0.476429,
+      "home_intercept": 0.343251
+    },
+    "TOTALS": {
+      "total_intercept": 0.885958,
+      "total_scale": 0.701191
+    }
+  },
+  "rolling_origin_oof": {
+    "checks": {
+      "AH": {
+        "absolute_margin_intercept_le_0_10": true,
+        "brier_upper_95_le_zero": false,
+        "margin_slope_closer_to_one": true,
+        "minimum_10_lines_improve": true,
+        "minimum_7_folds_improve": true,
+        "scoreline_nll_noninferiority_upper_95_le_0_001": false
+      },
+      "TOTALS": {
+        "absolute_mean_total_bias_le_0_10": true,
+        "brier_upper_95_le_zero": true,
+        "minimum_5_lines_improve": true,
+        "minimum_7_folds_improve": true,
+        "total_nll_upper_95_le_zero": true,
+        "total_slope_closer_to_one": true
+      },
+      "combined": {
+        "ah_passes": false,
+        "scoreline_nll_upper_95_le_zero": true,
+        "totals_passes": true
+      }
+    },
+    "fixture_count": 7159,
+    "folds": [
+      {
+        "ah_parameters": [
+          0.407109,
+          0.610662,
+          0.645739
+        ],
+        "fold": 1,
+        "totals_parameters": [
+          0.512367,
+          0.851564
+        ],
+        "train_count": 1500,
+        "validation_count": 716,
+        "validation_kickoff_end": "2024-12-21 14:30:00+00",
+        "validation_kickoff_start": "2024-10-27 14:15:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.374597,
+          0.654315,
+          0.59687
+        ],
+        "fold": 2,
+        "totals_parameters": [
+          0.714356,
+          0.766331
+        ],
+        "train_count": 2216,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-03-09 11:15:00+00",
+        "validation_kickoff_start": "2024-12-21 14:30:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.338002,
+          0.678141,
+          0.564352
+        ],
+        "fold": 3,
+        "totals_parameters": [
+          0.947389,
+          0.680025
+        ],
+        "train_count": 2932,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-05-03 19:00:00+00",
+        "validation_kickoff_start": "2025-03-09 11:30:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.322912,
+          0.675231,
+          0.533015
+        ],
+        "fold": 4,
+        "totals_parameters": [
+          0.880142,
+          0.699842
+        ],
+        "train_count": 3648,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-07-23 22:00:00+00",
+        "validation_kickoff_start": "2025-05-03 19:05:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.312269,
+          0.673007,
+          0.534483
+        ],
+        "fold": 5,
+        "totals_parameters": [
+          0.999976,
+          0.65708
+        ],
+        "train_count": 4364,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-09-24 19:30:00+00",
+        "validation_kickoff_start": "2025-07-23 22:30:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.309315,
+          0.665191,
+          0.539401
+        ],
+        "fold": 6,
+        "totals_parameters": [
+          0.872994,
+          0.705441
+        ],
+        "train_count": 5080,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-11-08 20:00:00+00",
+        "validation_kickoff_start": "2025-09-24 19:30:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.321963,
+          0.679173,
+          0.512186
+        ],
+        "fold": 7,
+        "totals_parameters": [
+          0.855542,
+          0.71005
+        ],
+        "train_count": 5796,
+        "validation_count": 716,
+        "validation_kickoff_end": "2026-01-21 17:45:00+00",
+        "validation_kickoff_start": "2025-11-08 20:00:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.324012,
+          0.69599,
+          0.503769
+        ],
+        "fold": 8,
+        "totals_parameters": [
+          0.869488,
+          0.703186
+        ],
+        "train_count": 6512,
+        "validation_count": 716,
+        "validation_kickoff_end": "2026-03-22 11:15:00+00",
+        "validation_kickoff_start": "2026-01-23 19:00:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.339939,
+          0.70175,
+          0.494076
+        ],
+        "fold": 9,
+        "totals_parameters": [
+          0.920518,
+          0.683434
+        ],
+        "train_count": 7228,
+        "validation_count": 716,
+        "validation_kickoff_end": "2026-05-11 18:45:00+00",
+        "validation_kickoff_start": "2026-03-22 11:30:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.344644,
+          0.702683,
+          0.478099
+        ],
+        "fold": 10,
+        "totals_parameters": [
+          0.944476,
+          0.677315
+        ],
+        "train_count": 7944,
+        "validation_count": 715,
+        "validation_kickoff_end": "2026-08-30 02:30:00+00",
+        "validation_kickoff_start": "2026-05-11 19:00:00+00"
+      }
+    ],
+    "folds_improved": {
+      "AH": 7,
+      "TOTALS": 8
+    },
+    "line_brier": {
+      "AH": {
+        "-0.25": {
+          "AH": 0.18600582,
+          "current": 0.18651852
+        },
+        "-0.5": {
+          "AH": 0.228831566,
+          "current": 0.229341807
+        },
+        "-0.75": {
+          "AH": 0.181142534,
+          "current": 0.181487464
+        },
+        "-1.0": {
+          "AH": 0.154483832,
+          "current": 0.154671852
+        },
+        "-1.25": {
+          "AH": 0.148855462,
+          "current": 0.148894971
+        },
+        "-1.5": {
+          "AH": 0.164257422,
+          "current": 0.164156821
+        },
+        "0.0": {
+          "AH": 0.166683585,
+          "current": 0.167199831
+        },
+        "0.25": {
+          "AH": 0.17086486,
+          "current": 0.17138574
+        },
+        "0.5": {
+          "AH": 0.198549647,
+          "current": 0.199076247
+        },
+        "0.75": {
+          "AH": 0.150772958,
+          "current": 0.15119664
+        },
+        "1.0": {
+          "AH": 0.120381974,
+          "current": 0.120715395
+        },
+        "1.25": {
+          "AH": 0.107376694,
+          "current": 0.107632511
+        },
+        "1.5": {
+          "AH": 0.111757118,
+          "current": 0.111947989
+        }
+      },
+      "TOTALS": {
+        "1.5": {
+          "TOTALS": 0.175136806,
+          "current": 0.176312361
+        },
+        "2.0": {
+          "TOTALS": 0.164800326,
+          "current": 0.166153071
+        },
+        "2.5": {
+          "TOTALS": 0.24397143,
+          "current": 0.245538065
+        },
+        "3.0": {
+          "TOTALS": 0.183487719,
+          "current": 0.184638748
+        },
+        "3.5": {
+          "TOTALS": 0.209788257,
+          "current": 0.210627141
+        },
+        "4.0": {
+          "TOTALS": 0.13531612,
+          "current": 0.135896819
+        },
+        "4.5": {
+          "TOTALS": 0.127303228,
+          "current": 0.127675877
+        }
+      }
+    },
+    "lines_improved": {
+      "AH": 12,
+      "TOTALS": 7
+    },
+    "metrics": {
+      "AH": {
+        "lambda_clamp_count": 2,
+        "margin_regression": {
+          "intercept": 0.005903,
+          "slope": 0.956879
+        },
+        "mean_ah_brier": 0.160766421,
+        "mean_scoreline_nll": 2.961815762,
+        "mean_total_bias": -0.057308663,
+        "mean_total_nll": 1.88440546,
+        "mean_totals_brier": 0.178117977,
+        "total_regression": {
+          "intercept": 0.962597,
+          "slope": 0.670712
+        }
+      },
+      "TOTALS": {
+        "lambda_clamp_count": 0,
+        "margin_regression": {
+          "intercept": -0.020455,
+          "slope": 1.173055
+        },
+        "mean_ah_brier": 0.161124982,
+        "mean_scoreline_nll": 2.956753403,
+        "mean_total_bias": 0.004464228,
+        "mean_total_nll": 1.880003947,
+        "mean_totals_brier": 0.177114841,
+        "total_regression": {
+          "intercept": 0.214352,
+          "slope": 0.922157
+        }
+      },
+      "combined": {
+        "lambda_clamp_count": 1,
+        "margin_regression": {
+          "intercept": 0.005897,
+          "slope": 0.956864
+        },
+        "mean_ah_brier": 0.160778219,
+        "mean_scoreline_nll": 2.95620888,
+        "mean_total_bias": 0.004465509,
+        "mean_total_nll": 1.880002383,
+        "mean_totals_brier": 0.177114543,
+        "total_regression": {
+          "intercept": 0.214234,
+          "slope": 0.922199
+        }
+      },
+      "current": {
+        "lambda_clamp_count": 0,
+        "margin_regression": {
+          "intercept": -0.020455,
+          "slope": 1.173055
+        },
+        "mean_ah_brier": 0.161094291,
+        "mean_scoreline_nll": 2.961597551,
+        "mean_total_bias": -0.057320575,
+        "mean_total_nll": 1.884418365,
+        "mean_totals_brier": 0.178120297,
+        "total_regression": {
+          "intercept": 0.96306,
+          "slope": 0.670546
+        }
+      }
+    },
+    "paired_differences": {
+      "AH_brier": {
+        "lower_95": -0.000688026,
+        "mean": -0.000327871,
+        "resamples": 2000,
+        "seed": 20260901,
+        "upper_95": 4.4216e-05
+      },
+      "AH_scoreline_nll": {
+        "lower_95": -0.001718258,
+        "mean": 0.00021821,
+        "resamples": 2000,
+        "seed": 20260902,
+        "upper_95": 0.002243618
+      },
+      "TOTALS_brier": {
+        "lower_95": -0.001476438,
+        "mean": -0.001005456,
+        "resamples": 2000,
+        "seed": 20260903,
+        "upper_95": -0.000518059
+      },
+      "TOTALS_nll": {
+        "lower_95": -0.006527817,
+        "mean": -0.004414417,
+        "resamples": 2000,
+        "seed": 20260904,
+        "upper_95": -0.002243568
+      },
+      "combined_scoreline_nll": {
+        "lower_95": -0.00824612,
+        "mean": -0.005388671,
+        "resamples": 2000,
+        "seed": 20260905,
+        "upper_95": -0.002493556
+      }
+    },
+    "passes": {
+      "AH": false,
+      "TOTALS": true,
+      "combined": false
+    }
+  },
+  "safety": {
+    "deployment": 0,
+    "ledger_writes": 0,
+    "market_259_loaded": 0,
+    "production_reads": 0,
+    "production_writes": 0,
+    "provider_calls": 0,
+    "settled_121_loaded": 0
+  },
+  "schema": "w2.v1.market_axis_calibration_fit.v1",
+  "sources": {
+    "home_away_sha256": "709050b581b569c874c6a8d1363ba1a6612503489d175da8b644c5df05294a02",
+    "protocol_sha256": "a8a4f0ddc55e1d30ed69c8ee3ec8697346968c3a427f1bcba588b4aca4309bbd",
+    "xg_sha256": "16fcaaad812e8007c7e828c964d7029bc223e361cdac87b122c56eba9e8e3522"
+  }
+}
