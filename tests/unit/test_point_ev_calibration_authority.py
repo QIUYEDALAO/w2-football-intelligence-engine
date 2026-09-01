@@ -125,9 +125,7 @@ def test_b_validated_calibration_still_admits(status: str) -> None:
 
 @pytest.mark.parametrize("status", VALIDATED)
 def test_b_validated_calibration_clears_the_round3_path(status: str) -> None:
-    assert calibration_authority.RECOMMENDATION_BLOCKER not in _model_blockers(
-        _simulation(status)
-    )
+    assert calibration_authority.RECOMMENDATION_BLOCKER not in _model_blockers(_simulation(status))
 
 
 def test_b_validated_calibration_still_answers_to_the_ev_gates() -> None:
@@ -169,13 +167,9 @@ def test_c_market_implied_probability_still_reads_as_decimal_odds() -> None:
     assert 1 / DECIMAL_ODDS == pytest.approx(0.520833, abs=1e-6)
 
 
-# --- (d) fixture 1570340 under the current approved model ---------------------
-def test_d_fixture_1570340_uses_the_shipped_approved_calibration() -> None:
-    """The shipped parameter identity now carries its evidence-bound grant.
-
-    The authority still depends on exact identity; this assertion changes only
-    because the shipped parameters now have an APPROVED_VALIDATED ledger record.
-    """
+# --- (d) fixture 1570340 under the ungranted TOTALS candidate -----------------
+def test_d_fixture_1570340_blocks_the_ungranted_totals_calibration() -> None:
+    """A changed parameter identity cannot inherit the previous model's grant."""
     from w2.prematch import analysis_calculator
     from w2.strategy.simulate import SimulationInputs
 
@@ -191,7 +185,7 @@ def test_d_fixture_1570340_uses_the_shipped_approved_calibration() -> None:
         )
     )
     calibration_status = simulation.calibration_status
-    assert calibration_status == "APPROVED_VALIDATED"
+    assert calibration_status == "BASELINE_PRIOR"
     version = classify_evaluation(
         _evaluation(
             calibration_status=calibration_status,
@@ -199,8 +193,8 @@ def test_d_fixture_1570340_uses_the_shipped_approved_calibration() -> None:
             delta=RECORDED_DELTA,
         )
     )
-    assert version.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
-    assert calibration_authority.RECOMMENDATION_BLOCKER not in version.blockers
+    assert version.state is DynamicEvaluationState.NOT_READY_MODEL_INPUT
+    assert calibration_authority.RECOMMENDATION_BLOCKER in version.blockers
     # the EV that was reported is still recorded, unmodified and uncapped
     assert version.current_ev == pytest.approx(RECORDED_EV)
 

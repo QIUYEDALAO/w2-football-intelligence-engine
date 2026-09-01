@@ -5,7 +5,7 @@ from math import log
 
 from w2.domain.calibration_validation_registry import lookup_calibration_verdict
 
-CALIBRATION_VERSION = "w2.formal.lambda_baseline_prior.v1"
+CALIBRATION_VERSION = "w2.formal.lambda_totals_axis.v2"
 BASELINE_CALIBRATION_STATUS = "BASELINE_PRIOR"
 MAX_LINEUP_AH_DELTA = 0.25
 MAX_LINEUP_TOTALS_DELTA = 0.30
@@ -14,6 +14,8 @@ MAX_LINEUP_TOTALS_DELTA = 0.30
 @dataclass(frozen=True, kw_only=True)
 class LambdaCalibrationParams:
     home_advantage_goals: float = 0.30
+    total_goals_intercept: float = 0.885958
+    total_goals_scale: float = 0.701191
     elo_gap_weight: float = 0.28
     squad_value_log_weight: float = 0.18
     lineup_adjustment_weight: float = 0.08
@@ -59,8 +61,9 @@ def calibrate_lambdas(
     )
     base_home = (float(home_xg_for) + float(away_xg_against)) / 2.0
     base_away = (float(away_xg_for) + float(home_xg_against)) / 2.0
+    raw_total = base_home + base_away
     total = _clamp(
-        base_home + base_away,
+        params.total_goals_intercept + params.total_goals_scale * raw_total,
         minimum=params.minimum_total_goals,
         maximum=params.maximum_total_goals,
     )
@@ -78,9 +81,7 @@ def calibrate_lambdas(
         value_delta = log(float(home_squad_value_eur) / float(away_squad_value_eur)) * (
             params.squad_value_log_weight
         )
-    applied_home_advantage_goals = (
-        params.home_advantage_goals if apply_home_advantage else 0.0
-    )
+    applied_home_advantage_goals = params.home_advantage_goals if apply_home_advantage else 0.0
     adjusted_delta = (
         raw_delta
         + applied_home_advantage_goals
@@ -116,6 +117,8 @@ def calibrate_lambdas(
         params={
             "home_advantage_goals": params.home_advantage_goals,
             "applied_home_advantage_goals": applied_home_advantage_goals,
+            "total_goals_intercept": params.total_goals_intercept,
+            "total_goals_scale": params.total_goals_scale,
             "elo_gap_weight": params.elo_gap_weight,
             "squad_value_log_weight": params.squad_value_log_weight,
             "lineup_adjustment_weight": params.lineup_adjustment_weight,

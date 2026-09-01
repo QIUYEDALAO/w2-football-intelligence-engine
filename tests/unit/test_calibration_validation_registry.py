@@ -74,7 +74,7 @@ def _calibration_output() -> dict[str, Any]:
     )
 
 
-def test_empty_ledger_preserves_every_calibration_output_field(
+def test_empty_ledger_uses_totals_axis_candidate_without_grant(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     import w2.domain.calibration_validation_registry as registry
@@ -82,7 +82,7 @@ def test_empty_ledger_preserves_every_calibration_output_field(
     monkeypatch.setattr(registry, "DEFAULT_LEDGER_PATH", tmp_path / "empty.jsonl")
     assert _calibration_output() == {
         "calibration_status": "BASELINE_PRIOR",
-        "calibration_version": "w2.formal.lambda_baseline_prior.v1",
+        "calibration_version": "w2.formal.lambda_totals_axis.v2",
         "input_weights": {
             "elo": 0.28,
             "lineup_ah_enabled": 1.0,
@@ -91,8 +91,8 @@ def test_empty_ledger_preserves_every_calibration_output_field(
             "squad_value": 0.18,
             "xg": 1.0,
         },
-        "lambda_away": 0.833399,
-        "lambda_home": 1.766601,
+        "lambda_away": 0.858046,
+        "lambda_home": 1.791247,
         "params": {
             "applied_home_advantage_goals": 0.3,
             "dixon_coles_rho": 0.0,
@@ -106,8 +106,64 @@ def test_empty_ledger_preserves_every_calibration_output_field(
             "minimum_lambda": 0.15,
             "minimum_total_goals": 1.35,
             "squad_value_log_weight": 0.18,
+            "total_goals_intercept": 0.885958,
+            "total_goals_scale": 0.701191,
         },
     }
+
+
+def test_totals_axis_changes_total_but_preserves_unclamped_home_away_delta(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import w2.domain.calibration_validation_registry as registry
+
+    monkeypatch.setattr(registry, "DEFAULT_LEDGER_PATH", tmp_path / "empty.jsonl")
+    output = calibrate_lambdas(
+        home_xg_for=1.7,
+        home_xg_against=1.1,
+        away_xg_for=1.3,
+        away_xg_against=1.5,
+        home_elo=None,
+        away_elo=None,
+        home_squad_value_eur=None,
+        away_squad_value_eur=None,
+    )
+    expected_total = 0.885958 + 0.701191 * 2.8
+    assert output.lambda_home + output.lambda_away == pytest.approx(expected_total, abs=1e-6)
+    expected_delta = ((1.7 + 1.5) / 2.0) - ((1.3 + 1.1) / 2.0) + 0.30
+    assert output.lambda_home - output.lambda_away == pytest.approx(expected_delta, abs=1e-6)
+
+
+def test_shipped_home_advantage_grant_does_not_authorize_totals_axis_identity() -> None:
+    previous_params = {
+        "home_advantage_goals": 0.30,
+        "elo_gap_weight": 0.28,
+        "squad_value_log_weight": 0.18,
+        "lineup_adjustment_weight": 0.08,
+        "dixon_coles_rho": 0.0,
+        "minimum_lambda": 0.15,
+        "maximum_lambda": 4.25,
+        "minimum_total_goals": 1.35,
+        "maximum_total_goals": 4.40,
+    }
+    assert (
+        calibration_identity(
+            calibration_version="w2.formal.lambda_baseline_prior.v1", params=previous_params
+        )
+        == "21960a863fd93dcae01ff8804e73fd0ef9d8360e8f2b8073313f226322e5db71"
+    )
+    assert (
+        calibration_identity(
+            calibration_version=CALIBRATION_VERSION, params=LambdaCalibrationParams()
+        )
+        == "f98d4ef0c2b158a80eeba60ca979250736831583612ad126b6ae9010262dbc91"
+    )
+    assert (
+        lookup_calibration_verdict(
+            calibration_version=CALIBRATION_VERSION, params=LambdaCalibrationParams()
+        )
+        is None
+    )
 
 
 def test_registered_identity_matches_and_every_parameter_change_misses(

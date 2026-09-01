@@ -240,6 +240,34 @@ Runtime status: LOCAL_EVIDENCE_ONLY_NOT_DEPLOYED
 - 本轮 Provider 0、生产读写 0、赛果读取 0、migration 0、部署 0、GitHub 操作 0；
   V1 仍只使用四字段 xG，未引入 V2 的 Elo、身价或首发。
 
+### V1-MARKET-AXIS-CALIBRATION-01 (TOTALS local candidate)
+
+```text
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Branch: codex/v1-recalibration-evidence-01
+Preregistration commit: 303ba7bc73504f3943c45df113ff2a63634036c3
+Fit evidence commit: 83f19de4ace76a4556086ce31de295b53882efda
+Runtime status: LOCAL_ONLY_NOT_DEPLOYED
+```
+
+- 冻结开发门只允许实现通过轴：TOTALS 候选为
+  `total = clamp(0.885958 + 0.701191 * raw_total, 1.35, 4.40)`；8/10 OOF folds、
+  7/7 lines 改善，Brier 与 NLL paired-bootstrap 95% 上界分别为
+  `-0.000518059 / -0.002243568`，总量 slope `0.670546→0.922157`、均值偏差
+  `-0.057321→+0.004464`、clamp 0。
+- TOTALS-only arm 的净胜球回归不变，但共享比分矩阵使 AH mean Brier
+  `0.161094291→0.161124982`；该影响已披露，不能把本项描述为 AH 输出 no-op。
+- AH 候选因 Brier 95% 上界 `+0.000044216` 与 scoreline NLL 非劣上界
+  `+0.002243618 > 0.001` 被拒绝；本实现未加入 AH 参数，未放宽冻结门。
+- calibration version 提升为 `w2.formal.lambda_totals_axis.v2`，完整参数 identity 为
+  `f98d4ef0c2b158a80eeba60ca979250736831583612ad126b6ae9010262dbc91`；旧授权
+  `21960a86…db71` 不匹配。ledger 未新增记录，查询为 `None`，状态明确降为
+  `BASELINE_PRIOR`，所以候选不能形成正式推荐。
+- 121 注与 259 场市场 artifact 未加载；Provider 0、生产读写 0、migration 0、
+  ledger 写 0、部署 0、GitHub 0。开发 OOF 通过不等于 calibration grant、盈利证明或
+  生产有效性验证。
+- 回执：`docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/V1_TOTALS_AXIS_CANDIDATE_IMPLEMENTATION.md`。
+
 ### V1-XG-UNCERTAINTY-WINDOW-CORRECTION-20260901
 
 ```text
