@@ -303,6 +303,37 @@ Runtime status: EVIDENCE_ONLY_NOT_IMPLEMENTED_NOT_DEPLOYED
   本轮未触及对应代码。完整命令与失败 ID 见
   `docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/V1_AH_GOAL_SHARE_CALIBRATION_SELF_ACCEPTANCE.md`。
 
+### V1-AH-COMPONENT-SHARE-CALIBRATION-01
+
+```text
+Status: CANDIDATE_REJECTED_FINAL_AH_FAMILY_ON_FROZEN_DEVELOPMENT_COHORT
+Branch: codex/v1-recalibration-evidence-01
+Preregistration commits: d2afa36c / a1b818a7
+Runner commit: f04bf05a
+Fit evidence commit: 8e7d654b
+Runtime status: EVIDENCE_ONLY_NOT_IMPLEMENTED_NOT_DEPLOYED
+```
+
+- 固定 TOTALS 总量轴，仅对 V1 既有主场、进攻差、防守差组件做三参数条件份额校准。
+  full fit 为 `home_adjustment=0.208545 / attack_adjustment=0.663475 /
+  defence_adjustment=-0.112027`。
+- 严格 PIT rolling-origin OOF `7,159` 场；margin slope `1.173055→0.995275`、
+  intercept `-0.020455→+0.009648`，7/10 folds、12/13 lines 改善，clamp 为 0。
+- 前三 AH 家族已在同一开发集被查看，故采用 99.375% bootstrap 上界；AH Brier
+  candidate-minus-TOTALS-only 上界 `+0.000080417`，scoreline NLL 上界
+  `+0.000879910`，AH Brier candidate-minus-production-current 上界 `+0.000094281`，
+  均未达到 `<=0`，故裁决 `REJECTED`。
+- TOTALS 不变量：最大 lambda-total 差 `1e-15`、total-NLL 差 `2e-15`；current share
+  clamp 与 candidate lambda clamp 均为 0。121 注、259 场市场 artifact、raw_delta_scale
+  均未加载/使用。
+- 这是该冻结 8,659 场开发 cohort 上允许的最后一个 AH 家族；后续 AH 修复必须使用新的
+  非重叠 cohort 和新的预注册，不能调门或重跑本 cohort。结果 artifact SHA-256：JSON
+  `74c7e8830e395f871e225912cd9055023a7af885644340100ae12d8e0ab48f2`，MD
+  `95c5b470739fe9a4b8d02ec58bf0ffe372c76f0dfac878b7452c5c9fdf2cdce9`。
+- 本轮不接入 `calibration.py`，不产生新 calibration identity，不写 ledger，不改白名单、
+  V2、migration、Provider、生产读写或部署。自验收定向总计 `134 passed`；全量
+  `2957 passed / 9 skipped / 4 failed / 5 warnings`，4 失败均为既有宿主限制。
+
 ### V1-XG-UNCERTAINTY-WINDOW-CORRECTION-20260901
 
 ```text
