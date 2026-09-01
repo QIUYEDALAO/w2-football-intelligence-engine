@@ -70,7 +70,8 @@ cmp -s /tmp/V1_HISTORICAL_CLOSING_BLINDTEST_RESULT.json \
 ## 自验收
 
 - 定向测试：`7 passed`。
-- canonical serialization 与 package matrix 治理回归：`18 passed`。
+- canonical serialization：`18 passed`；package matrix：`5 passed`；治理回归合计
+  `23 passed`。
 - 全量命令：`PYTHONPATH=src:. .venv/bin/pytest -q`。
 - 全量结果：`2967 passed / 9 skipped / 5 failed / 5 warnings`，耗时 `353.41s`。
 - 任务相关失败：`0`。剩余 5 个均为既有宿主限制：Docker Compose 插件缺失 2、系统无裸 `python` 导致 SC18 未启动 1、macOS 无法构造容器 UID/GID 所有者目录 2。

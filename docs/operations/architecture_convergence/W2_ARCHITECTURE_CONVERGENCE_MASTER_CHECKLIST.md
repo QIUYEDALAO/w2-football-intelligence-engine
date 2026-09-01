@@ -35,7 +35,7 @@ Runtime status: NO_IMPLEMENTATION_NO_DEPLOYMENT
 - 固定 AH component-share 候选对现役 Brier/log-loss 点估计略优，但两项 95% 上界均跨
   0，且对 Pinnacle closing 两项显著更差；固定 TOTALS axis 候选对现役和 closing
   四项都未通过。两候选裁决均为 `REJECTED`，不得在该 cohort 换参数、登记或部署。
-- 自验收：定向 `7 passed`、治理合同 `18 passed`；全量
+- 自验收：定向 `7 passed`、canonical `18 passed`、package matrix `5 passed`；全量
   `2967 passed / 9 skipped / 5` 个既有宿主限制失败，任务相关失败 0。
 - 完整证据与复核命令见
   `docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/V1_HISTORICAL_CLOSING_BLINDTEST_REPORT.md`。
