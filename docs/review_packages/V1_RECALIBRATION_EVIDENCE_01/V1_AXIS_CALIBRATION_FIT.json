@@ -1,0 +1,573 @@
+{
+  "decision": {
+    "AH": "REJECTED",
+    "TOTALS": "REJECTED",
+    "combined": "REJECTED"
+  },
+  "fixture_count": 8659,
+  "full_development_fit": {
+    "AH": {
+      "attack_delta_weight": 0.636364,
+      "defence_delta_weight": 0.450569
+    },
+    "TOTALS": {
+      "attack_total_weight": 0.580538,
+      "defence_total_weight": 0.438513
+    }
+  },
+  "rolling_origin_oof": {
+    "checks": {
+      "AH": {
+        "absolute_margin_intercept_le_0_10": true,
+        "margin_slope_closer_to_one": true,
+        "mean_generic_ah_brier_lower": true,
+        "minimum_5_generic_lines_improve": true,
+        "minimum_7_folds_improve": true,
+        "paired_scoreline_nll_mean_lt_zero": true,
+        "paired_scoreline_nll_upper_95_le_zero": false
+      },
+      "TOTALS": {
+        "absolute_mean_total_bias_le_0_10": true,
+        "mean_generic_totals_brier_lower": true,
+        "minimum_2_generic_lines_improve": true,
+        "minimum_7_folds_improve": true,
+        "paired_total_nll_mean_lt_zero": true,
+        "paired_total_nll_upper_95_le_zero": true,
+        "total_slope_closer_to_one": false
+      },
+      "combined": {
+        "ah_axis_passes": false,
+        "interaction_loss_fraction_le_0_10": true,
+        "paired_scoreline_nll_upper_95_le_zero": true,
+        "totals_axis_passes": false
+      }
+    },
+    "fixture_count": 7159,
+    "folds": [
+      {
+        "ah_parameters": [
+          0.520109,
+          0.617121
+        ],
+        "fold": 1,
+        "metrics": {
+          "AH": {
+            "mean_scoreline_nll": 2.913050231,
+            "mean_total_nll": 1.888874485
+          },
+          "TOTALS": {
+            "mean_scoreline_nll": 2.910917457,
+            "mean_total_nll": 1.884165355
+          },
+          "combined": {
+            "mean_scoreline_nll": 2.909580608,
+            "mean_total_nll": 1.884165355
+          },
+          "current": {
+            "mean_scoreline_nll": 2.913988183,
+            "mean_total_nll": 1.888874485
+          }
+        },
+        "totals_parameters": [
+          0.602978,
+          0.429712
+        ],
+        "train_count": 1500,
+        "validation_count": 716,
+        "validation_kickoff_end": "2024-12-21 14:30:00+00",
+        "validation_kickoff_start": "2024-10-27 14:15:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.583575,
+          0.576051
+        ],
+        "fold": 2,
+        "metrics": {
+          "AH": {
+            "mean_scoreline_nll": 2.96981413,
+            "mean_total_nll": 1.896119889
+          },
+          "TOTALS": {
+            "mean_scoreline_nll": 2.97150902,
+            "mean_total_nll": 1.894576992
+          },
+          "combined": {
+            "mean_scoreline_nll": 2.968951353,
+            "mean_total_nll": 1.894576992
+          },
+          "current": {
+            "mean_scoreline_nll": 2.971889389,
+            "mean_total_nll": 1.896119889
+          }
+        },
+        "totals_parameters": [
+          0.622895,
+          0.401267
+        ],
+        "train_count": 2216,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-03-09 11:15:00+00",
+        "validation_kickoff_start": "2024-12-21 14:30:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.611603,
+          0.549229
+        ],
+        "fold": 3,
+        "metrics": {
+          "AH": {
+            "mean_scoreline_nll": 2.927669923,
+            "mean_total_nll": 1.885731143
+          },
+          "TOTALS": {
+            "mean_scoreline_nll": 2.928035853,
+            "mean_total_nll": 1.884283365
+          },
+          "combined": {
+            "mean_scoreline_nll": 2.926757865,
+            "mean_total_nll": 1.884283365
+          },
+          "current": {
+            "mean_scoreline_nll": 2.928364977,
+            "mean_total_nll": 1.885731143
+          }
+        },
+        "totals_parameters": [
+          0.605267,
+          0.418951
+        ],
+        "train_count": 2932,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-05-03 19:00:00+00",
+        "validation_kickoff_start": "2025-03-09 11:30:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.612414,
+          0.531702
+        ],
+        "fold": 4,
+        "metrics": {
+          "AH": {
+            "mean_scoreline_nll": 2.993302939,
+            "mean_total_nll": 1.8862124
+          },
+          "TOTALS": {
+            "mean_scoreline_nll": 2.99248105,
+            "mean_total_nll": 1.884502379
+          },
+          "combined": {
+            "mean_scoreline_nll": 2.991238489,
+            "mean_total_nll": 1.884502379
+          },
+          "current": {
+            "mean_scoreline_nll": 2.994211349,
+            "mean_total_nll": 1.8862124
+          }
+        },
+        "totals_parameters": [
+          0.599044,
+          0.420225
+        ],
+        "train_count": 3648,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-07-23 22:00:00+00",
+        "validation_kickoff_start": "2025-05-03 19:05:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.610541,
+          0.53157
+        ],
+        "fold": 5,
+        "metrics": {
+          "AH": {
+            "mean_scoreline_nll": 2.966274848,
+            "mean_total_nll": 1.878046324
+          },
+          "TOTALS": {
+            "mean_scoreline_nll": 2.966668109,
+            "mean_total_nll": 1.876127269
+          },
+          "combined": {
+            "mean_scoreline_nll": 2.964984573,
+            "mean_total_nll": 1.876127269
+          },
+          "current": {
+            "mean_scoreline_nll": 2.96760691,
+            "mean_total_nll": 1.878046324
+          }
+        },
+        "totals_parameters": [
+          0.596394,
+          0.424051
+        ],
+        "train_count": 4364,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-09-24 19:30:00+00",
+        "validation_kickoff_start": "2025-07-23 22:30:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.614295,
+          0.525657
+        ],
+        "fold": 6,
+        "metrics": {
+          "AH": {
+            "mean_scoreline_nll": 2.966581994,
+            "mean_total_nll": 1.881026255
+          },
+          "TOTALS": {
+            "mean_scoreline_nll": 2.96769036,
+            "mean_total_nll": 1.880342738
+          },
+          "combined": {
+            "mean_scoreline_nll": 2.96745602,
+            "mean_total_nll": 1.880342738
+          },
+          "current": {
+            "mean_scoreline_nll": 2.966663812,
+            "mean_total_nll": 1.881026255
+          }
+        },
+        "totals_parameters": [
+          0.591188,
+          0.430037
+        ],
+        "train_count": 5080,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-11-08 20:00:00+00",
+        "validation_kickoff_start": "2025-09-24 19:30:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.62648,
+          0.487208
+        ],
+        "fold": 7,
+        "metrics": {
+          "AH": {
+            "mean_scoreline_nll": 2.974698463,
+            "mean_total_nll": 1.88810309
+          },
+          "TOTALS": {
+            "mean_scoreline_nll": 2.978602338,
+            "mean_total_nll": 1.887518275
+          },
+          "combined": {
+            "mean_scoreline_nll": 2.974897815,
+            "mean_total_nll": 1.887518275
+          },
+          "current": {
+            "mean_scoreline_nll": 2.978139487,
+            "mean_total_nll": 1.88810309
+          }
+        },
+        "totals_parameters": [
+          0.582642,
+          0.436522
+        ],
+        "train_count": 5796,
+        "validation_count": 716,
+        "validation_kickoff_end": "2026-01-21 17:45:00+00",
+        "validation_kickoff_start": "2025-11-08 20:00:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.642417,
+          0.470309
+        ],
+        "fold": 8,
+        "metrics": {
+          "AH": {
+            "mean_scoreline_nll": 2.94045057,
+            "mean_total_nll": 1.874421202
+          },
+          "TOTALS": {
+            "mean_scoreline_nll": 2.942267557,
+            "mean_total_nll": 1.872687143
+          },
+          "combined": {
+            "mean_scoreline_nll": 2.939447351,
+            "mean_total_nll": 1.872687143
+          },
+          "current": {
+            "mean_scoreline_nll": 2.942946914,
+            "mean_total_nll": 1.874421202
+          }
+        },
+        "totals_parameters": [
+          0.578228,
+          0.438556
+        ],
+        "train_count": 6512,
+        "validation_count": 716,
+        "validation_kickoff_end": "2026-03-22 11:15:00+00",
+        "validation_kickoff_start": "2026-01-23 19:00:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.647695,
+          0.463741
+        ],
+        "fold": 9,
+        "metrics": {
+          "AH": {
+            "mean_scoreline_nll": 2.982429057,
+            "mean_total_nll": 1.894984206
+          },
+          "TOTALS": {
+            "mean_scoreline_nll": 2.980869,
+            "mean_total_nll": 1.893185145
+          },
+          "combined": {
+            "mean_scoreline_nll": 2.979800395,
+            "mean_total_nll": 1.893185145
+          },
+          "current": {
+            "mean_scoreline_nll": 2.983074475,
+            "mean_total_nll": 1.894984206
+          }
+        },
+        "totals_parameters": [
+          0.579004,
+          0.435065
+        ],
+        "train_count": 7228,
+        "validation_count": 716,
+        "validation_kickoff_end": "2026-05-11 18:45:00+00",
+        "validation_kickoff_start": "2026-03-22 11:30:00+00"
+      },
+      {
+        "ah_parameters": [
+          0.64561,
+          0.452301
+        ],
+        "fold": 10,
+        "metrics": {
+          "AH": {
+            "mean_scoreline_nll": 2.970170726,
+            "mean_total_nll": 1.870645416
+          },
+          "TOTALS": {
+            "mean_scoreline_nll": 2.966796213,
+            "mean_total_nll": 1.867793538
+          },
+          "combined": {
+            "mean_scoreline_nll": 2.967598732,
+            "mean_total_nll": 1.867793538
+          },
+          "current": {
+            "mean_scoreline_nll": 2.969100498,
+            "mean_total_nll": 1.870645416
+          }
+        },
+        "totals_parameters": [
+          0.580152,
+          0.43629
+        ],
+        "train_count": 7944,
+        "validation_count": 715,
+        "validation_kickoff_end": "2026-08-30 02:30:00+00",
+        "validation_kickoff_start": "2026-05-11 19:00:00+00"
+      }
+    ],
+    "folds_improved": {
+      "AH": 9,
+      "TOTALS": 10
+    },
+    "generic_lines_improved": {
+      "AH": 7,
+      "TOTALS": 3
+    },
+    "interaction_loss_fraction": -0.165062726,
+    "paired_differences": {
+      "AH_scoreline": {
+        "lower_95": -0.002337132,
+        "mean": -0.001154622,
+        "resamples": 2000,
+        "seed": 20260901,
+        "upper_95": 4.7387e-05
+      },
+      "TOTALS_total": {
+        "lower_95": -0.003372656,
+        "mean": -0.001898088,
+        "resamples": 2000,
+        "seed": 20260902,
+        "upper_95": -0.000478009
+      },
+      "combined_scoreline": {
+        "lower_95": -0.004201046,
+        "mean": -0.002527423,
+        "resamples": 2000,
+        "seed": 20260903,
+        "upper_95": -0.000799234
+      }
+    },
+    "passes": {
+      "AH": false,
+      "TOTALS": false,
+      "combined": false
+    },
+    "predictions": {
+      "AH": {
+        "brier": {
+          "AH": {
+            "by_line": {
+              "-0.5": 0.228749019,
+              "-1.0": 0.154294345,
+              "-1.5": 0.163963277,
+              "0.0": 0.166707905,
+              "0.5": 0.198670723,
+              "1.0": 0.120439034,
+              "1.5": 0.111769151
+            },
+            "mean": 0.163513351
+          },
+          "TOTALS": {
+            "by_line": {
+              "1.5": 0.17631236,
+              "2.5": 0.245538065,
+              "3.5": 0.21062714
+            },
+            "mean": 0.210825855
+          }
+        },
+        "margin_regression": {
+          "intercept": 0.021244,
+          "slope": 1.03243
+        },
+        "mean_scoreline_nll": 2.96044293,
+        "mean_total_bias": -0.057320575,
+        "mean_total_nll": 1.884418365,
+        "total_regression": {
+          "intercept": 0.96306,
+          "slope": 0.670546
+        }
+      },
+      "TOTALS": {
+        "brier": {
+          "AH": {
+            "by_line": {
+              "-0.5": 0.229425355,
+              "-1.0": 0.154689525,
+              "-1.5": 0.164120697,
+              "0.0": 0.167312764,
+              "0.5": 0.199199418,
+              "1.0": 0.120773363,
+              "1.5": 0.111961953
+            },
+            "mean": 0.163926154
+          },
+          "TOTALS": {
+            "by_line": {
+              "1.5": 0.175856484,
+              "2.5": 0.244731858,
+              "3.5": 0.210410932
+            },
+            "mean": 0.210333091
+          }
+        },
+        "margin_regression": {
+          "intercept": -0.020455,
+          "slope": 1.173055
+        },
+        "mean_scoreline_nll": 2.960582828,
+        "mean_total_bias": 0.001195789,
+        "mean_total_nll": 1.882520277,
+        "total_regression": {
+          "intercept": 0.941997,
+          "slope": 0.664073
+        }
+      },
+      "combined": {
+        "brier": {
+          "AH": {
+            "by_line": {
+              "-0.5": 0.228802874,
+              "-1.0": 0.154297153,
+              "-1.5": 0.163928068,
+              "0.0": 0.166797027,
+              "0.5": 0.198783793,
+              "1.0": 0.120502565,
+              "1.5": 0.111802501
+            },
+            "mean": 0.16355914
+          },
+          "TOTALS": {
+            "by_line": {
+              "1.5": 0.175856484,
+              "2.5": 0.244731857,
+              "3.5": 0.210410929
+            },
+            "mean": 0.21033309
+          }
+        },
+        "margin_regression": {
+          "intercept": 0.021244,
+          "slope": 1.03243
+        },
+        "mean_scoreline_nll": 2.959070129,
+        "mean_total_bias": 0.001195789,
+        "mean_total_nll": 1.882520277,
+        "total_regression": {
+          "intercept": 0.941997,
+          "slope": 0.664073
+        }
+      },
+      "current": {
+        "brier": {
+          "AH": {
+            "by_line": {
+              "-0.5": 0.229341807,
+              "-1.0": 0.154671852,
+              "-1.5": 0.164156821,
+              "0.0": 0.167199831,
+              "0.5": 0.199076247,
+              "1.0": 0.120715395,
+              "1.5": 0.111947989
+            },
+            "mean": 0.163872849
+          },
+          "TOTALS": {
+            "by_line": {
+              "1.5": 0.176312361,
+              "2.5": 0.245538065,
+              "3.5": 0.210627141
+            },
+            "mean": 0.210825856
+          }
+        },
+        "margin_regression": {
+          "intercept": -0.020455,
+          "slope": 1.173055
+        },
+        "mean_scoreline_nll": 2.961597551,
+        "mean_total_bias": -0.057320575,
+        "mean_total_nll": 1.884418365,
+        "total_regression": {
+          "intercept": 0.96306,
+          "slope": 0.670546
+        }
+      }
+    }
+  },
+  "safety": {
+    "deployment": 0,
+    "ledger_writes": 0,
+    "market_artifact_loaded": 0,
+    "production_reads": 0,
+    "production_writes": 0,
+    "provider_calls": 0,
+    "settled_121_loaded": 0
+  },
+  "schema": "w2.v1.axis_calibration_fit.v1",
+  "sources": {
+    "home_away_sha256": "709050b581b569c874c6a8d1363ba1a6612503489d175da8b644c5df05294a02",
+    "protocol_sha256": "d27526cbc51d88757cfdb650d45ef0837e4b0e70e7b4bf19c58b29539024b6bc",
+    "xg_sha256": "16fcaaad812e8007c7e828c964d7029bc223e361cdac87b122c56eba9e8e3522"
+  }
+}
