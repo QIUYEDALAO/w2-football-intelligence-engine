@@ -1,0 +1,60 @@
+{
+  "schema": "w2.v1.historical_closing_blindtest_preregistration.v2",
+  "task_id": "V1-HISTORICAL-CLOSING-BLINDTEST-01B",
+  "status": "FROZEN_BEFORE_TARGET_ROW_READ",
+  "frozen_at": "2026-09-01T08:15:00Z",
+  "supersedes": {
+    "path": "docs/operations/V1_HISTORICAL_CLOSING_BLINDTEST_PREREGISTRATION_20260901.json",
+    "reason": "API-Football 2022 season statistics probe returned no numeric xG for the first 13 fixtures; that season is structurally ineligible for the V1 PIT model input. No target results were read."
+  },
+  "purpose": "Evaluate fixed V1 probability models and hypothetical closing EV against an independent historical cohort with usable PIT xG and bookmaker-level closing AH/TOTALS prices.",
+  "cohort": {
+    "source_season": "2023",
+    "football_data_season": "2324",
+    "competitions": ["premier_league", "la_liga", "bundesliga", "serie_a", "ligue_1"],
+    "kickoff_window": "2023-08-01T00:00:00Z <= kickoff_at < 2024-02-22T00:00:00Z",
+    "target_exclusion": "Exclude the 20 Premier League January 2024 fixtures used by the capability probe, even though no target results were inspected.",
+    "minimum_history": "Each target team must have five earlier numeric API-Football statistics xG observations; insufficient-history targets are excluded and counted.",
+    "unit": "distinct fixture"
+  },
+  "data_roles": {
+    "development": "Existing strict PIT 8,659-fixture fit and OOF; all candidate values are fixed before this cohort is opened.",
+    "blind_test": "Football-Data 2324 closing/aggregate prices joined to sanitized API-Football fixture/statistics metadata. Target result fields remain unopened until frozen model outputs are committed.",
+    "forbidden": [
+      "V1_RECALIBRATION_EVIDENCE_01/PIT_MARKET_SHAPE_XYZ.json",
+      "V1_RECALIBRATION_EVIDENCE_01/SETTLED_CANDIDATE_DIRECTION_RESCORE.json",
+      "V1_RECALIBRATION_EVIDENCE_01/ADMISSION_RELATIVE_ACCURACY_AUDIT.json"
+    ]
+  },
+  "point_in_time": {
+    "xg": "Use only the latest five source fixtures with source kickoff strictly earlier than target kickoff; target fixture statistics and all score/result fields are forbidden inputs.",
+    "market": "Use Football-Data Pinnacle closing PCAHH/PCAHA with AHCh, and closing PC>2.5/PC<2.5 for the fixed 2.5 TOTALS diagnostic. Closing prices are not T-30/T-15 execution quotes.",
+    "mapping": "Join by competition, season, UTC kickoff, and normalized home/away identities; ambiguous or conflicting mappings are excluded and reported."
+  },
+  "fixed_models": {
+    "production": "Current deployed V1 parameters at revision 1de3c1ef.",
+    "ah_candidate": "home_adjustment=0.208545, attack_adjustment=0.663475, defence_adjustment=-0.112027 from frozen fit 8e7d654b; no refit on this cohort.",
+    "totals_candidate": "total_goals_intercept=0.885958, total_goals_scale=0.701191 from frozen fit 3671335b; no refit on this cohort."
+  },
+  "freeze_order": [
+    "Construct PIT xG features and closing-market rows without reading target result fields.",
+    "Run all fixed models and persist/hash full model probabilities and hypothetical EV inputs.",
+    "Commit the frozen model artifact.",
+    "Only then open target results and compute settlement diagnostics."
+  ],
+  "acceptance": {
+    "primary": "For AH and TOTALS separately, candidate-minus-production and candidate-minus-closing-market paired Brier/log-loss differences must have one-sided 95% fixture bootstrap upper bounds <= 0; no pooling across markets.",
+    "diagnostic": "Report AH/TOTALS direction, closing cashflow EV distribution, ECE and calibration curves; these do not select parameters.",
+    "minimum_coverage": "At least 500 eligible fixtures per market; otherwise report INSUFFICIENT_COVERAGE and do not draw a repair conclusion.",
+    "one_x_two": "Diagnostic only, never a pass gate."
+  },
+  "stop_lines": {
+    "provider_calls_max_total": 6000,
+    "production_writes": 0,
+    "ledger_writes": 0,
+    "github_operations": 0,
+    "deployment": 0,
+    "v2_changes": 0,
+    "blind_test_refit": 0
+  }
+}
