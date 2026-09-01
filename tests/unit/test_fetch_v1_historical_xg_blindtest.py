@@ -12,6 +12,16 @@ def test_numeric_xg_keeps_only_two_numeric_expected_goals() -> None:
     assert _numeric_xg(payload) == {"1": 1.25, "2": 0.75}
 
 
+def test_numeric_xg_accepts_api_football_underscore_label() -> None:
+    payload = {
+        "response": [
+            {"team": {"id": 1}, "statistics": [{"type": "expected_goals", "value": "1.25"}]}
+        ]
+    }
+
+    assert _numeric_xg(payload) == {"1": 1.25}
+
+
 def test_numeric_xg_rejects_null_and_unrelated_fields() -> None:
     payload = {
         "response": [

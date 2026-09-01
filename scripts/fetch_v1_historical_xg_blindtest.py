@@ -18,7 +18,8 @@ def _numeric_xg(payload: dict[str, Any]) -> dict[str, float]:
     for row in payload.get("response") or []:
         team_id = str((row.get("team") or {}).get("id") or "")
         for item in row.get("statistics") or []:
-            if str(item.get("type") or "").strip().lower() != "expected goals":
+            label = str(item.get("type") or "").strip().lower().replace(" ", "_")
+            if label != "expected_goals":
                 continue
             try:
                 result[team_id] = float(item.get("value"))
