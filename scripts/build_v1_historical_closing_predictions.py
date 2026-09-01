@@ -241,7 +241,12 @@ def _lambdas(values: dict[str, float], arm: str) -> tuple[float, float]:
     )
 
 
-def build(manifest_path: Path, xg_path: Path, source_root: Path) -> dict[str, Any]:
+def build(
+    manifest_path: Path,
+    xg_path: Path,
+    source_root: Path,
+    protocol_path: Path | None = None,
+) -> dict[str, Any]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     fixture_rows = [
         row for competition in manifest["competitions"].values() for row in competition["fixtures"]
@@ -369,7 +374,27 @@ def build(manifest_path: Path, xg_path: Path, source_root: Path) -> dict[str, An
         "status": "FROZEN_BEFORE_TARGET_RESULT_READ",
         "model_version": MODEL_VERSION,
         "source_sha256": {"manifest": _sha(manifest_path), "xg": _sha(xg_path)},
+        "protocol_sha256": _sha(protocol_path) if protocol_path else None,
         "market_source": str(source_root),
+        "market_source_sha256": {
+            competition: _sha(source_root / "extracted" / "2324" / f"{file_name}.csv")
+            for competition, file_name in COMPETITION_FILES.items()
+        },
+        "fixed_models": {
+            "production": {"home_advantage_goals": 0.30},
+            "ah_candidate": {
+                "home_adjustment": 0.208545,
+                "attack_adjustment": 0.663475,
+                "defence_adjustment": -0.112027,
+                "total_goals_intercept": 0.885958,
+                "total_goals_scale": 0.701191,
+            },
+            "totals_candidate": {
+                "home_advantage_goals": 0.30,
+                "total_goals_intercept": 0.885958,
+                "total_goals_scale": 0.701191,
+            },
+        },
         "result_columns_read": [],
         "fixture_count": len(predictions),
         "excluded": {
@@ -385,9 +410,10 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--xg", type=Path, required=True)
     parser.add_argument("--source-root", type=Path, required=True)
+    parser.add_argument("--protocol", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    payload = build(args.manifest, args.xg, args.source_root)
+    payload = build(args.manifest, args.xg, args.source_root, args.protocol)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(
