@@ -123,6 +123,8 @@
   "acceptance": {
     "bootstrap_resamples": 2000,
     "bootstrap_seed_base": 20260911,
+    "fold_improvement_metric": "mean AH Brier over the 13 frozen AH lines",
+    "line_improvement_metric": "per-line AH Brier",
     "all_required": {
       "mean_ah_brier_candidate_minus_totals_only_upper_95_le": 0.0,
       "mean_scoreline_nll_candidate_minus_totals_only_upper_95_le": 0.0,
