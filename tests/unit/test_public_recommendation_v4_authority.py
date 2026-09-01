@@ -347,7 +347,8 @@ def test_repository_current_projection_uses_v4_not_historical_v3_direction() -> 
 
     projected = _apply_repository_v4_authority(card)
 
-    assert projected["pick"]["selection"] == "AWAY"
+    assert projected["pick"] is None
+    assert projected["recommendation_decision_v4"]["outcome"] == "NOT_READY"
     assert projected["recommendation_decision_v3_role"] == "HISTORY_ONLY"
     assert projected["decision_contract"]["recommendation_authority"] == (
         "RECOMMENDATION_DECISION_V4"

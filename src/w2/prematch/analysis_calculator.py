@@ -57,7 +57,10 @@ from w2.domain.canonical_serialization import (
 )
 from w2.domain.decision_adapter import build_decision_contract_fields
 from w2.domain.decision_card import compute_card_hash
-from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
+from w2.domain.recommendation_capabilities import (
+    analysis_market_enabled,
+    load_recommendation_capability_manifest,
+)
 from w2.domain.recommendation_decision_v3 import (
     validate_decision_v3_card_parity,
     validate_decision_v3_identity,
@@ -5809,6 +5812,14 @@ class ReadModelService:
             fixture_id=str(decorated.get("fixture_id") or ""),
             competition_id=str(decorated.get("competition_id") or ""),
         )
+        for market, candidate_key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou")):
+            if not analysis_market_enabled(market):
+                candidate = decorated["market_candidates"].get(candidate_key)
+                if isinstance(candidate, dict):
+                    candidate["candidate"] = False
+                    candidate["formal_recommendation"] = False
+                    candidate["analysis_direction_allowed"] = False
+                    candidate["analysis_decision"] = "WATCH"
         for market in decorated["markets"]:
             if isinstance(market, dict):
                 candidate_key = {

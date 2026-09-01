@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "w2.recommendation_capabilities.v1"
+ANALYSIS_MARKET_CAPABILITIES = {
+    "ASIAN_HANDICAP": "analysis_ah",
+    "TOTALS": "analysis_ou",
+}
 REQUIRED_CAPABILITIES = frozenset(
     {
         "analysis_ah",
@@ -142,6 +146,20 @@ def load_recommendation_capability_manifest(
         sha256=hashlib.sha256(raw).hexdigest(),
         capabilities=capabilities,
     )
+
+
+def analysis_market_enabled(
+    market: str,
+    *,
+    manifest: RecommendationCapabilityManifest | None = None,
+) -> bool:
+    """Return whether the public analysis channel for a market is enabled."""
+    capability_name = ANALYSIS_MARKET_CAPABILITIES.get(str(market).upper())
+    if capability_name is None:
+        return False
+    capability_manifest = manifest or load_recommendation_capability_manifest()
+    capability = capability_manifest.capability(capability_name)
+    return capability.feature_enabled and capability.publicly_available
 
 
 def _capability_from_mapping(name: str, raw: object) -> RecommendationCapability:

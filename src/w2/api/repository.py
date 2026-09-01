@@ -44,7 +44,10 @@ from w2.dashboard.results import FINISHED_STATUSES, normalize_match_status
 from w2.dashboard.validation_summary import validation_summary
 from w2.domain.decision_card import compute_card_hash
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
-from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
+from w2.domain.recommendation_capabilities import (
+    analysis_market_enabled,
+    load_recommendation_capability_manifest,
+)
 from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
     build_recommendation_decision_v4,
@@ -714,6 +717,20 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
     if tier is None:
         raise SystemDegradedError("RECOMMENDATION_DECISION_V4_OUTCOME_INVALID")
     selected = decision.get("selected_candidate")
+    if isinstance(selected, dict) and not analysis_market_enabled(
+        str(selected.get("market") or "")
+    ):
+        decision = build_recommendation_decision_v4(
+            {
+                "fixture_id": card.get("fixture_id"),
+                "competition_id": card.get("competition_id"),
+                "season": card.get("season"),
+                "kickoff_utc": card.get("kickoff_utc"),
+            }
+        ).as_dict()
+        card["recommendation_decision_v4"] = decision
+        selected = None
+        tier = "NOT_READY"
     pick = (
         {
             "market": selected.get("market"),

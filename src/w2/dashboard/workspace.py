@@ -11,6 +11,10 @@ from w2.dashboard.results import (
     selected_day_outcome_cause,
     selected_day_record_kind,
 )
+from w2.domain.recommendation_capabilities import (
+    analysis_market_enabled,
+    load_recommendation_capability_manifest,
+)
 
 SCHEMA_VERSION = "w2.dashboard-intelligence-workspace.v1"
 PRODUCT = "FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS"
@@ -93,12 +97,19 @@ def build_dashboard_intelligence_workspace(
     }
     outcome_summary = _mapping(replay.get("outcome_tracking_summary"))
     generated_at = day_view.get("generated_at")
+    capability_manifest = load_recommendation_capability_manifest()
+    enabled_analysis_markets = {
+        market
+        for market in ("ASIAN_HANDICAP", "TOTALS")
+        if analysis_market_enabled(market, manifest=capability_manifest)
+    }
     matches = [
         _match(
             card,
             candidate_enabled=candidate_enabled,
             generated_at=generated_at,
             ledger_fact=_mapping((model_forecasts or {}).get(_text(card.get("fixture_id")))),
+            enabled_analysis_markets=enabled_analysis_markets,
         )
         for card in cards
     ]
@@ -901,6 +912,7 @@ def _match(
     candidate_enabled: bool,
     generated_at: Any,
     ledger_fact: Mapping[str, Any],
+    enabled_analysis_markets: set[str],
 ) -> dict[str, Any]:
     fixture_finished = normalize_match_status(card.get("status")) == "FINISHED"
     radar = _mapping(card.get("market_radar"))
@@ -953,6 +965,7 @@ def _match(
         card,
         markets=markets,
         enabled=candidate_enabled,
+        enabled_analysis_markets=enabled_analysis_markets,
     )
     factor_checklist = build_fixture_factor_checklist(
         card,
@@ -1126,6 +1139,7 @@ def _shadow_candidate(
     *,
     markets: Mapping[str, Mapping[str, Any]],
     enabled: bool,
+    enabled_analysis_markets: set[str],
 ) -> dict[str, Any]:
     decision = _mapping(card.get("recommendation_decision_v4"))
     reason = _mapping(decision.get("reason"))
@@ -1134,6 +1148,7 @@ def _shadow_candidate(
     eligibility = _mapping(_mapping(markets.get(selected_market)).get("eligibility"))
     active = (
         enabled
+        and selected_market in enabled_analysis_markets
         and _text(decision.get("outcome")) == "ANALYSIS_PICK"
         and bool(selected)
         and _text(eligibility.get("candidate_eligibility_status")) == "READY"

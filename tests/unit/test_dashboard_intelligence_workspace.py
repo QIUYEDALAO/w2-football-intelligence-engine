@@ -21,6 +21,7 @@ from w2.config import get_settings
 from w2.dashboard import workspace as workspace_module
 from w2.dashboard.results import outcome_public_cause
 from w2.dashboard.workspace import build_dashboard_intelligence_workspace
+from w2.domain.admission_contract import economic_admission_pass
 from w2.identity.public_team_labels import (
     pending_public_team_labels,
     reviewed_public_team_labels,
@@ -703,29 +704,58 @@ def test_shadow_candidate_activation_reuses_v4_and_stays_non_production() -> Non
 
     assert payload["runtime"]["candidate"] == "SHADOW_ONLY"
     assert payload["matches"][0]["readiness"]["market_aggregate_status"] == "PARTIAL"
-    assert candidate == {
-        "status": "ACTIVE",
-        "mode": "SHADOW_ONLY",
-        "authority": "RECOMMENDATION_DECISION_V4",
-        "decision_tier": "ANALYSIS_PICK",
-        "reason_code": "ANALYSIS_ONLY",
-        "reason_message": "当前仅提供影子候选",
-        "market": "ASIAN_HANDICAP",
-        "selection": "HOME",
-        "exact_line": "-0.25",
-        "decimal_odds": 1.95,
-        "captured_at": "2026-08-09T01:00:00Z",
-        "decision_hash": "a" * 64,
-        "recommendation_scope": "VALIDATION",
-        "outcome_tracked": True,
-        "formal_status": "OFF",
-        "lock_status": "OFF",
-        "production_action_allowed": False,
-        "real_money_allowed": False,
-    }
+    assert candidate["status"] == "NOT_READY"
+    assert candidate["market"] is None
+    assert candidate["outcome_tracked"] is False
     DashboardIntelligenceWorkspaceResponse.model_validate(
         {"request_id": "candidate-contract", **payload}
     )
+
+
+def test_disabled_ah_channel_blocks_economic_candidate_but_totals_remains_active() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["market_radar"]["markets"]["TOTALS"] = _market(2)
+    candidate = {
+        "quote_status": "COMPLETE",
+        "quote_usage": "EXECUTABLE",
+        "quote_identity": {"identity_status": "COMPLETE"},
+        "model_status": "READY",
+        "expected_value": 0.10,
+        "ev_minus_se": 0.05,
+        "cashflow_price_edge": 0.06,
+        "blockers": [],
+    }
+    assert economic_admission_pass(
+        expected_value=candidate["expected_value"],
+        ev_minus_se=candidate["ev_minus_se"],
+        cashflow_price_edge=candidate["cashflow_price_edge"],
+    )
+    card["market_candidates"] = {"ah": dict(candidate), "ou": dict(candidate)}
+    decision = {
+        "outcome": "ANALYSIS_PICK",
+        "reason": {"code": "ANALYSIS_ONLY", "message": "当前仅提供影子候选"},
+        "selected_candidate": {
+            "market": "ASIAN_HANDICAP",
+            "selection": "OVER",
+            "exact_line": "2.5",
+            "decimal_odds": "1.95",
+            "captured_at": "2026-08-09T01:00:00Z",
+        },
+        "decision_hash": "a" * 64,
+    }
+    card["recommendation_decision_v4"] = decision
+
+    payload = _workspace(day_view, candidate_enabled=True)
+    shadow = payload["matches"][0]["shadow_candidate"]
+    assert shadow["status"] == "NOT_READY"
+    assert shadow["market"] is None
+
+    decision["selected_candidate"]["market"] = "TOTALS"
+    payload = _workspace(day_view, candidate_enabled=True)
+    shadow = payload["matches"][0]["shadow_candidate"]
+    assert shadow["status"] == "ACTIVE"
+    assert shadow["market"] == "TOTALS"
 
 
 def test_shadow_candidate_fails_closed_when_selected_market_is_not_eligible() -> None:

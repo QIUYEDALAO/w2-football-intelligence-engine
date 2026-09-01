@@ -38,6 +38,10 @@ def test_default_manifest_is_complete_and_keeps_restricted_capabilities_closed()
     assert set(manifest.capabilities) == REQUIRED_CAPABILITIES
     assert manifest.capability("shadow_candidate").feature_enabled is True
     assert manifest.capability("shadow_candidate").production_enabled is False
+    assert manifest.capability("analysis_ah").feature_enabled is False
+    assert manifest.capability("analysis_ah").publicly_available is False
+    assert manifest.capability("analysis_ou").feature_enabled is True
+    assert manifest.capability("analysis_ou").publicly_available is True
     assert manifest.capability("formal_ah").feature_enabled is False
     assert manifest.capability("formal_ou").publicly_available is False
     assert manifest.capability("lineup_numeric_adjustment_ah").feature_enabled is False
