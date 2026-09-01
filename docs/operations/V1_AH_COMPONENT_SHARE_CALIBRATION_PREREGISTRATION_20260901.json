@@ -97,7 +97,7 @@
       "attack_adjustment": 0.0,
       "defence_adjustment": 0.0
     },
-    "monotonicity": "Each adjustment is bounded at or above -1.0. Since d(current_eta)/d(component) >= 2/fixed_total and d(adjustment_term)/d(component) >= -1/fixed_total, candidate home share remains strictly increasing in each strength component.",
+    "monotonicity": "Provided current_share_clamp_count is zero, each adjustment is bounded at or above -1.0. Since d(current_eta)/d(component) >= 2/fixed_total and d(adjustment_term)/d(component) >= -1/fixed_total, candidate home share remains strictly increasing in each strength component.",
     "dixon_coles_rho": 0.0,
     "fit_objective": "sum over fixtures of n_goals * log(1 + exp(eta)) - home_goals * eta; zero-goal fixtures contribute zero; this is the conditional binomial share NLL and the share-dependent term of independent-Poisson scoreline NLL when total lambda is fixed",
     "optimizer": {
@@ -192,6 +192,7 @@
       "absolute_margin_intercept_max": 0.1,
       "maximum_absolute_total_lambda_difference_vs_totals_only": 1e-12,
       "maximum_absolute_total_nll_difference_vs_totals_only": 1e-12,
+      "current_share_clamp_count": 0,
       "lambda_clamp_count": 0,
       "fitted_parameters_inside_bounds": true,
       "component_monotonicity_proven_by_bounds": true
