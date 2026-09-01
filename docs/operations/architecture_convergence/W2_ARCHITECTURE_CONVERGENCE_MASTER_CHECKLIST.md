@@ -331,8 +331,8 @@ Runtime status: EVIDENCE_ONLY_NOT_IMPLEMENTED_NOT_DEPLOYED
   `74c7e8830e395f871e225912cd9055023a7af885644340100ae12d8e0ab48f2`，MD
   `95c5b470739fe9a4b8d02ec58bf0ffe372c76f0dfac878b7452c5c9fdf2cdce9`。
 - 本轮不接入 `calibration.py`，不产生新 calibration identity，不写 ledger，不改白名单、
-  V2、migration、Provider、生产读写或部署。自验收定向总计 `134 passed`；全量
-  `2957 passed / 9 skipped / 4 failed / 5 warnings`，4 失败均为既有宿主限制。
+  V2、migration、Provider、生产读写或部署。自验收定向总计 `138 passed`；全量
+  `2961 passed / 9 skipped / 4 failed / 5 warnings`，4 失败均为既有宿主限制。
 
 ### V1-XG-UNCERTAINTY-WINDOW-CORRECTION-20260901
 

@@ -30,11 +30,13 @@ PYTHONPATH=src:. .venv/bin/pytest -q tests/unit/test_v1_ah_component_share_calib
 # 4 passed
 
 PATH="$PWD/.venv/bin:$PATH" PYTHONPATH=src:. .venv/bin/pytest -q
-# 2957 passed / 9 skipped / 4 failed / 5 warnings
+# 2961 passed / 9 skipped / 4 failed / 5 warnings
 ```
 
 全量 4 个失败均为本轮前已存在的宿主限制：Docker Compose 插件缺失 2；macOS Docker
 bind-mount 无法构造 Linux UID/GID 权限夹具 2。校准相关失败为 0。
+
+包含本轮全部校准/authority/simulation/契约文件的定向集合结果为 `138 passed`。
 
 ## 结论与边界
 
