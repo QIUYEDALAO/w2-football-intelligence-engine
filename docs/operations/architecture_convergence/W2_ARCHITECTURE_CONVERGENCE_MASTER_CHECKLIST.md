@@ -269,6 +269,40 @@ Runtime status: LOCAL_ONLY_NOT_DEPLOYED
   生产有效性验证。
 - 回执：`docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/V1_TOTALS_AXIS_CANDIDATE_IMPLEMENTATION.md`。
 
+### V1-AH-GOAL-SHARE-CALIBRATION-01
+
+```text
+Status: CANDIDATE_REJECTED_PENDING_INDEPENDENT_ACCEPTANCE
+Branch: codex/v1-recalibration-evidence-01
+Preregistration commits: ae82d534 / d624f65b
+Runner commit: ba621518
+Fit evidence commit: 804c4c05
+Runtime status: EVIDENCE_ONLY_NOT_IMPLEMENTED_NOT_DEPLOYED
+```
+
+- 固定已通过的 TOTALS 总量轴，只拟合主队进球份额的
+  `conditional_goal_share_logit.v1`；full-development 参数为
+  `share_intercept=-0.004697 / share_logit_scale=1.139814`。
+- 严格 PIT rolling-origin OOF 为 `7,159` 场；净胜球回归 slope
+  `1.173055→0.997040`、intercept `-0.020455→+0.007119`，7/10 folds 与
+  11/13 AH lines 改善，candidate lambda clamp 为 0。
+- 三项强制门失败：AH Brier candidate-minus-TOTALS-only 的 bootstrap 95% 上界
+  `+0.000080926`，scoreline NLL candidate-minus-TOTALS-only 上界 `+0.000973714`，
+  AH Brier candidate-minus-production-current 上界 `+0.000115516`，均未达到 `<=0`。
+  因一个失败即拒绝，模型族裁决为 `REJECTED`；不得改门重跑或接入 V1。
+- TOTALS 不变量保持：最大 lambda-total 差 `1e-15`、total-NLL 差 `2e-15`。
+  121 注与 259 场市场 artifact 均未加载；`raw_delta_scale` 未使用。
+- fit JSON / Markdown SHA-256 分别为
+  `746da142733148eed1780f10546297c31f9747e6617923e28ba4f7647e6b51e4` /
+  `7a7e4f461a8e9635d6bf7c1b73857b246b3823bb39d24e42bd26cbd0d2db859d`。
+  参数实现、calibration identity 变化、ledger grant、Provider、生产读写、V2 改动、
+  migration 与部署均为 0；AH 与整体 EV 仍不能宣称已修复。
+- 自验收定向 `134 passed`；全量
+  `2957 passed / 9 skipped / 4 failed / 5 warnings`。4 个失败均为既有宿主限制：Docker
+  Compose 插件缺失 2、macOS Docker bind-mount 无法构造 Linux UID/GID fixture 2；
+  本轮未触及对应代码。完整命令与失败 ID 见
+  `docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/V1_AH_GOAL_SHARE_CALIBRATION_SELF_ACCEPTANCE.md`。
+
 ### V1-XG-UNCERTAINTY-WINDOW-CORRECTION-20260901
 
 ```text
