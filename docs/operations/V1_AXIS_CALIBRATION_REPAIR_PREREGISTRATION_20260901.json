@@ -1,0 +1,141 @@
+{
+  "schema": "w2.v1.axis_calibration_repair_preregistration.v1",
+  "task_id": "V1-AXIS-CALIBRATION-REPAIR-01",
+  "status": "FROZEN_BEFORE_NEW_AXIS_FIT",
+  "frozen_at": "2026-09-01T02:04:17Z",
+  "frozen_revision": "1de3c1ef554d00a408577f59f4864e04f1d341da",
+  "objective": "Repair V1 point-probability calibration by evaluating the home-away difference axis and total-goals axis separately, using only the four production xG fields.",
+  "scope": {
+    "v1_inputs_only": [
+      "home_xg_for",
+      "home_xg_against",
+      "away_xg_for",
+      "away_xg_against"
+    ],
+    "forbidden_inputs": [
+      "elo",
+      "squad_value",
+      "lineups",
+      "penaltyblog",
+      "market_odds_as_model_features",
+      "post_kickoff_information"
+    ],
+    "unchanged": [
+      "Dixon-Coles rho",
+      "lambda clamps",
+      "market selection",
+      "devig",
+      "EV and EV-SE formulas",
+      "admission thresholds",
+      "calibration ledger and allowlist"
+    ]
+  },
+  "evidence_roles": {
+    "strict_pit_8659": {
+      "home_away_sha256": "709050b581b569c874c6a8d1363ba1a6612503489d175da8b644c5df05294a02",
+      "xg_sha256": "16fcaaad812e8007c7e828c964d7029bc223e361cdac87b122c56eba9e8e3522",
+      "role": "TRAIN_AND_ROLLING_ORIGIN_OOF_DEVELOPMENT",
+      "minimum_history": 5,
+      "point_in_time_rule": "For each target fixture use each team's latest five team_xg_match rows with kickoff strictly earlier than the target kickoff."
+    },
+    "pit_market_259": {
+      "artifact": "docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/PIT_MARKET_SHAPE_XYZ.json",
+      "sha256": "e4550c7dc4183a0bc1e0bc9b5e1c1c72540c0174b4569c44dc5b085564363f5b",
+      "role": "REPORT_ONLY_MARKET_DIAGNOSTIC",
+      "forbidden_use": "May not choose parameters, thresholds, or pass/fail."
+    },
+    "settled_121": {
+      "artifact": "docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/SETTLED_CANDIDATE_DIRECTION_RESCORE.json",
+      "sha256": "15218931849bb7416250b7211787504be6077fa1e8f790edd5331db58db288e9",
+      "role": "FAILURE_EXPLANATION_ONLY",
+      "forbidden_use": "May not choose model family, parameters, thresholds, or pass/fail."
+    }
+  },
+  "current_formula": {
+    "raw_total": "base_home + base_away",
+    "raw_delta": "base_home - base_away",
+    "total": "clamp(raw_total, 1.35, 4.40)",
+    "delta": "0.30 + raw_delta",
+    "lambda_home": "clamp((total + delta) / 2, 0.15, 4.25)",
+    "lambda_away": "clamp((total - delta) / 2, 0.15, 4.25)"
+  },
+  "candidate_family": {
+    "ah_axis": {
+      "formula": "delta = 0.30 + attack_delta_weight * (home_xg_for - away_xg_for) + defence_delta_weight * (away_xg_against - home_xg_against)",
+      "bounds": {
+        "attack_delta_weight": [0.0, 1.5],
+        "defence_delta_weight": [0.0, 1.5]
+      },
+      "current_pair": [0.5, 0.5],
+      "other_axis": "current total formula"
+    },
+    "totals_axis": {
+      "formula": "total = clamp(attack_total_weight * (home_xg_for + away_xg_for) + defence_total_weight * (home_xg_against + away_xg_against), 1.35, 4.40)",
+      "bounds": {
+        "attack_total_weight": [0.0, 1.5],
+        "defence_total_weight": [0.0, 1.5]
+      },
+      "current_pair": [0.5, 0.5],
+      "other_axis": "current delta formula"
+    },
+    "combined": "Use independently fitted AH-axis and TOTALS-axis values without joint refitting."
+  },
+  "fit_method": {
+    "objective": "Mean independent home/away Poisson scoreline NLL under the unchanged production lambda clamps and rho=0.",
+    "optimizer": "Deterministic two-coordinate golden-section descent. Start at the current parameter pair, optimize each coordinate on its frozen bound to width <= 1e-6, repeat until both coordinates change <= 1e-6 or 50 cycles. Ties choose the smaller value.",
+    "precision": 6,
+    "manual_override": false,
+    "rolling_origin": {
+      "ordering": "kickoff_at, fixture_id",
+      "warmup": 1500,
+      "folds": 10,
+      "train_rule": "expanding prefix strictly before each fold",
+      "oof_fixture_count": 7159
+    }
+  },
+  "binding_acceptance": {
+    "common": {
+      "paired_bootstrap_resamples": 2000,
+      "paired_bootstrap_seed": 20260901,
+      "paired_nll_candidate_minus_current_mean_lt": 0.0,
+      "paired_nll_candidate_minus_current_upper_95_le": 0.0,
+      "minimum_improved_folds": 7
+    },
+    "ah_axis": {
+      "oof_margin_slope_distance_to_one": "strictly smaller than current",
+      "oof_absolute_margin_intercept_max": 0.1,
+      "generic_ah_brier_lines": [-1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5],
+      "mean_generic_ah_brier": "strictly lower than current",
+      "minimum_improved_generic_lines": 5
+    },
+    "totals_axis": {
+      "paired_metric": "Poisson total-goals NLL",
+      "oof_total_slope_distance_to_one": "strictly smaller than current",
+      "oof_absolute_mean_total_bias_max": 0.1,
+      "generic_totals_brier_lines": [1.5, 2.5, 3.5],
+      "mean_generic_totals_brier": "strictly lower than current",
+      "minimum_improved_generic_lines": 2
+    },
+    "combined": {
+      "paired_scoreline_nll_candidate_minus_current_upper_95_le": 0.0,
+      "no_axis_may_fail_its_individual_gate": true,
+      "interaction_loss_max_fraction_of_sum_of_individual_nll_gains": 0.1,
+      "lambda_clamp_counts_must_be_reported": true
+    }
+  },
+  "failure_rules": [
+    "A failed axis is rejected and must not be implemented.",
+    "Passing one axis cannot authorize or make claims about the other axis.",
+    "No result may change this model family, bounds, metrics, or thresholds in this execution.",
+    "Any different candidate family requires a new preregistration before fitting.",
+    "No production authorization or calibration grant follows from development or OOF evidence alone."
+  ],
+  "stop_lines": {
+    "provider_calls": 0,
+    "production_writes": 0,
+    "github_operations": 0,
+    "deployment": 0,
+    "v2_changes": 0,
+    "ledger_writes": 0
+  }
+}
