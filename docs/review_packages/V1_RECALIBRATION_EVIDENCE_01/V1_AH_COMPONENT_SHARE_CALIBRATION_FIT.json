@@ -1,0 +1,263 @@
+{
+  "decision": "REJECTED",
+  "fixture_count": 8659,
+  "full_current_share_clamp_count": 0,
+  "full_development_fit": {
+    "attack_adjustment": 0.663475,
+    "defence_adjustment": -0.112027,
+    "home_adjustment": 0.208545
+  },
+  "rolling_origin_oof": {
+    "checks": {
+      "absolute_margin_intercept_le_0_10": true,
+      "ah_brier_vs_production_current_upper_99_375_le_zero": false,
+      "ah_brier_vs_totals_only_upper_99_375_le_zero": false,
+      "component_monotonicity_proven_by_bounds": true,
+      "current_share_clamp_count_zero": true,
+      "fitted_parameters_inside_bounds": true,
+      "lambda_clamp_count_zero": true,
+      "margin_slope_closer_to_one": true,
+      "minimum_10_lines_improve": true,
+      "minimum_7_folds_improve": true,
+      "scoreline_nll_vs_production_current_upper_99_375_le_zero": true,
+      "scoreline_nll_vs_totals_only_upper_99_375_le_zero": false,
+      "total_lambda_max_difference_le_1e_12": true,
+      "total_nll_max_difference_le_1e_12": true
+    },
+    "current_share_clamp_count": 0,
+    "fixture_count": 7159,
+    "folds": [
+      {
+        "attack_adjustment": 0.112359,
+        "defence_adjustment": 0.656172,
+        "fold": 1,
+        "home_adjustment": 0.592124,
+        "train_count": 1500,
+        "validation_count": 716,
+        "validation_kickoff_end": "2024-12-21 14:30:00+00",
+        "validation_kickoff_start": "2024-10-27 14:15:00+00"
+      },
+      {
+        "attack_adjustment": 0.43801,
+        "defence_adjustment": 0.483957,
+        "fold": 2,
+        "home_adjustment": 0.433843,
+        "train_count": 2216,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-03-09 11:15:00+00",
+        "validation_kickoff_start": "2024-12-21 14:30:00+00"
+      },
+      {
+        "attack_adjustment": 0.579573,
+        "defence_adjustment": 0.330944,
+        "fold": 3,
+        "home_adjustment": 0.156865,
+        "train_count": 2932,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-05-03 19:00:00+00",
+        "validation_kickoff_start": "2025-03-09 11:30:00+00"
+      },
+      {
+        "attack_adjustment": 0.587213,
+        "defence_adjustment": 0.244926,
+        "fold": 4,
+        "home_adjustment": 0.072318,
+        "train_count": 3648,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-07-23 22:00:00+00",
+        "validation_kickoff_start": "2025-05-03 19:05:00+00"
+      },
+      {
+        "attack_adjustment": 0.588939,
+        "defence_adjustment": 0.22808,
+        "fold": 5,
+        "home_adjustment": -0.000695,
+        "train_count": 4364,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-09-24 19:30:00+00",
+        "validation_kickoff_start": "2025-07-23 22:30:00+00"
+      },
+      {
+        "attack_adjustment": 0.589735,
+        "defence_adjustment": 0.212757,
+        "fold": 6,
+        "home_adjustment": 0.000802,
+        "train_count": 5080,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-11-08 20:00:00+00",
+        "validation_kickoff_start": "2025-09-24 19:30:00+00"
+      },
+      {
+        "attack_adjustment": 0.637857,
+        "defence_adjustment": 0.063007,
+        "fold": 7,
+        "home_adjustment": 0.096314,
+        "train_count": 5796,
+        "validation_count": 716,
+        "validation_kickoff_end": "2026-01-21 17:45:00+00",
+        "validation_kickoff_start": "2025-11-08 20:00:00+00"
+      },
+      {
+        "attack_adjustment": 0.708794,
+        "defence_adjustment": -0.0033,
+        "fold": 8,
+        "home_adjustment": 0.099327,
+        "train_count": 6512,
+        "validation_count": 716,
+        "validation_kickoff_end": "2026-03-22 11:15:00+00",
+        "validation_kickoff_start": "2026-01-23 19:00:00+00"
+      },
+      {
+        "attack_adjustment": 0.727213,
+        "defence_adjustment": -0.03696,
+        "fold": 9,
+        "home_adjustment": 0.207788,
+        "train_count": 7228,
+        "validation_count": 716,
+        "validation_kickoff_end": "2026-05-11 18:45:00+00",
+        "validation_kickoff_start": "2026-03-22 11:30:00+00"
+      },
+      {
+        "attack_adjustment": 0.715431,
+        "defence_adjustment": -0.102744,
+        "fold": 10,
+        "home_adjustment": 0.223019,
+        "train_count": 7944,
+        "validation_count": 715,
+        "validation_kickoff_end": "2026-08-30 02:30:00+00",
+        "validation_kickoff_start": "2026-05-11 19:00:00+00"
+      }
+    ],
+    "folds_improved": 7,
+    "line_ah_brier": {
+      "candidate": {
+        "-0.25": 0.186038447,
+        "-0.5": 0.228889913,
+        "-0.75": 0.181206838,
+        "-1.0": 0.154552953,
+        "-1.25": 0.148928258,
+        "-1.5": 0.164332752,
+        "0.0": 0.166706223,
+        "0.25": 0.170893243,
+        "0.5": 0.198599505,
+        "0.75": 0.150814114,
+        "1.0": 0.12041744,
+        "1.25": 0.10740948,
+        "1.5": 0.111790236
+      },
+      "production_current": {
+        "-0.25": 0.18651852,
+        "-0.5": 0.229341807,
+        "-0.75": 0.181487464,
+        "-1.0": 0.154671852,
+        "-1.25": 0.148894971,
+        "-1.5": 0.164156821,
+        "0.0": 0.167199831,
+        "0.25": 0.17138574,
+        "0.5": 0.199076247,
+        "0.75": 0.15119664,
+        "1.0": 0.120715395,
+        "1.25": 0.107632511,
+        "1.5": 0.111947989
+      },
+      "totals_only": {
+        "-0.25": 0.186537466,
+        "-0.5": 0.229402997,
+        "-0.75": 0.181563314,
+        "-1.0": 0.154764279,
+        "-1.25": 0.149005891,
+        "-1.5": 0.164288151,
+        "0.0": 0.167189431,
+        "0.25": 0.171358891,
+        "0.5": 0.199045846,
+        "0.75": 0.151169457,
+        "1.0": 0.120693417,
+        "1.25": 0.107617725,
+        "1.5": 0.111942381
+      }
+    },
+    "lines_improved": 12,
+    "maximum_absolute_total_lambda_difference_vs_totals_only": 1e-15,
+    "maximum_absolute_total_nll_difference_vs_totals_only": 2e-15,
+    "metrics": {
+      "candidate": {
+        "lambda_clamp_count": 0,
+        "margin_regression": {
+          "intercept": 0.009648,
+          "slope": 0.995275
+        },
+        "mean_ah_brier": 0.1608138,
+        "mean_scoreline_nll": 2.955076482,
+        "mean_total_nll": 1.879381548
+      },
+      "production_current": {
+        "lambda_clamp_count": 0,
+        "margin_regression": {
+          "intercept": -0.020455,
+          "slope": 1.173055
+        },
+        "mean_ah_brier": 0.161094291,
+        "mean_scoreline_nll": 2.961597551,
+        "mean_total_nll": 1.884418365
+      },
+      "totals_only": {
+        "lambda_clamp_count": 0,
+        "margin_regression": {
+          "intercept": -0.020455,
+          "slope": 1.173055
+        },
+        "mean_ah_brier": 0.161121481,
+        "mean_scoreline_nll": 2.956093788,
+        "mean_total_nll": 1.879381548
+      }
+    },
+    "paired_differences": {
+      "ah_brier_vs_production_current": {
+        "lower_99_375": -0.000666586,
+        "mean": -0.000280491,
+        "resamples": 8000,
+        "seed": 20260923,
+        "upper_99_375": 9.4281e-05
+      },
+      "ah_brier_vs_totals_only": {
+        "lower_99_375": -0.000690815,
+        "mean": -0.000307681,
+        "resamples": 8000,
+        "seed": 20260921,
+        "upper_99_375": 8.0417e-05
+      },
+      "scoreline_nll_vs_production_current": {
+        "lower_99_375": -0.010021858,
+        "mean": -0.006521069,
+        "resamples": 8000,
+        "seed": 20260924,
+        "upper_99_375": -0.003071417
+      },
+      "scoreline_nll_vs_totals_only": {
+        "lower_99_375": -0.002829504,
+        "mean": -0.001017306,
+        "resamples": 8000,
+        "seed": 20260922,
+        "upper_99_375": 0.00087991
+      }
+    },
+    "passes": false
+  },
+  "safety": {
+    "deployment": 0,
+    "ledger_writes": 0,
+    "market_259_loaded": 0,
+    "production_reads": 0,
+    "production_writes": 0,
+    "provider_calls": 0,
+    "raw_delta_scale_used": 0,
+    "settled_121_loaded": 0,
+    "v2_changes": 0
+  },
+  "schema": "w2.v1.ah_component_share_calibration_fit.v1",
+  "sources": {
+    "home_away_sha256": "709050b581b569c874c6a8d1363ba1a6612503489d175da8b644c5df05294a02",
+    "protocol_sha256": "c343b14e3c0be82a2595d799347ae96edd443e206f999234f2c87c9b73c1bf93",
+    "xg_sha256": "16fcaaad812e8007c7e828c964d7029bc223e361cdac87b122c56eba9e8e3522"
+  }
+}
