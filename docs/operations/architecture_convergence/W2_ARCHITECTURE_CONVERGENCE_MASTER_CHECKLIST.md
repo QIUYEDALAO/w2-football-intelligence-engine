@@ -18,7 +18,7 @@
 ### V1-HISTORICAL-CLOSING-BLINDTEST-01B
 
 ```text
-Status: EVIDENCE_COMPLETE_CANDIDATES_REJECTED
+Status: INDEPENDENT_ACCEPTANCE_PASS_CANDIDATES_REJECTED
 Branch: codex/v1-recalibration-evidence-01
 Prediction freeze: 1829a3fb
 Scoring freeze: 132804ed
@@ -31,14 +31,21 @@ Runtime status: NO_IMPLEMENTATION_NO_DEPLOYMENT
   Provider 调用 0、生产写 0、ledger/白名单写 0、GitHub 0、部署 0。
 - 严格先冻结预测再读取赛果：预赛果 artifact `858` 场，SHA-256
   `33ae870095e1c27e8797ff0f86bc3e1b0c2b2bdcddebba69b911a8a84731defb`；目标场只用双方各
-  5 场严格更早 xG，歧义市场映射 0，AH/TOTALS 均超过最低 500 场。
+  5 场严格更早 xG，歧义市场映射 0，AH/TOTALS 均超过最低 500 场。独立验收纠正
+  排除桶：历史不足 `234` 场；原记为缺收盘列的 `31` 场实际为真实缺列 `9` 场、
+  Paris Saint-Germain 名称映射未命中 `22` 场。
 - 固定 AH component-share 候选对现役 Brier/log-loss 点估计略优，但两项 95% 上界均跨
   0，且对 Pinnacle closing 两项显著更差；固定 TOTALS axis 候选对现役和 closing
   四项都未通过。两候选裁决均为 `REJECTED`，不得在该 cohort 换参数、登记或部署。
 - 自验收：定向 `7 passed`、canonical `18 passed`、package matrix `5 passed`；全量
   `2967 passed / 9 skipped / 5` 个既有宿主限制失败，任务相关失败 0。
+- Claude Code 独立验收：`SCIENTIFIC_EVIDENCE_VERDICT=PASS`、
+  `RELEASE_ELIGIBILITY_VERDICT=REJECTED_NOT_DEPLOYABLE`。未发现赛果泄漏或结果后调参；
+  六项流程/记账问题不改变拒绝裁决。禁止补跑 `858` 场，名称映射与评分口径绑定修复
+  只能进入未来新预注册。
 - 完整证据与复核命令见
-  `docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/V1_HISTORICAL_CLOSING_BLINDTEST_REPORT.md`。
+  `docs/review_packages/V1_RECALIBRATION_EVIDENCE_01/V1_HISTORICAL_CLOSING_BLINDTEST_REPORT.md`；
+  独立验收见同目录 `V1_HISTORICAL_CLOSING_BLINDTEST_INDEPENDENT_ACCEPTANCE.md`。
 
 ### V1-ADMISSION-CONTRACT-CORRECTION-01
 

@@ -11,7 +11,7 @@
 - 赛果只在上述提交落地后读取；`git log` 固化了先预测、后结算顺序。
 - API-Football xG：`1123/1123 COMPLETE`、fixture identity `1123/1123` 唯一；目标场只使用双方各 5 场严格更早 xG。
 - Provider 调用：任务累计 `1172 <= 6000`；最后观测 remaining `6069 > 1500`。采集完成后新增 Provider 调用 `0`。
-- 完整市场映射且双方有 5 场历史：`858` 场；歧义映射 `0`；Pinnacle AH/TOTALS 收盘列缺失排除 `31` 场。AH 与 TOTALS 均超过最低 `500` 场。
+- 完整市场映射且双方有 5 场历史：`858` 场；歧义映射 `0`。另有 `234` 场因双方严格更早历史不足而排除；原记为“Pinnacle 收盘列缺失”的 `31` 场经独立验收拆分为真实缺列 `9` 场、Paris Saint-Germain 名称映射未命中 `22` 场。AH 与 TOTALS 均超过最低 `500` 场。
 - Football-Data 只作为 Pinnacle closing/aggregate benchmark，不冒充 T-30/T-15 可执行报价。
 
 ## 强制门
@@ -75,3 +75,11 @@ cmp -s /tmp/V1_HISTORICAL_CLOSING_BLINDTEST_RESULT.json \
 - 全量命令：`PYTHONPATH=src:. .venv/bin/pytest -q`。
 - 全量结果：`2967 passed / 9 skipped / 5 failed / 5 warnings`，耗时 `353.41s`。
 - 任务相关失败：`0`。剩余 5 个均为既有宿主限制：Docker Compose 插件缺失 2、系统无裸 `python` 导致 SC18 未启动 1、macOS 无法构造容器 UID/GID 所有者目录 2。
+
+## Claude Code 独立验收
+
+- 验收 HEAD：`b1db55fe4ef6661c9aa021ca8bf0780b5b269bab`；工作树干净，且已部署基线 `1de3c1ef` 为其祖先。
+- `SCIENTIFIC_EVIDENCE_VERDICT = PASS`：六个冻结 SHA-256、两份逐字节复现、`1123/858` cohort、PIT 最近五场和八个统计门均由独立实现复核；未发现目标赛果泄漏或结果后调参。
+- `RELEASE_ELIGIBILITY_VERDICT = REJECTED_NOT_DEPLOYABLE`：AH 与 TOTALS 候选仍均为 `REJECTED`；TOTALS identity `f98d4ef0…` 的 verdict 为 `None`，运行状态为 `BASELINE_PRIOR`。不得登记 grant、不得部署、不得继续使用这 `858` 场选参。
+- 独立验收发现六项不改变裁决的问题：`31` 场排除归因错误、`234` 场历史不足未计数、scorer 实现未在读赛果前冻结、bootstrap 常量未由冻结 supplement 强制、结果后 fetcher 哈希算法变化、预注册 `frozen_at` 与提交时间不一致。修复名称映射只能进入未来新预注册，禁止补跑本 cohort。
+- 完整验收回执见 `V1_HISTORICAL_CLOSING_BLINDTEST_INDEPENDENT_ACCEPTANCE.md`。
