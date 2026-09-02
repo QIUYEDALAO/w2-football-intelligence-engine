@@ -705,6 +705,25 @@ function evidenceNumber(factor: FixtureFactor, key: string): number | null {
   return typeof value === "number" ? value : null;
 }
 
+const DISPLAYED_NON_PROBABILITY_FACTORS = new Set([
+  "F1_MARKET_MOVEMENT",
+  "F2_BOOKMAKER_INTENT",
+  "F3_REST_FITNESS",
+  "F5_RECENT_AH_COVER",
+]);
+
+function contributionEvidence(factor: FixtureFactor): string | null {
+  if (!DISPLAYED_NON_PROBABILITY_FACTORS.has(factor.factor_id)) return null;
+  const raw = factor.evidence.raw_inputs;
+  const score = factor.evidence.score;
+  const status = String(factor.evidence.status || "UNKNOWN");
+  const weight = factor.evidence.weight;
+  const visibleRaw = raw && typeof raw === "object"
+    ? Object.fromEntries(Object.entries(raw).filter(([key]) => !key.includes("hash")))
+    : {};
+  return `原始输入 ${JSON.stringify(visibleRaw)} · score ${score ?? "—"} · status ${status} · weight ${weight ?? "—"}`;
+}
+
 function factorEvidence(factor: FixtureFactor): string {
   if (factor.factor_id === "MK_QUOTE_AGE") {
     const age = evidenceNumber(factor, "quote_age_seconds");
@@ -731,6 +750,8 @@ function FactorRows({ factors }: { factors: FixtureFactor[] }) {
     <b>{factor.state === "READY" ? "已就绪" : factor.state === "PARTIAL" ? "部分就绪" : factor.state === "WAITING" ? "等待窗口" : factor.state === "DISABLED" ? "已关闭" : "缺失"}</b>
     <span>{factor.cause ? FACTOR_CAUSE_LABELS[factor.cause] : "证据已就绪"}</span>
     <span>{factorEvidence(factor)}</span>
+    {contributionEvidence(factor) ? <span>{contributionEvidence(factor)}</span> : null}
+    {DISPLAYED_NON_PROBABILITY_FACTORS.has(factor.factor_id) ? <small>不参与 λ / 概率；仅 READY 状态计入 coverage bonus 的就绪数量。</small> : null}
     <small>{factor.next_window_at ? `下次窗口 ${localDateTime(factor.next_window_at)} · ${FACTOR_PERMANENCE_LABELS[factor.permanence]}` : FACTOR_PERMANENCE_LABELS[factor.permanence]}</small>
     <details><summary>技术证据</summary><code>{String(factor.evidence.source || "NO_SOURCE")}</code><code>{factor.factor_id}</code></details>
   </div>)}</div>;

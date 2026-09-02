@@ -1025,6 +1025,65 @@ def test_factor_checklist_preserves_source_truth_and_waiting_state() -> None:
     )
 
 
+def test_factor_checklist_exposes_four_non_probability_contributions() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["factor_checklist_inputs"]["feature_contributions"] = [
+        {
+            "id": "F1_MARKET_MOVEMENT",
+            "status": "READY",
+            "score": 0.5,
+            "weight": 0.16,
+            "inputs": {"first_seen_to_current": -0.125},
+        },
+        {
+            "id": "F2_BOOKMAKER_DIVERGENCE",
+            "status": "READY",
+            "score": 0.25,
+            "weight": 0.12,
+            "inputs": {"dispersion": 0.075},
+        },
+        {
+            "id": "F3_REST_FITNESS",
+            "status": "READY",
+            "score": -0.5,
+            "weight": 0.1,
+            "inputs": {"home_rest_days": 4.0, "away_rest_days": 6.0},
+        },
+        {
+            "id": "F5_RECENT_AH_COVER",
+            "status": "READY",
+            "score": 0.2,
+            "weight": 0.05,
+            "inputs": {"home_cover_rate": 0.6, "away_cover_rate": 0.4},
+        },
+    ]
+    day_view["cards"] = [card]
+
+    factors = _workspace(day_view)["matches"][0]["factor_checklist"]["factors"]
+    expected = {
+        "F1_MARKET_MOVEMENT": (-0.125, 0.5, 0.16),
+        "F2_BOOKMAKER_INTENT": (0.075, 0.25, 0.12),
+        "F3_REST_FITNESS": (4.0, -0.5, 0.1),
+        "F5_RECENT_AH_COVER": (0.6, 0.2, 0.05),
+    }
+    seen: set[str] = set()
+    for factor in factors:
+        factor_id = factor["factor_id"]
+        if factor_id not in expected:
+            continue
+        evidence = factor["evidence"]
+        raw_value, score, weight = expected[factor_id]
+        assert raw_value in evidence["raw_inputs"].values()
+        assert evidence["score"] == score
+        assert evidence["status"] == "READY"
+        assert evidence["weight"] == weight
+        assert evidence["probability_effect"] is False
+        assert evidence["coverage_bonus_role"] == "READY_COUNT_ONLY"
+        seen.add(factor_id)
+    assert seen == set(expected)
+
+
 def test_factor_checklist_exposes_registry_policy_and_ledger_fact() -> None:
     day_view = _day_view()
     card = _factor_checklist_card()

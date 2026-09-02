@@ -16,7 +16,7 @@ MIN_XG_MATCHES = 3
 ROLE_VALUES = {"HARD_GATE", "ENHANCEMENT", "NOT_APPLICABLE", "POLICY_DISABLED"}
 DISPLAY_NAMES = {
     "F1_MARKET_MOVEMENT": "盘口变化",
-    "F2_BOOKMAKER_INTENT": "机构意图",
+    "F2_BOOKMAKER_INTENT": "庄家分歧",
     "F3_REST_FITNESS": "休息与体能",
     "F4_MATCH_IMPORTANCE": "比赛重要性",
     "F5_RECENT_AH_COVER": "近期让球覆盖",
@@ -92,7 +92,14 @@ def build_fixture_factor_checklist(
     )
     for market in MARKETS:
         current = _mapping(markets.get(market))
-        factors.extend(_market_explanation_factors(market, current, generated_at))
+        factors.extend(
+            _market_explanation_factors(
+                market,
+                current,
+                generated_at,
+                contributions=contributions,
+            )
+        )
 
     model_blockers: list[str] = []
     xg = factors[0]
@@ -377,6 +384,11 @@ def _contribution_factor(
                     if row.get("collection_status")
                 }
             ),
+            **(
+                _contribution_evidence(rows)
+                if factor_id in {"F3_REST_FITNESS", "F5_RECENT_AH_COVER"}
+                else {}
+            ),
         },
     )
 
@@ -416,10 +428,16 @@ def _lineup_factor(
 
 
 def _market_explanation_factors(
-    market: str, current: Mapping[str, Any], as_of: Any
+    market: str,
+    current: Mapping[str, Any],
+    as_of: Any,
+    *,
+    contributions: Mapping[str, list[Mapping[str, Any]]],
 ) -> list[dict[str, Any]]:
     snapshot_count = max(0, _int(current.get("snapshot_count")))
     bookmaker_count = max(0, _int(current.get("bookmaker_count")))
+    movement = contributions.get("F1_MARKET_MOVEMENT", [])
+    divergence = contributions.get("F2_BOOKMAKER_DIVERGENCE", [])
     return [
         _factor(
             "F1_MARKET_MOVEMENT",
@@ -433,6 +451,7 @@ def _market_explanation_factors(
                 "sample_count": snapshot_count,
                 "minimum_required": 2,
                 "shortfall": max(0, 2 - snapshot_count),
+                **_contribution_evidence(movement),
             },
         ),
         _factor(
@@ -446,9 +465,22 @@ def _market_explanation_factors(
                 "source": "market_radar.current",
                 "sample_count": bookmaker_count,
                 "shortfall": 0 if bookmaker_count else 1,
+                **_contribution_evidence(divergence),
             },
         ),
     ]
+
+
+def _contribution_evidence(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    row = rows[0] if rows else {}
+    return {
+        "raw_inputs": dict(_mapping(row.get("inputs"))),
+        "score": row.get("score"),
+        "status": _optional_text(row.get("status")),
+        "weight": row.get("weight"),
+        "probability_effect": False,
+        "coverage_bonus_role": "READY_COUNT_ONLY",
+    }
 
 
 def _factor(
