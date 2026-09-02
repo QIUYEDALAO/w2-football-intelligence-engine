@@ -575,9 +575,7 @@ def endpoint_capture_contract(
     status = "PROVIDER_EMPTY" if response_count == 0 and 200 <= status_code < 300 else "CAPTURED"
     provider_errors = payload.get("errors")
     schema_error = (
-        not isinstance(response, dict)
-        if endpoint == "status"
-        else not isinstance(response, list)
+        not isinstance(response, dict) if endpoint == "status" else not isinstance(response, list)
     )
     if status_code >= 400 or provider_errors not in (None, {}, [], "") or schema_error:
         status = "FAILED"
@@ -1299,7 +1297,7 @@ def _selected_analysis_candidate(model_evidence: Mapping[str, Any]) -> dict[str,
         )
     selection = select_analysis_markets(selectable)
     if selection.primary_market is None:
-        return selectable[0] if selectable else None
+        return None
     for item in selectable:
         if item.get("market") == selection.primary_market:
             return item

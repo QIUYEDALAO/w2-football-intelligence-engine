@@ -12,6 +12,7 @@ from w2.infrastructure.database import create_engine
 from w2.ingestion.checkpoint_refresh import checkpoint_plan_for_fixture
 from w2.matchday.intake_v2 import (
     MatchdayCompetitionPolicy,
+    _selected_analysis_candidate,
     build_checkpoint_plans,
     checkpoint_coverage,
     competition_policies,
@@ -551,20 +552,22 @@ def _analysis_model(*, edge: bool) -> dict[str, object]:
     }
 
 
+def test_no_primary_market_does_not_produce_a_pseudo_selection() -> None:
+    assert _selected_analysis_candidate(_analysis_model(edge=False)) is None
+
+
 def _manifest_market_audit_fixture(
     rows: list[dict[str, Any]], *, evaluated_at: datetime
 ) -> dict[str, object]:
     home = next(
         row
         for row in rows
-        if row["canonical_market"] == "ASIAN_HANDICAP"
-        and row["canonical_selection"] == "HOME"
+        if row["canonical_market"] == "ASIAN_HANDICAP" and row["canonical_selection"] == "HOME"
     )
     away = next(
         row
         for row in rows
-        if row["canonical_market"] == "ASIAN_HANDICAP"
-        and row["canonical_selection"] == "AWAY"
+        if row["canonical_market"] == "ASIAN_HANDICAP" and row["canonical_selection"] == "AWAY"
     )
     pair = {
         "market": "ASIAN_HANDICAP",

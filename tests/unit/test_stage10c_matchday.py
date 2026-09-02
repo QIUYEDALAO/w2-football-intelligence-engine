@@ -185,7 +185,7 @@ def test_hash_verifier_file_bytes_and_quarantine(tmp_path: Path) -> None:
     assert SnapshotHashVerifier().verify_snapshot(snapshot)["integrity_status"] == "QUARANTINED"
 
 
-def test_card_builder_all_markets_and_gate_cap(tmp_path: Path) -> None:
+def test_card_builder_keeps_all_markets_as_unselected_diagnostics(tmp_path: Path) -> None:
     snapshot = build_snapshot(tmp_path / "snapshots")
     card = ResearchCardBuilder().build_from_snapshot(
         snapshot,
@@ -193,7 +193,13 @@ def test_card_builder_all_markets_and_gate_cap(tmp_path: Path) -> None:
     )
     markets = {row["market"] for row in card.market_ranking}
     assert {"ONE_X_TWO", "ASIAN_HANDICAP", "TOTALS", "BTTS"} <= markets
-    assert card.card["published_grade"] in {"C", "D", "X"}
+    assert card.card["analysis_descriptor"] == "MARKET_EV_DIAGNOSTIC"
+    assert card.card["selection_status"] == "NO_SELECTION_DIAGNOSTIC_ONLY"
+    assert "primary_market_direction" not in card.card
+    assert "published_grade" not in card.card
+    assert all(row["diagnostic_only"] is True for row in card.market_ranking)
+    assert all("raw_ev" in row and "risk_adjusted_ev" in row for row in card.market_ranking)
+    assert all("published_grade" not in row and "action" not in row for row in card.market_ranking)
     assert card.card["formal_recommendation"] is False
     assert card.temporal["temporal_status"] == "POSTMATCH_RECOMPUTED_FROM_LOCKED_PREMATCH"
 
@@ -211,26 +217,19 @@ def test_stage10c_checkpoint_projection_feeds_matchday_api(monkeypatch) -> None:
             "home_team_name": "Argentina",
             "kickoff_utc": "2026-06-22T17:00:00+00:00",
             "last_captured": "2026-06-22T16:30:04+00:00",
-            "published_grade": "C",
             "stage": "Group J",
             "status": "NS",
             "venue": "AT&T Stadium",
         },
         "card": {
             "action": "WATCH",
+            "analysis_descriptor": "MARKET_EV_DIAGNOSTIC",
             "candidate": False,
+            "diagnostic_status": "AVAILABLE",
             "fixture_id": "1489399",
             "formal_recommendation": False,
             "gate4_status": "PROVISIONAL_FORWARD_HOLDOUT_PENDING",
-            "published_grade": "C",
-            "primary_market_direction": {
-                "market": "ASIAN_HANDICAP",
-                "selection": "AUSTRIA",
-                "line": "+0.75",
-                "executable_decimal_odds": "2.52",
-                "model_fair_odds": "1.84",
-                "risk_adjusted_ev": "0.29",
-            },
+            "selection_status": "NO_SELECTION_DIAGNOSTIC_ONLY",
             "temporal_status": "POSTMATCH_RECOMPUTED_FROM_LOCKED_PREMATCH",
         },
         "integrity": {"integrity_status": "PASS"},
@@ -242,6 +241,10 @@ def test_stage10c_checkpoint_projection_feeds_matchday_api(monkeypatch) -> None:
                 "market": "ASIAN_HANDICAP",
                 "selection": "AUSTRIA",
                 "line": "+0.75",
+                "diagnostic_only": True,
+                "ordering_basis": "MARKET_ENUMERATION_ONLY",
+                "raw_ev": "0.325",
+                "risk_adjusted_ev": "0.29",
                 "valid_bookmaker_count": 7,
             }
         ],

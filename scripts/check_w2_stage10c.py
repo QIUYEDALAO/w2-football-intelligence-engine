@@ -35,8 +35,26 @@ def main() -> int:
         require(isinstance(temporal, dict), "temporal missing")
         require(card.get("formal_recommendation") is False, "formal recommendation enabled")
         require(card.get("candidate") is False, "candidate enabled")
-        require(card.get("published_grade") in {"A", "B", "C", "D", "X"}, "bad grade")
-        require(card.get("published_grade") not in {"A", "B"}, "Gate4 cap violated")
+        require(card.get("analysis_descriptor") == "MARKET_EV_DIAGNOSTIC", "bad descriptor")
+        require(card.get("selection_status") == "NO_SELECTION_DIAGNOSTIC_ONLY", "selection found")
+        require(
+            not {
+                "primary_market_direction",
+                "secondary_market_direction",
+                "raw_research_grade",
+                "published_grade",
+            }.intersection(card),
+            "selection or grade semantics found",
+        )
+        require(
+            all(
+                isinstance(row, dict)
+                and row.get("diagnostic_only") is True
+                and not {"raw_research_grade", "published_grade", "action"}.intersection(row)
+                for row in ranking
+            ),
+            "market diagnostics contract invalid",
+        )
         markets = {row.get("market") for row in ranking if isinstance(row, dict)}
         require(markets <= {"ONE_X_TWO", "ASIAN_HANDICAP", "TOTALS", "BTTS"}, "bad market")
         require("source_captured_at" in temporal, "source time missing")

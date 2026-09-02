@@ -57,8 +57,7 @@ def _fair_decimal(distribution: dict[str, Decimal]) -> Decimal | None:
         + Decimal("0.5") * distribution["half_loss_probability"]
     )
     denominator = (
-        distribution["full_win_probability"]
-        + Decimal("0.5") * distribution["half_win_probability"]
+        distribution["full_win_probability"] + Decimal("0.5") * distribution["half_win_probability"]
     )
     if denominator == 0:
         return None
@@ -76,20 +75,6 @@ def _expected_value(decimal_odds: Decimal, distribution: dict[str, Decimal]) -> 
         - distribution["half_loss_probability"] * Decimal("0.5")
         - distribution["full_loss_probability"]
     )
-
-
-def _grade(risk_ev: Decimal | None, *, data_quality: str, market_quality: str) -> tuple[str, str]:
-    if risk_ev is None or data_quality == "BLOCKED" or market_quality == "BLOCKED":
-        return ("X", "X")
-    if risk_ev >= Decimal("0.05") and data_quality == "READY" and market_quality == "READY":
-        raw = "A"
-    elif risk_ev >= Decimal("0.025"):
-        raw = "B"
-    elif risk_ev > 0:
-        raw = "C"
-    else:
-        raw = "D"
-    return (raw, "C" if raw in {"A", "B"} else raw)
 
 
 def _market_quality(
@@ -112,22 +97,6 @@ def _market_quality(
             if abs(float(_decimal(row["odds_value"]) - median)) > 3 * mad:
                 outliers.append(str(row.get("bookmaker_name")))
     return ("READY" if not outliers else "WATCH_ONLY", sorted(set(outliers)), median, dispersion)
-
-
-def _low_correlation(primary: dict[str, Any], candidate: dict[str, Any]) -> bool:
-    pair = {primary["market"], candidate["market"]}
-    if pair == {"TOTALS", "BTTS"}:
-        if {primary["selection"], candidate["selection"]} in [{"OVER", "YES"}, {"UNDER", "NO"}]:
-            return False
-    if pair == {"ONE_X_TWO", "ASIAN_HANDICAP"}:
-        one_x_two = primary if primary["market"] == "ONE_X_TWO" else candidate
-        ah = primary if primary["market"] == "ASIAN_HANDICAP" else candidate
-        if one_x_two["selection"] in {"HOME", "ARGENTINA_WIN"} and ah["selection"] in {
-            "HOME",
-            "ARGENTINA",
-        }:
-            return False
-    return True
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -166,40 +135,30 @@ class ResearchCardBuilder:
             data_quality = "BLOCKED"
         else:
             data_quality = str(quality.get("status", "WATCH_ONLY"))
-        ranking = self._ranking(
+        diagnostics = self._diagnostics(
             normalized_rows=normalized.get("rows", []),
             value_rows=model.get("value_rows", []),
             data_quality=data_quality,
-        )
-        positive = [row for row in ranking if row["action"] == "WATCH"]
-        primary = positive[0] if positive else None
-        secondary = next(
-            (
-                row
-                for row in positive[1:]
-                if primary is not None and _low_correlation(primary, row)
-            ),
-            None,
         )
         most_likely = max(
             (model.get("probabilities") or {}).items(),
             key=lambda item: float(item[1]),
             default=("UNKNOWN", 0),
         )[0]
-        published = (
-            primary["published_grade"]
-            if primary
-            else ("X" if data_quality == "BLOCKED" else "D")
+        diagnostic_status = (
+            "BLOCKED"
+            if data_quality == "BLOCKED"
+            else "AVAILABLE"
+            if diagnostics
+            else "NOT_AVAILABLE"
         )
-        action = "WATCH" if primary else ("BLOCKED" if published == "X" else "SKIP")
         card = {
             "fixture_id": str(manifest.get("fixture_id")),
             "most_likely_outcome": most_likely,
-            "primary_market_direction": primary,
-            "secondary_market_direction": secondary,
-            "raw_research_grade": primary["raw_research_grade"] if primary else published,
-            "published_grade": published,
-            "action": action,
+            "analysis_descriptor": "MARKET_EV_DIAGNOSTIC",
+            "diagnostic_status": diagnostic_status,
+            "selection_status": "NO_SELECTION_DIAGNOSTIC_ONLY",
+            "action": "WATCH" if diagnostics and diagnostic_status != "BLOCKED" else "SKIP",
             "invalidation_conditions": [
                 "source_captured_at_after_kickoff",
                 "market_quality_blocked",
@@ -228,11 +187,7 @@ class ResearchCardBuilder:
             "home_team_name": fixture_item.get("teams", {}).get("home", {}).get("name"),
             "away_team_name": fixture_item.get("teams", {}).get("away", {}).get("name"),
             "venue": fixture_item.get("fixture", {}).get("venue", {}).get("name"),
-            "published_grade": published,
-            "primary_market": primary["market"] if primary else None,
-            "primary_line": primary["line"] if primary else None,
-            "primary_selection": primary["selection"] if primary else None,
-            "primary_odds": primary["executable_decimal_odds"] if primary else None,
+            "analysis_status": diagnostic_status,
             "last_captured": temporal.source_captured_at.isoformat(),
             "data_health": data_quality,
         }
@@ -240,19 +195,19 @@ class ResearchCardBuilder:
             fixture_id=str(manifest.get("fixture_id")),
             fixture=fixture,
             card=card,
-            market_ranking=ranking,
+            market_ranking=diagnostics,
             temporal=temporal.as_dict(),
             integrity=integrity or {},
         )
 
-    def _ranking(
+    def _diagnostics(
         self,
         *,
         normalized_rows: list[dict[str, Any]],
         value_rows: list[dict[str, Any]],
         data_quality: str,
     ) -> list[dict[str, Any]]:
-        ranking: list[dict[str, Any]] = []
+        diagnostics: list[dict[str, Any]] = []
         for value in value_rows:
             market = str(value.get("market"))
             selection = str(value.get("selection"))
@@ -272,15 +227,7 @@ class ResearchCardBuilder:
             raw_ev = _expected_value(executable, distribution)
             risk_ev = raw_ev - self.uncertainty_margin
             fair = _fair_decimal(distribution)
-            raw_grade, published_grade = _grade(
-                risk_ev,
-                data_quality=data_quality,
-                market_quality=market_quality,
-            )
-            action = "WATCH" if published_grade in {"A", "B", "C"} else "SKIP"
-            if published_grade == "X":
-                action = "BLOCKED"
-            ranking.append(
+            diagnostics.append(
                 {
                     "market": market,
                     "selection": selection,
@@ -302,17 +249,22 @@ class ResearchCardBuilder:
                     "valid_bookmaker_count": len({row.get("bookmaker_name") for row in peer_rows}),
                     "consensus_median": str(median_price) if median_price else None,
                     "dispersion": str(dispersion) if dispersion is not None else None,
-                    "raw_research_grade": raw_grade,
-                    "published_grade": published_grade,
-                    "action": action,
+                    "selection_role": "DIAGNOSTIC_INPUT",
+                    "diagnostic_only": True,
+                    "ordering_basis": "MARKET_ENUMERATION_ONLY",
                     "formal_recommendation": False,
                     "candidate": False,
                 }
             )
+        market_order = {market: index for index, market in enumerate(RANKED_MARKETS)}
         return sorted(
-            ranking,
-            key=lambda row: Decimal(row.get("risk_adjusted_ev") or "-999"),
-            reverse=True,
+            diagnostics,
+            key=lambda row: (
+                market_order.get(str(row.get("market")), len(market_order)),
+                str(row.get("market")),
+                str(row.get("selection")),
+                str(row.get("line")),
+            ),
         )
 
 

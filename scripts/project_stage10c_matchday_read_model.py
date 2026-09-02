@@ -38,12 +38,6 @@ def parse_utc(value: str) -> datetime:
     return parsed.astimezone(UTC)
 
 
-def optional_str(value: Any) -> str | None:
-    if value is None:
-        return None
-    return str(value)
-
-
 def build_fixture_payload(item: dict[str, Any]) -> dict[str, Any]:
     fixture = cast(dict[str, Any], item["fixture"])
     card = cast(dict[str, Any], item["card"])
@@ -56,8 +50,6 @@ def build_fixture_payload(item: dict[str, Any]) -> dict[str, Any]:
     captured_at = str(temporal.get("source_captured_at") or fixture.get("last_captured"))
     parse_utc(captured_at)
     parse_utc(str(fixture["kickoff_utc"]))
-    primary = cast(dict[str, Any], card.get("primary_market_direction") or {})
-    secondary = card.get("secondary_market_direction")
     return {
         "fixture_id": str(fixture["fixture_id"]),
         "provider_fixture_id": str(fixture["fixture_id"]),
@@ -74,14 +66,12 @@ def build_fixture_payload(item: dict[str, Any]) -> dict[str, Any]:
         "captured_at": captured_at,
         "phase": temporal.get("source_phase"),
         "decision_status": str(card["action"]),
-        "research_value_lean": primary.get("selection"),
+        "research_value_lean": None,
         "formal_recommendation": False,
         "candidate": False,
         "gate4_status": card.get("gate4_status", "PROVISIONAL_FORWARD_HOLDOUT_PENDING"),
         "data_status": str(fixture.get("data_health", "READY")),
-        "bookmaker_count": max(
-            int(row.get("valid_bookmaker_count", 0) or 0) for row in ranking
-        )
+        "bookmaker_count": max(int(row.get("valid_bookmaker_count", 0) or 0) for row in ranking)
         if ranking
         else 0,
         "market_coverage": {
@@ -95,18 +85,20 @@ def build_fixture_payload(item: dict[str, Any]) -> dict[str, Any]:
         "expected_goals": expected_goals,
         "value_rows": ranking,
         "all_market_ranking": ranking,
+        "market_diagnostics": ranking,
         "ah_ladder": [row for row in ranking if row.get("market") == "ASIAN_HANDICAP"],
         "ou_ladder": [row for row in ranking if row.get("market") == "TOTALS"],
-        "primary_market": primary.get("market"),
-        "primary_selection": primary.get("selection"),
-        "primary_line": primary.get("line"),
-        "primary_executable_odds": optional_str(primary.get("executable_decimal_odds")),
-        "primary_hong_kong_odds": optional_str(primary.get("hong_kong_odds")),
-        "primary_model_fair_odds": optional_str(primary.get("model_fair_odds")),
-        "primary_risk_adjusted_ev": optional_str(primary.get("risk_adjusted_ev")),
-        "secondary_market_direction": secondary,
-        "research_grade": card.get("published_grade"),
-        "published_grade": card.get("published_grade"),
+        "primary_market": None,
+        "primary_selection": None,
+        "primary_line": None,
+        "primary_executable_odds": None,
+        "primary_hong_kong_odds": None,
+        "primary_model_fair_odds": None,
+        "primary_risk_adjusted_ev": None,
+        "secondary_market_direction": None,
+        "research_grade": None,
+        "published_grade": None,
+        "diagnostic_status": card.get("diagnostic_status"),
         "risk_notes": card.get("invalidation_conditions", []),
         "temporal_status": temporal.get("temporal_status"),
         "valuation_generated_at": temporal.get("valuation_generated_at"),
@@ -131,6 +123,28 @@ def validate_item(item: dict[str, Any]) -> None:
         raise Stage10CProjectionError("formal recommendation must remain false")
     if card.get("candidate") is not False:
         raise Stage10CProjectionError("candidate must remain false")
+    if card.get("analysis_descriptor") != "MARKET_EV_DIAGNOSTIC":
+        raise Stage10CProjectionError("Stage10C card must remain diagnostic only")
+    if any(
+        field in card
+        for field in (
+            "primary_market_direction",
+            "secondary_market_direction",
+            "raw_research_grade",
+            "published_grade",
+        )
+    ):
+        raise Stage10CProjectionError("selection or research grade semantics found")
+    ranking = item.get("market_ranking")
+    if not isinstance(ranking, list) or any(
+        not isinstance(row, dict)
+        or row.get("diagnostic_only") is not True
+        or "raw_research_grade" in row
+        or "published_grade" in row
+        or "action" in row
+        for row in ranking
+    ):
+        raise Stage10CProjectionError("market diagnostics contract invalid")
     if "recommend" in json.dumps(item, ensure_ascii=False).lower():
         allowed = "formal_recommendation"
         text = json.dumps(item, ensure_ascii=False).lower().replace(allowed, "")
@@ -155,9 +169,7 @@ def checkpoint_payloads(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
         }
         projected_items.append(projected_item)
         payloads[f"dashboard:fixture_latest:{fixture_id}"] = fixture_payload
-        payloads[
-            f"dashboard:stage10c_matchday_card:{fixture_id}"
-        ] = projected_item
+        payloads[f"dashboard:stage10c_matchday_card:{fixture_id}"] = projected_item
     aggregate = {
         "items": projected_items,
         "projected_at": datetime.now(UTC).isoformat(),
