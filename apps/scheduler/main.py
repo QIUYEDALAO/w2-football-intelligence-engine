@@ -396,6 +396,36 @@ def generate_checkpoint_plans(
     }
 
 
+def generate_lineup_first_seen_plans(now: datetime) -> dict[str, Any]:
+    from w2.ingestion.lineup_first_seen import (
+        LineupFirstSeenRepository,
+        lineup_first_seen_enabled,
+    )
+    from w2.matchday.repository import MatchdayRuntimeRepository
+
+    if not lineup_first_seen_enabled():
+        return {"status": "DISABLED", "generated_plan_count": 0, "provider_calls": 0}
+    repository = LineupFirstSeenRepository()
+    quota = repository.quota_guard(now=now)
+    if not quota["allowed"]:
+        return {
+            "status": str(quota["blocker"]),
+            "generated_plan_count": 0,
+            "provider_calls": 0,
+            **quota,
+        }
+    plans = repository.build_due_plans(now=now)
+    runtime = MatchdayRuntimeRepository()
+    for plan in plans:
+        runtime.upsert_checkpoint_plan(plan)
+    return {
+        "status": "PLANS_GENERATED",
+        "generated_plan_count": len(plans),
+        "provider_calls": 0,
+        **quota,
+    }
+
+
 def checkpoint_plan_generation_tick() -> dict[str, Any]:
     from w2.ingestion.future_refresh import config_from_policy
 
@@ -468,9 +498,10 @@ def due_checkpoint_refresh_batch(
     ]
     postmatch_mode = mode == "POSTMATCH"
     same_mode_plans = due_plans[:1] if postmatch_mode else due_plans
+    hard_cap = provider_refresh_tick_hard_cap()
     selected_raw, projected_calls = select_checkpoint_batch(
         cast(Any, same_mode_plans),
-        hard_cap=provider_refresh_tick_hard_cap(),
+        hard_cap=hard_cap,
     )
     selected = cast(list[ClaimedCheckpointPlan], selected_raw)
     selected_rows = [
@@ -513,7 +544,7 @@ def due_checkpoint_refresh_batch(
         "selected_checkpoint_count": len(selected_rows),
         "projected_calls": projected_calls,
         "all_due_projected_calls": projected_calls_for_checkpoint_batch(cast(Any, due_plans)),
-        "tick_hard_cap": provider_refresh_tick_hard_cap(),
+        "tick_hard_cap": hard_cap,
         "checkpoints": selected_rows,
         "refresh_mode": "POSTMATCH_RESULT" if postmatch_mode else "PREMATCH",
         "scheduler_checkpoint_writer": "matchday_checkpoint_plans",
@@ -561,6 +592,7 @@ def future_fixture_refresh_tick() -> dict[str, object]:
     from apps.worker.celery_app import celery_app
 
     now = datetime.now(UTC)
+    lineup_first_seen_planning = generate_lineup_first_seen_plans(now)
     refresh_mode = "POSTMATCH" if postmatch_only_enabled() else "PREMATCH"
     batch = due_checkpoint_refresh_batch(now, refresh_mode=refresh_mode)
     if not batch["checkpoints"] and refresh_mode == "PREMATCH":
@@ -582,6 +614,7 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "provider_calls": 0,
             "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
             "provider_refresh_min_interval_policy": "PERSISTED_PLAN_EDF",
+            "lineup_first_seen_planning": lineup_first_seen_planning,
         }
     groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for checkpoint in checkpoints:
@@ -653,6 +686,7 @@ def future_fixture_refresh_tick() -> dict[str, object]:
         "provider_calls": 0,
         "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
         "provider_refresh_min_interval_policy": "PERSISTED_PLAN_EDF",
+        "lineup_first_seen_planning": lineup_first_seen_planning,
     }
     if len(results) == 1:
         response.update(results[0])

@@ -12,6 +12,7 @@ from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamModel,
     ProviderTeamIdentityCrosswalkModel,
 )
+from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEndpointCaptureModel,
     MatchdayFixtureIdentityModel,
@@ -861,6 +862,64 @@ def test_canonical_lineup_event_uses_complete_capture_alias_and_earliest_same_xi
     assert bare.fixture_id == "901"
     assert bare.captured_at == first_at
     assert bare.source_capture_id == "capture-a"
+
+
+def test_lineup_materialization_persists_only_the_first_seen_event(monkeypatch) -> None:
+    monkeypatch.setenv("W2_LINEUP_FIRST_SEEN_ENABLED", "true")
+    repository, engine, kickoff = _canonical_lineup_repository()
+    first_at = kickoff - timedelta(minutes=50)
+    payload = {"response": [_team(10, 100), _team(20, 200)]}
+
+    repository.save_lineup_snapshots(
+        fixture_id="901",
+        captured_at=first_at,
+        raw_sha256="d" * 64,
+        payload=payload,
+        source_capture_id="capture-d",
+    )
+    repository.save_lineup_snapshots(
+        fixture_id="901",
+        captured_at=first_at + timedelta(minutes=5),
+        raw_sha256="e" * 64,
+        payload=payload,
+        source_capture_id="capture-e",
+    )
+
+    with Session(engine) as session:
+        events = list(
+            session.scalars(
+                select(RawPayloadModel).where(
+                    RawPayloadModel.endpoint == "lineup_first_seen_event"
+                )
+            )
+        )
+    assert len(events) == 1
+    assert events[0].payload["provider_fixture_id"] == "901"
+    assert events[0].captured_at.replace(tzinfo=UTC) == first_at
+    assert events[0].payload["minutes_to_kickoff"] == 50
+    assert events[0].payload["coverage_status"] == "COMPLETE_BOTH_TEAMS"
+
+
+def test_lineup_materialization_does_not_collect_first_seen_when_disabled(monkeypatch) -> None:
+    monkeypatch.delenv("W2_LINEUP_FIRST_SEEN_ENABLED", raising=False)
+    repository, engine, kickoff = _canonical_lineup_repository()
+    repository.save_lineup_snapshots(
+        fixture_id="901",
+        captured_at=kickoff - timedelta(minutes=50),
+        raw_sha256="d" * 64,
+        payload={"response": [_team(10, 100), _team(20, 200)]},
+        source_capture_id="capture-d",
+    )
+
+    with Session(engine) as session:
+        assert (
+            session.scalar(
+                select(func.count(RawPayloadModel.sha256)).where(
+                    RawPayloadModel.endpoint == "lineup_first_seen_event"
+                )
+            )
+            == 0
+        )
 
 
 def test_canonical_lineup_capture_requires_unique_exact_capture_resolution() -> None:
