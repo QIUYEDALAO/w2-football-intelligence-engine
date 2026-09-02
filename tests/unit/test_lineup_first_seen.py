@@ -121,7 +121,7 @@ def test_first_seen_event_is_first_write_wins() -> None:
 
 def test_adaptive_polling_uses_observed_distribution_and_backs_off() -> None:
     assert empirical_start_lead_minutes([]) is None
-    assert empirical_start_lead_minutes([20, 30, 40, 50, 60]) == 60
+    assert empirical_start_lead_minutes([17, 29, 43, 58, 71]) == 71
     kickoff = NOW + timedelta(hours=2)
 
     first = next_lineup_poll_at(
@@ -134,10 +134,10 @@ def test_adaptive_polling_uses_observed_distribution_and_backs_off() -> None:
             completed_poll_count=0,
             existing_plan_count=0,
         ),
-        observed_minutes_to_kickoff=[20, 30, 40, 50, 60],
+        observed_minutes_to_kickoff=[17, 29, 43, 58, 71],
     )
     retry = next_lineup_poll_at(
-        now=kickoff - timedelta(minutes=60),
+        now=kickoff - timedelta(minutes=73),
         candidate=LineupPollCandidate(
             fixture_id="fixture",
             competition_id="premier_league",
@@ -145,13 +145,13 @@ def test_adaptive_polling_uses_observed_distribution_and_backs_off() -> None:
             kickoff_at=kickoff,
             completed_poll_count=1,
             existing_plan_count=1,
-            last_polled_at=kickoff - timedelta(minutes=60),
+            last_polled_at=kickoff - timedelta(minutes=73),
         ),
         observed_minutes_to_kickoff=[20, 30, 40, 50, 60],
     )
 
-    assert first == kickoff - timedelta(minutes=60)
-    assert retry == kickoff - timedelta(minutes=40)
+    assert first == kickoff - timedelta(minutes=71)
+    assert retry == kickoff - timedelta(minutes=48, seconds=40)
 
 
 def test_polling_never_creates_more_than_three_plans_per_fixture() -> None:
