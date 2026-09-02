@@ -248,7 +248,7 @@ def test_a_unadmissible_emits_no_notification(status: object) -> None:
 
 # --- (b) admissible statuses still answer to the EV gates --------------------
 @pytest.mark.parametrize("status", ADMISSIBLE)
-def test_b_admissible_reaches_candidate(status: str) -> None:
+def test_b_admissible_reaches_analysis_complete(status: str) -> None:
     attempt = _attempt(status)
     assert attempt.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
     assert attempt.state.value == "ANALYSIS_COMPLETE"
@@ -409,7 +409,7 @@ def test_d_round_trip_distinguishes_absent_from_declared_baseline() -> None:
 
 
 # --- (e) a downgrade blocks and does not leave a stale candidate -------------
-def test_e_downgrade_on_the_same_opportunity_withdraws_the_candidate() -> None:
+def test_e_same_opportunity_downgrade_emits_no_outbox() -> None:
     """One opportunity, one quote, one model input, one checkpoint. Only the
     calibration changes, and the whole chain has to notice."""
     engine = _engine()

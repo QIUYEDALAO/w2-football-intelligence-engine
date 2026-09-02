@@ -322,7 +322,7 @@ def test_independent_repositories_dedupe_runtime_retry_and_reject_conflict(
     assert len(first_repository.records()) == 1
 
 
-def test_forward_outcome_ledger_validation_pick_binds_entry_quote(
+def test_retired_analysis_v4_is_not_captured_as_validation_pick(
     tmp_path: Path,
 ) -> None:
     repository = _repository(tmp_path)
@@ -366,13 +366,11 @@ def test_forward_outcome_ledger_validation_pick_binds_entry_quote(
 
     rows = repository.records()
     assert payload["written"] == 1
-    assert rows[0]["recommendation_scope"] == "VALIDATION"
-    assert rows[0]["outcome_tracked"] is True
+    assert rows[0]["recommendation_scope"] == "SHADOW"
+    assert rows[0]["outcome_tracked"] is False
     assert rows[0]["lock_eligible"] is False
-    assert rows[0]["pick"]["selection"] == "AWAY_AH"
-    assert rows[0]["pick"]["entry_line"] == "1.25"
-    assert rows[0]["pick"]["entry_price"] == "1.93"
-    assert rows[0]["pick"]["odds"] == "1.93"
+    assert rows[0]["pick"]["not_a_recommendation"] is True
+    assert rows[0]["pick"]["shadow"] is True
     assert rows[0]["decision_hash"] == _analysis_v4_decision()["decision_hash"]
 
 

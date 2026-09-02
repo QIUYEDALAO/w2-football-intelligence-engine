@@ -100,7 +100,9 @@ def test_recommendation_lock_is_not_updatable(session: Session) -> None:
 
 def test_recommendation_lock_can_store_reproducible_prematch_snapshot(
     session: Session,
+    monkeypatch,
 ) -> None:
+    _enable_retired_gate(monkeypatch)
     fixture = _fixture_graph(session)
     recommendation = RecommendationModel(
         fixture_id=fixture.id,
@@ -164,7 +166,11 @@ def test_legacy_recommendation_lock_defaults_to_non_reproducible_marker(
     assert stored.pick_side is None
 
 
-def test_formal_tracking_db_capture_uses_reproducible_lock_builder(session: Session) -> None:
+def test_formal_tracking_db_capture_uses_reproducible_lock_builder(
+    session: Session,
+    monkeypatch,
+) -> None:
+    _enable_retired_gate(monkeypatch)
     fixture = _fixture_graph(session)
     recommendation = RecommendationModel(
         fixture_id=fixture.id,
@@ -380,6 +386,13 @@ def _formal_card(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:
         },
         "data_profile": "real-db",
     }
+
+
+def _enable_retired_gate(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "w2.domain.recommendation_decision_v4.ECONOMIC_ADMISSION_FEATURE_ENABLED",
+        True,
+    )
 
 
 def _formal_decision_v4(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:

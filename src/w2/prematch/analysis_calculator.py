@@ -66,6 +66,8 @@ from w2.domain.recommendation_decision_v3 import (
     validate_decision_v3_identity,
 )
 from w2.domain.recommendation_decision_v4 import (
+    MODEL_MARKET_DIVERGENCE,
+    MODEL_MARKET_DIVERGENCE_EXPLANATION,
     RecommendationDecisionV4,
     RecommendationOutcomeV4,
     authoritative_input_from_market_candidate,
@@ -163,7 +165,6 @@ from w2.strategy.formal_recommendation import (
     formal_recommendations_enabled,
 )
 from w2.strategy.market_selector import (
-    PRIMARY_THRESHOLD,
     apply_market_selection,
     enrich_secondary_evidence,
 )
@@ -265,7 +266,7 @@ def _next_future_evaluation(values: list[Any], *, now: datetime) -> str | None:
 
 def _public_market_is_primary_pick(market: dict[str, Any]) -> bool:
     decision = str(market.get("decision") or market.get("analysis_decision") or "").upper()
-    if decision not in {"PICK", "ANALYSIS_PICK", "RECOMMEND"}:
+    if decision not in {"PICK", "RECOMMEND"}:
         return False
     candidate = market.get("market_candidate")
     if isinstance(candidate, dict):
@@ -724,23 +725,7 @@ def _recommendation_from_v4(
         and _formal_identity_matches(authoritative, formal_recommendation)
     ):
         return {**formal_recommendation, "quote_identity": quote_identity}
-    if decision.outcome is not RecommendationOutcomeV4.ANALYSIS_PICK:
-        return None
-    return {
-        "decision_tier": "ANALYSIS_PICK",
-        "market": selected.get("market"),
-        "selection": selected.get("selection"),
-        "line": selected.get("exact_line"),
-        "odds": selected.get("decimal_odds"),
-        "fair_odds": selected.get("fair_odds"),
-        "expected_value": selected.get("expected_value"),
-        "ev_se": selected.get("uncertainty"),
-        "cashflow_price_edge": selected.get("cashflow_price_edge"),
-        "quote_identity": quote_identity,
-        "candidate": False,
-        "formal_recommendation": False,
-        "disclaimer": "分析参考·非稳赢；production 动作需 RECOMMEND",
-    }
+    return None
 
 
 def _decision_contract_from_v4(
@@ -750,13 +735,11 @@ def _decision_contract_from_v4(
     projected = dict(contract)
     projected.pop("decision_contract", None)
     outcome = decision.outcome
-    pick_outcome = outcome in {
-        RecommendationOutcomeV4.ANALYSIS_PICK,
-        RecommendationOutcomeV4.FORMAL_RECOMMEND,
-    }
+    pick_outcome = outcome is RecommendationOutcomeV4.FORMAL_RECOMMEND
     tier = {
         RecommendationOutcomeV4.FORMAL_RECOMMEND: "RECOMMEND",
-        RecommendationOutcomeV4.ANALYSIS_PICK: "ANALYSIS_PICK",
+        RecommendationOutcomeV4.MODEL_MARKET_DIVERGENCE: MODEL_MARKET_DIVERGENCE,
+        RecommendationOutcomeV4.ANALYSIS_PICK: MODEL_MARKET_DIVERGENCE,
         RecommendationOutcomeV4.NO_EDGE: "SKIP",
         RecommendationOutcomeV4.NOT_READY: "NOT_READY",
     }[outcome]
@@ -772,7 +755,7 @@ def _decision_contract_from_v4(
             "uncertainty": selected.get("uncertainty"),
             "value_edge": selected.get("cashflow_price_edge"),
             "key_factors": ["同一权威候选五态现金流定价"],
-            "risks": ["ANALYSIS_ONLY_FORMAL_DISABLED"] if tier == "ANALYSIS_PICK" else [],
+            "risks": [],
             "invalidation": "EXACT_QUOTE_IDENTITY_OR_MODEL_INPUT_CHANGED",
             "disclaimer": "分析参考·非稳赢；production 动作需 RECOMMEND",
         }
@@ -789,6 +772,18 @@ def _decision_contract_from_v4(
             "next_eval_at": projected.get("next_eval_at"),
         }
     )
+    divergence = (
+        {
+            "descriptor": MODEL_MARKET_DIVERGENCE,
+            "explanation": MODEL_MARKET_DIVERGENCE_EXPLANATION,
+            "market": selected.get("market"),
+            "model_probability": selected.get("model_probability"),
+            "market_probability": selected.get("market_probability"),
+            "probability_delta": selected.get("probability_delta_diagnostic"),
+        }
+        if tier == MODEL_MARKET_DIVERGENCE and selected is not None
+        else None
+    )
     projected.update(
         {
             "decision_tier": tier,
@@ -804,8 +799,9 @@ def _decision_contract_from_v4(
             ),
             "pick": pick,
             "non_pick": non_pick,
+            "model_market_divergence": divergence,
             "reason_code": decision.reason_code,
-            "action": "MONITOR" if pick is not None else "WAIT",
+            "action": "MONITOR" if pick is not None else "ANALYZE",
             "one_liner": decision.reason_message,
             "selected_market_candidate": dict(selected) if selected is not None else None,
             "recommendation_authority": "RECOMMENDATION_DECISION_V4",
@@ -1672,7 +1668,7 @@ class ReadModelService:
             for card in response_cards
             if isinstance(card.get("recommendation"), dict)
             and str(cast(dict[str, Any], card["recommendation"]).get("decision_tier"))
-            in {"RECOMMEND", "ANALYSIS_PICK"}
+            == "RECOMMEND"
         ]
         upcoming = [
             card for card in response_cards if str(card.get("status", "")).upper() != "FINISHED"
@@ -2575,6 +2571,8 @@ class ReadModelService:
         projected["decision"] = (
             "ANALYSIS_PICK"
             if tier in {"ANALYSIS_PICK", "RECOMMEND"}
+            else MODEL_MARKET_DIVERGENCE
+            if tier == MODEL_MARKET_DIVERGENCE
             else "WATCH"
             if tier == "WATCH"
             else "SKIP"
@@ -3540,7 +3538,11 @@ class ReadModelService:
                     "TOTALS",
                 }:
                     continue
-                if str(market.get("decision") or "") in {"PICK", "ANALYSIS_PICK"}:
+                if str(market.get("decision") or "") in {
+                    "PICK",
+                    "ANALYSIS_PICK",
+                    MODEL_MARKET_DIVERGENCE,
+                }:
                     market["decision"] = "WATCH"
                     market["tendency"] = None
                     market["reasons"] = ["五大联赛正式首发、身份或身价尚未完整确认。"]
@@ -3794,8 +3796,8 @@ class ReadModelService:
         decisions = {
             str(market.get("decision") or "") for market in markets if isinstance(market, dict)
         }
-        if "PICK" in decisions or "ANALYSIS_PICK" in decisions:
-            payload["decision"] = "ANALYSIS_PICK"
+        if decisions.intersection({"PICK", "ANALYSIS_PICK", MODEL_MARKET_DIVERGENCE}):
+            payload["decision"] = MODEL_MARKET_DIVERGENCE
         elif "NO_EDGE" in decisions:
             payload["decision"] = "NO_EDGE"
         elif "WATCH" in decisions:
@@ -5812,8 +5814,9 @@ class ReadModelService:
             fixture_id=str(decorated.get("fixture_id") or ""),
             competition_id=str(decorated.get("competition_id") or ""),
         )
+        capability_manifest = load_recommendation_capability_manifest()
         for market, candidate_key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou")):
-            if not analysis_market_enabled(market):
+            if not analysis_market_enabled(market, manifest=capability_manifest):
                 candidate = decorated["market_candidates"].get(candidate_key)
                 if isinstance(candidate, dict):
                     candidate["candidate"] = False
@@ -5835,26 +5838,26 @@ class ReadModelService:
                     market["market_candidate"] = candidate
                     self._attach_market_candidate_evidence_projection(market, candidate)
                     if candidate.get("analysis_evidence_status") == "COMPLETE":
-                        if candidate.get("analysis_direction_allowed"):
+                        market_name = str(market.get("market") or "")
+                        if analysis_market_enabled(
+                            market_name,
+                            manifest=capability_manifest,
+                        ):
                             market["tendency"] = candidate.get("selection")
-                            market["analysis_decision"] = "ANALYSIS_PICK"
-                            market["decision_score"] = max(
-                                self._optional_float(market.get("decision_score"))
-                                or self._optional_float(market.get("signal_strength"))
-                                or 0.0,
-                                PRIMARY_THRESHOLD,
+                            market["analysis_decision"] = MODEL_MARKET_DIVERGENCE
+                            market["decision"] = MODEL_MARKET_DIVERGENCE
+                            market["divergence_explanation"] = (
+                                MODEL_MARKET_DIVERGENCE_EXPLANATION
                             )
-                            market["signal_strength"] = market["decision_score"]
-                        market["decision"] = (
-                            "ANALYSIS_PICK"
-                            if candidate.get("analysis_direction_allowed")
-                            else "WATCH"
-                        )
         apply_market_selection(decorated)
         if not decorated.get("decision_tier"):
             decorated["decision_tier"] = (
-                "ANALYSIS_PICK"
-                if decorated.get("primary_market")
+                MODEL_MARKET_DIVERGENCE
+                if any(
+                    str(item.get("decision") or "").upper()
+                    == MODEL_MARKET_DIVERGENCE
+                    for item in decorated["markets"]
+                )
                 else "WATCH"
                 if str(decorated.get("decision") or "").upper() == "WATCH"
                 or any(

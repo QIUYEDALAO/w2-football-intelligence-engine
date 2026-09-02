@@ -10,7 +10,10 @@ from enum import StrEnum
 from typing import Any
 
 from w2.domain import calibration_authority
-from w2.domain.admission_contract import MIN_CASHFLOW_PRICE_EDGE_FLOAT, economic_admission_pass
+from w2.domain.admission_contract import (
+    MIN_CASHFLOW_PRICE_EDGE_FLOAT,
+    economic_admission_pass,
+)
 
 ACTIVE_DELTA_THRESHOLD = 0.05
 ACTIVE_EV_THRESHOLD = 0.0
@@ -34,10 +37,6 @@ ATTEMPT_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v2"
 EVAL_02B_DISTRIBUTION_TOLERANCE = 1e-9
 SOURCE_ABSENT_USER_MESSAGE = "当前采集窗口尚未取得完整盘口"
 SOURCE_ABSENT_NEXT_ACTION = "等待下一次受控采集"
-ECONOMIC_ADMISSION_STATUS = "RETIRED_PRODUCT_SEMANTICS"
-ECONOMIC_ADMISSION_REASON = "NO_VALIDATED_MARKET_EDGE"
-
-
 class DynamicEvaluationState(StrEnum):
     ANALYSIS_COMPLETE = "ANALYSIS_COMPLETE"
     # Compatibility alias for code that names the retired state; new rows serialize

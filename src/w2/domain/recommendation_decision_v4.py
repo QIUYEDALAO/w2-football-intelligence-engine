@@ -8,7 +8,10 @@ from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from typing import Any
 
-from w2.domain.admission_contract import economic_admission_pass
+from w2.domain.admission_contract import (
+    ECONOMIC_ADMISSION_FEATURE_ENABLED,
+    economic_admission_pass,
+)
 from w2.domain.canonical_serialization import (
     CURRENT_SERIALIZER_VERSION,
     HashDomain,
@@ -28,6 +31,10 @@ CANDIDATE_QUOTE_MAX_AGE_SECONDS = 1800
 FIXTURE_IDENTITY_VERSION_PREFIX = "w2.fixture_identity.v1:"
 FIVE_STATE_OUTCOMES = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
 FORMAL_ADMISSION_STATUSES = {"DISABLED", "NOT_APPLICABLE", "NOT_READY", "PASSED"}
+MODEL_MARKET_DIVERGENCE = "MODEL_MARKET_DIVERGENCE"
+MODEL_MARKET_DIVERGENCE_EXPLANATION = (
+    "模型与市场存在分歧；历史证据不支持将其解释为优势。"
+)
 
 IDENTITY_REQUIRED_FIELDS = (
     "fixture_id",
@@ -76,6 +83,8 @@ _OPTIONAL_DIAGNOSTIC_FIELDS = (
 class RecommendationOutcomeV4(StrEnum):
     NOT_READY = "NOT_READY"
     NO_EDGE = "NO_EDGE"
+    MODEL_MARKET_DIVERGENCE = MODEL_MARKET_DIVERGENCE
+    # Historical V4 rows retain this value and remain identity-verifiable.
     ANALYSIS_PICK = "ANALYSIS_PICK"
     FORMAL_RECOMMEND = "FORMAL_RECOMMEND"
 
@@ -227,6 +236,7 @@ def build_recommendation_decision_v4(
         _selected_candidate(normalized)
         if outcome
         in {
+            RecommendationOutcomeV4.MODEL_MARKET_DIVERGENCE,
             RecommendationOutcomeV4.ANALYSIS_PICK,
             RecommendationOutcomeV4.FORMAL_RECOMMEND,
         }
@@ -493,7 +503,7 @@ def _outcome(
     expected_value = _decimal(payload.get("expected_value"))
     uncertainty = _decimal(payload.get("uncertainty"))
     cashflow_edge = _decimal(payload.get("cashflow_price_edge"))
-    if not economic_admission_pass(
+    if ECONOMIC_ADMISSION_FEATURE_ENABLED and not economic_admission_pass(
         expected_value=float(expected_value) if expected_value is not None else None,
         ev_minus_se=(
             float(expected_value - uncertainty)
@@ -504,9 +514,13 @@ def _outcome(
     ):
         return RecommendationOutcomeV4.NO_EDGE, "CASHFLOW_EDGE_INSUFFICIENT", "五态现金流优势不足"
     formal_admission = _mapping(payload.get("formal_admission"))
-    if formal_admission.get("status") == "PASSED":
+    if ECONOMIC_ADMISSION_FEATURE_ENABLED and formal_admission.get("status") == "PASSED":
         return RecommendationOutcomeV4.FORMAL_RECOMMEND, "FORMAL_ADMITTED", "正式推荐已通过能力门"
-    return RecommendationOutcomeV4.ANALYSIS_PICK, "ANALYSIS_ONLY", "当前仅提供分析参考"
+    return (
+        RecommendationOutcomeV4.MODEL_MARKET_DIVERGENCE,
+        "NO_VALIDATED_MARKET_EDGE",
+        MODEL_MARKET_DIVERGENCE_EXPLANATION,
+    )
 
 
 def _selected_candidate(payload: Mapping[str, Any]) -> dict[str, Any]:

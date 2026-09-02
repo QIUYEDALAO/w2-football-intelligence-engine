@@ -110,7 +110,11 @@ _IDENTITY_MUTATIONS: dict[str, object] = {
 }
 
 
-def test_v4_is_complete_recomputable_and_uses_five_state_cashflow_edge() -> None:
+def test_v4_is_complete_recomputable_and_uses_five_state_cashflow_edge(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "w2.domain.recommendation_decision_v4.ECONOMIC_ADMISSION_FEATURE_ENABLED",
+        True,
+    )
     decision = build_recommendation_decision_v4(_authoritative_input())
 
     assert decision.outcome is RecommendationOutcomeV4.FORMAL_RECOMMEND
@@ -181,7 +185,11 @@ def test_new_decision_must_be_formed_before_kickoff() -> None:
     assert "DECISION_NOT_BEFORE_KICKOFF" in decision.blockers
 
 
-def test_candidate_quote_age_boundary_is_independent_and_hashed() -> None:
+def test_candidate_quote_age_boundary_is_independent_and_hashed(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "w2.domain.recommendation_decision_v4.ECONOMIC_ADMISSION_FEATURE_ENABLED",
+        True,
+    )
     accepted = _authoritative_input()
     accepted_readiness = accepted["readiness"]
     assert isinstance(accepted_readiness, dict)
@@ -284,7 +292,7 @@ def test_quote_identity_hash_format_fails_closed(value: str) -> None:
     assert "INVALID_QUOTE_IDENTITY_HASH" in decision.blockers
 
 
-def test_capability_without_passed_formal_admission_remains_analysis_only() -> None:
+def test_capability_without_passed_formal_admission_is_neutral_divergence() -> None:
     payload = _authoritative_input()
     payload["formal_admission"] = {
         "status": "NOT_READY",
@@ -295,7 +303,7 @@ def test_capability_without_passed_formal_admission_remains_analysis_only() -> N
 
     decision = build_recommendation_decision_v4(payload)
 
-    assert decision.outcome is RecommendationOutcomeV4.ANALYSIS_PICK
+    assert decision.outcome is RecommendationOutcomeV4.MODEL_MARKET_DIVERGENCE
 
 
 def test_formal_candidate_identity_mismatch_fails_closed() -> None:
@@ -310,7 +318,7 @@ def test_formal_candidate_identity_mismatch_fails_closed() -> None:
     assert "FORMAL_CANDIDATE_IDENTITY_MISMATCH" in decision.blockers
 
 
-def test_all_admission_gates_insufficient_is_no_edge_without_selected_candidate() -> None:
+def test_retired_admission_gates_do_not_remove_diagnostic_candidate() -> None:
     payload = _authoritative_input()
     payload["decimal_odds"] = "1.5"
     payload["expected_value"] = "0.025"
@@ -323,5 +331,5 @@ def test_all_admission_gates_insufficient_is_no_edge_without_selected_candidate(
 
     decision = build_recommendation_decision_v4(payload)
 
-    assert decision.outcome is RecommendationOutcomeV4.NO_EDGE
-    assert decision.selected_candidate is None
+    assert decision.outcome is RecommendationOutcomeV4.MODEL_MARKET_DIVERGENCE
+    assert decision.selected_candidate is not None

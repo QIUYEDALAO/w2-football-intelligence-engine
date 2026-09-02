@@ -525,7 +525,14 @@ class WorkspaceShadowCandidate(BaseModel):
     status: Literal["ACTIVE", "NOT_READY", "OFF"]
     mode: Literal["SHADOW_ONLY"]
     authority: Literal["RECOMMENDATION_DECISION_V4"]
-    decision_tier: Literal["NOT_READY", "NO_EDGE", "ANALYSIS_PICK", "FORMAL_RECOMMEND"]
+    decision_tier: Literal[
+        "NOT_READY",
+        "NO_EDGE",
+        "MODEL_MARKET_DIVERGENCE",
+        "ANALYSIS_PICK",
+        "FORMAL_RECOMMEND",
+        "RECOMMEND",
+    ]
     reason_code: str | None
     reason_message: str | None
     market: Literal["ASIAN_HANDICAP", "TOTALS"] | None
@@ -565,7 +572,14 @@ class WorkspaceFormalRecommendation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: Literal["OFF"]
-    reason: Literal["PRODUCT_AUTHORITY_DISABLED"]
+    feature_enabled: Literal[False]
+    economic_admission_status: Literal["RETIRED_PRODUCT_SEMANTICS"]
+    reason: Literal["NO_VALIDATED_MARKET_EDGE"]
+    reactivation_requires: tuple[
+        Literal["NEW_PREREGISTRATION"],
+        Literal["NEW_UNSEEN_COHORT"],
+        Literal["OWNER_AUTHORIZATION"],
+    ]
 
 
 class WorkspaceMarketRadar(BaseModel):

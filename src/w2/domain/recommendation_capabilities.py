@@ -5,6 +5,7 @@ import json
 import os
 from dataclasses import dataclass
 from enum import StrEnum
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -115,7 +116,13 @@ def default_manifest_path() -> Path:
 def load_recommendation_capability_manifest(
     path: Path | None = None,
 ) -> RecommendationCapabilityManifest:
-    resolved_path = path or default_manifest_path()
+    return _load_recommendation_capability_manifest((path or default_manifest_path()).resolve())
+
+
+@cache
+def _load_recommendation_capability_manifest(
+    resolved_path: Path,
+) -> RecommendationCapabilityManifest:
     try:
         raw = resolved_path.read_bytes()
     except OSError as exc:

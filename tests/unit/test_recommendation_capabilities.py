@@ -10,6 +10,7 @@ import pytest
 from w2.domain.recommendation_capabilities import (
     REQUIRED_CAPABILITIES,
     CapabilityManifestError,
+    _load_recommendation_capability_manifest,
     default_manifest_path,
     load_recommendation_capability_manifest,
 )
@@ -46,7 +47,26 @@ def test_default_manifest_is_complete_and_keeps_restricted_capabilities_closed()
     assert manifest.capability("formal_ou").publicly_available is False
     assert manifest.capability("lineup_numeric_adjustment_ah").feature_enabled is False
     assert manifest.capability("lineup_numeric_adjustment_ou").feature_enabled is False
+    assert manifest.capability("production_recommendation").feature_enabled is False
     assert manifest.capability("production_recommendation").production_enabled is False
+
+
+def test_manifest_is_read_once_for_repeated_per_card_consumers(monkeypatch) -> None:
+    _load_recommendation_capability_manifest.cache_clear()
+    reads = 0
+    original = Path.read_bytes
+
+    def counted_read(path: Path) -> bytes:
+        nonlocal reads
+        reads += 1
+        return original(path)
+
+    monkeypatch.setattr(Path, "read_bytes", counted_read)
+
+    for _ in range(3):
+        load_recommendation_capability_manifest()
+
+    assert reads == 1
 
 
 def test_default_manifest_prefers_explicit_runtime_root(monkeypatch: pytest.MonkeyPatch) -> None:

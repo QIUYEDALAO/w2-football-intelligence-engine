@@ -19,7 +19,8 @@ from w2.infrastructure.persistence.recommendation_lock_snapshot import (
 NOW = datetime(2026, 6, 22, 1, 0, tzinfo=UTC)
 
 
-def test_lock_snapshot_builder_creates_reproducible_payload_hash() -> None:
+def test_lock_snapshot_builder_creates_reproducible_payload_hash(monkeypatch) -> None:
+    _enable_retired_gate(monkeypatch)
     card = _card()
     first = build_recommendation_lock_snapshot(
         recommendation_id="rec-1",
@@ -50,7 +51,8 @@ def test_lock_snapshot_builder_creates_reproducible_payload_hash() -> None:
     )
 
 
-def test_lock_snapshot_hash_changes_when_freeze_payload_changes() -> None:
+def test_lock_snapshot_hash_changes_when_freeze_payload_changes(monkeypatch) -> None:
+    _enable_retired_gate(monkeypatch)
     card = _card()
     changed = deepcopy(card)
     changed["market_timeline"]["pattern"] = "REVERSAL"
@@ -73,7 +75,8 @@ def test_lock_snapshot_hash_changes_when_freeze_payload_changes() -> None:
     assert first.snapshot_payload_hash != second.snapshot_payload_hash
 
 
-def test_lock_snapshot_builder_rejects_invalid_formal_payload() -> None:
+def test_lock_snapshot_builder_rejects_invalid_formal_payload(monkeypatch) -> None:
+    _enable_retired_gate(monkeypatch)
     card = _card()
     card["recommendation"]["selection"] = "UNKNOWN"
 
@@ -143,7 +146,9 @@ def test_lock_snapshot_builder_requires_recommendation_to_match_v4_candidate(
     field: str,
     value: str,
     error: str,
+    monkeypatch,
 ) -> None:
+    _enable_retired_gate(monkeypatch)
     card = _card()
     card["recommendation"][field] = value
 
@@ -157,7 +162,8 @@ def test_lock_snapshot_builder_requires_recommendation_to_match_v4_candidate(
         )
 
 
-def test_lock_snapshot_builder_rejects_quote_identity_capture_id_mutation() -> None:
+def test_lock_snapshot_builder_rejects_quote_identity_capture_id_mutation(monkeypatch) -> None:
+    _enable_retired_gate(monkeypatch)
     card = _card()
     card["recommendation"]["quote_identity"]["capture_id"] = "capture-other"
 
@@ -198,7 +204,8 @@ def test_lock_snapshot_builder_requires_data_profile() -> None:
         )
 
 
-def test_lock_snapshot_builder_rejects_post_kickoff_freeze() -> None:
+def test_lock_snapshot_builder_rejects_post_kickoff_freeze(monkeypatch) -> None:
+    _enable_retired_gate(monkeypatch)
     card = _card()
 
     with pytest.raises(ValueError, match="LOCK_SNAPSHOT_REQUIRES_PREMATCH"):
@@ -269,6 +276,13 @@ def _card() -> dict[str, object]:
         "data_refresh": {"lineups_status": "READY", "xg_status": "READY"},
         "data_profile": "real-db",
     }
+
+
+def _enable_retired_gate(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "w2.domain.recommendation_decision_v4.ECONOMIC_ADMISSION_FEATURE_ENABLED",
+        True,
+    )
 
 
 def _decision_v4(*, capability_status: str = "FORMAL_ENABLED") -> dict[str, object]:

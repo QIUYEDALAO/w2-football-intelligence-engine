@@ -43,7 +43,12 @@ TOP_LEVEL_CONFLICT_FIELDS = CONTRACT_OWNED_FIELDS - {"data_readiness"}
 
 _PICK_TIERS = frozenset({DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND})
 _NON_PICK_TIERS = frozenset(
-    {DecisionTier.NOT_READY, DecisionTier.SKIP, DecisionTier.WATCH}
+    {
+        DecisionTier.NOT_READY,
+        DecisionTier.SKIP,
+        DecisionTier.WATCH,
+        DecisionTier.MODEL_MARKET_DIVERGENCE,
+    }
 )
 
 

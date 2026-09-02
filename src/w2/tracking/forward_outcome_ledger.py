@@ -212,8 +212,12 @@ def _validated_v4_projection(card: Mapping[str, Any]) -> dict[str, Any]:
     if _text(decision.get("fixture_id")) != _text(card.get("fixture_id")):
         raise ValueError("FORWARD_CAPTURE_RECOMMENDATION_DECISION_V4_INVALID")
     selected = decision.get("selected_candidate")
-    is_pick = outcome in {"ANALYSIS_PICK", "FORMAL_RECOMMEND"}
-    if is_pick != isinstance(selected, Mapping):
+    carries_candidate = outcome in {
+        "MODEL_MARKET_DIVERGENCE",
+        "ANALYSIS_PICK",
+        "FORMAL_RECOMMEND",
+    }
+    if carries_candidate != isinstance(selected, Mapping):
         raise ValueError("FORWARD_CAPTURE_RECOMMENDATION_DECISION_V4_INVALID")
     return {**project_canonical_decision(decision), "decision_hash": decision_hash}
 

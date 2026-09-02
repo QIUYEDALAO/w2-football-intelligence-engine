@@ -83,6 +83,7 @@ def test_decision_tier_values_are_domain_source_of_truth() -> None:
         "NOT_READY",
         "SKIP",
         "WATCH",
+        "MODEL_MARKET_DIVERGENCE",
         "ANALYSIS_PICK",
         "RECOMMEND",
     }

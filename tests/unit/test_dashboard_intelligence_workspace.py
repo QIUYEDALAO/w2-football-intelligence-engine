@@ -674,7 +674,7 @@ def _workspace(
     )
 
 
-def test_shadow_candidate_activation_reuses_v4_and_stays_non_production() -> None:
+def test_retired_shadow_candidate_keeps_historical_v4_non_actionable() -> None:
     day_view = _day_view()
     day_view["cards"][0]["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(2)
     day_view["cards"][0]["market_candidates"] = {
@@ -704,15 +704,16 @@ def test_shadow_candidate_activation_reuses_v4_and_stays_non_production() -> Non
 
     assert payload["runtime"]["candidate"] == "SHADOW_ONLY"
     assert payload["matches"][0]["readiness"]["market_aggregate_status"] == "PARTIAL"
-    assert candidate["status"] == "ACTIVE"
-    assert candidate["market"] == "ASIAN_HANDICAP"
-    assert candidate["outcome_tracked"] is True
+    assert candidate["status"] == "NOT_READY"
+    assert candidate["decision_tier"] == "MODEL_MARKET_DIVERGENCE"
+    assert candidate["market"] is None
+    assert candidate["outcome_tracked"] is False
     DashboardIntelligenceWorkspaceResponse.model_validate(
         {"request_id": "candidate-contract", **payload}
     )
 
 
-def test_analysis_channels_remain_available_for_diagnostic_candidates() -> None:
+def test_analysis_channels_remain_available_without_actionable_candidates() -> None:
     day_view = _day_view()
     card = day_view["cards"][0]
     card["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(2)
@@ -749,14 +750,15 @@ def test_analysis_channels_remain_available_for_diagnostic_candidates() -> None:
 
     payload = _workspace(day_view, candidate_enabled=True)
     shadow = payload["matches"][0]["shadow_candidate"]
-    assert shadow["status"] == "ACTIVE"
-    assert shadow["market"] == "ASIAN_HANDICAP"
+    assert shadow["status"] == "NOT_READY"
+    assert shadow["market"] is None
+    assert shadow["reason_code"] == "NO_VALIDATED_MARKET_EDGE"
 
     decision["selected_candidate"]["market"] = "TOTALS"
     payload = _workspace(day_view, candidate_enabled=True)
     shadow = payload["matches"][0]["shadow_candidate"]
-    assert shadow["status"] == "ACTIVE"
-    assert shadow["market"] == "TOTALS"
+    assert shadow["status"] == "NOT_READY"
+    assert shadow["market"] is None
 
 
 def test_shadow_candidate_fails_closed_when_selected_market_is_not_eligible() -> None:
@@ -1759,7 +1761,18 @@ def test_workspace_allowlist_excludes_legacy_product_authority_fields() -> None:
     )
     assert not any(key.lower().endswith(("_roi", "_clv")) for key in keys)
     assert all(
-        item["formal_recommendation"] == {"status": "OFF", "reason": "PRODUCT_AUTHORITY_DISABLED"}
+        item["formal_recommendation"]
+        == {
+            "status": "OFF",
+            "feature_enabled": False,
+            "economic_admission_status": "RETIRED_PRODUCT_SEMANTICS",
+            "reason": "NO_VALIDATED_MARKET_EDGE",
+            "reactivation_requires": [
+                "NEW_PREREGISTRATION",
+                "NEW_UNSEEN_COHORT",
+                "OWNER_AUTHORIZATION",
+            ],
+        }
         for item in payload["matches"]
     )
 

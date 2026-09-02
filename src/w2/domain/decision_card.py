@@ -18,7 +18,12 @@ from w2.domain.enums import (
 from w2.domain.time import require_utc
 
 PICK_TIERS = {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}
-NON_PICK_TIERS = {DecisionTier.NOT_READY, DecisionTier.SKIP, DecisionTier.WATCH}
+NON_PICK_TIERS = {
+    DecisionTier.NOT_READY,
+    DecisionTier.SKIP,
+    DecisionTier.WATCH,
+    DecisionTier.MODEL_MARKET_DIVERGENCE,
+}
 ANALYSIS_PICK_DISCLAIMER_REQUIRED = ("分析参考", "非稳赢")
 DETERMINISTIC_CLAIM_TERMS = ("必中", "保证", "包赢")
 
@@ -151,7 +156,7 @@ def _validate_tier_payload(
 
     if decision_tier in NON_PICK_TIERS:
         if non_pick is None or pick is not None:
-            raise ValueError("NOT_READY, SKIP, and WATCH DecisionCard values require non_pick only")
+            raise ValueError("non-pick DecisionCard values require non_pick only")
         return
 
     raise ValueError(f"unsupported decision_tier: {decision_tier}")

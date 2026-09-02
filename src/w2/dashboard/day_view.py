@@ -431,6 +431,9 @@ def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "lock_eligible": lock_eligible,
         "outcome_tracked": outcome_tracked,
         "analysis_pick": by_decision_tier[DecisionTier.ANALYSIS_PICK.value],
+        "model_market_divergence": by_decision_tier[
+            DecisionTier.MODEL_MARKET_DIVERGENCE.value
+        ],
         "recommend": by_decision_tier[DecisionTier.RECOMMEND.value],
         "watch": by_decision_tier[DecisionTier.WATCH.value],
         "not_ready": by_decision_tier[DecisionTier.NOT_READY.value],

@@ -817,7 +817,7 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     card = service.analysis_card("1489410")
 
     assert card is not None
-    assert card["decision"] == "ANALYSIS_PICK"
+    assert card["decision"] == "MODEL_MARKET_DIVERGENCE"
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
     assert card["home_name"] == "Home"
@@ -894,10 +894,10 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert card["line_movement"]["ah_open"] in {"-0.5", "0.5"}
     assert card["line_movement"]["ah_current"] in {"-0.5", "0.5"}
     decisions = {market["market"]: market["decision"] for market in card["markets"]}
-    # The point estimate now uses the same validated five-match components as
-    # the uncertainty audit, so this fixture's economic decision is a pick.
-    assert decisions["ASIAN_HANDICAP"] == "ANALYSIS_PICK"
-    assert decisions["TOTALS"] in {"PICK", "ANALYSIS_PICK"}
+    # Complete market evidence now describes model/market divergence without
+    # interpreting the difference as an actionable advantage.
+    assert decisions["ASIAN_HANDICAP"] == "MODEL_MARKET_DIVERGENCE"
+    assert decisions["TOTALS"] == "MODEL_MARKET_DIVERGENCE"
     assert decisions["FIRST_HALF_GOALS"] == "PICK"
     assert decisions["SCORE"] == "NO_EDGE"
     ah_market = next(

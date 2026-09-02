@@ -20,6 +20,10 @@ from w2.domain.enums import (
     LifecycleStatus,
     ProbabilitySource,
 )
+from w2.domain.recommendation_decision_v4 import (
+    MODEL_MARKET_DIVERGENCE,
+    MODEL_MARKET_DIVERGENCE_EXPLANATION,
+)
 from w2.lineups.intelligence import lineup_requirement as competition_lineup_requirement
 from w2.readiness.data_gate import (
     DataFreshnessPolicy,
@@ -200,7 +204,13 @@ def build_decision_contract_fields(
             as_of=as_of,
             reason_override=forced_reason,
         )
-        if tier in {DecisionTier.NOT_READY, DecisionTier.SKIP, DecisionTier.WATCH}
+        if tier
+        in {
+            DecisionTier.NOT_READY,
+            DecisionTier.SKIP,
+            DecisionTier.WATCH,
+            DecisionTier.MODEL_MARKET_DIVERGENCE,
+        }
         else None
     )
     core = {
@@ -920,6 +930,8 @@ def _model_market_divergence(
     if evidence.get("evidence_contract_version") == "w2.analysis-market-evidence.v2":
         comparison = _as_mapping(evidence.get("comparison"))
         return {
+            "descriptor": MODEL_MARKET_DIVERGENCE,
+            "explanation": MODEL_MARKET_DIVERGENCE_EXPLANATION,
             "source": "analysis_evidence",
             "status": str(comparison.get("status") or evidence.get("status") or "UNKNOWN"),
             "magnitude": _finite_number(comparison.get("probability_delta")),
@@ -933,6 +945,8 @@ def _model_market_divergence(
             "compatibility_only": False,
         }
     return {
+        "descriptor": MODEL_MARKET_DIVERGENCE,
+        "explanation": MODEL_MARKET_DIVERGENCE_EXPLANATION,
         "source": "analysis_evidence",
         "compatibility_only": False,
         "status": "MISSING",
@@ -993,6 +1007,8 @@ def _one_liner(
         return "分析参考·非稳赢；production 动作需 RECOMMEND。"
     if tier is DecisionTier.RECOMMEND:
         return "RECOMMEND requires production evidence and policy gates."
+    if tier is DecisionTier.MODEL_MARKET_DIVERGENCE:
+        return MODEL_MARKET_DIVERGENCE_EXPLANATION
     if non_pick is not None:
         return f"{_get(non_pick, 'reason_human')}；{_get(non_pick, 'action')}。"
     return "等待下一次评估。"

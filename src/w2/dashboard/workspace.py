@@ -11,6 +11,12 @@ from w2.dashboard.results import (
     selected_day_outcome_cause,
     selected_day_record_kind,
 )
+from w2.domain.admission_contract import (
+    ECONOMIC_ADMISSION_FEATURE_ENABLED,
+    ECONOMIC_ADMISSION_REACTIVATION_REQUIRES,
+    ECONOMIC_ADMISSION_REASON,
+    ECONOMIC_ADMISSION_STATUS,
+)
 from w2.domain.recommendation_capabilities import (
     analysis_market_enabled,
     load_recommendation_capability_manifest,
@@ -1054,7 +1060,10 @@ def _match(
         "factor_checklist": factor_checklist,
         "formal_recommendation": {
             "status": "OFF",
-            "reason": "PRODUCT_AUTHORITY_DISABLED",
+            "feature_enabled": ECONOMIC_ADMISSION_FEATURE_ENABLED,
+            "economic_admission_status": ECONOMIC_ADMISSION_STATUS,
+            "reason": ECONOMIC_ADMISSION_REASON,
+            "reactivation_requires": list(ECONOMIC_ADMISSION_REACTIVATION_REQUIRES),
         },
         "market_radar": {
             "schema_version": _text(radar.get("schema_version"), "w2.market-radar.v1"),
@@ -1149,7 +1158,8 @@ def _shadow_candidate(
     selected_market = _text(selected.get("market"))
     eligibility = _mapping(_mapping(markets.get(selected_market)).get("eligibility"))
     active = (
-        enabled
+        ECONOMIC_ADMISSION_FEATURE_ENABLED
+        and enabled
         and selected_market in enabled_analysis_markets
         and _text(decision.get("outcome")) == "ANALYSIS_PICK"
         and bool(selected)
@@ -1159,9 +1169,18 @@ def _shadow_candidate(
         "status": "ACTIVE" if active else "NOT_READY" if enabled else "OFF",
         "mode": "SHADOW_ONLY",
         "authority": "RECOMMENDATION_DECISION_V4",
-        "decision_tier": "ANALYSIS_PICK" if active else _text(decision.get("outcome"), "NOT_READY"),
-        "reason_code": _optional_text(reason.get("code")),
-        "reason_message": _optional_text(reason.get("message")),
+        "decision_tier": "ANALYSIS_PICK"
+        if active
+        else "MODEL_MARKET_DIVERGENCE"
+        if _text(decision.get("outcome"))
+        in {"ANALYSIS_PICK", "MODEL_MARKET_DIVERGENCE"}
+        else _text(decision.get("outcome"), "NOT_READY"),
+        "reason_code": "NO_VALIDATED_MARKET_EDGE"
+        if not active and bool(selected)
+        else _optional_text(reason.get("code")),
+        "reason_message": "模型与市场存在分歧；历史证据不支持将其解释为优势。"
+        if not active and bool(selected)
+        else _optional_text(reason.get("message")),
         "market": _optional_text(selected.get("market")) if active else None,
         "selection": _optional_text(selected.get("selection")) if active else None,
         "exact_line": _optional_text(selected.get("exact_line") or selected.get("line"))

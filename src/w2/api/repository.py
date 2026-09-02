@@ -49,6 +49,8 @@ from w2.domain.recommendation_capabilities import (
     load_recommendation_capability_manifest,
 )
 from w2.domain.recommendation_decision_v4 import (
+    MODEL_MARKET_DIVERGENCE,
+    MODEL_MARKET_DIVERGENCE_EXPLANATION,
     RecommendationOutcomeV4,
     build_recommendation_decision_v4,
     validate_decision_v4_identity,
@@ -710,7 +712,8 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
     outcome = str(decision.get("outcome") or "")
     tier = {
         RecommendationOutcomeV4.FORMAL_RECOMMEND.value: "RECOMMEND",
-        RecommendationOutcomeV4.ANALYSIS_PICK.value: "ANALYSIS_PICK",
+        RecommendationOutcomeV4.MODEL_MARKET_DIVERGENCE.value: MODEL_MARKET_DIVERGENCE,
+        RecommendationOutcomeV4.ANALYSIS_PICK.value: MODEL_MARKET_DIVERGENCE,
         RecommendationOutcomeV4.NO_EDGE.value: "SKIP",
         RecommendationOutcomeV4.NOT_READY.value: "NOT_READY",
     }.get(outcome)
@@ -742,14 +745,14 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
             "uncertainty": selected.get("uncertainty"),
             "value_edge": selected.get("cashflow_price_edge"),
             "key_factors": ["同一权威候选五态现金流定价"],
-            "risks": ["ANALYSIS_ONLY_FORMAL_DISABLED"] if tier == "ANALYSIS_PICK" else [],
+            "risks": [],
             "invalidation": "EXACT_QUOTE_IDENTITY_OR_MODEL_INPUT_CHANGED",
             "disclaimer": "分析参考·非稳赢；production 动作需 RECOMMEND",
         }
-        if isinstance(selected, dict) and tier in {"ANALYSIS_PICK", "RECOMMEND"}
+        if isinstance(selected, dict) and tier == "RECOMMEND"
         else None
     )
-    if (tier in {"ANALYSIS_PICK", "RECOMMEND"}) != (pick is not None):
+    if (tier == "RECOMMEND") != (pick is not None):
         raise SystemDegradedError("RECOMMENDATION_DECISION_V4_PICK_INVALID")
     reason_value = decision.get("reason")
     reason = reason_value if isinstance(reason_value, dict) else {}
@@ -769,6 +772,18 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
             "next_eval_at": None,
         }
     )
+    divergence = (
+        {
+            "descriptor": MODEL_MARKET_DIVERGENCE,
+            "explanation": MODEL_MARKET_DIVERGENCE_EXPLANATION,
+            "market": selected.get("market"),
+            "model_probability": selected.get("model_probability"),
+            "market_probability": selected.get("market_probability"),
+            "probability_delta": selected.get("probability_delta_diagnostic"),
+        }
+        if tier == MODEL_MARKET_DIVERGENCE and isinstance(selected, dict)
+        else None
+    )
     contract_value = card.get("decision_contract")
     contract = dict(contract_value) if isinstance(contract_value, dict) else {}
     contract.update(
@@ -780,8 +795,9 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
             "recommendation_id": None,
             "pick": pick,
             "non_pick": projected_non_pick,
+            "model_market_divergence": divergence,
             "reason_code": projected_reason_code,
-            "action": "MONITOR" if pick is not None else "WAIT",
+            "action": "MONITOR" if pick is not None else "ANALYZE",
             "recommendation_authority": "RECOMMENDATION_DECISION_V4",
         }
     )
@@ -797,6 +813,7 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
             "recommendation_id": None,
             "pick": pick,
             "non_pick": projected_non_pick,
+            "model_market_divergence": divergence,
             "reason_code": contract.get("reason_code"),
             "action": contract.get("action"),
             "card_hash": contract.get("card_hash"),
@@ -2918,7 +2935,7 @@ class ReadModelService:
         recommendations = [
             card
             for card in selected
-            if str(card.get("decision_tier") or "") in {"RECOMMEND", "ANALYSIS_PICK"}
+            if str(card.get("decision_tier") or "") == "RECOMMEND"
         ]
         upcoming = [card for card in selected if card["status"] != "FINISHED"]
         finished = [card for card in selected if card["status"] == "FINISHED"]
@@ -3119,7 +3136,7 @@ class ReadModelService:
                 "formal_recommendation": merged.get("decision_tier") == "RECOMMEND",
             }
             if isinstance(selected, dict)
-            and str(merged.get("decision_tier") or "") in {"RECOMMEND", "ANALYSIS_PICK"}
+            and str(merged.get("decision_tier") or "") == "RECOMMEND"
             else None
         )
         return merged

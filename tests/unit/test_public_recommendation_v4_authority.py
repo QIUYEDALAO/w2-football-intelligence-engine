@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from w2.api.repository import _apply_repository_v4_authority
 from w2.dashboard.day_view import build_dashboard_day_view
 from w2.domain.recommendation_decision_v4 import (
+    MODEL_MARKET_DIVERGENCE_EXPLANATION,
     RecommendationOutcomeV4,
     build_recommendation_decision_v4,
     candidate_identity_hash,
@@ -112,7 +113,7 @@ def _decision() -> dict[str, object]:
         candidate=_candidate(),
         formal_recommendation=None,
     )
-    assert decision.outcome is RecommendationOutcomeV4.ANALYSIS_PICK
+    assert decision.outcome is RecommendationOutcomeV4.MODEL_MARKET_DIVERGENCE
     return decision.as_dict()
 
 
@@ -120,21 +121,26 @@ def _contract(decision: dict[str, object]) -> dict[str, object]:
     selected = decision["selected_candidate"]
     assert isinstance(selected, dict)
     return {
-        "decision_tier": "ANALYSIS_PICK",
+        "decision_tier": "MODEL_MARKET_DIVERGENCE",
         "data_status": "READY",
         "lifecycle_status": "DRAFT",
-        "outcome_tracked": True,
+        "outcome_tracked": False,
         "lock_eligible": False,
         "recommendation_id": None,
         "lineup_requirement": "ADVISORY",
         "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
-        "pick": {
-            "market": selected["market"],
-            "selection": selected["selection"],
-            "line": selected["exact_line"],
-            "odds": selected["decimal_odds"],
+        "pick": None,
+        "non_pick": {
+            "reason_code": "EDGE_INSUFFICIENT",
+            "reason_human": MODEL_MARKET_DIVERGENCE_EXPLANATION,
+            "action": "仅作模型诊断",
+            "next_eval_at": None,
         },
-        "non_pick": None,
+        "model_market_divergence": {
+            "descriptor": "MODEL_MARKET_DIVERGENCE",
+            "explanation": MODEL_MARKET_DIVERGENCE_EXPLANATION,
+            "market": selected["market"],
+        },
     }
 
 
@@ -164,7 +170,11 @@ def test_public_v4_input_reuses_exact_candidate_identity_and_manifest_gate() -> 
     assert authoritative["formal_admission"]["status"] == "DISABLED"
 
 
-def test_formal_recommendation_carries_exact_v4_quote_identity() -> None:
+def test_formal_recommendation_carries_exact_v4_quote_identity(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "w2.domain.recommendation_decision_v4.ECONOMIC_ADMISSION_FEATURE_ENABLED",
+        True,
+    )
     materialized = _decision()
     authoritative = deepcopy(materialized["authoritative_input"])
     authoritative["capability_status"] = "FORMAL_ENABLED"
@@ -293,7 +303,11 @@ def test_formal_payload_candidate_identity_mismatch_cannot_admit_formal() -> Non
     assert admission["status"] == "NOT_READY"
 
 
-def test_only_complete_same_candidate_formal_evidence_is_admitted() -> None:
+def test_only_complete_same_candidate_formal_evidence_is_admitted(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "w2.domain.recommendation_decision_v4.ECONOMIC_ADMISSION_FEATURE_ENABLED",
+        True,
+    )
     authoritative = deepcopy(_decision()["authoritative_input"])
     assert isinstance(authoritative, dict)
     authoritative["capability_status"] = "FORMAL_ENABLED"
@@ -312,7 +326,7 @@ def test_only_complete_same_candidate_formal_evidence_is_admitted() -> None:
     assert decision.outcome is RecommendationOutcomeV4.FORMAL_RECOMMEND
 
 
-def test_all_ineligible_candidates_emit_no_public_pick() -> None:
+def test_retired_economic_gate_emits_neutral_divergence_without_public_pick() -> None:
     authoritative = deepcopy(_decision()["authoritative_input"])
     assert isinstance(authoritative, dict)
     authoritative["decimal_odds"] = "1.5"
@@ -326,13 +340,27 @@ def test_all_ineligible_candidates_emit_no_public_pick() -> None:
 
     decision = build_recommendation_decision_v4(authoritative)
 
-    assert decision.outcome is RecommendationOutcomeV4.NO_EDGE
-    assert decision.selected_candidate is None
+    assert decision.outcome is RecommendationOutcomeV4.MODEL_MARKET_DIVERGENCE
+    assert decision.selected_candidate is not None
     assert _recommendation_from_v4(decision, formal_recommendation=None) is None
 
 
-def test_repository_current_projection_uses_v4_not_historical_v3_direction() -> None:
-    decision = _decision()
+def test_repository_current_projection_uses_v4_not_historical_v3_direction(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "w2.domain.recommendation_decision_v4.ECONOMIC_ADMISSION_FEATURE_ENABLED",
+        True,
+    )
+    materialized = _decision()
+    authoritative = deepcopy(materialized["authoritative_input"])
+    assert isinstance(authoritative, dict)
+    authoritative["capability_status"] = "FORMAL_ENABLED"
+    authoritative["formal_admission"] = {
+        "status": "PASSED",
+        "readiness_hash": "e" * 64,
+        "approval_hash": "f" * 64,
+        "candidate_identity_hash": candidate_identity_hash(authoritative),
+    }
+    decision = build_recommendation_decision_v4(authoritative).as_dict()
     contract = _contract(decision)
     card = {
         "fixture_id": "fixture-1",
@@ -395,7 +423,7 @@ def test_invalid_history_v3_cannot_block_or_mutate_current_v4() -> None:
     assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
 
 
-def test_day_view_preserves_prematch_v4_pick_after_kickoff_without_rebuilding() -> None:
+def test_day_view_preserves_prematch_v4_divergence_without_bet_semantics() -> None:
     decision = _decision()
     contract = _contract(decision)
     view = build_dashboard_day_view(
@@ -418,8 +446,20 @@ def test_day_view_preserves_prematch_v4_pick_after_kickoff_without_rebuilding() 
     )
 
     card = view["cards"][0]
-    assert card["decision_tier"] == "ANALYSIS_PICK"
-    assert card["pick"]["selection"] == "AWAY"
+    assert card["decision_tier"] == "MODEL_MARKET_DIVERGENCE"
+    assert card["pick"] is None
+    assert card["model_market_divergence"]["explanation"] == (
+        MODEL_MARKET_DIVERGENCE_EXPLANATION
+    )
+    assert {
+        "selection",
+        "line",
+        "odds",
+        "fair_odds",
+        "expected_value",
+        "uncertainty",
+        "value_edge",
+    }.isdisjoint(card["model_market_divergence"])
     assert card["recommendation_decision_v4"] == decision
     assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
 

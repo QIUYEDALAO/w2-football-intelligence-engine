@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from w2.domain.admission_contract import economic_admission_pass
+from w2.domain.admission_contract import (
+    ECONOMIC_ADMISSION_FEATURE_ENABLED,
+    ECONOMIC_ADMISSION_REACTIVATION_REQUIRES,
+    ECONOMIC_ADMISSION_REASON,
+    ECONOMIC_ADMISSION_STATUS,
+    economic_admission_pass,
+)
 
 
 @pytest.mark.parametrize(
@@ -30,4 +36,15 @@ def test_economic_admission_contract(
             cashflow_price_edge=cashflow_edge,
         )
         is expected
+    )
+
+
+def test_economic_admission_product_gate_is_retired_by_default() -> None:
+    assert ECONOMIC_ADMISSION_FEATURE_ENABLED is False
+    assert ECONOMIC_ADMISSION_STATUS == "RETIRED_PRODUCT_SEMANTICS"
+    assert ECONOMIC_ADMISSION_REASON == "NO_VALIDATED_MARKET_EDGE"
+    assert ECONOMIC_ADMISSION_REACTIVATION_REQUIRES == (
+        "NEW_PREREGISTRATION",
+        "NEW_UNSEEN_COHORT",
+        "OWNER_AUTHORIZATION",
     )

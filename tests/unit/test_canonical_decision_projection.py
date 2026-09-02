@@ -16,7 +16,7 @@ def test_non_pick_v3_is_fail_closed_in_compatibility_projection() -> None:
     assert projected["lock_eligible"] is False
 
 
-def test_analysis_pick_keeps_candidate_but_is_never_lock_eligible() -> None:
+def test_historical_analysis_pick_projects_as_neutral_divergence() -> None:
     projected = project_canonical_decision(
         {
             "outcome": "ANALYSIS_PICK",
@@ -24,7 +24,9 @@ def test_analysis_pick_keeps_candidate_but_is_never_lock_eligible() -> None:
             "decision_hash": "h",
         }
     )
-    assert projected["pick"] == {"market": "TOTALS", "line": "2.5"}
+    assert projected["pick"] is None
+    assert projected["decision_tier"] == "MODEL_MARKET_DIVERGENCE"
+    assert projected["model_market_divergence"]["market"] == "TOTALS"
     assert projected["lock_eligible"] is False
 
 
