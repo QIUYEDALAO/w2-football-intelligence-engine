@@ -1594,9 +1594,39 @@ class FutureFixtureRefreshService:
     ) -> LiveApiFootballResponse:
         if not self._endpoint_authorized(endpoint):
             raise FutureRefreshError(f"ENDPOINT_NOT_AUTHORIZED:{endpoint}")
+        from w2.ingestion.lineup_first_seen import (
+            LINEUP_FIRST_SEEN_PROVIDER_RESERVE,
+            LineupFirstSeenRepository,
+            lineup_first_seen_enabled,
+        )
+
+        first_seen_collection = (
+            lineup_first_seen_enabled()
+            and endpoint == "lineups"
+            and any(
+                str(item.get("policy_version") or "")
+                == "w2.lineup_first_seen.v1"
+                and _api_football_fixture_id(str(item.get("fixture_id") or ""))
+                == params.get("fixture")
+                for item in self.config.refresh_checkpoints
+            )
+        )
+        if first_seen_collection and (
+            self._latest_remaining is not None
+            and self._latest_remaining < LINEUP_FIRST_SEEN_PROVIDER_RESERVE
+        ):
+            raise FutureRefreshError("LINEUP_FIRST_SEEN_PROVIDER_REMAINING_BELOW_RESERVE")
+        if first_seen_collection:
+            guard = LineupFirstSeenRepository(engine=self._db_repository().engine).quota_guard(
+                now=self.now
+            )
+            if not guard["allowed"]:
+                raise FutureRefreshError(str(guard["blocker"]))
         last_error: Exception | None = None
         max_attempts = (
-            1 if self.runtime_authorization is not None else provider_request_max_attempts()
+            1
+            if first_seen_collection or self.runtime_authorization is not None
+            else provider_request_max_attempts()
         )
         for attempt in range(1, max_attempts + 1):
             if self._attempt_count >= self.config.request_budget:
@@ -1809,7 +1839,9 @@ class FutureFixtureRefreshService:
                     reserve_bucket=self.config.quota_reserve,
                     task_type=endpoint,
                 )
-                if not guard["allowed"]:
+                if not guard["allowed"] and not (
+                    first_seen_collection
+                ):
                     raise FutureRefreshError(str(guard["blocker"]))
             if self.runtime_authorization is not None:
                 self._validate_gate_a_response(

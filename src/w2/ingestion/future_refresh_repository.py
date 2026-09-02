@@ -75,6 +75,11 @@ from w2.ingestion.authoritative_lineup import (
     AuthoritativeLineupError,
     validate_authoritative_lineup,
 )
+from w2.ingestion.lineup_first_seen import (
+    LineupFirstSeenRepository,
+    first_seen_event_payload,
+    lineup_first_seen_enabled,
+)
 from w2.lineups.intelligence import (
     build_team_baseline,
     build_team_rotation_prior,
@@ -626,6 +631,26 @@ class FutureRefreshDbRepository:
                     raise FutureRefreshPersistenceError(
                         f"LINEUP_MATERIALIZATION_FAILED:{exc.__class__.__name__}"
                     ) from exc
+        if (
+            lineup_first_seen_enabled()
+            and identities
+            and kickoff_at is not None
+            and captured_at < kickoff_at
+        ):
+            identity = identities[0]
+            LineupFirstSeenRepository(engine=self.engine).append_event(
+                first_seen_event_payload(
+                    fixture_id=identity.fixture_id,
+                    competition_id=identity.competition_id,
+                    provider=identity.provider,
+                    provider_fixture_id=identity.provider_fixture_id,
+                    first_seen_at=captured_at,
+                    kickoff_at=kickoff_at,
+                    raw_sha256=raw_sha256,
+                    validated=validated,
+                    raw_response=response,
+                )
+            )
         self.materialize_player_identity_mappings(fixture_id=fixture_id, as_of=captured_at)
         if materialize_baselines:
             self.materialize_team_lineup_baselines(limit=4096)

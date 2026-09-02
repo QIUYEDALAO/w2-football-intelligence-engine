@@ -139,6 +139,35 @@ class MatchdayFixtureIdentityModel(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
+class LineupFirstSeenEventModel(Base):
+    __tablename__ = "lineup_first_seen_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "provider_fixture_id",
+            name="uq_lineup_first_seen_provider_fixture",
+        ),
+        Index("ix_lineup_first_seen_at", "first_seen_at"),
+        Index("ix_lineup_first_seen_competition", "competition_id", "kickoff_at"),
+    )
+
+    event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    fixture_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    competition_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    kickoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    minutes_to_kickoff: Mapped[int] = mapped_column(Integer, nullable=False)
+    raw_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    starting_xi: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    bench: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    formation: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    coach: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    coverage_status: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
 class MatchdayCheckpointPlanModel(Base):
     __tablename__ = "matchday_checkpoint_plans"
     __table_args__ = (

@@ -42,6 +42,7 @@ from w2.infrastructure.persistence.market_projection_view import (
     current_market_projection,
 )
 from w2.infrastructure.persistence.matchday_intake_models import (
+    LineupFirstSeenEventModel,
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
     MatchdayEvidenceManifestModel,
@@ -110,6 +111,7 @@ __all__ = [
     "LeagueProfileModel",
     "LeagueReadinessAuditModel",
     "LeagueSeasonModel",
+    "LineupFirstSeenEventModel",
     "MatchdayCheckpointPlanModel",
     "MatchdayEndpointCaptureModel",
     "MatchdayEvidenceManifestModel",
