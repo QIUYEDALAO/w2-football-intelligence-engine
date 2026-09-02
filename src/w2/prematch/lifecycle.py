@@ -40,9 +40,8 @@ ECONOMIC_ADMISSION_REASON = "NO_VALIDATED_MARKET_EDGE"
 
 class DynamicEvaluationState(StrEnum):
     ANALYSIS_COMPLETE = "ANALYSIS_COMPLETE"
-    # Compatibility alias: historical callers may still name the former state,
-    # but its serialized value is no longer reachable.
-    ANALYSIS_PICK_ACTIVE = ANALYSIS_COMPLETE
+    # Historical persisted rows remain parseable; classify_evaluation never emits it.
+    ANALYSIS_PICK_ACTIVE = "ANALYSIS_PICK_ACTIVE"
     NO_EDGE_CURRENT = "NO_EDGE_CURRENT"
     STALE_PENDING_REFRESH = "STALE_PENDING_REFRESH"
     LINEUP_READY_MARKET_REFRESH_PENDING = "LINEUP_READY_MARKET_REFRESH_PENDING"
@@ -296,9 +295,7 @@ def bind_evaluation_opportunity(
             ),
         }
     )
-    if version.state.value == "ANALYSIS_PICK_ACTIVE":
-        state = OpportunityState.EVALUATED_CANDIDATE
-    elif version.state in {
+    if version.state in {
         DynamicEvaluationState.NO_EDGE_CURRENT,
         DynamicEvaluationState.ANALYSIS_COMPLETE,
     }:

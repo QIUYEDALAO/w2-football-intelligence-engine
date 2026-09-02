@@ -552,9 +552,9 @@ def _evaluation_diagnosis(
             "evidence_codes": [*evidence_codes, gate],
         }
 
-        no_edge_evaluated = any(
-            state in {"NO_EDGE_CURRENT", "ANALYSIS_COMPLETE"} for _row, state, _at in evaluated
-        )
+    no_edge_evaluated = any(
+        state in {"NO_EDGE_CURRENT", "ANALYSIS_COMPLETE"} for _row, state, _at in evaluated
+    )
     if status == "CANDIDATE":
         evaluated_times = [at for _row, _state, at in evaluated]
         later_unassessed = [

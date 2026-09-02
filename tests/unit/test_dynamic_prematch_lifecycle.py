@@ -21,6 +21,7 @@ from w2.infrastructure.persistence.matchday_intake_models import MatchdayFixture
 from w2.prematch.lifecycle import (
     DYNAMIC_EVALUATION_V2_SCHEMA,
     DYNAMIC_EVALUATION_V3_SCHEMA,
+    MODEL_FORECAST_DENOMINATOR_SCOPE,
     DynamicEvaluationInput,
     DynamicEvaluationLedger,
     DynamicEvaluationState,
@@ -72,6 +73,7 @@ def test_denominator_evaluation_persists_real_write_time_and_gate_attribution() 
             competition_id="113",
             season="2026",
             provider="api_football",
+            denominator_scope=MODEL_FORECAST_DENOMINATOR_SCOPE,
         )
     )
 
@@ -164,10 +166,14 @@ def test_economic_pass_is_analysis_complete_and_never_candidate() -> None:
     assert version.current_cashflow_price_edge == pytest.approx(0.10)
 
 
+def test_historical_analysis_pick_state_remains_parseable() -> None:
+    assert DynamicEvaluationState("ANALYSIS_PICK_ACTIVE").value == "ANALYSIS_PICK_ACTIVE"
+
+
 def test_new_capture_supersedes_old_and_same_capture_is_idempotent() -> None:
     ledger = DynamicEvaluationLedger()
     first = ledger.append(_evaluation(capture_id="c1", ev=0.08, delta=0.06, ev_se=0.02))
-    assert first.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
+    assert first.state is DynamicEvaluationState.ANALYSIS_COMPLETE
     assert ledger.append(_evaluation(capture_id="c1", ev=0.08, delta=0.06, ev_se=0.02)) == first
     second = ledger.append(_evaluation(capture_id="c2", ev=0.01, delta=0.02, ev_se=0.03))
     assert second.state is DynamicEvaluationState.NO_EDGE_CURRENT
@@ -185,9 +191,9 @@ def test_no_edge_can_upgrade_and_active_can_become_stale() -> None:
     stale = classify_evaluation(
         _evaluation(capture_id="c3", ev=0.08, delta=0.07, ev_se=0.02, quote_fresh=False)
     )
-    assert low.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
+    assert low.state is DynamicEvaluationState.ANALYSIS_COMPLETE
     assert low.shortfall["delta"] == 0.0
-    assert high.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
+    assert high.state is DynamicEvaluationState.ANALYSIS_COMPLETE
     assert stale.state is DynamicEvaluationState.STALE_PENDING_REFRESH
 
 

@@ -704,17 +704,18 @@ def test_shadow_candidate_activation_reuses_v4_and_stays_non_production() -> Non
 
     assert payload["runtime"]["candidate"] == "SHADOW_ONLY"
     assert payload["matches"][0]["readiness"]["market_aggregate_status"] == "PARTIAL"
-    assert candidate["status"] == "NOT_READY"
-    assert candidate["market"] is None
-    assert candidate["outcome_tracked"] is False
+    assert candidate["status"] == "ACTIVE"
+    assert candidate["market"] == "ASIAN_HANDICAP"
+    assert candidate["outcome_tracked"] is True
     DashboardIntelligenceWorkspaceResponse.model_validate(
         {"request_id": "candidate-contract", **payload}
     )
 
 
-def test_disabled_ah_channel_blocks_economic_candidate_but_totals_remains_active() -> None:
+def test_analysis_channels_remain_available_for_diagnostic_candidates() -> None:
     day_view = _day_view()
     card = day_view["cards"][0]
+    card["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(2)
     card["market_radar"]["markets"]["TOTALS"] = _market(2)
     candidate = {
         "quote_status": "COMPLETE",
@@ -748,8 +749,8 @@ def test_disabled_ah_channel_blocks_economic_candidate_but_totals_remains_active
 
     payload = _workspace(day_view, candidate_enabled=True)
     shadow = payload["matches"][0]["shadow_candidate"]
-    assert shadow["status"] == "NOT_READY"
-    assert shadow["market"] is None
+    assert shadow["status"] == "ACTIVE"
+    assert shadow["market"] == "ASIAN_HANDICAP"
 
     decision["selected_candidate"]["market"] = "TOTALS"
     payload = _workspace(day_view, candidate_enabled=True)

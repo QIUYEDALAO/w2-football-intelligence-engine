@@ -1,7 +1,7 @@
 {
   "schema_version": "w2.recommendation_capabilities.v1",
   "capabilities": {
-    "analysis_ah": {"implementation":"CODE_PRESENT","contract_verified":true,"locally_verified":true,"isolated_runtime_verified":false,"staging_canary_passed":false,"feature_enabled":false,"publicly_available":false,"production_enabled":false,"market_scope":["ASIAN_HANDICAP"],"evidence_status":"POLICY_THRESHOLD_UNVALIDATED"},
+    "analysis_ah": {"implementation":"CODE_PRESENT","contract_verified":true,"locally_verified":true,"isolated_runtime_verified":false,"staging_canary_passed":false,"feature_enabled":true,"publicly_available":true,"production_enabled":false,"market_scope":["ASIAN_HANDICAP"],"evidence_status":"POLICY_THRESHOLD_UNVALIDATED"},
     "analysis_ou": {"implementation":"CODE_PRESENT","contract_verified":true,"locally_verified":true,"isolated_runtime_verified":false,"staging_canary_passed":false,"feature_enabled":true,"publicly_available":true,"production_enabled":false,"market_scope":["TOTALS"],"evidence_status":"POLICY_THRESHOLD_UNVALIDATED"},
     "shadow_candidate": {"implementation":"CODE_PRESENT","contract_verified":true,"locally_verified":true,"isolated_runtime_verified":false,"staging_canary_passed":false,"feature_enabled":true,"publicly_available":true,"production_enabled":false,"market_scope":["ASIAN_HANDICAP","TOTALS"],"evidence_status":"FORWARD_VALIDATION_ACTIVE"},
     "formal_ah": {"implementation":"CODE_PRESENT","contract_verified":true,"locally_verified":true,"isolated_runtime_verified":false,"staging_canary_passed":false,"feature_enabled":false,"publicly_available":false,"production_enabled":false,"market_scope":["ASIAN_HANDICAP"],"evidence_status":"POLICY_THRESHOLD_UNVALIDATED"},
