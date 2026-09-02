@@ -81,6 +81,16 @@ def test_empty_ledger_preserves_every_calibration_output_field(
 
     monkeypatch.setattr(registry, "DEFAULT_LEDGER_PATH", tmp_path / "empty.jsonl")
     assert _calibration_output() == {
+        "components": {
+            "elo_delta": 0.049,
+            "home_advantage_delta": 0.3,
+            "lineup_ah_delta": 0.1,
+            "lineup_strength_delta": 0.02,
+            "lineup_totals_total": -0.2,
+            "squad_value_delta": 0.064201489909,
+            "xg_delta": 0.4,
+            "xg_total": 2.8,
+        },
         "calibration_status": "BASELINE_PRIOR",
         "calibration_version": "w2.formal.lambda_baseline_prior.v1",
         "input_weights": {

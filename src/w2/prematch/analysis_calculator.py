@@ -3269,6 +3269,32 @@ class ReadModelService:
                 ),
                 neutral_site=neutral_site,
                 input_readiness={
+                    "evaluation_as_of": context.as_of.isoformat(),
+                    "xg_valid_from": {
+                        "home": latest_home_xg.observed_at.isoformat()
+                        if latest_home_xg is not None
+                        else None,
+                        "away": latest_away_xg.observed_at.isoformat()
+                        if latest_away_xg is not None
+                        else None,
+                    },
+                    "elo_valid_from": {
+                        "home": latest_home_rating.observed_at.isoformat()
+                        if latest_home_rating is not None
+                        else None,
+                        "away": latest_away_rating.observed_at.isoformat()
+                        if latest_away_rating is not None
+                        else None,
+                    },
+                    "squad_value_valid_from": {
+                        "home": latest_home_value.observed_at.isoformat()
+                        if latest_home_value is not None
+                        else None,
+                        "away": latest_away_value.observed_at.isoformat()
+                        if latest_away_value is not None
+                        else None,
+                    },
+                    "lineup_valid_from": None,
                     "xg_status": xg_readiness["status"],
                     "history_ready": bool(home_history and away_history),
                     "h2h_ready": bool(h2h_meetings),

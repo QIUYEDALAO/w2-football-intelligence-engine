@@ -32,6 +32,7 @@ class LambdaCalibrationOutput:
     lambda_away: float
     params: dict[str, float]
     input_weights: dict[str, float]
+    components: dict[str, float]
 
 
 def calibrate_lambdas(
@@ -64,6 +65,7 @@ def calibrate_lambdas(
         minimum=params.minimum_total_goals,
         maximum=params.maximum_total_goals,
     )
+    xg_total = total
     raw_delta = base_home - base_away
     elo_delta = 0.0
     if home_elo is not None and away_elo is not None:
@@ -81,15 +83,20 @@ def calibrate_lambdas(
     applied_home_advantage_goals = (
         params.home_advantage_goals if apply_home_advantage else 0.0
     )
+    lineup_strength_delta = (
+        float(lineup_strength_adjustment) * params.lineup_adjustment_weight
+    )
     adjusted_delta = (
         raw_delta
         + applied_home_advantage_goals
         + elo_delta
         + value_delta
-        + float(lineup_strength_adjustment) * params.lineup_adjustment_weight
+        + lineup_strength_delta
     )
+    lineup_ah_delta = 0.0
     if lineup_ah_evidence_enabled:
-        adjusted_delta += _symmetric_clamp(lineup_ah_adjustment, MAX_LINEUP_AH_DELTA)
+        lineup_ah_delta = _symmetric_clamp(lineup_ah_adjustment, MAX_LINEUP_AH_DELTA)
+        adjusted_delta += lineup_ah_delta
     if lineup_totals_evidence_enabled:
         total = _clamp(
             total + _symmetric_clamp(lineup_totals_adjustment, MAX_LINEUP_TOTALS_DELTA),
@@ -134,6 +141,16 @@ def calibrate_lambdas(
             "lineups": params.lineup_adjustment_weight,
             "lineup_ah_enabled": float(lineup_ah_evidence_enabled),
             "lineup_totals_enabled": float(lineup_totals_evidence_enabled),
+        },
+        components={
+            "xg_total": round(xg_total, 12),
+            "xg_delta": round(raw_delta, 12),
+            "home_advantage_delta": applied_home_advantage_goals,
+            "elo_delta": elo_delta,
+            "squad_value_delta": round(value_delta, 12),
+            "lineup_strength_delta": lineup_strength_delta,
+            "lineup_ah_delta": lineup_ah_delta,
+            "lineup_totals_total": round(total - xg_total, 12),
         },
     )
 

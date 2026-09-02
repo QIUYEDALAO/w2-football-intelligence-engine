@@ -1118,6 +1118,14 @@ def test_public_bounded_analysis_consumes_canonical_identity_history_and_ratings
     assert card["simulation"]["input_readiness"]["away_elo_source"] == "team_rating_snapshots"
     assert card["simulation"]["input_readiness"]["home_elo_collection_status"] == "READY"
     assert card["simulation"]["input_readiness"]["away_elo_collection_status"] == "READY"
+    lambda_contributions = {
+        item["feature_id"]: item
+        for item in card["simulation"]["calibration"]["feature_contributions"]
+    }
+    assert lambda_contributions["XG_BASE"]["as_of_reason"] == "AS_OF_PROVIDED"
+    assert lambda_contributions["ELO"]["as_of_reason"] == "AS_OF_PROVIDED"
+    assert lambda_contributions["SQUAD_VALUE"]["as_of_reason"] == "AS_OF_UNAVAILABLE"
+    assert lambda_contributions["LINEUP_STRENGTH"]["as_of_reason"] == "AS_OF_UNAVAILABLE"
     contributions = card["feature_contributions"]
     assert any(
         item["id"] == "F3_REST_FITNESS"

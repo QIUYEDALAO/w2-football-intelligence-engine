@@ -15,7 +15,11 @@ from w2.domain.enums import SettlementOutcome
 from w2.domain.odds import settle_asian_handicap
 from w2.markets.poisson import round_to_quarter
 from w2.models.dixon_coles import tau_correction
-from w2.strategy.calibration import LambdaCalibrationParams, calibrate_lambdas
+from w2.strategy.calibration import (
+    LambdaCalibrationOutput,
+    LambdaCalibrationParams,
+    calibrate_lambdas,
+)
 
 SIMULATION_MODEL_VERSION = "w2.formal.exact_dc_poisson.v1"
 READY = "READY"
@@ -50,7 +54,7 @@ class SimulationInputs:
     lambda_uncertainty_status: str | None = None
     lambda_uncertainty_audit: dict[str, Any] = field(default_factory=dict)
     neutral_site: bool = False
-    input_readiness: dict[str, bool | str | int | float | None] = field(default_factory=dict)
+    input_readiness: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -251,6 +255,13 @@ def run_simulation(
             "lambda_uncertainty_method": uncertainty_method,
             "lambda_uncertainty_status": uncertainty_status,
             "lambda_uncertainty_audit": inputs.lambda_uncertainty_audit,
+            "feature_contributions": _feature_contributions(
+                inputs,
+                calibration,
+                readiness=readiness,
+                eligible_home_elo=eligible_home_elo,
+                eligible_away_elo=eligible_away_elo,
+            ),
         },
     )
 
@@ -503,9 +514,8 @@ def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:
         source=inputs.away_elo_source,
         collection_status=inputs.away_elo_collection_status,
     )
-    proxy_elo_excluded = (
-        (inputs.home_elo is not None and home_proxy_elo)
-        or (inputs.away_elo is not None and away_proxy_elo)
+    proxy_elo_excluded = (inputs.home_elo is not None and home_proxy_elo) or (
+        inputs.away_elo is not None and away_proxy_elo
     )
     readiness = dict(inputs.input_readiness)
     readiness.update(
@@ -530,6 +540,162 @@ def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:
         }
     )
     return readiness
+
+
+def _feature_contributions(
+    inputs: SimulationInputs,
+    calibration: LambdaCalibrationOutput,
+    *,
+    readiness: dict[str, Any],
+    eligible_home_elo: float | None,
+    eligible_away_elo: float | None,
+) -> list[dict[str, Any]]:
+    """Expose the deterministic lambda decomposition without creating a second model path."""
+    params = calibration.params
+    components = calibration.components
+
+    def record(*, as_of: Any, **values: Any) -> dict[str, Any]:
+        values["as_of"] = as_of
+        as_of_available = (
+            any(value is not None for value in as_of.values())
+            if isinstance(as_of, dict)
+            else as_of is not None
+        )
+        values["as_of_reason"] = "AS_OF_PROVIDED" if as_of_available else "AS_OF_UNAVAILABLE"
+        return values
+
+    return [
+        record(
+            as_of=readiness.get("xg_valid_from"),
+            feature_id="XG_BASE",
+            input_value={
+                "home_for": inputs.home_xg_for,
+                "home_against": inputs.home_xg_against,
+                "away_for": inputs.away_xg_for,
+                "away_against": inputs.away_xg_against,
+            },
+            missing_reason=None,
+            configured_weight=1.0,
+            eligible=True,
+            eligibility_reason="READY",
+            total_contribution=components["xg_total"],
+            delta_contribution=components["xg_delta"],
+        ),
+        record(
+            as_of=readiness.get("evaluation_as_of"),
+            feature_id="HOME_ADVANTAGE",
+            input_value=params.get("applied_home_advantage_goals", 0.0),
+            missing_reason=None,
+            configured_weight=float(params.get("home_advantage_goals", 0.0)),
+            eligible=not inputs.neutral_site,
+            eligibility_reason="APPLIED" if not inputs.neutral_site else "NEUTRAL_SITE",
+            total_contribution=0.0,
+            delta_contribution=components["home_advantage_delta"],
+        ),
+        record(
+            as_of=readiness.get("elo_valid_from"),
+            feature_id="ELO",
+            input_value={"home": inputs.home_elo, "away": inputs.away_elo},
+            missing_reason="MISSING_RATING_PAIR"
+            if inputs.home_elo is None or inputs.away_elo is None
+            else None,
+            configured_weight=float(params.get("elo_gap_weight", 0.0)),
+            eligible=eligible_home_elo is not None and eligible_away_elo is not None,
+            eligibility_reason="READY"
+            if eligible_home_elo is not None and eligible_away_elo is not None
+            else ("PROXY_EXCLUDED" if readiness.get("proxy_elo_excluded") else "MISSING_INPUT"),
+            total_contribution=0.0,
+            delta_contribution=components["elo_delta"],
+        ),
+        record(
+            as_of=readiness.get("squad_value_valid_from"),
+            feature_id="SQUAD_VALUE",
+            input_value={"home": inputs.home_squad_value_eur, "away": inputs.away_squad_value_eur},
+            missing_reason="MISSING_OR_NONPOSITIVE_VALUE_PAIR"
+            if not inputs.home_squad_value_eur or not inputs.away_squad_value_eur
+            else None,
+            configured_weight=float(params.get("squad_value_log_weight", 0.0)),
+            eligible=bool(
+                inputs.home_squad_value_eur
+                and inputs.away_squad_value_eur
+                and inputs.home_squad_value_eur > 0
+                and inputs.away_squad_value_eur > 0
+            ),
+            eligibility_reason="READY"
+            if inputs.home_squad_value_eur
+            and inputs.away_squad_value_eur
+            and inputs.home_squad_value_eur > 0
+            and inputs.away_squad_value_eur > 0
+            else "MISSING_OR_INVALID",
+            total_contribution=0.0,
+            delta_contribution=components["squad_value_delta"],
+        ),
+        record(
+            as_of=readiness.get("lineup_valid_from"),
+            feature_id="LINEUP_STRENGTH",
+            input_value=inputs.lineup_strength_adjustment,
+            missing_reason=None,
+            configured_weight=float(params.get("lineup_adjustment_weight", 0.0)),
+            eligible=True,
+            eligibility_reason="READY" if inputs.lineup_strength_adjustment else "READY_ZERO_INPUT",
+            total_contribution=0.0,
+            delta_contribution=components["lineup_strength_delta"],
+        ),
+        record(
+            as_of=readiness.get("lineup_valid_from"),
+            feature_id="LINEUP_AH",
+            input_value=inputs.lineup_ah_adjustment,
+            missing_reason=None,
+            configured_weight=float(inputs.lineup_ah_evidence_enabled),
+            eligible=inputs.lineup_ah_evidence_enabled,
+            eligibility_reason="READY" if inputs.lineup_ah_evidence_enabled else "GATE_DISABLED",
+            total_contribution=0.0,
+            delta_contribution=components["lineup_ah_delta"],
+        ),
+        record(
+            as_of=readiness.get("lineup_valid_from"),
+            feature_id="LINEUP_TOTALS",
+            input_value=inputs.lineup_totals_adjustment,
+            missing_reason=None,
+            configured_weight=float(inputs.lineup_totals_evidence_enabled),
+            eligible=inputs.lineup_totals_evidence_enabled,
+            eligibility_reason="READY"
+            if inputs.lineup_totals_evidence_enabled
+            else "GATE_DISABLED",
+            total_contribution=components["lineup_totals_total"],
+            delta_contribution=0.0,
+        ),
+    ]
+
+
+def feature_contribution_liveness_alerts(
+    simulations: list[SimulationOutput | dict[str, Any]], *, minimum_samples: int
+) -> list[dict[str, Any]]:
+    """Report configured features whose observed contribution is zero for the whole window."""
+    if minimum_samples <= 0:
+        raise ValueError("minimum_samples must be positive")
+    windows: dict[str, list[dict[str, Any]]] = {}
+    for simulation in simulations:
+        payload = simulation.as_dict() if isinstance(simulation, SimulationOutput) else simulation
+        calibration = payload.get("calibration")
+        rows = calibration.get("feature_contributions") if isinstance(calibration, dict) else None
+        for row in rows if isinstance(rows, list) else []:
+            if isinstance(row, dict) and float(row.get("configured_weight") or 0.0) != 0.0:
+                windows.setdefault(str(row.get("feature_id") or "UNKNOWN"), []).append(row)
+    return [
+        {
+            "feature_id": feature_id,
+            "sample_size": len(rows),
+            "reason": "NONZERO_WEIGHT_ZERO_CONTRIBUTION",
+        }
+        for feature_id, rows in sorted(windows.items())
+        if len(rows) >= minimum_samples
+        and all(
+            float(row.get("total_contribution") or 0.0) == 0.0
+            and float(row.get("delta_contribution") or 0.0) == 0.0
+            for row in rows
+        )
+    ]
 
 
 def _eligible_elo(

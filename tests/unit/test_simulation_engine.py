@@ -7,6 +7,7 @@ from w2.strategy.simulate import (
     ah_expected_value,
     ah_expected_value_uncertainty_from_lambdas,
     ah_settlement_distribution_from_lambdas,
+    feature_contribution_liveness_alerts,
     run_simulation,
 )
 
@@ -203,6 +204,62 @@ def test_proxy_elo_is_excluded_from_lambda_inputs() -> None:
     assert proxy_elo.input_readiness["ratings_used_in_lambda"] is False
     assert proxy_elo.input_readiness["squad_value_used_in_lambda"] is False
     assert proxy_elo.input_readiness["proxy_elo_excluded"] is True
+    rows = proxy_elo.calibration["feature_contributions"]
+    elo = next(row for row in rows if row["feature_id"] == "ELO")
+    assert elo["eligibility_reason"] == "PROXY_EXCLUDED"
+    assert elo["delta_contribution"] == 0.0
+    assert elo["as_of_reason"] == "AS_OF_UNAVAILABLE"
+
+
+def test_feature_contribution_liveness_alerts_zero_window() -> None:
+    outputs = [
+        run_simulation(
+            inputs(
+                fixture_id=f"window-{index}",
+                home_elo=1600.0,
+                away_elo=1500.0,
+                home_elo_source="rolling_xg_proxy",
+                away_elo_source="rolling_xg_proxy",
+                home_elo_collection_status="PROXY_ONLY",
+                away_elo_collection_status="PROXY_ONLY",
+                home_squad_value_eur=None,
+                away_squad_value_eur=None,
+            )
+        )
+        for index in range(3)
+    ]
+    alerts = feature_contribution_liveness_alerts(outputs, minimum_samples=3)
+    assert {row["feature_id"] for row in alerts} == {
+        "ELO",
+        "LINEUP_STRENGTH",
+        "SQUAD_VALUE",
+    }
+
+
+def test_feature_contributions_expose_inputs_effects_and_pit_times() -> None:
+    output = run_simulation(
+        inputs(
+            home_elo=1600.0,
+            away_elo=1400.0,
+            lineup_strength_adjustment=0.5,
+            input_readiness={
+                "evaluation_as_of": "2026-09-02T00:00:00+00:00",
+                "xg_valid_from": {"home": "xg-home", "away": "xg-away"},
+                "elo_valid_from": {"home": "elo-home", "away": "elo-away"},
+                "squad_value_valid_from": {"home": "value-home", "away": "value-away"},
+                "lineup_valid_from": "lineup-capture",
+            },
+        )
+    )
+    rows = {row["feature_id"]: row for row in output.calibration["feature_contributions"]}
+
+    assert rows["XG_BASE"]["as_of"]["home"] == "xg-home"
+    assert rows["ELO"]["as_of"]["home"] == "elo-home"
+    assert rows["ELO"]["delta_contribution"] == 0.14
+    assert rows["SQUAD_VALUE"]["delta_contribution"] != 0.0
+    assert rows["LINEUP_STRENGTH"]["delta_contribution"] == 0.04
+    assert rows["LINEUP_AH"]["eligibility_reason"] == "GATE_DISABLED"
+    assert rows["LINEUP_TOTALS"]["eligibility_reason"] == "GATE_DISABLED"
 
 
 def test_market_odds_are_not_simulation_inputs() -> None:
