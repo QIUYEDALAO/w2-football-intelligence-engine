@@ -13,12 +13,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Download and inspect the versioned Transfermarkt player snapshot."
     )
-    parser.add_argument("--observed-at", required=True)
+    parser.add_argument("--captured-at", required=True)
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--write", action="store_true")
     args = parser.parse_args()
-    observed_at = datetime.fromisoformat(args.observed_at.replace("Z", "+00:00")).astimezone(UTC)
-    snapshot = load_player_snapshot(observed_at=observed_at, allow_network=args.live)
+    captured_at = datetime.fromisoformat(args.captured_at.replace("Z", "+00:00")).astimezone(UTC)
+    snapshot = load_player_snapshot(observed_at=captured_at, allow_network=args.live)
     imported = 0
     mapped = 0
     if args.write:
@@ -32,7 +32,7 @@ def main() -> int:
         for fixture_id in repository.structured_lineup_fixture_ids():
             mapped += repository.materialize_player_identity_mappings(
                 fixture_id=fixture_id,
-                as_of=datetime.now(UTC),
+                as_of=captured_at,
             )
     valued = sum(row.get("market_value_eur") is not None for row in snapshot.rows)
     positioned = sum(bool(row.get("position")) for row in snapshot.rows)
@@ -42,6 +42,7 @@ def main() -> int:
                 "schema_version": "w2.transfermarkt_snapshot_manifest.v1",
                 "source_url": snapshot.source_url,
                 "source_sha256": snapshot.source_sha256,
+                "captured_at": captured_at.isoformat(),
                 "observed_at": snapshot.observed_at.isoformat(),
                 "player_count": len(snapshot.rows),
                 "valued_player_count": valued,

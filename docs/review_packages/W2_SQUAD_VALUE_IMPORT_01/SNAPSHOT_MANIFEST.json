@@ -1,0 +1,16 @@
+{
+  "captured_at": "2026-09-02T16:59:25Z",
+  "database_scope": "ISOLATED_LOCAL_SQLITE",
+  "identity_mapping_rows": 0,
+  "imported_player_reference_rows": 50149,
+  "imported_player_valuation_rows": 41528,
+  "positioned_player_count": 50149,
+  "production_database_writes": 0,
+  "provider_calls": 0,
+  "r2_http_requests": 1,
+  "schema_version": "w2.transfermarkt_snapshot_manifest.v1",
+  "source_sha256": "1457768f75cb27adb38b2227b9c8facc53174a626cbe1e18f9019b5647fa8d3c",
+  "source_url": "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/players.csv.gz",
+  "total_isolated_database_rows_written": 91678,
+  "valued_player_count": 41528
+}
