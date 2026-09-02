@@ -1,0 +1,127 @@
+{
+  "schema_version": "w2.factor_incremental_info_measure.preregistration.v1",
+  "task_id": "W2-FACTOR-INCREMENTAL-INFO-MEASURE",
+  "status": "FROZEN_BEFORE_FIRST_MEASUREMENT",
+  "frozen_at_utc": "2026-09-02T19:00:37Z",
+  "production_baseline": "1de3c1ef554d00a408577f59f4864e04f1d341da",
+  "family": {
+    "size": 4,
+    "members": [
+      "F3_REST_FITNESS",
+      "F5_RECENT_AH_COVER",
+      "F1_MARKET_MOVEMENT",
+      "F2_BOOKMAKER_INTENT"
+    ],
+    "immutable_after_freeze": true
+  },
+  "hypothesis": "Each factor is tested separately for out-of-sample improvement in 1X2 probability quality relative to the current production-lambda baseline, not for information beyond the market.",
+  "multiplicity": {
+    "per_factor_alpha": 0.05,
+    "method": "BONFERRONI",
+    "family_size": 4,
+    "corrected_alpha": 0.0125
+  },
+  "data": {
+    "historical_replay_cutoff": "2026-08-21T19:18:10.674088Z",
+    "train": "kickoff >= 2024-01-01T00:00:00Z and < 2025-01-01T00:00:00Z",
+    "validation": "kickoff >= 2025-01-01T00:00:00Z and < 2026-01-01T00:00:00Z",
+    "holdout_2026": "FORBIDDEN_NOT_READ",
+    "burned_penaltyblog_2012_13_through_2016_17": "EXCLUDED",
+    "target_fixture_authority": "Frozen Factor V2 canonical history corpus d19b217afe159c87dbf8d0dea87c260374ac9d18ffd8bb97581cfffe858cedc5 plus its verified target identities; production sources may only be read to attach as-of factor evidence to those identities.",
+    "result_authority": "Canonical 90-minute home/away goals already frozen in the target corpus.",
+    "xg_authority": "SOURCE_KICKOFF_ONLY point-in-time rolling xG under the existing uniform method; target fixture excluded and only source kickoff earlier than target kickoff is visible.",
+    "missing_policy": "COMPLETE_CASE_PER_FACTOR_NO_IMPUTATION",
+    "minimum_train_fixtures": 300,
+    "minimum_validation_fixtures": 100,
+    "insufficient_sample_verdict": "FAIL_NOT_MEASURABLE"
+  },
+  "split_reuse": {
+    "physical_boundaries_reused_from_f6": true,
+    "f6_fields_read": false,
+    "f6_result_read": false,
+    "f6_one_look_budget_consumed": false,
+    "reason": "Only calendar boundaries and target identities are reused. F6 is outside this frozen family and neither its values nor its outcomes are opened. This task consumes one TRAIN selection and one VALIDATION confirmation for the four listed factors only."
+  },
+  "baseline": {
+    "function": "calibrate_lambdas",
+    "calibration_version": "w2.formal.lambda_baseline_prior.v1",
+    "params": "LambdaCalibrationParams defaults",
+    "optional_inputs": "home_elo=None, away_elo=None, home_squad_value_eur=None, away_squad_value_eur=None, lineup adjustments zero and disabled",
+    "probability_model": "Exact independent Poisson score matrix normalized on goals 0..10, then aggregated to HOME/DRAW/AWAY",
+    "unchanged": true
+  },
+  "factor_scalar_contracts": {
+    "F3_REST_FITNESS": {
+      "value": "clip((home_rest_days-away_rest_days)/4,-1,1)",
+      "candidate_axes": ["DELTA", "TOTAL"],
+      "axis_selection": "Choose the lower five-fold TRAIN out-of-fold multiclass Brier; exact tie chooses TOTAL. No VALIDATION result participates in selection."
+    },
+    "F5_RECENT_AH_COVER": {
+      "value": "home_cover_rate-away_cover_rate from canonical historical AH facts strictly before target kickoff",
+      "candidate_axes": ["DELTA"]
+    },
+    "F1_MARKET_MOVEMENT": {
+      "value": "AH market_movement_factor score = clip(-first_seen_to_current/0.25,-1,1), using only snapshots captured no later than target as-of",
+      "candidate_axes": ["DELTA"]
+    },
+    "F2_BOOKMAKER_INTENT": {
+      "value": "Signed AH infer_bookmaker_intent signal_strength: HOME_LEAN positive, AWAY_LEAN negative, BALANCED or CONFLICTED zero; insufficient/leakage-blocked is missing",
+      "candidate_axes": ["DELTA"]
+    }
+  },
+  "candidate_model": {
+    "form": "One standardized scalar X and one fitted coefficient beta; no intercept, interaction, feature engineering, or hyperparameter search.",
+    "delta_axis": "candidate_delta = baseline_delta + beta*X; total unchanged; reconstruct lambdas as (total+delta)/2 and (total-delta)/2 with current lambda clamps.",
+    "total_axis": "candidate_total = baseline_total + beta*X; delta unchanged; reconstruct lambdas with current total and lambda clamps.",
+    "standardization": "Mean and population standard deviation fit only on the applicable TRAIN fitting fold; zero standard deviation makes the factor FAIL_NEAR_CONSTANT.",
+    "coefficient_fit": "Minimize multiclass log-loss on the fitting TRAIN data by deterministic golden-section search over beta in [-2,2] for 96 iterations; a boundary solution is reported and not re-fit with a wider range.",
+    "train_selection": "Five deterministic fixture-cluster folds assigned by int(sha256(fixture_id)[:8],16)%5. F3 selects DELTA versus TOTAL using pooled OOF Brier. Other axes are frozen above.",
+    "validation": "After TRAIN selection, fit beta and standardization once on all applicable TRAIN fixtures and evaluate the frozen form exactly once on applicable VALIDATION fixtures."
+  },
+  "metrics": {
+    "primary": "MULTICLASS_BRIER_MEAN_SUM_SQUARED_ERROR",
+    "secondary": [
+      "MULTICLASS_LOG_LOSS",
+      "CLASSWISE_ECE_10_EQUAL_WIDTH_BINS",
+      "CLASSWISE_BRIER_DECOMPOSITION_RELIABILITY_RESOLUTION"
+    ],
+    "brier_improvement": "baseline_brier - candidate_brier; positive favors factor",
+    "probability_clip_for_log_loss": "1e-15",
+    "ece": "For each HOME/DRAW/AWAY one-vs-rest class, 10 fixed equal-width probability bins; report class values and their arithmetic mean.",
+    "decomposition": "For each one-vs-rest class and the same 10 bins, Murphy reliability=sum(n_b/n)*(forecast_b-observed_b)^2 and resolution=sum(n_b/n)*(observed_b-base_rate)^2; report sums across three classes."
+  },
+  "inference": {
+    "unit": "fixture cluster",
+    "bootstrap_replicates": 10000,
+    "bootstrap_seed": 20260903,
+    "resampling": "Sample VALIDATION fixture IDs with replacement and retain all three class components of each fixture together.",
+    "one_sided_lower_95": "5th percentile of bootstrap mean paired Brier improvements",
+    "p_value": "(1 + count(bootstrap mean improvement <= 0))/(10000 + 1)",
+    "pass_rule": "Validation Brier improvement > 0, one-sided 95% lower bound > 0, and p < 0.0125. All other outcomes FAIL."
+  },
+  "reporting": {
+    "required": [
+      "per-factor PASS or FAIL",
+      "Brier improvement point estimate, one-sided 95% lower bound, p-value",
+      "log-loss, ECE, reliability, resolution baseline and candidate",
+      "actual value distribution and near-constant warning",
+      "TRAIN and VALIDATION fixture and cluster counts",
+      "F3 selected axis and both TRAIN OOF axis results",
+      "all exclusions and missing counts"
+    ]
+  },
+  "stopping_rule": "Run once, report once, stop. Do not alter family, split, feature scalar, axis candidates, model form, optimizer, metrics, bootstrap, missing policy, or threshold after seeing any result.",
+  "forbidden": [
+    "READ_HOLDOUT_2026",
+    "READ_OR_RETEST_F6",
+    "IMPUTE_MISSING_FACTOR_VALUES",
+    "MODIFY_FACTOR_REGISTRY",
+    "MODIFY_CALIBRATION_VERSION_OR_PARAMS",
+    "CONNECT_FACTOR_TO_CALIBRATE_LAMBDAS",
+    "PRODUCTION_WRITE",
+    "LEDGER_WRITE",
+    "MIGRATION",
+    "DEPLOYMENT",
+    "GITHUB_OR_GHCR"
+  ]
+}
