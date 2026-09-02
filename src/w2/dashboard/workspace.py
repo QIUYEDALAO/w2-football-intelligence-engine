@@ -423,7 +423,7 @@ def _percentage_points(value: Any) -> str:
 def _no_edge_detail(evaluated: Sequence[tuple[Mapping[str, Any], str, datetime]]) -> str:
     latest: dict[str, tuple[Mapping[str, Any], datetime]] = {}
     for row, state, evaluated_at in evaluated:
-        if state != "NO_EDGE_CURRENT":
+        if state not in {"NO_EDGE_CURRENT", "ANALYSIS_COMPLETE"}:
             continue
         market = _text(row.get("market"))
         previous = latest.get(market)
@@ -552,7 +552,9 @@ def _evaluation_diagnosis(
             "evidence_codes": [*evidence_codes, gate],
         }
 
-    no_edge_evaluated = any(state == "NO_EDGE_CURRENT" for _row, state, _at in evaluated)
+        no_edge_evaluated = any(
+            state in {"NO_EDGE_CURRENT", "ANALYSIS_COMPLETE"} for _row, state, _at in evaluated
+        )
     if status == "CANDIDATE":
         evaluated_times = [at for _row, _state, at in evaluated]
         later_unassessed = [
@@ -691,7 +693,7 @@ def _evaluation_execution(
         evaluated_at = _datetime(version.get("evaluated_at"))
         if evaluated_at is not None:
             official_attempts.append((version, state, evaluated_at))
-        if state not in {"NO_EDGE_CURRENT", "ANALYSIS_PICK_ACTIVE"}:
+        if state not in {"NO_EDGE_CURRENT", "ANALYSIS_COMPLETE", "ANALYSIS_PICK_ACTIVE"}:
             continue
         if evaluated_at is None:
             continue

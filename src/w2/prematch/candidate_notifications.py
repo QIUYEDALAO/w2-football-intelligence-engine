@@ -1046,7 +1046,7 @@ def _closeout_recommendations(
         key = (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
         opportunity = final.get(key)
         if (
-            payload.get("state") != DynamicEvaluationState.ANALYSIS_PICK_ACTIVE.value
+            payload.get("state") != "ANALYSIS_PICK_ACTIVE"
             or opportunity is None
             or opportunity.state != OpportunityState.EVALUATED_CANDIDATE.value
             or row.opportunity_identity_hash != opportunity.opportunity_identity_hash
@@ -1737,7 +1737,7 @@ def _opportunity_state(row: DynamicPrematchEvaluationModel | None) -> str | None
         return str(state)
     return (
         "EVALUATED_CANDIDATE"
-        if row.original_state == DynamicEvaluationState.ANALYSIS_PICK_ACTIVE.value
+        if row.original_state == "ANALYSIS_PICK_ACTIVE"
         else "EVALUATED_NO_EDGE"
         if row.original_state == DynamicEvaluationState.NO_EDGE_CURRENT.value
         else "BLOCKED_BY_GATE"

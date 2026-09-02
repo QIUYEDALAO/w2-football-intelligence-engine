@@ -53,7 +53,8 @@ from w2.prematch.lifecycle import (
 PAIR_PROJECTOR_SCHEMA = "w2.eval_02b_exact_pair_projection.v2"
 _PAIR_MARKETS = {MarketType.ASIAN_HANDICAP.value, MarketType.TOTALS.value}
 _PAIR_ELIGIBLE_STATES = {
-    DynamicEvaluationState.ANALYSIS_PICK_ACTIVE.value,
+    "ANALYSIS_PICK_ACTIVE",
+    DynamicEvaluationState.ANALYSIS_COMPLETE.value,
     DynamicEvaluationState.NO_EDGE_CURRENT.value,
 }
 

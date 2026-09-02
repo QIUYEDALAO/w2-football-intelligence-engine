@@ -21,7 +21,6 @@ from w2.infrastructure.persistence.matchday_intake_models import MatchdayFixture
 from w2.prematch.lifecycle import (
     DYNAMIC_EVALUATION_V2_SCHEMA,
     DYNAMIC_EVALUATION_V3_SCHEMA,
-    MODEL_FORECAST_DENOMINATOR_SCOPE,
     DynamicEvaluationInput,
     DynamicEvaluationLedger,
     DynamicEvaluationState,
@@ -73,7 +72,6 @@ def test_denominator_evaluation_persists_real_write_time_and_gate_attribution() 
             competition_id="113",
             season="2026",
             provider="api_football",
-            denominator_scope=MODEL_FORECAST_DENOMINATOR_SCOPE,
         )
     )
 
@@ -148,6 +146,22 @@ def _lineup_event(**overrides: object) -> LineupConfirmedEvent:
     }
     values.update(overrides)
     return LineupConfirmedEvent(**values)  # type: ignore[arg-type]
+
+
+def test_economic_pass_is_analysis_complete_and_never_candidate() -> None:
+    version = classify_evaluation(
+        _evaluation(
+            capture_id="retired",
+            ev=0.08,
+            delta=0.06,
+            ev_se=0.02,
+        )
+    )
+    assert version.state is DynamicEvaluationState.ANALYSIS_COMPLETE
+    assert version.state.value != "ANALYSIS_PICK_ACTIVE"
+    assert version.current_ev == pytest.approx(0.08)
+    assert version.current_ev_minus_se == pytest.approx(0.06)
+    assert version.current_cashflow_price_edge == pytest.approx(0.10)
 
 
 def test_new_capture_supersedes_old_and_same_capture_is_idempotent() -> None:
@@ -509,7 +523,7 @@ def test_db_lifecycle_is_append_only_and_t30_freezes_once() -> None:
     lifecycle = repository.lifecycle("fixture-1")
     assert [row["state"] for row in lifecycle["versions"]] == ["SUPERSEDED", "NO_EDGE_CURRENT"]
     assert [row["original_state"] for row in lifecycle["versions"]] == [
-        "ANALYSIS_PICK_ACTIVE",
+        "ANALYSIS_COMPLETE",
         "NO_EDGE_CURRENT",
     ]
 

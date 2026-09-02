@@ -10,10 +10,7 @@ from enum import StrEnum
 from typing import Any
 
 from w2.domain import calibration_authority
-from w2.domain.admission_contract import (
-    MIN_CASHFLOW_PRICE_EDGE_FLOAT,
-    economic_admission_pass,
-)
+from w2.domain.admission_contract import MIN_CASHFLOW_PRICE_EDGE_FLOAT, economic_admission_pass
 
 ACTIVE_DELTA_THRESHOLD = 0.05
 ACTIVE_EV_THRESHOLD = 0.0
@@ -37,10 +34,15 @@ ATTEMPT_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v2"
 EVAL_02B_DISTRIBUTION_TOLERANCE = 1e-9
 SOURCE_ABSENT_USER_MESSAGE = "当前采集窗口尚未取得完整盘口"
 SOURCE_ABSENT_NEXT_ACTION = "等待下一次受控采集"
+ECONOMIC_ADMISSION_STATUS = "RETIRED_PRODUCT_SEMANTICS"
+ECONOMIC_ADMISSION_REASON = "NO_VALIDATED_MARKET_EDGE"
 
 
 class DynamicEvaluationState(StrEnum):
-    ANALYSIS_PICK_ACTIVE = "ANALYSIS_PICK_ACTIVE"
+    ANALYSIS_COMPLETE = "ANALYSIS_COMPLETE"
+    # Compatibility alias: historical callers may still name the former state,
+    # but its serialized value is no longer reachable.
+    ANALYSIS_PICK_ACTIVE = ANALYSIS_COMPLETE
     NO_EDGE_CURRENT = "NO_EDGE_CURRENT"
     STALE_PENDING_REFRESH = "STALE_PENDING_REFRESH"
     LINEUP_READY_MARKET_REFRESH_PENDING = "LINEUP_READY_MARKET_REFRESH_PENDING"
@@ -294,9 +296,12 @@ def bind_evaluation_opportunity(
             ),
         }
     )
-    if version.state == DynamicEvaluationState.ANALYSIS_PICK_ACTIVE:
+    if version.state.value == "ANALYSIS_PICK_ACTIVE":
         state = OpportunityState.EVALUATED_CANDIDATE
-    elif version.state == DynamicEvaluationState.NO_EDGE_CURRENT:
+    elif version.state in {
+        DynamicEvaluationState.NO_EDGE_CURRENT,
+        DynamicEvaluationState.ANALYSIS_COMPLETE,
+    }:
         state = OpportunityState.EVALUATED_NO_EDGE
     else:
         state = OpportunityState.BLOCKED_BY_GATE
@@ -518,20 +523,21 @@ def classify_evaluation(
     elif ev is None or delta is None or ev_minus_se is None or value.cashflow_price_edge is None:
         state = DynamicEvaluationState.NOT_READY_MODEL_INPUT
         blockers.append("EV_EVIDENCE_INCOMPLETE")
-    elif economic_admission_pass(
-        expected_value=ev,
-        ev_minus_se=ev_minus_se,
-        cashflow_price_edge=value.cashflow_price_edge,
-    ):
-        state = DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
     else:
-        state = DynamicEvaluationState.NO_EDGE_CURRENT
-        if ev <= ACTIVE_EV_THRESHOLD:
-            blockers.append("EV_NOT_POSITIVE")
-        if value.cashflow_price_edge < MIN_CASHFLOW_PRICE_EDGE_FLOAT:
-            blockers.append("CASHFLOW_EDGE_BELOW_THRESHOLD")
-        if ev_minus_se <= ACTIVE_EV_MINUS_SE_THRESHOLD:
-            blockers.append("EV_MINUS_SE_NOT_POSITIVE")
+        if economic_admission_pass(
+            expected_value=ev,
+            ev_minus_se=ev_minus_se,
+            cashflow_price_edge=value.cashflow_price_edge,
+        ):
+            state = DynamicEvaluationState.ANALYSIS_COMPLETE
+        else:
+            state = DynamicEvaluationState.NO_EDGE_CURRENT
+            if ev <= ACTIVE_EV_THRESHOLD:
+                blockers.append("EV_NOT_POSITIVE")
+            if value.cashflow_price_edge < MIN_CASHFLOW_PRICE_EDGE_FLOAT:
+                blockers.append("CASHFLOW_EDGE_BELOW_THRESHOLD")
+            if ev_minus_se <= ACTIVE_EV_MINUS_SE_THRESHOLD:
+                blockers.append("EV_MINUS_SE_NOT_POSITIVE")
 
     shortfall = {
         "ev": round(max(ACTIVE_EV_THRESHOLD - ev, 0.0), 6) if ev is not None else 0.0,
@@ -616,9 +622,12 @@ def classify_evaluation(
             "quote_fresh": bool(value.quote_fresh),
             "evaluated": evaluation_complete,
             "calibration_validated": calibration_admissible,
-            "no_edge": evaluation_complete and state == DynamicEvaluationState.NO_EDGE_CURRENT,
-            "candidate": evaluation_complete
-            and state == DynamicEvaluationState.ANALYSIS_PICK_ACTIVE,
+            "no_edge": evaluation_complete
+            and state in {
+                DynamicEvaluationState.NO_EDGE_CURRENT,
+                DynamicEvaluationState.ANALYSIS_COMPLETE,
+            },
+            "candidate": False,
         }
         if denominator_scoped
         else None

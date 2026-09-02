@@ -322,7 +322,7 @@ def _dynamic_gate_results(
         return gates, row.first_failed_gate
     payload = row.payload if isinstance(row.payload, dict) else {}
     state = str(payload.get("state") or row.original_state)
-    evaluated = state in {"ANALYSIS_PICK_ACTIVE", "NO_EDGE_CURRENT"}
+    evaluated = state in {"ANALYSIS_COMPLETE", "ANALYSIS_PICK_ACTIVE", "NO_EDGE_CURRENT"}
     return {
         "model_ready": state != "NOT_READY_MODEL_INPUT",
         "mainline_parsed": payload.get("exact_line") is not None,
@@ -334,7 +334,7 @@ def _dynamic_gate_results(
             "STALE_PENDING_REFRESH",
         },
         "evaluated": evaluated,
-        "no_edge": state == "NO_EDGE_CURRENT",
+        "no_edge": state in {"ANALYSIS_COMPLETE", "NO_EDGE_CURRENT"},
         "candidate": state == "ANALYSIS_PICK_ACTIVE",
     }, "LEGACY_GATE_ATTRIBUTION_UNAVAILABLE"
 
