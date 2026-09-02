@@ -25,8 +25,15 @@
 |---:|---:|---:|---:|---:|
 | 76 | 18.183 分钟 | 28.958 分钟 | 29.467 分钟 | 29.750 分钟 |
 
-这是本项目既有不可变 capture 的历史实测分布，不是外部发布时间假设，也不是本任务
-新部署后生成的事件样本。样本只有 76 场，不外推到其他联赛、赛季或 Provider。
+该 76 场样本受现有轮询网格删失：`T60_ODDS_LINEUPS → T45_LINEUPS_RETRY →
+T30_LINEUPS_RETRY`。它证明这 76 场在 T-45 时首发尚未可得，真实可得时间落在
+T-45 与 T-30 之间；精确值受轮询网格限制，无法从历史 capture 得出。`P50=28.958`
+不是首发公布时间，不得作为首发发布时间引用。样本只有 76 场，不外推到其他联赛、
+赛季或 Provider。
+
+采集器自身的 `minutes_to_kickoff` 不受该删失影响：
+`minutes_to_kickoff_observations()` 只读取采集器自己的
+`endpoint=lineup_first_seen_event` 事件，且冷启动时立即观察。
 
 ## Provider 对账
 
@@ -45,6 +52,19 @@
 - 每 tick 最多新增 10 个计划，仅选择当前 UTC 比赛日内的未来 fixture。
 - 新增 lineup live calls 每天最多 1500；remaining `<1500` fail closed，`1500` 可继续。
 - quota authority 缺失时 fail closed。
+
+### 冷启动预算风险
+
+`next_lineup_poll_at()` 在 `completed_poll_count == 0` 且无本地样本时返回当前时间。
+若创建计划时距离开赛仍有数小时，该次立即观察会先被消耗，之后只剩两次机会命中
+T-45 至 T-30 的窗口。启用后必须持续监控：每场实际轮询次数、首发命中率、以及命中
+时的 `minutes_to_kickoff`。本轮仅登记风险，不修改轮询逻辑。
+
+## 重复分支处置
+
+`codex/w2-lineup-first-seen-collection-01`（`4f9cc8c2`）与本分支功能重复，且包含
+`0071_lineup_first_seen_event` migration。按本任务 migration=0 约束，本分支不合并、不引用、
+不删除该分支；删除或保留其新表方案均待 Owner 明确确认。
 
 ## 未接入模型的证据
 
