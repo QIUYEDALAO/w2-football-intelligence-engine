@@ -40,8 +40,9 @@ ECONOMIC_ADMISSION_REASON = "NO_VALIDATED_MARKET_EDGE"
 
 class DynamicEvaluationState(StrEnum):
     ANALYSIS_COMPLETE = "ANALYSIS_COMPLETE"
-    # Historical persisted rows remain parseable; classify_evaluation never emits it.
-    ANALYSIS_PICK_ACTIVE = "ANALYSIS_PICK_ACTIVE"
+    # Compatibility alias for code that names the retired state; new rows serialize
+    # as ANALYSIS_COMPLETE. Historical serialized values are handled by _missing_.
+    ANALYSIS_PICK_ACTIVE = ANALYSIS_COMPLETE
     NO_EDGE_CURRENT = "NO_EDGE_CURRENT"
     STALE_PENDING_REFRESH = "STALE_PENDING_REFRESH"
     LINEUP_READY_MARKET_REFRESH_PENDING = "LINEUP_READY_MARKET_REFRESH_PENDING"
@@ -49,6 +50,12 @@ class DynamicEvaluationState(StrEnum):
     NOT_READY_QUOTE_INCOMPLETE = "NOT_READY_QUOTE_INCOMPLETE"
     NOT_READY_MODEL_INPUT = "NOT_READY_MODEL_INPUT"
     SUPERSEDED = "SUPERSEDED"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "DynamicEvaluationState | None":
+        if value == "ANALYSIS_PICK_ACTIVE":
+            return cls.ANALYSIS_COMPLETE
+        return None
 
 
 class OpportunityState(StrEnum):
