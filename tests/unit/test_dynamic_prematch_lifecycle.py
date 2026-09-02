@@ -167,7 +167,10 @@ def test_economic_pass_is_analysis_complete_and_never_candidate() -> None:
 
 
 def test_historical_analysis_pick_state_remains_parseable() -> None:
-    assert DynamicEvaluationState("ANALYSIS_PICK_ACTIVE") is DynamicEvaluationState.ANALYSIS_COMPLETE
+    assert (
+        DynamicEvaluationState("ANALYSIS_PICK_ACTIVE")
+        is DynamicEvaluationState.ANALYSIS_COMPLETE
+    )
 
 
 def test_new_capture_supersedes_old_and_same_capture_is_idempotent() -> None:

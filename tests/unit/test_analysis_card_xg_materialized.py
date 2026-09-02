@@ -896,7 +896,7 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     decisions = {market["market"]: market["decision"] for market in card["markets"]}
     # The point estimate now uses the same validated five-match components as
     # the uncertainty audit, so this fixture's economic decision is a pick.
-    assert decisions["ASIAN_HANDICAP"] == "WATCH"
+    assert decisions["ASIAN_HANDICAP"] == "ANALYSIS_PICK"
     assert decisions["TOTALS"] in {"PICK", "ANALYSIS_PICK"}
     assert decisions["FIRST_HALF_GOALS"] == "PICK"
     assert decisions["SCORE"] == "NO_EDGE"

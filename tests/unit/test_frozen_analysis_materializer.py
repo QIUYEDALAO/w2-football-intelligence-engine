@@ -1444,7 +1444,7 @@ def test_single_event_shadow_matches_post_write_current_read_with_lifecycle(
         assert evaluation.payload["season"] == "2026"
         assert evaluation.payload["provider"] == "api_football"
         assert evaluation.payload["lineup_input_hash"] is None
-        assert evaluation.payload["state"] == "ANALYSIS_PICK_ACTIVE"
+        assert evaluation.payload["state"] == "ANALYSIS_COMPLETE"
         assert (
             evaluation.payload["scoreline_reference"]["scoreline_projection"]["status"] == "READY"
         )

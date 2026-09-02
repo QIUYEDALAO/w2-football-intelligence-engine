@@ -35,6 +35,7 @@ from w2.prematch.lifecycle import (
     LEGACY_EVALUATION_IDENTITY_VERSION,
     MODEL_FORECAST_DENOMINATOR_SCOPE,
     DynamicEvaluationInput,
+    DynamicEvaluationState,
     DynamicEvaluationVersion,
     EvaluationOpportunityContext,
     LineupConfirmedEvent,
@@ -1558,7 +1559,7 @@ def _dynamic_evaluations(
             one_x_two_probabilities=one_x_two_probabilities,
         )
         version = classify_evaluation(value, identity_version=evaluation_identity_version)
-        if version.state.value == "ANALYSIS_PICK_ACTIVE" and build_scoreline_reference:
+        if version.state is DynamicEvaluationState.ANALYSIS_COMPLETE and build_scoreline_reference:
             version = replace(
                 version,
                 scoreline_reference=build_scoreline_reference(card, version, quote_identity),

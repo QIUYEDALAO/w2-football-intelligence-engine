@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from enum import StrEnum
 from types import SimpleNamespace
 
 from sqlalchemy import create_engine, select
@@ -40,6 +42,7 @@ from w2.prematch.candidate_notifications import (
 from w2.prematch.lifecycle import (
     CHECKPOINT_OPPORTUNITY_SCOPE,
     DynamicEvaluationInput,
+    DynamicEvaluationState,
     EvaluationOpportunityContext,
     OpportunityState,
     bind_evaluation_opportunity,
@@ -48,6 +51,10 @@ from w2.prematch.lifecycle import (
 from w2.prematch.repository import DynamicPrematchRepository
 
 NOW = datetime(2026, 8, 20, 8, 0, tzinfo=UTC)
+
+
+class _HistoricalEvaluationState(StrEnum):
+    ANALYSIS_PICK_ACTIVE = "ANALYSIS_PICK_ACTIVE"
 
 
 def _engine():  # type: ignore[no-untyped-def]
@@ -105,7 +112,14 @@ def _attempt(
             denominator_scope=CHECKPOINT_OPPORTUNITY_SCOPE,
         )
     )
-    return bind_evaluation_opportunity(version, _context(slot, suffix))
+    attempt = bind_evaluation_opportunity(version, _context(slot, suffix))
+    if attempt.state is DynamicEvaluationState.ANALYSIS_COMPLETE:
+        return replace(
+            attempt,
+            state=_HistoricalEvaluationState.ANALYSIS_PICK_ACTIVE,
+            opportunity_state=OpportunityState.EVALUATED_CANDIDATE,
+        )
+    return attempt
 
 
 def _events(engine) -> list[CandidateNotificationOutboxModel]:  # type: ignore[no-untyped-def]

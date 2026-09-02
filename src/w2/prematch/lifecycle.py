@@ -52,7 +52,7 @@ class DynamicEvaluationState(StrEnum):
     SUPERSEDED = "SUPERSEDED"
 
     @classmethod
-    def _missing_(cls, value: object) -> "DynamicEvaluationState | None":
+    def _missing_(cls, value: object) -> DynamicEvaluationState | None:
         if value == "ANALYSIS_PICK_ACTIVE":
             return cls.ANALYSIS_COMPLETE
         return None

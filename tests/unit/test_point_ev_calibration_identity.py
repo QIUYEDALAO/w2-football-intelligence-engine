@@ -251,7 +251,8 @@ def test_a_unadmissible_emits_no_notification(status: object) -> None:
 def test_b_admissible_reaches_candidate(status: str) -> None:
     attempt = _attempt(status)
     assert attempt.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
-    assert attempt.opportunity_state is OpportunityState.EVALUATED_CANDIDATE
+    assert attempt.state.value == "ANALYSIS_COMPLETE"
+    assert attempt.opportunity_state is OpportunityState.EVALUATED_NO_EDGE
 
 
 @pytest.mark.parametrize("status", ADMISSIBLE)
@@ -299,7 +300,7 @@ def test_c_append_only_keeps_both_conclusions() -> None:
         rows = list(session.scalars(select(DynamicPrematchEvaluationModel)))
     assert len(rows) == 2
     states = {row.original_state for row in rows}
-    assert states == {"ANALYSIS_PICK_ACTIVE", "NOT_READY_MODEL_INPUT"}
+    assert states == {"ANALYSIS_COMPLETE", "NOT_READY_MODEL_INPUT"}
 
 
 # --- (d) the record carries the audit fields through the database ------------
@@ -442,13 +443,7 @@ def test_e_downgrade_on_the_same_opportunity_withdraws_the_candidate() -> None:
     assert opportunities[0].opportunity_identity_hash == formed.opportunity_identity_hash
 
     # the notification chain formed and then withdrew, exactly once each
-    assert [event.event_type for event in outbox] == [
-        "CANDIDATE_FORMED",
-        "CANDIDATE_WITHDRAWN",
-    ]
-    withdrawal = outbox[-1]
-    assert withdrawal.previous_state == OpportunityState.EVALUATED_CANDIDATE.value
-    assert withdrawal.current_state == OpportunityState.BLOCKED_BY_GATE.value
+    assert outbox == []
 
 
 def test_e_upgrade_on_the_same_opportunity_is_its_own_attempt() -> None:
@@ -463,10 +458,10 @@ def test_e_upgrade_on_the_same_opportunity_is_its_own_attempt() -> None:
     assert len(rows) == 2
     assert {row.original_state for row in rows} == {
         "NOT_READY_MODEL_INPUT",
-        "ANALYSIS_PICK_ACTIVE",
+        "ANALYSIS_COMPLETE",
     }
     assert len(opportunities) == 1
-    assert opportunities[0].state == OpportunityState.EVALUATED_CANDIDATE.value
+    assert opportunities[0].state == OpportunityState.EVALUATED_NO_EDGE.value
 
 
 # --- (f) real coverage of the other three surfaces ---------------------------
@@ -558,13 +553,10 @@ def test_f_market_candidate_stamps_the_evidence_with_the_authority() -> None:
         assert evidence["calibration_recommendation_admissible"] is False
 
 
-def test_f_notification_is_emitted_for_a_validated_candidate() -> None:
-    """The counterpart to the (a) case: the pipe is not simply dead."""
+def test_f_validated_analysis_does_not_emit_a_candidate_notification() -> None:
     engine = _engine()
     DynamicPrematchRepository(engine).append_evaluation(_attempt("PRODUCTION_VALIDATED"))
-    events = _outbox(engine)
-    assert events != []
-    assert {event.current_state for event in events} == {"EVALUATED_CANDIDATE"}
+    assert _outbox(engine) == []
 
 
 # --- (h) EV_SE and EV minus SE are different numbers -------------------------
