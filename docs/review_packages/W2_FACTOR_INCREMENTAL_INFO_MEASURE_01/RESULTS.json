@@ -1,0 +1,234 @@
+{
+  "bootstrap": {
+    "known_limitation": "Same-team same-season residual correlation is not clustered; intervals may be slightly narrow.",
+    "replicates": 10000,
+    "seed": 20260903,
+    "unit": "fixture"
+  },
+  "exclusions": {
+    "F1_MARKET_MOVEMENT": {
+      "MISSING_FACTOR": 7059,
+      "MISSING_PIT_XG": 579
+    },
+    "F2_BOOKMAKER_INTENT": {
+      "MISSING_FACTOR": 7059,
+      "MISSING_PIT_XG": 579
+    },
+    "F3_REST_FITNESS": {
+      "MISSING_PIT_XG": 579
+    },
+    "F5_RECENT_AH_COVER": {
+      "MISSING_FACTOR": 7059,
+      "MISSING_PIT_XG": 579
+    }
+  },
+  "family_size": 4,
+  "load_audits": {
+    "history": {
+      "assertions": {
+        "burned_penaltyblog": 0,
+        "trigger_count": 0,
+        "year_2026": 0,
+        "year_2027": 0
+      },
+      "field_names": [
+        "fixture_id",
+        "fixture_status",
+        "goals_against",
+        "goals_for",
+        "history_hash",
+        "kickoff_utc",
+        "opponent_team_id",
+        "provider",
+        "provider_fixture_id",
+        "provider_league_id",
+        "raw_captured_at",
+        "raw_payload_sha256",
+        "result_capture_delay_seconds",
+        "result_first_captured_at",
+        "result_identity_hash",
+        "season",
+        "team_id",
+        "team_identity_namespace",
+        "team_side"
+      ],
+      "loaded_year_counts": {
+        "2024": 8744,
+        "2025": 9040
+      },
+      "source_year_counts": {
+        "2022": 6496,
+        "2023": 9170,
+        "2024": 8744,
+        "2025": 9040,
+        "2026": 5256
+      }
+    },
+    "snapshots": {
+      "assertions": {
+        "burned_penaltyblog": 0,
+        "trigger_count": 0,
+        "year_2026": 0,
+        "year_2027": 0
+      },
+      "field_names": [
+        "away_team_id",
+        "candidate_eligible",
+        "factors",
+        "feature_as_of",
+        "feature_snapshot_sha256",
+        "home_team_id",
+        "notification_eligible",
+        "numeric_effect_enabled",
+        "pit_history_manifest_sha256",
+        "rating_policy",
+        "schema_version",
+        "target_fixture_id",
+        "target_kickoff",
+        "team_identity_namespace"
+      ],
+      "loaded_year_counts": {
+        "2024": 3118,
+        "2025": 4520
+      },
+      "source_year_counts": {
+        "2024": 3118,
+        "2025": 4520,
+        "2026": 2628
+      }
+    },
+    "xg": {
+      "assertions": {
+        "burned_penaltyblog": 0,
+        "trigger_count": 0,
+        "year_2026": 0,
+        "year_2027": 0
+      },
+      "field_names": [
+        "captured_at",
+        "fixture_id",
+        "goals_against",
+        "goals_for",
+        "kickoff_at",
+        "opponent_team_id",
+        "raw_payload_sha256",
+        "source_system",
+        "team_id",
+        "xg_against",
+        "xg_for"
+      ],
+      "loaded_year_counts": {
+        "2024": 5926,
+        "2025": 8362
+      },
+      "source_year_counts": {
+        "2024": 5926,
+        "2025": 8362,
+        "2026": 4408
+      }
+    }
+  },
+  "preregistration_commit": "00eb9556",
+  "provider_calls": 0,
+  "results": [
+    {
+      "baseline_metrics": {
+        "brier": 0.6179642902235101,
+        "ece_by_class": {
+          "AWAY": 0.010799260145359046,
+          "DRAW": 0.005292712173837765,
+          "HOME": 0.016767966932509135
+        },
+        "ece_mean": 0.010953313083901982,
+        "log_loss": 1.0299185873241727,
+        "reliability_sum": 0.0010721151301139825,
+        "resolution_sum": 0.030051444743682806
+      },
+      "beta": -0.061137757774834364,
+      "beta_at_search_boundary": false,
+      "bonferroni_alpha": 0.0125,
+      "brier_improvement": -0.0001084288819974738,
+      "candidate_metrics": {
+        "brier": 0.6180727191055075,
+        "ece_by_class": {
+          "AWAY": 0.014384238720280464,
+          "DRAW": 0.006464133488507544,
+          "HOME": 0.02028119275192603
+        },
+        "ece_mean": 0.013709854986904678,
+        "log_loss": 1.0301043902537712,
+        "reliability_sum": 0.0013046475442149525,
+        "resolution_sum": 0.030761271257033772
+      },
+      "factor_id": "F3_REST_FITNESS",
+      "one_sided_95_lower": -0.0007064552725686675,
+      "p_value": 0.6173382661733826,
+      "selected_axis": "DELTA",
+      "train_cluster_count": 2684,
+      "train_distribution": {
+        "count": 2684,
+        "max": 1.0,
+        "mean": -0.0012199350057956614,
+        "median": 0.0,
+        "min": -1.0,
+        "p25": -0.20833333333333326,
+        "p75": 0.21354166666666696,
+        "population_std": 0.35774391895364094,
+        "zero_count": 399
+      },
+      "train_fixture_count": 2684,
+      "train_oof_candidate_brier_by_axis": {
+        "DELTA": 0.6112420986082373,
+        "TOTAL": 0.6112669210033063
+      },
+      "train_standardization_mean": -0.0012199350057956614,
+      "train_standardization_population_std": 0.35774391895364094,
+      "validation_cluster_count": 4375,
+      "validation_distribution": {
+        "count": 4375,
+        "max": 1.0,
+        "mean": 0.003106944444444443,
+        "median": 0.0,
+        "min": -1.0,
+        "p25": -0.22395833333333326,
+        "p75": 0.22395833333333348,
+        "population_std": 0.3635137431825429,
+        "zero_count": 498
+      },
+      "validation_fixture_count": 4375,
+      "verdict": "FAIL"
+    },
+    {
+      "factor_id": "F5_RECENT_AH_COVER",
+      "train_cluster_count": 0,
+      "train_distribution": null,
+      "train_fixture_count": 0,
+      "validation_cluster_count": 0,
+      "validation_distribution": null,
+      "validation_fixture_count": 0,
+      "verdict": "FAIL_NOT_MEASURABLE"
+    },
+    {
+      "factor_id": "F1_MARKET_MOVEMENT",
+      "train_cluster_count": 0,
+      "train_distribution": null,
+      "train_fixture_count": 0,
+      "validation_cluster_count": 0,
+      "validation_distribution": null,
+      "validation_fixture_count": 0,
+      "verdict": "FAIL_NOT_MEASURABLE"
+    },
+    {
+      "factor_id": "F2_BOOKMAKER_INTENT",
+      "train_cluster_count": 0,
+      "train_distribution": null,
+      "train_fixture_count": 0,
+      "validation_cluster_count": 0,
+      "validation_distribution": null,
+      "validation_fixture_count": 0,
+      "verdict": "FAIL_NOT_MEASURABLE"
+    }
+  ],
+  "schema_version": "w2.factor_incremental_info_measure.results.v1",
+  "task_id": "W2-FACTOR-INCREMENTAL-INFO-MEASURE"
+}
