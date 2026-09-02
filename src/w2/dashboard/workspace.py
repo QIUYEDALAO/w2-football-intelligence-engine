@@ -908,6 +908,7 @@ def _match(
     data_refresh = _mapping(card.get("data_refresh"))
     market_collection = _market_collection(data_refresh)
     lineup_collection = _lineup_collection(data_refresh)
+    team_value_display = _mapping(_mapping(card.get("lineup_provenance")).get("team_value_display"))
     markets = {
         name: _market(
             _mapping(_mapping(radar.get("markets")).get(name)),
@@ -980,6 +981,7 @@ def _match(
         "status": _optional_text(card.get("status")),
         "market_collection": market_collection,
         "lineup_collection": lineup_collection,
+        "team_value_display": team_value_display,
         "intelligence_state": _text(card.get("intelligence_state"), "DATA_INCOMPLETE"),
         "intelligence_reason_codes": _string_list(card.get("intelligence_reason_codes")),
         "risks": _match_risks(

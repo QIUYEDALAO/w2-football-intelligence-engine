@@ -16,6 +16,7 @@ def test_transfermarkt_snapshot_is_hashed_normalized_and_typed() -> None:
         compressed=payload,
     )
     assert len(snapshot.rows) == 1
+    assert snapshot.compressed_bytes == len(payload)
     assert snapshot.rows[0]["normalized_name"] == "josealvarez"
     assert str(snapshot.rows[0]["market_value_eur"]) == "5000000"
     assert len(snapshot.source_sha256) == 64

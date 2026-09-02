@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from datetime import UTC, datetime
 
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
@@ -18,7 +19,9 @@ def main() -> int:
     parser.add_argument("--write", action="store_true")
     args = parser.parse_args()
     observed_at = datetime.fromisoformat(args.observed_at.replace("Z", "+00:00")).astimezone(UTC)
+    started = time.monotonic()
     snapshot = load_player_snapshot(observed_at=observed_at, allow_network=args.live)
+    download_seconds = round(time.monotonic() - started, 3)
     imported = 0
     mapped = 0
     if args.write:
@@ -42,6 +45,8 @@ def main() -> int:
                 "schema_version": "w2.transfermarkt_snapshot_manifest.v1",
                 "source_url": snapshot.source_url,
                 "source_sha256": snapshot.source_sha256,
+                "download_bytes": snapshot.compressed_bytes,
+                "download_seconds": download_seconds,
                 "observed_at": snapshot.observed_at.isoformat(),
                 "player_count": len(snapshot.rows),
                 "valued_player_count": valued,

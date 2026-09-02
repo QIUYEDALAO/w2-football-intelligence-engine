@@ -65,6 +65,7 @@ from w2.infrastructure.persistence.models import (
     LineupSourceSnapshotModel,
     PlayerIdentityMappingModel,
     PlayerValuationObservationModel,
+    RegisteredRosterSnapshotModel,
     StructuredLineupPlayerModel,
     StructuredLineupSnapshotModel,
     TeamLineupBaselineModel,
@@ -102,6 +103,26 @@ def parse_db_datetime(value: Any) -> datetime:
     if not isinstance(value, str) or not value:
         raise FutureRefreshPersistenceError("INVALID_DATETIME")
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
+
+
+def _mapping_value(value: Any, key: str) -> Any:
+    return value.get(key) if isinstance(value, Mapping) else None
+
+
+def _with_confirmed_xi(
+    team_value: Any,
+    features: list[dict[str, Any]],
+) -> dict[str, Any]:
+    value = dict(team_value) if isinstance(team_value, Mapping) else {}
+    team_id = str(value.get("team_external_id") or "")
+    feature = next(
+        (row for row in features if str(row.get("team_external_id") or "") == team_id),
+        None,
+    )
+    if feature is not None:
+        value["confirmed_xi_value_eur"] = feature.get("confirmed_xi_value_eur")
+        value["confirmed_xi_captured_at"] = feature.get("valuation_captured_at")
+    return value
 
 
 def _fixture_aliases(fixture_id: str) -> tuple[str, ...]:
@@ -1121,6 +1142,11 @@ class FutureRefreshDbRepository:
         fixture = payload.get("fixture", {}) if isinstance(payload, dict) else {}
         league = payload.get("league", {}) if isinstance(payload, dict) else {}
         season = str(league.get("season") or "")
+        team_value_display = self._team_value_display(
+            fixture_payload=payload if isinstance(payload, Mapping) else {},
+            season=season,
+            as_of=as_of,
+        )
         try:
             kickoff = parse_db_datetime(fixture.get("date"))
         except FutureRefreshPersistenceError:
@@ -1148,6 +1174,7 @@ class FutureRefreshDbRepository:
                     "valued_starters": 0,
                     "formation_count": sum(bool(row.formation) for row in selected),
                     "blockers": ["LINEUP_SNAPSHOT_INCOMPLETE"],
+                    "team_value_display": team_value_display,
                 }
             rotation_priors = self._rotation_priors_in_session(
                 session,
@@ -1168,6 +1195,7 @@ class FutureRefreshDbRepository:
                     "blockers": ["LINEUP_IDENTITY_HASH_MISSING"],
                     "rotation_priors": rotation_priors,
                     "schema_version": "w2.lineup_gate_evidence.v1",
+                    "team_value_display": team_value_display,
                 }
             starter_counts: list[int] = []
             mappings: list[PlayerIdentityMappingModel] = []
@@ -1343,6 +1371,23 @@ class FutureRefreshDbRepository:
                             **asdict(features),
                             "blockers": list(features.blockers),
                             "baseline_artifact_hash": baseline.artifact_hash,
+                            "captured_at": snapshot.captured_at.isoformat(),
+                            "valuation_captured_at": (
+                                max(
+                                    valuation.observed_at
+                                    for api_id in starter_api_ids
+                                    if (mapping := newest_mapping.get(api_id)) is not None
+                                    and mapping.transfermarkt_player_id
+                                    and (
+                                        valuation := newest_valuation.get(
+                                            str(mapping.transfermarkt_player_id)
+                                        )
+                                    )
+                                    is not None
+                                ).isoformat()
+                                if len(valued_starter_api_ids & starter_api_ids) == 11
+                                else None
+                            ),
                         }
                     )
                     evidence_blockers.extend(features.blockers)
@@ -1368,10 +1413,145 @@ class FutureRefreshDbRepository:
                 "raw_sha256": sorted({snapshot.raw_sha256 for snapshot in selected}),
                 "baseline_artifact_hashes": sorted(set(baseline_hashes)),
                 "lineup_change_features": change_features,
+                "team_value_display": {
+                    **team_value_display,
+                    "home": _with_confirmed_xi(
+                        team_value_display.get("home"),
+                        change_features,
+                    ),
+                    "away": _with_confirmed_xi(
+                        team_value_display.get("away"),
+                        change_features,
+                    ),
+                },
                 "rotation_priors": rotation_priors,
                 "blockers": sorted(set(evidence_blockers)),
                 "schema_version": "w2.lineup_gate_evidence.v1",
             }
+
+    def _team_value_display(
+        self,
+        *,
+        fixture_payload: Mapping[str, Any],
+        season: str,
+        as_of: datetime,
+    ) -> dict[str, Any]:
+        teams = fixture_payload.get("teams")
+        teams = teams if isinstance(teams, Mapping) else {}
+        with Session(self.engine) as session:
+            return {
+                "schema_version": "w2.team_value_display.v1",
+                "roster_policy": "LATEST_COMPLETE_SNAPSHOT_AT_OR_BEFORE_AS_OF",
+                **{
+                    side: self._team_value_at(
+                        session,
+                        team_external_id=str(_mapping_value(teams.get(side), "id") or ""),
+                        season=season,
+                        as_of=as_of,
+                    )
+                    for side in ("home", "away")
+                },
+            }
+
+    @staticmethod
+    def _team_value_at(
+        session: Session,
+        *,
+        team_external_id: str,
+        season: str,
+        as_of: datetime,
+    ) -> dict[str, Any]:
+        missing = {
+            "team_external_id": team_external_id,
+            "status": "NOT_AVAILABLE",
+            "squad_value_eur": None,
+            "captured_at": None,
+            "confirmed_xi_value_eur": None,
+            "confirmed_xi_captured_at": None,
+        }
+        if not team_external_id:
+            return missing
+        authority = CanonicalIdentityRepository.reviewed_team_authority_in_session(
+            session,
+            provider="api_football",
+            provider_team_id=team_external_id,
+            season=season,
+            as_of=as_of,
+        )
+        if authority is None:
+            return missing
+        transfermarkt_rows = list(
+            session.scalars(
+                select(ProviderTeamIdentityCrosswalkModel).where(
+                    ProviderTeamIdentityCrosswalkModel.provider == "transfermarkt",
+                    ProviderTeamIdentityCrosswalkModel.w2_team_id == authority.w2_team_id,
+                    ProviderTeamIdentityCrosswalkModel.competition_id
+                    == authority.competition_id,
+                    ProviderTeamIdentityCrosswalkModel.season == season,
+                    ProviderTeamIdentityCrosswalkModel.identity_status
+                    == PROVIDER_PRIMARY_READY,
+                    ProviderTeamIdentityCrosswalkModel.review_status.in_(("APPROVED", "REVIEWED")),
+                    ProviderTeamIdentityCrosswalkModel.reviewed_by.is_not(None),
+                    ProviderTeamIdentityCrosswalkModel.reviewed_at.is_not(None),
+                )
+            )
+        )
+        clubs = {
+            row.provider_team_id
+            for row in transfermarkt_rows
+            if parse_db_datetime(row.valid_from) <= as_of
+            and (row.valid_to is None or parse_db_datetime(row.valid_to) > as_of)
+        }
+        if len(clubs) != 1:
+            return missing
+        club_id = next(iter(clubs))
+        memberships = list(
+            session.scalars(
+                select(RegisteredRosterSnapshotModel).where(
+                    RegisteredRosterSnapshotModel.transfermarkt_club_id == club_id,
+                    RegisteredRosterSnapshotModel.snapshot_date <= as_of,
+                    RegisteredRosterSnapshotModel.snapshot_status == "COMPLETE",
+                )
+            )
+        )
+        if not memberships:
+            return missing
+        snapshot_at = max(row.snapshot_date for row in memberships)
+        roster = [row for row in memberships if row.snapshot_date == snapshot_at]
+        player_ids = {row.transfermarkt_player_id for row in roster}
+        valuations = list(
+            session.scalars(
+                select(PlayerValuationObservationModel)
+                .where(
+                    PlayerValuationObservationModel.transfermarkt_player_id.in_(player_ids),
+                    PlayerValuationObservationModel.observed_at <= as_of,
+                )
+                .order_by(PlayerValuationObservationModel.observed_at.desc())
+            )
+        )
+        newest: dict[str, PlayerValuationObservationModel] = {}
+        for row in valuations:
+            newest.setdefault(row.transfermarkt_player_id, row)
+        source_hashes = {row.source_sha256 for row in newest.values()}
+        values = [
+            newest[player_id].market_value_eur
+            for player_id in player_ids
+            if player_id in newest
+        ]
+        complete = len(values) == len(player_ids) and len(source_hashes) == 1
+        captured_at = max((row.observed_at for row in newest.values()), default=snapshot_at)
+        return {
+            **missing,
+            "transfermarkt_club_id": club_id,
+            "status": "READY" if complete else "INCOMPLETE",
+            "squad_value_eur": (
+                str(sum(value for value in values if value is not None)) if complete else None
+            ),
+            "captured_at": captured_at.isoformat(),
+            "player_count": len(player_ids),
+            "valued_player_count": len(values),
+            "source_sha256": next(iter(source_hashes)) if len(source_hashes) == 1 else None,
+        }
 
     def _rotation_priors_in_session(
         self,
@@ -1698,24 +1878,57 @@ class FutureRefreshDbRepository:
     ) -> int:
         with Session(self.engine) as session:
             try:
-                session.add(
-                    LineupSourceSnapshotModel(
-                        source="TRANSFERMARKT_DATASET",
-                        source_revision=source_sha256,
-                        schema_version="w2.transfermarkt_players.v1",
-                        object_uri=source_url,
-                        sha256=source_sha256,
-                        observed_at=observed_at,
-                        ingested_at=datetime.now(UTC),
+                source_exists = session.scalar(
+                    select(func.count(LineupSourceSnapshotModel.id)).where(
+                        LineupSourceSnapshotModel.sha256 == source_sha256
                     )
                 )
+                if not source_exists:
+                    session.add(
+                        LineupSourceSnapshotModel(
+                            source="TRANSFERMARKT_DATASET",
+                            source_revision=source_sha256,
+                            schema_version="w2.transfermarkt_players.v1",
+                            object_uri=source_url,
+                            sha256=source_sha256,
+                            observed_at=observed_at,
+                            ingested_at=datetime.now(UTC),
+                        )
+                    )
+                existing_references = set(
+                    session.scalars(
+                        select(TransfermarktPlayerReferenceModel.transfermarkt_player_id).where(
+                            TransfermarktPlayerReferenceModel.source_sha256 == source_sha256
+                        )
+                    )
+                )
+                existing_values = set(
+                    session.scalars(
+                        select(PlayerValuationObservationModel.transfermarkt_player_id).where(
+                            PlayerValuationObservationModel.source_sha256 == source_sha256,
+                            PlayerValuationObservationModel.observed_at == observed_at,
+                        )
+                    )
+                )
+                existing_roster = set(
+                    session.scalars(
+                        select(RegisteredRosterSnapshotModel.transfermarkt_player_id).where(
+                            RegisteredRosterSnapshotModel.source_sha256 == source_sha256,
+                            RegisteredRosterSnapshotModel.snapshot_date == observed_at,
+                        )
+                    )
+                )
+                imported: set[str] = set()
                 for row in rows:
-                    session.add(TransfermarktPlayerReferenceModel(**row))
+                    player_id = str(row["transfermarkt_player_id"])
+                    if player_id not in existing_references:
+                        session.add(TransfermarktPlayerReferenceModel(**row))
+                        imported.add(player_id)
                     value = row.get("market_value_eur")
-                    if value is not None:
+                    if value is not None and player_id not in existing_values:
                         session.add(
                             PlayerValuationObservationModel(
-                                transfermarkt_player_id=row["transfermarkt_player_id"],
+                                transfermarkt_player_id=player_id,
                                 observed_at=observed_at,
                                 market_value_eur=value,
                                 source="TRANSFERMARKT_DATASET",
@@ -1723,18 +1936,42 @@ class FutureRefreshDbRepository:
                                 schema_version="w2.transfermarkt_player_value.v1",
                             )
                         )
+                        imported.add(player_id)
+                    club_id = str(row.get("current_club_id") or "")
+                    if club_id and player_id not in existing_roster:
+                        membership_payload = {
+                            "transfermarkt_club_id": club_id,
+                            "transfermarkt_player_id": player_id,
+                            "snapshot_date": iso_z(observed_at),
+                            "source_sha256": source_sha256,
+                        }
+                        membership_hash = canonical_sha256(
+                            membership_payload,
+                            domain=HashDomain.FUTURE_REFRESH_EVIDENCE,
+                            version=SerializerVersion.LEGACY_V1,
+                        )
+                        session.add(
+                            RegisteredRosterSnapshotModel(
+                                roster_snapshot_id=(
+                                    f"transfermarkt:{club_id}:{iso_z(observed_at)}:{source_sha256}"
+                                ),
+                                transfermarkt_club_id=club_id,
+                                transfermarkt_player_id=player_id,
+                                snapshot_date=observed_at,
+                                valid_from=observed_at,
+                                valid_to=None,
+                                source_sha256=source_sha256,
+                                snapshot_status="COMPLETE",
+                                membership_hash=membership_hash,
+                                payload=membership_payload,
+                            )
+                        )
+                        imported.add(player_id)
                 session.commit()
-                return len(rows)
-            except IntegrityError:
+                return len(imported)
+            except IntegrityError as exc:
                 session.rollback()
-                source_exists = session.scalar(
-                    select(func.count(LineupSourceSnapshotModel.id)).where(
-                        LineupSourceSnapshotModel.sha256 == source_sha256
-                    )
-                )
-                if source_exists:
-                    return 0
-                raise FutureRefreshPersistenceError("TRANSFERMARKT_IMPORT_CONFLICT") from None
+                raise FutureRefreshPersistenceError("TRANSFERMARKT_IMPORT_CONFLICT") from exc
             except Exception as exc:
                 session.rollback()
                 raise FutureRefreshPersistenceError("TRANSFERMARKT_IMPORT_FAILED") from exc

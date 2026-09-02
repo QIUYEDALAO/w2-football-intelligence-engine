@@ -20,6 +20,7 @@ class TransfermarktSnapshot:
     source_url: str
     source_sha256: str
     observed_at: datetime
+    compressed_bytes: int
     rows: tuple[dict[str, Any], ...]
 
 
@@ -62,6 +63,7 @@ def load_player_snapshot(
         source_url=source_url,
         source_sha256=source_hash,
         observed_at=observed_at.astimezone(UTC),
+        compressed_bytes=len(payload),
         rows=tuple(rows),
     )
 

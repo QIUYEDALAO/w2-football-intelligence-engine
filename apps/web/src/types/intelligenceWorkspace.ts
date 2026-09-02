@@ -254,6 +254,24 @@ export interface WorkspaceMatch {
     overdue: boolean;
     public_semantics: PublicStatusSemantics;
   };
+  team_value_display: {
+    schema_version?: string;
+    roster_policy?: string;
+    home?: {
+      status?: string;
+      squad_value_eur?: string | number | null;
+      captured_at?: string | null;
+      confirmed_xi_value_eur?: string | number | null;
+      confirmed_xi_captured_at?: string | null;
+    };
+    away?: {
+      status?: string;
+      squad_value_eur?: string | number | null;
+      captured_at?: string | null;
+      confirmed_xi_value_eur?: string | number | null;
+      confirmed_xi_captured_at?: string | null;
+    };
+  };
   intelligence_state: IntelligenceState;
   intelligence_reason_codes: string[];
   priority_reason_primary: string | null;

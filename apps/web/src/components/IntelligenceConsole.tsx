@@ -164,6 +164,21 @@ function clock(value: string | null): string {
   return formatted === "时间待确认" ? formatted : formatted.slice(-5);
 }
 
+function euros(value: string | number | null | undefined): string {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? `€${new Intl.NumberFormat("zh-CN").format(amount)}` : "暂无";
+}
+
+function TeamValueDisplay({ match }: { match: WorkspaceMatch }) {
+  const values = match.team_value_display;
+  const teams = [["主队", values.home], ["客队", values.away]] as const;
+  if (!teams.some(([, value]) => value?.squad_value_eur != null || value?.confirmed_xi_value_eur != null)) return null;
+  return <section className="v41-team-values" aria-label="球队身价">
+    <header><span>球队身价 · 展示用途</span><small>整队口径：最新完整注册名单快照</small></header>
+    {teams.map(([label, value]) => <div key={label}><b>{label}</b><span>整队 {euros(value?.squad_value_eur)}<small>captured_at {localDateTime(value?.captured_at || null)}</small></span><span>确认首发 {euros(value?.confirmed_xi_value_eur)}<small>{value?.confirmed_xi_value_eur == null ? "首发口径暂不可用" : `captured_at ${localDateTime(value.confirmed_xi_captured_at || null)}`}</small></span></div>)}
+  </section>;
+}
+
 function kickoffLabel(value: string | null, selectedDate: string): string {
   const formatted = localDateTime(value);
   if (formatted === "时间待确认") return formatted;
@@ -803,6 +818,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
         <div><span>开球时间</span><strong>{clock(match.kickoff_utc)}</strong></div>
       </header>
       <div className={`v41-focus-summary ${collectionWarning ? "is-warning" : ""}`} data-primary-conclusion={diagnosisConclusion(match)}><b>{collectionWarning ? "采集状态" : "本场摘要"}</b><span>{unassessedSummary(match)}</span></div>
+      <TeamValueDisplay match={match} />
       <div className="v41-focus-body">
         <div className="v41-focus-markets">
           <p className="v41-market-contract">市场雷达 · 仅绘制已落盘快照 · 点间不插值、不推断缺失路径</p>

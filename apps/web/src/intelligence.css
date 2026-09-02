@@ -776,6 +776,12 @@ summary {
   font-size: 27px;
 }
 
+.v41-team-values { display: grid; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--v41-line-faint); }
+.v41-team-values header, .v41-team-values div { display: grid; grid-template-columns: 90px 1fr 1fr; gap: 12px; }
+.v41-team-values header { grid-template-columns: 1fr auto; }
+.v41-team-values span { display: grid; }
+.v41-team-values small { color: var(--v41-ink-3); }
+
 .v41-focus-summary {
   display: flex;
   flex: none;

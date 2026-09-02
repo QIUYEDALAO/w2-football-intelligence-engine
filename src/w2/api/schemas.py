@@ -1003,6 +1003,7 @@ class WorkspaceMatch(BaseModel):
     outcome: WorkspaceMatchOutcome
     market_collection: WorkspaceMarketCollection
     lineup_collection: WorkspaceLineupCollection
+    team_value_display: dict[str, Any]
     intelligence_state: IntelligenceState
     intelligence_reason_codes: list[str]
     priority_reason_primary: DashboardPriorityReason | None

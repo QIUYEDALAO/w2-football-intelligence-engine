@@ -919,6 +919,35 @@ def test_factor_checklist_provider_unavailable_requires_explicit_confirmation() 
     assert "待采集" not in checklist["conclusion_zh"]
 
 
+def test_workspace_projects_team_value_display_without_model_authority() -> None:
+    day_view = _day_view()
+    day_view["cards"][0]["lineup_provenance"] = {
+        "team_value_display": {
+            "schema_version": "w2.team_value_display.v1",
+            "roster_policy": "LATEST_COMPLETE_SNAPSHOT_AT_OR_BEFORE_AS_OF",
+            "home": {
+                "status": "READY",
+                "squad_value_eur": "11000000.00",
+                "captured_at": "2026-09-02T09:22:54Z",
+                "confirmed_xi_value_eur": None,
+                "confirmed_xi_captured_at": None,
+            },
+            "away": {
+                "status": "NOT_AVAILABLE",
+                "squad_value_eur": None,
+                "captured_at": None,
+                "confirmed_xi_value_eur": None,
+                "confirmed_xi_captured_at": None,
+            },
+        }
+    }
+
+    payload = _workspace(day_view)["matches"][0]
+
+    assert payload["team_value_display"]["home"]["squad_value_eur"] == "11000000.00"
+    assert payload["team_value_display"]["away"]["squad_value_eur"] is None
+
+
 def test_factor_checklist_does_not_promote_generic_provider_empty_to_unsupported() -> None:
     day_view = _day_view()
     card = _factor_checklist_card()

@@ -18,6 +18,8 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 )
 from w2.infrastructure.persistence.models import (
     PlayerIdentityMappingModel,
+    PlayerValuationObservationModel,
+    RegisteredRosterSnapshotModel,
     StructuredLineupPlayerModel,
     StructuredLineupSnapshotModel,
     TeamLineupBaselineModel,
@@ -139,6 +141,30 @@ def _install_player_identity_sources(
                         reviewed_by="fixture-authority-reviewer",
                     )
                 )
+                session.add(
+                    PlayerValuationObservationModel(
+                        transfermarkt_player_id=f"tm-{player_id}",
+                        observed_at=source_at,
+                        market_value_eur=Decimal("1000000"),
+                        source="TRANSFERMARKT_DATASET",
+                        source_sha256="t" * 64,
+                        schema_version="w2.transfermarkt_player_value.v1",
+                    )
+                )
+                session.add(
+                    RegisteredRosterSnapshotModel(
+                        roster_snapshot_id=f"transfermarkt:club-{team_id}:2026-07-18",
+                        transfermarkt_club_id=f"club-{team_id}",
+                        transfermarkt_player_id=f"tm-{player_id}",
+                        snapshot_date=source_at,
+                        valid_from=source_at,
+                        valid_to=None,
+                        source_sha256="t" * 64,
+                        snapshot_status="COMPLETE",
+                        membership_hash=f"roster-{team_id}-{index}",
+                        payload={},
+                    )
+                )
         session.commit()
     repository.save_raw_payload(
         sha256="f" * 64,
@@ -149,6 +175,7 @@ def _install_player_identity_sources(
                 {
                     "fixture": {"id": fixture_id, "date": kickoff.isoformat()},
                     "league": {"id": 113, "season": 2026},
+                    "teams": {"home": {"id": 10}, "away": {"id": 20}},
                 }
             ]
         },
@@ -509,6 +536,8 @@ def test_transfermarkt_snapshot_enables_team_scoped_identity_and_value_gate() ->
     }
     assert repository.import_transfermarkt_player_snapshot(**import_args) == 22
     assert repository.import_transfermarkt_player_snapshot(**import_args) == 0
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(RegisteredRosterSnapshotModel)) == 22
     captured_at = datetime(2026, 7, 19, tzinfo=UTC)
     repository.save_lineup_snapshots(
         fixture_id="fixture-mapped",
@@ -610,6 +639,11 @@ def test_join_evidence_and_lineup_gate_use_the_materialized_canonical_players() 
         as_of=kickoff,
     )
     assert lineup["uniquely_mapped_starters"] == 22
+    values = lineup["team_value_display"]
+    assert values["roster_policy"] == "LATEST_COMPLETE_SNAPSHOT_AT_OR_BEFORE_AS_OF"
+    assert values["home"]["squad_value_eur"] == "11000000.00"
+    assert values["away"]["squad_value_eur"] == "11000000.00"
+    assert values["home"]["confirmed_xi_value_eur"] is None
     with Session(engine) as session:
         materialized = {
             row.api_football_player_id: row.canonical_player_id
