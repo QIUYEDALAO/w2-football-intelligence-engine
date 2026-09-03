@@ -260,6 +260,10 @@ def test_existing_xg_history_is_wired_into_feature_inputs_without_faking_market_
     assert factors["F7_STRENGTH_FORM"]["proxy_of"] == "ratings"
     assert factors["F7_STRENGTH_FORM"]["is_independent_signal"] is False
     assert factors["F9_TRUE_XG"]["source_group"] == "xg"
+    contributions = {item["id"]: item for item in card["feature_contributions"]}
+    assert contributions["F9_TRUE_XG"]["coverage_profile_status"] == (
+        "API_FOOTBALL_FIXTURES_STATISTICS_AVAILABLE_CONTROLLED_LIVE"
+    )
     assert card["pricing_shadow"]["independent_signal_count"] == 1
     assert card["pricing_shadow"]["xg_derived_factor_count"] == 3
     assert "F5_RECENT_AH_COVER" not in factors

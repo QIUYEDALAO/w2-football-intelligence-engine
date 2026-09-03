@@ -4751,6 +4751,7 @@ class ReadModelService:
             "is_independent_signal": bool(getattr(item, "is_independent_signal", False)),
             "proxy_of": getattr(item, "proxy_of", None),
             "collection_status": getattr(item, "collection_status", None),
+            "coverage_profile_status": getattr(item, "coverage_profile_status", None),
             "inputs": getattr(item, "inputs", {}),
         }
 

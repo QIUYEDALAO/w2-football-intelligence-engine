@@ -59,6 +59,7 @@ class FeatureContribution:
     reason: str
     risk: str | None = None
     coverage_key: str | None = None
+    coverage_profile_status: str | None = None
     diagnostics: tuple[str, ...] = ()
     observed_at: datetime | None = None
     inputs: dict[str, Any] = field(default_factory=dict)
