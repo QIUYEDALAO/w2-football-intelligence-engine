@@ -92,14 +92,36 @@ def load_train_2024_records(
     )
 
 
+def rest_input_schema(loaded: LoadedRecords) -> dict[str, Any]:
+    """Return F3 structure only, never factor values or fixture rows."""
+    factors = [row.get("factors") for row in loaded.records]
+    f3_rows = [
+        value.get("F3_REST_FITNESS")
+        for value in factors
+        if isinstance(value, dict)
+    ]
+    f3 = [value for value in f3_rows if isinstance(value, dict)]
+    inputs = [value.get("inputs") for value in f3]
+    input_rows = [value for value in inputs if isinstance(value, dict)]
+    return {
+        "factor_id": "F3_REST_FITNESS",
+        "factor_count": len(f3),
+        "factor_field_names": sorted({key for row in f3 for key in row}),
+        "inputs_count": len(input_rows),
+        "input_field_names": sorted({key for row in input_rows for key in row}),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--inspect", type=Path, required=True)
     parser.add_argument("--records-key")
+    parser.add_argument("--inspect-rest-inputs", action="store_true")
     args = parser.parse_args()
+    loaded = load_train_2024_records(args.inspect, records_key=args.records_key)
     print(
         json.dumps(
-            load_train_2024_records(args.inspect, records_key=args.records_key).audit,
+            rest_input_schema(loaded) if args.inspect_rest_inputs else loaded.audit,
             sort_keys=True,
         )
     )

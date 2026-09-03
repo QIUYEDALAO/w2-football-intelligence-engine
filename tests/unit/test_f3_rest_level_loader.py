@@ -1,6 +1,6 @@
 import json
 
-from scripts.run_f3_rest_level_screening import load_train_2024_records
+from scripts.run_f3_rest_level_screening import load_train_2024_records, rest_input_schema
 
 
 def test_loader_exposes_only_train_2024_and_no_rows(tmp_path):
@@ -22,3 +22,34 @@ def test_loader_exposes_only_train_2024_and_no_rows(tmp_path):
     assert loaded.audit["loaded_year_counts"] == {2024: 1}
     assert loaded.audit["exclusions"] == {"YEAR_NOT_2024_FORBIDDEN": 2}
     assert loaded.audit["assertions"]["trigger_count"] == 0
+
+
+def test_rest_input_schema_returns_names_and_counts_only(tmp_path):
+    path = tmp_path / "snapshot.json"
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "target_fixture_id": "train",
+                    "target_kickoff": "2024-05-01T00:00:00Z",
+                    "factors": {
+                        "F3_REST_FITNESS": {
+                            "raw_value": 2,
+                            "inputs": {"home_rest_days": 3, "away_rest_days": 5},
+                        }
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    schema = rest_input_schema(load_train_2024_records(path))
+
+    assert schema == {
+        "factor_id": "F3_REST_FITNESS",
+        "factor_count": 1,
+        "factor_field_names": ["inputs", "raw_value"],
+        "inputs_count": 1,
+        "input_field_names": ["away_rest_days", "home_rest_days"],
+    }
