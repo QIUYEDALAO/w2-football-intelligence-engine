@@ -2,25 +2,27 @@ from __future__ import annotations
 
 from typing import Any
 
-from w2.domain.factor_registry import factor_policy, is_scoring_factor
+from w2.domain.factor_registry import (
+    ALLOWED_INDEPENDENT_FACTORS,
+    AUTHORITATIVE_SIGNAL_GROUPS,
+    NON_SCORING_GROUPS,
+    REQUIRED_SIGNAL_GROUPS,
+    factor_policy,
+    is_scoring_factor,
+)
 from w2.pricing.scale import DEFAULT_FACTOR_SCALE_PARAMS, FactorScaleParams
 
-ALLOWED_INDEPENDENT_FACTORS = frozenset(
-    {
-        "F3_REST_FITNESS",
-        "F4_MATCH_IMPORTANCE",
-        "F5_RECENT_AH_COVER",
-        "F6_H2H",
-        "F7_STRENGTH_FORM",
-        "F8_SQUAD_VALUE",
-        "F9_TRUE_XG",
-    }
-)
-AUTHORITATIVE_SIGNAL_GROUPS = frozenset(
-    {"xg", "team_fixture_history", "h2h", "squad_value", "ratings"}
-)
-REQUIRED_SIGNAL_GROUPS = ("xg", "team_fixture_history", "h2h", "squad_value", "ratings")
-NON_SCORING_GROUPS = frozenset({"match_importance"})
+# Re-exported for backward compatibility — w2.domain.factor_registry is the
+# canonical source (see there for why); existing importers of these four
+# names from this module keep working unchanged.
+__all__ = [
+    "ALLOWED_INDEPENDENT_FACTORS",
+    "AUTHORITATIVE_SIGNAL_GROUPS",
+    "NON_SCORING_GROUPS",
+    "REQUIRED_SIGNAL_GROUPS",
+    "independent_team_scores",
+    "independent_team_scores_from_contributions",
+]
 
 
 def independent_team_scores(
@@ -61,6 +63,19 @@ def independent_team_scores(
     }
     coverage = round(len(factors) / len(ALLOWED_INDEPENDENT_FACTORS), 6)
     score_meta = _weighted_scores(scoring_factors)
+    weight_sum_used = float(score_meta["weight_sum_used"])
+    scoring_factor_breakdown = [
+        {
+            "id": factor["id"],
+            "side": factor["side"],
+            "weight": factor["weight"],
+            "score": factor["score"],
+            "share": round(factor["weight"] / weight_sum_used, 6) if weight_sum_used > 0 else 0.0,
+            "source": factor["source"],
+            "source_group": factor["source_group"],
+        }
+        for factor in score_meta["scoring"]
+    ]
     return {
         "home_score": score_meta["home_score"],
         "away_score": score_meta["away_score"],
@@ -79,6 +94,45 @@ def independent_team_scores(
         "weight_sum_possible": score_meta["weight_sum_possible"],
         "factor_count_used": score_meta["factor_count_used"],
         "factor_scale": scale.snapshot(),
+        # The exact set of factors whose weight/score actually entered
+        # home_score/away_score, with each factor's share of weight_sum_used.
+        # This is the canonical breakdown other consumers (e.g. the
+        # recommendation-driving factor score) must reuse instead of
+        # re-deriving the same eligibility filter independently.
+        "scoring_factors": scoring_factor_breakdown,
+    }
+
+
+def independent_team_scores_from_contributions(
+    contributions: Any,
+    *,
+    scale: FactorScaleParams | None = None,
+) -> dict[str, Any]:
+    """Same computation as `independent_team_scores`, but accepts
+    `FeatureContribution` objects (e.g. `feature_set.contributions`) directly
+    instead of pre-shaped dicts, so callers never need their own
+    FeatureContribution -> dict conversion that could drift from this one."""
+    return independent_team_scores(
+        feature_contributions=[_contribution_to_dict(item) for item in contributions or []],
+        scale=scale,
+    )
+
+
+def _contribution_to_dict(item: Any) -> dict[str, Any]:
+    side = getattr(item, "side", None)
+    status = getattr(item, "status", None)
+    return {
+        "id": getattr(item, "feature_id", None),
+        "side": getattr(side, "value", side),
+        "weight": getattr(item, "weight", 0.0),
+        "score": getattr(item, "score", None),
+        "status": getattr(status, "value", status),
+        "source": getattr(item, "source", None),
+        "source_group": getattr(item, "source_group", None),
+        "is_independent_signal": getattr(item, "is_independent_signal", False),
+        "proxy_of": getattr(item, "proxy_of", None),
+        "collection_status": getattr(item, "collection_status", None),
+        "inputs": getattr(item, "inputs", {}),
     }
 
 
@@ -122,6 +176,7 @@ def _weighted_scores(factors: list[dict[str, Any]]) -> dict[str, Any]:
             "weight_sum_used": 0.0,
             "weight_sum_possible": 0.0,
             "factor_count_used": 0,
+            "scoring": [],
         }
     return {
         "home_score": _weighted_score(scoring, side="HOME", denominator=weight_sum_used),
@@ -136,6 +191,7 @@ def _weighted_scores(factors: list[dict[str, Any]]) -> dict[str, Any]:
             6,
         ),
         "factor_count_used": len(scoring),
+        "scoring": scoring,
     }
 
 

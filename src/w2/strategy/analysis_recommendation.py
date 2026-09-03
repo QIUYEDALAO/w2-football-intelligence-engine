@@ -7,6 +7,7 @@ from typing import ClassVar, Literal
 
 from w2.features.framework import FeatureSet, FeatureStatus, TeamSide
 from w2.strategy.bookmaker_intent import BookmakerIntent, IntentSignal
+from w2.strategy.factor_score import FactorScore, build_factor_score
 from w2.strategy.score_card import ScoreCard, build_score_card
 from w2.strategy.score_scenarios import Direction, ScoreMatrix
 
@@ -63,6 +64,7 @@ class MultiMarketAnalysisCard:
     decision: AnalysisDecision
     markets: tuple[MarketAnalysis, ...]
     bookmaker_intent: BookmakerIntent
+    factor_score: FactorScore | None = None
     disclaimer: str = DISCLAIMER
     candidate: Literal[False] = False
     formal_recommendation: Literal[False] = False
@@ -98,8 +100,16 @@ def build_multi_market_analysis(
     fixture_id: str,
     inputs: AnalysisBuildInputs,
 ) -> MultiMarketAnalysisCard:
+    # `factor_score` is computed once here from the same `feature_set` already
+    # carried by `inputs`. It drives ONLY the Asian Handicap market below,
+    # because home/away weighted strength is the one axis team_score's
+    # aggregation was built to answer. TOTALS (over/under total goals) and
+    # the xG/lambda-driven FIRST_HALF_GOALS/SCORE markets ask a different
+    # question that no factor's HOME/AWAY side encodes; they keep their own
+    # existing, independent readiness gates untouched.
+    factor_score = build_factor_score(inputs.feature_set)
     markets = (
-        _ah_market(inputs),
+        _ah_market(inputs, factor_score=factor_score),
         _ou_market(inputs),
         _half_goal_market(inputs),
         _score_market(inputs),
@@ -118,34 +128,43 @@ def build_multi_market_analysis(
         decision=card_decision,
         markets=markets,
         bookmaker_intent=inputs.ah_intent,
+        factor_score=factor_score,
     )
 
 
-def _ah_market(inputs: AnalysisBuildInputs) -> MarketAnalysis:
+def _ah_market(
+    inputs: AnalysisBuildInputs,
+    *,
+    factor_score: FactorScore,
+) -> MarketAnalysis:
     if AnalysisMarket.ASIAN_HANDICAP in inputs.missing_markets:
         return _skip(AnalysisMarket.ASIAN_HANDICAP, "AH_DATA_UNAVAILABLE")
-    if inputs.ah_intent.intent in {
-        IntentSignal.INSUFFICIENT_DATA,
-        IntentSignal.LEAKAGE_BLOCKED,
-        IntentSignal.CONFLICTED,
-    }:
-        return _skip(AnalysisMarket.ASIAN_HANDICAP, inputs.ah_intent.intent.value)
-    if inputs.ah_intent.signal_strength < MIN_INTENT_SIGNAL_STRENGTH_FOR_PICK:
+    # Owner-approved admission rule (2026-09-03): F9_TRUE_XG must have
+    # actually participated in the weighted score, and at least
+    # MIN_PARTICIPATING_FACTORS factors must have participated in total.
+    # No strength threshold is applied on top of this — see
+    # W2_UPGRADE_PLAN.md cut 06 step 5.
+    if not factor_score.admitted:
+        return _skip(
+            AnalysisMarket.ASIAN_HANDICAP,
+            "FACTOR_ADMISSION_FAILED:" + ",".join(factor_score.admission_blockers),
+        )
+    if factor_score.direction == TeamSide.NEUTRAL:
         return _no_edge(
             AnalysisMarket.ASIAN_HANDICAP,
-            "AH_EDGE_INSUFFICIENT",
-            signal_strength=inputs.ah_intent.signal_strength,
+            "FACTOR_SCORE_NO_DIRECTION",
+            signal_strength=factor_score.strength,
         )
-    tendency = _side_tendency(inputs.ah_intent.implied_side)
+    tendency = _side_tendency(factor_score.direction)
     return MarketAnalysis(
         market=AnalysisMarket.ASIAN_HANDICAP,
         decision=AnalysisDecision.ANALYSIS_PICK,
         tendency=tendency,
-        signal_strength=_signal_strength(inputs.ah_intent.signal_strength, inputs.feature_set),
-        reasons=_feature_reasons(inputs.feature_set)
-        + (f"庄家意图: {inputs.ah_intent.intent.value}",),
-        risks=inputs.base_risks + ("让球盘对临场赔率变化敏感。",),
-        invalidation_conditions=("主力阵容突变", "盘口进入 live 或暂停"),
+        signal_strength=factor_score.strength,
+        reasons=_factor_score_reasons(factor_score)
+        + (f"庄家意图(参考,不驱动方向): {inputs.ah_intent.intent.value}",),
+        risks=inputs.base_risks + ("评分构成因子随赛前信息更新可能变化。",),
+        invalidation_conditions=("主力阵容突变", "评分构成因子发生变化"),
     )
 
 
@@ -279,6 +298,18 @@ def _side_tendency(side: TeamSide) -> str:
     if side == TeamSide.AWAY:
         return "AWAY_AH"
     return "NO_SIDE_EDGE"
+
+
+def _factor_score_reasons(factor_score: FactorScore) -> tuple[str, ...]:
+    if not factor_score.participants:
+        return ("FACTOR_SCORE_NO_PARTICIPANTS",)
+    ranked = sorted(factor_score.participants, key=lambda share: -share.share)
+    shares = "、".join(f"{share.feature_id} {round(share.share * 100, 1)}%" for share in ranked)
+    return (
+        f"评分: 主 {factor_score.home_score} / 客 {factor_score.away_score}"
+        f"(margin {factor_score.margin:+.4f}, {factor_score.participant_count} 项因子参与)",
+        f"评分构成占比: {shares}",
+    )
 
 
 def _signal_strength(intent_strength: float, feature_set: FeatureSet) -> float:

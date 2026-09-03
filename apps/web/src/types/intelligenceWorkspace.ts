@@ -180,6 +180,40 @@ export interface FixtureFactor {
   evidence: Record<string, unknown>;
 }
 
+// The factor score that drives the ASIAN_HANDICAP recommendation's
+// direction and strength (see src/w2/strategy/factor_score.py). Admission
+// requires F9_TRUE_XG to have participated and at least 3 factors total to
+// have participated; no strength threshold is applied on top of that yet.
+export interface FactorScoreParticipant {
+  feature_id: string;
+  label: string;
+  magnitude: number;
+  weight: number;
+  share: number;
+  side: "HOME" | "AWAY" | "NEUTRAL";
+}
+
+export interface FactorScoreAbsence {
+  feature_id: string;
+  label: string;
+  status: string;
+  reason: string;
+}
+
+export interface FactorScore {
+  home_score: number;
+  away_score: number;
+  margin: number;
+  strength: number;
+  direction: "HOME" | "AWAY" | "NEUTRAL";
+  weight_sum_used: number;
+  participant_count: number;
+  admitted: boolean;
+  admission_blockers: string[];
+  participants: FactorScoreParticipant[];
+  absent: FactorScoreAbsence[];
+}
+
 export interface FixtureFactorChecklist {
   fixture_id: string;
   competition_id: string | null;
@@ -361,6 +395,7 @@ export interface WorkspaceMatch {
     real_money_allowed: false;
   };
   factor_checklist: FixtureFactorChecklist;
+  factor_score: FactorScore | null;
   formal_recommendation: {
     status: "OFF";
     reason: "PRODUCT_AUTHORITY_DISABLED";

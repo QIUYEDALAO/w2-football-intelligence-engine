@@ -153,6 +153,7 @@ from w2.strategy.analysis_recommendation import (
     build_multi_market_analysis,
 )
 from w2.strategy.bookmaker_intent import infer_bookmaker_intent
+from w2.strategy.factor_score import FactorScore
 from w2.strategy.formal_recommendation import (
     ah_display_contract,
     build_formal_recommendation,
@@ -3757,9 +3758,21 @@ class ReadModelService:
                 market["balanced_prices"] = resolved.get("side_prices", {})
                 if side_price is not None:
                     market["odds"] = side_price
+                # ASIAN_HANDICAP's signal_strength is now the factor-score
+                # margin (0..1, no defined mapping to the 0.50 cut calibrated
+                # for the old intent-composite scale), and Owner has
+                # explicitly deferred setting any score threshold until
+                # score/outcome data exists (W2_UPGRADE_PLAN.md cut 06 step
+                # 5). Exempt AH from the signal_strength half of this
+                # downgrade so that deferral is not silently reintroduced
+                # here; the low-price guard still applies to AH (it is an
+                # independent, unrelated check).
+                weak_signal = (
+                    market_name != AnalysisMarket.ASIAN_HANDICAP.value
+                    and float(market.get("signal_strength", market.get("confidence")) or 0.0) < 0.50
+                )
                 should_downgrade_to_watch = str(market.get("decision") or "") != "SKIP" and (
-                    (side_price is not None and float(side_price) < 1.40)
-                    or float(market.get("signal_strength", market.get("confidence")) or 0.0) < 0.50
+                    (side_price is not None and float(side_price) < 1.40) or weak_signal
                 )
                 if should_downgrade_to_watch:
                     market["decision"] = "WATCH"
@@ -4008,11 +4021,52 @@ class ReadModelService:
             "decision": card.decision.value,
             "markets": [self._analysis_market_payload(row) for row in card.markets],
             "bookmaker_intent": card.bookmaker_intent.as_dict(),
+            "factor_score": self._factor_score_payload(card.factor_score),
             "risks": sorted({risk for market in card.markets for risk in market.risks}),
             "source": "db_feature_materialized_analysis",
             "disclaimer": DISCLAIMER,
             "candidate": False,
             "formal_recommendation": False,
+        }
+
+    def _factor_score_payload(self, factor_score: FactorScore | None) -> dict[str, Any] | None:
+        """Export the score that now drives the AH market's direction, so
+        the dashboard can show, per fixture: which factors participated and
+        their weight share, which are absent and why, whether the match is
+        admitted, and which admission rule blocked it if not.
+        """
+        if factor_score is None:
+            return None
+        return {
+            "home_score": factor_score.home_score,
+            "away_score": factor_score.away_score,
+            "margin": factor_score.margin,
+            "strength": factor_score.strength,
+            "direction": factor_score.direction.value,
+            "weight_sum_used": factor_score.weight_sum_used,
+            "participant_count": factor_score.participant_count,
+            "admitted": factor_score.admitted,
+            "admission_blockers": list(factor_score.admission_blockers),
+            "participants": [
+                {
+                    "feature_id": share.feature_id,
+                    "label": share.label,
+                    "magnitude": share.magnitude,
+                    "weight": share.weight,
+                    "share": share.share,
+                    "side": share.side.value,
+                }
+                for share in factor_score.participants
+            ],
+            "absent": [
+                {
+                    "feature_id": item.feature_id,
+                    "label": item.label,
+                    "status": item.status.value,
+                    "reason": item.reason,
+                }
+                for item in factor_score.absent
+            ],
         }
 
     def _team_histories_from_existing_xg_matches(

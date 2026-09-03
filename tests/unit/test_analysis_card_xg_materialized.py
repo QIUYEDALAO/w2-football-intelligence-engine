@@ -918,7 +918,22 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     totals_market = next(market for market in card["markets"] if market["market"] == "TOTALS")
     score_market = next(market for market in card["markets"] if market["market"] == "SCORE")
     assert ah_market["lean"] is None
-    assert "跟随市场 · 无独立优势 · 仅参考" in ah_market["reason"]
+    # This fixture's fake repository provides only two factor-score-eligible
+    # sources (F9_TRUE_XG and F7_STRENGTH_FORM via team_rating_snapshots),
+    # below the score-driven-recommendation admission rule's minimum of
+    # three participating factors (see w2.strategy.factor_score). AH's
+    # `market["decision"]` above still reads ANALYSIS_PICK because it comes
+    # from the separate, pre-existing market-candidate EV comparison
+    # (w2.markets.market_candidate — explicitly independent of bookmaker
+    # intent and of the factor score); only `reasons`/`reason`, sourced from
+    # analysis_recommendation.py's AH market, reflect the new admission
+    # gate's rejection. The two are intentionally separate signals; the old
+    # "跟随市场 · 无独立优势 · 仅参考" downgrade text this used to assert no
+    # longer applies to AH (see analysis_calculator.py's
+    # `_apply_mainline_market_selection`, which now exempts AH from its
+    # signal_strength-based downgrade).
+    assert ah_market["reason"].startswith("FACTOR_ADMISSION_FAILED:")
+    assert "PARTICIPATING_FACTORS_BELOW_MINIMUM:2/3" in ah_market["reason"]
     assert totals_market["reason"].startswith("两队滚动 xG 进攻合计 2.58")
     assert score_market["scores"] == []
     assert card["bookmaker_intent"]["intent"] in {"HOME_LEAN", "AWAY_LEAN"}

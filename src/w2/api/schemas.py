@@ -900,6 +900,56 @@ class WorkspaceFixtureFactorChecklist(BaseModel):
     factors: list[WorkspaceFixtureFactor]
 
 
+class WorkspaceFactorScoreParticipant(BaseModel):
+    """One factor that actually entered the ASIAN_HANDICAP factor score's
+    weighted home/away totals — see `w2.strategy.factor_score.FactorShare`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    feature_id: str
+    label: str
+    magnitude: float
+    weight: float
+    share: float
+    side: Literal["HOME", "AWAY", "NEUTRAL"]
+
+
+class WorkspaceFactorScoreAbsence(BaseModel):
+    """One factor eligible to score but currently not participating, and
+    why — see `w2.strategy.factor_score.FactorAbsence`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    feature_id: str
+    label: str
+    status: str
+    reason: str
+
+
+class WorkspaceFactorScore(BaseModel):
+    """The score that drives the ASIAN_HANDICAP recommendation's direction
+    and strength — see `w2.strategy.factor_score.FactorScore`. Admission
+    requires F9_TRUE_XG to have participated and at least 3 factors total;
+    no strength threshold is applied yet (W2_UPGRADE_PLAN.md cut 06 step 5).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    home_score: float
+    away_score: float
+    margin: float
+    strength: float
+    direction: Literal["HOME", "AWAY", "NEUTRAL"]
+    weight_sum_used: float
+    participant_count: int
+    admitted: bool
+    admission_blockers: list[str]
+    participants: list[WorkspaceFactorScoreParticipant]
+    absent: list[WorkspaceFactorScoreAbsence]
+
+
 class WorkspaceEvaluationFinalState(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1015,6 +1065,7 @@ class WorkspaceMatch(BaseModel):
     evaluation_execution: WorkspaceEvaluationExecution
     shadow_candidate: WorkspaceShadowCandidate
     factor_checklist: WorkspaceFixtureFactorChecklist
+    factor_score: WorkspaceFactorScore | None
     formal_recommendation: WorkspaceFormalRecommendation
     market_radar: WorkspaceMarketRadar
     model_lab: WorkspaceModelLab

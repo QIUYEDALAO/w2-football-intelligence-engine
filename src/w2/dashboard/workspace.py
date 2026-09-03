@@ -1037,6 +1037,7 @@ def _match(
         "evaluation_execution": evaluation_execution,
         "shadow_candidate": shadow_candidate,
         "factor_checklist": factor_checklist,
+        "factor_score": card.get("factor_score"),
         "formal_recommendation": {
             "status": "OFF",
             "reason": "PRODUCT_AUTHORITY_DISABLED",

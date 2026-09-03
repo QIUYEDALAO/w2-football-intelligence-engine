@@ -705,6 +705,33 @@ function evidenceNumber(factor: FixtureFactor, key: string): number | null {
   return typeof value === "number" ? value : null;
 }
 
+const DISPLAYED_NON_PROBABILITY_FACTORS = new Set([
+  "F1_MARKET_MOVEMENT",
+  "F2_BOOKMAKER_INTENT",
+  "F3_REST_FITNESS",
+  "F5_RECENT_AH_COVER",
+]);
+
+function contributionEvidence(factor: FixtureFactor): string | null {
+  if (!DISPLAYED_NON_PROBABILITY_FACTORS.has(factor.factor_id)) return null;
+  const raw = factor.evidence.raw_inputs;
+  const score = factor.evidence.score;
+  const status = String(factor.evidence.status || "UNKNOWN");
+  const weight = factor.evidence.weight;
+  const visibleRaw = raw && typeof raw === "object"
+    ? Object.fromEntries(Object.entries(raw).filter(([key]) => !key.includes("hash")))
+    : {};
+  return `原始输入 ${JSON.stringify(visibleRaw)} · score ${score ?? "—"} · status ${status} · weight ${weight ?? "—"}`;
+}
+
+// True once the backend reports this factor's READY value actually enters
+// the AH (Asian Handicap) recommendation's weighted factor score, not just
+// its READY-count total. See src/w2/dashboard/factor_checklist.py's
+// `_contribution_evidence()` for the source of truth.
+function drivesAhRecommendation(factor: FixtureFactor): boolean {
+  return factor.evidence.drives_ah_recommendation === true;
+}
+
 function factorEvidence(factor: FixtureFactor): string {
   if (factor.factor_id === "MK_QUOTE_AGE") {
     const age = evidenceNumber(factor, "quote_age_seconds");
@@ -731,6 +758,8 @@ function FactorRows({ factors }: { factors: FixtureFactor[] }) {
     <b>{factor.state === "READY" ? "已就绪" : factor.state === "PARTIAL" ? "部分就绪" : factor.state === "WAITING" ? "等待窗口" : factor.state === "DISABLED" ? "已关闭" : "缺失"}</b>
     <span>{factor.cause ? FACTOR_CAUSE_LABELS[factor.cause] : "证据已就绪"}</span>
     <span>{factorEvidence(factor)}</span>
+    {contributionEvidence(factor) ? <span>{contributionEvidence(factor)}</span> : null}
+    {DISPLAYED_NON_PROBABILITY_FACTORS.has(factor.factor_id) ? <small>{drivesAhRecommendation(factor) ? "不参与 λ / 概率；READY 时计入让球（AH）推荐的评分构成与占比。" : "不参与 λ / 概率；仅 READY 状态计入 coverage bonus 的就绪数量。"}</small> : null}
     <small>{factor.next_window_at ? `下次窗口 ${localDateTime(factor.next_window_at)} · ${FACTOR_PERMANENCE_LABELS[factor.permanence]}` : FACTOR_PERMANENCE_LABELS[factor.permanence]}</small>
     <details><summary>技术证据</summary><code>{String(factor.evidence.source || "NO_SOURCE")}</code><code>{factor.factor_id}</code></details>
   </div>)}</div>;
@@ -749,6 +778,46 @@ function LedgerFact({ checklist }: { checklist: FixtureFactorChecklist }) {
   const calibration = [ledger.calibration_version, ledger.calibration_status].filter(Boolean).join(" · ") || "校准信息待确认";
   const settlement = ledger.state === "SETTLED" ? `已结算 · ${localDateTime(ledger.settled_at || null)}` : "等待真实完场";
   return <div className="v41-factor-ledger"><b>模型预测账本事实</b><strong>{ledger.state === "SETTLED" ? "已结算" : "已冻结"}</strong><span>{localDateTime(ledger.captured_at || null)} · {captureLead} · capture {captureHash}<br />{ledger.model_version || "模型版本待确认"} · {calibration}<br />结算状态：{settlement}{ledger.state === "SETTLED" ? <><br />Brier {ledger.brier?.toFixed(4)} · LogLoss {ledger.log_loss?.toFixed(4)} · RPS {ledger.rps?.toFixed(4)}</> : null}</span></div>;
+}
+
+const FACTOR_SCORE_SIDE_LABELS: Record<"HOME" | "AWAY" | "NEUTRAL", string> = {
+  HOME: "主队",
+  AWAY: "客队",
+  NEUTRAL: "均势",
+};
+
+// Shows, per Owner's admission rule (F9_TRUE_XG present + >=3 factors
+// participated), whether this match's ASIAN_HANDICAP recommendation is
+// backed by a real factor score, which factors it is built from and their
+// weight share, and — critically — which required/optional factors are
+// absent and why, so a viewer never has to guess what a score is standing
+// on. See src/w2/strategy/factor_score.py for the source of truth.
+function FactorScoreSummary({ match }: { match: WorkspaceMatch }) {
+  const score = match.factor_score;
+  if (!score) return null;
+  return <section className="v41-factor-score" aria-labelledby="factor-score-title">
+    <header>
+      <h3 id="factor-score-title">因子评分</h3>
+      <b className={score.admitted ? "is-ready" : "is-blocked"}>{score.admitted ? "已准入" : "未准入"}</b>
+      {score.admitted
+        ? <span>主 {score.home_score.toFixed(3)} · 客 {score.away_score.toFixed(3)} · {FACTOR_SCORE_SIDE_LABELS[score.direction]}领先</span>
+        : <span>{score.admission_blockers.join("、") || "评分不足以驱动推荐"}</span>}
+      <span className="v41-factor-score-margin">margin {score.margin >= 0 ? "+" : ""}{score.margin.toFixed(4)} · {score.participant_count} 项因子参与</span>
+    </header>
+    {score.participants.length ? <div>
+      {[...score.participants].sort((left, right) => right.share - left.share).map((item) => <div className="v41-factor-score-share-row" key={item.feature_id}>
+        <span>{item.label}<small> · {FACTOR_SCORE_SIDE_LABELS[item.side]}</small></span>
+        <b>{(item.share * 100).toFixed(1)}%</b>
+      </div>)}
+    </div> : null}
+    {score.absent.length ? <details className="v41-factor-score-absent">
+      <summary>未参与评分的因子（{score.absent.length}）</summary>
+      {score.absent.map((item) => <div className="v41-factor-score-share-row" key={item.feature_id}>
+        <span>{item.label}</span>
+        <small>{item.status} · {item.reason}</small>
+      </div>)}
+    </details> : null}
+  </section>;
 }
 
 function FactorChecklist({ match }: { match: WorkspaceMatch }) {
@@ -772,6 +841,7 @@ function FactorChecklist({ match }: { match: WorkspaceMatch }) {
     .sort((left, right) => Number(left.cause === "POLICY_DISABLED") - Number(right.cause === "POLICY_DISABLED"));
   return <section className="v41-factor-checklist" aria-labelledby="factor-checklist-title">
     <header><div><span className="v41-eyebrow">本场因子体检</span><h2 id="factor-checklist-title">{conclusion}</h2></div><div className="v41-factor-tracks"><b className={checklist.track_model_forecast.state === "READY" ? "is-ready" : "is-blocked"}>模型账本 {checklist.track_model_forecast.state}</b><b className={checklist.track_shadow_candidate.state === "READY" ? "is-ready" : "is-blocked"}>候选因子投影 {checklist.track_shadow_candidate.state}</b></div></header>
+    <FactorScoreSummary match={match} />
     <details className="v41-factor-audit">
       <summary>展开因子与模型账本审计</summary>
       <div className="v41-factor-audit__body">

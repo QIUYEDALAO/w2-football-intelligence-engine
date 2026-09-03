@@ -12,6 +12,29 @@ SCHEMA_VERSION = "w2.factor_registry.v1"
 REGISTRY_PATH = Path("config/factors/factor_registry.v1.json")
 VALID_LIFECYCLES = frozenset({"ACTIVE", "SHADOW", "EXPLANATION_ONLY", "GATE_ONLY", "RETIRED"})
 
+# Team-score / factor-score eligibility constants. These live here — in the
+# dependency-light domain/policy layer — rather than in w2.pricing.team_score
+# (a computation package) so that read-only consumers (e.g. the dashboard's
+# factor checklist) can reference them without importing computation code.
+# w2.pricing.team_score re-exports these for backward compatibility; treat
+# this module as the canonical source.
+ALLOWED_INDEPENDENT_FACTORS = frozenset(
+    {
+        "F3_REST_FITNESS",
+        "F4_MATCH_IMPORTANCE",
+        "F5_RECENT_AH_COVER",
+        "F6_H2H",
+        "F7_STRENGTH_FORM",
+        "F8_SQUAD_VALUE",
+        "F9_TRUE_XG",
+    }
+)
+AUTHORITATIVE_SIGNAL_GROUPS = frozenset(
+    {"xg", "team_fixture_history", "h2h", "squad_value", "ratings"}
+)
+REQUIRED_SIGNAL_GROUPS = ("xg", "team_fixture_history", "h2h", "squad_value", "ratings")
+NON_SCORING_GROUPS = frozenset({"match_importance"})
+
 
 @lru_cache(maxsize=1)
 def load_factor_registry() -> dict[str, dict[str, Any]]:
