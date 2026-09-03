@@ -65,3 +65,15 @@
 - 未把新构造写入 `team_factors.py`，未接入 `calibrate_lambdas`，代码行为未改变。
 - identity：按 M4 回报“未修改、未重新实测”。
 - RESULTS.json SHA-256：`fe4005c9de031f9003c1f9fe67780ead6efddeeef1ca9ffea4eb4e808b6d5aa7`。
+
+## 本地验收
+
+- loader/OOF 定向：`3 passed`；canonical serialization：`57 passed`；package matrix：`5 passed`；Ruff 与 `git diff --check`：PASS。
+- 全量：`2952 passed / 9 skipped / 5 failed`。新增的 3 个 loader/OOF tests 解释了相对父提交的 passed 数增加。
+- 以下 5 个失败在干净父提交 `1de3c1ef` 逐 node ID 精确复跑，结果 `5 failed`，均同样复现：
+  - `tests/contract/test_compose_env_dedup.py::test_compose_expansion_matches_authorized_runtime_delta[path0]`
+  - `tests/contract/test_compose_env_dedup.py::test_compose_expansion_matches_authorized_runtime_delta[path1]`
+  - `tests/contract/test_sc18_input_authority.py::test_sc18_authority_artifacts_are_complete_and_self_checking`
+  - `tests/integration/test_future_refresh_staging_parity.py::test_preflight_fails_root_0700_runtime_for_worker_uid`
+  - `tests/integration/test_future_refresh_staging_parity.py::test_preflight_passes_worker_owned_0750_runtime`
+- 失败原因分别是本机 Docker CLI 无 Compose 子命令、子进程 PATH 无 `python`、Docker 无法创建用于 uid/gid 权限检查的目录；均非本分支回归。
