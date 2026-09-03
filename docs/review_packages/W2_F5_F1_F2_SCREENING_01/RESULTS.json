@@ -1,0 +1,204 @@
+{
+  "bootstrap_replicates_executed": 0,
+  "clean_confirmation_set_consumed": false,
+  "exclusions": {
+    "F1_MARKET_MOVEMENT": {
+      "MISSING_BASELINE_CAPTURE": 2590,
+      "MISSING_FACTOR": 38
+    },
+    "F2_BOOKMAKER_INTENT": {
+      "MISSING_BASELINE_CAPTURE": 2590,
+      "MISSING_FACTOR": 38
+    },
+    "F5_RECENT_AH_COVER": {
+      "MISSING_BASELINE_CAPTURE": 2590,
+      "MISSING_FACTOR": 38
+    }
+  },
+  "fit_count": 0,
+  "load_audits": {
+    "capture_inputs": {
+      "assertions": {
+        "burned_penaltyblog": 0,
+        "kickoff_after_2026_08_22": 0,
+        "trigger_count": 0,
+        "year_2024_or_2025": 0
+      },
+      "exclusions": {
+        "AFTER_2026_08_22_FORBIDDEN": 59
+      },
+      "field_names": [
+        "away_xg_against",
+        "away_xg_for",
+        "captured_at",
+        "fixture_id",
+        "home_xg_against",
+        "home_xg_for",
+        "kickoff_utc"
+      ],
+      "loaded_count": 77,
+      "loaded_month_counts": {
+        "2026-08": 77
+      },
+      "source_count": 136
+    },
+    "fixture_identities": {
+      "assertions": {
+        "burned_penaltyblog": 0,
+        "kickoff_after_2026_08_22": 0,
+        "trigger_count": 0,
+        "year_2024_or_2025": 0
+      },
+      "exclusions": {
+        "AFTER_2026_08_22_FORBIDDEN": 154
+      },
+      "field_names": [
+        "fixture_id",
+        "kickoff_utc",
+        "provider_fixture_id"
+      ],
+      "loaded_count": 255,
+      "loaded_month_counts": {
+        "2026-07": 32,
+        "2026-08": 223
+      },
+      "source_count": 409
+    },
+    "history": {
+      "assertions": {
+        "burned_penaltyblog": 0,
+        "kickoff_after_2026_08_22": 0,
+        "trigger_count": 0,
+        "year_2024_or_2025": 0
+      },
+      "exclusions": {
+        "BEFORE_SCREENING_WINDOW": 33450
+      },
+      "field_names": [
+        "fixture_id",
+        "fixture_status",
+        "goals_against",
+        "goals_for",
+        "history_hash",
+        "kickoff_utc",
+        "opponent_team_id",
+        "provider",
+        "provider_fixture_id",
+        "provider_league_id",
+        "raw_captured_at",
+        "raw_payload_sha256",
+        "result_capture_delay_seconds",
+        "result_first_captured_at",
+        "result_identity_hash",
+        "season",
+        "team_id",
+        "team_identity_namespace",
+        "team_side"
+      ],
+      "loaded_count": 5256,
+      "loaded_month_counts": {
+        "2026-01": 656,
+        "2026-02": 772,
+        "2026-03": 840,
+        "2026-04": 1084,
+        "2026-05": 1080,
+        "2026-06": 16,
+        "2026-07": 358,
+        "2026-08": 450
+      },
+      "source_count": 38706
+    },
+    "snapshots": {
+      "assertions": {
+        "burned_penaltyblog": 0,
+        "kickoff_after_2026_08_22": 0,
+        "trigger_count": 0,
+        "year_2024_or_2025": 0
+      },
+      "exclusions": {
+        "BEFORE_SCREENING_WINDOW": 7638
+      },
+      "field_names": [
+        "away_team_id",
+        "candidate_eligible",
+        "factors",
+        "feature_as_of",
+        "feature_snapshot_sha256",
+        "home_team_id",
+        "notification_eligible",
+        "numeric_effect_enabled",
+        "pit_history_manifest_sha256",
+        "rating_policy",
+        "schema_version",
+        "target_fixture_id",
+        "target_kickoff",
+        "team_identity_namespace"
+      ],
+      "loaded_count": 2628,
+      "loaded_month_counts": {
+        "2026-01": 328,
+        "2026-02": 386,
+        "2026-03": 420,
+        "2026-04": 542,
+        "2026-05": 540,
+        "2026-06": 8,
+        "2026-07": 179,
+        "2026-08": 225
+      },
+      "source_count": 10266
+    }
+  },
+  "minimum_usable_fixtures": 300,
+  "preregistration_commit": "4652a5f8",
+  "provider_calls": 0,
+  "results": [
+    {
+      "axis": "DELTA",
+      "bonferroni_alpha": 0.016667,
+      "brier_improvement": null,
+      "cluster_count": 0,
+      "distribution": null,
+      "factor_id": "F5_RECENT_AH_COVER",
+      "fixture_count": 0,
+      "one_sided_95_lower": null,
+      "p_value": null,
+      "stopped_before_fit": true,
+      "verdict": "FAIL_NOT_MEASURABLE"
+    },
+    {
+      "axis": "DELTA",
+      "bonferroni_alpha": 0.016667,
+      "brier_improvement": null,
+      "cluster_count": 0,
+      "distribution": null,
+      "factor_id": "F1_MARKET_MOVEMENT",
+      "fixture_count": 0,
+      "one_sided_95_lower": null,
+      "p_value": null,
+      "stopped_before_fit": true,
+      "verdict": "FAIL_NOT_MEASURABLE"
+    },
+    {
+      "axis": "DELTA",
+      "bonferroni_alpha": 0.016667,
+      "brier_improvement": null,
+      "cluster_count": 0,
+      "distribution": null,
+      "factor_id": "F2_BOOKMAKER_INTENT",
+      "fixture_count": 0,
+      "one_sided_95_lower": null,
+      "p_value": null,
+      "stopped_before_fit": true,
+      "verdict": "FAIL_NOT_MEASURABLE"
+    }
+  ],
+  "schema_version": "w2.f5_f1_f2_screening.results.v1",
+  "screening_only": true,
+  "source_sha256": {
+    "capture_inputs": "137e0263c5f942d549552df76b976aa09e66d0dc36781037fab3fd54210299b9",
+    "fixture_identities": "b6ccd5c3ed528e16e6ac6930ac3a03e763b79c5375d84d00be75981f1084209f",
+    "history": "80e49d1a32b5dd9653d41826e87415acff0d32a6804dea408f3b99737a6ab5e2",
+    "snapshots": "aa77f112bae6d3f5a86b7ffc4a169baa77d5a2060e1a4a6a7e99a84ece96f3d3"
+  },
+  "task_id": "W2-F5-F1-F2-SCREENING"
+}
