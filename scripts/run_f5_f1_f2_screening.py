@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,6 +26,7 @@ FACTOR_IDS = (
     "F1_MARKET_MOVEMENT",
     "F2_BOOKMAKER_INTENT",
 )
+MINIMUM_USABLE_FIXTURES = 300
 
 
 @dataclass(frozen=True)
@@ -141,13 +143,180 @@ def factor_presence_schema(loaded: LoadedRecords) -> dict[str, Any]:
     }
 
 
+def _fixture_id(value: Any) -> str:
+    text = str(value)
+    return text if ":" in text else f"api_football:{text}"
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _has_baseline(row: dict[str, Any]) -> bool:
+    try:
+        values = [
+            float(row[field])
+            for field in (
+                "home_xg_for",
+                "home_xg_against",
+                "away_xg_for",
+                "away_xg_against",
+            )
+        ]
+    except (KeyError, TypeError, ValueError):
+        return False
+    return all(value >= 0 for value in values)
+
+
+def _factor_value(row: dict[str, Any], factor_id: str) -> float | None:
+    factors = row.get("factors")
+    factor = factors.get(factor_id) if isinstance(factors, dict) else None
+    if isinstance(factor, dict) and not factor.get("missing"):
+        value = factor.get("raw_value")
+        if value is not None:
+            return float(value)
+    contributions = row.get("feature_contributions")
+    if isinstance(contributions, list):
+        for item in contributions:
+            if (
+                isinstance(item, dict)
+                and item.get("id") == factor_id
+                and item.get("score") is not None
+            ):
+                return float(item["score"])
+    value = row.get(factor_id)
+    return float(value) if value is not None else None
+
+
+def _screening_counts(
+    history: LoadedRecords,
+    snapshots: LoadedRecords,
+    capture_inputs: LoadedRecords,
+) -> tuple[dict[str, Any], dict[str, dict[str, int]]]:
+    sides: dict[str, set[str]] = defaultdict(set)
+    for row in history.records:
+        sides[_fixture_id(row["fixture_id"])].add(str(row["team_side"]))
+    completed = {fixture_id for fixture_id, values in sides.items() if values == {"HOME", "AWAY"}}
+    snapshot_by_fixture = {
+        _fixture_id(row["target_fixture_id"]): row for row in snapshots.records
+    }
+    baseline_by_fixture = {
+        _fixture_id(row["fixture_id"]): row
+        for row in capture_inputs.records
+        if _has_baseline(row)
+    }
+    values = {factor_id: [] for factor_id in FACTOR_IDS}
+    exclusions = {factor_id: Counter() for factor_id in FACTOR_IDS}
+    for fixture_id in completed:
+        baseline = baseline_by_fixture.get(fixture_id)
+        if baseline is None:
+            for factor_id in FACTOR_IDS:
+                exclusions[factor_id]["MISSING_BASELINE_CAPTURE"] += 1
+            continue
+        snapshot = snapshot_by_fixture.get(fixture_id)
+        if snapshot is None:
+            for factor_id in FACTOR_IDS:
+                exclusions[factor_id]["MISSING_FACTOR_SNAPSHOT"] += 1
+            continue
+        for factor_id in FACTOR_IDS:
+            value = _factor_value(snapshot, factor_id)
+            if value is None:
+                exclusions[factor_id]["MISSING_FACTOR"] += 1
+            else:
+                values[factor_id].append(value)
+    results = {
+        factor_id: {
+            "factor_id": factor_id,
+            "axis": "DELTA",
+            "fixture_count": len(factor_values),
+            "cluster_count": len(factor_values),
+            "distribution": None,
+            "brier_improvement": None,
+            "one_sided_95_lower": None,
+            "p_value": None,
+            "bonferroni_alpha": 0.016667,
+            "verdict": "FAIL_NOT_MEASURABLE",
+            "stopped_before_fit": len(factor_values) < MINIMUM_USABLE_FIXTURES,
+        }
+        for factor_id, factor_values in values.items()
+    }
+    return results, {
+        factor_id: dict(sorted(counts.items())) for factor_id, counts in exclusions.items()
+    }
+
+
+def run_screening(args: argparse.Namespace) -> dict[str, Any]:
+    history = load_screening_records(
+        args.history, records_key="history_rows", require_finished=True
+    )
+    snapshots = load_screening_records(args.snapshots)
+    capture_inputs = load_screening_records(args.capture_inputs)
+    fixture_identities = load_screening_records(args.fixture_identities)
+    results, exclusions = _screening_counts(history, snapshots, capture_inputs)
+    return {
+        "schema_version": "w2.f5_f1_f2_screening.results.v1",
+        "task_id": "W2-F5-F1-F2-SCREENING",
+        "preregistration_commit": "4652a5f8",
+        "screening_only": True,
+        "clean_confirmation_set_consumed": False,
+        "minimum_usable_fixtures": MINIMUM_USABLE_FIXTURES,
+        "load_audits": {
+            "history": history.audit,
+            "snapshots": snapshots.audit,
+            "capture_inputs": capture_inputs.audit,
+            "fixture_identities": fixture_identities.audit,
+        },
+        "source_sha256": {
+            "history": _sha256(args.history),
+            "snapshots": _sha256(args.snapshots),
+            "capture_inputs": _sha256(args.capture_inputs),
+            "fixture_identities": _sha256(args.fixture_identities),
+        },
+        "exclusions": exclusions,
+        "results": [results[factor_id] for factor_id in FACTOR_IDS],
+        "fit_count": 0,
+        "bootstrap_replicates_executed": 0,
+        "provider_calls": 0,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--inspect", type=Path, required=True)
+    parser.add_argument("--inspect", type=Path)
     parser.add_argument("--records-key")
     parser.add_argument("--require-finished", action="store_true")
     parser.add_argument("--inspect-factor-schema", action="store_true")
+    parser.add_argument("--run", action="store_true")
+    parser.add_argument("--history", type=Path)
+    parser.add_argument("--snapshots", type=Path)
+    parser.add_argument("--capture-inputs", type=Path)
+    parser.add_argument("--fixture-identities", type=Path)
+    parser.add_argument("--output", type=Path)
     args = parser.parse_args()
+    if args.run:
+        required = (
+            args.history,
+            args.snapshots,
+            args.capture_inputs,
+            args.fixture_identities,
+            args.output,
+        )
+        if not all(required):
+            raise SystemExit(
+                "--run requires --history, --snapshots, --capture-inputs, "
+                "--fixture-identities, and --output"
+            )
+        args.output.write_text(
+            json.dumps(run_screening(args), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return 0
+    if args.inspect is None:
+        raise SystemExit("Use --inspect or --run; direct data probing is disabled.")
     loaded = load_screening_records(
         args.inspect,
         records_key=args.records_key,

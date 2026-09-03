@@ -1,6 +1,10 @@
 import json
 
-from scripts.run_f5_f1_f2_screening import factor_presence_schema, load_screening_records
+from scripts.run_f5_f1_f2_screening import (
+    _factor_value,
+    factor_presence_schema,
+    load_screening_records,
+)
 
 
 def test_loader_exposes_only_finished_burned_window_and_no_rows(tmp_path):
@@ -56,3 +60,14 @@ def test_factor_schema_returns_presence_counts_without_values(tmp_path):
         "contribution_id_counts": {"F1_MARKET_MOVEMENT": 1},
         "top_level_factor_counts": {"F2_BOOKMAKER_INTENT": 1},
     }
+
+
+def test_factor_value_does_not_impute_missing_values():
+    assert _factor_value({"factors": {}}, "F5_RECENT_AH_COVER") is None
+    assert (
+        _factor_value(
+            {"factors": {"F5_RECENT_AH_COVER": {"raw_value": 0.25}}},
+            "F5_RECENT_AH_COVER",
+        )
+        == 0.25
+    )
