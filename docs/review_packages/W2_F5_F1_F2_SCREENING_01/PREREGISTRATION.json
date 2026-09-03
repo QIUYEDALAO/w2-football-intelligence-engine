@@ -1,0 +1,133 @@
+{
+  "schema_version": "w2.f5_f1_f2_screening.preregistration.v1",
+  "task_id": "W2-F5-F1-F2-SCREENING",
+  "status": "FROZEN_BEFORE_FIRST_MEASUREMENT",
+  "frozen_at_utc": "2026-09-03T02:12:25Z",
+  "production_baseline": "1de3c1ef554d00a408577f59f4864e04f1d341da",
+  "method_authority": {
+    "task_a_preregistration_commit": "00eb9556",
+    "task_a_preregistration_json_sha256": "4dad76f5695809529df9970490a36baefe876b79dface15ec949c404b77c830a",
+    "task_a_preregistration_md_sha256": "3467b13f77a91c4a9ca313b29423a94a87b60065e03d5dc603a9187b9a3659d2"
+  },
+  "study_type": "SCREENING_ONLY_NOT_CONFIRMATION",
+  "admission_prohibited": true,
+  "family": {
+    "size": 3,
+    "members": [
+      "F5_RECENT_AH_COVER",
+      "F1_MARKET_MOVEMENT",
+      "F2_BOOKMAKER_INTENT"
+    ],
+    "immutable_after_freeze": true
+  },
+  "multiplicity": {
+    "method": "BONFERRONI",
+    "family_size": 3,
+    "family_alpha": 0.05,
+    "corrected_alpha": 0.016667
+  },
+  "data": {
+    "screening_set": "completed fixture with kickoff_utc >= 2026-01-01T00:00:00Z and kickoff_utc < 2026-08-23T00:00:00Z",
+    "interpretation_of_upper_boundary": "UTC calendar dates 2026-01-01 through 2026-08-22 inclusive",
+    "burn_status": "ALREADY_EXPOSED_BURNED_SCREENING_DATA",
+    "clean_confirmation_set": "kickoff_utc > 2026-08-22T23:59:59.999999Z; FORBIDDEN_NOT_READ",
+    "years_2024_2025": "FORBIDDEN_NOT_USED",
+    "burned_penaltyblog_2012_13_through_2016_17": "EXCLUDED",
+    "source_rule": "Use only fixed local artifacts already present for Task A and its known 2026 factor captures; no acquisition, source substitution, or source choice after results.",
+    "source_path_and_sha_reporting": "The boundary-first loader records paths and SHA-256 after it exists; paths are not selected using factor results.",
+    "missing_policy": "COMPLETE_CASE_PER_FACTOR_NO_IMPUTATION",
+    "minimum_usable_fixtures": 300,
+    "insufficient_sample_verdict": "FAIL_NOT_MEASURABLE",
+    "finished_required": true
+  },
+  "loader": {
+    "must_exist_before_any_data_access": true,
+    "filter_before_exposure": true,
+    "post_load_assertions": {
+      "kickoff_after_2026_08_22": 0,
+      "year_2024_or_2025": 0,
+      "burned_penaltyblog_season": 0
+    },
+    "failure_behavior": "ABORT",
+    "inspection_output": "field names, source counts, loaded monthly counts, exclusion counts, and assertion counts only; never row contents",
+    "temporary_data_reads_forbidden": true
+  },
+  "factor_scalar_contracts": {
+    "F5_RECENT_AH_COVER": {
+      "value": "home_cover_rate-away_cover_rate from canonical historical AH facts strictly before target kickoff",
+      "axis": "DELTA"
+    },
+    "F1_MARKET_MOVEMENT": {
+      "value": "AH market_movement_factor score = clip(-first_seen_to_current/0.25,-1,1), using only snapshots captured no later than target as-of",
+      "axis": "DELTA"
+    },
+    "F2_BOOKMAKER_INTENT": {
+      "value": "Signed AH infer_bookmaker_intent signal_strength: HOME_LEAN positive, AWAY_LEAN negative, BALANCED or CONFLICTED zero; insufficient/leakage-blocked is missing",
+      "axis": "DELTA"
+    }
+  },
+  "candidate_model": {
+    "form": "One standardized scalar X and one fitted coefficient beta; no intercept, interaction, feature engineering, or hyperparameter search.",
+    "axis": "candidate_delta = baseline_delta + beta*X; total unchanged; reconstruct lambdas as (total+delta)/2 and (total-delta)/2 with current lambda clamps.",
+    "standardization": "Mean and population standard deviation fit only on the four fitting folds.",
+    "coefficient_fit": "Minimize multiclass log-loss on fitting folds by deterministic golden-section search over beta in [-2,2] for 96 iterations; report a boundary solution and do not widen or refit.",
+    "evaluation": "Five deterministic fixture-cluster OOF folds assigned by int(sha256(fixture_id)[:8],16)%5. Fit on four folds and score the held-out fold; pool each fixture's single OOF prediction.",
+    "near_constant": "population_std == 0 on any required fitting cohort yields FAIL_NEAR_CONSTANT"
+  },
+  "baseline": {
+    "function": "calibrate_lambdas",
+    "calibration_version": "w2.formal.lambda_baseline_prior.v1",
+    "params": "LambdaCalibrationParams defaults",
+    "optional_inputs": "home_elo=None, away_elo=None, home_squad_value_eur=None, away_squad_value_eur=None, lineup adjustments zero and disabled",
+    "probability_model": "Exact independent Poisson score matrix normalized on goals 0..10, then aggregated to HOME/DRAW/AWAY",
+    "unchanged": true
+  },
+  "metrics": {
+    "primary": "MULTICLASS_BRIER_MEAN_SUM_SQUARED_ERROR",
+    "secondary": [
+      "MULTICLASS_LOG_LOSS",
+      "CLASSWISE_ECE_10_EQUAL_WIDTH_BINS",
+      "CLASSWISE_BRIER_DECOMPOSITION_RELIABILITY_RESOLUTION"
+    ],
+    "brier_improvement": "baseline_oof_brier-candidate_oof_brier; positive favors factor",
+    "probability_clip_for_log_loss": "1e-15"
+  },
+  "inference": {
+    "unit": "fixture cluster",
+    "bootstrap_replicates": 10000,
+    "bootstrap_seed": 20260904,
+    "seed_reason": "Avoid reusing Task A's bootstrap resampling sequence.",
+    "resampling": "Sample pooled OOF fixture IDs with replacement and retain all three class components together.",
+    "one_sided_lower_95": "5th percentile of bootstrap mean paired Brier improvements",
+    "p_value": "(1 + count(bootstrap mean improvement <= 0))/(10000 + 1)",
+    "pass_rule": "OOF Brier improvement > 0, one-sided 95% lower bound > 0, and p < 0.016667. All other outcomes FAIL. PASS means screen-in for future confirmation only."
+  },
+  "reporting": {
+    "required": [
+      "per-factor screening verdict",
+      "OOF Brier improvement, one-sided 95% lower bound, p-value, and corrected-alpha result",
+      "log-loss, ECE, reliability, and resolution baseline and candidate",
+      "min, p25, median, p75, max, population_std, and zero count",
+      "usable fixture count and fixture-cluster count",
+      "loaded monthly counts, all exclusions, and loader assertion counts",
+      "explicit statement that the clean confirmation set was not consumed"
+    ]
+  },
+  "known_limitation": "Fixture-level bootstrap does not cluster repeated fixtures from the same team-season; intervals may be slightly narrow.",
+  "stopping_rule": "Run once, report once, stop. Do not change family, boundaries, scalar, axis, model, optimizer, metrics, bootstrap, missing policy, or threshold after seeing results.",
+  "forbidden": [
+    "READ_KICKOFF_AFTER_2026_08_22",
+    "READ_2024_OR_2025_FOR_THIS_TASK",
+    "IMPUTE_MISSING_FACTOR_VALUES",
+    "CONNECT_FACTOR_TO_CALIBRATE_LAMBDAS",
+    "MODIFY_FACTOR_REGISTRY",
+    "MODIFY_CALIBRATION_VERSION_OR_PARAMS",
+    "MODIFY_WEIGHTS_OR_LAMBDAS",
+    "PRODUCTION_WRITE",
+    "LEDGER_WRITE",
+    "MIGRATION",
+    "DEPLOYMENT",
+    "PROVIDER_CALL",
+    "GITHUB_OR_GHCR"
+  ]
+}
