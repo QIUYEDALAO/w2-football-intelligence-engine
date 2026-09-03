@@ -894,9 +894,14 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert card["line_movement"]["ah_open"] in {"-0.5", "0.5"}
     assert card["line_movement"]["ah_current"] in {"-0.5", "0.5"}
     decisions = {market["market"]: market["decision"] for market in card["markets"]}
-    # The point estimate now uses the same validated five-match components as
-    # the uncertainty audit, so this fixture's economic decision is a pick.
-    assert decisions["ASIAN_HANDICAP"] == "ANALYSIS_PICK"
+    # The EV comparison on this fixture is favourable and its quote identity is
+    # complete, so the market-candidate pipeline would set ANALYSIS_PICK on its
+    # own. It no longer can: AH direction is owned by the factor score, and this
+    # fixture only supplies two eligible source groups (xg, team_fixture_history)
+    # against a minimum of three, so admission fails and the SKIP stands. This
+    # is the point of the veto -- a good price is not by itself a reason to
+    # recommend a match the factors cannot speak to.
+    assert decisions["ASIAN_HANDICAP"] == "SKIP"
     assert decisions["TOTALS"] in {"PICK", "ANALYSIS_PICK"}
     assert decisions["FIRST_HALF_GOALS"] == "PICK"
     assert decisions["SCORE"] == "NO_EDGE"
@@ -909,6 +914,11 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert ah_market["expected_value"] is not None
     assert ah_market["uncertainty"] is not None
     assert ah_market["analysis_evidence_sides"]
+    assert ah_market["factor_veto"]["code"] == "FACTOR_ADMISSION_FAILED"
+    assert "PARTICIPATING_FACTORS_BELOW_MINIMUM:2/3" in ah_market["factor_veto"]["blockers"]
+    # The EV evidence is still projected in full for inspection -- the veto
+    # blocks the decision, it does not hide the comparison.
+    assert ah_market["market_candidate"]["analysis_evidence_status"] == "COMPLETE"
     assert any(
         "F9_TRUE_XG:AS_OF_ROLLING_XG_DIFF" in reason
         for market in card["markets"]

@@ -5878,7 +5878,16 @@ class ReadModelService:
                 if isinstance(candidate, dict):
                     market["market_candidate"] = candidate
                     self._attach_market_candidate_evidence_projection(market, candidate)
-                    if candidate.get("analysis_evidence_status") == "COMPLETE":
+                    veto = self._factor_veto(decorated, market)
+                    if veto is not None:
+                        market["factor_veto"] = veto
+                        if veto["code"] == "FACTOR_EV_DIRECTION_CONFLICT":
+                            # The factor score and the EV comparison point at
+                            # opposite sides. Neither drives: downgrade to WATCH
+                            # rather than silently letting one of them win.
+                            market["decision"] = "WATCH"
+                            market["analysis_decision"] = "WATCH"
+                    if veto is None and candidate.get("analysis_evidence_status") == "COMPLETE":
                         if candidate.get("analysis_direction_allowed"):
                             market["tendency"] = candidate.get("selection")
                             market["analysis_decision"] = "ANALYSIS_PICK"
@@ -5909,6 +5918,51 @@ class ReadModelService:
                 else "SKIP"
             )
         return decorated
+
+    def _factor_veto(
+        self,
+        card: dict[str, Any],
+        market: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Return why the factor score forbids the EV comparison from setting
+        this market's direction, or None if it does not forbid it.
+
+        The market-candidate pipeline derives its direction purely from model
+        probability vs market probability plus an economic admission test; it
+        never consults a factor.  Left unguarded it would overwrite the AH
+        market's decision, tendency and signal_strength, including reviving a
+        SKIP that the factor admission rule had just issued -- which would put
+        the factors back out of the recommendation they are supposed to drive.
+
+        Only ASIAN_HANDICAP is guarded: it is the market the factor score
+        drives.  TOTALS keeps its previous behaviour.
+
+        Fail-closed: a card with no factor score (e.g. the fallback card)
+        counts as not admitted, so EV alone can never create an AH pick.
+        """
+        if str(market.get("market") or "") != AnalysisMarket.ASIAN_HANDICAP.value:
+            return None
+        factor_score = card.get("factor_score")
+        if not isinstance(factor_score, dict):
+            return {"code": "FACTOR_SCORE_UNAVAILABLE", "blockers": []}
+        if not factor_score.get("admitted"):
+            return {
+                "code": "FACTOR_ADMISSION_FAILED",
+                "blockers": [str(item) for item in factor_score.get("admission_blockers") or []],
+            }
+        direction = str(factor_score.get("direction") or "")
+        selection = str(market.get("market_candidate", {}).get("selection") or "")
+        if direction in {"HOME", "AWAY"} and selection in {"HOME", "AWAY"}:
+            if direction != selection:
+                # Two independent evidence sources disagree on the side. That is
+                # not a reason to pick either one, so neither drives -- the
+                # caller downgrades the market to WATCH.
+                return {
+                    "code": "FACTOR_EV_DIRECTION_CONFLICT",
+                    "factor_direction": direction,
+                    "ev_selection": selection,
+                }
+        return None
 
     def _attach_round3_intelligence(self, card: dict[str, Any]) -> None:
         reader = getattr(self.repository, "round3_market_evidence_for_fixtures", None)
