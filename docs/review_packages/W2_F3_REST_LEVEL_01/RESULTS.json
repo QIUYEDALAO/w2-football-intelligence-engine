@@ -1,0 +1,313 @@
+{
+  "bootstrap": {
+    "replicates": 10000,
+    "seed": 20260905,
+    "unit": "fixture"
+  },
+  "exclusions": {
+    "MISSING_PIT_XG": 434,
+    "MISSING_SNAPSHOT": 1254
+  },
+  "holdout_2026_consumed": false,
+  "load_audits": {
+    "history": {
+      "assertions": {
+        "burned_penaltyblog": 0,
+        "trigger_count": 0,
+        "year_not_2024": 0
+      },
+      "exclusions": {
+        "YEAR_NOT_2024_FORBIDDEN": 29962
+      },
+      "field_names": [
+        "fixture_id",
+        "fixture_status",
+        "goals_against",
+        "goals_for",
+        "history_hash",
+        "kickoff_utc",
+        "opponent_team_id",
+        "provider",
+        "provider_fixture_id",
+        "provider_league_id",
+        "raw_captured_at",
+        "raw_payload_sha256",
+        "result_capture_delay_seconds",
+        "result_first_captured_at",
+        "result_identity_hash",
+        "season",
+        "team_id",
+        "team_identity_namespace",
+        "team_side"
+      ],
+      "loaded_count": 8744,
+      "loaded_year_counts": {
+        "2024": 8744
+      },
+      "source_count": 38706
+    },
+    "snapshots": {
+      "assertions": {
+        "burned_penaltyblog": 0,
+        "trigger_count": 0,
+        "year_not_2024": 0
+      },
+      "exclusions": {
+        "YEAR_NOT_2024_FORBIDDEN": 7148
+      },
+      "field_names": [
+        "away_team_id",
+        "candidate_eligible",
+        "factors",
+        "feature_as_of",
+        "feature_snapshot_sha256",
+        "home_team_id",
+        "notification_eligible",
+        "numeric_effect_enabled",
+        "pit_history_manifest_sha256",
+        "rating_policy",
+        "schema_version",
+        "target_fixture_id",
+        "target_kickoff",
+        "team_identity_namespace"
+      ],
+      "loaded_count": 3118,
+      "loaded_year_counts": {
+        "2024": 3118
+      },
+      "source_count": 10266
+    },
+    "xg": {
+      "assertions": {
+        "burned_penaltyblog": 0,
+        "trigger_count": 0,
+        "year_not_2024": 0
+      },
+      "exclusions": {
+        "YEAR_NOT_2024_FORBIDDEN": 12770
+      },
+      "field_names": [
+        "captured_at",
+        "fixture_id",
+        "goals_against",
+        "goals_for",
+        "kickoff_at",
+        "opponent_team_id",
+        "raw_payload_sha256",
+        "source_system",
+        "team_id",
+        "xg_against",
+        "xg_for"
+      ],
+      "loaded_count": 5926,
+      "loaded_year_counts": {
+        "2024": 5926
+      },
+      "source_count": 18696
+    }
+  },
+  "preregistration_commit": "d5024e5d",
+  "provider_calls": 0,
+  "results": [
+    {
+      "axis": "TOTAL",
+      "baseline_metrics": {
+        "brier": 0.6113891933080323,
+        "ece_by_class": {
+          "AWAY": 0.028337623330986522,
+          "DRAW": 0.005625545827761112,
+          "HOME": 0.030214645464787547
+        },
+        "ece_mean": 0.021392604874511726,
+        "log_loss": 1.0207444927540716,
+        "reliability_sum": 0.0025257010020092244,
+        "resolution_sum": 0.03215665191001848
+      },
+      "bonferroni_alpha": 0.025,
+      "brier_improvement": -4.3604736719996204e-05,
+      "candidate_metrics": {
+        "brier": 0.6114327980447523,
+        "ece_by_class": {
+          "AWAY": 0.02936431064648377,
+          "DRAW": 0.005402955797492354,
+          "HOME": 0.030236530976871564
+        },
+        "ece_mean": 0.021667932473615897,
+        "log_loss": 1.0208139994868566,
+        "reliability_sum": 0.0025760775548539566,
+        "resolution_sum": 0.0322337893981506
+      },
+      "cluster_count": 2684,
+      "construction": "F3L_MIN_REST",
+      "distribution": {
+        "count": 2684,
+        "count_le_2": 0,
+        "count_le_3": 213,
+        "count_le_4": 585,
+        "max": 39.0,
+        "mean": 7.325219407186621,
+        "median": 6.1875,
+        "min": 2.0208333333333335,
+        "p05": 2.9791666666666665,
+        "p10": 3.09375,
+        "p25": 4.104166666666667,
+        "p75": 7.125,
+        "population_std": 5.005932621289041,
+        "zero_count": 0
+      },
+      "fixture_count": 2684,
+      "fold_fits": [
+        {
+          "beta": 0.038794880623081604,
+          "beta_at_search_boundary": false,
+          "fit_count": 2174,
+          "fold": 0,
+          "held_out_count": 510,
+          "standardization_mean": 7.287638633343555,
+          "standardization_population_std": 4.891703235047279
+        },
+        {
+          "beta": 0.14188161928862197,
+          "beta_at_search_boundary": false,
+          "fit_count": 2195,
+          "fold": 1,
+          "held_out_count": 489,
+          "standardization_mean": 7.252203556061756,
+          "standardization_population_std": 4.9007928276435955
+        },
+        {
+          "beta": 0.11123736693166861,
+          "beta_at_search_boundary": false,
+          "fit_count": 2106,
+          "fold": 2,
+          "held_out_count": 578,
+          "standardization_mean": 7.477852630051704,
+          "standardization_population_std": 5.18241209529095
+        },
+        {
+          "beta": 0.131745282172885,
+          "beta_at_search_boundary": false,
+          "fit_count": 2118,
+          "fold": 3,
+          "held_out_count": 566,
+          "standardization_mean": 7.271416955198825,
+          "standardization_population_std": 5.002856443763786
+        },
+        {
+          "beta": 0.03877613464426173,
+          "beta_at_search_boundary": false,
+          "fit_count": 2143,
+          "fold": 4,
+          "held_out_count": 541,
+          "standardization_mean": 7.341308264634209,
+          "standardization_population_std": 5.050120252006906
+        }
+      ],
+      "one_sided_95_lower": -0.0002854136692769046,
+      "p_value": 0.6055394460553944,
+      "verdict": "FAIL_SCREENING"
+    },
+    {
+      "axis": "TOTAL",
+      "baseline_metrics": {
+        "brier": 0.6113891933080323,
+        "ece_by_class": {
+          "AWAY": 0.028337623330986522,
+          "DRAW": 0.005625545827761112,
+          "HOME": 0.030214645464787547
+        },
+        "ece_mean": 0.021392604874511726,
+        "log_loss": 1.0207444927540716,
+        "reliability_sum": 0.0025257010020092244,
+        "resolution_sum": 0.03215665191001848
+      },
+      "bonferroni_alpha": 0.025,
+      "brier_improvement": 3.4291904558091015e-05,
+      "candidate_metrics": {
+        "brier": 0.6113549014034743,
+        "ece_by_class": {
+          "AWAY": 0.028373982614593854,
+          "DRAW": 0.005757210463647634,
+          "HOME": 0.03150470055228991
+        },
+        "ece_mean": 0.021878631210177135,
+        "log_loss": 1.0206690907188467,
+        "reliability_sum": 0.0027736498645673656,
+        "resolution_sum": 0.03311272925080447
+      },
+      "cluster_count": 2684,
+      "construction": "F3L_MEAN_REST",
+      "distribution": {
+        "count": 2684,
+        "count_le_2": 0,
+        "count_le_3": 89,
+        "count_le_4": 366,
+        "max": 39.0,
+        "mean": 7.879329928382182,
+        "median": 6.942708333333334,
+        "min": 2.0625,
+        "p05": 3.114583333333333,
+        "p10": 3.8628472222222223,
+        "p25": 5.130208333333334,
+        "p75": 7.989583333333333,
+        "population_std": 5.088738829349389,
+        "zero_count": 0
+      },
+      "fixture_count": 2684,
+      "fold_fits": [
+        {
+          "beta": 0.12764725631020407,
+          "beta_at_search_boundary": false,
+          "fit_count": 2174,
+          "fold": 0,
+          "held_out_count": 510,
+          "standardization_mean": 7.836016559337627,
+          "standardization_population_std": 4.982140015854302
+        },
+        {
+          "beta": 0.1873023516514314,
+          "beta_at_search_boundary": false,
+          "fit_count": 2195,
+          "fold": 1,
+          "held_out_count": 489,
+          "standardization_mean": 7.801489338142242,
+          "standardization_population_std": 4.971222916748252
+        },
+        {
+          "beta": 0.14022314904719763,
+          "beta_at_search_boundary": false,
+          "fit_count": 2106,
+          "fold": 2,
+          "held_out_count": 578,
+          "standardization_mean": 8.027738208293764,
+          "standardization_population_std": 5.252241476163192
+        },
+        {
+          "beta": 0.23024091288215287,
+          "beta_at_search_boundary": false,
+          "fit_count": 2118,
+          "fold": 3,
+          "held_out_count": 566,
+          "standardization_mean": 7.829489789896129,
+          "standardization_population_std": 5.090685870734791
+        },
+        {
+          "beta": 0.1059987622164073,
+          "beta_at_search_boundary": false,
+          "fit_count": 2143,
+          "fold": 4,
+          "held_out_count": 541,
+          "standardization_mean": 7.906412026235288,
+          "standardization_population_std": 5.145980117679724
+        }
+      ],
+      "one_sided_95_lower": -0.0003272999532656705,
+      "p_value": 0.42595740425957407,
+      "verdict": "FAIL_SCREENING"
+    }
+  ],
+  "schema_version": "w2.f3_rest_level_screening.results.v1",
+  "screening_only": true,
+  "task_id": "W2-F3-REST-LEVEL-REMEASURE",
+  "validation_2025_consumed": false
+}
