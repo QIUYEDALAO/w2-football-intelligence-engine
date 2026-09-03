@@ -1,6 +1,6 @@
 import json
 
-from scripts.run_f5_f1_f2_screening import load_screening_records
+from scripts.run_f5_f1_f2_screening import factor_presence_schema, load_screening_records
 
 
 def test_loader_exposes_only_finished_burned_window_and_no_rows(tmp_path):
@@ -27,3 +27,32 @@ def test_loader_exposes_only_finished_burned_window_and_no_rows(tmp_path):
         "NOT_FINISHED": 1,
     }
     assert loaded.audit["assertions"]["trigger_count"] == 0
+
+
+def test_factor_schema_returns_presence_counts_without_values(tmp_path):
+    path = tmp_path / "snapshot.json"
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "target_fixture_id": "kept",
+                    "target_kickoff": "2026-06-01T00:00:00Z",
+                    "factors": {"F5_RECENT_AH_COVER": {"raw_value": 0.5}},
+                    "feature_contributions": [
+                        {"id": "F1_MARKET_MOVEMENT", "score": 0.2}
+                    ],
+                    "F2_BOOKMAKER_INTENT": 0.1,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    schema = factor_presence_schema(load_screening_records(path))
+
+    assert schema == {
+        "loaded_count": 1,
+        "nested_factor_counts": {"F5_RECENT_AH_COVER": 1},
+        "contribution_id_counts": {"F1_MARKET_MOVEMENT": 1},
+        "top_level_factor_counts": {"F2_BOOKMAKER_INTENT": 1},
+    }

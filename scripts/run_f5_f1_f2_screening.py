@@ -20,6 +20,11 @@ BURNED_PENALTYBLOG_SEASONS = frozenset(
 FINISHED = frozenset({"FT", "AET", "PEN", "FINISHED", "MATCH_FINISHED"})
 DATE_FIELDS = ("target_kickoff", "kickoff_utc", "kickoff", "kickoff_at", "date")
 STATUS_FIELDS = ("fixture_status", "status", "match_status")
+FACTOR_IDS = (
+    "F5_RECENT_AH_COVER",
+    "F1_MARKET_MOVEMENT",
+    "F2_BOOKMAKER_INTENT",
+)
 
 
 @dataclass(frozen=True)
@@ -111,18 +116,49 @@ def load_screening_records(
     )
 
 
+def factor_presence_schema(loaded: LoadedRecords) -> dict[str, Any]:
+    """Count factor structures without returning values or fixture rows."""
+    nested: Counter[str] = Counter()
+    contributions: Counter[str] = Counter()
+    top_level: Counter[str] = Counter()
+    for row in loaded.records:
+        factors = row.get("factors")
+        if isinstance(factors, dict):
+            nested.update(str(key) for key in factors)
+        items = row.get("feature_contributions")
+        if isinstance(items, list):
+            contributions.update(
+                str(item["id"])
+                for item in items
+                if isinstance(item, dict) and item.get("id")
+            )
+        top_level.update(factor_id for factor_id in FACTOR_IDS if factor_id in row)
+    return {
+        "loaded_count": len(loaded.records),
+        "nested_factor_counts": dict(sorted(nested.items())),
+        "contribution_id_counts": dict(sorted(contributions.items())),
+        "top_level_factor_counts": dict(sorted(top_level.items())),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--inspect", type=Path, required=True)
     parser.add_argument("--records-key")
     parser.add_argument("--require-finished", action="store_true")
+    parser.add_argument("--inspect-factor-schema", action="store_true")
     args = parser.parse_args()
     loaded = load_screening_records(
         args.inspect,
         records_key=args.records_key,
         require_finished=args.require_finished,
     )
-    print(json.dumps(loaded.audit, sort_keys=True))
+    print(
+        json.dumps(
+            factor_presence_schema(loaded) if args.inspect_factor_schema else loaded.audit,
+            sort_keys=True,
+        )
+    )
     return 0
 
 
