@@ -1011,10 +1011,8 @@ def test_factor_checklist_preserves_source_truth_and_waiting_state() -> None:
     checklist = _workspace(day_view)["matches"][0]["factor_checklist"]
     by_id = {row["factor_id"]: row for row in checklist["factors"] if row.get("market") is None}
 
-    assert by_id["F7_STRENGTH_FORM"]["cause"] == "NOT_MATERIALIZED"
-    assert by_id["F7_STRENGTH_FORM"]["permanence"] == "UNKNOWN"
-    assert by_id["F8_SQUAD_VALUE"]["cause"] == "SOURCE_NOT_CONFIGURED"
-    assert by_id["F8_SQUAD_VALUE"]["permanence"] == "UNKNOWN"
+    assert "F7_STRENGTH_FORM" not in by_id
+    assert "F8_SQUAD_VALUE" not in by_id
     assert by_id["F10_LMM_V1"]["state"] == "WAITING"
     assert by_id["F10_LMM_V1"]["cause"] == "NOT_YET_DUE"
     assert by_id["F10_LMM_V1"]["next_window_at"] == "2026-08-10T09:00:00Z"
@@ -1220,8 +1218,6 @@ def test_data_risk_excludes_enhancement_only_gaps() -> None:
             "F3_REST_FITNESS",
             "F5_RECENT_AH_COVER",
             "F6_H2H",
-            "F7_STRENGTH_FORM",
-            "F8_SQUAD_VALUE",
         ],
     }
 

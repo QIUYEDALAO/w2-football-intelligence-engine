@@ -132,6 +132,25 @@ class RecommendationDecisionV4:
         }
 
 
+def read_recommendation_decision_v4(payload: Mapping[str, Any]) -> RecommendationDecisionV4:
+    """Decode a saved decision without re-running admission or pricing."""
+    validate_decision_v4_identity(payload)
+    reason = payload["reason"]
+    return RecommendationDecisionV4(
+        outcome=RecommendationOutcomeV4(payload["outcome"]),
+        reason_code=reason["code"],
+        reason_message=reason["message"],
+        authoritative_input=AuthoritativeRecommendationInput(payload=dict(payload["authoritative_input"])),
+        selected_candidate=(
+            dict(payload["selected_candidate"])
+            if payload.get("selected_candidate") is not None
+            else None
+        ),
+        blockers=tuple(payload["blockers"]),
+        decision_hash=payload["decision_hash"],
+    )
+
+
 def authoritative_input_from_market_candidate(
     candidate: Mapping[str, Any],
     *,

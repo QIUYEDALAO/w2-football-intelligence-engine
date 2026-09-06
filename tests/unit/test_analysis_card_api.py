@@ -248,24 +248,22 @@ def test_existing_xg_history_is_wired_into_feature_inputs_without_faking_market_
 
     assert card is not None
     factors = {item["id"]: item for item in card["pricing_shadow"]["factors"]}
-    assert {"F3_REST_FITNESS", "F4_MATCH_IMPORTANCE", "F7_STRENGTH_FORM", "F9_TRUE_XG"}.issubset(
+    assert "F7_STRENGTH_FORM" not in factors
+    assert "F8_SQUAD_VALUE" not in factors
+    assert {"F3_REST_FITNESS", "F4_MATCH_IMPORTANCE", "F9_TRUE_XG"}.issubset(
         factors
     )
     assert factors["F3_REST_FITNESS"]["status"] == "READY"
-    assert factors["F7_STRENGTH_FORM"]["status"] == "READY"
     assert factors["F3_REST_FITNESS"]["source_group"] == "xg"
     assert factors["F3_REST_FITNESS"]["proxy_of"] == "team_fixture_history"
     assert factors["F3_REST_FITNESS"]["is_independent_signal"] is False
-    assert factors["F7_STRENGTH_FORM"]["source_group"] == "xg"
-    assert factors["F7_STRENGTH_FORM"]["proxy_of"] == "ratings"
-    assert factors["F7_STRENGTH_FORM"]["is_independent_signal"] is False
     assert factors["F9_TRUE_XG"]["source_group"] == "xg"
     contributions = {item["id"]: item for item in card["feature_contributions"]}
     assert contributions["F9_TRUE_XG"]["coverage_profile_status"] == (
         "API_FOOTBALL_FIXTURES_STATISTICS_AVAILABLE_CONTROLLED_LIVE"
     )
     assert card["pricing_shadow"]["independent_signal_count"] == 1
-    assert card["pricing_shadow"]["xg_derived_factor_count"] == 3
+    assert card["pricing_shadow"]["xg_derived_factor_count"] == 2
     assert "F5_RECENT_AH_COVER" not in factors
     assert card["pricing_shadow"]["coverage"] > 0.29
     assert card["pricing_shadow"]["beats_market"] is False

@@ -58,16 +58,13 @@ from w2.domain.canonical_serialization import (
 from w2.domain.decision_adapter import build_decision_contract_fields
 from w2.domain.decision_card import compute_card_hash
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
-from w2.domain.recommendation_decision_v3 import (
-    validate_decision_v3_card_parity,
-    validate_decision_v3_identity,
-)
 from w2.domain.recommendation_decision_v4 import (
     RecommendationDecisionV4,
     RecommendationOutcomeV4,
     authoritative_input_from_market_candidate,
     build_recommendation_decision_v4,
     candidate_identity_hash,
+    read_recommendation_decision_v4,
     valid_kickoff_identity,
     validate_decision_v4_identity,
 )
@@ -722,6 +719,21 @@ def _recommendation_from_v4(
         and _formal_identity_matches(authoritative, formal_recommendation)
     ):
         return {**formal_recommendation, "quote_identity": quote_identity}
+    if decision.outcome is RecommendationOutcomeV4.FORMAL_RECOMMEND:
+        # A saved V4 is already the authoritative admission result.  Rebuilding
+        # formal eligibility on a read would create a second decision path.
+        return {
+            "decision_tier": "RECOMMEND",
+            "market": selected.get("market"),
+            "selection": selected.get("selection"),
+            "line": selected.get("exact_line"),
+            "odds": selected.get("decimal_odds"),
+            "fair_odds": selected.get("fair_odds"),
+            "expected_value": selected.get("expected_value"),
+            "quote_identity": quote_identity,
+            "candidate": True,
+            "formal_recommendation": True,
+        }
     if decision.outcome is not RecommendationOutcomeV4.ANALYSIS_PICK:
         return None
     return {
@@ -2563,8 +2575,6 @@ class ReadModelService:
                     "next_eval_at",
                     "card_hash",
                     "recommendation_decision_v4",
-                    "recommendation_decision_v3",
-                    "recommendation_decision_v3_role",
                 )
             },
             "decision_contract": contract,
@@ -2586,7 +2596,7 @@ class ReadModelService:
             projected["formal_recommendation"] = False
             self._clear_public_market_picks(projected, watch=tier == "WATCH")
         self._enforce_non_pick_scoreline_invariant(projected)
-        self._retain_valid_history_v3(projected)
+        self._strip_history_v3_from_public_card(projected)
         return projected
 
     @staticmethod
@@ -2678,7 +2688,6 @@ class ReadModelService:
             formal_recommendation=None,
         ).as_dict()
         card.pop("recommendation_decision_v3", None)
-        card["recommendation_decision_v3_role"] = "HISTORY_ONLY"
         for key in (
             "lineup_requirement",
             "risk_reason_codes",
@@ -2686,7 +2695,7 @@ class ReadModelService:
             "non_pick",
         ):
             card[key] = contract[key]
-        self._retain_valid_history_v3(card)
+        self._strip_history_v3_from_public_card(card)
 
     def _fail_closed_decision_contract(
         self,
@@ -2741,25 +2750,10 @@ class ReadModelService:
         contract["decision_contract"] = dict(contract)
         return contract
 
-    def _retain_valid_history_v3(self, card: dict[str, Any]) -> None:
-        decision = card.get("recommendation_decision_v3")
-        contract = card.get("decision_contract")
-        if not isinstance(decision, dict) or not isinstance(contract, dict):
-            card.pop("recommendation_decision_v3", None)
-            card["recommendation_decision_v3_role"] = "HISTORY_ONLY"
-            return
-        try:
-            validate_decision_v3_identity(decision)
-            validate_decision_v3_card_parity(
-                decision,
-                card_hash=card.get("card_hash"),
-                decision_contract_card_hash=contract.get("card_hash"),
-            )
-        except (KeyError, TypeError, ValueError):
-            card.pop("recommendation_decision_v3", None)
-        else:
-            decision["authority_role"] = "HISTORY_ONLY"
-        card["recommendation_decision_v3_role"] = "HISTORY_ONLY"
+    @staticmethod
+    def _strip_history_v3_from_public_card(card: dict[str, Any]) -> None:
+        card.pop("recommendation_decision_v3", None)
+        card.pop("recommendation_decision_v3_role", None)
 
     def _enforce_non_pick_scoreline_invariant(self, card: dict[str, Any]) -> None:
         """Do not expose directional scorelines without a canonical public pick."""
@@ -3104,48 +3098,14 @@ class ReadModelService:
             )
         if not canonical_ready and not home_history and not away_history:
             home_history, away_history = proxy_home_history, proxy_away_history
-        if canonical_ready:
-            h2h_meetings = self._canonical_h2h_meetings(
-                home_history=home_history,
-                home_team_id=home_id,
-                away_team_id=away_id,
+        h2h_meetings = (
+            self._canonical_h2h_meetings(
+                home_history=home_history, home_team_id=home_id, away_team_id=away_id
             )
-            history_home_ratings: list[TeamRatingSnapshot] = []
-            history_away_ratings: list[TeamRatingSnapshot] = []
-            home_ratings, away_ratings = self._persisted_team_rating_snapshots(
-                context=context,
-                home_team_id=home_id,
-                away_team_id=away_id,
+            if canonical_ready
+            else self._h2h_meetings_from_raw_payloads(
+                context=context, home_team_id=home_id, away_team_id=away_id
             )
-        else:
-            h2h_meetings = self._h2h_meetings_from_raw_payloads(
-                context=context,
-                home_team_id=home_id,
-                away_team_id=away_id,
-            )
-            history_home_ratings, history_away_ratings = self._team_ratings_from_history(
-                context=context,
-                home_team_id=home_id,
-                away_team_id=away_id,
-                home_history=home_history,
-                away_history=away_history,
-            )
-            home_ratings, away_ratings = self._team_ratings_from_static_mapping(
-                context=context,
-                home_team_id=home_id,
-                away_team_id=away_id,
-                history_home_ratings=history_home_ratings,
-                history_away_ratings=history_away_ratings,
-            )
-            if not (home_ratings and away_ratings):
-                home_ratings, away_ratings = history_home_ratings, history_away_ratings
-        if not canonical_ready and not (home_ratings and away_ratings):
-            home_ratings = self._team_ratings_from_existing_xg_snapshots(home_xg)
-            away_ratings = self._team_ratings_from_existing_xg_snapshots(away_xg)
-        home_values, away_values = self._team_values_from_static_mapping(
-            context=context,
-            home_team_id=home_id,
-            away_team_id=away_id,
         )
         mainline_selection = self._mainline_market_selection(observations)
         mainline_observations = [
@@ -3169,10 +3129,6 @@ class ReadModelService:
                 home_history=home_history,
                 away_history=away_history,
                 h2h_meetings=h2h_meetings,
-                home_ratings=home_ratings,
-                away_ratings=away_ratings,
-                home_values=home_values,
-                away_values=away_values,
                 home_xg=home_xg,
                 away_xg=away_xg,
             ),
@@ -3220,10 +3176,6 @@ class ReadModelService:
         score_matrix: dict[tuple[int, int], float] | None = None
         score_direction: Direction | None = None
         scoreline_output: IndependentXgPoissonOutput | None = None
-        latest_home_rating = max(home_ratings, key=lambda row: row.observed_at, default=None)
-        latest_away_rating = max(away_ratings, key=lambda row: row.observed_at, default=None)
-        latest_home_value = max(home_values, key=lambda row: row.observed_at, default=None)
-        latest_away_value = max(away_values, key=lambda row: row.observed_at, default=None)
         neutral_site = _fixture_neutral_site(item)
         simulation_output = run_simulation(
             SimulationInputs(
@@ -3234,26 +3186,6 @@ class ReadModelService:
                 home_xg_against=latest_home_xg.xg_against if latest_home_xg is not None else None,
                 away_xg_for=latest_away_xg.xg_for if latest_away_xg is not None else None,
                 away_xg_against=latest_away_xg.xg_against if latest_away_xg is not None else None,
-                home_elo=latest_home_rating.elo if latest_home_rating is not None else None,
-                away_elo=latest_away_rating.elo if latest_away_rating is not None else None,
-                home_elo_source=latest_home_rating.source
-                if latest_home_rating is not None
-                else None,
-                away_elo_source=latest_away_rating.source
-                if latest_away_rating is not None
-                else None,
-                home_elo_collection_status=latest_home_rating.collection_status
-                if latest_home_rating is not None
-                else None,
-                away_elo_collection_status=latest_away_rating.collection_status
-                if latest_away_rating is not None
-                else None,
-                home_squad_value_eur=latest_home_value.squad_value_eur
-                if latest_home_value is not None
-                else None,
-                away_squad_value_eur=latest_away_value.squad_value_eur
-                if latest_away_value is not None
-                else None,
                 lambda_sigma_home=float(lambda_uncertainty["lambda_sigma_home"] or 0.0),
                 lambda_sigma_away=float(lambda_uncertainty["lambda_sigma_away"] or 0.0),
                 lambda_uncertainty_method=cast(
@@ -3273,12 +3205,6 @@ class ReadModelService:
                     "xg_status": xg_readiness["status"],
                     "history_ready": bool(home_history and away_history),
                     "h2h_ready": bool(h2h_meetings),
-                    "ratings_ready": latest_home_rating is not None
-                    and latest_away_rating is not None,
-                    "raw_ratings_ready": latest_home_rating is not None
-                    and latest_away_rating is not None,
-                    "squad_value_ready": latest_home_value is not None
-                    and latest_away_value is not None,
                     "lambda_uncertainty_status": lambda_uncertainty["lambda_uncertainty_status"],
                     "lambda_uncertainty_input_hash": lambda_uncertainty[
                         "lambda_uncertainty_input_hash"
@@ -6825,76 +6751,98 @@ class ReadModelService:
             result=result,
             scoreline_picks=scoreline_picks,
         )
-        formal_result = build_formal_recommendation(
-            fixture_status=normalize_match_status(row.get("status")),
-            simulation=run_simulation_from_card(card),
-            current_odds=card.get("current_odds")
-            if isinstance(card.get("current_odds"), dict)
-            else None,
-            ah_market_candidate=authoritative_candidate,
-            pricing_shadow=card.get("pricing_shadow")
-            if isinstance(card.get("pricing_shadow"), dict)
-            else None,
-            analysis_readiness=analysis_readiness,
-            home_team_name=str(card.get("home_cn") or row.get("home_team_name") or "主队"),
-            away_team_name=str(card.get("away_cn") or row.get("away_team_name") or "客队"),
-        )
-        formal_recommendation = (
-            formal_result.recommendation
-            if _valid_formal_recommendation_payload(formal_result.recommendation)
-            else None
-        )
-        if formal_recommendation is not None and fixture_id:
-            recommendation_id = formal_recommendation_id(
-                fixture_id=fixture_id,
-                recommendation=formal_recommendation,
+        formal_result = None
+        saved_decision = card.get("recommendation_decision_v4")
+        if isinstance(saved_decision, Mapping) and saved_decision:
+            decision_v4 = read_recommendation_decision_v4(saved_decision)
+            stored_recommendation = card.get("recommendation")
+            formal_recommendation = (
+                stored_recommendation
+                if isinstance(stored_recommendation, dict)
+                and _valid_formal_recommendation_payload(stored_recommendation)
+                else None
             )
-            formal_recommendation = {
-                **formal_recommendation,
-                "recommendation_id": recommendation_id,
-                "id": recommendation_id,
+        elif analysis_override is None and self._uses_frozen_public_authority():
+            unavailable = self._fail_closed_public_analysis_card(
+                dict(card), blocker="CURRENT_V4_AUTHORITY_MISSING"
+            )
+            return {
+                **row, **unavailable,
+                "artifact_hash": _mapping(card.get("frozen_artifact_provenance")).get(
+                    "artifact_hash"
+                ),
             }
-        if formal_recommendation is not None:
-            quote_identity = _mapping(_mapping(authoritative_candidate).get("quote_identity"))
-            formal_recommendation = {
-                **formal_recommendation,
-                "quote_identity": {
-                    "provider": quote_identity.get("provider"),
-                    "bookmaker_id": quote_identity.get("bookmaker_id"),
-                    "capture_id": quote_identity.get("capture_id"),
-                    "captured_at": quote_identity.get("captured_at"),
-                    "observation_ids": quote_identity.get("observation_ids"),
-                    "raw_payload_sha256": quote_identity.get("raw_payload_sha256"),
-                    "source_revision": quote_identity.get("source_revision"),
-                    "quote_identity_hash": quote_identity.get("quote_identity_hash"),
-                },
-            }
-        formal_blockers = list(formal_result.blockers)
-        if formal_result.formal_eligible and formal_recommendation is None:
-            blocker = _formal_payload_blocker(formal_result)
-            if blocker not in formal_blockers:
-                formal_blockers.append(blocker)
-        pricing_shadow = card.get("pricing_shadow")
-        if isinstance(pricing_shadow, dict):
-            pricing_shadow["formal_enabled"] = formal_recommendations_enabled()
-            pricing_shadow["formal_eligible"] = formal_recommendation is not None
-            pricing_shadow["formal_blockers"] = formal_blockers
-            canonical_market = formal_result.canonical_ah_market
-            pricing_shadow["canonical_ah_market"] = canonical_market
-            if isinstance(canonical_market, dict):
-                pricing_shadow["canonical_ah_market_source"] = canonical_market.get("source")
-                pricing_shadow["canonical_ah_market_blocker"] = canonical_market.get("blocker")
-                pricing_shadow["canonical_ah_market_validation_status"] = canonical_market.get(
-                    "validation_status",
+        else:
+            formal_result = build_formal_recommendation(
+                fixture_status=normalize_match_status(row.get("status")),
+                simulation=run_simulation_from_card(card),
+                current_odds=card.get("current_odds")
+                if isinstance(card.get("current_odds"), dict)
+                else None,
+                ah_market_candidate=authoritative_candidate,
+                pricing_shadow=card.get("pricing_shadow")
+                if isinstance(card.get("pricing_shadow"), dict)
+                else None,
+                analysis_readiness=analysis_readiness,
+                home_team_name=str(card.get("home_cn") or row.get("home_team_name") or "主队"),
+                away_team_name=str(card.get("away_cn") or row.get("away_team_name") or "客队"),
+            )
+            formal_recommendation = (
+                formal_result.recommendation
+                if _valid_formal_recommendation_payload(formal_result.recommendation)
+                else None
+            )
+            if formal_recommendation is not None and fixture_id:
+                recommendation_id = formal_recommendation_id(
+                    fixture_id=fixture_id,
+                    recommendation=formal_recommendation,
                 )
-        decision_v4 = _build_public_recommendation_decision_v4(
-            card=card,
-            row=row,
-            candidate=authoritative_candidate,
-            formal_recommendation=formal_recommendation,
-            formal_result=formal_result,
-            analysis_readiness=analysis_readiness,
-        )
+                formal_recommendation = {
+                    **formal_recommendation,
+                    "recommendation_id": recommendation_id,
+                    "id": recommendation_id,
+                }
+            if formal_recommendation is not None:
+                quote_identity = _mapping(_mapping(authoritative_candidate).get("quote_identity"))
+                formal_recommendation = {
+                    **formal_recommendation,
+                    "quote_identity": {
+                        "provider": quote_identity.get("provider"),
+                        "bookmaker_id": quote_identity.get("bookmaker_id"),
+                        "capture_id": quote_identity.get("capture_id"),
+                        "captured_at": quote_identity.get("captured_at"),
+                        "observation_ids": quote_identity.get("observation_ids"),
+                        "raw_payload_sha256": quote_identity.get("raw_payload_sha256"),
+                        "source_revision": quote_identity.get("source_revision"),
+                        "quote_identity_hash": quote_identity.get("quote_identity_hash"),
+                    },
+                }
+            formal_blockers = list(formal_result.blockers)
+            if formal_result.formal_eligible and formal_recommendation is None:
+                blocker = _formal_payload_blocker(formal_result)
+                if blocker not in formal_blockers:
+                    formal_blockers.append(blocker)
+            pricing_shadow = card.get("pricing_shadow")
+            if isinstance(pricing_shadow, dict):
+                pricing_shadow["formal_enabled"] = formal_recommendations_enabled()
+                pricing_shadow["formal_eligible"] = formal_recommendation is not None
+                pricing_shadow["formal_blockers"] = formal_blockers
+                canonical_market = formal_result.canonical_ah_market
+                pricing_shadow["canonical_ah_market"] = canonical_market
+                if isinstance(canonical_market, dict):
+                    pricing_shadow["canonical_ah_market_source"] = canonical_market.get("source")
+                    pricing_shadow["canonical_ah_market_blocker"] = canonical_market.get("blocker")
+                    pricing_shadow["canonical_ah_market_validation_status"] = canonical_market.get(
+                        "validation_status",
+                    )
+            decision_v4 = _build_public_recommendation_decision_v4(
+                card=card,
+                row=row,
+                candidate=authoritative_candidate,
+                formal_recommendation=formal_recommendation,
+                formal_result=formal_result,
+                analysis_readiness=analysis_readiness,
+            )
         recommendation = _recommendation_from_v4(
             decision_v4,
             formal_recommendation=formal_recommendation,
@@ -6912,8 +6860,14 @@ class ReadModelService:
             fixture_status=fixture_status,
             result=result,
         )
-        formal_suppressed = formal_result.formal_suppressed
-        formal_suppressed_reason = formal_result.formal_suppressed_reason
+        formal_suppressed = (
+            formal_result.formal_suppressed if formal_result is not None
+            else bool(card.get("formal_suppressed"))
+        )
+        formal_suppressed_reason = (
+            formal_result.formal_suppressed_reason if formal_result is not None
+            else card.get("formal_suppressed_reason")
+        )
         if isinstance(locked_recommendation, dict):
             formal_suppressed = True
             formal_suppressed_reason = (
@@ -6973,9 +6927,6 @@ class ReadModelService:
             and decision_contract.get("decision_tier") in {"ANALYSIS_PICK", "RECOMMEND"}
             else None
         )
-        decision_v3 = card.get("recommendation_decision_v3")
-        if not isinstance(decision_v3, dict):
-            decision_v3 = None
         scoreline_reference = (
             scoreline_reference_from_card(
                 card,
@@ -7072,8 +7023,6 @@ class ReadModelService:
             if recommendation
             else False,
             "recommendation_decision_v4": decision_v4.as_dict(),
-            "recommendation_decision_v3": decision_v3,
-            "recommendation_decision_v3_role": "HISTORY_ONLY",
             **decision_contract,
         }
 

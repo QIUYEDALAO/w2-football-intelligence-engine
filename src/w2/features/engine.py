@@ -25,8 +25,6 @@ from w2.features.team_factors import (
     match_importance_factor,
     recent_ah_cover_factor,
     rest_fitness_factor,
-    squad_value_factor,
-    strength_form_factor,
 )
 from w2.markets.movement import MarketSnapshot
 
@@ -87,17 +85,6 @@ def build_feature_set(
             away_history=inputs.away_history,
         ),
         h2h_factor(context=context, profile=coverage, meetings=inputs.h2h_meetings),
-        strength_form_factor(
-            context=context,
-            home_ratings=inputs.home_ratings,
-            away_ratings=inputs.away_ratings,
-        ),
-        squad_value_factor(
-            context=context,
-            profile=coverage,
-            home_values=inputs.home_values,
-            away_values=inputs.away_values,
-        ),
         true_xg_factor(
             context=context,
             profile=coverage,

@@ -1,4 +1,4 @@
-from w2.matchday.cards import DailyMatchdayCycle, ResearchCardBuilder
+from w2.matchday.cards import ResearchCardBuilder
 from w2.matchday.integrity import (
     HashScheme,
     SnapshotHashSchemeRegistry,
@@ -8,7 +8,6 @@ from w2.matchday.integrity import (
 from w2.matchday.temporal import TemporalStatus, classify_temporal_status
 
 __all__ = [
-    "DailyMatchdayCycle",
     "HashScheme",
     "ResearchCardBuilder",
     "SnapshotHashSchemeRegistry",

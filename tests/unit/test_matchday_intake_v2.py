@@ -18,7 +18,6 @@ from w2.matchday.intake_v2 import (
     current_unscheduled_capture,
     endpoint_capture_contract,
     endpoint_params,
-    execute_matchday_intake,
     fixture_discovery_from_payloads,
     freshness_status,
     load_matchday_policy,
@@ -201,14 +200,7 @@ def test_endpoint_params_capture_empty_and_provider_canary_requires_approval(
     assert capture["capture_status"] == "PROVIDER_EMPTY"
     with pytest.raises(ValueError, match="ENDPOINT_DISABLED_BY_POLICY"):
         endpoint_params("injuries", competition=_policy(), fixture_id="100")
-    monkeypatch.delenv("W2_MATCHDAY_CANARY_APPROVED", raising=False)
-    result = execute_matchday_intake(
-        mode="CONTROLLED_PROVIDER_CANARY",
-        fixture_ids=("100",),
-        approve_provider_calls=True,
-    )
-    assert result.provider_calls == 0
-    assert result.status == "PROVIDER_CANARY_NOT_EXECUTED_NO_AUTHORIZATION"
+
 
 
 @pytest.mark.parametrize(
@@ -246,26 +238,6 @@ def test_endpoint_capture_fails_closed(
         expected
     )
 
-
-def test_dry_run_and_replay_have_zero_provider_calls() -> None:
-    dry = execute_matchday_intake(mode="DRY_RUN")
-    replay = execute_matchday_intake(
-        mode="SAVED_PAYLOAD_REPLAY",
-        saved_payloads=(
-            {
-                "endpoint": "fixtures",
-                "params": {"league": "113", "season": "2026"},
-                "requested_at": NOW.isoformat(),
-                "captured_at": NOW.isoformat(),
-                "payload": {"response": [_fixture_payload("100", "10", "11")]},
-            },
-        ),
-    )
-
-    assert dry.provider_calls == 0
-    assert dry.db_writes == 0
-    assert replay.provider_calls == 0
-    assert replay.endpoint_captures[0]["capture_status"] == "CAPTURED"
 
 
 def test_same_raw_payload_different_checkpoint_preserves_distinct_capture_identity() -> None:

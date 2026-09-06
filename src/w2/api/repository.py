@@ -47,7 +47,6 @@ from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
-    build_recommendation_decision_v4,
     validate_decision_v4_identity,
 )
 from w2.identity.public_team_labels import (
@@ -687,24 +686,13 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
         if isinstance(fallback_non_pick, dict)
         else "当前推荐缺少 V4 权威身份"
     )
-    if authority_missing:
-        decision = build_recommendation_decision_v4(
-            {
-                "fixture_id": card.get("fixture_id"),
-                "competition_id": card.get("competition_id"),
-                "season": card.get("season"),
-                "kickoff_utc": card.get("kickoff_utc"),
-            }
-        ).as_dict()
-        card["recommendation_decision_v4"] = decision
-    else:
-        decision = cast(dict[str, Any], decision_value)
-    card["recommendation_decision_v3_role"] = "HISTORY_ONLY"
+    decision = {} if authority_missing else cast(dict[str, Any], decision_value)
     try:
-        validate_decision_v4_identity(decision)
+        if not authority_missing:
+            validate_decision_v4_identity(decision)
     except ValueError as exc:
         raise SystemDegradedError("RECOMMENDATION_DECISION_V4_INVALID") from exc
-    outcome = str(decision.get("outcome") or "")
+    outcome = "NOT_READY" if authority_missing else str(decision.get("outcome") or "")
     tier = {
         RecommendationOutcomeV4.FORMAL_RECOMMEND.value: "RECOMMEND",
         RecommendationOutcomeV4.ANALYSIS_PICK.value: "ANALYSIS_PICK",
@@ -783,9 +771,14 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
             "reason_code": contract.get("reason_code"),
             "action": contract.get("action"),
             "card_hash": contract.get("card_hash"),
-            "recommendation_decision_v3_role": "HISTORY_ONLY",
         }
     )
+    card.pop("recommendation_decision_v3", None)
+    card.pop("recommendation_decision_v3_role", None)
+    if pick is None:
+        card["candidate"] = False
+        card["formal_recommendation"] = False
+        card["recommendation"] = None
     return card
 
 
@@ -3166,7 +3159,6 @@ class ReadModelService:
                 "action": "等待权威读模型投影",
                 "next_eval_at": None,
             },
-            "recommendation_decision_v3_role": "HISTORY_ONLY",
             "projection_health": {
                 "status": "SYSTEM_DEGRADED",
                 "reason_code": effective_blocker,

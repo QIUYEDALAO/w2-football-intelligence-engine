@@ -14,7 +14,6 @@ from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.environment_policy import build_environment_policy_stamp
 from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
-    build_recommendation_decision_v4,
     validate_decision_v4_identity,
 )
 from w2.prematch.simulation_reconciliation import (
@@ -163,20 +162,13 @@ def _apply_v4_authority(projected: dict[str, Any]) -> dict[str, Any]:
     """Project the frozen V4 decision as the dashboard product authority."""
     decision = projected.get("recommendation_decision_v4")
     authority_missing = not isinstance(decision, Mapping) or not decision
-    if authority_missing:
-        decision = build_recommendation_decision_v4(
-            {
-                "fixture_id": projected.get("fixture_id"),
-                "competition_id": projected.get("competition_id"),
-                "kickoff_utc": projected.get("kickoff_utc"),
-            }
-        ).as_dict()
-        projected["recommendation_decision_v4"] = decision
+    decision = {} if authority_missing else decision
     try:
-        validate_decision_v4_identity(decision)
+        if not authority_missing:
+            validate_decision_v4_identity(decision)
     except ValueError as exc:
         raise ProjectionCardContractViolation(str(exc)) from exc
-    outcome = str(decision.get("outcome") or "")
+    outcome = "NOT_READY" if authority_missing else str(decision.get("outcome") or "")
     tier = {
         RecommendationOutcomeV4.FORMAL_RECOMMEND.value: "RECOMMEND",
         RecommendationOutcomeV4.ANALYSIS_PICK.value: "ANALYSIS_PICK",
@@ -232,8 +224,13 @@ def _apply_v4_authority(projected: dict[str, Any]) -> dict[str, Any]:
         projected["secondary_picks"] = []
         projected["scoreline_picks"] = []
         projected["scoreline_reference"] = {}
-    projected["recommendation_decision_v3_role"] = "HISTORY_ONLY"
+    projected.pop("recommendation_decision_v3", None)
+    projected.pop("recommendation_decision_v3_role", None)
     projected["recommendation_decision_v4_role"] = "PRODUCT_AUTHORITY"
+    if pick is None:
+        projected["candidate"] = False
+        projected["formal_recommendation"] = False
+        projected["recommendation"] = None
     return projected
 
 
@@ -299,8 +296,6 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "frozen_artifact_provenance": _mapping_copy(card.get("frozen_artifact_provenance")),
         "artifact_hash": _optional_text(card.get("artifact_hash")),
         "recommendation_decision_v4": _mapping_copy(card.get("recommendation_decision_v4")),
-        "recommendation_decision_v3": _mapping_copy(card.get("recommendation_decision_v3")),
-        "recommendation_decision_v3_role": "HISTORY_ONLY",
     }
 
 
@@ -469,11 +464,6 @@ def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         simulation_ready = simulation.get("status") == "READY"
         if simulation_ready:
             model_ready += 1
-            readiness = _mapping(_mapping(simulation.get("simulation")).get("input_readiness"))
-            if readiness.get("ratings_used_in_lambda") is not True:
-                ratings_enhancement_missing += 1
-            if readiness.get("squad_value_used_in_lambda") is not True:
-                team_value_enhancement_missing += 1
         else:
             xg_not_ready += 1
         has_executable = _has_executable_quote(card)

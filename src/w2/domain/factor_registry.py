@@ -24,15 +24,13 @@ ALLOWED_INDEPENDENT_FACTORS = frozenset(
         "F4_MATCH_IMPORTANCE",
         "F5_RECENT_AH_COVER",
         "F6_H2H",
-        "F7_STRENGTH_FORM",
-        "F8_SQUAD_VALUE",
         "F9_TRUE_XG",
     }
 )
 AUTHORITATIVE_SIGNAL_GROUPS = frozenset(
-    {"xg", "team_fixture_history", "h2h", "squad_value", "ratings"}
+    {"xg", "team_fixture_history", "h2h"}
 )
-REQUIRED_SIGNAL_GROUPS = ("xg", "team_fixture_history", "h2h", "squad_value", "ratings")
+REQUIRED_SIGNAL_GROUPS = ("xg", "team_fixture_history", "h2h")
 NON_SCORING_GROUPS = frozenset({"match_importance"})
 
 

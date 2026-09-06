@@ -438,8 +438,8 @@ def test_day_view_does_not_rebuild_current_pick_from_historical_v3_evidence(
     assert payload["counts"]["not_ready"] == 1
     assert card["decision_tier"] == "NOT_READY"
     assert card["data_status"] == "BLOCKED"
-    assert card["recommendation_decision_v3"]["outcome"] == "NOT_READY"
-    assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+    assert "recommendation_decision_v3" not in card
+    assert "recommendation_decision_v3_role" not in card
     assert card["scoreline_reference"] == {}
     assert card["lock_eligible"] is False
     assert "decision_projection" not in card

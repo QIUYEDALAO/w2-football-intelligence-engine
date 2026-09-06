@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import statistics
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
@@ -13,7 +13,6 @@ from w2.domain.five_state_pricing import (
     expected_value,
     validate_ev_inputs,
 )
-from w2.matchday.integrity import SnapshotHashVerifier
 from w2.matchday.legacy_ev import adapt_legacy_value_row
 from w2.matchday.temporal import TemporalStatus, parse_utc, temporal_context_from_manifest
 
@@ -391,106 +390,3 @@ class MatchdayPhasePlanner:
                 }
             )
         return output
-
-
-class DailyMatchdayCycle:
-    def __init__(
-        self,
-        *,
-        snapshot_root: Path,
-        schedule_path: Path,
-        reports_dir: Path,
-        now: datetime | None = None,
-    ) -> None:
-        self.snapshot_root = snapshot_root
-        self.schedule_path = schedule_path
-        self.reports_dir = reports_dir
-        self.now = now or datetime.now(UTC)
-        self.builder = ResearchCardBuilder()
-        self.verifier = SnapshotHashVerifier()
-        self.discovery = DailyFixtureDiscoveryService()
-        self.eligibility = MatchdayEligibilityService()
-        self.planner = MatchdayPhasePlanner(schedule_path)
-
-    def run(self, *, target_date: date, dry_run: bool = True) -> dict[str, Any]:
-        snapshots = self.discovery.discover_from_snapshots(
-            self.snapshot_root,
-            target_date=target_date,
-        )
-        fixture_audit = []
-        integrity_records = []
-        cards = []
-        for snapshot in snapshots:
-            manifest = _load_json(snapshot / "manifest.json", {})
-            kickoff = parse_utc(str(manifest["kickoff_utc"]))
-            integrity = self.verifier.verify_snapshot(snapshot)
-            card = self.builder.build_from_snapshot(
-                snapshot,
-                valuation_generated_at=self.now,
-                integrity=integrity,
-            )
-            status = self.eligibility.classify(
-                kickoff_utc=kickoff,
-                now=self.now,
-                has_prematch_snapshot=card.temporal["locked_before_kickoff"] is True,
-            )
-            fixture_audit.append(
-                {
-                    **card.fixture,
-                    "matchday_status": status,
-                    "phase_plan": self.planner.plan(kickoff),
-                }
-            )
-            integrity_records.append(integrity)
-            cards.append(
-                {
-                    "fixture": card.fixture,
-                    "card": card.card,
-                    "market_ranking": card.market_ranking,
-                    "temporal": card.temporal,
-                    "integrity": card.integrity,
-                }
-            )
-        result = {
-            "stage": "10C",
-            "dry_run": dry_run,
-            "target_date": target_date.isoformat(),
-            "actual_fixture_count": len(fixture_audit),
-            "fixture_audit": fixture_audit,
-            "snapshot_integrity": integrity_records,
-            "all_market_cards": cards,
-            "blockers": [],
-            "warn_only": [
-                "SERVER_DEPLOYMENT_PAUSED",
-                "PERSISTENT_SCHEDULER_WIRING_PENDING_DEPLOYMENT",
-            ],
-        }
-        self.reports_dir.mkdir(parents=True, exist_ok=True)
-        (self.reports_dir / "W2_STAGE10C_DAILY_FIXTURE_AUDIT.json").write_text(
-            json.dumps({"items": fixture_audit}, indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
-        (self.reports_dir / "W2_STAGE10C_SNAPSHOT_INTEGRITY.json").write_text(
-            json.dumps({"items": integrity_records}, indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
-        (self.reports_dir / "W2_STAGE10C_ALL_MARKET_CARDS.json").write_text(
-            json.dumps({"items": cards}, indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
-        (self.reports_dir / "W2_STAGE10C_RESULT.md").write_text(
-            "\n".join(
-                [
-                    "# W2 Stage10C Result",
-                    "",
-                    "STAGE_10C=COMPLETED_LOCAL",
-                    "SERVER_DEPLOYMENT=PAUSED_PENDING_APPROVAL",
-                    "FORMAL_RECOMMENDATION=false",
-                    "CANDIDATE=false",
-                    f"actual_fixture_count={len(fixture_audit)}",
-                ]
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        return result

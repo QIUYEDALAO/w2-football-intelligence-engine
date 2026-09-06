@@ -528,8 +528,8 @@ def test_day_view_model_readiness_counts_match_projected_cards() -> None:
     assert counts["waiting_fresh_quote"] == 0
     assert counts["executable_quote"] == 1
     assert counts["lineup_pending"] == 1
-    assert counts["ratings_enhancement_missing"] == 1
-    assert counts["team_value_enhancement_missing"] == 1
+    assert counts["ratings_enhancement_missing"] == 0
+    assert counts["team_value_enhancement_missing"] == 0
     card = build_dashboard_day_view(payload, environment="staging")["cards"][0]
     assert card["analysis_state"] == "DATA_INCOMPLETE"
 

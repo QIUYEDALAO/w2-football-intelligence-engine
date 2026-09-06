@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -140,32 +139,6 @@ class CheckpointPlan:
         return payload
 
 
-@dataclass(frozen=True, kw_only=True)
-class ExecutorResult:
-    mode: str
-    status: str
-    provider_calls: int
-    db_writes: int
-    endpoint_captures: tuple[dict[str, Any], ...]
-    manifests: tuple[dict[str, Any], ...]
-    blockers: tuple[str, ...]
-
-    def as_dict(self) -> dict[str, Any]:
-        return {
-            "schema_version": "MatchdayIntakeExecutorV1",
-            "mode": self.mode,
-            "status": self.status,
-            "provider_calls": self.provider_calls,
-            "db_writes": self.db_writes,
-            "endpoint_captures": list(self.endpoint_captures),
-            "manifests": list(self.manifests),
-            "blockers": list(self.blockers),
-            "formal_ah": False,
-            "formal_ou": False,
-            "recommendation_lock": False,
-            "production_recommendation": False,
-            "official_captures": 0,
-        }
 
 
 def load_matchday_policy(
@@ -919,81 +892,12 @@ def v4_decision_from_matchday(
     return build_recommendation_decision_v4(authoritative_input).as_dict()
 
 
-def execute_matchday_intake(
-    *,
-    mode: Literal["DRY_RUN", "SAVED_PAYLOAD_REPLAY", "CONTROLLED_PROVIDER_CANARY"],
-    fixture_ids: Sequence[str] = (),
-    approve_provider_calls: bool = False,
-    hard_cap: int = 10,
-    saved_payloads: Sequence[Mapping[str, Any]] = (),
-) -> ExecutorResult:
-    if mode == "DRY_RUN":
-        return ExecutorResult(
-            mode=mode,
-            status="DRY_RUN_READY",
-            provider_calls=0,
-            db_writes=0,
-            endpoint_captures=(),
-            manifests=(),
-            blockers=(),
-        )
-    if mode == "SAVED_PAYLOAD_REPLAY":
-        captures = tuple(
-            endpoint_capture_contract(
-                endpoint=str(payload.get("endpoint", "fixtures")),
-                params=_mapping(payload.get("params")),
-                requested_at=parse_utc(payload.get("requested_at"))
-                or _raise_invalid_replay_time("INVALID_REQUESTED_AT"),
-                provider_captured_at=parse_utc(payload.get("captured_at"))
-                or _raise_invalid_replay_time("INVALID_CAPTURED_AT"),
-                status_code=int(payload.get("status_code", 200)),
-                elapsed_ms=int(payload.get("elapsed_ms", 0)),
-                payload=_mapping(payload.get("payload")),
-            )
-            for payload in saved_payloads
-        )
-        return ExecutorResult(
-            mode=mode,
-            status="REPLAY_VALIDATED",
-            provider_calls=0,
-            db_writes=0,
-            endpoint_captures=captures,
-            manifests=(),
-            blockers=(),
-        )
-    authorized = (
-        approve_provider_calls
-        and os.environ.get("W2_MATCHDAY_CANARY_APPROVED") == "true"
-        and len(fixture_ids) > 0
-        and hard_cap <= 10
-    )
-    if not authorized:
-        return ExecutorResult(
-            mode=mode,
-            status="PROVIDER_CANARY_NOT_EXECUTED_NO_AUTHORIZATION",
-            provider_calls=0,
-            db_writes=0,
-            endpoint_captures=(),
-            manifests=(),
-            blockers=("PROVIDER_CANARY_NOT_EXECUTED_NO_AUTHORIZATION",),
-        )
-    return ExecutorResult(
-        mode=mode,
-        status="CONTROLLED_PROVIDER_CANARY_AUTHORIZED_BUT_NOT_IMPLEMENTED_IN_UNIT_PORT",
-        provider_calls=0,
-        db_writes=0,
-        endpoint_captures=(),
-        manifests=(),
-        blockers=("PROVIDER_PORT_NOT_BOUND",),
-    )
 
 
 def public_manifest_read(manifest: Mapping[str, Any]) -> dict[str, Any]:
     return {"provider_calls": 0, "db_writes": 0, "manifest": dict(manifest)}
 
 
-def _raise_invalid_replay_time(code: str) -> datetime:
-    raise ValueError(code)
 
 
 def stable_hash(payload: Any) -> str:

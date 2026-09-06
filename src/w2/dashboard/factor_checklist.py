@@ -21,8 +21,6 @@ DISPLAY_NAMES = {
     "F4_MATCH_IMPORTANCE": "比赛重要性",
     "F5_RECENT_AH_COVER": "近期让球覆盖",
     "F6_H2H": "交锋记录",
-    "F7_STRENGTH_FORM": "实力与状态",
-    "F8_SQUAD_VALUE": "球队身价",
     "F9_TRUE_XG": "四字段 xG",
     "F10_LMM_V1": "首发阵容",
     "MK_EXACT_QUOTE": "主盘身份可解析",
@@ -71,8 +69,6 @@ def build_fixture_factor_checklist(
         "F4_MATCH_IMPORTANCE",
         "F5_RECENT_AH_COVER",
         "F6_H2H",
-        "F7_STRENGTH_FORM",
-        "F8_SQUAD_VALUE",
     ):
         factors.append(
             _contribution_factor(
@@ -519,7 +515,7 @@ def _factor(
         "role_shadow_candidate": role["role_shadow_candidate"],
         "factor_lifecycle": registry.get("lifecycle") if registry else None,
         "numeric_effect_enabled": (
-            bool(registry.get("numeric_effect_enabled")) if registry else True
+            bool(registry.get("numeric_effect_enabled")) if registry else False
         ),
         "state": state,
         "cause": cause,
@@ -732,7 +728,9 @@ def _role_authority() -> dict[str, Any]:
         raise ValueError("SC21_FACTOR_ROLE_AUTHORITY_INVALID")
     payload: dict[str, Any] = raw
     roles = payload.get("fixture_factor_roles")
-    if not isinstance(roles, dict) or set(roles) != set(DISPLAY_NAMES):
+    # The historical authority document still records the removed factors.
+    expected_roles = set(DISPLAY_NAMES) | {"F7_STRENGTH_FORM", "F8_SQUAD_VALUE"}
+    if not isinstance(roles, dict) or set(roles) != expected_roles:
         raise ValueError("SC21_FIXTURE_FACTOR_ROLES_INVALID")
     for role in roles.values():
         if (

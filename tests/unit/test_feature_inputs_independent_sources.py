@@ -276,7 +276,7 @@ def write_rating_mapping(
     )
 
 
-def test_real_history_h2h_values_and_ratings_drive_isc(monkeypatch: Any, tmp_path: Path) -> None:
+def test_history_and_xg_drive_isc_without_retired_factors(monkeypatch: Any, tmp_path: Path) -> None:
     write_value_mapping(tmp_path)
     monkeypatch.setattr(api_repository, "ROOT", tmp_path)
     monkeypatch.setattr(
@@ -295,8 +295,8 @@ def test_real_history_h2h_values_and_ratings_drive_isc(monkeypatch: Any, tmp_pat
     assert factors["F3_REST_FITNESS"]["inputs"]["home_rest_days"] > 0
     assert factors["F5_RECENT_AH_COVER"]["status"] == "READY"
     assert factors["F6_H2H"]["source_group"] == "h2h"
-    assert factors["F7_STRENGTH_FORM"]["source_group"] == "ratings"
-    assert factors["F8_SQUAD_VALUE"]["source_group"] == "squad_value"
+    assert "F7_STRENGTH_FORM" not in factors
+    assert "F8_SQUAD_VALUE" not in factors
     assert factors["F9_TRUE_XG"]["source_group"] == "xg"
     assert card["pricing_shadow"]["independent_signal_count"] >= 3
     assert (
@@ -309,7 +309,7 @@ def test_real_history_h2h_values_and_ratings_drive_isc(monkeypatch: Any, tmp_pat
     assert card["candidate"] is False
 
 
-def test_static_real_elo_overrides_history_rating_and_enters_lambda(
+def test_static_rating_does_not_reenable_removed_factor(
     monkeypatch: Any,
     tmp_path: Path,
 ) -> None:
@@ -327,21 +327,12 @@ def test_static_real_elo_overrides_history_rating_and_enters_lambda(
 
     assert card is not None
     factors = {item["id"]: item for item in card["pricing_shadow"]["factors"]}
-    strength = factors["F7_STRENGTH_FORM"]
-    assert strength["source"] == "world_football_elo"
-    assert strength["source_group"] == "ratings"
-    assert strength["collection_status"] == "REAL_ELO"
-    assert strength["is_independent_signal"] is True
-    assert strength["inputs"]["home_elo"] == 2010.0
-    assert strength["inputs"]["away_elo"] == 1610.0
+    assert "F7_STRENGTH_FORM" not in factors
+    assert "F8_SQUAD_VALUE" not in factors
     readiness = card["pricing_shadow"]["simulation"]["input_readiness"]
-    assert readiness["home_elo_source"] == "world_football_elo"
-    assert readiness["away_elo_source"] == "world_football_elo"
-    assert readiness["home_elo_collection_status"] == "REAL_ELO"
-    assert readiness["away_elo_collection_status"] == "REAL_ELO"
-    assert readiness["ratings_used_in_lambda"] is True
-    assert readiness["proxy_elo_excluded"] is False
-    assert "ratings" in card["pricing_shadow"]["independent_signal_groups"]
+    assert readiness["ratings_used_in_lambda"] is False
+    assert readiness["squad_value_used_in_lambda"] is False
+    assert "ratings" not in card["pricing_shadow"]["independent_signal_groups"]
 
 
 def test_static_real_elo_after_as_of_is_not_used(
@@ -362,10 +353,7 @@ def test_static_real_elo_after_as_of_is_not_used(
 
     assert card is not None
     factors = {item["id"]: item for item in card["pricing_shadow"]["factors"]}
-    strength = factors["F7_STRENGTH_FORM"]
-    assert strength["source"] != "world_football_elo"
-    assert strength["collection_status"] != "REAL_ELO"
-    assert strength["inputs"]["home_elo"] != 2010.0
+    assert "F7_STRENGTH_FORM" not in factors
 
 
 def test_missing_ah_and_h2h_are_reported_without_fake_ready(
@@ -387,4 +375,4 @@ def test_missing_ah_and_h2h_are_reported_without_fake_ready(
     assert summary["F5_RECENT_AH_COVER"]["collection_status"] == "MISSING_AH_EVIDENCE"
     assert summary["F6_H2H"]["collection_status"] == "NO_H2H_HISTORY"
     assert "h2h" in card["pricing_shadow"]["missing_independent_sources"]
-    assert "squad_value" in card["pricing_shadow"]["missing_independent_sources"]
+    assert "squad_value" not in card["pricing_shadow"]["missing_independent_sources"]

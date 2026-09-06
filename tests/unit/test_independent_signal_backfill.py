@@ -245,8 +245,8 @@ def test_repository_consumes_generated_artifacts(monkeypatch: Any, tmp_path: Any
     summary = card["pricing_shadow"]["factor_source_summary"]
     assert summary["F3_REST_FITNESS"]["source_group"] == "team_fixture_history"
     assert summary["F6_H2H"]["source_group"] == "h2h"
-    assert summary["F7_STRENGTH_FORM"]["source_group"] == "ratings"
-    assert card["pricing_shadow"]["independent_signal_count"] >= 3
+    assert "F7_STRENGTH_FORM" not in summary
+    assert card["pricing_shadow"]["independent_signal_count"] == 2
 
 
 def test_repository_skips_unreadable_runtime_artifacts(monkeypatch: Any, tmp_path: Any) -> None:

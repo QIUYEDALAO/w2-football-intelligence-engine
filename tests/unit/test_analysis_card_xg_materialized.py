@@ -915,7 +915,7 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert ah_market["uncertainty"] is not None
     assert ah_market["analysis_evidence_sides"]
     assert ah_market["factor_veto"]["code"] == "FACTOR_ADMISSION_FAILED"
-    assert "PARTICIPATING_FACTORS_BELOW_MINIMUM:2/3" in ah_market["factor_veto"]["blockers"]
+    assert "PARTICIPATING_FACTORS_BELOW_MINIMUM:1/3" in ah_market["factor_veto"]["blockers"]
     # The EV evidence is still projected in full for inspection -- the veto
     # blocks the decision, it does not hide the comparison.
     assert ah_market["market_candidate"]["analysis_evidence_status"] == "COMPLETE"
@@ -943,7 +943,7 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     # `_apply_mainline_market_selection`, which now exempts AH from its
     # signal_strength-based downgrade).
     assert ah_market["reason"].startswith("FACTOR_ADMISSION_FAILED:")
-    assert "PARTICIPATING_FACTORS_BELOW_MINIMUM:2/3" in ah_market["reason"]
+    assert "PARTICIPATING_FACTORS_BELOW_MINIMUM:1/3" in ah_market["reason"]
     assert totals_market["reason"].startswith("两队滚动 xG 进攻合计 2.58")
     assert score_market["scores"] == []
     assert card["bookmaker_intent"]["intent"] in {"HOME_LEAN", "AWAY_LEAN"}
@@ -1139,10 +1139,10 @@ def test_public_bounded_analysis_consumes_canonical_identity_history_and_ratings
     assert card["data_readiness"]["xg"] is True
     assert card["data_readiness"]["xg_home_match_count"] == 5
     assert card["data_readiness"]["xg_away_match_count"] == 5
-    assert card["simulation"]["input_readiness"]["home_elo_source"] == "team_rating_snapshots"
-    assert card["simulation"]["input_readiness"]["away_elo_source"] == "team_rating_snapshots"
-    assert card["simulation"]["input_readiness"]["home_elo_collection_status"] == "READY"
-    assert card["simulation"]["input_readiness"]["away_elo_collection_status"] == "READY"
+    assert card["simulation"]["input_readiness"]["home_elo_source"] is None
+    assert card["simulation"]["input_readiness"]["away_elo_source"] is None
+    assert card["simulation"]["input_readiness"]["home_elo_collection_status"] is None
+    assert card["simulation"]["input_readiness"]["away_elo_collection_status"] is None
     contributions = card["feature_contributions"]
     assert any(
         item["id"] == "F3_REST_FITNESS"

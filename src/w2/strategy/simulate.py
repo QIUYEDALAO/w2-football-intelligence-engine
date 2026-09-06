@@ -119,30 +119,22 @@ def run_simulation(
             simulations=simulations,
             seed=seed,
         )
-    eligible_home_elo = _eligible_elo(
-        inputs.home_elo,
-        source=inputs.home_elo_source,
-        collection_status=inputs.home_elo_collection_status,
-    )
-    eligible_away_elo = _eligible_elo(
-        inputs.away_elo,
-        source=inputs.away_elo_source,
-        collection_status=inputs.away_elo_collection_status,
-    )
     calibration = calibrate_lambdas(
         home_xg_for=_required_float(inputs.home_xg_for),
         home_xg_against=_required_float(inputs.home_xg_against),
         away_xg_for=_required_float(inputs.away_xg_for),
         away_xg_against=_required_float(inputs.away_xg_against),
-        home_elo=eligible_home_elo,
-        away_elo=eligible_away_elo,
-        home_squad_value_eur=inputs.home_squad_value_eur,
-        away_squad_value_eur=inputs.away_squad_value_eur,
-        lineup_strength_adjustment=inputs.lineup_strength_adjustment,
-        lineup_ah_adjustment=inputs.lineup_ah_adjustment,
-        lineup_totals_adjustment=inputs.lineup_totals_adjustment,
-        lineup_ah_evidence_enabled=inputs.lineup_ah_evidence_enabled,
-        lineup_totals_evidence_enabled=inputs.lineup_totals_evidence_enabled,
+        home_elo=None,
+        away_elo=None,
+        # F8/lineup inputs are retained for historical compatibility but are not
+        # materialized production inputs; keep them out of the lambda path.
+        home_squad_value_eur=None,
+        away_squad_value_eur=None,
+        lineup_strength_adjustment=0.0,
+        lineup_ah_adjustment=0.0,
+        lineup_totals_adjustment=0.0,
+        lineup_ah_evidence_enabled=False,
+        lineup_totals_evidence_enabled=False,
         apply_home_advantage=not inputs.neutral_site,
     )
     sigma_home = max(float(inputs.lambda_sigma_home), 0.0)
@@ -509,8 +501,7 @@ def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:
         {
             "xg_ready": xg_ready,
             "elo_ready": eligible_home_elo is not None and eligible_away_elo is not None,
-            "ratings_used_in_lambda": eligible_home_elo is not None
-            and eligible_away_elo is not None,
+            "ratings_used_in_lambda": False,
             "proxy_elo_excluded": proxy_elo_excluded,
             "home_elo_source": inputs.home_elo_source,
             "away_elo_source": inputs.away_elo_source,
@@ -522,8 +513,7 @@ def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:
             "lambda_sigma_away": inputs.lambda_sigma_away,
             "squad_value_ready": inputs.home_squad_value_eur is not None
             and inputs.away_squad_value_eur is not None,
-            "squad_value_used_in_lambda": inputs.home_squad_value_eur is not None
-            and inputs.away_squad_value_eur is not None,
+            "squad_value_used_in_lambda": False,
         }
     )
     return readiness

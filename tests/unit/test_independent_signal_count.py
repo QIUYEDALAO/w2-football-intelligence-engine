@@ -50,14 +50,14 @@ def test_xg_proxy_factors_do_not_inflate_isc() -> None:
         current_odds={"ah": {"home_line": "0"}},
     )
 
-    assert shadow["coverage"] == 0.571429
+    assert shadow["coverage"] == 0.6
     assert shadow["independent_signal_count"] == 1
     assert shadow["independent_signal_groups"] == ["xg"]
-    assert shadow["xg_derived_factor_count"] == 3
+    assert shadow["xg_derived_factor_count"] == 2
     assert shadow["factor_source_summary"]["F3_REST_FITNESS"]["proxy_of"] == (
         "team_fixture_history"
     )
-    assert shadow["factor_source_summary"]["F7_STRENGTH_FORM"]["is_independent_signal"] is False
+    assert "F7_STRENGTH_FORM" not in shadow["factor_source_summary"]
 
 
 def test_isc_counts_distinct_authoritative_signal_groups_only() -> None:
@@ -76,11 +76,9 @@ def test_isc_counts_distinct_authoritative_signal_groups_only() -> None:
         current_odds={"ah": {"home_line": "0"}},
     )
 
-    assert shadow["independent_signal_count"] == 5
+    assert shadow["independent_signal_count"] == 3
     assert shadow["independent_signal_groups"] == [
         "h2h",
-        "ratings",
-        "squad_value",
         "team_fixture_history",
         "xg",
     ]
