@@ -12,7 +12,11 @@ from w2.dashboard.intelligence import build_intelligence_projection, intelligenc
 from w2.domain.decision_contract import validate_decision_contract
 from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.environment_policy import build_environment_policy_stamp
-from w2.domain.recommendation_decision_v4 import validate_decision_v4_identity
+from w2.domain.recommendation_decision_v4 import (
+    RecommendationOutcomeV4,
+    build_recommendation_decision_v4,
+    validate_decision_v4_identity,
+)
 from w2.prematch.simulation_reconciliation import (
     PublicSimulationReadViolation,
     canonical_public_simulation,
@@ -143,7 +147,7 @@ def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
         fixture_id=card.get("fixture_id"),
         card=card,
     )
-    projected = _annotate_v4_role(_contract_card(card, contract))
+    projected = _apply_v4_authority(_contract_card(card, contract))
     projected.update(build_intelligence_projection(projected))
     projected["analysis_state"] = projected["intelligence_state"]
     projected["analysis_blocker"] = (
@@ -155,16 +159,81 @@ def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
     return projected
 
 
-def _annotate_v4_role(projected: dict[str, Any]) -> dict[str, Any]:
-    """Validate V4 identity when present, but never use it as public product authority."""
+def _apply_v4_authority(projected: dict[str, Any]) -> dict[str, Any]:
+    """Project the frozen V4 decision as the dashboard product authority."""
     decision = projected.get("recommendation_decision_v4")
-    if isinstance(decision, Mapping) and decision:
-        try:
-            validate_decision_v4_identity(decision)
-        except ValueError as exc:
-            raise ProjectionCardContractViolation(str(exc)) from exc
+    authority_missing = not isinstance(decision, Mapping) or not decision
+    if authority_missing:
+        decision = build_recommendation_decision_v4(
+            {
+                "fixture_id": projected.get("fixture_id"),
+                "competition_id": projected.get("competition_id"),
+                "kickoff_utc": projected.get("kickoff_utc"),
+            }
+        ).as_dict()
+        projected["recommendation_decision_v4"] = decision
+    try:
+        validate_decision_v4_identity(decision)
+    except ValueError as exc:
+        raise ProjectionCardContractViolation(str(exc)) from exc
+    outcome = str(decision.get("outcome") or "")
+    tier = {
+        RecommendationOutcomeV4.FORMAL_RECOMMEND.value: "RECOMMEND",
+        RecommendationOutcomeV4.ANALYSIS_PICK.value: "ANALYSIS_PICK",
+        RecommendationOutcomeV4.NO_EDGE.value: "SKIP",
+        RecommendationOutcomeV4.NOT_READY.value: "NOT_READY",
+    }.get(outcome)
+    if tier is None:
+        raise ProjectionCardContractViolation("RECOMMENDATION_DECISION_V4_OUTCOME_INVALID")
+    selected = decision.get("selected_candidate")
+    pick = (
+        {
+            "market": selected.get("market"),
+            "selection": selected.get("selection"),
+            "line": selected.get("exact_line"),
+            "odds": selected.get("decimal_odds"),
+            "fair_odds": selected.get("fair_odds"),
+            "expected_value": selected.get("expected_value"),
+            "uncertainty": selected.get("uncertainty"),
+            "value_edge": selected.get("cashflow_price_edge"),
+        }
+        if isinstance(selected, Mapping) and tier in {"ANALYSIS_PICK", "RECOMMEND"}
+        else None
+    )
+    reason = decision.get("reason")
+    reason = reason if isinstance(reason, Mapping) else {}
+    reason_code = (
+        "CURRENT_V4_AUTHORITY_MISSING"
+        if authority_missing
+        else str(reason.get("code") or "NOT_READY")
+    )
+    projected.update(
+        {
+            "decision_tier": tier,
+            "data_status": "BLOCKED" if tier == "NOT_READY" else "READY",
+            "outcome_tracked": pick is not None,
+            "lock_eligible": False,
+            "recommendation_id": None,
+            "pick": pick,
+            "non_pick": None
+            if pick is not None
+            else {
+                "reason_code": reason_code,
+                "reason_human": str(reason.get("message") or "当前推荐缺少 V4 权威身份"),
+                "action": "等待下一次权威证据刷新",
+                "next_eval_at": None,
+            },
+            "reason_code": reason_code,
+            "action": "MONITOR" if pick is not None else "WAIT",
+            "recommendation_authority": "RECOMMENDATION_DECISION_V4",
+        }
+    )
+    if pick is None:
+        projected["secondary_picks"] = []
+        projected["scoreline_picks"] = []
+        projected["scoreline_reference"] = {}
     projected["recommendation_decision_v3_role"] = "HISTORY_ONLY"
-    projected["recommendation_decision_v4_role"] = "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY"
+    projected["recommendation_decision_v4_role"] = "PRODUCT_AUTHORITY"
     return projected
 
 

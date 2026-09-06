@@ -1904,6 +1904,7 @@ def test_multiple_evaluation_mid_write_failure_rolls_back_entire_batch(
         version: Any,
         *,
         supersession_reason: str = "NEW_CAPTURE_OR_MODEL_INPUT",
+        recommendation_decision_v4: Any = None,
     ) -> tuple[Any, bool]:
         nonlocal calls
         calls += 1
@@ -1914,6 +1915,7 @@ def test_multiple_evaluation_mid_write_failure_rolls_back_entire_batch(
             session,
             version,
             supersession_reason=supersession_reason,
+            recommendation_decision_v4=recommendation_decision_v4,
         )
 
     monkeypatch.setattr(

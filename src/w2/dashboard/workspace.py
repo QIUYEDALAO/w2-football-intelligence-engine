@@ -1082,7 +1082,7 @@ def _match(
             "source_event_at": _optional_text(
                 _mapping(card.get("frozen_artifact_provenance")).get("source_event_at")
             ),
-            "decision_role": "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY",
+            "decision_role": "PRODUCT_AUTHORITY",
         },
     }
 

@@ -364,7 +364,7 @@ def _candidate_evaluation(
         or candidate_fair_price is None
         or abs(fair_price - candidate_fair_price) > 0.00011
         or recomputed_ev is None
-        or abs(recomputed_ev - ev) > 0.000001
+        or abs(recomputed_ev - Decimal(str(ev))) > Decimal("0.000001")
     ):
         return None
     return side, ev, ev_se, model_probability, line, price, distribution

@@ -1153,8 +1153,20 @@ def write_frozen_analysis_artifacts(
                     )
                 elif draft.payload.get("source_event_type") == "LINEUP_CHANGED":
                     raise FrozenAnalysisError("lineup event unavailable")
+                draft_card = draft.payload.get("analysis_card")
+                decision_v4 = (
+                    draft_card.get("recommendation_decision_v4")
+                    if isinstance(draft_card, dict)
+                    else None
+                )
                 for evaluation in draft.evaluations:
-                    repository.append_evaluation_in_session(session, evaluation)
+                    repository.append_evaluation_in_session(
+                        session,
+                        evaluation,
+                        recommendation_decision_v4=(
+                            decision_v4 if isinstance(decision_v4, Mapping) else None
+                        ),
+                    )
                 artifact = draft
                 if draft.payload.get("checkpoint_namespace") == "shadow":
                     materializer = original.projection_materializer

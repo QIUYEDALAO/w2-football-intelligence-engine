@@ -267,7 +267,7 @@ def _authoritative_ah_candidate(
             },
             "model_probability": {
                 "status": "READY",
-                "effective_probability": (1 + recomputed_ev) / selected_price,
+                "effective_probability": float(1 + recomputed_ev) / selected_price,
                 "settlement_distribution": distribution,
                 "fair_decimal_odds": fair_price,
                 "expected_value": recomputed_ev,

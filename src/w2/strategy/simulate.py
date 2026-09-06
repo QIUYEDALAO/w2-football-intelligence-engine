@@ -6,12 +6,13 @@ import random
 from bisect import bisect_left
 from collections import Counter
 from dataclasses import asdict, dataclass, field
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from math import exp
 from typing import Any
 
 from w2.domain.calibration_validation_registry import calibration_identity
 from w2.domain.enums import SettlementOutcome
+from w2.domain.five_state_pricing import SettlementDistribution, expected_value, validate_ev_inputs
 from w2.domain.odds import settle_asian_handicap
 from w2.markets.poisson import round_to_quarter
 from w2.models.dixon_coles import tau_correction
@@ -349,34 +350,30 @@ def ah_settlement_distribution(
     for (home_goals, away_goals), count in score_counts.items():
         outcome = settle_asian_handicap(home_goals, away_goals, selection, decimal_line)
         counts[outcome] += count
-    return {outcome.value: round(value / denominator, 6) for outcome, value in counts.items()}
+    return {outcome.value: value / denominator for outcome, value in counts.items()}
 
 
-def ah_expected_value(distribution: dict[str, Any], *, decimal_price: float) -> float | None:
-    if decimal_price <= 1:
+def ah_expected_value(
+    distribution: dict[str, Any], *, decimal_price: float | Decimal
+) -> Decimal | None:
+    """Explicit legacy numeric adapter; pricing and validation remain domain-owned."""
+    keys = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
+    if set(distribution) != set(keys):
         return None
-    win = _distribution_value(distribution, SettlementOutcome.WIN)
-    half_win = _distribution_value(distribution, SettlementOutcome.HALF_WIN)
-    push = _distribution_value(distribution, SettlementOutcome.PUSH)
-    half_loss = _distribution_value(distribution, SettlementOutcome.HALF_LOSS)
-    loss = _distribution_value(distribution, SettlementOutcome.LOSS)
-    if (
-        win is None
-        or half_win is None
-        or push is None
-        or half_loss is None
-        or loss is None
-    ):
+    if type(decimal_price) not in (float, int, Decimal):
         return None
-    profit = decimal_price - 1
-    ev = (
-        win * profit
-        + half_win * (profit / 2)
-        + push * 0
-        - half_loss * 0.5
-        - loss
-    )
-    return round(ev, 6)
+    if any(type(distribution[k]) not in (float, int, Decimal) for k in keys):
+        return None
+    try:
+        odds = Decimal(str(decimal_price))
+        settlement = SettlementDistribution(**dict(zip(
+            SettlementDistribution.__dataclass_fields__,
+            (Decimal(str(distribution[k])) for k in keys), strict=True,
+        )))
+        validate_ev_inputs(odds, settlement)
+    except (ValueError, InvalidOperation):
+        return None
+    return expected_value(odds, settlement)
 
 
 def ah_settlement_distribution_from_lambdas(
@@ -409,7 +406,7 @@ def ah_expected_value_uncertainty_from_lambdas(
     lambda_sigma_away: float = 0.0,
     rho: float = 0.0,
     max_goals: int = 12,
-) -> tuple[dict[str, float] | None, float | None, float | None]:
+) -> tuple[dict[str, float] | None, Decimal | None, Decimal | None]:
     if (
         lambda_home is None
         or lambda_away is None
@@ -418,7 +415,7 @@ def ah_expected_value_uncertainty_from_lambdas(
         or decimal_price <= 1
     ):
         return None, None, None
-    scenario_rows: list[tuple[float, dict[str, float], float]] = []
+    scenario_rows: list[tuple[float, dict[str, float], Decimal]] = []
     for scenario_home_lambda, home_weight in _lambda_quadrature(
         lambda_home,
         max(float(lambda_sigma_home), 0.0),
@@ -455,24 +452,24 @@ def ah_expected_value_uncertainty_from_lambdas(
             SettlementOutcome.LOSS,
         )
     }
-    normalized_rows: list[tuple[float, dict[str, float], float]] = []
+    normalized_rows: list[tuple[float, dict[str, float], Decimal]] = []
     for weight, distribution, scenario_ev in scenario_rows:
         normalized_weight = weight / total_weight
         normalized_rows.append((normalized_weight, distribution, scenario_ev))
         for outcome in mixed_distribution:
             mixed_distribution[outcome] += normalized_weight * distribution.get(outcome, 0.0)
     rounded_distribution = {
-        outcome: round(probability, 6)
+        outcome: probability
         for outcome, probability in mixed_distribution.items()
     }
     mixed_ev = ah_expected_value(rounded_distribution, decimal_price=decimal_price)
     if mixed_ev is None:
         return rounded_distribution, None, None
     variance = sum(
-        weight * ((scenario_ev - mixed_ev) ** 2)
+        Decimal(str(weight)) * ((scenario_ev - mixed_ev) ** 2)
         for weight, _, scenario_ev in normalized_rows
     )
-    return rounded_distribution, mixed_ev, float(round(max(variance, 0.0) ** 0.5, 6))
+    return rounded_distribution, mixed_ev, max(variance, Decimal(0)).sqrt()
 
 
 def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:

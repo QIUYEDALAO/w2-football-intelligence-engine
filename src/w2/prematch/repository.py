@@ -67,6 +67,7 @@ class DynamicPrematchRepository:
         version: DynamicEvaluationVersion,
         *,
         supersession_reason: str = "NEW_CAPTURE_OR_MODEL_INPUT",
+        recommendation_decision_v4: Mapping[str, Any] | None = None,
     ) -> tuple[DynamicEvaluationVersion, bool]:
         with Session(self.engine) as session:
             try:
@@ -74,6 +75,7 @@ class DynamicPrematchRepository:
                     session,
                     version,
                     supersession_reason=supersession_reason,
+                    recommendation_decision_v4=recommendation_decision_v4,
                 )
                 session.commit()
                 return result
@@ -119,6 +121,7 @@ class DynamicPrematchRepository:
         version: DynamicEvaluationVersion,
         *,
         supersession_reason: str = "NEW_CAPTURE_OR_MODEL_INPUT",
+        recommendation_decision_v4: Mapping[str, Any] | None = None,
     ) -> tuple[DynamicEvaluationVersion, bool]:
         """Append evaluation and supersession without owning the transaction."""
         existing = session.scalar(
@@ -195,7 +198,11 @@ class DynamicPrematchRepository:
         session.flush()
         if persisted.denominator_scope == CHECKPOINT_OPPORTUNITY_SCOPE:
             self._upsert_opportunity_in_session(session, persisted)
-            enqueue_attempt_notification_in_session(session, persisted)
+            enqueue_attempt_notification_in_session(
+                session,
+                persisted,
+                recommendation_decision_v4=recommendation_decision_v4,
+            )
         if previous is not None:
             session.add(
                 DynamicPrematchSupersessionModel(

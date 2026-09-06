@@ -19,6 +19,10 @@ from sqlalchemy.orm import Session
 from w2.dashboard.date_window import football_day_for_kickoff
 from w2.dashboard.results import normalize_match_status
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
+from w2.domain.recommendation_decision_v4 import (
+    RecommendationOutcomeV4,
+    validate_decision_v4_identity,
+)
 from w2.identity.public_team_labels import reviewed_public_team_labels
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.dynamic_prematch_models import (
@@ -86,6 +90,8 @@ BEIJING = ZoneInfo("Asia/Shanghai")
 def enqueue_attempt_notification_in_session(
     session: Session,
     version: DynamicEvaluationVersion,
+    *,
+    recommendation_decision_v4: Mapping[str, Any] | None = None,
 ) -> list[str]:
     """Create attempt-backed events in the evaluation transaction.
 
@@ -95,6 +101,9 @@ def enqueue_attempt_notification_in_session(
 
     if not _official(version) or version.attempt_identity_hash is None:
         return []
+    if recommendation_decision_v4 is None:
+        return []
+    selected = _v4_candidate_for_attempt(version, recommendation_decision_v4)
     previous_rows = list(
         session.scalars(
             select(DynamicPrematchEvaluationModel)
@@ -118,9 +127,23 @@ def enqueue_attempt_notification_in_session(
             )
         )
     )
+    authorized_attempts = set(
+        session.scalars(
+            select(CandidateNotificationOutboxModel.attempt_identity_hash).where(
+                CandidateNotificationOutboxModel.event_type.in_(
+                    {CANDIDATE_FORMED, CANDIDATE_MATERIAL_CHANGE, CANDIDATE_T30_CONFIRMED}
+                )
+            )
+        )
+    )
     previous = previous_rows[0] if previous_rows else None
     previous_candidate = next(
-        (row for row in previous_rows if _opportunity_state(row) == "EVALUATED_CANDIDATE"),
+        (
+            row
+            for row in previous_rows
+            if _opportunity_state(row) == "EVALUATED_CANDIDATE"
+            and row.attempt_identity_hash in authorized_attempts
+        ),
         None,
     )
     current_state = version.opportunity_state
@@ -154,7 +177,7 @@ def enqueue_attempt_notification_in_session(
     )
 
     events: list[tuple[str, DynamicPrematchEvaluationModel | None, str | None]] = []
-    if current_state == OpportunityState.EVALUATED_CANDIDATE:
+    if current_state == OpportunityState.EVALUATED_CANDIDATE and selected is not None:
         if previous_candidate is None:
             events.append((CANDIDATE_FORMED, None, previous_state))
         elif previous_state != "EVALUATED_CANDIDATE":
@@ -172,6 +195,12 @@ def enqueue_attempt_notification_in_session(
         payload = _attempt_payload(
             session,
             version,
+            selected_candidate=selected,
+            decision_hash=(
+                str(recommendation_decision_v4.get("decision_hash"))
+                if recommendation_decision_v4 is not None
+                else None
+            ),
             event_type=event_type,
             comparison=(comparison.payload if comparison is not None else None),
             outbox_created_at=outbox_created_at,
@@ -1152,18 +1181,36 @@ def _attempt_payload(
     session: Session,
     version: DynamicEvaluationVersion,
     *,
+    selected_candidate: Mapping[str, Any] | None,
+    decision_hash: str | None,
     event_type: str,
     comparison: Mapping[str, Any] | None,
     outbox_created_at: datetime,
 ) -> dict[str, Any]:
     recorded_at = version.recorded_at or outbox_created_at
+    value = version.as_dict()
+    if selected_candidate is not None:
+        value.update(
+            {
+                "market": selected_candidate.get("market"),
+                "selection": selected_candidate.get("selection"),
+                "exact_line": selected_candidate.get("exact_line"),
+                "decimal_odds": selected_candidate.get("decimal_odds"),
+                "bookmaker_id": selected_candidate.get("bookmaker_id"),
+                "capture_id": selected_candidate.get("capture_id"),
+                "capture_at": selected_candidate.get("captured_at"),
+                "current_ev": selected_candidate.get("expected_value"),
+            }
+        )
     payload = _payload_from_mapping(
         session,
-        version.as_dict(),
+        value,
         event_type=event_type,
         created_at=outbox_created_at,
     )
     payload["source_kind"] = "IMMUTABLE_EVALUATION_ATTEMPT"
+    payload["recommendation_authority"] = "RECOMMENDATION_DECISION_V4"
+    payload["recommendation_decision_v4_hash"] = decision_hash
     payload["evaluation_recorded_at"] = _iso(recorded_at)
     payload["outbox_created_at"] = _iso(outbox_created_at)
     payload["outbox_enqueue_latency_seconds"] = round(
@@ -1173,6 +1220,67 @@ def _attempt_payload(
     if comparison is not None:
         payload["change"] = _change_details(comparison, version.as_dict())
     return payload
+
+
+def _v4_candidate_for_attempt(
+    version: DynamicEvaluationVersion,
+    decision: Mapping[str, Any] | None,
+) -> Mapping[str, Any] | None:
+    if decision is None:
+        return None
+    try:
+        validate_decision_v4_identity(decision)
+    except ValueError as exc:
+        raise ValueError("CANDIDATE_NOTIFICATION_V4_INVALID") from exc
+    if version.opportunity_state != OpportunityState.EVALUATED_CANDIDATE:
+        return None
+    if decision.get("outcome") not in {
+        RecommendationOutcomeV4.ANALYSIS_PICK.value,
+        RecommendationOutcomeV4.FORMAL_RECOMMEND.value,
+    }:
+        return None
+    selected = decision.get("selected_candidate")
+    authoritative = decision.get("authoritative_input")
+    if not isinstance(selected, Mapping) or not isinstance(authoritative, Mapping):
+        raise ValueError("CANDIDATE_NOTIFICATION_V4_CANDIDATE_MISSING")
+    mainline = authoritative.get("canonical_mainline_identity")
+    mainline = mainline if isinstance(mainline, Mapping) else {}
+    fixture_id = str(version.fixture_id).removeprefix("api_football:")
+    decision_fixture_id = str(decision.get("fixture_id") or "").removeprefix(
+        "api_football:"
+    )
+    if fixture_id != decision_fixture_id:
+        raise ValueError(
+            "CANDIDATE_NOTIFICATION_V4_ATTEMPT_IDENTITY_MISMATCH:fixture_id"
+        )
+    if version.market != selected.get("market"):
+        return None
+    mismatches = [
+        field
+        for field, current, frozen in (
+            (
+                "selection",
+                str(version.selection).removesuffix("_AH"),
+                selected.get("selection"),
+            ),
+            ("exact_line", _float(version.exact_line), _float(selected.get("exact_line"))),
+            ("decimal_odds", _float(version.decimal_odds), _float(selected.get("decimal_odds"))),
+            ("bookmaker_id", version.bookmaker_id, selected.get("bookmaker_id")),
+            ("capture_id", version.capture_id, selected.get("capture_id")),
+            (
+                "quote_identity_hash",
+                version.quote_identity_hash,
+                mainline.get("quote_identity_hash"),
+            ),
+        )
+        if current != frozen
+    ]
+    if mismatches:
+        raise ValueError(
+            "CANDIDATE_NOTIFICATION_V4_ATTEMPT_IDENTITY_MISMATCH:"
+            + ",".join(mismatches)
+        )
+    return selected
 
 
 def _payload_from_mapping(

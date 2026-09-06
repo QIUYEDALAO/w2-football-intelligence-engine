@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import hashlib
 import json
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from types import SimpleNamespace
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from w2.api.repository import _apply_repository_v4_authority
+from w2.dashboard.day_view import build_dashboard_day_view
+from w2.domain.recommendation_decision_v4 import build_recommendation_decision_v4
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     CandidateNotificationOutboxModel,
@@ -86,7 +92,7 @@ def _attempt(
             exact_line=line,
             bookmaker_id="book-1",
             capture_id=f"capture-{suffix}",
-            quote_identity_hash=(suffix * 64)[:64],
+            quote_identity_hash=hashlib.sha256(suffix.encode()).hexdigest(),
             model_input_hash="2" * 64,
             evaluated_at=NOW + timedelta(minutes=len(suffix)),
             checkpoint=slot,
@@ -120,20 +126,256 @@ def _events(engine) -> list[CandidateNotificationOutboxModel]:  # type: ignore[n
         )
 
 
+def _v4(version):  # type: ignore[no-untyped-def]
+    if version.opportunity_state is not OpportunityState.EVALUATED_CANDIDATE:
+        return build_recommendation_decision_v4(
+            {
+                "fixture_id": version.fixture_id,
+                "competition_id": "chinese_super_league",
+                "kickoff_utc": "2026-08-21T12:00:00Z",
+            }
+        ).as_dict()
+    odds = Decimal(str(version.decimal_odds))
+    return build_recommendation_decision_v4(
+        {
+            "fixture_id": version.fixture_id,
+            "competition_id": "chinese_super_league",
+            "season": "2026",
+            "kickoff_utc": "2026-08-21T12:00:00Z",
+            "kickoff_revision_or_fixture_identity_hash": "d" * 64,
+            "provider": "api-football",
+            "bookmaker_id": version.bookmaker_id,
+            "market": version.market,
+            "selection": str(version.selection).removesuffix("_AH"),
+            "exact_line": str(version.exact_line),
+            "capture_id": version.capture_id,
+            "captured_at": version.capture_at.isoformat(),
+            "decision_evaluated_at": version.evaluated_at.isoformat(),
+            "quote_observation_ids": {"home": "obs-home", "away": "obs-away"},
+            "raw_payload_sha256": "a" * 64,
+            "source_revision": "e" * 40,
+            "model_version": "model-v1",
+            "calibration_version": "calibration-v1",
+            "serializer_version": "w2.canonical-json.v2",
+            "recommendation_schema_version": "w2.recommendation_decision.v4",
+            "quote_schema_version": "w2.quote_identity.v1",
+            "model_input_manifest_hash": "b" * 64,
+            "decimal_odds": str(odds),
+            "canonical_mainline_identity": {
+                "market": version.market,
+                "line": str(version.exact_line),
+                "selected_side_line": str(version.exact_line),
+                "candidate_role": "MARKET_MAINLINE",
+                "quote_identity_hash": version.quote_identity_hash,
+            },
+            "settlement_distribution": {
+                "WIN": "0.6",
+                "HALF_WIN": "0",
+                "PUSH": "0",
+                "HALF_LOSS": "0",
+                "LOSS": "0.4",
+            },
+            "fair_odds": "1.6666666667",
+            "expected_value": str(odds * Decimal("0.6") - 1),
+            "uncertainty": "0.01",
+            "readiness": {
+                "status": "READY",
+                "quote_identity_status": "COMPLETE",
+                "quote_freshness_status": "COMPLETE",
+                "quote_freshness_policy_version": "w2.quote_freshness.v1",
+                "quote_age_seconds": 60,
+                "quote_max_age_seconds": 1800,
+                "model_status": "READY",
+            },
+            "capability_status": "ANALYSIS_ONLY",
+            "formal_admission": {
+                "status": "DISABLED",
+                "readiness_hash": None,
+                "approval_hash": None,
+                "candidate_identity_hash": None,
+            },
+            "model_probability": "0.6",
+            "market_probability": "0.5",
+            "probability_delta_diagnostic": "0.1",
+        }
+    ).as_dict()
+
+
+def _append(repository: DynamicPrematchRepository, version):  # type: ignore[no-untyped-def]
+    return repository.append_evaluation(
+        version,
+        recommendation_decision_v4=_v4(version),
+    )
+
+
+def test_candidate_event_requires_valid_matching_v4_decision() -> None:
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    attempt = _attempt("T3_ODDS", "v4-gate")
+
+    repository.append_evaluation(attempt)
+    assert _events(engine) == []
+    api_card = _apply_repository_v4_authority(
+        {
+            "fixture_id": attempt.fixture_id,
+            "competition_id": "chinese_super_league",
+            "kickoff_utc": "2026-08-21T12:00:00Z",
+        }
+    )
+    legacy_pick = {
+        "decision_tier": "ANALYSIS_PICK",
+        "data_status": "READY",
+        "lifecycle_status": "DRAFT",
+        "outcome_tracked": True,
+        "lock_eligible": False,
+        "recommendation_id": None,
+        "lineup_requirement": "ADVISORY",
+        "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
+        "pick": {
+            "market": attempt.market,
+            "selection": attempt.selection,
+            "line": attempt.exact_line,
+            "odds": attempt.decimal_odds,
+        },
+        "non_pick": None,
+    }
+    dashboard_card = build_dashboard_day_view(
+        {
+            "generated_at": NOW.isoformat(),
+            "date": "2026-08-20",
+            "selected_football_day": "2026-08-20",
+            "all": [
+                {
+                    "fixture_id": attempt.fixture_id,
+                    "competition_id": "chinese_super_league",
+                    "kickoff_utc": "2026-08-21T12:00:00Z",
+                    "decision_contract": legacy_pick,
+                }
+            ],
+        },
+        environment="staging",
+    )["cards"][0]
+    assert api_card["decision_tier"] == dashboard_card["decision_tier"] == "NOT_READY"
+    assert api_card["pick"] is dashboard_card["pick"] is None
+    _append(repository, _attempt("T60_ODDS_LINEUPS", "v4-ready"))
+    assert [event.event_type for event in _events(engine)] == [CANDIDATE_FORMED]
+
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    mismatched = _attempt("T3_ODDS", "other", line=-0.5)
+    try:
+        repository.append_evaluation(
+            mismatched,
+            recommendation_decision_v4=_v4(attempt),
+        )
+    except ValueError as exc:
+        assert str(exc).startswith("CANDIDATE_NOTIFICATION_V4_ATTEMPT_IDENTITY_MISMATCH:")
+    else:
+        raise AssertionError("mismatched V4 identity must fail closed")
+
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    invalid = _v4(_attempt("T3_ODDS", "invalid"))
+    invalid["decision_hash"] = "0" * 64
+    try:
+        repository.append_evaluation(
+            _attempt("T3_ODDS", "invalid"),
+            recommendation_decision_v4=invalid,
+        )
+    except ValueError as exc:
+        assert str(exc) == "CANDIDATE_NOTIFICATION_V4_INVALID"
+    else:
+        raise AssertionError("invalid V4 identity must fail closed")
+
+    with Session(engine) as session:
+        assert session.scalar(select(DynamicPrematchEvaluationModel)) is None
+
+
+def test_same_frozen_v4_pick_reaches_api_dashboard_and_notification() -> None:
+    engine = _engine()
+    attempt = _attempt("T3_ODDS", "three-exits", line=-0.5, odds=1.95)
+    decision = _v4(attempt)
+
+    api_card = _apply_repository_v4_authority(
+        {
+            "fixture_id": attempt.fixture_id,
+            "competition_id": "chinese_super_league",
+            "kickoff_utc": "2026-08-21T12:00:00Z",
+            "recommendation_decision_v4": deepcopy(decision),
+        }
+    )
+    legacy_contract = {
+        "decision_tier": "WATCH",
+        "data_status": "PARTIAL",
+        "lifecycle_status": "DRAFT",
+        "outcome_tracked": False,
+        "lock_eligible": False,
+        "recommendation_id": None,
+        "lineup_requirement": "ADVISORY",
+        "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
+        "pick": None,
+        "non_pick": {
+            "reason_code": "LEGACY_WATCH",
+            "reason_human": "legacy",
+            "action": "wait",
+            "next_eval_at": None,
+        },
+    }
+    dashboard = build_dashboard_day_view(
+        {
+            "generated_at": NOW.isoformat(),
+            "date": "2026-08-20",
+            "selected_football_day": "2026-08-20",
+            "all": [
+                {
+                    "fixture_id": attempt.fixture_id,
+                    "competition_id": "chinese_super_league",
+                    "kickoff_utc": "2026-08-21T12:00:00Z",
+                    "decision_contract": legacy_contract,
+                    "recommendation_decision_v4": deepcopy(decision),
+                }
+            ],
+        },
+        environment="staging",
+    )["cards"][0]
+    _append(DynamicPrematchRepository(engine), attempt)
+    notification = _events(engine)[0].payload
+
+    assert api_card["decision_tier"] == dashboard["decision_tier"] == "ANALYSIS_PICK"
+    assert (
+        api_card["pick"]["market"],
+        api_card["pick"]["selection"],
+        api_card["pick"]["line"],
+        api_card["pick"]["odds"],
+    ) == (
+        dashboard["pick"]["market"],
+        dashboard["pick"]["selection"],
+        dashboard["pick"]["line"],
+        dashboard["pick"]["odds"],
+    ) == (
+        notification["market"],
+        notification["direction"],
+        notification["line"],
+        notification["decimal_odds"],
+    )
+    assert notification["recommendation_decision_v4_hash"] == decision["decision_hash"]
+    assert notification["recommendation_authority"] == "RECOMMENDATION_DECISION_V4"
+
+
 def test_attempt_events_are_transactional_idempotent_and_capture_transient_candidate() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
 
     formed = _attempt("T3_ODDS", "a")
-    repository.append_evaluation(formed)
-    repository.append_evaluation(formed)
-    repository.append_evaluation(_attempt("T60_ODDS_LINEUPS", "b"))
-    repository.append_evaluation(_attempt("T45_ODDS", "c", ev=-0.01))
+    _append(repository, formed)
+    _append(repository, formed)
+    _append(repository, _attempt("T60_ODDS_LINEUPS", "b"))
+    _append(repository, _attempt("T45_ODDS", "c", ev=-0.01))
 
     events = _events(engine)
     assert [event.event_type for event in events] == [CANDIDATE_FORMED, CANDIDATE_WITHDRAWN]
     assert events[0].attempt_identity_hash == formed.attempt_identity_hash
-    assert events[0].payload["decimal_odds"] == 1.91
+    assert events[0].payload["decimal_odds"] == "1.91"
     assert events[0].payload["signal_semantics"].startswith("EARLY_SHADOW")
     assert events[1].previous_state == "EVALUATED_CANDIDATE"
     assert events[1].current_state == "EVALUATED_NO_EDGE"
@@ -142,9 +384,9 @@ def test_attempt_events_are_transactional_idempotent_and_capture_transient_candi
 def test_material_change_and_t30_confirmation_are_distinct_events() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
-    repository.append_evaluation(_attempt("T3_ODDS", "a"))
-    repository.append_evaluation(_attempt("T60_ODDS_LINEUPS", "b", line=-0.5))
-    repository.append_evaluation(_attempt("T-30m_VALIDATION_LOCK", "d", line=-0.5))
+    _append(repository, _attempt("T3_ODDS", "a"))
+    _append(repository, _attempt("T60_ODDS_LINEUPS", "b", line=-0.5))
+    _append(repository, _attempt("T-30m_VALIDATION_LOCK", "d", line=-0.5))
 
     events = _events(engine)
     assert [event.event_type for event in events] == [
@@ -159,7 +401,7 @@ def test_material_change_and_t30_confirmation_are_distinct_events() -> None:
 def test_missed_closeout_withdrawal_uses_opportunity_identity_without_fake_attempt() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
-    repository.append_evaluation(_attempt("T3_ODDS", "a"))
+    _append(repository, _attempt("T3_ODDS", "a"))
     context = _context("T60_ODDS_LINEUPS", "missed")
 
     assert repository.record_opportunity_without_attempt(
@@ -181,7 +423,7 @@ def test_missed_closeout_withdrawal_uses_opportunity_identity_without_fake_attem
 def test_candidate_reformed_after_missed_closeout_is_not_silenced() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
-    repository.append_evaluation(_attempt("T3_ODDS", "a"))
+    _append(repository, _attempt("T3_ODDS", "a"))
     context = _context("T-30m_VALIDATION_LOCK", "missed")
     repository.record_opportunity_without_attempt(
         fixture_id="1523202",
@@ -192,7 +434,7 @@ def test_candidate_reformed_after_missed_closeout_is_not_silenced() -> None:
         blocker="CHECKPOINT_WINDOW_MISSED",
     )
 
-    repository.append_evaluation(_attempt("T15_ODDS", "laterlater"))
+    _append(repository, _attempt("T15_ODDS", "laterlater"))
 
     events = _events(engine)
     assert sorted(event.event_type for event in events) == sorted(
@@ -211,7 +453,7 @@ def test_candidate_reformed_after_missed_closeout_is_not_silenced() -> None:
 def test_delivery_health_keeps_failure_distinct_from_zero_candidates() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
-    repository.append_evaluation(_attempt("T3_ODDS", "a"))
+    _append(repository, _attempt("T3_ODDS", "a"))
     event = _events(engine)[0]
 
     with Session(engine) as session:
@@ -250,7 +492,7 @@ def test_outbox_write_rolls_back_with_evaluation_transaction(monkeypatch) -> Non
 
     monkeypatch.setattr("w2.prematch.candidate_notifications._insert", fail)
     try:
-        repository.append_evaluation(_attempt("T3_ODDS", "a"))
+        _append(repository, _attempt("T3_ODDS", "a"))
     except RuntimeError as exc:
         assert str(exc) == "OUTBOX_WRITE_FAILED"
     else:
@@ -344,8 +586,8 @@ def test_operational_summaries_use_football_day_and_split_zero_candidate_reasons
     assert _events(engine)[0].payload["candidate_track_matches"][0]["home"] == "上海海港"
 
     repository = DynamicPrematchRepository(engine)
-    repository.append_evaluation(_attempt("T3_ODDS", "a", depth=0))
-    repository.append_evaluation(_attempt("T3_ODDS", "b", market="TOTALS", ev=-0.01))
+    _append(repository, _attempt("T3_ODDS", "a", depth=0))
+    _append(repository, _attempt("T3_ODDS", "b", market="TOTALS", ev=-0.01))
     result_confirmed_at = kickoff + timedelta(hours=2)
     with Session(engine) as session:
         session.add(
@@ -580,7 +822,7 @@ def test_closeout_settles_candidate_direction_without_writing_settlement() -> No
 def test_closeout_uses_last_real_evaluation_not_no_attempt_withdrawal() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
-    repository.append_evaluation(_attempt("T-30m_VALIDATION_LOCK", "candidate"))
+    _append(repository, _attempt("T-30m_VALIDATION_LOCK", "candidate"))
     repository.record_opportunity_without_attempt(
         fixture_id="1523202",
         market="ASIAN_HANDICAP",
@@ -599,8 +841,8 @@ def test_closeout_uses_last_real_evaluation_not_no_attempt_withdrawal() -> None:
 def test_closeout_excludes_candidate_when_later_real_evaluation_is_no_edge() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
-    repository.append_evaluation(_attempt("T-30m_VALIDATION_LOCK", "candidate"))
-    repository.append_evaluation(_attempt("T15_ODDS", "later-no-edge", ev=-0.01))
+    _append(repository, _attempt("T-30m_VALIDATION_LOCK", "candidate"))
+    _append(repository, _attempt("T15_ODDS", "later-no-edge", ev=-0.01))
     with Session(engine) as session:
         recommendations = candidate_notifications._closeout_recommendations(session)
 
@@ -767,10 +1009,10 @@ def test_an_unrelated_market_on_a_locked_fixture_is_not_pushed() -> None:
 
 def _lock_then_change(engine) -> None:  # type: ignore[no-untyped-def]
     repository = DynamicPrematchRepository(engine)
-    repository.append_evaluation(_attempt("T3_ODDS", "a"))
-    repository.append_evaluation(_attempt("T60_ODDS_LINEUPS", "bb", line=-0.5))
-    repository.append_evaluation(_attempt("T-30m_VALIDATION_LOCK", "ddd", line=-0.5))
-    repository.append_evaluation(_attempt("T15_ODDS", "eeee", line=-0.75))
+    _append(repository, _attempt("T3_ODDS", "a"))
+    _append(repository, _attempt("T60_ODDS_LINEUPS", "bb", line=-0.5))
+    _append(repository, _attempt("T-30m_VALIDATION_LOCK", "ddd", line=-0.5))
+    _append(repository, _attempt("T15_ODDS", "eeee", line=-0.75))
 
 
 def test_change_is_suppressed_when_the_lock_push_failed(monkeypatch) -> None:

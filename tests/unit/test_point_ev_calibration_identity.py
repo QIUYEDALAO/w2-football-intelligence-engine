@@ -408,7 +408,7 @@ def test_d_round_trip_distinguishes_absent_from_declared_baseline() -> None:
 
 
 # --- (e) a downgrade blocks and does not leave a stale candidate -------------
-def test_e_downgrade_on_the_same_opportunity_withdraws_the_candidate() -> None:
+def test_e_downgrade_updates_opportunity_without_unfrozen_notification() -> None:
     """One opportunity, one quote, one model input, one checkpoint. Only the
     calibration changes, and the whole chain has to notice."""
     engine = _engine()
@@ -441,14 +441,8 @@ def test_e_downgrade_on_the_same_opportunity_withdraws_the_candidate() -> None:
     assert opportunities[0].state == OpportunityState.BLOCKED_BY_GATE.value
     assert opportunities[0].opportunity_identity_hash == formed.opportunity_identity_hash
 
-    # the notification chain formed and then withdrew, exactly once each
-    assert [event.event_type for event in outbox] == [
-        "CANDIDATE_FORMED",
-        "CANDIDATE_WITHDRAWN",
-    ]
-    withdrawal = outbox[-1]
-    assert withdrawal.previous_state == OpportunityState.EVALUATED_CANDIDATE.value
-    assert withdrawal.current_state == OpportunityState.BLOCKED_BY_GATE.value
+    # A lifecycle attempt without frozen V4 authority cannot create a public event.
+    assert outbox == []
 
 
 def test_e_upgrade_on_the_same_opportunity_is_its_own_attempt() -> None:
@@ -558,13 +552,11 @@ def test_f_market_candidate_stamps_the_evidence_with_the_authority() -> None:
         assert evidence["calibration_recommendation_admissible"] is False
 
 
-def test_f_notification_is_emitted_for_a_validated_candidate() -> None:
-    """The counterpart to the (a) case: the pipe is not simply dead."""
+def test_f_notification_requires_frozen_v4_authority() -> None:
     engine = _engine()
     DynamicPrematchRepository(engine).append_evaluation(_attempt("PRODUCTION_VALIDATED"))
     events = _outbox(engine)
-    assert events != []
-    assert {event.current_state for event in events} == {"EVALUATED_CANDIDATE"}
+    assert events == []
 
 
 # --- (h) EV_SE and EV minus SE are different numbers -------------------------

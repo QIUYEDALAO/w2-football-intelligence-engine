@@ -653,7 +653,7 @@ class WorkspaceEvidence(BaseModel):
     artifact_hash: str | None
     source: str | None
     source_event_at: str | None
-    decision_role: Literal["DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY"]
+    decision_role: Literal["PRODUCT_AUTHORITY"]
 
 
 class WorkspaceMatchOutcome(BaseModel):

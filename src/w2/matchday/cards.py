@@ -8,7 +8,13 @@ from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
+from w2.domain.five_state_pricing import (
+    SettlementDistribution,
+    expected_value,
+    validate_ev_inputs,
+)
 from w2.matchday.integrity import SnapshotHashVerifier
+from w2.matchday.legacy_ev import adapt_legacy_value_row
 from w2.matchday.temporal import TemporalStatus, parse_utc, temporal_context_from_manifest
 
 RANKED_MARKETS = ("ONE_X_TWO", "ASIAN_HANDICAP", "TOTALS", "BTTS")
@@ -39,16 +45,14 @@ def _binary_distribution(probability: Decimal) -> dict[str, Decimal]:
 
 
 def _distribution_from_value_row(row: dict[str, Any]) -> dict[str, Decimal]:
-    settlement = row.get("settlement_probabilities") or {}
-    if {"win", "half_win", "push", "half_loss", "loss"} & set(settlement):
-        return {
-            "full_win_probability": _decimal(settlement.get("win", 0)),
-            "half_win_probability": _decimal(settlement.get("half_win", 0)),
-            "push_probability": _decimal(settlement.get("push", 0)),
-            "half_loss_probability": _decimal(settlement.get("half_loss", 0)),
-            "full_loss_probability": _decimal(settlement.get("loss", 0)),
-        }
-    return _binary_distribution(_decimal(row.get("model_probability", 0)))
+    settlement = row.get("settlement_probabilities")
+    keys = ("win", "half_win", "push", "half_loss", "loss")
+    if not isinstance(settlement, dict) or set(settlement) != set(keys):
+        raise ValueError("INVALID_PROBABILITY_KEYS")
+    return dict(zip(
+        SettlementDistribution.__dataclass_fields__,
+        (_decimal(settlement[k]) for k in keys), strict=True,
+    ))
 
 
 def _fair_decimal(distribution: dict[str, Decimal]) -> Decimal | None:
@@ -69,13 +73,11 @@ def _fair_decimal(distribution: dict[str, Decimal]) -> Decimal | None:
 
 
 def _expected_value(decimal_odds: Decimal, distribution: dict[str, Decimal]) -> Decimal:
-    hk = decimal_odds - Decimal("1")
-    return (
-        distribution["full_win_probability"] * hk
-        + distribution["half_win_probability"] * Decimal("0.5") * hk
-        - distribution["half_loss_probability"] * Decimal("0.5")
-        - distribution["full_loss_probability"]
-    )
+    if set(distribution) != set(SettlementDistribution.__dataclass_fields__):
+        raise ValueError("INVALID_PROBABILITY_KEYS")
+    settlement = SettlementDistribution(**distribution)
+    validate_ev_inputs(decimal_odds, settlement)
+    return expected_value(decimal_odds, settlement)
 
 
 def _grade(risk_ev: Decimal | None, *, data_quality: str, market_quality: str) -> tuple[str, str]:
@@ -169,6 +171,11 @@ class ResearchCardBuilder:
         ranking = self._ranking(
             normalized_rows=normalized.get("rows", []),
             value_rows=model.get("value_rows", []),
+            legacy_source=(
+                str(snapshot_dir / "model_output.json")
+                if "schema_version" not in model
+                else None
+            ),
             data_quality=data_quality,
         )
         positive = [row for row in ranking if row["action"] == "WATCH"]
@@ -251,9 +258,22 @@ class ResearchCardBuilder:
         normalized_rows: list[dict[str, Any]],
         value_rows: list[dict[str, Any]],
         data_quality: str,
+        legacy_source: str | None = None,
     ) -> list[dict[str, Any]]:
         ranking: list[dict[str, Any]] = []
+        exact_risk: dict[int, Decimal] = {}
         for value in value_rows:
+            if legacy_source is not None:
+                value = adapt_legacy_value_row(value, source=legacy_source)
+                if value["legacy_compatibility"]["status"] != "READY":
+                    ranking.append({
+                        "market": value.get("market"), "selection": value.get("selection"),
+                        "line": value.get("line"), "raw_ev": None, "risk_adjusted_ev": None,
+                        "status": "NOT_READY", "action": "BLOCKED", "published_grade": "X",
+                        "formal_recommendation": False, "candidate": False,
+                        "legacy_compatibility": value["legacy_compatibility"],
+                    })
+                    continue
             market = str(value.get("market"))
             selection = str(value.get("selection"))
             line = value.get("line")
@@ -280,8 +300,14 @@ class ResearchCardBuilder:
             action = "WATCH" if published_grade in {"A", "B", "C"} else "SKIP"
             if published_grade == "X":
                 action = "BLOCKED"
+            exact_risk[len(ranking)] = risk_ev
             ranking.append(
                 {
+                    **(
+                        {"legacy_compatibility": value["legacy_compatibility"]}
+                        if legacy_source is not None
+                        else {}
+                    ),
                     "market": market,
                     "selection": selection,
                     "line": line,
@@ -309,11 +335,10 @@ class ResearchCardBuilder:
                     "candidate": False,
                 }
             )
-        return sorted(
-            ranking,
-            key=lambda row: Decimal(row.get("risk_adjusted_ev") or "-999"),
-            reverse=True,
-        )
+        ranked = [
+            ranking[i] for i in sorted(exact_risk, key=exact_risk.__getitem__, reverse=True)
+        ]
+        return ranked + [row for i, row in enumerate(ranking) if i not in exact_risk]
 
 
 class DailyFixtureDiscoveryService:
