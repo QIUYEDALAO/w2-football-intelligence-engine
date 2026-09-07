@@ -547,6 +547,7 @@ def test_registered_policy_horizons_are_frozen() -> None:
 
     assert CAPTURE_POLICY_HORIZONS == {
         "FIRST_ELIGIBLE_FREEZE_IMMUTABLE": "NONE",
+        "T30_FREEZE_IMMUTABLE_V1": "T-30",
     }
 
 
@@ -691,11 +692,14 @@ def _simulation(card: dict) -> dict:
     ("mutator", "expected_blocker"),
     [
         # neutral_site 解析缺失
-        (lambda c: c.pop("neutral_site_resolution", None), "NOT_ESTIMABLE_NEUTRAL_SITE"),
+        (
+            lambda c: c.pop("neutral_site_resolution", None),
+            "NOT_ESTIMABLE_NEUTRAL_SITE_RESOLUTION",
+        ),
         # neutral_site 与 simulation 实际使用值不一致
         (
             lambda c: c["neutral_site_resolution"].update({"neutral_site": True}),
-            "NOT_ESTIMABLE_NEUTRAL_SITE",
+            "NOT_ESTIMABLE_NEUTRAL_SITE_CONSISTENCY",
         ),
         # lambda sigma 缺失
         (

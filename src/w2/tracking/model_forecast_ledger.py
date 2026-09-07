@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -33,6 +33,15 @@ MODEL_FAMILY = "EXACT_DC_POISSON"
 CAPTURE_POLICY = "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"
 NO_HORIZON = "NONE"
 
+# Task-3 development freeze track. A distinct, versioned policy so that T-30
+# same-window captures never share an identity with the historical
+# FIRST_ELIGIBLE_FREEZE_IMMUTABLE track, and the two tracks can coexist.
+T30_CAPTURE_POLICY = "T30_FREEZE_IMMUTABLE_V1"
+T30_HORIZON = "T-30"
+T30_CHECKPOINT = "T-30m_VALIDATION_LOCK"
+T30_WINDOW_MIN_MINUTES = 35
+T30_WINDOW_MAX_MINUTES = 25
+
 # A capture's relational identity is (fixture, model family, model version,
 # capture policy, horizon).  ``capture_policy`` already lives inside the hashed
 # core, so two freeze tracks separate cleanly without changing the core shape --
@@ -45,6 +54,7 @@ NO_HORIZON = "NONE"
 # FIXED_HORIZON_FREEZE_IMMUTABLE.
 CAPTURE_POLICY_HORIZONS: dict[str, str] = {
     CAPTURE_POLICY: NO_HORIZON,
+    T30_CAPTURE_POLICY: T30_HORIZON,
 }
 
 
@@ -227,6 +237,136 @@ class ModelForecastLedgerRepository:
             "data_version": data_version,
             "team_xg_match_count": team_xg_match_count,
             "shadow_candidate_count": _shadow_candidate_count(cards),
+            "captures": captures if dry_run else [],
+        }
+
+    def freeze_t30(
+        self,
+        day_view: Mapping[str, Any],
+        *,
+        market_snapshots: Mapping[str, Mapping[str, Any]] | None = None,
+        captured_at: datetime | None = None,
+        dry_run: bool = True,
+        write_db: bool = False,
+    ) -> dict[str, Any]:
+        """Freeze a T-30 same-window capture per eligible fixture (task-3 track).
+
+        Unlike :meth:`capture` (FIRST_ELIGIBLE), this only admits fixtures whose
+        ``captured_at`` falls inside the pre-registered T-35..T-25 window, and
+        each capture references the same-window ASIAN_HANDICAP market snapshot.
+        A fixture outside the window is skipped (not an error); a fixture inside
+        the window with any missing / malformed input, a non-eligible quote, or a
+        neutral-site / lambda-uncertainty violation is blocked and recorded.
+        """
+        if dry_run and write_db:
+            raise ModelForecastLedgerError("write_db requires dry_run=false")
+        if captured_at is not None and captured_at.tzinfo is None:
+            raise ModelForecastLedgerError("MODEL_FORECAST_T30_NAIVE_DATETIME")
+        now = _utc(captured_at or datetime.now(UTC), "captured_at")
+        snapshots = dict(market_snapshots or {})
+        cards = _cards(day_view)
+        window_eligible_count = 0
+        model_eligible_count = 0
+        no_four_field_xg_count = 0
+        blocked_count = 0
+        blocked_reasons: list[dict[str, str]] = []
+        written = 0
+        already_captured = 0
+        captures: list[dict[str, Any]] = []
+        with Session(self.engine) as session:
+            team_xg_match_count = int(
+                session.scalar(select(func.count()).select_from(TeamXgMatchModel)) or 0
+            )
+            data_version = f"TEAM_XG_MATCH_ROWS_{team_xg_match_count}"
+            for card in cards:
+                kickoff = _parse_time(card.get("kickoff_utc"))
+                fixture_id = str(card.get("fixture_id") or "")
+                competition_id = str(card.get("competition_id") or "")
+                if not fixture_id or not competition_id or kickoff is None or now >= kickoff:
+                    continue
+                if _t30_window_blocker(kickoff, now) is not None:
+                    continue
+                window_eligible_count += 1
+                simulation = _ready_simulation(card)
+                if simulation is None:
+                    continue
+                xg_identity = self._four_field_xg_identity(
+                    session,
+                    card=card,
+                    fixture_id=fixture_id,
+                    kickoff=kickoff,
+                )
+                if xg_identity is None:
+                    no_four_field_xg_count += 1
+                    continue
+                market_snapshot = _lookup_market_snapshot(snapshots, fixture_id)
+                blocker = (
+                    _neutral_site_blocker(card, simulation)
+                    or _lambda_sigma_blocker(simulation)
+                    or _t30_market_reference_blocker(market_snapshot, kickoff)
+                )
+                if blocker is not None:
+                    blocked_count += 1
+                    blocked_reasons.append({"fixture_id": fixture_id, "blocker": blocker})
+                    continue
+                capture = _build_capture(
+                    card=card,
+                    simulation=simulation,
+                    xg_identity=xg_identity,
+                    captured_at=now,
+                    capture_policy=T30_CAPTURE_POLICY,
+                    market_snapshot=market_snapshot,
+                )
+                model_eligible_count += 1
+                existing = session.scalar(
+                    select(ModelForecastCaptureModel).where(
+                        ModelForecastCaptureModel.fixture_id == fixture_id,
+                        ModelForecastCaptureModel.model_family == capture["model_family"],
+                        ModelForecastCaptureModel.model_version == capture["model_version"],
+                        ModelForecastCaptureModel.capture_policy == T30_CAPTURE_POLICY,
+                        ModelForecastCaptureModel.horizon_id
+                        == capture_horizon_for_policy(T30_CAPTURE_POLICY),
+                    )
+                )
+                if existing is not None:
+                    if existing.capture_identity_hash == capture["capture_identity_hash"]:
+                        already_captured += 1
+                        continue
+                    raise ModelForecastLedgerError("MODEL_FORECAST_T30_IDENTITY_CONFLICT")
+                captures.append(capture)
+                if write_db:
+                    session.add(_capture_model(capture, inserted_at=now))
+                    # The version row has a restrictive FK but no ORM relationship;
+                    # flush the immutable parent before inserting its sidecar.
+                    session.flush()
+                    session.add(
+                        ModelForecastCaptureDataVersionModel(
+                            capture_identity_hash=str(capture["capture_identity_hash"]),
+                            data_version=data_version,
+                            team_xg_match_count=team_xg_match_count,
+                            evidence_source="RECORDED_AT_CAPTURE",
+                            recorded_at=now,
+                        )
+                    )
+                    written += 1
+            session.commit() if write_db else session.rollback()
+        return {
+            "schema_version": "w2.model_forecast_t30_capture_run.v1",
+            "status": "PASS",
+            "dry_run": dry_run,
+            "write_db": write_db,
+            "capture_policy": T30_CAPTURE_POLICY,
+            "provider_calls": 0,
+            "db_writes": written,
+            "window_eligible_count": window_eligible_count,
+            "model_eligible_count": model_eligible_count,
+            "model_forecast_capture_count": len(captures),
+            "already_captured_count": already_captured,
+            "no_four_field_xg_count": no_four_field_xg_count,
+            "blocked_count": blocked_count,
+            "blocked_reasons": blocked_reasons,
+            "data_version": data_version,
+            "team_xg_match_count": team_xg_match_count,
             "captures": captures if dry_run else [],
         }
 
@@ -696,6 +836,24 @@ def run_model_forecast_capture(
     )
 
 
+def freeze_t30_capture(
+    day_view: Mapping[str, Any],
+    *,
+    repository: ModelForecastLedgerRepository | None = None,
+    market_snapshots: Mapping[str, Mapping[str, Any]] | None = None,
+    captured_at: datetime | None = None,
+    dry_run: bool = True,
+    write_db: bool = False,
+) -> dict[str, Any]:
+    return (repository or ModelForecastLedgerRepository()).freeze_t30(
+        day_view,
+        market_snapshots=market_snapshots,
+        captured_at=captured_at,
+        dry_run=dry_run,
+        write_db=write_db,
+    )
+
+
 def settle_model_forecasts(
     *,
     repository: ModelForecastLedgerRepository | None = None,
@@ -712,38 +870,81 @@ def settle_model_forecasts(
     )
 
 
-def _neutral_site_blocker(card: Mapping[str, Any], simulation: Mapping[str, Any]) -> str | None:
-    """Return a blocker string when neutral_site cannot be deterministically
-    persisted, or None when it is consistent and READY.
+NEUTRAL_SITE_READY_STATUS = "READY"
+NEUTRAL_SITE_POLICY_VERSION = "w2.neutral_site_policy.v1"
+# Frozen resolver sources. A value outside this set means the resolution did not
+# come from the authoritative resolver and must fail closed rather than be
+# persisted as if it were resolved.
+NEUTRAL_SITE_VALID_SOURCES = frozenset(
+    {
+        "EXPLICIT_ITEM_FIELD",
+        "EXPLICIT_DASHBOARD_FIELD",
+        "EXPLICIT_FIXTURE_FIELD",
+        "EXPLICIT_VENUE_FIELD",
+        "COMPETITION_POLICY",
+        "DEFAULT_NON_NEUTRAL_POLICY",
+    }
+)
 
-    Fail-closed rule: the ledger must persist exactly what the model used. The
-    resolved value is cross-checked against ``simulation.input_readiness.neutral_site``
-    (the model's actual input). A missing resolution or a mismatch fails closed.
+
+def _neutral_site_blocker(card: Mapping[str, Any], simulation: Mapping[str, Any]) -> str | None:
+    """Return a distinct blocker per neutral_site failure mode, or None when eligible.
+
+    Fail-closed rule: the ledger must persist exactly what the model used, and
+    the resolved value must be a *real* ``bool`` (never ``None``, ``0``/``1``, an
+    empty string, or ``"false"``/``"true"``) with a valid source, matching policy
+    version, a legal UTC ``as_of`` before kickoff, and a legal success status.
+    The resolved value is cross-checked against
+    ``simulation.input_readiness.neutral_site`` (the model's actual input) with
+    strict type-and-value equality.
     """
-    resolution = _mapping(card.get("neutral_site_resolution"))
-    if not resolution:
-        return "NOT_ESTIMABLE_NEUTRAL_SITE"
-    status = str(resolution.get("neutral_site_status") or "")
-    if status != "READY":
-        return "NOT_ESTIMABLE_NEUTRAL_SITE"
-    ledger_value = resolution.get("neutral_site")
+    resolution = card.get("neutral_site_resolution")
+    if not isinstance(resolution, Mapping):
+        return "NOT_ESTIMABLE_NEUTRAL_SITE_RESOLUTION"
+    if "neutral_site" not in resolution:
+        return "NOT_ESTIMABLE_NEUTRAL_SITE_VALUE"
+    value = resolution["neutral_site"]
+    if type(value) is not bool:
+        return "NOT_ESTIMABLE_NEUTRAL_SITE_TYPE"
+    source = resolution.get("neutral_site_resolution_source")
+    if not isinstance(source, str) or source not in NEUTRAL_SITE_VALID_SOURCES:
+        return "NOT_ESTIMABLE_NEUTRAL_SITE_SOURCE"
+    if resolution.get("neutral_site_policy_version") != NEUTRAL_SITE_POLICY_VERSION:
+        return "NOT_ESTIMABLE_NEUTRAL_SITE_POLICY_VERSION"
+    as_of = _parse_time(resolution.get("neutral_site_as_of"))
+    if as_of is None:
+        return "NOT_ESTIMABLE_NEUTRAL_SITE_AS_OF"
+    kickoff = _parse_time(card.get("kickoff_utc"))
+    if kickoff is not None and as_of >= kickoff:
+        return "NOT_ESTIMABLE_NEUTRAL_SITE_AS_OF_POST_KICKOFF"
+    if resolution.get("neutral_site_status") != NEUTRAL_SITE_READY_STATUS:
+        return "NOT_ESTIMABLE_NEUTRAL_SITE_STATUS"
     readiness = _mapping(simulation.get("input_readiness"))
     sim_value = readiness.get("neutral_site")
-    if sim_value is None or bool(sim_value) != bool(ledger_value):
-        return "NOT_ESTIMABLE_NEUTRAL_SITE"
+    if type(sim_value) is not bool or sim_value != value:
+        return "NOT_ESTIMABLE_NEUTRAL_SITE_CONSISTENCY"
     return None
 
 
 def _lambda_sigma_blocker(simulation: Mapping[str, Any]) -> str | None:
     """Return a distinct blocker string per failure mode, or None when eligible.
 
-    Production success status is ``ANALYSIS_READY`` (not ``READY``). Each missing
-    or non-READY condition maps to its own blocker instead of one shared string.
+    Production success status is ``ANALYSIS_READY`` (not ``READY``). Each missing,
+    non-numeric, negative, non-finite, or non-READY condition maps to its own
+    blocker instead of one shared string.
     """
     sigma_home = simulation.get("lambda_sigma_home")
     sigma_away = simulation.get("lambda_sigma_away")
     if sigma_home is None or sigma_away is None:
         return "NOT_ESTIMABLE_LAMBDA_SIGMA_MISSING"
+    for value in (sigma_home, sigma_away):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return "NOT_ESTIMABLE_LAMBDA_SIGMA_NON_NUMERIC"
+        numeric = float(value)
+        if math.isnan(numeric) or math.isinf(numeric):
+            return "NOT_ESTIMABLE_LAMBDA_SIGMA_NON_FINITE"
+        if numeric < 0:
+            return "NOT_ESTIMABLE_LAMBDA_SIGMA_NEGATIVE"
     calibration = _mapping(simulation.get("calibration"))
     status = str(calibration.get("lambda_uncertainty_status") or "")
     if status != "ANALYSIS_READY":
@@ -758,12 +959,126 @@ def _lambda_sigma_blocker(simulation: Mapping[str, Any]) -> str | None:
     return None
 
 
+def _t30_window_bounds(kickoff: datetime) -> tuple[datetime, datetime]:
+    earliest = kickoff - timedelta(minutes=T30_WINDOW_MIN_MINUTES)
+    latest = kickoff - timedelta(minutes=T30_WINDOW_MAX_MINUTES)
+    return earliest, latest
+
+
+def _t30_window_blocker(kickoff: datetime, captured_at: datetime) -> str | None:
+    """Return a blocker when ``captured_at`` is not inside the pre-registered
+    T-35..T-25 window, or None when it is. Bounds are inclusive on both edges."""
+    earliest, latest = _t30_window_bounds(kickoff)
+    if captured_at < earliest or captured_at > latest:
+        return "NOT_ESTIMABLE_T30_WINDOW"
+    return None
+
+
+def _t30_market_reference_blocker(
+    market_snapshot: Mapping[str, Any] | None, kickoff: datetime
+) -> str | None:
+    """Return a distinct blocker when the same-window AH quote reference is not
+    a complete, executable, Pinnacle-eligible T-30 bilateral pair, or None.
+
+    The quote must be an ASIAN_HANDICAP snapshot with HOME/AWAY prices > 1, a
+    captured ``as_of`` inside the same T-35..T-25 window, a non-live /
+    non-suspended state, and a source identity hash. A missing or malformed
+    reference fails closed rather than being persisted as an empty reference.
+    """
+    if not isinstance(market_snapshot, Mapping) or not market_snapshot:
+        return "NOT_ESTIMABLE_T30_QUOTE_MISSING"
+    if str(market_snapshot.get("market") or "") != "ASIAN_HANDICAP":
+        return "NOT_ESTIMABLE_T30_QUOTE_MARKET"
+    home_price = _optional_float(market_snapshot.get("home_price"))
+    away_price = _optional_float(market_snapshot.get("away_price"))
+    if home_price is None or away_price is None:
+        return "NOT_ESTIMABLE_T30_QUOTE_INCOMPLETE"
+    if home_price <= 1.0 or away_price <= 1.0:
+        return "NOT_ESTIMABLE_T30_QUOTE_ODDS"
+    quote_as_of = _parse_time(market_snapshot.get("as_of"))
+    if quote_as_of is None:
+        return "NOT_ESTIMABLE_T30_QUOTE_AS_OF"
+    earliest, latest = _t30_window_bounds(kickoff)
+    if quote_as_of < earliest or quote_as_of > latest or quote_as_of >= kickoff:
+        return "NOT_ESTIMABLE_T30_QUOTE_WINDOW"
+    if market_snapshot.get("live") or market_snapshot.get("suspended"):
+        return "NOT_ESTIMABLE_T30_QUOTE_STATE"
+    if not market_snapshot.get("source_hash"):
+        return "NOT_ESTIMABLE_T30_QUOTE_IDENTITY"
+    return None
+
+
+def _t30_capture_fields(
+    *,
+    card: Mapping[str, Any],
+    kickoff: datetime,
+    captured_at: datetime,
+    market_snapshot: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Assemble the T-30-only fields appended to a T30_FREEZE capture core.
+
+    The FIRST_ELIGIBLE core never carries these fields, so historical capture
+    hashes are unchanged. ``model_as_of``/``decision_evaluated_at`` equal the
+    T-30 freeze instant; the quote reference is the caller-supplied same-window
+    market snapshot (validated by ``_t30_market_reference_blocker``).
+    """
+    if _t30_window_blocker(kickoff, captured_at) is not None:
+        raise ModelForecastLedgerError("MODEL_FORECAST_T30_OUTSIDE_WINDOW")
+    if _t30_market_reference_blocker(market_snapshot, kickoff) is not None:
+        raise ModelForecastLedgerError("MODEL_FORECAST_T30_QUOTE_REFERENCE_INVALID")
+    assert market_snapshot is not None
+    snapshot = dict(market_snapshot)
+    return {
+        "checkpoint": T30_CHECKPOINT,
+        "model_as_of": _iso(captured_at),
+        "decision_evaluated_at": _iso(captured_at),
+        "t30_market_reference": {
+            "market": "ASIAN_HANDICAP",
+            "line": snapshot.get("line"),
+            "home_price": snapshot.get("home_price"),
+            "away_price": snapshot.get("away_price"),
+            "bookmaker": snapshot.get("provider")
+            or snapshot.get("bookmakers")
+            or snapshot.get("bookmaker_name"),
+            "quote_as_of": snapshot.get("as_of"),
+            "source_payload_ids": snapshot.get("source_payload_ids")
+            or snapshot.get("source_payload_id"),
+            "source_hash": snapshot.get("source_hash"),
+            "selection_policy": snapshot.get("selection_policy"),
+        },
+    }
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolved_neutral_site_value(card: Mapping[str, Any]) -> bool:
+    """Return the resolved neutral_site as a strict bool, or raise.
+
+    ``_neutral_site_blocker`` guarantees a real bool before this is reached; the
+    strict ``type(...) is bool`` check here is a defensive re-assertion so a
+    ``None``/``0``/``"false"`` can never be persisted as a bool via any path.
+    """
+    value = _mapping(card.get("neutral_site_resolution")).get("neutral_site")
+    if type(value) is not bool:
+        raise ModelForecastLedgerError("MODEL_FORECAST_NEUTRAL_SITE_NOT_BOOL")
+    return value
+
+
 def _build_capture(
     *,
     card: Mapping[str, Any],
     simulation: Mapping[str, Any],
     xg_identity: Mapping[str, Any],
     captured_at: datetime,
+    capture_policy: str = CAPTURE_POLICY,
+    market_snapshot: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     summary = _mapping(simulation.get("score_matrix_summary"))
     probability_vector = {
@@ -805,6 +1120,7 @@ def _build_capture(
         raise ModelForecastLedgerError("MODEL_FORECAST_CAPTURE_NOT_PREMATCH")
     lead_time_seconds = int((kickoff - captured_at).total_seconds())
     lead_time_bucket = model_forecast_lead_time_bucket(lead_time_seconds)
+    resolution = _mapping(card.get("neutral_site_resolution"))
     core = {
         "schema_version": CAPTURE_SCHEMA,
         "fixture_identity": {
@@ -816,7 +1132,7 @@ def _build_capture(
         "captured_at": _iso(captured_at),
         "lead_time_seconds": lead_time_seconds,
         "lead_time_bucket": lead_time_bucket,
-        "capture_policy": CAPTURE_POLICY,
+        "capture_policy": capture_policy,
         "model_family": MODEL_FAMILY,
         "model_version": str(simulation.get("model_version") or ""),
         "calibration_version": _required_text(
@@ -827,20 +1143,11 @@ def _build_capture(
         ),
         "model_input_manifest_hash": model_input_manifest_hash,
         "four_field_xg_identity": dict(xg_identity),
-        "neutral_site": bool(_mapping(card.get("neutral_site_resolution")).get("neutral_site")),
-        "neutral_site_resolution_source": str(
-            _mapping(card.get("neutral_site_resolution")).get("neutral_site_resolution_source")
-            or ""
-        ),
-        "neutral_site_policy_version": str(
-            _mapping(card.get("neutral_site_resolution")).get("neutral_site_policy_version") or ""
-        ),
-        "neutral_site_as_of": str(
-            _mapping(card.get("neutral_site_resolution")).get("neutral_site_as_of") or ""
-        ),
-        "neutral_site_status": str(
-            _mapping(card.get("neutral_site_resolution")).get("neutral_site_status") or ""
-        ),
+        "neutral_site": _resolved_neutral_site_value(card),
+        "neutral_site_resolution_source": str(resolution.get("neutral_site_resolution_source")),
+        "neutral_site_policy_version": str(resolution.get("neutral_site_policy_version")),
+        "neutral_site_as_of": str(resolution.get("neutral_site_as_of")),
+        "neutral_site_status": str(resolution.get("neutral_site_status")),
         "lambda_sigma_home": float(simulation["lambda_sigma_home"]),
         "lambda_sigma_away": float(simulation["lambda_sigma_away"]),
         "lambda_uncertainty_method": str(
@@ -861,6 +1168,13 @@ def _build_capture(
         "exact_quote_required": False,
         "validation_scope": "MODEL_FORECAST_ONLY",
     }
+    if capture_policy == T30_CAPTURE_POLICY:
+        core.update(_t30_capture_fields(
+            card=card,
+            kickoff=kickoff,
+            captured_at=captured_at,
+            market_snapshot=market_snapshot,
+        ))
     if not core["model_version"]:
         raise ModelForecastLedgerError("MODEL_FORECAST_MODEL_VERSION_MISSING")
     identity = canonical_sha256(core, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN)
@@ -1225,3 +1539,16 @@ def _iso(value: datetime) -> str:
 
 def _fixture_aliases(value: str) -> tuple[str, ...]:
     return model_forecast_fixture_aliases(value)
+
+
+def _lookup_market_snapshot(
+    snapshots: Mapping[str, Mapping[str, Any]], fixture_id: str
+) -> Mapping[str, Any] | None:
+    """Resolve the same-window quote reference for a fixture, tolerating the
+    ``api_football:``-prefixed alias namespace. Returns None when absent."""
+    if fixture_id in snapshots:
+        return snapshots[fixture_id]
+    for alias in _fixture_aliases(fixture_id):
+        if alias in snapshots:
+            return snapshots[alias]
+    return None
