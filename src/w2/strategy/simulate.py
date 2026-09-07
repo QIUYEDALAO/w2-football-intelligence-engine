@@ -232,6 +232,12 @@ def run_simulation(
         simulations=simulations,
         seed=seed,
         calibration={
+            "replay_inputs": asdict(inputs),
+            "replay_schema": "w2.simulation_replay.v1",
+            "unrounded_score_matrix": [
+                {"home_goals": home, "away_goals": away, "probability": probability}
+                for (home, away), probability in sorted(score_counts.items())
+            ],
             "params": calibration.params,
             "input_weights": calibration.input_weights,
             "seed_policy": "deterministic_score_matrix_sampling.v1",
@@ -246,6 +252,36 @@ def run_simulation(
             "lambda_uncertainty_audit": inputs.lambda_uncertainty_audit,
         },
     )
+
+
+def replay_simulation(snapshot: dict[str, Any]) -> SimulationOutput:
+    """Verify a saved execution with this model version; never fill missing inputs."""
+    calibration = snapshot.get("calibration", {})
+    inputs = calibration.get("replay_inputs", {})
+    if (
+        snapshot.get("model_version") != SIMULATION_MODEL_VERSION
+        or calibration.get("replay_schema") != "w2.simulation_replay.v1"
+        or set(inputs) != set(SimulationInputs.__dataclass_fields__)
+    ):
+        raise ValueError("SIMULATION_REPLAY_EVIDENCE_MISSING_OR_VERSION_MISMATCH")
+    replay = run_simulation(
+        SimulationInputs(**inputs),
+        simulations=snapshot["simulations"],
+        max_goals=calibration["max_goals"],
+    )
+    saved = dict(snapshot)
+    saved["calibration"] = dict(calibration)
+    audit = dict(calibration.get("lambda_uncertainty_audit", {}))
+    # Added by the card builder after simulation; retain it in the capture,
+    # but do not pretend simulation alone can regenerate this provenance.
+    if "point_estimate_component_fixture_ids" not in inputs["lambda_uncertainty_audit"]:
+        audit.pop("point_estimate_component_fixture_ids", None)
+    saved["calibration"]["lambda_uncertainty_audit"] = audit
+    if replay.as_dict() != saved:
+        fields = sorted(key for key in set(replay.as_dict()) | set(saved)
+                        if replay.as_dict().get(key) != saved.get(key))
+        raise ValueError(f"SIMULATION_REPLAY_MISMATCH:{','.join(fields)}")
+    return replay
 
 
 def sample_score_matrix(

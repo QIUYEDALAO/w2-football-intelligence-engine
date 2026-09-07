@@ -1,0 +1,22 @@
+{
+  "schema": "w2.replay_evidence_delivery.v1",
+  "base": "f0eab4a5",
+  "status": "LOCAL_TESTED_PENDING_INDEPENDENT_REVIEW",
+  "tests": "192 passed",
+  "provider_calls": 0,
+  "production_writes": 0,
+  "deployed": false,
+  "files": {
+    "apps/worker/celery_app.py": "2bdf1ffd25174e3408c24db1a56d7612d22e50367f9de5ed84280afd87453464",
+    "src/w2/strategy/simulate.py": "693b579380d3cf518765b771b20b9f148f00cb47dcc201a5a39bf9d7c4254f45",
+    "src/w2/tracking/model_forecast_ledger.py": "13b4a183aa03027c54c4e0c43052ef2d676aa8c07aa61df302faa951c3f11d95",
+    "tests/unit/test_model_forecast_ledger.py": "639ab96ecaea5d8ffa22c8ee3bab3075b4fde64ec00cc3b5522505aaadc6a18e",
+    "tests/unit/test_task3_t30_freeze.py": "3d5d295c28b0ce9c42aa2f16d97aa15c1d0e639e132c0ab04f9023988b9e6966",
+    "tests/unit/test_task3_t30_checkpoint.py": "77420542b5e8c97f646b790d83140c41577654e234c365e73610940a6fbee8c6",
+    "tests/unit/test_capture_replay_evidence.py": "ffaefa026dc7502a6ecae7741364eef3c3b86815b29ec2e959712f2cc5f1fd3c",
+    "docs/review_packages/W2_REPLAY_EVIDENCE_20260908/DEPLOY_ORDER.md": "9ad4f81ec45f7383c8db5fc96274e7ba5ce0e44c3afdd270afb222f7122393b1",
+    "docs/review_packages/W2_REPLAY_EVIDENCE_20260908/REPORT.md": "31ef9294e569e9f57bf944c1a376beff3dde3be85520c24a90149736de46baa6",
+    "docs/review_packages/W2_REPLAY_EVIDENCE_20260908/baseline_comparison.json": "24204c12001a32d5fd478065ce856ac0d516304561696813aedda69a979a4cc7",
+    "docs/review_packages/W2_REPLAY_EVIDENCE_20260908/changes.patch": "51b1f0730ed45612945a533940f195b873e2ff094367eac0e4f143a96dcd2cee"
+  }
+}

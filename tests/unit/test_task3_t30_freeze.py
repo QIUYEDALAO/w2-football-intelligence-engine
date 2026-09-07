@@ -101,7 +101,7 @@ def _seed_xg(repository: ModelForecastLedgerRepository) -> None:
                     snapshot_id=f"{team_id}:fixture-1",
                     team_id=team_id,
                     as_of_fixture_id="fixture-1",
-                    as_of_time=KICKOFF,
+                    as_of_time=NOW,
                     match_count=3,
                     rolling_xg_for=xg_for,
                     rolling_xg_against=xg_against,
@@ -192,20 +192,33 @@ def _day_view(*, simulation: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 def _market_snapshot(**overrides: Any) -> dict[str, Any]:
-    snapshot = {
-        "market": "ASIAN_HANDICAP",
-        "line": -0.5,
-        "home_price": 1.90,
-        "away_price": 1.95,
-        "provider": "Pinnacle",
-        "bookmakers": ["Pinnacle"],
-        "as_of": T30_CAPTURED_AT.isoformat(),
-        "source_payload_ids": ["p" * 64],
-        "source_hash": "q" * 64,
-        "selection_policy": "canonical_bookmaker_mainline_majority_v1",
-        "live": False,
-        "suspended": False,
-    }
+    from w2.tracking.model_forecast_ledger import select_t30_market_reference
+    quote_time = datetime.fromisoformat(str(overrides.get("as_of", T30_CAPTURED_AT.isoformat())))
+    if not KICKOFF - timedelta(minutes=35) <= quote_time <= KICKOFF - timedelta(minutes=25):
+        quote_time = T30_CAPTURED_AT
+    rows = []
+    for side, line, odds in (("HOME", "-0.5", "1.90"), ("AWAY", "0.5", "1.95")):
+        rows.append({
+            "fixture_id": "fixture-1", "provider": "api-football",
+            "bookmaker_id": "4", "bookmaker_name": "Pinnacle",
+            "canonical_market": "ASIAN_HANDICAP", "raw_market_label": "Asian Handicap",
+            "selection": side, "line": line, "decimal_odds": odds,
+            "captured_at": quote_time.isoformat(),
+            "observation_id": side, "capture_id": "capture-1",
+            "raw_payload_sha256": "a" * 64, "source_revision": "future-refresh.v1",
+            "live": False, "suspended": False,
+        })
+    snapshot = select_t30_market_reference(
+        rows, fixture_id="fixture-1", kickoff=KICKOFF, captured_at=quote_time,
+    )
+    assert snapshot is not None
+    if "as_of" in overrides:
+        overrides["as_of"] = (
+            datetime.fromisoformat(str(overrides["as_of"]))
+            .astimezone(UTC)
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
     snapshot.update(overrides)
     return snapshot
 
@@ -224,7 +237,7 @@ def _simulation_of(card: dict[str, Any]) -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # 1. real chain -> T-30 freeze -> same-window quote reference
 # --------------------------------------------------------------------------- #
-def test_real_chain_t30_freeze_produces_capture(tmp_path: Path) -> None:
+def test_storage_t30_freeze_produces_capture(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
     _seed_xg(repository)
 
@@ -258,7 +271,7 @@ def test_real_chain_t30_freeze_produces_capture(tmp_path: Path) -> None:
     assert ref["market"] == "ASIAN_HANDICAP"
     assert ref["home_price"] == 1.90
     assert ref["away_price"] == 1.95
-    assert ref["source_hash"] == "q" * 64
+    assert ref["source_hash"] == _market_snapshot()["source_hash"]
     # 完整 7 项输入真实持久化并参与 hash
     assert payload["four_field_xg_identity"]["four_fields"]["home_xg_for"] is not None
     assert payload["neutral_site"] is False
@@ -548,7 +561,7 @@ def test_t30_same_identity_different_payload_fails_closed(tmp_path: Path) -> Non
         freeze_t30_capture(
             mutated,
             repository=repository,
-            market_snapshots={"fixture-1": _market_snapshot(home_price=2.00)},
+            market_snapshots={"fixture-1": _market_snapshot()},
             captured_at=T30_CAPTURED_AT,
             dry_run=False,
             write_db=True,
@@ -686,3 +699,30 @@ def test_capture_is_byte_identical_with_or_without_result(tmp_path: Path) -> Non
     with_result = _capture_payload()
 
     assert without_result == with_result
+
+
+@pytest.mark.parametrize('field,value', [
+    ('provider', 'Bet365'), ('bookmaker_name', 'Bet365'), ('line', None),
+    ('line', float('nan')), ('line', 0.1), ('home_price', float('inf')),
+    ('selection_policy', 'unknown'), ('fixture_id', 'other'), ('source_hash', '0' * 64),
+])
+def test_t30_quote_identity_tampering_fails_closed(tmp_path, field, value):
+    repository = _repository(tmp_path)
+    _seed_xg(repository)
+    result = repository.freeze_t30(
+        _day_view(), market_snapshots={'fixture-1': _market_snapshot(**{field: value})},
+        captured_at=T30_CAPTURED_AT,
+    )
+    assert result['model_forecast_capture_count'] == 0
+    assert result['blocked_count'] == 1
+
+
+def test_development_track_excluded_from_recommendation_opportunities(tmp_path):
+    repository = _repository(tmp_path)
+    _seed_xg(repository)
+    repository.freeze_t30(
+        _day_view(), market_snapshots={'fixture-1': _market_snapshot()},
+        captured_at=T30_CAPTURED_AT, dry_run=False, write_db=True,
+    )
+    assert repository.opportunity_capture_seeds('fixture-1') == ()
+    assert repository.denominator_capture_seeds() == ()

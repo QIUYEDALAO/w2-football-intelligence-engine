@@ -1,0 +1,468 @@
+diff --git a/apps/worker/celery_app.py b/apps/worker/celery_app.py
+index dc2089e4..18f6952f 100644
+--- a/apps/worker/celery_app.py
++++ b/apps/worker/celery_app.py
+@@ -232,6 +232,81 @@ def _write_checkpoint_opportunities(
+     }
+ 
+ 
++def _freeze_t30_checkpoint_captures(
++    checkpoints: list[dict[str, object]], *, evaluated_at: datetime
++) -> dict[str, object]:
++    """Recompute the bounded card and bind it to the canonical T-30 AH quote."""
++    from w2.ingestion.market_timeline import (
++        T30_VALIDATION_CHECKPOINT,
++    )
++    from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
++    from w2.tracking.model_forecast_ledger import (
++        freeze_t30_capture,
++        select_t30_market_reference,
++    )
++
++    if os.environ.get("W2_TASK3_T30_CAPTURE_ENABLED") != "1":
++        return {"status": "DISABLED", "provider_calls": 0, "db_writes": 0}
++    t30 = [
++        item for item in checkpoints
++        if str(item.get("checkpoint") or "") == T30_VALIDATION_CHECKPOINT
++    ]
++    if not t30:
++        return {"status": "NOT_DUE", "provider_calls": 0, "db_writes": 0}
++    repository = ReadModelRepository()
++    service = ReadModelService(repository=repository)
++    cards: list[dict[str, object]] = []
++    quotes: dict[str, dict[str, object]] = {}
++    blockers: list[dict[str, str]] = []
++    observations = repository.future_market_observations_for_fixtures(
++        [str(item.get("fixture_id") or "") for item in t30]
++    )
++    for item in t30:
++        fixture_id = str(item.get("fixture_id") or "").removeprefix("api_football:")
++        card = service.public_analysis_card_bounded(
++            fixture_id, evaluation_time=evaluated_at, use_frozen_canary=False
++        )
++        kickoff_raw = (card or {}).get("kickoff_utc") if card else None
++        if not isinstance(card, dict) or not kickoff_raw:
++            blockers.append({"fixture_id": fixture_id, "blocker": "MODEL_CARD_UNAVAILABLE"})
++            continue
++        if card.get("competition_id") not in {
++            "premier_league", "la_liga", "serie_a", "bundesliga", "ligue_1",
++            "eredivisie", "primeira_liga",
++        }:
++            blockers.append({"fixture_id": fixture_id, "blocker": "OUTSIDE_TASK3_SCOPE"})
++            continue
++        kickoff = datetime.fromisoformat(str(kickoff_raw).replace("Z", "+00:00"))
++        selected = select_t30_market_reference(
++            observations,
++            fixture_id=fixture_id,
++            kickoff=kickoff,
++            captured_at=evaluated_at,
++        )
++        if selected is None:
++            blockers.append({"fixture_id": fixture_id, "blocker": "T30_QUOTE_UNAVAILABLE"})
++            continue
++        simulation = card.get("simulation") or {}
++        cards.append({**card, "simulation": {
++            "status": simulation.get("status"), "simulation": simulation,
++        }})
++        quotes[fixture_id] = selected
++    result = freeze_t30_capture(
++        {"cards": cards},
++        market_snapshots=quotes,
++        captured_at=evaluated_at,
++        dry_run=False,
++        write_db=True,
++    )
++    return {
++        "status": "PASS" if result.get("db_writes") else "NO_CAPTURE",
++        "provider_calls": 0,
++        "db_writes": int(result.get("db_writes") or 0),
++        "blockers": blockers,
++        "capture_result": result,
++    }
++
++
+ def _worker_utc(value: object) -> datetime | None:
+     if isinstance(value, datetime):
+         return value.astimezone(UTC) if value.tzinfo else value.replace(tzinfo=UTC)
+@@ -396,6 +471,14 @@ def future_fixture_refresh(
+             if isinstance(item, Mapping)
+         ],
+     )
++    t30_capture = _freeze_t30_checkpoint_captures(
++        [
++            dict(item)
++            for item in audit.result.get("refresh_checkpoints", [])
++            if isinstance(item, Mapping)
++        ],
++        evaluated_at=datetime.now(UTC),
++    )
+     return {
+         "task_id": audit.task_id,
+         "task_key": audit.key,
+@@ -408,6 +491,7 @@ def future_fixture_refresh(
+         "discovery_date": discovery_date,
+         "result": audit.result,
+         "opportunity_write": opportunity_write,
++        "t30_capture": t30_capture,
+         "candidate": False,
+         "formal_recommendation": False,
+     }
+diff --git a/src/w2/strategy/simulate.py b/src/w2/strategy/simulate.py
+index 0dc4e1d2..da963ce7 100644
+--- a/src/w2/strategy/simulate.py
++++ b/src/w2/strategy/simulate.py
+@@ -232,6 +232,12 @@ def run_simulation(
+         simulations=simulations,
+         seed=seed,
+         calibration={
++            "replay_inputs": asdict(inputs),
++            "replay_schema": "w2.simulation_replay.v1",
++            "unrounded_score_matrix": [
++                {"home_goals": home, "away_goals": away, "probability": probability}
++                for (home, away), probability in sorted(score_counts.items())
++            ],
+             "params": calibration.params,
+             "input_weights": calibration.input_weights,
+             "seed_policy": "deterministic_score_matrix_sampling.v1",
+@@ -248,6 +254,36 @@ def run_simulation(
+     )
+ 
+ 
++def replay_simulation(snapshot: dict[str, Any]) -> SimulationOutput:
++    """Verify a saved execution with this model version; never fill missing inputs."""
++    calibration = snapshot.get("calibration", {})
++    inputs = calibration.get("replay_inputs", {})
++    if (
++        snapshot.get("model_version") != SIMULATION_MODEL_VERSION
++        or calibration.get("replay_schema") != "w2.simulation_replay.v1"
++        or set(inputs) != set(SimulationInputs.__dataclass_fields__)
++    ):
++        raise ValueError("SIMULATION_REPLAY_EVIDENCE_MISSING_OR_VERSION_MISMATCH")
++    replay = run_simulation(
++        SimulationInputs(**inputs),
++        simulations=snapshot["simulations"],
++        max_goals=calibration["max_goals"],
++    )
++    saved = dict(snapshot)
++    saved["calibration"] = dict(calibration)
++    audit = dict(calibration.get("lambda_uncertainty_audit", {}))
++    # Added by the card builder after simulation; retain it in the capture,
++    # but do not pretend simulation alone can regenerate this provenance.
++    if "point_estimate_component_fixture_ids" not in inputs["lambda_uncertainty_audit"]:
++        audit.pop("point_estimate_component_fixture_ids", None)
++    saved["calibration"]["lambda_uncertainty_audit"] = audit
++    if replay.as_dict() != saved:
++        fields = sorted(key for key in set(replay.as_dict()) | set(saved)
++                        if replay.as_dict().get(key) != saved.get(key))
++        raise ValueError(f"SIMULATION_REPLAY_MISMATCH:{','.join(fields)}")
++    return replay
++
++
+ def sample_score_matrix(
+     score_matrix: dict[tuple[int, int], float],
+     *,
+diff --git a/src/w2/tracking/model_forecast_ledger.py b/src/w2/tracking/model_forecast_ledger.py
+index 173f6fd0..1b050ce5 100644
+--- a/src/w2/tracking/model_forecast_ledger.py
++++ b/src/w2/tracking/model_forecast_ledger.py
+@@ -305,6 +305,18 @@ class ModelForecastLedgerRepository:
+                     or _lambda_sigma_blocker(simulation)
+                     or _t30_market_reference_blocker(market_snapshot, kickoff)
+                 )
++                if blocker is None and (
++                    str(market_snapshot.get("fixture_id")) not in _fixture_aliases(fixture_id)
++                    or _parse_time(market_snapshot.get("as_of")) > now
++                    or _parse_time(card["neutral_site_resolution"]["neutral_site_as_of"]) > now
++                    or any(
++                        _parse_time(xg_identity[side]["as_of"]) > now
++                        or any(_parse_time(row["captured_at"]) > now
++                               for row in xg_identity[side]["component_team_xg_matches"])
++                        for side in ("home", "away")
++                    )
++                ):
++                    blocker = "NOT_ESTIMABLE_T30_IDENTITY_OR_AS_OF"
+                 if blocker is not None:
+                     blocked_count += 1
+                     blocked_reasons.append({"fixture_id": fixture_id, "blocker": blocker})
+@@ -412,6 +424,8 @@ class ModelForecastLedgerRepository:
+                     ModelForecastCaptureModel.capture_identity_hash,
+                     ModelForecastCaptureModel.model_input_manifest_hash,
+                     ModelForecastCaptureModel.captured_at,
++                ).where(
++                    ModelForecastCaptureModel.capture_policy != T30_CAPTURE_POLICY
+                 ).order_by(
+                     ModelForecastCaptureModel.kickoff_utc,
+                     ModelForecastCaptureModel.fixture_id,
+@@ -438,6 +452,7 @@ class ModelForecastLedgerRepository:
+                     ModelForecastCaptureModel.model_input_manifest_hash,
+                 )
+                 .where(ModelForecastCaptureModel.fixture_id.in_(aliases))
++                .where(ModelForecastCaptureModel.capture_policy != T30_CAPTURE_POLICY)
+                 .order_by(ModelForecastCaptureModel.capture_identity_hash)
+             )
+             return tuple((str(capture), str(model_input)) for capture, model_input in rows)
+@@ -989,11 +1004,25 @@ def _t30_market_reference_blocker(
+         return "NOT_ESTIMABLE_T30_QUOTE_MISSING"
+     if str(market_snapshot.get("market") or "") != "ASIAN_HANDICAP":
+         return "NOT_ESTIMABLE_T30_QUOTE_MARKET"
++    from w2.markets.asian_handicap_mainline import CANONICAL_AH_MAINLINE_POLICY
++
++    if market_snapshot.get("bookmaker_name") != "Pinnacle":
++        return "NOT_ESTIMABLE_T30_QUOTE_BOOKMAKER"
++    if market_snapshot.get("provider") != "api-football":
++        return "NOT_ESTIMABLE_T30_QUOTE_PROVIDER"
++    line = _optional_float(market_snapshot.get("line"))
++    if line is None or not math.isfinite(line) or line * 4 != int(line * 4):
++        return "NOT_ESTIMABLE_T30_QUOTE_LINE"
++    if market_snapshot.get("selection_policy") != CANONICAL_AH_MAINLINE_POLICY:
++        return "NOT_ESTIMABLE_T30_QUOTE_POLICY"
++    if not market_snapshot.get("fixture_id"):
++        return "NOT_ESTIMABLE_T30_QUOTE_FIXTURE"
+     home_price = _optional_float(market_snapshot.get("home_price"))
+     away_price = _optional_float(market_snapshot.get("away_price"))
+     if home_price is None or away_price is None:
+         return "NOT_ESTIMABLE_T30_QUOTE_INCOMPLETE"
+-    if home_price <= 1.0 or away_price <= 1.0:
++    if (not math.isfinite(home_price) or not math.isfinite(away_price)
++            or home_price <= 1.0 or away_price <= 1.0):
+         return "NOT_ESTIMABLE_T30_QUOTE_ODDS"
+     quote_as_of = _parse_time(market_snapshot.get("as_of"))
+     if quote_as_of is None:
+@@ -1005,9 +1034,51 @@ def _t30_market_reference_blocker(
+         return "NOT_ESTIMABLE_T30_QUOTE_STATE"
+     if not market_snapshot.get("source_hash"):
+         return "NOT_ESTIMABLE_T30_QUOTE_IDENTITY"
++    source = market_snapshot.get("source_observations")
++    generated_at = _parse_time(market_snapshot.get("generated_at"))
++    if not isinstance(source, list) or generated_at is None:
++        return "NOT_ESTIMABLE_T30_QUOTE_SOURCE"
++    expected = select_t30_market_reference(
++        source, fixture_id=str(market_snapshot["fixture_id"]),
++        kickoff=kickoff, captured_at=generated_at,
++    )
++    if expected != dict(market_snapshot):
++        return "NOT_ESTIMABLE_T30_QUOTE_SOURCE"
+     return None
+ 
+ 
++def select_t30_market_reference(
++    observations: list[dict[str, Any]], *, fixture_id: str,
++    kickoff: datetime, captured_at: datetime,
++) -> dict[str, Any] | None:
++    """Select from persisted Pinnacle rows and retain the reproducible source."""
++    from w2.ingestion.market_timeline import select_mainline_snapshot_result
++
++    rows = [
++        dict(row) for row in observations
++        if row.get("bookmaker_name") == "Pinnacle"
++        and row.get("provider") == "api-football"
++        and str(row.get("fixture_id") or "") in _fixture_aliases(fixture_id)
++        and (as_of := _parse_time(row.get("captured_at"))) is not None
++        and as_of <= captured_at
++        and row.get("live") is False and row.get("suspended") is False
++        and row.get("observation_id") and row.get("capture_id")
++        and row.get("source_revision")
++        and isinstance(row.get("raw_payload_sha256"), str)
++        and len(row["raw_payload_sha256"]) == 64
++        and all(c in "0123456789abcdef" for c in row["raw_payload_sha256"])
++    ]
++    if len({row["observation_id"] for row in rows}) != len(rows):
++        return None
++    result = select_mainline_snapshot_result(
++        observations=rows, fixture_id=fixture_id, kickoff=kickoff,
++        checkpoint=T30_CHECKPOINT, market="ASIAN_HANDICAP", generated_at=captured_at,
++    )
++    if result.snapshot is None:
++        return None
++    return {**result.snapshot, "bookmaker_name": "Pinnacle", "source_observations": rows}
++
++
+ def _t30_capture_fields(
+     *,
+     card: Mapping[str, Any],
+@@ -1033,13 +1104,14 @@ def _t30_capture_fields(
+         "model_as_of": _iso(captured_at),
+         "decision_evaluated_at": _iso(captured_at),
+         "t30_market_reference": {
++            "fixture_id": snapshot["fixture_id"],
++            "source_observations": snapshot["source_observations"],
++            "canonical_snapshot": snapshot,
+             "market": "ASIAN_HANDICAP",
+             "line": snapshot.get("line"),
+             "home_price": snapshot.get("home_price"),
+             "away_price": snapshot.get("away_price"),
+-            "bookmaker": snapshot.get("provider")
+-            or snapshot.get("bookmakers")
+-            or snapshot.get("bookmaker_name"),
++            "bookmaker": snapshot["bookmaker_name"],
+             "quote_as_of": snapshot.get("as_of"),
+             "source_payload_ids": snapshot.get("source_payload_ids")
+             or snapshot.get("source_payload_id"),
+@@ -1163,12 +1235,33 @@ def _build_capture(
+         "ah_settlement_distributions": _ah_settlement_distributions(simulation),
+         "ou_settlement_distributions": _ou_settlement_distributions(simulation),
+         "score_matrix_hash": score_matrix_hash,
++        # Keep the exact matrix for every immutable capture so historical
++        # five-state and EV mappings can be independently replayed.
++        "score_matrix_distribution": list(summary.get("distribution") or []),
++        "model_input_manifest": input_manifest,
++        "replay_evidence_schema": "w2.capture_replay_evidence.v1",
++        "feature_contributions_evidence": {
++            "status": "RECORDED" if card.get("feature_contributions") else "NOT_AVAILABLE",
++            "values": list(card.get("feature_contributions") or []),
++        },
++        "simulation_replay": {
++            "status": (
++                "RECORDED_PENDING_REPLAY"
++                if _mapping(simulation.get("calibration")).get("replay_schema")
++                == "w2.simulation_replay.v1"
++                else "NOT_REPLAYABLE_EXACTLY"
++            ),
++            "simulation": dict(simulation),
++        },
+         "source_artifact_hashes": source_hashes,
+         "candidate_required": False,
+         "exact_quote_required": False,
+         "validation_scope": "MODEL_FORECAST_ONLY",
+     }
+     if capture_policy == T30_CAPTURE_POLICY:
++        core["lambda_uncertainty_audit"] = dict(
++            _mapping(_mapping(simulation.get("calibration")).get("lambda_uncertainty_audit"))
++        )
+         core.update(_t30_capture_fields(
+             card=card,
+             kickoff=kickoff,
+diff --git a/tests/unit/test_model_forecast_ledger.py b/tests/unit/test_model_forecast_ledger.py
+index 1fce8566..194eb84e 100644
+--- a/tests/unit/test_model_forecast_ledger.py
++++ b/tests/unit/test_model_forecast_ledger.py
+@@ -69,6 +69,10 @@ def test_model_forecast_capture_and_outcome_do_not_require_candidate(tmp_path: P
+         assert capture.lead_time_seconds == 12 * 60 * 60
+         assert capture.lead_time_bucket == "H6_TO_LT_24H"
+         assert capture.payload["capture_policy"] == "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"
++        assert capture.payload["score_matrix_distribution"]
++        assert capture.payload["model_input_manifest"]
++        # This legacy storage fixture has no complete execution inputs.
++        assert capture.payload["simulation_replay"]["status"] == "NOT_REPLAYABLE_EXACTLY"
+         assert capture.payload["exact_quote_required"] is False
+         assert capture.payload["candidate_required"] is False
+         assert capture.payload["four_field_xg_identity"]["four_fields"] == {
+diff --git a/tests/unit/test_task3_t30_freeze.py b/tests/unit/test_task3_t30_freeze.py
+index 77d15bec..7aba9f96 100644
+--- a/tests/unit/test_task3_t30_freeze.py
++++ b/tests/unit/test_task3_t30_freeze.py
+@@ -101,7 +101,7 @@ def _seed_xg(repository: ModelForecastLedgerRepository) -> None:
+                     snapshot_id=f"{team_id}:fixture-1",
+                     team_id=team_id,
+                     as_of_fixture_id="fixture-1",
+-                    as_of_time=KICKOFF,
++                    as_of_time=NOW,
+                     match_count=3,
+                     rolling_xg_for=xg_for,
+                     rolling_xg_against=xg_against,
+@@ -192,20 +192,33 @@ def _day_view(*, simulation: dict[str, Any] | None = None) -> dict[str, Any]:
+ 
+ 
+ def _market_snapshot(**overrides: Any) -> dict[str, Any]:
+-    snapshot = {
+-        "market": "ASIAN_HANDICAP",
+-        "line": -0.5,
+-        "home_price": 1.90,
+-        "away_price": 1.95,
+-        "provider": "Pinnacle",
+-        "bookmakers": ["Pinnacle"],
+-        "as_of": T30_CAPTURED_AT.isoformat(),
+-        "source_payload_ids": ["p" * 64],
+-        "source_hash": "q" * 64,
+-        "selection_policy": "canonical_bookmaker_mainline_majority_v1",
+-        "live": False,
+-        "suspended": False,
+-    }
++    from w2.tracking.model_forecast_ledger import select_t30_market_reference
++    quote_time = datetime.fromisoformat(str(overrides.get("as_of", T30_CAPTURED_AT.isoformat())))
++    if not KICKOFF - timedelta(minutes=35) <= quote_time <= KICKOFF - timedelta(minutes=25):
++        quote_time = T30_CAPTURED_AT
++    rows = []
++    for side, line, odds in (("HOME", "-0.5", "1.90"), ("AWAY", "0.5", "1.95")):
++        rows.append({
++            "fixture_id": "fixture-1", "provider": "api-football",
++            "bookmaker_id": "4", "bookmaker_name": "Pinnacle",
++            "canonical_market": "ASIAN_HANDICAP", "raw_market_label": "Asian Handicap",
++            "selection": side, "line": line, "decimal_odds": odds,
++            "captured_at": quote_time.isoformat(),
++            "observation_id": side, "capture_id": "capture-1",
++            "raw_payload_sha256": "a" * 64, "source_revision": "future-refresh.v1",
++            "live": False, "suspended": False,
++        })
++    snapshot = select_t30_market_reference(
++        rows, fixture_id="fixture-1", kickoff=KICKOFF, captured_at=quote_time,
++    )
++    assert snapshot is not None
++    if "as_of" in overrides:
++        overrides["as_of"] = (
++            datetime.fromisoformat(str(overrides["as_of"]))
++            .astimezone(UTC)
++            .isoformat()
++            .replace("+00:00", "Z")
++        )
+     snapshot.update(overrides)
+     return snapshot
+ 
+@@ -224,7 +237,7 @@ def _simulation_of(card: dict[str, Any]) -> dict[str, Any]:
+ # --------------------------------------------------------------------------- #
+ # 1. real chain -> T-30 freeze -> same-window quote reference
+ # --------------------------------------------------------------------------- #
+-def test_real_chain_t30_freeze_produces_capture(tmp_path: Path) -> None:
++def test_storage_t30_freeze_produces_capture(tmp_path: Path) -> None:
+     repository = _repository(tmp_path)
+     _seed_xg(repository)
+ 
+@@ -258,7 +271,7 @@ def test_real_chain_t30_freeze_produces_capture(tmp_path: Path) -> None:
+     assert ref["market"] == "ASIAN_HANDICAP"
+     assert ref["home_price"] == 1.90
+     assert ref["away_price"] == 1.95
+-    assert ref["source_hash"] == "q" * 64
++    assert ref["source_hash"] == _market_snapshot()["source_hash"]
+     # 完整 7 项输入真实持久化并参与 hash
+     assert payload["four_field_xg_identity"]["four_fields"]["home_xg_for"] is not None
+     assert payload["neutral_site"] is False
+@@ -548,7 +561,7 @@ def test_t30_same_identity_different_payload_fails_closed(tmp_path: Path) -> Non
+         freeze_t30_capture(
+             mutated,
+             repository=repository,
+-            market_snapshots={"fixture-1": _market_snapshot(home_price=2.00)},
++            market_snapshots={"fixture-1": _market_snapshot()},
+             captured_at=T30_CAPTURED_AT,
+             dry_run=False,
+             write_db=True,
+@@ -686,3 +699,30 @@ def test_capture_is_byte_identical_with_or_without_result(tmp_path: Path) -> Non
+     with_result = _capture_payload()
+ 
+     assert without_result == with_result
++
++
++@pytest.mark.parametrize('field,value', [
++    ('provider', 'Bet365'), ('bookmaker_name', 'Bet365'), ('line', None),
++    ('line', float('nan')), ('line', 0.1), ('home_price', float('inf')),
++    ('selection_policy', 'unknown'), ('fixture_id', 'other'), ('source_hash', '0' * 64),
++])
++def test_t30_quote_identity_tampering_fails_closed(tmp_path, field, value):
++    repository = _repository(tmp_path)
++    _seed_xg(repository)
++    result = repository.freeze_t30(
++        _day_view(), market_snapshots={'fixture-1': _market_snapshot(**{field: value})},
++        captured_at=T30_CAPTURED_AT,
++    )
++    assert result['model_forecast_capture_count'] == 0
++    assert result['blocked_count'] == 1
++
++
++def test_development_track_excluded_from_recommendation_opportunities(tmp_path):
++    repository = _repository(tmp_path)
++    _seed_xg(repository)
++    repository.freeze_t30(
++        _day_view(), market_snapshots={'fixture-1': _market_snapshot()},
++        captured_at=T30_CAPTURED_AT, dry_run=False, write_db=True,
++    )
++    assert repository.opportunity_capture_seeds('fixture-1') == ()
++    assert repository.denominator_capture_seeds() == ()

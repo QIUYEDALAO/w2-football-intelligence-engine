@@ -69,6 +69,10 @@ def test_model_forecast_capture_and_outcome_do_not_require_candidate(tmp_path: P
         assert capture.lead_time_seconds == 12 * 60 * 60
         assert capture.lead_time_bucket == "H6_TO_LT_24H"
         assert capture.payload["capture_policy"] == "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"
+        assert capture.payload["score_matrix_distribution"]
+        assert capture.payload["model_input_manifest"]
+        # This legacy storage fixture has no complete execution inputs.
+        assert capture.payload["simulation_replay"]["status"] == "NOT_REPLAYABLE_EXACTLY"
         assert capture.payload["exact_quote_required"] is False
         assert capture.payload["candidate_required"] is False
         assert capture.payload["four_field_xg_identity"]["four_fields"] == {

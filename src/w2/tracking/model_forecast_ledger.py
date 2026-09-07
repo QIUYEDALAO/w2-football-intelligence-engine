@@ -305,6 +305,18 @@ class ModelForecastLedgerRepository:
                     or _lambda_sigma_blocker(simulation)
                     or _t30_market_reference_blocker(market_snapshot, kickoff)
                 )
+                if blocker is None and (
+                    str(market_snapshot.get("fixture_id")) not in _fixture_aliases(fixture_id)
+                    or _parse_time(market_snapshot.get("as_of")) > now
+                    or _parse_time(card["neutral_site_resolution"]["neutral_site_as_of"]) > now
+                    or any(
+                        _parse_time(xg_identity[side]["as_of"]) > now
+                        or any(_parse_time(row["captured_at"]) > now
+                               for row in xg_identity[side]["component_team_xg_matches"])
+                        for side in ("home", "away")
+                    )
+                ):
+                    blocker = "NOT_ESTIMABLE_T30_IDENTITY_OR_AS_OF"
                 if blocker is not None:
                     blocked_count += 1
                     blocked_reasons.append({"fixture_id": fixture_id, "blocker": blocker})
@@ -412,6 +424,8 @@ class ModelForecastLedgerRepository:
                     ModelForecastCaptureModel.capture_identity_hash,
                     ModelForecastCaptureModel.model_input_manifest_hash,
                     ModelForecastCaptureModel.captured_at,
+                ).where(
+                    ModelForecastCaptureModel.capture_policy != T30_CAPTURE_POLICY
                 ).order_by(
                     ModelForecastCaptureModel.kickoff_utc,
                     ModelForecastCaptureModel.fixture_id,
@@ -438,6 +452,7 @@ class ModelForecastLedgerRepository:
                     ModelForecastCaptureModel.model_input_manifest_hash,
                 )
                 .where(ModelForecastCaptureModel.fixture_id.in_(aliases))
+                .where(ModelForecastCaptureModel.capture_policy != T30_CAPTURE_POLICY)
                 .order_by(ModelForecastCaptureModel.capture_identity_hash)
             )
             return tuple((str(capture), str(model_input)) for capture, model_input in rows)
@@ -989,11 +1004,25 @@ def _t30_market_reference_blocker(
         return "NOT_ESTIMABLE_T30_QUOTE_MISSING"
     if str(market_snapshot.get("market") or "") != "ASIAN_HANDICAP":
         return "NOT_ESTIMABLE_T30_QUOTE_MARKET"
+    from w2.markets.asian_handicap_mainline import CANONICAL_AH_MAINLINE_POLICY
+
+    if market_snapshot.get("bookmaker_name") != "Pinnacle":
+        return "NOT_ESTIMABLE_T30_QUOTE_BOOKMAKER"
+    if market_snapshot.get("provider") != "api-football":
+        return "NOT_ESTIMABLE_T30_QUOTE_PROVIDER"
+    line = _optional_float(market_snapshot.get("line"))
+    if line is None or not math.isfinite(line) or line * 4 != int(line * 4):
+        return "NOT_ESTIMABLE_T30_QUOTE_LINE"
+    if market_snapshot.get("selection_policy") != CANONICAL_AH_MAINLINE_POLICY:
+        return "NOT_ESTIMABLE_T30_QUOTE_POLICY"
+    if not market_snapshot.get("fixture_id"):
+        return "NOT_ESTIMABLE_T30_QUOTE_FIXTURE"
     home_price = _optional_float(market_snapshot.get("home_price"))
     away_price = _optional_float(market_snapshot.get("away_price"))
     if home_price is None or away_price is None:
         return "NOT_ESTIMABLE_T30_QUOTE_INCOMPLETE"
-    if home_price <= 1.0 or away_price <= 1.0:
+    if (not math.isfinite(home_price) or not math.isfinite(away_price)
+            or home_price <= 1.0 or away_price <= 1.0):
         return "NOT_ESTIMABLE_T30_QUOTE_ODDS"
     quote_as_of = _parse_time(market_snapshot.get("as_of"))
     if quote_as_of is None:
@@ -1005,7 +1034,49 @@ def _t30_market_reference_blocker(
         return "NOT_ESTIMABLE_T30_QUOTE_STATE"
     if not market_snapshot.get("source_hash"):
         return "NOT_ESTIMABLE_T30_QUOTE_IDENTITY"
+    source = market_snapshot.get("source_observations")
+    generated_at = _parse_time(market_snapshot.get("generated_at"))
+    if not isinstance(source, list) or generated_at is None:
+        return "NOT_ESTIMABLE_T30_QUOTE_SOURCE"
+    expected = select_t30_market_reference(
+        source, fixture_id=str(market_snapshot["fixture_id"]),
+        kickoff=kickoff, captured_at=generated_at,
+    )
+    if expected != dict(market_snapshot):
+        return "NOT_ESTIMABLE_T30_QUOTE_SOURCE"
     return None
+
+
+def select_t30_market_reference(
+    observations: list[dict[str, Any]], *, fixture_id: str,
+    kickoff: datetime, captured_at: datetime,
+) -> dict[str, Any] | None:
+    """Select from persisted Pinnacle rows and retain the reproducible source."""
+    from w2.ingestion.market_timeline import select_mainline_snapshot_result
+
+    rows = [
+        dict(row) for row in observations
+        if row.get("bookmaker_name") == "Pinnacle"
+        and row.get("provider") == "api-football"
+        and str(row.get("fixture_id") or "") in _fixture_aliases(fixture_id)
+        and (as_of := _parse_time(row.get("captured_at"))) is not None
+        and as_of <= captured_at
+        and row.get("live") is False and row.get("suspended") is False
+        and row.get("observation_id") and row.get("capture_id")
+        and row.get("source_revision")
+        and isinstance(row.get("raw_payload_sha256"), str)
+        and len(row["raw_payload_sha256"]) == 64
+        and all(c in "0123456789abcdef" for c in row["raw_payload_sha256"])
+    ]
+    if len({row["observation_id"] for row in rows}) != len(rows):
+        return None
+    result = select_mainline_snapshot_result(
+        observations=rows, fixture_id=fixture_id, kickoff=kickoff,
+        checkpoint=T30_CHECKPOINT, market="ASIAN_HANDICAP", generated_at=captured_at,
+    )
+    if result.snapshot is None:
+        return None
+    return {**result.snapshot, "bookmaker_name": "Pinnacle", "source_observations": rows}
 
 
 def _t30_capture_fields(
@@ -1033,13 +1104,14 @@ def _t30_capture_fields(
         "model_as_of": _iso(captured_at),
         "decision_evaluated_at": _iso(captured_at),
         "t30_market_reference": {
+            "fixture_id": snapshot["fixture_id"],
+            "source_observations": snapshot["source_observations"],
+            "canonical_snapshot": snapshot,
             "market": "ASIAN_HANDICAP",
             "line": snapshot.get("line"),
             "home_price": snapshot.get("home_price"),
             "away_price": snapshot.get("away_price"),
-            "bookmaker": snapshot.get("provider")
-            or snapshot.get("bookmakers")
-            or snapshot.get("bookmaker_name"),
+            "bookmaker": snapshot["bookmaker_name"],
             "quote_as_of": snapshot.get("as_of"),
             "source_payload_ids": snapshot.get("source_payload_ids")
             or snapshot.get("source_payload_id"),
@@ -1163,12 +1235,33 @@ def _build_capture(
         "ah_settlement_distributions": _ah_settlement_distributions(simulation),
         "ou_settlement_distributions": _ou_settlement_distributions(simulation),
         "score_matrix_hash": score_matrix_hash,
+        # Keep the exact matrix for every immutable capture so historical
+        # five-state and EV mappings can be independently replayed.
+        "score_matrix_distribution": list(summary.get("distribution") or []),
+        "model_input_manifest": input_manifest,
+        "replay_evidence_schema": "w2.capture_replay_evidence.v1",
+        "feature_contributions_evidence": {
+            "status": "RECORDED" if card.get("feature_contributions") else "NOT_AVAILABLE",
+            "values": list(card.get("feature_contributions") or []),
+        },
+        "simulation_replay": {
+            "status": (
+                "RECORDED_PENDING_REPLAY"
+                if _mapping(simulation.get("calibration")).get("replay_schema")
+                == "w2.simulation_replay.v1"
+                else "NOT_REPLAYABLE_EXACTLY"
+            ),
+            "simulation": dict(simulation),
+        },
         "source_artifact_hashes": source_hashes,
         "candidate_required": False,
         "exact_quote_required": False,
         "validation_scope": "MODEL_FORECAST_ONLY",
     }
     if capture_policy == T30_CAPTURE_POLICY:
+        core["lambda_uncertainty_audit"] = dict(
+            _mapping(_mapping(simulation.get("calibration")).get("lambda_uncertainty_audit"))
+        )
         core.update(_t30_capture_fields(
             card=card,
             kickoff=kickoff,

@@ -232,6 +232,81 @@ def _write_checkpoint_opportunities(
     }
 
 
+def _freeze_t30_checkpoint_captures(
+    checkpoints: list[dict[str, object]], *, evaluated_at: datetime
+) -> dict[str, object]:
+    """Recompute the bounded card and bind it to the canonical T-30 AH quote."""
+    from w2.ingestion.market_timeline import (
+        T30_VALIDATION_CHECKPOINT,
+    )
+    from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
+    from w2.tracking.model_forecast_ledger import (
+        freeze_t30_capture,
+        select_t30_market_reference,
+    )
+
+    if os.environ.get("W2_TASK3_T30_CAPTURE_ENABLED") != "1":
+        return {"status": "DISABLED", "provider_calls": 0, "db_writes": 0}
+    t30 = [
+        item for item in checkpoints
+        if str(item.get("checkpoint") or "") == T30_VALIDATION_CHECKPOINT
+    ]
+    if not t30:
+        return {"status": "NOT_DUE", "provider_calls": 0, "db_writes": 0}
+    repository = ReadModelRepository()
+    service = ReadModelService(repository=repository)
+    cards: list[dict[str, object]] = []
+    quotes: dict[str, dict[str, object]] = {}
+    blockers: list[dict[str, str]] = []
+    observations = repository.future_market_observations_for_fixtures(
+        [str(item.get("fixture_id") or "") for item in t30]
+    )
+    for item in t30:
+        fixture_id = str(item.get("fixture_id") or "").removeprefix("api_football:")
+        card = service.public_analysis_card_bounded(
+            fixture_id, evaluation_time=evaluated_at, use_frozen_canary=False
+        )
+        kickoff_raw = (card or {}).get("kickoff_utc") if card else None
+        if not isinstance(card, dict) or not kickoff_raw:
+            blockers.append({"fixture_id": fixture_id, "blocker": "MODEL_CARD_UNAVAILABLE"})
+            continue
+        if card.get("competition_id") not in {
+            "premier_league", "la_liga", "serie_a", "bundesliga", "ligue_1",
+            "eredivisie", "primeira_liga",
+        }:
+            blockers.append({"fixture_id": fixture_id, "blocker": "OUTSIDE_TASK3_SCOPE"})
+            continue
+        kickoff = datetime.fromisoformat(str(kickoff_raw).replace("Z", "+00:00"))
+        selected = select_t30_market_reference(
+            observations,
+            fixture_id=fixture_id,
+            kickoff=kickoff,
+            captured_at=evaluated_at,
+        )
+        if selected is None:
+            blockers.append({"fixture_id": fixture_id, "blocker": "T30_QUOTE_UNAVAILABLE"})
+            continue
+        simulation = card.get("simulation") or {}
+        cards.append({**card, "simulation": {
+            "status": simulation.get("status"), "simulation": simulation,
+        }})
+        quotes[fixture_id] = selected
+    result = freeze_t30_capture(
+        {"cards": cards},
+        market_snapshots=quotes,
+        captured_at=evaluated_at,
+        dry_run=False,
+        write_db=True,
+    )
+    return {
+        "status": "PASS" if result.get("db_writes") else "NO_CAPTURE",
+        "provider_calls": 0,
+        "db_writes": int(result.get("db_writes") or 0),
+        "blockers": blockers,
+        "capture_result": result,
+    }
+
+
 def _worker_utc(value: object) -> datetime | None:
     if isinstance(value, datetime):
         return value.astimezone(UTC) if value.tzinfo else value.replace(tzinfo=UTC)
@@ -396,6 +471,14 @@ def future_fixture_refresh(
             if isinstance(item, Mapping)
         ],
     )
+    t30_capture = _freeze_t30_checkpoint_captures(
+        [
+            dict(item)
+            for item in audit.result.get("refresh_checkpoints", [])
+            if isinstance(item, Mapping)
+        ],
+        evaluated_at=datetime.now(UTC),
+    )
     return {
         "task_id": audit.task_id,
         "task_key": audit.key,
@@ -408,6 +491,7 @@ def future_fixture_refresh(
         "discovery_date": discovery_date,
         "result": audit.result,
         "opportunity_write": opportunity_write,
+        "t30_capture": t30_capture,
         "candidate": False,
         "formal_recommendation": False,
     }
