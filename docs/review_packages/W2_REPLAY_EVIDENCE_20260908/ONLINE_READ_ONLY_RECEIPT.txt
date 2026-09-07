@@ -1,0 +1,9 @@
+collected_at_utc=2026-09-07T21:20:28Z
+database=w2
+transaction=BEGIN READ ONLY
+schema=0070_notification_delivery_routing
+replay_evidence_schema=w2.capture_replay_evidence.v1
+replay_capture_count=0
+total_capture_count=423
+transaction_end=ROLLBACK
+result=DEPLOYED_HEALTHY_CAPTURE_PENDING
