@@ -136,6 +136,8 @@ class ModelForecastLedgerRepository:
         coverage_eligible_count = 0
         model_eligible_count = 0
         no_four_field_xg_count = 0
+        no_neutral_site_or_lambda_count = 0
+        blocked_reasons: list[dict[str, str]] = []
         written = 0
         already_captured = 0
         captures: list[dict[str, Any]] = []
@@ -162,6 +164,13 @@ class ModelForecastLedgerRepository:
                 )
                 if xg_identity is None:
                     no_four_field_xg_count += 1
+                    continue
+                blocker = _neutral_site_blocker(card, simulation) or _lambda_sigma_blocker(
+                    simulation
+                )
+                if blocker is not None:
+                    no_neutral_site_or_lambda_count += 1
+                    blocked_reasons.append({"fixture_id": fixture_id, "blocker": blocker})
                     continue
                 capture = _build_capture(
                     card=card,
@@ -213,6 +222,8 @@ class ModelForecastLedgerRepository:
             "model_forecast_capture_count": len(captures),
             "already_captured_count": already_captured,
             "no_four_field_xg_count": no_four_field_xg_count,
+            "no_neutral_site_or_lambda_count": no_neutral_site_or_lambda_count,
+            "blocked_reasons": blocked_reasons,
             "data_version": data_version,
             "team_xg_match_count": team_xg_match_count,
             "shadow_candidate_count": _shadow_candidate_count(cards),
@@ -701,6 +712,52 @@ def settle_model_forecasts(
     )
 
 
+def _neutral_site_blocker(card: Mapping[str, Any], simulation: Mapping[str, Any]) -> str | None:
+    """Return a blocker string when neutral_site cannot be deterministically
+    persisted, or None when it is consistent and READY.
+
+    Fail-closed rule: the ledger must persist exactly what the model used. The
+    resolved value is cross-checked against ``simulation.input_readiness.neutral_site``
+    (the model's actual input). A missing resolution or a mismatch fails closed.
+    """
+    resolution = _mapping(card.get("neutral_site_resolution"))
+    if not resolution:
+        return "NOT_ESTIMABLE_NEUTRAL_SITE"
+    status = str(resolution.get("neutral_site_status") or "")
+    if status != "READY":
+        return "NOT_ESTIMABLE_NEUTRAL_SITE"
+    ledger_value = resolution.get("neutral_site")
+    readiness = _mapping(simulation.get("input_readiness"))
+    sim_value = readiness.get("neutral_site")
+    if sim_value is None or bool(sim_value) != bool(ledger_value):
+        return "NOT_ESTIMABLE_NEUTRAL_SITE"
+    return None
+
+
+def _lambda_sigma_blocker(simulation: Mapping[str, Any]) -> str | None:
+    """Return a distinct blocker string per failure mode, or None when eligible.
+
+    Production success status is ``ANALYSIS_READY`` (not ``READY``). Each missing
+    or non-READY condition maps to its own blocker instead of one shared string.
+    """
+    sigma_home = simulation.get("lambda_sigma_home")
+    sigma_away = simulation.get("lambda_sigma_away")
+    if sigma_home is None or sigma_away is None:
+        return "NOT_ESTIMABLE_LAMBDA_SIGMA_MISSING"
+    calibration = _mapping(simulation.get("calibration"))
+    status = str(calibration.get("lambda_uncertainty_status") or "")
+    if status != "ANALYSIS_READY":
+        return "NOT_ESTIMABLE_LAMBDA_UNCERTAINTY_STATUS"
+    method = str(calibration.get("lambda_uncertainty_method") or "")
+    if not method or method == "none":
+        return "NOT_ESTIMABLE_LAMBDA_UNCERTAINTY_METHOD"
+    readiness = _mapping(simulation.get("input_readiness"))
+    input_hash = str(readiness.get("lambda_uncertainty_input_hash") or "")
+    if not input_hash:
+        return "NOT_ESTIMABLE_LAMBDA_UNCERTAINTY_INPUT_HASH"
+    return None
+
+
 def _build_capture(
     *,
     card: Mapping[str, Any],
@@ -770,6 +827,31 @@ def _build_capture(
         ),
         "model_input_manifest_hash": model_input_manifest_hash,
         "four_field_xg_identity": dict(xg_identity),
+        "neutral_site": bool(_mapping(card.get("neutral_site_resolution")).get("neutral_site")),
+        "neutral_site_resolution_source": str(
+            _mapping(card.get("neutral_site_resolution")).get("neutral_site_resolution_source")
+            or ""
+        ),
+        "neutral_site_policy_version": str(
+            _mapping(card.get("neutral_site_resolution")).get("neutral_site_policy_version") or ""
+        ),
+        "neutral_site_as_of": str(
+            _mapping(card.get("neutral_site_resolution")).get("neutral_site_as_of") or ""
+        ),
+        "neutral_site_status": str(
+            _mapping(card.get("neutral_site_resolution")).get("neutral_site_status") or ""
+        ),
+        "lambda_sigma_home": float(simulation["lambda_sigma_home"]),
+        "lambda_sigma_away": float(simulation["lambda_sigma_away"]),
+        "lambda_uncertainty_method": str(
+            _mapping(simulation.get("calibration")).get("lambda_uncertainty_method") or ""
+        ),
+        "lambda_uncertainty_status": str(
+            _mapping(simulation.get("calibration")).get("lambda_uncertainty_status") or ""
+        ),
+        "lambda_uncertainty_input_hash": str(
+            _mapping(simulation.get("input_readiness")).get("lambda_uncertainty_input_hash") or ""
+        ),
         "probability_vector": probability_vector,
         "ah_settlement_distributions": _ah_settlement_distributions(simulation),
         "ou_settlement_distributions": _ou_settlement_distributions(simulation),

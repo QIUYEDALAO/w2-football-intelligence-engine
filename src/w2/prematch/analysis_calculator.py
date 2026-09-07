@@ -291,20 +291,12 @@ def _optional_truthy_flag(value: Any) -> bool | None:
 
 
 def _fixture_neutral_site(item: dict[str, Any]) -> bool:
-    league = item.get("league", {}) if isinstance(item.get("league"), dict) else {}
-    explicit = _explicit_neutral_site(item)
-    profile = _competition_profile_payload("world_cup_2026")
-    policy = str(profile.get("neutral_site_policy") or "")
-    if _is_world_cup_2026_item(item, profile=profile, league=league) and policy:
-        if "HOST_COUNTRY_MATCHES_ARE_NOT_NEUTRAL_FOR_HOST" in policy:
-            home_name, away_name = _team_names_from_item(item)
-            if _is_host_team(home_name, profile=profile):
-                return False
-            if _is_host_team(away_name, profile=profile):
-                return True
-        if "OTHER_MATCHES_NEUTRAL_BY_VENUE_CONTEXT" in policy:
-            return explicit if explicit is not None else True
-    return explicit if explicit is not None else False
+    """Resolved neutral-site used as the model input (single authority).
+
+    Delegates to ``_resolve_neutral_site`` so the model input and the ledger
+    persistence share one authority and cannot drift apart.
+    """
+    return _resolve_neutral_site(item)[0]
 
 
 def _competition_profile_payload(competition_id: str) -> dict[str, Any]:
@@ -334,6 +326,96 @@ def _explicit_neutral_site(item: dict[str, Any]) -> bool | None:
         if parsed is not None:
             return parsed
     return None
+
+
+def _explicit_neutral_site_with_source(item: dict[str, Any]) -> tuple[bool | None, str]:
+    """Return (explicit neutral_site value, resolution source) or (None, "").
+
+    Mirrors ``_explicit_neutral_site`` but keeps the source field path so the
+    ledger can record where the resolved value came from (one of the four
+    EXPLICIT_*_FIELD sources).
+    """
+    fixture = item.get("fixture", {})
+    dashboard = item.get("_dashboard", {})
+    venue = fixture.get("venue", {}) if isinstance(fixture, dict) else {}
+    candidates: tuple[tuple[Any, str], ...] = (
+        (item.get("neutral_site"), "EXPLICIT_ITEM_FIELD"),
+        (item.get("neutral"), "EXPLICIT_ITEM_FIELD"),
+        (
+            dashboard.get("neutral_site") if isinstance(dashboard, dict) else None,
+            "EXPLICIT_DASHBOARD_FIELD",
+        ),
+        (
+            dashboard.get("neutral") if isinstance(dashboard, dict) else None,
+            "EXPLICIT_DASHBOARD_FIELD",
+        ),
+        (
+            fixture.get("neutral_site") if isinstance(fixture, dict) else None,
+            "EXPLICIT_FIXTURE_FIELD",
+        ),
+        (
+            fixture.get("neutral") if isinstance(fixture, dict) else None,
+            "EXPLICIT_FIXTURE_FIELD",
+        ),
+        (
+            venue.get("neutral_site") if isinstance(venue, dict) else None,
+            "EXPLICIT_VENUE_FIELD",
+        ),
+        (venue.get("neutral") if isinstance(venue, dict) else None, "EXPLICIT_VENUE_FIELD"),
+    )
+    for value, source in candidates:
+        parsed = _optional_truthy_flag(value)
+        if parsed is not None:
+            return parsed, source
+    return None, ""
+
+
+NEUTRAL_SITE_POLICY_VERSION = "w2.neutral_site_policy.v1"
+
+
+def _resolve_neutral_site(item: dict[str, Any]) -> tuple[bool, str]:
+    """Resolve neutral_site to (value, resolution_source).
+
+    Business interpretation is identical to ``_fixture_neutral_site``; only the
+    provenance of the resolved value is additionally returned. Sources:
+    COMPETITION_POLICY / EXPLICIT_*_FIELD / DEFAULT_NON_NEUTRAL_POLICY.
+    """
+    league = item.get("league", {}) if isinstance(item.get("league"), dict) else {}
+    explicit, explicit_source = _explicit_neutral_site_with_source(item)
+    profile = _competition_profile_payload("world_cup_2026")
+    policy = str(profile.get("neutral_site_policy") or "")
+    if _is_world_cup_2026_item(item, profile=profile, league=league) and policy:
+        if "HOST_COUNTRY_MATCHES_ARE_NOT_NEUTRAL_FOR_HOST" in policy:
+            home_name, away_name = _team_names_from_item(item)
+            if _is_host_team(home_name, profile=profile):
+                return False, "COMPETITION_POLICY"
+            if _is_host_team(away_name, profile=profile):
+                return True, "COMPETITION_POLICY"
+        if "OTHER_MATCHES_NEUTRAL_BY_VENUE_CONTEXT" in policy:
+            if explicit is not None:
+                return explicit, explicit_source
+            return True, "COMPETITION_POLICY"
+    if explicit is not None:
+        return explicit, explicit_source
+    return False, "DEFAULT_NON_NEUTRAL_POLICY"
+
+
+def _neutral_site_resolution(item: dict[str, Any], as_of: datetime) -> dict[str, Any]:
+    """Structured resolved neutral-site identity for the capture ledger.
+
+    The resolved value is identical to what ``_fixture_neutral_site`` feeds the
+    model; the ledger persists the same value plus its provenance so the two can
+    be cross-checked (a mismatch must fail closed).
+    """
+    value, source = _resolve_neutral_site(item)
+    as_of_iso = as_of.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    return {
+        "neutral_site": value,
+        "neutral_site_resolution_source": source,
+        "neutral_site_policy_version": NEUTRAL_SITE_POLICY_VERSION,
+        "neutral_site_as_of": as_of_iso,
+        "neutral_site_status": "READY",
+    }
 
 
 def _is_world_cup_2026_item(
@@ -3177,6 +3259,7 @@ class ReadModelService:
         score_direction: Direction | None = None
         scoreline_output: IndependentXgPoissonOutput | None = None
         neutral_site = _fixture_neutral_site(item)
+        neutral_site_resolution = _neutral_site_resolution(item, context.as_of)
         simulation_output = run_simulation(
             SimulationInputs(
                 fixture_id=fixture_id,
@@ -3266,6 +3349,7 @@ class ReadModelService:
             self._feature_contribution_payload(item) for item in feature_set.contributions
         ]
         payload["simulation"] = simulation_output.as_dict()
+        payload["neutral_site_resolution"] = neutral_site_resolution
         calibration_audit = (
             payload["simulation"].get("calibration", {}).get("lambda_uncertainty_audit")
         )

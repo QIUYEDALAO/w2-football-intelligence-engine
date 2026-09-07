@@ -387,6 +387,13 @@ def _day_view() -> dict[str, object]:
                 "kickoff_utc": KICKOFF.isoformat(),
                 "decision_tier": "NOT_READY",
                 "outcome_tracked": False,
+                "neutral_site_resolution": {
+                    "neutral_site": False,
+                    "neutral_site_resolution_source": "DEFAULT_NON_NEUTRAL_POLICY",
+                    "neutral_site_policy_version": "w2.neutral_site_policy.v1",
+                    "neutral_site_as_of": NOW.isoformat(),
+                    "neutral_site_status": "READY",
+                },
                 "frozen_artifact_provenance": {
                     "artifact_hash": "c" * 64,
                     "source_hash": "d" * 64,
@@ -406,7 +413,19 @@ def _day_view() -> dict[str, object]:
                         "model_version": "w2.formal.exact_dc_poisson.v1",
                         "calibration_version": "w2.calibration.v1",
                         "calibration_status": "BASELINE_PRIOR",
-                        "calibration": {"simulation_input_hash": "f" * 64},
+                        "lambda_sigma_home": 0.5,
+                        "lambda_sigma_away": 0.4,
+                        "calibration": {
+                            "simulation_input_hash": "f" * 64,
+                            "lambda_uncertainty_method": (
+                                "empirical_xg_standard_error.v2_latest_five"
+                            ),
+                            "lambda_uncertainty_status": "ANALYSIS_READY",
+                        },
+                        "input_readiness": {
+                            "neutral_site": False,
+                            "lambda_uncertainty_input_hash": "g" * 64,
+                        },
                         "score_matrix_summary": {
                             "home_win": 0.5,
                             "draw": 0.2,
@@ -648,3 +667,116 @@ def test_unregistered_policy_is_invalid_whatever_the_horizon_says(tmp_path: Path
         session.commit()
 
     assert repository.integrity()["invalid_capture_count"] == 1
+
+
+def _mutated_day_view(mutator) -> dict[str, object]:
+    day_view = _day_view()
+    cards = day_view["cards"]
+    assert isinstance(cards, list)
+    card = cards[0]
+    assert isinstance(card, dict)
+    mutator(card)
+    return day_view
+
+
+def _simulation(card: dict) -> dict:
+    envelope = card["simulation"]
+    assert isinstance(envelope, dict)
+    simulation = envelope["simulation"]
+    assert isinstance(simulation, dict)
+    return simulation
+
+
+@pytest.mark.parametrize(
+    ("mutator", "expected_blocker"),
+    [
+        # neutral_site 解析缺失
+        (lambda c: c.pop("neutral_site_resolution", None), "NOT_ESTIMABLE_NEUTRAL_SITE"),
+        # neutral_site 与 simulation 实际使用值不一致
+        (
+            lambda c: c["neutral_site_resolution"].update({"neutral_site": True}),
+            "NOT_ESTIMABLE_NEUTRAL_SITE",
+        ),
+        # lambda sigma 缺失
+        (
+            lambda c: _simulation(c).pop("lambda_sigma_home", None),
+            "NOT_ESTIMABLE_LAMBDA_SIGMA_MISSING",
+        ),
+        (
+            lambda c: _simulation(c).pop("lambda_sigma_away", None),
+            "NOT_ESTIMABLE_LAMBDA_SIGMA_MISSING",
+        ),
+        # uncertainty status 非 ANALYSIS_READY
+        (
+            lambda c: _simulation(c)["calibration"].update(
+                {"lambda_uncertainty_status": "XG_UNCERTAINTY_ZERO_VARIANCE"}
+            ),
+            "NOT_ESTIMABLE_LAMBDA_UNCERTAINTY_STATUS",
+        ),
+        # 伪造的 READY 必须被拒绝（生产真实状态是 ANALYSIS_READY）
+        (
+            lambda c: _simulation(c)["calibration"].update(
+                {"lambda_uncertainty_status": "READY"}
+            ),
+            "NOT_ESTIMABLE_LAMBDA_UNCERTAINTY_STATUS",
+        ),
+        # method 缺失/none
+        (
+            lambda c: _simulation(c)["calibration"].update(
+                {"lambda_uncertainty_method": "none"}
+            ),
+            "NOT_ESTIMABLE_LAMBDA_UNCERTAINTY_METHOD",
+        ),
+        # input_hash 缺失
+        (
+            lambda c: _simulation(c)["input_readiness"].pop(
+                "lambda_uncertainty_input_hash", None
+            ),
+            "NOT_ESTIMABLE_LAMBDA_UNCERTAINTY_INPUT_HASH",
+        ),
+    ],
+)
+def test_missing_input_fails_closed_with_specific_blocker(
+    tmp_path: Path, mutator, expected_blocker: str
+) -> None:
+    """Each failure mode must produce its own distinct blocker, and the fake
+    ``READY`` status must be rejected (production emits ``ANALYSIS_READY``)."""
+    repository = _repository(tmp_path)
+    _seed_xg(repository)
+
+    result = run_model_forecast_capture(
+        _mutated_day_view(mutator),
+        repository=repository,
+        captured_at=NOW,
+        dry_run=False,
+        write_db=True,
+    )
+
+    assert result["model_eligible_count"] == 0
+    assert result["model_forecast_capture_count"] == 0
+    assert result["no_neutral_site_or_lambda_count"] == 1
+    assert result["blocked_reasons"] == [
+        {"fixture_id": "fixture-1", "blocker": expected_blocker}
+    ]
+
+
+def test_capture_persists_neutral_site_and_lambda_sigma(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    _seed_xg(repository)
+
+    run_model_forecast_capture(
+        _day_view(), repository=repository, captured_at=NOW, dry_run=False, write_db=True
+    )
+
+    with Session(repository.engine) as session:
+        capture = session.query(ModelForecastCaptureModel).one()
+        payload = capture.payload
+    assert payload["neutral_site"] is False
+    assert payload["neutral_site_resolution_source"] == "DEFAULT_NON_NEUTRAL_POLICY"
+    assert payload["neutral_site_policy_version"] == "w2.neutral_site_policy.v1"
+    assert payload["neutral_site_status"] == "READY"
+    assert payload["lambda_sigma_home"] == 0.5
+    assert payload["lambda_sigma_away"] == 0.4
+    assert payload["lambda_uncertainty_method"] == "empirical_xg_standard_error.v2_latest_five"
+    assert payload["lambda_uncertainty_status"] == "ANALYSIS_READY"
+    assert payload["lambda_uncertainty_input_hash"] == "g" * 64
