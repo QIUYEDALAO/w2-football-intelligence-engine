@@ -2502,27 +2502,28 @@ class FutureRefreshDbRepository:
     def fixture_payloads(self, *, provider_league_id: str | None = None) -> list[dict[str, Any]]:
         fixtures: dict[str, dict[str, Any]] = {}
         with Session(self.engine) as session:
-            rows = list(
-                session.scalars(
-                    select(RawPayloadModel)
-                    .where(RawPayloadModel.endpoint == "fixtures")
-                    .order_by(RawPayloadModel.captured_at)
-                )
+            # Stream raw JSON instead of materializing the entire historical
+            # ORM result; preserve chronological last-observation-wins semantics.
+            rows = session.scalars(
+                select(RawPayloadModel.payload)
+                .where(RawPayloadModel.endpoint == "fixtures")
+                .order_by(RawPayloadModel.captured_at)
+                .execution_options(yield_per=16)
             )
-        for row in rows:
-            response = row.payload.get("response")
-            if not isinstance(response, list):
-                continue
-            for item in response:
-                if not isinstance(item, dict):
+            for payload in rows:
+                response = payload.get("response")
+                if not isinstance(response, list):
                     continue
-                if provider_league_id is not None:
-                    league_id = str(item.get("league", {}).get("id") or "")
-                    if league_id != provider_league_id:
+                for item in response:
+                    if not isinstance(item, dict):
                         continue
-                fixture_id = str(item.get("fixture", {}).get("id"))
-                if fixture_id and fixture_id != "None":
-                    fixtures[fixture_id] = item
+                    if provider_league_id is not None:
+                        league_id = str(item.get("league", {}).get("id") or "")
+                        if league_id != provider_league_id:
+                            continue
+                    fixture_id = str(item.get("fixture", {}).get("id"))
+                    if fixture_id and fixture_id != "None":
+                        fixtures[fixture_id] = item
         return sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", ""))
 
     def fixture_payload(self, fixture_id: str, *, payload_limit: int = 32) -> dict[str, Any] | None:
