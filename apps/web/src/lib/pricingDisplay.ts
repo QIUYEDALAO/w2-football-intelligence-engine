@@ -48,8 +48,8 @@ export function formatAhMarketHandicap(homeLine: unknown): string | null {
 export function formatAhRecommendationHandicap(selection: unknown, exactLine: unknown): string | null {
   const numeric = numericValue(exactLine);
   if (numeric == null) return null;
-  const homeLine = selection === "HOME" ? numeric : selection === "AWAY" ? -numeric : null;
-  return homeLine == null ? null : formatAhMarketHandicap(homeLine);
+  // exactLine already belongs to the selected team; do not invert it.
+  return selection === "HOME" || selection === "AWAY" ? formatSignedLine(numeric) : null;
 }
 
 export function ahDisplayContract(homeLine: unknown): {
