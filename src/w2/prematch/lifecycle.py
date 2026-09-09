@@ -47,6 +47,7 @@ class DynamicEvaluationState(StrEnum):
     NOT_READY_SOURCE_ABSENT = "NOT_READY_SOURCE_ABSENT"
     NOT_READY_QUOTE_INCOMPLETE = "NOT_READY_QUOTE_INCOMPLETE"
     NOT_READY_MODEL_INPUT = "NOT_READY_MODEL_INPUT"
+    BLOCKED_BY_FACTOR = "BLOCKED_BY_FACTOR"
     SUPERSEDED = "SUPERSEDED"
 
 
@@ -173,6 +174,15 @@ class DynamicEvaluationInput:
     denominator_scope: str | None = None
     calibration_identity: str | None = None
     one_x_two_probabilities: Mapping[str, Any] | None = None
+    # Factor verdict, versioned. Absent on ASIAN_HANDICAP fails closed: an
+    # evaluation that never carried a factor verdict is exactly the case this
+    # gate exists to catch. Historical payloads are read back as
+    # HISTORICAL_NO_FACTOR_VERDICT_IDENTITY and are never treated as passing.
+    factor_decision_status: str | None = None
+    factor_direction: str | None = None
+    ev_direction: str | None = None
+    factor_veto_code: str | None = None
+    factor_input_identity: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -441,6 +451,43 @@ class LockSnapshotResult:
     checkpoint: str = T30_VALIDATION_CHECKPOINT
 
 
+AH_MARKET = "ASIAN_HANDICAP"
+FACTOR_BLOCKING_CODES = (
+    "FACTOR_SCORE_UNAVAILABLE",
+    "FACTOR_ADMISSION_FAILED",
+    "FACTOR_EV_DIRECTION_CONFLICT",
+)
+HISTORICAL_NO_FACTOR_VERDICT = "HISTORICAL_NO_FACTOR_VERDICT_IDENTITY"
+
+
+def factor_blocker(value: DynamicEvaluationInput) -> str | None:
+    """Return the AH factor blocker code, or None when the factor permits the pick.
+
+    Only ASIAN_HANDICAP is guarded: it is the market the factor score drives.
+    TOTALS keeps its existing independent behaviour.
+
+    Fail-closed: an ASIAN_HANDICAP evaluation with no factor verdict identity is
+    blocked. The market-candidate pipeline derives its direction purely from
+    model probability versus market probability plus an economic test and never
+    consults a factor, so letting an absent verdict through would let EV alone
+    revive a side the factor rules had refused.
+    """
+    if value.market != AH_MARKET:
+        return None
+    if value.factor_veto_code in FACTOR_BLOCKING_CODES:
+        return value.factor_veto_code
+    if not value.factor_decision_status or not value.factor_input_identity:
+        return "FACTOR_SCORE_UNAVAILABLE"
+    if value.factor_decision_status == HISTORICAL_NO_FACTOR_VERDICT:
+        return "FACTOR_SCORE_UNAVAILABLE"
+    direction = (value.factor_direction or "").upper()
+    selection = (value.ev_direction or value.selection or "").upper()
+    if direction in {"HOME", "AWAY"} and selection in {"HOME", "AWAY"}:
+        if direction != selection:
+            return "FACTOR_EV_DIRECTION_CONFLICT"
+    return None
+
+
 def classify_evaluation(
     value: DynamicEvaluationInput,
     *,
@@ -518,6 +565,12 @@ def classify_evaluation(
     elif ev is None or delta is None or ev_minus_se is None or value.cashflow_price_edge is None:
         state = DynamicEvaluationState.NOT_READY_MODEL_INPUT
         blockers.append("EV_EVIDENCE_INCOMPLETE")
+    elif (factor_block := factor_blocker(value)) is not None:
+        # Two evidence sources must agree before EV may set an AH direction.
+        # This runs before the economic test so a positive edge can never
+        # overwrite a factor refusal.
+        state = DynamicEvaluationState.BLOCKED_BY_FACTOR
+        blockers.append(factor_block)
     elif economic_admission_pass(
         expected_value=ev,
         ev_minus_se=ev_minus_se,

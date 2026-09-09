@@ -1,0 +1,27 @@
+{
+  "distinct_fixtures": 111,
+  "factor_identity_coverage": {
+    "reconstructible": 0,
+    "unknown_not_reconstructible": 148
+  },
+  "last10_profit_units": "-3.98",
+  "last10_settlement_counts": {
+    "HALF_WIN": 1,
+    "LOSS": 6,
+    "PUSH": 1,
+    "WIN": 2
+  },
+  "market_counts": {
+    "ASIAN_HANDICAP": 84,
+    "TOTALS": 64
+  },
+  "profit_units_total": "-20.375",
+  "settled_rows": 148,
+  "settlement_counts": {
+    "HALF_LOSS": 8,
+    "HALF_WIN": 6,
+    "LOSS": 66,
+    "PUSH": 13,
+    "WIN": 55
+  }
+}

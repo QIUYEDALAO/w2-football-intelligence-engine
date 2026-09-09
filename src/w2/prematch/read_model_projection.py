@@ -1277,6 +1277,45 @@ def write_frozen_analysis_artifacts(
             raise
 
 
+def _factor_verdict(card: dict[str, Any], market_name: str) -> dict[str, Any]:
+    """Read the AH factor verdict the analysis card already computed.
+
+    analysis_calculator writes factor_veto onto card["markets"]; the dynamic
+    evaluation is built from card["market_candidates"]. The two live on the same
+    card but were never joined, so the factor refusal only ever reached the card
+    and never the candidate chain. This joins them.
+    """
+    if market_name != "ASIAN_HANDICAP":
+        return {}
+    markets = card.get("markets")
+    entry: dict[str, Any] = {}
+    if isinstance(markets, list):
+        for item in markets:
+            if isinstance(item, dict) and str(item.get("market") or "") == market_name:
+                entry = item
+                break
+    if not entry:
+        return {"factor_decision_status": "HISTORICAL_NO_FACTOR_VERDICT_IDENTITY"}
+    veto = entry.get("factor_veto")
+    score = card.get("factor_score") if isinstance(card.get("factor_score"), dict) else {}
+    identity = str(score.get("identity_hash") or entry.get("analysis_decision") or "") or None
+    if isinstance(veto, dict) and veto.get("code"):
+        return {
+            "factor_decision_status": "VETOED",
+            "factor_veto_code": str(veto.get("code")),
+            "factor_direction": str(veto.get("factor_direction") or "") or None,
+            "ev_direction": str(veto.get("ev_selection") or "") or None,
+            "factor_input_identity": identity,
+        }
+    return {
+        "factor_decision_status": "ADMITTED" if score.get("admitted") else "NOT_ADMITTED",
+        "factor_direction": str(score.get("direction") or "") or None,
+        "ev_direction": None,
+        "factor_veto_code": None if score.get("admitted") else "FACTOR_ADMISSION_FAILED",
+        "factor_input_identity": identity,
+    }
+
+
 def _dynamic_evaluations(
     card: dict[str, Any],
     manifest: dict[str, Any],
@@ -1478,9 +1517,11 @@ def _dynamic_evaluations(
             or quote_identity.get("raw_payload_sha256")
             or quote
         )
+        market_name = str(candidate.get("market") or default_market)
         value = DynamicEvaluationInput(
+            **_factor_verdict(card, market_name),
             fixture_id=fixture_id,
-            market=str(candidate.get("market") or default_market),
+            market=market_name,
             selection=selection,
             exact_line=exact_line,
             bookmaker_id=str(quote.get("bookmaker_id") or quote_identity.get("bookmaker_id") or "")
