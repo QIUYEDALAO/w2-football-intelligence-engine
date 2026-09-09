@@ -1,0 +1,19 @@
+{
+  "deployment_executed": false,
+  "input_files_sha256": {
+    "CALIBRATION_COMPARISON.json": "81544c1496de0f4f3bf40168327934ac7da51a8bf3f31a763838a75a815d5173",
+    "HASHES.sha256": "e4e035fe3f979064f773f7a5ca3d1f063bc70b703b409daeeb7c4ef1b7e872a2",
+    "LOSS_ROOT_CAUSE_REPORT.md": "46f0c9d5fe89c9aefc2e8f239f26c515c257db3676876fe7ed4522134eb7f891",
+    "METRICS.json": "7289a719aa566cf7fc3ed55043db1e00a159b9279fa8d5fd84d5b30ddf8855da",
+    "OFFICIAL_148_MANIFEST.jsonl": "63c549d2f3134cb3fcd1f3ef1b1ee9b1e7dcde8dcec9e9b4642d1b47b8aced07",
+    "OFFICIAL_148_SOURCE_BUNDLE.jsonl": "da9edb11be8144991addeb1c6e83724d3cca083ca46b0bd8de2eaa6d45f6e7e4"
+  },
+  "input_package": "docs/review_packages/W2_OFFICIAL_CANDIDATE_ACCURACY_REMEDIATION_20260909",
+  "obsidian_writes": 0,
+  "production_db_reads": 0,
+  "production_db_writes": 0,
+  "provider_calls": 0,
+  "public_http_fetch": 0,
+  "schema_version": "w2.official_candidate_optimization_source_identity.v1",
+  "task_id": "W2_OFFICIAL_CANDIDATE_ACCURACY_OPTIMIZATION_02"
+}
