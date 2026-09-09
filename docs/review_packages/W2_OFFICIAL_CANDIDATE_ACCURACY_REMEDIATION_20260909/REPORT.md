@@ -8,7 +8,7 @@
 REMEDIATION_DISPATCH_SHA256 = 463c08d8b90b62c662aa3a89a5308cdd3336a54cc57d991e9adae0cdc22d9004  [一致]
 ORIGINAL_DISPATCH_SHA256    = 761208c67c9215ccc45b4c4ff3d8bb98534dd87bea3f003854fcb0b2bf5dccb6  [一致]
 BASE_SHA        = 3ac86c14fb951b93167d7a24f84a319663a6b9d9
-PREVIOUS_COMMIT = 68c83c986300cc10cccf68b3b6c6d46c787f8a4a（未 amend；其父为 21c436d1）
+PREVIOUS_COMMIT = 7bc1f73bb5451757d4c03292adc936434b958260（未 amend；其父为 68c83c98）
 生产实测 api_git_sha = release_id = 3ac86c14…    schema = 0070_notification_delivery_routing
 ```
 
@@ -68,6 +68,9 @@ cashflow edge provenance   PERSISTED_IN_FROZEN_PAYLOAD 15
 已按授权范围（精确 148 个 evaluation_id，无全表扫描）尝试恢复：opportunities 表无该列，
 evaluation payload 亦无 `required_cashflow_price_edge`，确认不可恢复，**不重算不猜测**。
 
+> 本轮修掉温度轨的一处赛后结果泄漏（见 §4b）。发出条数与盈亏不变，
+> 但校准指标已按正确的 PIT 时序重算，下表与 §4b 均为重算后的值。
+
 | 分段 | universe | 可估计 | 发出 | 全体覆盖 | 可估计内覆盖 | 盈亏 |
 |---|---:|---:|---:|---:|---:|---:|
 | ALL_148 | 148 | 15 | 11 | 0.074 | **0.733** | -3.30 |
@@ -76,6 +79,49 @@ evaluation payload 亦无 `required_cashflow_price_edge`，确认不可恢复，
 
 前版把 133 条缺证据写成「温度轨阻断 92.6%」，**该结论已撤回**。真实情况是可估计子集内
 保留 73.3%，样本量远不足以判断温度能否识别好的那批。
+
+## 4b. 温度轨的赛后结果泄漏已修复（本轮唯一整改项）
+
+`trainable_for()` 用**字符串**比较两个时间字段，而这两个字段的写法根本不同：
+
+```text
+result_available_at = 2026-08-20 02:36:31.442008+00    （Postgres timestamptz）
+evaluated_at        = 2026-08-20T00:22:32.149069Z      （评估时刻）
+```
+
+第 10 个字符是 `' '`(0x20) 对 `'T'`(0x54)，所以**任何**空格写法的结算时间都排在
+**任何** T 写法的评估时间之前，与真实瞬间无关。02:36 结算的结果被当成 00:22 之前
+就已可用，直接进了训练窗口。
+
+独立复算，与验收方给出的数字完全一致：
+
+```text
+被字符串比较错误纳入的未来结果配对   412
+受影响的目标记录                    107
+温度因此发生变化的记录               69
+```
+
+修复：新增 `utc()`，一律 `datetime.fromisoformat()` 解析后转 aware UTC 再比较；
+naive 值按 UTC 读取（本语料所有时间戳都来自 UTC 列），无法解析则返回 None 并
+fail-closed。排序键 `_temporal_key` 同样改用解析后的瞬间，**禁止任何字符串时间比较**。
+
+重算前后对比（发出条数与盈亏不变，被污染的是校准指标）：
+
+| 分段 | 指标 | 泄漏版 | PIT 正确版 |
+|---|---|---:|---:|
+| ALL_148 | five_state_log_loss | 1.126561 | **1.125916** |
+| ALL_148 | calibration_error | 0.264136 | **0.264053** |
+| ALL_148 | multiclass_brier | 0.714576 | **0.714078** |
+| LAST_10 | five_state_log_loss | 1.279387 | **1.278204** |
+| LAST_10 | calibration_error | 0.392878 | **0.392730** |
+| FIRST_138 | 全部指标 | 无变化 | 无变化 |
+
+`FIRST_138` 不变是可核对的自洽：泄漏只发生在同市场轴、时间接近的配对上，
+该分段可估计子集仅 5 条且训练窗口本就为空或极短。
+
+**未受影响、也未改动**：148 条原始结算与 `-20.375u`、近 10 条 `-3.98u`、
+事故重放 `-0.88u`、独立 oracle 148/148、§5 的 R9 聚类校准区间、因子链修复。
+分段切分（`ordered[-10:]`）在改用解析排序后逐条不变，已实测确认。
 
 ## 5. R9：校准统计已按冻结 cluster 合同完成
 
@@ -144,7 +190,10 @@ seed 由 task_id 的 canonical v2 hash 推导：
 **真实消费端函数**覆盖，不用状态枚举替代：经生产写入器落库后直接调用
 `w2.api.repository._official_funnel_recommendations` 与候选通知 outbox。
 
-15–18、20 本轮全部离线补齐（`test_offline_evidence_contracts.py`，夹具 + 内存库）。
+15–18、20 已全部离线补齐（`test_offline_evidence_contracts.py`，夹具 + 内存库）。
+本轮把 15 从「时间合同存在」加强到「时间合同用瞬间而非文本判定」，
+新增 14 条混合写法参数化（空格 / `T` / `Z` / `+00:00` / `+00` / naive / 真实非零时区 /
+同一瞬间 / 未知 / 不可解析），并单独锁定那对触发泄漏的时间戳的方向。
 其中 17 顺带修掉一处真缺陷：`distribution_from` 原本先 `.normalized()` 再查 1e-9，
 而 `normalized()` 按总和相除会静默把漂移缩放回 1，那道检查永远不可能失败；
 现在在归一之前先查一次。修复后四轨产物逐字节不变。
@@ -153,7 +202,24 @@ seed 由 task_id 的 canonical v2 hash 推导：
 
 ## 9. 精确变更文件
 
-本轮（`68c83c98` → 整改 commit）：
+本轮（`7bc1f73b` → 整改 commit）：
+
+```text
+M  scripts/quant/official_candidate_four_track.py            utc() + _temporal_key，禁止字符串时间比较
+M  scripts/quant/tests/test_offline_evidence_contracts.py    20 条混合写法与排序测试
+M  docs/review_packages/.../CALIBRATION_COMPARISON.json      按 PIT 正确时序重算
+M  docs/review_packages/.../{REPORT.md,TEST_RESULTS.md,HASHES.sha256}
+=  docs/review_packages/.../METRICS.json                     已重新生成，逐字节不变
+```
+
+`METRICS.json` 重新生成后**逐字节不变**，不是漏跑：受泄漏影响的是温度轨的
+log-loss / calibration_error / Brier，这些只存在于 `CALIBRATION_COMPARISON.json`；
+`METRICS.json` 携带的 `track_status`、`temperature`（网格用量与上界计数）、
+`calibration_by_segment`（R9 聚类区间，与温度轨无关）、`reproduction`、
+`incident_replay` 本就不含被污染的量。
+```
+
+上一轮（`68c83c98` → `7bc1f73b`）：
 
 ```text
 M  src/w2/prematch/lifecycle.py                  严格 fail-closed + attempt v2/v3 分版
@@ -171,7 +237,7 @@ M  docs/review_packages/.../SOURCE_IDENTITY.json
 M  docs/review_packages/.../TEST_RESULTS.md
 ```
 
-上一轮（`21c436d1` → `68c83c98`）：
+更早一轮（`21c436d1` → `68c83c98`）：
 
 ```text
 M  src/w2/prematch/lifecycle.py, read_model_projection.py

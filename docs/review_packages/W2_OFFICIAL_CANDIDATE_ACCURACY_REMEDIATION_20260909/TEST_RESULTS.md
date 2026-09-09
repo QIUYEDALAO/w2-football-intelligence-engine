@@ -1,11 +1,11 @@
 # 测试与自检结果（整改后）
 
 ```text
-定向测试 scripts/quant/tests/                              92 passed
+定向测试 scripts/quant/tests/                             112 passed
   test_factor_gate.py                                      46 passed
   test_independent_oracle.py                               19 passed
   test_factor_readback.py                                  11 passed
-  test_offline_evidence_contracts.py                       13 passed
+  test_offline_evidence_contracts.py                       33 passed
   test_factor_gate_consumers.py                             3 passed
 全量回归 tests/（本工作树）              10 failed / 3071 passed / 9 skipped
 全量回归 tests/（干净基线 3ac86c14）     10 failed / 3071 passed / 9 skipped
@@ -16,6 +16,7 @@ Ruff check（全仓）                          10 errors，与基线逐条相�
 py_compile / compileall                                    exit 0
 git diff --check                     clean（两份逐字执行令副本除外，见下）
 两次完整生成 byte-identical                                6 个产物全部一致
+两次 bundle replay（含无 --raw 一次）                      manifest 逐字节一致
 ```
 
 ## `git diff --check` 的唯一例外
@@ -118,7 +119,12 @@ tests/unit/test_ev_migration_2b.py::test_frozen_29601_rows_match_exactly
 
 ```text
 15 温度训练的时间合同   trainable_for 逐条：早于 evaluated_at 且已权威结算 = 可训练；
-                        晚于、同一瞬间、结果时间未知、跨市场轴 = 全部拒绝；
+                        晚于、同一瞬间、结果时间未知、不可解析、跨市场轴 = 全部拒绝；
+                        14 条混合写法参数化：空格 / T / Z / +00:00 / +00 / naive /
+                        真实非零时区 / 同一瞬间两种写法 / None / 空串 / 垃圾串；
+                        4 条断言各写法归一到同一 UTC 瞬间；
+                        1 条锁定触发泄漏的那对时间戳的方向；
+                        1 条断言排序键用解析瞬间而非文本；
                         再经 build_tracks 端到端确认首条 training_rows = 0
 16 fixture 聚类重抽     把 RNG 固定为「总取第一个键」，样本必须同时含该 fixture 的
                         AH(1.0) 与 TOTALS(0.0) 两条 → 实测 0.5；若按行重抽会得 1.0。
@@ -136,6 +142,44 @@ tests/unit/test_ev_migration_2b.py::test_frozen_29601_rows_match_exactly
 **17 顺带修掉一处真缺陷**：`distribution_from` 原本先 `.normalized()` 再查 1e-9。
 `normalized()` 是按总和相除，任何漂移都会被静默缩放回 1，那道检查因此永远不可能失败。
 现在在**归一之前**先查一次，合同才真的有效。已确认修复后四轨产物逐字不变。
+
+## 本轮：温度轨赛后结果泄漏已修复
+
+`trainable_for()` 原本用**字符串**比较时间。两个字段写法不同——
+`result_available_at` 是 `2026-08-20 02:36:31.442008+00`，
+`evaluated_at` 是 `2026-08-20T00:22:32.149069Z`——第 10 个字符
+`' '`(0x20) 排在 `'T'`(0x54) 之前，于是任何空格写法的结算时间都被判为早于任何
+T 写法的评估时间。独立复算与验收方数字完全一致：
+
+```text
+被错误纳入的未来结果配对   412
+受影响的目标记录          107
+温度发生变化的记录          69
+```
+
+修复：`utc()` 一律 `datetime.fromisoformat()` 解析后转 aware UTC 再比较，
+naive 按 UTC 读取，不可解析返回 None 并 fail-closed；排序键 `_temporal_key`
+同样改用解析瞬间。**代码中不再有任何字符串时间比较。**
+
+重算影响（发出条数与盈亏不变，被污染的是校准指标）：
+
+```text
+ALL_148   five_state_log_loss  1.126561 → 1.125916
+ALL_148   calibration_error    0.264136 → 0.264053
+ALL_148   multiclass_brier     0.714576 → 0.714078
+LAST_10   five_state_log_loss  1.279387 → 1.278204
+LAST_10   calibration_error    0.392878 → 0.392730
+FIRST_138 全部指标             无变化
+发出/盈亏 ALL_148 11 / -3.30u；FIRST_138 5 / -0.20u；LAST_10 6 / -3.10u   均不变
+```
+
+未改动：148 条原始结算、近 10、事故重放、独立 oracle、R9 聚类校准区间、
+因子 readback 修复。分段切分在改用解析排序后逐条不变，已实测确认。
+
+`METRICS.json` 已重新生成但**逐字节不变**：被污染的 log-loss / calibration_error /
+Brier 只存在于 `CALIBRATION_COMPARISON.json`，`METRICS.json` 携带的
+`track_status` / `temperature` / `calibration_by_segment` / `reproduction` /
+`incident_replay` 本就不含这些量。这是自洽结果，不是漏跑。
 
 ## 身份兼容：用生产基线实测，不是自证
 

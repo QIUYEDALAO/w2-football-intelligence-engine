@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 import random
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -124,24 +125,65 @@ def distribution_from(dist: dict[str, float]) -> SettlementDistribution:
     return raw
 
 
+# Chronology everywhere comes from parsed instants, never from text.
+_FAR_FUTURE = datetime.max.replace(tzinfo=UTC)
+
+
+def _temporal_key(row: dict) -> tuple[datetime, datetime, str]:
+    return (
+        utc(row.get("evaluated_at")) or _FAR_FUTURE,
+        utc(row.get("kickoff_utc")) or _FAR_FUTURE,
+        str(row.get("evaluation_id") or ""),
+    )
+
+
+def utc(value: object) -> datetime | None:
+    """Parse a timestamp to an aware UTC datetime, or None when it is unusable.
+
+    The two fields being compared do not share a spelling: the settlement time
+    arrives from a Postgres timestamptz as ``2026-08-20 02:36:31.442008+00``
+    while the evaluation time arrives as ``2026-08-20T00:22:32.149069Z``.
+    Comparing those as text compares ``' '`` (0x20) against ``'T'`` (0x54) at
+    index 10, so every space-separated result sorts before every T-separated
+    evaluation whatever the actual instants are -- which is how 412 pairs of
+    future results reached the training window. Nothing here may compare
+    timestamps as strings.
+
+    A naive value is read as UTC: every timestamp in this corpus comes from a
+    UTC column. Anything unparseable is None, and the caller fails closed.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
 def trainable_for(other: dict, row: dict) -> bool:
     """Whether `other` may train the temperature used on `row`.
 
-    Three ways to fail, all of them leakage: the result was not authoritatively
-    available before this row was evaluated (future or same-instant), the result
-    time is unknown, or it is a different market axis.
+    Four ways to fail, all of them leakage: the result time is unknown or
+    unparseable, the evaluation time is, the two are different market axes, or
+    the result was not authoritatively available strictly before the row was
+    evaluated -- a result landing at the same instant is not yet knowledge.
     """
-    available = other.get("result_available_at")
-    if not available or not row.get("evaluated_at"):
-        return False
     if other.get("market") != row.get("market"):
         return False
-    return str(available) < str(row["evaluated_at"])
+    available = utc(other.get("result_available_at"))
+    evaluated = utc(row.get("evaluated_at"))
+    if available is None or evaluated is None:
+        return False
+    return available < evaluated
 
 
 def build_tracks(rows: list[dict]) -> tuple[dict[str, list[dict]], list[dict]]:
     """Emit, per estimable track, the records that would still have been sent."""
-    ordered = sorted(rows, key=lambda r: (r["evaluated_at"], r["kickoff_utc"], r["evaluation_id"]))
+    ordered = sorted(rows, key=_temporal_key)
     out: dict[str, list[dict]] = {"INCUMBENT": [], "ROLLING_TEMPERATURE_ONLY": [],
                                   DIAGNOSTIC_TRACK: []}
     temperature_log: list[dict] = []
@@ -334,8 +376,7 @@ def main() -> int:
     tracks, temperature_log = build_tracks(rows)
     seed = int.from_bytes(hashlib.sha256(canonical_bytes(
         {"task_id": TASK_ID}, domain=HashDomain.FUTURE_REFRESH_EVIDENCE)).digest()[:8], "big")
-    ordered = sorted(rows, key=lambda r: (r["evaluated_at"], r["kickoff_utc"],
-                                          r["evaluation_id"]))
+    ordered = sorted(rows, key=_temporal_key)
     segments = {"ALL_148": ordered, "FIRST_138": ordered[:-10],
                 "LAST_10_INCIDENT_REPLAY": ordered[-10:]}
     report: dict[str, Any] = {

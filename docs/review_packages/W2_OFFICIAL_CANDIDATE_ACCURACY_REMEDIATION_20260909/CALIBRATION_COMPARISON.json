@@ -96,22 +96,22 @@
           "profit_units_p50": -3.3,
           "profit_units_p97_5": 2.4
         },
-        "calibration_error": 0.264136,
+        "calibration_error": 0.264053,
         "coverage": 0.074324,
         "coverage_of_estimable": 0.733333,
         "coverage_of_universe": 0.074324,
         "emitted": 11,
         "estimable_rows": 15,
-        "five_state_log_loss": 1.126561,
+        "five_state_log_loss": 1.125916,
         "full_loss_rate": 0.545455,
         "graded_hit_rate": 0.333333,
         "max_consecutive_losing": 2,
         "max_drawdown_units": "4.22",
-        "multiclass_brier": 0.714576,
+        "multiclass_brier": 0.714078,
         "not_estimable_reason_counts": {
           "NOT_ESTIMABLE_MISSING_CASHFLOW_EDGE": 133
         },
-        "predicted_graded_rate": 0.597469,
+        "predicted_graded_rate": 0.597386,
         "profit_units": "-3.30",
         "settlement_counts": {
           "HALF_LOSS": 0,
@@ -358,22 +358,22 @@
           "profit_units_p50": -3.1,
           "profit_units_p97_5": 0.7
         },
-        "calibration_error": 0.392878,
+        "calibration_error": 0.39273,
         "coverage": 0.6,
         "coverage_of_estimable": 0.6,
         "coverage_of_universe": 0.6,
         "emitted": 6,
         "estimable_rows": 10,
-        "five_state_log_loss": 1.279387,
+        "five_state_log_loss": 1.278204,
         "full_loss_rate": 0.666667,
         "graded_hit_rate": 0.2,
         "max_consecutive_losing": 2,
         "max_drawdown_units": "3.1",
-        "multiclass_brier": 0.796073,
+        "multiclass_brier": 0.79516,
         "not_estimable_reason_counts": {
           "NOT_ESTIMABLE_MISSING_CASHFLOW_EDGE": 0
         },
-        "predicted_graded_rate": 0.592878,
+        "predicted_graded_rate": 0.59273,
         "profit_units": "-3.1",
         "settlement_counts": {
           "HALF_LOSS": 0,
@@ -419,13 +419,9 @@
   "temperature_selection": {
     "distinct_temperatures": [
       1.0,
-      1.23,
-      1.29,
       1.3,
-      1.32,
       1.33,
       1.34,
-      1.35,
       1.36,
       1.37,
       1.38,
@@ -436,14 +432,8 @@
       1.43,
       1.44,
       1.45,
-      1.48,
-      1.5,
-      1.52,
-      1.58,
-      1.6,
       1.61,
       1.63,
-      1.64,
       1.65,
       1.66,
       1.67,
@@ -501,56 +491,56 @@
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-20T00:22:32.149069Z",
         "temperature": 1.0,
-        "training_rows": 3
+        "training_rows": 0
       },
       {
         "evaluation_id": "dqe-cb36eb761e1915d79fa71e91c9bdd5d43aec8fbd332df240150f41efeae25686",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-20T01:23:22.294448Z",
         "temperature": 1.0,
-        "training_rows": 3
+        "training_rows": 0
       },
       {
         "evaluation_id": "dqe-1e06359dd5b0dda84c4096a63e3f17d76274661e16d3ddb1ac9043681698a1b7",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-20T01:23:22.732367Z",
         "temperature": 1.0,
-        "training_rows": 4
+        "training_rows": 0
       },
       {
         "evaluation_id": "dqe-b8f300e146a6f225d01c0681af2a047b2d3d4aff44130c7c3c21e074055aad08",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-20T01:23:23.105688Z",
         "temperature": 1.0,
-        "training_rows": 5
+        "training_rows": 0
       },
       {
         "evaluation_id": "dqe-a028f38aab7acb29be6a54493999b92761d008c220c4f80e046c269197ce1067",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-20T02:19:40.007468Z",
         "temperature": 1.0,
-        "training_rows": 4
+        "training_rows": 0
       },
       {
         "evaluation_id": "dqe-dcce9cbc34b514381e0029c9cd3d03ddc487a0352c6aaf82b2b03ca76e76e340",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-20T02:19:40.007468Z",
         "temperature": 1.0,
-        "training_rows": 6
+        "training_rows": 0
       },
       {
         "evaluation_id": "dqe-42d1e53a67b9ec4450daf688b8c4ea93fd57d85fa70770e04d2d7728ec9191b2",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-20T02:19:40.418113Z",
         "temperature": 1.0,
-        "training_rows": 5
+        "training_rows": 0
       },
       {
         "evaluation_id": "dqe-9f9231b0ad652335e45d822a1c62eb4dca005b47d6fcaf9fa9ff079d0ff8626c",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-20T02:19:40.418113Z",
         "temperature": 1.0,
-        "training_rows": 7
+        "training_rows": 0
       },
       {
         "evaluation_id": "dqe-382bcf82fd3364f2973ace8202c0699eb4325034ac12071c66dd72b0ac1ce83c",
@@ -578,14 +568,14 @@
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-21T18:30:40.919978Z",
         "temperature": 1.0,
-        "training_rows": 8
+        "training_rows": 7
       },
       {
         "evaluation_id": "dqe-7a49c824054174e66d2aa984d1fbcc7e6dfd94dbc40d9e1cb6a92bb7bd27312c",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-21T18:47:34.284573Z",
         "temperature": 1.0,
-        "training_rows": 9
+        "training_rows": 7
       },
       {
         "evaluation_id": "dqe-9b45210bad48e7325e5c50ce9b922abb8d83eb2e4a50cdebca263ea1c77c50aa",
@@ -606,7 +596,7 @@
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-22T13:46:14.241908Z",
         "temperature": 1.0,
-        "training_rows": 12
+        "training_rows": 11
       },
       {
         "evaluation_id": "dqe-55aa3fe1eb2d706b8f5de199ab3119677e8e13b530d5c48a904db7230c496242",
@@ -620,154 +610,154 @@
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-22T16:18:43.948529Z",
         "temperature": 1.0,
-        "training_rows": 10
+        "training_rows": 9
       },
       {
         "evaluation_id": "dqe-9ccccd7da06246fc514ba57d92934cbc8dd2212a5cc3924b349fda53928ca736",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-22T16:18:43.948529Z",
         "temperature": 1.0,
-        "training_rows": 13
+        "training_rows": 11
       },
       {
         "evaluation_id": "dqe-9785206f4e3e4697a23ff4147143ac1b9835ad45148ee43ac09cb759f37754d8",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-22T16:18:44.531461Z",
         "temperature": 1.0,
-        "training_rows": 11
+        "training_rows": 9
       },
       {
         "evaluation_id": "dqe-3b013292b69a907b5531bce4b1d19e6a932606e800befa75b71ec4eb3ae90432",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-22T16:23:56.444211Z",
         "temperature": 1.0,
-        "training_rows": 12
+        "training_rows": 9
       },
       {
         "evaluation_id": "dqe-0eec0cb86090e08aae36e53790ec15f7509946bd7c9ca21e480947de824a7c40",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-22T16:32:30.872148Z",
         "temperature": 1.0,
-        "training_rows": 14
+        "training_rows": 11
       },
       {
         "evaluation_id": "dqe-ffea9d41519c4efcd890f2db22e8437f82f6eb4a4f5ceaf42fc3a74992ed66c7",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-22T16:45:56.237713Z",
         "temperature": 1.0,
-        "training_rows": 13
+        "training_rows": 9
       },
       {
         "evaluation_id": "dqe-98b574168efea0d60bc78b644cea3dd04c3059f529c2984e5369b885f66d70c8",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-22T17:15:06.180959Z",
         "temperature": 1.0,
-        "training_rows": 14
+        "training_rows": 9
       },
       {
         "evaluation_id": "dqe-f0613fe47f8c7b7905899d5039b88b0442c1bf86d9700428157f89bf62638395",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-22T18:24:32.368004Z",
         "temperature": 1.0,
-        "training_rows": 15
+        "training_rows": 9
       },
       {
         "evaluation_id": "dqe-fdb5461bfbe2c2f30fdf494a7c8f2604f336cc35c29d7e836b1a1dc087b24486",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-22T18:24:32.368004Z",
         "temperature": 1.0,
-        "training_rows": 15
+        "training_rows": 13
       },
       {
         "evaluation_id": "dqe-f1163f232fb1b0a7ddecf948d49946f9656ad9950698c464cfb5f13b9a26e3f2",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-22T18:32:38.544543Z",
         "temperature": 1.0,
-        "training_rows": 16
+        "training_rows": 13
       },
       {
         "evaluation_id": "dqe-25c2e054253664dc8f26850bb77a87185aeb69732ffd4bc8218d048aa0e3965e",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-22T18:37:25.234241Z",
         "temperature": 1.0,
-        "training_rows": 16
+        "training_rows": 10
       },
       {
         "evaluation_id": "dqe-4a4f6571493957f9e7fd0cb3d1f9a888f658716533bc540e7461dd3c2a09ac59",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-22T18:37:25.234241Z",
         "temperature": 1.0,
-        "training_rows": 17
+        "training_rows": 13
       },
       {
         "evaluation_id": "dqe-224eb28fd687423c93f35dabb98e88654a97ee2ba96d00e80781d95342771661",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-22T18:52:49.430781Z",
         "temperature": 1.0,
-        "training_rows": 17
+        "training_rows": 10
       },
       {
         "evaluation_id": "dqe-2d64ca9de9c6556c67e592b5a90cb189023e16cb1e9dc2daf17c4f36ecb0adbe",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-22T18:56:50.905897Z",
         "temperature": 1.0,
-        "training_rows": 18
+        "training_rows": 10
       },
       {
         "evaluation_id": "dqe-aaa6cbb5a7fd47fddd1b306dd5b1f8359b4c88b4f7af19f3a6405d65cf33e16a",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-22T18:56:50.905897Z",
         "temperature": 1.0,
-        "training_rows": 18
+        "training_rows": 13
       },
       {
         "evaluation_id": "dqe-1682ff01be4104844b93fb1711aa40c5198f4ba9629512be88ada603b221e53d",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-22T18:56:51.366896Z",
         "temperature": 1.0,
-        "training_rows": 19
+        "training_rows": 13
       },
       {
         "evaluation_id": "dqe-c710d3d734d75e6834642d76cfeb06cce16ea5b765e61931d428379e4021d4e1",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-22T19:16:47.054021Z",
-        "temperature": 1.3,
-        "training_rows": 20
+        "temperature": 1.0,
+        "training_rows": 13
       },
       {
         "evaluation_id": "dqe-d40349a7898b925319e5bbbb1fe57b153d4d5ac1b118f7268327e730bbc7eb15",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-22T19:16:47.054021Z",
         "temperature": 1.0,
-        "training_rows": 19
+        "training_rows": 10
       },
       {
         "evaluation_id": "dqe-15e05e9e1ab90328e39be0f27780246d271a8f80953fbf9b7cfaaddd906af810",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-22T19:19:20.401530Z",
-        "temperature": 1.37,
-        "training_rows": 21
+        "temperature": 1.0,
+        "training_rows": 13
       },
       {
         "evaluation_id": "dqe-31ee7541a995f96d72019ced1862efa94b5f07a348aa6bd48ca7b5248647a52f",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-22T19:19:20.401530Z",
-        "temperature": 1.23,
-        "training_rows": 20
+        "temperature": 1.0,
+        "training_rows": 10
       },
       {
         "evaluation_id": "dqe-2f180145f4ee99edd3f6122a26cc6d45c6a65d14ac9de85f8408b481c7c242d7",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-22T21:15:11.029817Z",
-        "temperature": 1.33,
-        "training_rows": 21
+        "temperature": 1.0,
+        "training_rows": 15
       },
       {
         "evaluation_id": "dqe-8e9232e3de0eb838f12ceae9117962f4b4a88e6a872d1a61ae717a651c1f6b29",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-22T21:17:29.007631Z",
-        "temperature": 1.33,
-        "training_rows": 21
+        "temperature": 1.0,
+        "training_rows": 15
       },
       {
         "evaluation_id": "dqe-8e396e136421b35f7767533ee754a474b5d50ca33ec80183957b180acf5efc28",
@@ -815,57 +805,57 @@
         "evaluation_id": "dqe-3ba881852dce215ad0edf12b140abb977202009dc92d61c82e85ba56fef19f95",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T00:15:55.118131Z",
-        "temperature": 1.29,
-        "training_rows": 25
+        "temperature": 1.33,
+        "training_rows": 21
       },
       {
         "evaluation_id": "dqe-02c88aedfeb29b772a9fd1953454e2b91694f24faf416490b456cc3be751b22b",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T00:15:55.536189Z",
-        "temperature": 1.35,
-        "training_rows": 26
+        "temperature": 1.38,
+        "training_rows": 22
       },
       {
         "evaluation_id": "dqe-803d0e3166c9ca2d9a143e3a6bf7b119b4db8e5f4313af7a8cc7defcea4c70f2",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T00:45:13.140382Z",
-        "temperature": 1.35,
-        "training_rows": 26
+        "temperature": 1.3,
+        "training_rows": 23
       },
       {
         "evaluation_id": "dqe-e972d572d3d5a5ef3f3bfdb9547e0a73ebef4cd55ee1cc84c8d2b8296a226a87",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T01:15:29.925382Z",
-        "temperature": 1.36,
-        "training_rows": 27
+        "temperature": 1.3,
+        "training_rows": 23
       },
       {
         "evaluation_id": "dqe-997ef598cb7e583fb371389821f4a230be0a636f2d3900bebfff9ff80f1404dd",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T02:15:09.584451Z",
-        "temperature": 1.37,
-        "training_rows": 28
+        "temperature": 1.3,
+        "training_rows": 23
       },
       {
         "evaluation_id": "dqe-ef0c78fb8d576eb6d21f160481e7c03612315d675bf74e69887b14a68477393e",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T02:15:09.584451Z",
-        "temperature": 1.36,
-        "training_rows": 27
+        "temperature": 1.38,
+        "training_rows": 22
       },
       {
         "evaluation_id": "dqe-3595cd50a7a24d69de08fafa994c134d3f61d94ebfd99457e5fb77a2ee4a5b86",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T02:15:10.191117Z",
         "temperature": 1.3,
-        "training_rows": 29
+        "training_rows": 23
       },
       {
         "evaluation_id": "dqe-62fb87082a58a126a32a131aac5b6c1113ddfd0909f4c4238a4e142b6d23c301",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T02:15:10.191117Z",
-        "temperature": 1.32,
-        "training_rows": 28
+        "temperature": 1.38,
+        "training_rows": 22
       },
       {
         "evaluation_id": "dqe-206031c240a016eec69872e07f5896f46393449dc3b781c41a9b498c508a8ad2",
@@ -885,204 +875,204 @@
         "evaluation_id": "dqe-70d6add4837636a30689485867e6c21ea2b488603a9358ab3371410681138122",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T12:45:49.168622Z",
-        "temperature": 1.43,
-        "training_rows": 30
+        "temperature": 1.36,
+        "training_rows": 29
       },
       {
         "evaluation_id": "dqe-32db2ddf380dfcb28623094a890142ecd08e6aef8ff00245db0ec237d48edce2",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T12:49:31.954474Z",
-        "temperature": 1.42,
-        "training_rows": 31
+        "temperature": 1.34,
+        "training_rows": 30
       },
       {
         "evaluation_id": "dqe-3a944803291be62711a55760b5a333453008d74b6ad7743882c42984609c7a3f",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T14:15:19.844389Z",
-        "temperature": 1.38,
-        "training_rows": 32
+        "temperature": 1.34,
+        "training_rows": 30
       },
       {
         "evaluation_id": "dqe-07b44f6963afd74e3421ca6ea8b837a245700436226f5a7261b4a859747c830d",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T15:00:36.698614Z",
-        "temperature": 1.4,
-        "training_rows": 31
+        "temperature": 1.36,
+        "training_rows": 29
       },
       {
         "evaluation_id": "dqe-25a774f28dce5d1ceb1b968a8efd3b416e8b0073145e7504ad0a634a56a42e2f",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T15:00:36.698614Z",
-        "temperature": 1.42,
-        "training_rows": 33
+        "temperature": 1.34,
+        "training_rows": 30
       },
       {
         "evaluation_id": "dqe-0fc6cd2dae0d847743e51166280f6dea1329b47e22873ef0da46d90eebcd1673",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T15:15:41.153020Z",
-        "temperature": 1.44,
-        "training_rows": 34
+        "temperature": 1.34,
+        "training_rows": 30
       },
       {
         "evaluation_id": "dqe-ca8b4d543b77427271ef7ffe52e333ad442251bfd0b198e7bf679020b8376bda",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T15:15:41.153020Z",
-        "temperature": 1.34,
-        "training_rows": 32
+        "temperature": 1.36,
+        "training_rows": 29
       },
       {
         "evaluation_id": "dqe-8293af190e50a0cc18581a0888d91788097c34d4d249dabe7dd653d4f34abc28",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T16:15:03.894650Z",
-        "temperature": 1.41,
-        "training_rows": 35
+        "temperature": 1.38,
+        "training_rows": 32
       },
       {
         "evaluation_id": "dqe-3bd51364cc467bd4179ad5af63c44f9c71f8f5cadbb89de19125484a7be4729a",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T16:45:12.446101Z",
-        "temperature": 1.39,
-        "training_rows": 36
+        "temperature": 1.38,
+        "training_rows": 32
       },
       {
         "evaluation_id": "dqe-dd9cbafc865ef0bb8f2cb9379c7a963c6398188763408958ac2e853d42bb0fd0",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T17:30:28.321568Z",
-        "temperature": 1.37,
-        "training_rows": 37
+        "temperature": 1.38,
+        "training_rows": 32
       },
       {
         "evaluation_id": "dqe-503b8b045e6a4ac3629f837f2f30dd33ebe597eacc0e5435c954bd25e163bca2",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T17:30:28.823373Z",
-        "temperature": 1.34,
-        "training_rows": 33
+        "temperature": 1.4,
+        "training_rows": 31
       },
       {
         "evaluation_id": "dqe-94261c0c5c55581b8456b73901370befe444fee9c09c1f2327dec670b75679e6",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T18:24:41.172121Z",
-        "temperature": 1.36,
-        "training_rows": 34
+        "temperature": 1.4,
+        "training_rows": 31
       },
       {
         "evaluation_id": "dqe-99e54da862ec81826f92699114a1905865e9314007cbb1273bca97bec78033d2",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T18:24:41.172121Z",
-        "temperature": 1.41,
-        "training_rows": 38
+        "temperature": 1.42,
+        "training_rows": 33
       },
       {
         "evaluation_id": "dqe-955fa3c3cf8f416af85b72b57217d5a2b321aaa67fc89e53682dbdb5fd7e3e31",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T18:24:41.959633Z",
-        "temperature": 1.33,
-        "training_rows": 35
+        "temperature": 1.4,
+        "training_rows": 31
       },
       {
         "evaluation_id": "dqe-e8d1c6274c0316def953519cc12a27515360abd1b7e7476950ea42bebbbaf742",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T18:24:41.959633Z",
-        "temperature": 1.43,
-        "training_rows": 39
+        "temperature": 1.42,
+        "training_rows": 33
       },
       {
         "evaluation_id": "dqe-65833c1a13713cd82c5cbb82a9cdff6c6c64b2579a581e8abaa2f0c3e6cab21e",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T18:31:25.393573Z",
-        "temperature": 1.48,
-        "training_rows": 40
+        "temperature": 1.44,
+        "training_rows": 34
       },
       {
         "evaluation_id": "dqe-e8d2fb34ca4cffccdc5d6dd44e5baf1c74f1a280f5e137732e9a7de95cf29d85",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T18:31:25.823087Z",
-        "temperature": 1.35,
-        "training_rows": 36
+        "temperature": 1.34,
+        "training_rows": 32
       },
       {
         "evaluation_id": "dqe-ef861122f3284a8dd63124cf432cdc5342ff2291c01db66134327722c98479bc",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T18:31:25.823087Z",
-        "temperature": 1.5,
-        "training_rows": 41
+        "temperature": 1.44,
+        "training_rows": 34
       },
       {
         "evaluation_id": "dqe-5658f3f0c91d42febb81954fc88c9b4c35028c7c30378691c0e678acbf86dce0",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T19:15:21.795872Z",
-        "temperature": 1.52,
-        "training_rows": 42
+        "temperature": 1.41,
+        "training_rows": 35
       },
       {
         "evaluation_id": "dqe-767bd76a9eb9ad6532d6055708ac6229e70b067a520462e6c71011c185058f09",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T19:15:21.795872Z",
-        "temperature": 1.33,
-        "training_rows": 37
+        "temperature": 1.34,
+        "training_rows": 33
       },
       {
         "evaluation_id": "dqe-3f8446ea9a2fe11cd26285ee23019d24ac025afa4e0d020317a750851beb2504",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T19:17:44.382415Z",
-        "temperature": 1.6,
-        "training_rows": 43
+        "temperature": 1.41,
+        "training_rows": 35
       },
       {
         "evaluation_id": "dqe-8295536cba6f040997e182181a33ac44c459052fa254080ca7c18d7400095f09",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T19:17:44.382415Z",
-        "temperature": 1.41,
-        "training_rows": 38
+        "temperature": 1.34,
+        "training_rows": 33
       },
       {
         "evaluation_id": "dqe-04d6127135dfc5799883670db2d9e2cccfebcd632c9074ad3782f7df2c610e5f",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T19:45:21.965397Z",
-        "temperature": 1.63,
-        "training_rows": 44
+        "temperature": 1.39,
+        "training_rows": 36
       },
       {
         "evaluation_id": "dqe-2f714a3615b5f793e40bc4d18a1db39985e92700c5ac804852e5af3c778a4a71",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T19:45:21.965397Z",
-        "temperature": 1.37,
-        "training_rows": 39
+        "temperature": 1.34,
+        "training_rows": 33
       },
       {
         "evaluation_id": "dqe-ada31d6b49b987dbf5afc6ada76174a178988f4eaafc999a72b173d1028a311c",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T21:16:00.811612Z",
-        "temperature": 1.61,
-        "training_rows": 45
+        "temperature": 1.41,
+        "training_rows": 38
       },
       {
         "evaluation_id": "dqe-06e5b132198a12bc76f917973e2a8ffb3d543e4c9c3145af16e20663e76236ff",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T22:15:26.047378Z",
         "temperature": 1.33,
-        "training_rows": 40
+        "training_rows": 37
       },
       {
         "evaluation_id": "dqe-1d27888370f14b04fdbd9b3c96bf626f9fc5bb2961f922abc728e0c21f9aece6",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-23T22:45:39.280065Z",
-        "temperature": 1.61,
-        "training_rows": 45
+        "temperature": 1.63,
+        "training_rows": 44
       },
       {
         "evaluation_id": "dqe-56199a1fb8fa7d5c4228aa1ab27636b5c3ac1d7ff1fece34343fae5a6452de1e",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-23T22:45:39.280065Z",
-        "temperature": 1.33,
-        "training_rows": 40
+        "temperature": 1.37,
+        "training_rows": 39
       },
       {
         "evaluation_id": "dqe-61c7cf5bc77e427a5866aeb64abeafa2af20384de4553ba2cf7b8591dcd3efaf",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-24T00:15:18.873542Z",
-        "temperature": 1.36,
-        "training_rows": 42
+        "temperature": 1.33,
+        "training_rows": 40
       },
       {
         "evaluation_id": "dqe-26087be547d377bfa95e25fda55e8c61b46847c88741a7b71314296efdfc226c",
@@ -1102,15 +1092,15 @@
         "evaluation_id": "dqe-24749aafea896e1bf89e8424e7892ac1d35e72118cbc84c6e1c4b95c49ca6730",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-24T18:45:55.910315Z",
-        "temperature": 1.58,
-        "training_rows": 48
+        "temperature": 1.61,
+        "training_rows": 47
       },
       {
         "evaluation_id": "dqe-7c480380d08f6337bda7b845d18a33eb70974ec9a9431244f8c0fc489ef941cd",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-24T19:00:59.539090Z",
         "temperature": 1.61,
-        "training_rows": 49
+        "training_rows": 47
       },
       {
         "evaluation_id": "dqe-dd37c51cfa85ec680404a426e856dbdff47e04629a15b48a60e5177c54bf92a4",
@@ -1123,8 +1113,8 @@
         "evaluation_id": "dqe-151b4d0487283cd9576771ecce5f021eeef8a7a5fc9793c7d9b6e481e93ad71d",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-25T00:00:04.450553Z",
-        "temperature": 1.39,
-        "training_rows": 45
+        "temperature": 1.38,
+        "training_rows": 44
       },
       {
         "evaluation_id": "dqe-adea513f67539ee9d9d48a510fa18f86ec712c315cc889402a454cc8c42bf905",
@@ -1158,141 +1148,141 @@
         "evaluation_id": "dqe-662b2d35546463baf2b39d0dddfda331bc9d11e78a1df4f047b2a5e107c40371",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-30T14:45:47.606454Z",
-        "temperature": 1.42,
-        "training_rows": 48
+        "temperature": 1.4,
+        "training_rows": 47
       },
       {
         "evaluation_id": "dqe-24b13a8a1e32ea8b17f4ff5c53fd54a3b04c41148a1d16284797fb4c6514b3a5",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-30T14:45:48.482273Z",
-        "temperature": 1.72,
-        "training_rows": 52
+        "temperature": 1.69,
+        "training_rows": 51
       },
       {
         "evaluation_id": "dqe-8cf56a24464d0ff1a416806a09221b3c72591c181ffac532904ca665d8638d46",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-30T14:45:49.683491Z",
-        "temperature": 1.43,
-        "training_rows": 49
+        "temperature": 1.4,
+        "training_rows": 47
       },
       {
         "evaluation_id": "dqe-b4d59a0bb333560386ebf80db2a4703cbf533ed6ed25fa0d298d310908b712cf",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-30T14:45:49.683491Z",
         "temperature": 1.69,
-        "training_rows": 53
+        "training_rows": 51
       },
       {
         "evaluation_id": "dqe-4f3c35b9fb9845767369d48f0e504ad91ad790fe74b715a5b5de8005db82c657",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-30T15:15:04.270913Z",
-        "temperature": 1.65,
-        "training_rows": 54
+        "temperature": 1.69,
+        "training_rows": 51
       },
       {
         "evaluation_id": "dqe-e59f7fed18bb738acdfbdb95b208608a58ecf5117c1fb53b3522de756b33dfb0",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-30T15:15:04.270913Z",
-        "temperature": 1.41,
-        "training_rows": 50
+        "temperature": 1.4,
+        "training_rows": 47
       },
       {
         "evaluation_id": "dqe-2d0ba5808c1304b9ee64f0ff674c5f2d9b60ec4e27797131d5d5c68c2b14764f",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-30T16:45:09.663844Z",
-        "temperature": 1.41,
-        "training_rows": 51
+        "temperature": 1.4,
+        "training_rows": 47
       },
       {
         "evaluation_id": "dqe-8d447c28aea934ab5304e44334193f100df5d37a1ea168c49f3a6db4eae69bfd",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-30T16:45:09.663844Z",
-        "temperature": 1.67,
-        "training_rows": 55
+        "temperature": 1.69,
+        "training_rows": 51
       },
       {
         "evaluation_id": "dqe-f1bd7325d10cdf4a9da05bccf65418cb31f531a6228ff353ebe7438eadabd75f",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-30T17:45:53.379437Z",
-        "temperature": 1.67,
-        "training_rows": 56
+        "temperature": 1.69,
+        "training_rows": 51
       },
       {
         "evaluation_id": "dqe-77fe7f97e07dc398d30828f6e8719e82a2a245b9492724678ebbc05f977b12f1",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-30T17:45:54.090239Z",
         "temperature": 1.69,
-        "training_rows": 57
+        "training_rows": 51
       },
       {
         "evaluation_id": "dqe-484c2bd60279334b86e1946324a3c2a6a6638b54ca5afc5c82cabce98ca4a2ba",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-30T18:30:18.889758Z",
-        "temperature": 1.71,
-        "training_rows": 58
+        "temperature": 1.65,
+        "training_rows": 54
       },
       {
         "evaluation_id": "dqe-b4cb12d97a41d0035caf22f9352ee92ce23d66bb09cf6faa1512c74bdb34fb6c",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-30T18:30:18.895137Z",
         "temperature": 1.41,
-        "training_rows": 52
+        "training_rows": 50
       },
       {
         "evaluation_id": "dqe-1d1ea7e29baa91af4509cc39f724ef7b6f0b1c54cc9c7af7cf4d02f847e42058",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-30T18:45:30.264679Z",
-        "temperature": 1.72,
-        "training_rows": 59
+        "temperature": 1.67,
+        "training_rows": 55
       },
       {
         "evaluation_id": "dqe-870e5f1e7678601b1f41906a1a1fc7d601b581ed060237e1605c01d0c1690f2c",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-30T18:45:30.661841Z",
-        "temperature": 1.7,
-        "training_rows": 60
+        "temperature": 1.67,
+        "training_rows": 55
       },
       {
         "evaluation_id": "dqe-4fb3aba6dd97b7bf95bc8dea9ca045c09177465bee7784a517d8557447e8a55a",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-30T20:15:15.711719Z",
-        "temperature": 1.71,
-        "training_rows": 61
+        "temperature": 1.67,
+        "training_rows": 56
       },
       {
         "evaluation_id": "dqe-7d6aa6ddd2e3e26502297827433daeded80c7df997ba9bc0e45c1360e0900c79",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-30T21:15:49.235312Z",
-        "temperature": 1.68,
-        "training_rows": 62
+        "temperature": 1.71,
+        "training_rows": 58
       },
       {
         "evaluation_id": "dqe-d37140e70786dc336485dc971df091eaf41c6fcc3be93fe68fdcf52bac12dffc",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-30T21:15:49.235312Z",
-        "temperature": 1.39,
-        "training_rows": 53
+        "temperature": 1.41,
+        "training_rows": 52
       },
       {
         "evaluation_id": "dqe-ba20d47e7299e0edf29eec170cf14c222d214f2e0834a6a4020c83d772f04d87",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-30T21:15:49.697137Z",
-        "temperature": 1.68,
-        "training_rows": 62
+        "temperature": 1.71,
+        "training_rows": 58
       },
       {
         "evaluation_id": "dqe-32c3cc5ea7512252c99a4136eaa362313debc8ddbc9d6d4659e1dddcf2aad840",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-30T22:00:11.683995Z",
-        "temperature": 1.68,
-        "training_rows": 62
+        "temperature": 1.72,
+        "training_rows": 59
       },
       {
         "evaluation_id": "dqe-15425e61c4bffefbbb0be414cd4142f49f1ff3efa3b75d90dc0677714853c6c1",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-30T22:15:19.712761Z",
-        "temperature": 1.68,
-        "training_rows": 62
+        "temperature": 1.71,
+        "training_rows": 61
       },
       {
         "evaluation_id": "dqe-4a1694e4fd9be1e5a3a770d86726401d8cb7aa1d742ef498416c8a3d07c3bb29",
@@ -1319,57 +1309,57 @@
         "evaluation_id": "dqe-dd9ad11020704d7539c1d383c40cb9574c38cec8d9e99a410ad7cd14e3bd0591",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-31T18:30:37.309491Z",
-        "temperature": 1.41,
-        "training_rows": 56
+        "temperature": 1.42,
+        "training_rows": 55
       },
       {
         "evaluation_id": "dqe-a9f9b0e839ef19d50850cd70dc36d396922862b380c3c393d128a3eb5289626f",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-31T18:45:42.198522Z",
         "temperature": 1.65,
-        "training_rows": 67
+        "training_rows": 66
       },
       {
         "evaluation_id": "dqe-b554719884dc2b9d8af541ffccd16b248de4cb98dbc184e4b3b770cc218d6426",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-31T19:00:45.721839Z",
         "temperature": 1.65,
-        "training_rows": 68
+        "training_rows": 66
       },
       {
         "evaluation_id": "dqe-30ed4a31dec0a15406d8f102b292998c33d518bc24015b278b3d8b3ec3b771f9",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-31T19:00:46.440641Z",
-        "temperature": 1.64,
-        "training_rows": 69
+        "temperature": 1.65,
+        "training_rows": 66
       },
       {
         "evaluation_id": "dqe-9cc66d79ddca1bf4d181d0b987850510d65dc2a78c193a80997e1318bf195112",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-31T19:15:46.998227Z",
-        "temperature": 1.4,
-        "training_rows": 57
+        "temperature": 1.42,
+        "training_rows": 55
       },
       {
         "evaluation_id": "dqe-e251939a5a7544c906cea0453f84b2db47c5756c88cb48e95aea3ea39e76d1b0",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-31T19:15:46.998227Z",
-        "temperature": 1.66,
-        "training_rows": 70
+        "temperature": 1.65,
+        "training_rows": 66
       },
       {
         "evaluation_id": "dqe-4ba4e58155c651238ca1dff3f2df0455436bdf32b528dfb26993ab1f97ae8f6f",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-08-31T21:45:19.120917Z",
-        "temperature": 1.43,
-        "training_rows": 58
+        "temperature": 1.41,
+        "training_rows": 56
       },
       {
         "evaluation_id": "dqe-b6cbd3f4437cf221892fc71cb3584b4ceb417f4ad958f5bd915b95fa6e3e973d",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-08-31T21:45:19.120917Z",
-        "temperature": 1.7,
-        "training_rows": 71
+        "temperature": 1.65,
+        "training_rows": 66
       },
       {
         "evaluation_id": "dqe-a28fbe70744b34414a69a932afab2ebef058dc13559102480837aae506ee092a",
@@ -1418,7 +1408,7 @@
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-09-04T16:45:28.282775Z",
         "temperature": 1.69,
-        "training_rows": 76
+        "training_rows": 75
       },
       {
         "evaluation_id": "dqe-bfbebe0f4e48f4184015532a2dbb471acbfbbe3d6e9a8625b71867a1b85da6c3",
@@ -1431,36 +1421,36 @@
         "evaluation_id": "dqe-39f1b10a4a6cc8bcd8ab9adb1aff72bc91f252712e18d51100e4584ad1cebcbe",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-09-04T18:15:48.152528Z",
-        "temperature": 1.67,
-        "training_rows": 77
+        "temperature": 1.69,
+        "training_rows": 75
       },
       {
         "evaluation_id": "dqe-37dac95ff97fe7a3fc3d065a53ad91f14df0a3d19ab38076e843ffb07fb0a40e",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-09-04T18:30:51.783381Z",
-        "temperature": 1.68,
-        "training_rows": 78
+        "temperature": 1.69,
+        "training_rows": 75
       },
       {
         "evaluation_id": "dqe-e293633058268c8f002e6b38d8e5a31b921b495d6b5f3166e4aa79fa25dfd384",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-09-04T18:46:38.249192Z",
         "temperature": 1.69,
-        "training_rows": 79
+        "training_rows": 75
       },
       {
         "evaluation_id": "dqe-364d0dc542affa3d6c2fdb86cae51f3c001002cc33cdced8c0292da5a5253316",
         "market": "ASIAN_HANDICAP",
         "result_knowledge_cutoff": "2026-09-04T19:00:58.187308Z",
-        "temperature": 1.7,
-        "training_rows": 80
+        "temperature": 1.69,
+        "training_rows": 75
       },
       {
         "evaluation_id": "dqe-b742435815a83887585dc32316639a61e2ad54ba5f656c00caebd8a2d26f7f54",
         "market": "TOTALS",
         "result_knowledge_cutoff": "2026-09-04T19:00:58.187308Z",
-        "temperature": 1.41,
-        "training_rows": 62
+        "temperature": 1.42,
+        "training_rows": 61
       },
       {
         "evaluation_id": "dqe-b2cce3e04a845c68c328ec39c54025466dbbf97f0bdfc63ae6c9e58092c8c4d8",
@@ -1491,7 +1481,7 @@
         "training_rows": 81
       }
     ],
-    "rows_at_T_1_00": 40,
+    "rows_at_T_1_00": 45,
     "rows_at_T_2_00_ceiling": 0
   },
   "track_status": {

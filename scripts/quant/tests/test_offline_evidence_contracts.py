@@ -86,6 +86,121 @@ def test_15_only_results_authoritatively_available_before_evaluation_may_train()
     assert four_track.trainable_for(other_market, subject) is False
 
 
+# The two fields really do arrive spelled differently: result_available_at from a
+# Postgres timestamptz as "... 02:36:31.442008+00", evaluated_at as "...T00:22:32Z".
+# Text comparison puts " " (0x20) before "T" (0x54) at index 10, so every
+# space-separated result would sort before every T-separated evaluation.
+@pytest.mark.parametrize(
+    ("available", "evaluated", "trainable", "why"),
+    [
+        (  # the exact pair that broke it: 02:36 is AFTER 00:22, so not trainable
+            "2026-08-20 02:36:31.442008+00",
+            "2026-08-20T00:22:32.149069Z",
+            False,
+            "space-vs-T must not make a later result look earlier",
+        ),
+        (  # and the genuinely earlier one still trains
+            "2026-08-19 22:36:31.442008+00",
+            "2026-08-20T00:22:32.149069Z",
+            True,
+            "an earlier result stays usable across the two spellings",
+        ),
+        ("2026-08-20T00:00:00Z", "2026-08-20T00:22:32.149069Z", True, "T/Z pair"),
+        (
+            "2026-08-20T00:00:00+00:00",
+            "2026-08-20T00:22:32.149069Z",
+            True,
+            "explicit +00:00 offset",
+        ),
+        (
+            "2026-08-20 00:00:00+00",
+            "2026-08-20T00:22:32.149069Z",
+            True,
+            "Postgres +00 offset",
+        ),
+        (
+            "2026-08-20 00:00:00",
+            "2026-08-20T00:22:32.149069Z",
+            True,
+            "naive is read as UTC, not rejected",
+        ),
+        (  # a real timezone must be honoured, not stripped
+            "2026-08-20T09:00:00+09:00",
+            "2026-08-20T00:22:32.149069Z",
+            True,
+            "09:00+09:00 is 00:00Z, which is earlier",
+        ),
+        (
+            "2026-08-20T09:00:00+09:00",
+            "2026-08-19T23:00:00Z",
+            False,
+            "the same instant is later than 23:00Z, so not trainable",
+        ),
+        (  # the same instant in two spellings is not yet knowledge
+            "2026-08-20 00:22:32.149069+00",
+            "2026-08-20T00:22:32.149069Z",
+            False,
+            "same instant, different spelling, must still be excluded",
+        ),
+        (None, "2026-08-20T00:22:32.149069Z", False, "unknown result time"),
+        ("", "2026-08-20T00:22:32.149069Z", False, "empty result time"),
+        ("not-a-timestamp", "2026-08-20T00:22:32.149069Z", False, "unparseable"),
+        ("2026-08-19T00:00:00Z", None, False, "unknown evaluation time"),
+        ("2026-08-19T00:00:00Z", "nonsense", False, "unparseable evaluation time"),
+    ],
+)
+def test_15_mixed_timestamp_spellings_are_compared_as_instants(
+    available, evaluated, trainable, why
+) -> None:
+    other = _row("other", evaluated_at="2026-08-01T00:00:00Z", result_available_at=available)
+    subject = _row("subject", evaluated_at=evaluated, result_available_at=None)
+
+    assert four_track.trainable_for(other, subject) is trainable, why
+
+
+def test_15_the_string_comparison_that_leaked_is_actually_wrong_here() -> None:
+    """Guards the direction of the bug, so a regression cannot pass quietly."""
+    available = "2026-08-20 02:36:31.442008+00"
+    evaluated = "2026-08-20T00:22:32.149069Z"
+
+    assert str(available) < str(evaluated), "the text comparison did admit this pair"
+    assert four_track.utc(available) > four_track.utc(evaluated)
+    assert four_track.trainable_for(
+        _row("other", evaluated_at="2026-08-01T00:00:00Z", result_available_at=available),
+        _row("subject", evaluated_at=evaluated, result_available_at=None),
+    ) is False
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("2026-08-20 02:36:31.442008+00", "2026-08-20T02:36:31.442008+00:00"),
+        ("2026-08-20T02:36:31.442008Z", "2026-08-20T02:36:31.442008+00:00"),
+        ("2026-08-20T11:36:31.442008+09:00", "2026-08-20T02:36:31.442008+00:00"),
+        ("2026-08-20 02:36:31.442008", "2026-08-20T02:36:31.442008+00:00"),
+    ],
+)
+def test_15_every_spelling_normalises_to_the_same_utc_instant(value, expected) -> None:
+    parsed = four_track.utc(value)
+
+    assert parsed is not None
+    assert parsed.tzinfo is not None
+    assert parsed.isoformat() == expected
+
+
+def test_15_ordering_uses_parsed_instants_not_text() -> None:
+    rows = [
+        _row("late", evaluated_at="2026-08-20T00:22:32Z", fixture_id="f2",
+             result_available_at="2026-08-20T06:00:00Z"),
+        _row("early", evaluated_at="2026-08-20 00:10:00+00", fixture_id="f1",
+             result_available_at="2026-08-20T06:00:00Z"),
+    ]
+
+    ordered = sorted(rows, key=four_track._temporal_key)
+
+    assert [row["evaluation_id"] for row in ordered] == ["early", "late"]
+
+
 def test_15_a_later_record_never_reaches_an_earlier_temperature() -> None:
     """End to end through build_tracks: the first record has nothing to train on."""
     rows = [
