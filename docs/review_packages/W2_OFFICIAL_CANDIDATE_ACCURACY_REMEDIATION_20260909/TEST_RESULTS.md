@@ -1,9 +1,11 @@
 # 测试与自检结果（整改后）
 
 ```text
-定向测试 scripts/quant/tests/                              46 passed
-  test_factor_gate.py                                      24 passed
+定向测试 scripts/quant/tests/                              92 passed
+  test_factor_gate.py                                      46 passed
   test_independent_oracle.py                               19 passed
+  test_factor_readback.py                                  11 passed
+  test_offline_evidence_contracts.py                       13 passed
   test_factor_gate_consumers.py                             3 passed
 全量回归 tests/（本工作树）              10 failed / 3071 passed / 9 skipped
 全量回归 tests/（干净基线 3ac86c14）     10 failed / 3071 passed / 9 skipped
@@ -13,7 +15,7 @@ Ruff check（改动文件）                                     All checks pass
 Ruff check（全仓）                          10 errors，与基线逐条相同（差集为空）
 py_compile / compileall                                    exit 0
 git diff --check                     clean（两份逐字执行令副本除外，见下）
-两次完整生成 byte-identical                                5 个产物全部一致
+两次完整生成 byte-identical                                6 个产物全部一致
 ```
 
 ## `git diff --check` 的唯一例外
@@ -109,5 +111,76 @@ tests/unit/test_ev_migration_2b.py::test_frozen_29601_rows_match_exactly
 如果消费链断了，失败的会是对照组，而不是静默通过。两个 fixture 都按 0:1 结算，
 被否决那注若进了记录会再添 -1.0。
 
-**仍未覆盖**：15–18、20。这些需要现役调度器与真实报价流水的端到端夹具，本轮工作区
-既不连生产库写入也不启调度器，因此**如实记为未覆盖，不做替代实现**。
+### 15–18、20 全部离线补齐
+
+`scripts/quant/tests/test_offline_evidence_contracts.py`，只用夹具与内存数据库，
+不需要现役调度器：
+
+```text
+15 温度训练的时间合同   trainable_for 逐条：早于 evaluated_at 且已权威结算 = 可训练；
+                        晚于、同一瞬间、结果时间未知、跨市场轴 = 全部拒绝；
+                        再经 build_tracks 端到端确认首条 training_rows = 0
+16 fixture 聚类重抽     把 RNG 固定为「总取第一个键」，样本必须同时含该 fixture 的
+                        AH(1.0) 与 TOTALS(0.0) 两条 → 实测 0.5；若按行重抽会得 1.0。
+                        另断言 clusters 数 = fixture 数而非行数
+17 五态归一 <= 1e-9     整条冻结温度网格 × 4 个分布，Decimal 合计全部落在
+                        PROBABILITY_TOLERANCE(1e-9) 内；并断言不满足的分布会抛错
+18 EV 唯一权威          AST：expected_value 只从 w2.domain.five_state_pricing 导入，
+                        模块内不定义任何 EV 函数；再用 canonical 权威独立重算，
+                        与 build_tracks 的 calibrated_ev 逐位相等
+20 重放不改旧行         内存库快照全部表的全部行；同一 identity 连续 append 三次，
+                        created 全为 False 且快照逐字不变；换裁决则新增一行，
+                        旧行 payload 保持原样，总行数 2
+```
+
+**17 顺带修掉一处真缺陷**：`distribution_from` 原本先 `.normalized()` 再查 1e-9。
+`normalized()` 是按总和相除，任何漂移都会被静默缩放回 1，那道检查因此永远不可能失败。
+现在在**归一之前**先查一次，合同才真的有效。已确认修复后四轨产物逐字不变。
+
+## 身份兼容：用生产基线实测，不是自证
+
+`attempt_identity` 现在分两条路：无因子裁决走原 **v2** preimage（逐字不变），
+带裁决才走 **v3**（额外绑 `evaluation_identity_hash` 与五个裁决字段）。
+
+验证方式是把干净基线 `3ac86c14` 与本工作树各跑一次全量，
+用同一个探针记录**每一次** attempt 身份的 preimage 与结果：
+
+```text
+基线 3ac86c14   119 次绑定，全部 v2
+本工作树        119 次绑定 = v2 54 + v3 65
+v2 哈希出现在基线集合中                        54 / 54
+v2 preimage 含 factor 或 evaluation 键          0（必须为 0）
+v3 哈希与基线哈希碰撞                            0
+基线 119 条 preimage 用当前代码重算              119 / 119 完全一致
+```
+
+即：**没有任何一条无裁决的 attempt 身份被改写**；v3 只出现在本轮给了裁决的 AH 夹具上。
+
+黄金值 `test_factor_readback.py::GOLDEN_VERDICTLESS_TOTALS_ATTEMPT`
+= `72110414f0a80392e5b140daec873fe8a3466f332679d6ea3a7bb23c5bc1c9aa`，
+由同一夹具在干净基线 `3ac86c14` 上实跑得出，再在本工作树复现一致。
+
+### 整改令给的 `efc5ec46…` 未能复现，原因如实说明
+
+整改令要求旧 verdict-less TOTALS attempt 保持
+`efc5ec46aefac2d8c7391d980889da7e331db88ab8a7eb8c8f95ff5e1b31a226`。
+该值**不在**仓库任何位置，也**不在**基线全量套件产生的 119 条 attempt 身份里（0 命中），
+因此它对应的是验收方自己的夹具，我无法反推其 preimage。
+
+我**没有**去构造一个恰好得出该数的夹具——那是凑数，不是验证。改为：
+(a) 冻结一个可由基线实跑推导的黄金值；(b) 在此写出 v2 preimage 的精确合同，
+验收方可用自己的夹具直接核对：
+
+```text
+v2 preimage（键序由 canonical 序列化决定，值取自 version / context）
+  attempt_identity_version = "w2.dynamic_quote_evaluation.attempt_identity.v2"
+  opportunity_identity_hash
+  quote_identity_hash
+  model_input_hash                （取自 context，不是 version）
+  lineup_input_hash
+  source_event_identity
+  calibration_status
+  calibration_recommendation_admissible
+```
+
+若验收方提供该夹具，我可立即加为第二个黄金断言。

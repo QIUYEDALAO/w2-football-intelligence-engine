@@ -8,7 +8,7 @@
 REMEDIATION_DISPATCH_SHA256 = 463c08d8b90b62c662aa3a89a5308cdd3336a54cc57d991e9adae0cdc22d9004  [一致]
 ORIGINAL_DISPATCH_SHA256    = 761208c67c9215ccc45b4c4ff3d8bb98534dd87bea3f003854fcb0b2bf5dccb6  [一致]
 BASE_SHA        = 3ac86c14fb951b93167d7a24f84a319663a6b9d9
-PREVIOUS_COMMIT = 21c436d1da9f79272329cda8791f2e0ba9e7623c（保留为首次回执历史，未 amend）
+PREVIOUS_COMMIT = 68c83c986300cc10cccf68b3b6c6d46c787f8a4a（未 amend；其父为 21c436d1）
 生产实测 api_git_sha = release_id = 3ac86c14…    schema = 0070_notification_delivery_routing
 ```
 
@@ -25,6 +25,23 @@ PREVIOUS_COMMIT = 21c436d1da9f79272329cda8791f2e0ba9e7623c（保留为首次回�
   evaluation 与 attempt 两个身份都必须改变——各 5 个参数化测试，共 10 项，全部通过。
 - `ALEMBIC_MIGRATION_REQUIRED = false`：payload 为 JSON 列，版本化持久化无需新增列，
   故**不添加空 migration**。
+
+### 本轮窄整改：读回、严格门、身份兼容
+
+1. **读回**：`repository._version_from_payload` 之前不重建这 7 个字段，重复 append 走
+   existing-row 分支时裁决整片丢成 None。现已逐字段重建，并新增真实 repository
+   round-trip 测试（第二次 append 强制走 existing-row，逐字段比对；旧 AH payload 显式
+   返回 `HISTORICAL_NO_FACTOR_VERDICT_IDENTITY` 且不视为通过；旧 TOTALS 不需要裁决）。
+2. **严格 fail-closed**：AH 只有「ADMITTED + 无 veto 码 + identity 与 hash 同时存在且
+   相等且为 64 位小写十六进制 + 方向可解析为 HOME/AWAY + 与 EV 侧一致」才放行。
+   新增 `FACTOR_VERDICT_MALFORMED`，把「没有裁决」与「有裁决但不可用」分开。
+   15 个参数化用例直接覆盖 NOT_ADMITTED、VETOED、垃圾状态、垃圾 veto 码、空方向、
+   非法方向、identity 缺失、hash 缺失、两者不一致、非十六进制、大写十六进制、方向冲突。
+3. **身份兼容**：上一轮把 `evaluation_identity_hash` 无条件塞进 attempt preimage，
+   等于给每条无裁决的 TOTALS/历史 attempt 换了身份。现已分版——无裁决走原 **v2**
+   preimage（逐字不变），有裁决才走 **v3**。基线与本工作树各跑一次全量并逐次记录：
+   **54/54 条 v2 哈希与基线一致，v2 preimage 出现 factor/evaluation 键 0 次，
+   v3 与基线碰撞 0 次**。
 
 ## 3. R4：四轨口径已纠正
 
@@ -81,7 +98,10 @@ seed 由 task_id 的 canonical v2 hash 推导：
 ## 6. R6–R8：自包含证据、独立 oracle、六场 LOSS、三段输出
 
 - **R6**：`result_available_at` 148/148 已入正式 manifest；四轨脚本只读 Git 内受 hash 覆盖的
-  artifact，不再依赖 `_result_times.json`。
+  artifact。本轮进一步提交 `OFFICIAL_148_SOURCE_BUNDLE.jsonl`（148 行，
+  `sha256 = da9edb11…`，只含 `build_rows` 消费的字段，无凭据/连接串/Provider 原始响应体），
+  `official_candidate_manifest.py` 默认只读该 bundle，`--raw` 仅用于从受限原件重建。
+  **正式重放不再需要任何 Git 外文件**，且由 bundle 重建的 manifest 与原 manifest 逐字节相同。
 - **R7**：新增独立 oracle，`ast` 断言其不 import `w2`。从比分/market/selection/exact line/
   decimal odds 逐条重算：**`SETTLEMENT_MATCH = 148/148`、`PROFIT_MATCH = 148/148`**。
   19 条黄金向量覆盖 quarter line、half win、half loss、push 与主客两侧。
@@ -120,42 +140,58 @@ seed 由 task_id 的 canonical v2 hash 推导：
 全仓 Ruff 与基线差集为空
 ```
 
-测试矩阵 6（不进正式推荐列表）、7（不发候选通知）、8（不新增盈亏记录）本轮已用
+测试矩阵 6（不进正式推荐列表）、7（不发候选通知）、8（不新增盈亏记录）已用
 **真实消费端函数**覆盖，不用状态枚举替代：经生产写入器落库后直接调用
 `w2.api.repository._official_funnel_recommendations` 与候选通知 outbox。
-仍未覆盖 15–18、20，需要现役调度器夹具，如实记为未覆盖。
 
-## 9. 从 21c436d1 到本次整改的精确变更文件
+15–18、20 本轮全部离线补齐（`test_offline_evidence_contracts.py`，夹具 + 内存库）。
+其中 17 顺带修掉一处真缺陷：`distribution_from` 原本先 `.normalized()` 再查 1e-9，
+而 `normalized()` 按总和相除会静默把漂移缩放回 1，那道检查永远不可能失败；
+现在在归一之前先查一次。修复后四轨产物逐字节不变。
+
+**测试矩阵 1–20 现已全部有断言。**
+
+## 9. 精确变更文件
+
+本轮（`68c83c98` → 整改 commit）：
 
 ```text
-M  src/w2/prematch/lifecycle.py
-M  src/w2/prematch/read_model_projection.py
-M  scripts/quant/official_candidate_manifest.py
-M  scripts/quant/official_candidate_four_track.py
-M  scripts/quant/tests/test_factor_gate.py
-M  tests/unit/test_candidate_notification_outbox.py
-M  tests/unit/test_point_ev_calibration_identity.py
-A  scripts/quant/independent_settlement_oracle.py
-A  scripts/quant/tests/test_independent_oracle.py
-A  scripts/quant/tests/test_factor_gate_consumers.py
-A  docs/review_packages/.../LAST10_INCIDENT_REPLAY.json
-A  docs/review_packages/.../LOSS_ROOT_CAUSE_REPORT.md
-A  docs/review_packages/.../METRICS.json
-A  docs/review_packages/.../REMEDIATION_DISPATCH_V1_1.md
-M  docs/review_packages/.../CALIBRATION_COMPARISON.json
+M  src/w2/prematch/lifecycle.py                  严格 fail-closed + attempt v2/v3 分版
+M  src/w2/prematch/repository.py                 _version_from_payload 重建 7 个裁决字段
+M  scripts/quant/official_candidate_manifest.py  自包含 source bundle
+M  scripts/quant/official_candidate_four_track.py  trainable_for + 1e-9 合同修复
+M  scripts/quant/tests/test_factor_gate.py       15 条严格 fail-closed 参数化
+A  scripts/quant/tests/test_factor_readback.py   readback round-trip 与身份黄金
+A  scripts/quant/tests/test_offline_evidence_contracts.py  矩阵 15–18、20
+A  docs/review_packages/.../OFFICIAL_148_SOURCE_BUNDLE.jsonl
 M  docs/review_packages/.../FACTOR_BYPASS_REPAIR_REPORT.md
 M  docs/review_packages/.../HASHES.sha256
-M  docs/review_packages/.../OFFICIAL_148_MANIFEST.jsonl
-M  docs/review_packages/.../OFFICIAL_148_RECOMPUTATION.json
 M  docs/review_packages/.../REPORT.md
+M  docs/review_packages/.../SOURCE_IDENTITY.json
 M  docs/review_packages/.../TEST_RESULTS.md
+```
+
+上一轮（`21c436d1` → `68c83c98`）：
+
+```text
+M  src/w2/prematch/lifecycle.py, read_model_projection.py
+M  scripts/quant/official_candidate_manifest.py, official_candidate_four_track.py
+M  scripts/quant/tests/test_factor_gate.py
+M  tests/unit/test_candidate_notification_outbox.py, test_point_ev_calibration_identity.py
+A  scripts/quant/independent_settlement_oracle.py
+A  scripts/quant/tests/test_independent_oracle.py, test_factor_gate_consumers.py
+A  docs/review_packages/.../{LAST10_INCIDENT_REPLAY.json,LOSS_ROOT_CAUSE_REPORT.md,
+                             METRICS.json,REMEDIATION_DISPATCH_V1_1.md}
+M  docs/review_packages/.../{CALIBRATION_COMPARISON.json,FACTOR_BYPASS_REPAIR_REPORT.md,
+                             HASHES.sha256,OFFICIAL_148_MANIFEST.jsonl,
+                             OFFICIAL_148_RECOMPUTATION.json,REPORT.md,TEST_RESULTS.md}
 ```
 
 **未新增** `scripts/__init__.py` / `scripts/quant/__init__.py`：把 `scripts/` 变成一等包会让
 Ruff 对两个无关既有脚本重新分类 import 并新报 2 条错误，已改为按文件路径 importlib
-加载 oracle。四个 `_*.json` 生产原始导出**不在 Git 内**，只存于
+加载被测模块。四个 `_*.json` 生产原始导出**不在 Git 内**，只作为受限原件保留在
 `/Users/liudehua/Desktop/W2文档/evidence/W2_OFFICIAL_148_RAW_20260909`；
-manifest 生成器新增 `--raw` 参数指向该目录，`--package` 只写产物。
+本轮起它们**不再是验收脚本的必需输入**。
 
 ## 10. 边界
 

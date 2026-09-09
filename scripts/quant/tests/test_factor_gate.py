@@ -16,6 +16,11 @@ from w2.prematch.lifecycle import (
 NOW = datetime(2026, 9, 4, 12, 0, tzinfo=UTC)
 
 
+# A well-formed factor identity: 64 lowercase hex, and the same value in both
+# fields, which is what read_model_projection._factor_verdict produces.
+_GOOD_IDENTITY = "f" * 64
+
+
 def _input(**overrides) -> DynamicEvaluationInput:
     base = dict(
         fixture_id="1", market="ASIAN_HANDICAP", selection="HOME", exact_line=0.25,
@@ -28,7 +33,8 @@ def _input(**overrides) -> DynamicEvaluationInput:
         denominator_scope="CHECKPOINT_OPPORTUNITY",
         # A factor verdict that permits the pick.
         factor_decision_status="ADMITTED", factor_direction="HOME",
-        ev_direction="HOME", factor_veto_code=None, factor_input_identity="fid",
+        ev_direction="HOME", factor_veto_code=None,
+        factor_input_identity=_GOOD_IDENTITY, factor_input_identity_hash=_GOOD_IDENTITY,
     )
     base.update(overrides)
     return DynamicEvaluationInput(**base)
@@ -66,10 +72,13 @@ def test_consistent_factor_still_produces_candidate():
 # 5: TOTALS behaviour is untouched.
 def test_totals_is_not_gated_by_the_factor():
     assert factor_blocker(_input(market="TOTALS", factor_decision_status=None,
-                                 factor_input_identity=None)) is None
+                                 factor_input_identity=None,
+                                 factor_input_identity_hash=None)) is None
     assert _state(market="TOTALS", selection="OVER", factor_decision_status=None,
                   factor_direction=None, ev_direction=None,
-                  factor_input_identity=None) is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
+                  factor_input_identity=None,
+                  factor_input_identity_hash=None) is (
+        DynamicEvaluationState.ANALYSIS_PICK_ACTIVE)
 
 
 # 9: a blocked AH stays in the official funnel denominator as BLOCKED_BY_GATE.
@@ -90,8 +99,7 @@ def test_blocked_ah_stays_in_denominator_but_is_not_a_candidate():
 
 # 10: historical payloads remain readable and are never treated as passing.
 def test_historical_payload_without_factor_identity_is_not_a_pass():
-    assert _state(factor_decision_status="HISTORICAL_NO_FACTOR_VERDICT_IDENTITY",
-                  factor_input_identity="legacy") is \
+    assert _state(factor_decision_status="HISTORICAL_NO_FACTOR_VERDICT_IDENTITY") is \
         DynamicEvaluationState.BLOCKED_BY_FACTOR
 
 
@@ -119,7 +127,7 @@ PROTECTED = ("factor_decision_status", "factor_direction", "ev_direction",
 
 
 def _with_verdict(**overrides):
-    base = dict(factor_input_identity_hash="a" * 64,
+    base = dict(factor_input_identity="a" * 64, factor_input_identity_hash="a" * 64,
                 factor_evidence_digest={"participant_ids": ["F3", "F6", "F9"]})
     base.update(overrides)
     return _input(**base)
@@ -175,7 +183,7 @@ def test_verdictless_evaluation_keeps_its_historical_identity():
     without = classify_evaluation(_input(
         market="TOTALS", selection="OVER", factor_decision_status=None,
         factor_direction=None, ev_direction=None, factor_veto_code=None,
-        factor_input_identity=None))
+        factor_input_identity=None, factor_input_identity_hash=None))
     assert without.factor_verdict_schema is None
     assert without.identity_hash
 
@@ -195,3 +203,150 @@ def test_consistent_factor_binds_to_evaluated_candidate():
     bound = bind_evaluation_opportunity(classify_evaluation(_with_verdict()), _context())
     assert bound.opportunity_state is OpportunityState.EVALUATED_CANDIDATE
     assert bound.official_funnel_eligible is True
+
+
+# --- strict fail-closed: every way a verdict can fail to permit an AH pick ----
+from w2.prematch.lifecycle import (  # noqa: E402
+    FACTOR_ADMISSION_FAILED,
+    FACTOR_EV_DIRECTION_CONFLICT,
+    FACTOR_SCORE_UNAVAILABLE,
+    FACTOR_VERDICT_MALFORMED,
+    HISTORICAL_NO_FACTOR_VERDICT,
+)
+
+GOOD_IDENTITY = "f" * 64
+ADMITTED_VERDICT = {
+    "factor_decision_status": "ADMITTED",
+    "factor_direction": "HOME",
+    "factor_input_identity": GOOD_IDENTITY,
+    "factor_input_identity_hash": GOOD_IDENTITY,
+}
+
+
+@pytest.mark.parametrize(
+    ("label", "verdict", "expected"),
+    [
+        # no verdict at all, and the marker a pre-verdict payload reads back as
+        (
+            "absent",
+            {"factor_decision_status": None, "factor_direction": None,
+             "ev_direction": None, "factor_veto_code": None,
+             "factor_input_identity": None, "factor_input_identity_hash": None},
+            FACTOR_SCORE_UNAVAILABLE,
+        ),
+        (
+            "historical",
+            {**ADMITTED_VERDICT, "factor_decision_status": HISTORICAL_NO_FACTOR_VERDICT},
+            FACTOR_SCORE_UNAVAILABLE,
+        ),
+        # deliberate refusals by the factor layer
+        (
+            "not_admitted",
+            {**ADMITTED_VERDICT, "factor_decision_status": "NOT_ADMITTED"},
+            FACTOR_ADMISSION_FAILED,
+        ),
+        (
+            "vetoed_status_only",
+            {**ADMITTED_VERDICT, "factor_decision_status": "VETOED"},
+            FACTOR_ADMISSION_FAILED,
+        ),
+        # a recognised veto code survives verbatim
+        (
+            "vetoed_with_code",
+            {**ADMITTED_VERDICT, "factor_decision_status": "VETOED",
+             "factor_veto_code": FACTOR_EV_DIRECTION_CONFLICT},
+            FACTOR_EV_DIRECTION_CONFLICT,
+        ),
+        # unusable verdicts
+        (
+            "garbage_status",
+            {**ADMITTED_VERDICT, "factor_decision_status": "PROBABLY_FINE"},
+            FACTOR_VERDICT_MALFORMED,
+        ),
+        (
+            "garbage_veto_code",
+            {**ADMITTED_VERDICT, "factor_veto_code": "LOOKS_OK_TO_ME"},
+            FACTOR_VERDICT_MALFORMED,
+        ),
+        (
+            "empty_direction",
+            {**ADMITTED_VERDICT, "factor_direction": ""},
+            FACTOR_VERDICT_MALFORMED,
+        ),
+        (
+            "garbage_direction",
+            {**ADMITTED_VERDICT, "factor_direction": "SIDEWAYS"},
+            FACTOR_VERDICT_MALFORMED,
+        ),
+        (
+            "identity_missing",
+            {**ADMITTED_VERDICT, "factor_input_identity": None},
+            FACTOR_VERDICT_MALFORMED,
+        ),
+        (
+            "identity_hash_missing",
+            {**ADMITTED_VERDICT, "factor_input_identity_hash": None},
+            FACTOR_VERDICT_MALFORMED,
+        ),
+        (
+            "identity_disagrees_with_hash",
+            {**ADMITTED_VERDICT, "factor_input_identity_hash": "e" * 64},
+            FACTOR_VERDICT_MALFORMED,
+        ),
+        (
+            "identity_not_hex64",
+            {**ADMITTED_VERDICT, "factor_input_identity": "not-a-hash",
+             "factor_input_identity_hash": "not-a-hash"},
+            FACTOR_VERDICT_MALFORMED,
+        ),
+        (
+            "identity_uppercase_hex",
+            {**ADMITTED_VERDICT, "factor_input_identity": "F" * 64,
+             "factor_input_identity_hash": "F" * 64},
+            FACTOR_VERDICT_MALFORMED,
+        ),
+        # a usable verdict pointing the other way
+        (
+            "direction_conflict",
+            {**ADMITTED_VERDICT, "factor_direction": "AWAY"},
+            FACTOR_EV_DIRECTION_CONFLICT,
+        ),
+    ],
+)
+def test_strict_fail_closed_blocks_every_non_admitted_verdict(label, verdict, expected) -> None:
+    value = _input(selection="HOME", **verdict)
+
+    assert factor_blocker(value) == expected, label
+    assert classify_evaluation(value).state is DynamicEvaluationState.BLOCKED_BY_FACTOR
+
+
+def test_only_a_complete_admitted_consistent_verdict_passes() -> None:
+    value = _input(selection="HOME", **ADMITTED_VERDICT)
+
+    assert factor_blocker(value) is None
+    assert classify_evaluation(value).state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
+
+
+@pytest.mark.parametrize("selection", ["HOME", "HOME_AH", "home", "home_ah"])
+def test_the_market_candidate_spelling_of_a_side_still_resolves(selection: str) -> None:
+    """HOME_AH is the same side as HOME; recommendation_decision_v4 strips it too."""
+    value = _input(selection=selection, **ADMITTED_VERDICT)
+
+    assert factor_blocker(value) is None
+
+
+def test_ev_direction_overrides_selection_when_both_are_present() -> None:
+    """ev_direction is the side the EV actually chose; it wins over selection."""
+    conflicting = _input(selection="HOME", ev_direction="AWAY", **ADMITTED_VERDICT)
+
+    assert factor_blocker(conflicting) == FACTOR_EV_DIRECTION_CONFLICT
+
+
+def test_totals_never_needs_a_verdict_under_the_strict_gate() -> None:
+    empty = {"factor_decision_status": None, "factor_direction": None,
+             "ev_direction": None, "factor_veto_code": None,
+             "factor_input_identity": None, "factor_input_identity_hash": None}
+    for verdict in (empty, {**empty, "factor_decision_status": "VETOED",
+                            "factor_veto_code": FACTOR_EV_DIRECTION_CONFLICT}):
+        value = _input(market="TOTALS", selection="OVER", **verdict)
+        assert factor_blocker(value) is None

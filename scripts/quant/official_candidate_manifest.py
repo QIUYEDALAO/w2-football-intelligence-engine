@@ -36,6 +36,88 @@ def load(path: Path) -> Any:
 NOT_RECONSTRUCTIBLE = "NOT_RECONSTRUCTIBLE"
 
 
+BUNDLE_NAME = "OFFICIAL_148_SOURCE_BUNDLE.jsonl"
+BUNDLE_SCHEMA = "w2.official_candidate_source_bundle.v1"
+# Exactly the fields build_rows consumes -- nothing else is copied out of the
+# scoped production export, so the committed bundle carries no credentials, no
+# connection strings, no team or provider payloads, and no raw provider bodies.
+BUNDLE_RECOMMENDATION_FIELDS = (
+    "evaluation_id", "fixture_id", "kickoff_utc", "market", "selection",
+    "exact_line", "decimal_odds", "evaluated_at", "confirmed_checkpoint",
+    "settlement", "profit_units", "score",
+)
+BUNDLE_EVALUATION_FIELDS = (
+    "evaluation_slot_id", "scheduled_checkpoint_at", "original_state",
+    "official_funnel_eligible", "first_failed_gate", "bookmaker_count",
+    "capture_at", "model_forecast_capture_identity_hash", "quote_identity_hash",
+    "opportunity_identity_hash", "attempt_identity_hash", "model_input_hash",
+    "lineup_input_hash",
+)
+BUNDLE_PAYLOAD_FIELDS = (
+    "opportunity_state", "blockers", "model_settlement_distribution",
+    "one_x_two_probabilities", "current_ev", "current_ev_minus_se",
+    "current_delta", "current_cashflow_price_edge", "calibration_status",
+)
+
+
+def build_bundle(recommendations: list[dict], evaluations: list[dict],
+                 result_times: dict[str, str],
+                 policy_versions: dict[str, str]) -> list[dict]:
+    """Project the scoped export down to the committed, self-contained bundle.
+
+    Run once against the restricted raw export; after that the official replay
+    reads only the bundle, so acceptance never needs a file outside Git.
+    """
+    by_id = {str(row["evaluation_id"]): row for row in evaluations}
+    bundle: list[dict] = []
+    for rec in recommendations:
+        if rec.get("settlement") not in SETTLED:
+            continue
+        evaluation_id = str(rec["evaluation_id"])
+        evaluation = by_id.get(evaluation_id)
+        if evaluation is None:
+            raise ValueError(f"EVALUATION_NOT_FOUND:{evaluation_id}")
+        payload = evaluation.get("payload") or {}
+        bundle.append({
+            "schema_version": BUNDLE_SCHEMA,
+            **{key: rec.get(key) for key in BUNDLE_RECOMMENDATION_FIELDS},
+            "result_available_at": result_times.get(str(rec["fixture_id"])),
+            "evaluation_policy_version": policy_versions.get(evaluation_id),
+            "evaluation": {key: evaluation.get(key) for key in BUNDLE_EVALUATION_FIELDS},
+            "payload": {key: payload.get(key) for key in BUNDLE_PAYLOAD_FIELDS},
+        })
+    bundle.sort(key=lambda row: (str(row["kickoff_utc"]), str(row["evaluation_id"])))
+    return bundle
+
+
+def read_bundle(path: Path) -> list[dict]:
+    rows = [json.loads(line) for line in
+            path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    for row in rows:
+        if row.get("schema_version") != BUNDLE_SCHEMA:
+            raise ValueError(f"BUNDLE_SCHEMA_CONFLICT:{row.get('schema_version')}")
+    return rows
+
+
+def rows_from_bundle(bundle: list[dict]) -> list[dict]:
+    """Adapt the bundle back into the four arguments build_rows already takes."""
+    recommendations = [
+        {key: row.get(key) for key in BUNDLE_RECOMMENDATION_FIELDS} for row in bundle
+    ]
+    evaluations = [
+        {"evaluation_id": row["evaluation_id"], "payload": row.get("payload") or {},
+         **(row.get("evaluation") or {})}
+        for row in bundle
+    ]
+    result_times = {
+        str(row["fixture_id"]): row.get("result_available_at") for row in bundle
+    }
+    policy_versions = {
+        str(row["evaluation_id"]): row.get("evaluation_policy_version") for row in bundle
+    }
+    return build_rows(recommendations, evaluations, result_times, policy_versions)
+
+
 def build_rows(recommendations: list[dict], evaluations: list[dict],
                result_times: dict[str, str], policy_versions: dict[str, str]) -> list[dict]:
     by_id = {str(row["evaluation_id"]): row for row in evaluations}
@@ -165,20 +247,28 @@ def recompute(rows: list[dict]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--package", type=Path, required=True)
-    # the scoped production exports stay outside Git; only the derived manifest
-    # is committed, so the raw directory is a separate required argument
-    parser.add_argument("--raw", type=Path, required=True)
+    # Provenance only. The committed bundle is the input the official replay
+    # uses; --raw rebuilds it from the restricted export and is not needed to
+    # reproduce the manifest.
+    parser.add_argument("--raw", type=Path, default=None)
     args = parser.parse_args()
     pkg = args.package
-    raw = args.raw
-    rows = build_rows(
-        load(raw / "_raw_official_recommendations.json"),
-        load(raw / "_scoped_evaluations_148.json"),
-        {r["fixture_id"]: r["result_available_at"]
-         for r in load(raw / "_result_times.json")},
-        {r["evaluation_id"]: r["evaluation_policy_version"]
-         for r in load(raw / "_policy_versions.json")},
-    )
+    bundle_path = pkg / BUNDLE_NAME
+    if args.raw is not None:
+        raw = args.raw
+        bundle = build_bundle(
+            load(raw / "_raw_official_recommendations.json"),
+            load(raw / "_scoped_evaluations_148.json"),
+            {r["fixture_id"]: r["result_available_at"]
+             for r in load(raw / "_result_times.json")},
+            {r["evaluation_id"]: r["evaluation_policy_version"]
+             for r in load(raw / "_policy_versions.json")},
+        )
+        with bundle_path.open("w", encoding="utf-8") as handle:
+            for row in bundle:
+                handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True,
+                                        separators=(",", ":")) + "\n")
+    rows = rows_from_bundle(read_bundle(bundle_path))
     with (pkg / "OFFICIAL_148_MANIFEST.jsonl").open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True,

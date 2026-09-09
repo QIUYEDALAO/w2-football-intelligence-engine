@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -35,6 +36,10 @@ EVALUATION_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.identity.v2"
 FACTOR_VERDICT_SCHEMA = "w2.dynamic_quote_evaluation.factor_verdict.v1"
 LEGACY_EVALUATION_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.identity.v1"
 ATTEMPT_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v2"
+# v3 exists only for attempts that carry a factor verdict. A verdict-less attempt
+# -- every TOTALS attempt, and every row written before the verdict existed --
+# keeps the v2 preimage byte for byte, so its identity is exactly what it was.
+ATTEMPT_IDENTITY_FACTOR_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v3"
 EVAL_02B_DISTRIBUTION_TOLERANCE = 1e-9
 SOURCE_ABSENT_USER_MESSAGE = "当前采集窗口尚未取得完整盘口"
 SOURCE_ABSENT_NEXT_ACTION = "等待下一次受控采集"
@@ -299,28 +304,41 @@ def bind_evaluation_opportunity(
     """Bind a classified attempt to its pre-registered orchestration event."""
 
     opportunity_hash = opportunity_identity_hash(context, market=version.market)
-    attempt_hash = _hash(
-        {
-            "attempt_identity_version": ATTEMPT_IDENTITY_VERSION,
-            "opportunity_identity_hash": opportunity_hash,
-            # The evaluation identity already binds the factor verdict when one
-            # is present, so binding it here carries that through to the attempt
-            # without giving verdict-less history a new identity.
-            "evaluation_identity_hash": version.identity_hash,
-            "quote_identity_hash": version.quote_identity_hash,
-            "model_input_hash": context.model_input_hash,
-            "lineup_input_hash": version.lineup_input_hash,
-            "source_event_identity": context.source_event_identity,
-            # Same quote, same model input, different calibration is a different
-            # attempt: it reached its conclusion on a different basis. Without this
-            # the append-only first-write-wins swallows the second conclusion, so a
-            # downgrade from validated to unvalidated would never be recorded.
-            "calibration_status": version.calibration_status,
-            "calibration_recommendation_admissible": (
-                version.calibration_recommendation_admissible
-            ),
-        }
-    )
+    attempt_payload: dict[str, Any] = {
+        "attempt_identity_version": ATTEMPT_IDENTITY_VERSION,
+        "opportunity_identity_hash": opportunity_hash,
+        "quote_identity_hash": version.quote_identity_hash,
+        "model_input_hash": context.model_input_hash,
+        "lineup_input_hash": version.lineup_input_hash,
+        "source_event_identity": context.source_event_identity,
+        # Same quote, same model input, different calibration is a different
+        # attempt: it reached its conclusion on a different basis. Without this
+        # the append-only first-write-wins swallows the second conclusion, so a
+        # downgrade from validated to unvalidated would never be recorded.
+        "calibration_status": version.calibration_status,
+        "calibration_recommendation_admissible": (
+            version.calibration_recommendation_admissible
+        ),
+    }
+    # Only an attempt that actually carries a verdict moves to v3. Binding the
+    # evaluation identity unconditionally would have re-keyed every verdict-less
+    # TOTALS and historical attempt, which append-only forbids.
+    if version.factor_input_identity_hash or version.factor_veto_code:
+        attempt_payload.update(
+            {
+                "attempt_identity_version": ATTEMPT_IDENTITY_FACTOR_VERSION,
+                "factor_verdict_schema": FACTOR_VERDICT_SCHEMA,
+                # The evaluation identity already binds the verdict; carrying it
+                # here makes the attempt differ whenever the evaluation does.
+                "evaluation_identity_hash": version.identity_hash,
+                "factor_decision_status": version.factor_decision_status,
+                "factor_direction": version.factor_direction,
+                "ev_direction": version.ev_direction,
+                "factor_veto_code": version.factor_veto_code,
+                "factor_input_identity_hash": version.factor_input_identity_hash,
+            }
+        )
+    attempt_hash = _hash(attempt_payload)
     if version.state == DynamicEvaluationState.ANALYSIS_PICK_ACTIVE:
         state = OpportunityState.EVALUATED_CANDIDATE
     elif version.state == DynamicEvaluationState.NO_EDGE_CURRENT:
@@ -469,39 +487,107 @@ class LockSnapshotResult:
 
 
 AH_MARKET = "ASIAN_HANDICAP"
+FACTOR_SCORE_UNAVAILABLE = "FACTOR_SCORE_UNAVAILABLE"
+FACTOR_ADMISSION_FAILED = "FACTOR_ADMISSION_FAILED"
+FACTOR_EV_DIRECTION_CONFLICT = "FACTOR_EV_DIRECTION_CONFLICT"
+FACTOR_VERDICT_MALFORMED = "FACTOR_VERDICT_MALFORMED"
 FACTOR_BLOCKING_CODES = (
-    "FACTOR_SCORE_UNAVAILABLE",
-    "FACTOR_ADMISSION_FAILED",
-    "FACTOR_EV_DIRECTION_CONFLICT",
+    FACTOR_SCORE_UNAVAILABLE,
+    FACTOR_ADMISSION_FAILED,
+    FACTOR_EV_DIRECTION_CONFLICT,
+    FACTOR_VERDICT_MALFORMED,
 )
 HISTORICAL_NO_FACTOR_VERDICT = "HISTORICAL_NO_FACTOR_VERDICT_IDENTITY"
+FACTOR_ADMITTED_STATUS = "ADMITTED"
+FACTOR_DIRECTIONS = frozenset({"HOME", "AWAY"})
+_HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
+
+
+def _factor_direction(raw: object) -> str | None:
+    """HOME/AWAY out of a direction or selection, or None when it is not one.
+
+    ``HOME_AH``/``AWAY_AH`` is the market-candidate spelling of the same side --
+    ``recommendation_decision_v4`` strips the suffix the same way -- so it
+    resolves; anything else does not and the caller must fail closed.
+    """
+    text = str(raw or "").strip().upper().removesuffix("_AH")
+    return text if text in FACTOR_DIRECTIONS else None
 
 
 def factor_blocker(value: DynamicEvaluationInput) -> str | None:
     """Return the AH factor blocker code, or None when the factor permits the pick.
 
     Only ASIAN_HANDICAP is guarded: it is the market the factor score drives.
-    TOTALS keeps its existing independent behaviour.
+    TOTALS keeps its existing independent behaviour and never needs a verdict.
 
-    Fail-closed: an ASIAN_HANDICAP evaluation with no factor verdict identity is
-    blocked. The market-candidate pipeline derives its direction purely from
-    model probability versus market probability plus an economic test and never
-    consults a factor, so letting an absent verdict through would let EV alone
+    Strictly fail-closed -- an ASIAN_HANDICAP pick survives this gate only when
+    every one of these holds:
+
+    ``factor_decision_status == "ADMITTED"``; ``factor_veto_code`` empty;
+    ``factor_input_identity`` and ``factor_input_identity_hash`` both present,
+    both 64-char lowercase hex, and equal to each other; ``factor_direction``
+    resolving to HOME or AWAY; and that direction agreeing with the EV side.
+
+    Everything else blocks, and the code says which kind of "else" it was:
+
+    ``FACTOR_SCORE_UNAVAILABLE``      no verdict at all, or the historical marker
+    ``FACTOR_ADMISSION_FAILED``       a verdict that is not ADMITTED
+    ``FACTOR_VERDICT_MALFORMED``      a verdict present but unusable: identity
+                                      missing, malformed or inconsistent, an
+                                      unrecognised status, an unusable direction,
+                                      or an unrecognised veto code
+    ``FACTOR_EV_DIRECTION_CONFLICT``  a usable verdict pointing the other way
+
+    The market-candidate pipeline derives its direction purely from model
+    probability versus market probability plus an economic test and never
+    consults a factor, so letting a doubtful verdict through would let EV alone
     revive a side the factor rules had refused.
     """
     if value.market != AH_MARKET:
         return None
-    if value.factor_veto_code in FACTOR_BLOCKING_CODES:
-        return value.factor_veto_code
-    if not value.factor_decision_status or not value.factor_input_identity:
-        return "FACTOR_SCORE_UNAVAILABLE"
-    if value.factor_decision_status == HISTORICAL_NO_FACTOR_VERDICT:
-        return "FACTOR_SCORE_UNAVAILABLE"
-    direction = (value.factor_direction or "").upper()
-    selection = (value.ev_direction or value.selection or "").upper()
-    if direction in {"HOME", "AWAY"} and selection in {"HOME", "AWAY"}:
-        if direction != selection:
-            return "FACTOR_EV_DIRECTION_CONFLICT"
+
+    status = str(value.factor_decision_status or "").strip().upper()
+    veto_code = str(value.factor_veto_code or "").strip().upper()
+
+    # No verdict at all, and the explicit marker a pre-verdict payload reads back
+    # as, are the same thing: nothing judged this pick.
+    if not status and not veto_code:
+        return FACTOR_SCORE_UNAVAILABLE
+    if status == HISTORICAL_NO_FACTOR_VERDICT:
+        return FACTOR_SCORE_UNAVAILABLE
+
+    if veto_code:
+        # Pass a recognised refusal through verbatim so the reason survives;
+        # refuse an unrecognised one rather than trusting a string we do not know.
+        return veto_code if veto_code in FACTOR_BLOCKING_CODES else FACTOR_VERDICT_MALFORMED
+
+    identity = str(value.factor_input_identity or "").strip()
+    identity_hash = str(value.factor_input_identity_hash or "").strip()
+    if not identity or not identity_hash:
+        return FACTOR_VERDICT_MALFORMED
+    if identity != identity_hash:
+        return FACTOR_VERDICT_MALFORMED
+    if not _HEX64.match(identity_hash):
+        return FACTOR_VERDICT_MALFORMED
+
+    if status != FACTOR_ADMITTED_STATUS:
+        # NOT_ADMITTED and VETOED are refusals the factor layer reached on
+        # purpose; an unrecognised status is not a refusal we can read, so the
+        # two are reported apart.
+        return (
+            FACTOR_ADMISSION_FAILED
+            if status in {"NOT_ADMITTED", "VETOED"}
+            else FACTOR_VERDICT_MALFORMED
+        )
+
+    direction = _factor_direction(value.factor_direction)
+    if direction is None:
+        return FACTOR_VERDICT_MALFORMED
+    selection = _factor_direction(value.ev_direction or value.selection)
+    if selection is None:
+        return FACTOR_VERDICT_MALFORMED
+    if direction != selection:
+        return FACTOR_EV_DIRECTION_CONFLICT
     return None
 
 

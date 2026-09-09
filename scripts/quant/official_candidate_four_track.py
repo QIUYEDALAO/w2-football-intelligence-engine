@@ -99,6 +99,16 @@ def fit_temperature(training: list[dict]) -> float:
 
 
 def distribution_from(dist: dict[str, float]) -> SettlementDistribution:
+    """Freeze a tempered distribution into the canonical Decimal five-state type.
+
+    The tolerance is checked on the way in as well as on the way out.
+    ``normalized()`` divides by the total, so it would silently rescale a
+    distribution that had drifted; checking only afterwards can never fail and
+    would turn the 1e-9 contract into a no-op.
+    """
+    incoming = sum(Decimal(str(dist[state])) for state in STATES)
+    if abs(incoming - 1) > PROBABILITY_TOLERANCE:
+        raise ValueError("CALIBRATED_DISTRIBUTION_FAILED_1E9_CONTRACT")
     raw = SettlementDistribution(
         full_win_probability=Decimal(str(dist["WIN"])),
         half_win_probability=Decimal(str(dist["HALF_WIN"])),
@@ -114,6 +124,21 @@ def distribution_from(dist: dict[str, float]) -> SettlementDistribution:
     return raw
 
 
+def trainable_for(other: dict, row: dict) -> bool:
+    """Whether `other` may train the temperature used on `row`.
+
+    Three ways to fail, all of them leakage: the result was not authoritatively
+    available before this row was evaluated (future or same-instant), the result
+    time is unknown, or it is a different market axis.
+    """
+    available = other.get("result_available_at")
+    if not available or not row.get("evaluated_at"):
+        return False
+    if other.get("market") != row.get("market"):
+        return False
+    return str(available) < str(row["evaluated_at"])
+
+
 def build_tracks(rows: list[dict]) -> tuple[dict[str, list[dict]], list[dict]]:
     """Emit, per estimable track, the records that would still have been sent."""
     ordered = sorted(rows, key=lambda r: (r["evaluated_at"], r["kickoff_utc"], r["evaluation_id"]))
@@ -122,12 +147,14 @@ def build_tracks(rows: list[dict]) -> tuple[dict[str, list[dict]], list[dict]]:
     temperature_log: list[dict] = []
     for index, row in enumerate(ordered):
         # D1 temporal contract: only records already authoritatively settled
-        # before this record was evaluated may train it.
+        # before this record was evaluated may train it. A record with no
+        # authoritative result time is not "not yet settled" -- it is unknown,
+        # so it is excluded rather than compared, which would also have raised
+        # on the None.
         training = [
             {"dist": other["dist"], "settlement": other["settlement"]}
             for other in ordered[:index]
-            if other["result_available_at"] < row["evaluated_at"]
-            and other["market"] == row["market"]
+            if trainable_for(other, row)
         ]
         temperature = fit_temperature(training)
         temperature_log.append({

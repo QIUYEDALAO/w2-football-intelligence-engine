@@ -71,6 +71,42 @@ api/repository.py:499              正式漏斗筛 official_funnel_eligible + st
 `ALEMBIC_MIGRATION_REQUIRED = false`：payload 是 JSON 列，版本化持久化不需要新增列，
 因此**不添加空 migration**。
 
+## 4b. 读回、严格门与身份兼容（本轮窄整改）
+
+**读回**：`repository._version_from_payload` 之前不重建这 7 个字段，重复 append 走
+existing-row 分支时裁决会整片丢成 None——调用方无法区分「被否决」和「从未判过」。
+现已逐字段重建；旧 AH payload 无字段时显式返回 `HISTORICAL_NO_FACTOR_VERDICT_IDENTITY`
+（不是 None，也不是通过），旧 TOTALS 仍返回 None 且不需要裁决。
+
+**严格 fail-closed**：AH 只有全部满足才放行——
+`factor_decision_status == "ADMITTED"`；`factor_veto_code` 为空；
+`factor_input_identity` 与 `factor_input_identity_hash` 同时存在、均为 64 位小写十六进制、
+且两者相等；`factor_direction` 可解析为 HOME/AWAY；该方向与 EV 侧一致。
+
+阻断码映射（新增 `FACTOR_VERDICT_MALFORMED`，用来把「没有裁决」和「有裁决但不可用」分开）：
+
+```text
+FACTOR_SCORE_UNAVAILABLE       完全无裁决，或历史标记
+FACTOR_ADMISSION_FAILED        明确的拒绝：NOT_ADMITTED / VETOED
+FACTOR_VERDICT_MALFORMED       有裁决但不可用：身份缺失/非法/不一致、状态无法识别、
+                               方向缺失或非法、veto 码无法识别
+FACTOR_EV_DIRECTION_CONFLICT   裁决可用但指向另一侧
+```
+
+已识别的 veto 码原样透传以保留分析层给出的具体理由；无法识别的码不透传，按
+`FACTOR_VERDICT_MALFORMED` 阻断，避免信任一个未知字符串。
+
+**身份兼容**：上一轮把 `evaluation_identity_hash` 无条件塞进 attempt preimage，
+等于给每一条无裁决的 TOTALS 与历史 attempt 换了身份，append-only 不允许。现已分版：
+
+```text
+attempt_identity.v2   无裁决 —— preimage 与整改前逐字相同
+attempt_identity.v3   有裁决 —— 额外绑 evaluation_identity_hash 与五个裁决字段
+```
+
+基线 `3ac86c14` 与本工作树各跑一次全量并逐次记录 attempt preimage：54/54 条 v2 哈希
+与基线一致，v2 preimage 中出现 factor 或 evaluation 键 0 次，v3 与基线哈希碰撞 0 次。
+
 ## 5. 已知受 fail-closed 影响的其他写入点
 
 ```text
@@ -88,7 +124,15 @@ src/w2/operations/gate_a_staged.py:71   staged canary 市场自举，无分析�
 AH 既不在正式推荐列表，也无任何 outbox 事件，也不贡献任何 `profit_units` 行。
 对照组（同构造、裁决一致）三项全部出现，因此这不是"状态枚举不等于候选"的替身断言。
 
-## 7. 仍未实施
+## 7. 证据自包含
 
-测试矩阵 15–18、20 需要现役调度器与真实报价流水的端到端夹具；本轮不启调度器、
-不写生产库，**如实记为未覆盖**。
+正式重放不再需要 Git 外文件：committed `OFFICIAL_148_SOURCE_BUNDLE.jsonl`（148 行，
+`sha256 = da9edb11…`）只含 `build_rows` 消费的字段，无凭据、无连接串、无 Provider 原始
+响应体。`official_candidate_manifest.py` 默认只读该 bundle；`--raw` 仅用于从受限原件
+重建 bundle，验收不需要它。桌面原件保留为受限原本，登记在 `SOURCE_IDENTITY.json`。
+
+## 8. 覆盖情况
+
+测试矩阵 1–20 现已全部有断言：1–5、9–14、19 见 `test_factor_gate.py`
+与 `test_independent_oracle.py`；6/7/8 见 `test_factor_gate_consumers.py`（真实消费端）；
+15–18、20 见 `test_offline_evidence_contracts.py`（离线夹具与内存库）。

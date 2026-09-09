@@ -36,9 +36,11 @@ from w2.prematch.candidate_notifications import (
     enqueue_closeout_withdrawal_in_session,
 )
 from w2.prematch.lifecycle import (
+    AH_MARKET,
     CHECKPOINT_OPPORTUNITY_SCOPE,
     DYNAMIC_EVALUATION_V2_SCHEMA,
     EVAL_02B_DISTRIBUTION_TOLERANCE,
+    HISTORICAL_NO_FACTOR_VERDICT,
     MODEL_FORECAST_DENOMINATOR_SCOPE,
     SETTLEMENT_STATE_ORDER,
     DynamicEvaluationState,
@@ -698,6 +700,37 @@ def _version_from_payload(payload: dict[str, Any]) -> DynamicEvaluationVersion:
             if payload.get("opportunity_state")
             else None
         ),
+        # Same reason as the calibration block above: without these the factor
+        # verdict came back None on every existing-record return, so a caller
+        # reading a duplicate append could not tell a refused pick from one that
+        # was never judged. A payload written before the verdict existed has no
+        # keys here and reconstructs as the explicit historical marker, which
+        # factor_blocker treats as "no verdict", never as a pass.
+        factor_verdict_schema=str(payload["factor_verdict_schema"])
+        if payload.get("factor_verdict_schema")
+        else None,
+        factor_decision_status=(
+            str(payload["factor_decision_status"])
+            if payload.get("factor_decision_status")
+            else (
+                HISTORICAL_NO_FACTOR_VERDICT
+                if str(payload.get("market") or "") == AH_MARKET
+                else None
+            )
+        ),
+        factor_direction=str(payload["factor_direction"])
+        if payload.get("factor_direction")
+        else None,
+        ev_direction=str(payload["ev_direction"]) if payload.get("ev_direction") else None,
+        factor_veto_code=str(payload["factor_veto_code"])
+        if payload.get("factor_veto_code")
+        else None,
+        factor_input_identity_hash=str(payload["factor_input_identity_hash"])
+        if payload.get("factor_input_identity_hash")
+        else None,
+        factor_evidence_digest=dict(payload["factor_evidence_digest"])
+        if isinstance(payload.get("factor_evidence_digest"), dict)
+        else None,
     )
 
 
