@@ -428,12 +428,9 @@ class OutcomeLedgerRepository:
                 )
             )
             selected, unresolved = _select_identities(identities, fixture_ids)
-            raw_rows = list(
-                session.scalars(
-                    select(RawPayloadModel)
-                    .where(RawPayloadModel.endpoint == "fixtures")
-                    .order_by(RawPayloadModel.captured_at, RawPayloadModel.sha256)
-                )
+            by_provider_id = _stream_fixture_payload_candidates(
+                session,
+                provider_fixture_ids={row.provider_fixture_id for row in selected},
             )
             captures = {
                 row.raw_payload_sha256: row.capture_id
@@ -443,7 +440,6 @@ class OutcomeLedgerRepository:
                     )
                 )
             }
-            by_provider_id = _fixture_payload_candidates(raw_rows)
             counts = {
                 "inspected_fixture_count": len(selected),
                 "materialized_result_count": 0,
@@ -884,6 +880,44 @@ def _fixture_payload_candidates(
             if provider_id:
                 grouped.setdefault(provider_id, []).append(
                     (row.captured_at, row.sha256, item)
+                )
+    return grouped
+
+
+def _stream_fixture_payload_candidates(
+    session: Session,
+    *,
+    provider_fixture_ids: set[str],
+) -> dict[str, list[tuple[datetime, str, Mapping[str, Any]]]]:
+    """Stream raw fixture payloads and retain only requested fixture items."""
+
+    grouped: dict[str, list[tuple[datetime, str, Mapping[str, Any]]]] = {}
+    if not provider_fixture_ids:
+        return grouped
+    rows = session.execute(
+        select(
+            RawPayloadModel.captured_at,
+            RawPayloadModel.sha256,
+            RawPayloadModel.payload,
+        )
+        .where(RawPayloadModel.endpoint == "fixtures")
+        .order_by(RawPayloadModel.captured_at, RawPayloadModel.sha256)
+        .execution_options(yield_per=16)
+    )
+    for captured_at, payload_hash, payload in rows:
+        response = payload.get("response") if isinstance(payload, Mapping) else None
+        if not isinstance(response, list):
+            continue
+        for item in response:
+            if not isinstance(item, Mapping):
+                continue
+            fixture = item.get("fixture")
+            provider_id = (
+                str(fixture.get("id") or "") if isinstance(fixture, Mapping) else ""
+            )
+            if provider_id in provider_fixture_ids:
+                grouped.setdefault(provider_id, []).append(
+                    (captured_at, str(payload_hash), item)
                 )
     return grouped
 

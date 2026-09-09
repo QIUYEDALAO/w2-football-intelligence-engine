@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
@@ -29,6 +30,7 @@ NEAR_CHECKPOINTS = (
     "T15_ODDS",
 )
 ACTIVE_STATUSES = frozenset({"QUEUED", "RUNNING"})
+TERMINAL_RESULT_STATUSES = frozenset({"FT", "AET", "PEN"})
 
 
 def _utc(value: datetime | None) -> datetime | None:
@@ -207,6 +209,10 @@ class OutcomeLedgerRuntimeRepository:
                 end=reference + horizon,
             )
             fixture_ids, capture_cursor = self._changed_fixture_captures(session, cursor)
+            raw_result_ids, raw_result_cursor = self._changed_raw_fixture_results(
+                session,
+                cursor,
+            )
             result_ids, result_cursor = self._changed_results(session, cursor)
             pending_ids = cursor.get("pending_result_fixture_ids")
             pending_fixture_ids = (
@@ -217,9 +223,20 @@ class OutcomeLedgerRuntimeRepository:
         return IncrementalWork(
             analysis_fixture_ids=tuple(analysis_fixture_ids),
             result_fixture_ids=tuple(
-                sorted(set(fixture_ids) | set(result_ids) | set(pending_fixture_ids))
+                sorted(
+                    set(fixture_ids)
+                    | set(result_ids)
+                    | set(pending_fixture_ids)
+                    | set(raw_result_ids)
+                )
             ),
-            source_cursor={**cursor, **analysis_cursor, **capture_cursor, **result_cursor},
+            source_cursor={
+                **cursor,
+                **analysis_cursor,
+                **capture_cursor,
+                **raw_result_cursor,
+                **result_cursor,
+            },
         )
 
     def health(self, *, now: datetime | None = None) -> dict[str, Any]:
@@ -459,6 +476,79 @@ class OutcomeLedgerRuntimeRepository:
         return [row.fixture_id for row in rows], {
             "result_confirmed_at": _iso(last.confirmed_at) or "",
             "result_fixture_id": last.fixture_id,
+        }
+
+    @staticmethod
+    def _changed_raw_fixture_results(
+        session: Session,
+        cursor: dict[str, Any],
+    ) -> tuple[list[str], dict[str, str]]:
+        """Find terminal fixture payloads that bypassed endpoint-capture rows.
+
+        Some provider refreshes (notably team-history requests) persist a
+        ``fixtures`` response in ``raw_payload`` without creating a
+        ``matchday_endpoint_captures`` row.  The result materializer must still
+        see those terminal scores.  This is an append-only cursor over the raw
+        payload table, scoped to fixture identities that are known to W2 so
+        historical team-history fixtures cannot become unresolved blockers.
+        """
+
+        since = _parse_cursor_time(cursor.get("raw_fixture_payload_at"))
+        since_hash = str(cursor.get("raw_fixture_payload_sha256") or "")
+        identities = {
+            str(provider_fixture_id)
+            for provider_fixture_id in session.scalars(
+                select(MatchdayFixtureIdentityModel.provider_fixture_id)
+            )
+            if str(provider_fixture_id)
+        }
+        statement = select(
+            RawPayloadModel.captured_at,
+            RawPayloadModel.sha256,
+            RawPayloadModel.payload,
+        ).where(RawPayloadModel.endpoint == "fixtures")
+        if since is not None:
+            statement = statement.where(
+                or_(
+                    RawPayloadModel.captured_at > since,
+                    and_(
+                        RawPayloadModel.captured_at == since,
+                        RawPayloadModel.sha256 > since_hash,
+                    ),
+                )
+            )
+        rows = session.execute(
+            statement.order_by(RawPayloadModel.captured_at, RawPayloadModel.sha256)
+            .execution_options(yield_per=16)
+        )
+        fixture_ids: set[str] = set()
+        last_captured_at: datetime | None = None
+        last_hash = ""
+        for captured_at, payload_hash, payload in rows:
+            last_captured_at = captured_at
+            last_hash = str(payload_hash)
+            response = payload.get("response") if isinstance(payload, dict) else None
+            if not isinstance(response, list):
+                continue
+            for item in response:
+                if not isinstance(item, dict):
+                    continue
+                fixture = item.get("fixture")
+                fixture = fixture if isinstance(fixture, dict) else {}
+                provider_id = str(fixture.get("id") or "")
+                status = fixture.get("status")
+                status = status if isinstance(status, dict) else {}
+                if (
+                    provider_id in identities
+                    and str(status.get("short") or "").upper()
+                    in TERMINAL_RESULT_STATUSES
+                ):
+                    fixture_ids.add(f"api_football:{provider_id}")
+        if last_captured_at is None:
+            return [], {}
+        return sorted(fixture_ids), {
+            "raw_fixture_payload_at": _iso(last_captured_at) or "",
+            "raw_fixture_payload_sha256": last_hash,
         }
 
 

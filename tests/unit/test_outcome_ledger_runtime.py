@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
@@ -22,6 +23,7 @@ NOW = datetime(2026, 8, 22, 8, 0, tzinfo=UTC)
 def _repository() -> OutcomeLedgerRuntimeRepository:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     MatchdayCheckpointPlanModel.__table__.create(engine)
+    RawPayloadModel.__table__.create(engine)
     MatchdayEndpointCaptureModel.__table__.create(engine)
     MatchdayFixtureIdentityModel.__table__.create(engine)
     ReadModelCheckpointModel.__table__.create(engine)
@@ -286,4 +288,70 @@ def test_fixture_capture_and_result_are_consumed_once() -> None:
     second = repository.incremental_work(now=NOW)
 
     assert first.result_fixture_ids == ("api_football:3", "api_football:4")
+    assert second.result_fixture_ids == ()
+
+
+def test_terminal_raw_fixture_payload_without_endpoint_capture_is_consumed_once() -> None:
+    repository = _repository()
+    with Session(repository.engine) as session:
+        session.add_all(
+            [
+                MatchdayFixtureIdentityModel(
+                    fixture_id="api_football:5",
+                    provider="api_football",
+                    provider_fixture_id="5",
+                    competition_id="la_liga",
+                    provider_league_id="140",
+                    season="2026",
+                    kickoff_utc=NOW - timedelta(hours=3),
+                    fixture_status="NS",
+                    home_provider_team_id="1",
+                    away_provider_team_id="2",
+                    team_identity_status="RESOLVED",
+                    raw_payload_sha256=stable_hash("raw-5-old"),
+                    captured_at=NOW - timedelta(hours=6),
+                    identity_hash=stable_hash("identity-5"),
+                    payload={},
+                ),
+                RawPayloadModel(
+                    sha256=stable_hash("raw-5-terminal"),
+                    endpoint="fixtures",
+                    captured_at=NOW,
+                    storage_uri="db://raw_payload/raw-5-terminal",
+                    payload={
+                        "response": [
+                            {
+                                "fixture": {"id": 5, "status": {"short": "FT"}},
+                                "score": {"fulltime": {"home": 1, "away": 0}},
+                            },
+                            {
+                                "fixture": {"id": 999, "status": {"short": "FT"}},
+                                "score": {"fulltime": {"home": 2, "away": 2}},
+                            },
+                        ]
+                    },
+                ),
+            ]
+        )
+        session.commit()
+
+    first = repository.incremental_work(now=NOW)
+    repository.prepare_dispatch(
+        now=NOW,
+        task_id="task-raw-1",
+        pending_settlement_count=0,
+    )
+    assert repository.mark_running(task_id="task-raw-1", now=NOW)
+    repository.mark_succeeded(
+        task_id="task-raw-1",
+        now=NOW,
+        source_cursor=first.source_cursor,
+        pending_settlement_count=0,
+    )
+    second = repository.incremental_work(now=NOW)
+
+    assert first.result_fixture_ids == ("api_football:5",)
+    assert first.source_cursor["raw_fixture_payload_sha256"] == stable_hash(
+        "raw-5-terminal"
+    )
     assert second.result_fixture_ids == ()
