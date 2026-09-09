@@ -32,6 +32,7 @@ SETTLEMENT_STATE_ORDER = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
 # dedup keys on. Adding a key changes every future hash, so the payloads carry an
 # explicit version: an old and a new hash then differ for a reason a reader can see.
 EVALUATION_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.identity.v2"
+FACTOR_VERDICT_SCHEMA = "w2.dynamic_quote_evaluation.factor_verdict.v1"
 LEGACY_EVALUATION_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.identity.v1"
 ATTEMPT_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v2"
 EVAL_02B_DISTRIBUTION_TOLERANCE = 1e-9
@@ -183,6 +184,8 @@ class DynamicEvaluationInput:
     ev_direction: str | None = None
     factor_veto_code: str | None = None
     factor_input_identity: str | None = None
+    factor_input_identity_hash: str | None = None
+    factor_evidence_digest: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -253,6 +256,16 @@ class DynamicEvaluationVersion:
     # identity_payload so existing frozen evaluation identities remain stable.
     calibration_identity: str | None = None
     one_x_two_probabilities: dict[str, float] | None = None
+    # Factor verdict, persisted. asdict() carries these into the evaluation
+    # payload, so the stored state itself records why an AH pick was allowed
+    # or refused instead of leaving that only on the analysis card.
+    factor_verdict_schema: str | None = None
+    factor_decision_status: str | None = None
+    factor_direction: str | None = None
+    ev_direction: str | None = None
+    factor_veto_code: str | None = None
+    factor_input_identity_hash: str | None = None
+    factor_evidence_digest: dict[str, Any] | None = None
 
     def as_dict(
         self,
@@ -290,6 +303,10 @@ def bind_evaluation_opportunity(
         {
             "attempt_identity_version": ATTEMPT_IDENTITY_VERSION,
             "opportunity_identity_hash": opportunity_hash,
+            # The evaluation identity already binds the factor verdict when one
+            # is present, so binding it here carries that through to the attempt
+            # without giving verdict-less history a new identity.
+            "evaluation_identity_hash": version.identity_hash,
             "quote_identity_hash": version.quote_identity_hash,
             "model_input_hash": context.model_input_hash,
             "lineup_input_hash": version.lineup_input_hash,
@@ -647,6 +664,21 @@ def classify_evaluation(
                 "model_settlement_distribution": distribution,
             }
         )
+    # Bind the factor verdict into the identity only when one is present. A
+    # historical or verdict-less evaluation keeps the identity it already has,
+    # so append-only rows are never rewritten; two different verdicts on the
+    # same quote/model/checkpoint necessarily differ.
+    if value.factor_input_identity_hash or value.factor_veto_code:
+        identity_payload.update(
+            {
+                "factor_verdict_schema": FACTOR_VERDICT_SCHEMA,
+                "factor_decision_status": value.factor_decision_status,
+                "factor_direction": value.factor_direction,
+                "ev_direction": value.ev_direction,
+                "factor_veto_code": value.factor_veto_code,
+                "factor_input_identity_hash": value.factor_input_identity_hash,
+            }
+        )
     identity_hash = _hash(identity_payload)
     evaluation_complete = bool(
         value.model_ready
@@ -712,6 +744,20 @@ def classify_evaluation(
         calibration_authority=calibration_record["calibration_authority"],
         calibration_identity=value.calibration_identity,
         one_x_two_probabilities=_one_x_two_probabilities(value.one_x_two_probabilities),
+        factor_verdict_schema=(
+            FACTOR_VERDICT_SCHEMA
+            if value.factor_input_identity_hash or value.factor_veto_code
+            else None
+        ),
+        factor_decision_status=value.factor_decision_status,
+        factor_direction=value.factor_direction,
+        ev_direction=value.ev_direction,
+        factor_veto_code=value.factor_veto_code,
+        factor_input_identity_hash=value.factor_input_identity_hash,
+        factor_evidence_digest=(
+            dict(value.factor_evidence_digest)
+            if value.factor_evidence_digest else None
+        ),
         fixture_id=str(value.fixture_id),
         market=str(value.market),
         selection=str(value.selection),

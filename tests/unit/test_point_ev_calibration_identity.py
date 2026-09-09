@@ -127,6 +127,13 @@ def _input(
         mainline_parsed=True,
         denominator_scope=CHECKPOINT_OPPORTUNITY_SCOPE,
         calibration_status=calibration_status,  # type: ignore[arg-type]
+        # ASIAN_HANDICAP candidacy now also requires an admitted, direction
+        # consistent factor verdict; these tests are about the calibration gate,
+        # so they declare one. The factor gate has its own tests.
+        factor_decision_status="ADMITTED",
+        factor_direction="HOME",
+        factor_input_identity="f" * 64,
+        factor_input_identity_hash="f" * 64,
     )
 
 

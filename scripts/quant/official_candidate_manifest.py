@@ -20,11 +20,24 @@ SETTLED = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
 FACTOR_DISPOSITION = "UNKNOWN_NOT_RECONSTRUCTIBLE"
 
 
+def _age_seconds(capture_at: Any, evaluated_at: Any) -> float | None:
+    from datetime import datetime
+
+    if not capture_at or not evaluated_at:
+        return None
+    parse = lambda v: datetime.fromisoformat(str(v).replace("Z", "+00:00"))  # noqa: E731
+    return round((parse(evaluated_at) - parse(capture_at)).total_seconds(), 3)
+
+
 def load(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def build_rows(recommendations: list[dict], evaluations: list[dict]) -> list[dict]:
+NOT_RECONSTRUCTIBLE = "NOT_RECONSTRUCTIBLE"
+
+
+def build_rows(recommendations: list[dict], evaluations: list[dict],
+               result_times: dict[str, str], policy_versions: dict[str, str]) -> list[dict]:
     by_id = {str(row["evaluation_id"]): row for row in evaluations}
     out: list[dict] = []
     for rec in recommendations:
@@ -72,9 +85,41 @@ def build_rows(recommendations: list[dict], evaluations: list[dict]) -> list[dic
             "lineup_input_hash": evaluation.get("lineup_input_hash"),
             # Never reconstructed from a current analysis card.
             "factor_disposition": FACTOR_DISPOSITION,
-            "factor_direction": None,
+            "factor_direction": NOT_RECONSTRUCTIBLE,
             "ev_direction": rec.get("selection"),
-            "factor_veto_code": None,
+            "factor_veto_code": NOT_RECONSTRUCTIBLE,
+            "factor_participants": NOT_RECONSTRUCTIBLE,
+            "factor_weights": NOT_RECONSTRUCTIBLE,
+            "factor_absent_reasons": NOT_RECONSTRUCTIBLE,
+            "factor_verdict_identity": NOT_RECONSTRUCTIBLE,
+            "factor_not_reconstructible_reason": (
+                "No dynamic_prematch_evaluations payload in production contains any factor "
+                "field, and analysis cards are a read-time projection with no table, so the "
+                "verdict at this frozen instant cannot be recovered. Rebuilding it from a "
+                "current card would be back-filling history."),
+            # R6: the manifest must be self-contained.
+            "result_available_at": result_times.get(str(rec["fixture_id"])),
+            "evaluation_policy_version": policy_versions.get(str(rec["evaluation_id"])),
+            "cashflow_edge_provenance": (
+                "PERSISTED_IN_FROZEN_PAYLOAD"
+                if payload.get("current_cashflow_price_edge") is not None
+                else "NOT_ESTIMABLE_MISSING_CASHFLOW_EDGE"),
+            "cashflow_edge_missing_reason": (
+                None if payload.get("current_cashflow_price_edge") is not None
+                else "EVALUATION_POLICY_V1_PREDATES_FIELD"),
+            "lineup_status": (
+                "LINEUP_INPUT_HASH_PRESENT" if evaluation.get("lineup_input_hash")
+                else "NO_LINEUP_INPUT_HASH"),
+            "lineup_starters_mapped": NOT_RECONSTRUCTIBLE,
+            "lineup_valued_starters": NOT_RECONSTRUCTIBLE,
+            "lineup_numeric_contribution": NOT_RECONSTRUCTIBLE,
+            "lineup_not_reconstructible_reason": (
+                "Lineup counts and numeric contribution live on the analysis card, which is "
+                "not persisted; only lineup_input_hash survives on the evaluation."),
+            "model_capture_at": evaluation.get("capture_at"),
+            "model_age_seconds": _age_seconds(
+                evaluation.get("capture_at"), rec.get("evaluated_at")),
+            "lead_bucket": rec.get("confirmed_checkpoint"),
         })
     out.sort(key=lambda row: (str(row["kickoff_utc"]), row["evaluation_id"]))
     return out
@@ -101,6 +146,13 @@ def recompute(rows: list[dict]) -> dict:
         "market_counts": {
             market: sum(1 for row in rows if row["market"] == market)
             for market in sorted({row["market"] for row in rows})},
+        "cashflow_edge_provenance_counts": {
+            provenance: sum(1 for r in rows if r["cashflow_edge_provenance"] == provenance)
+            for provenance in sorted({r["cashflow_edge_provenance"] for r in rows})},
+        "evaluation_policy_versions": {
+            version: sum(1 for r in rows if r["evaluation_policy_version"] == version)
+            for version in sorted({str(r["evaluation_policy_version"]) for r in rows})},
+        "result_available_at_present": sum(1 for r in rows if r["result_available_at"]),
         "factor_identity_coverage": {
             "reconstructible": sum(
                 1 for row in rows if row["factor_disposition"] != FACTOR_DISPOSITION),
@@ -113,11 +165,19 @@ def recompute(rows: list[dict]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--package", type=Path, required=True)
+    # the scoped production exports stay outside Git; only the derived manifest
+    # is committed, so the raw directory is a separate required argument
+    parser.add_argument("--raw", type=Path, required=True)
     args = parser.parse_args()
     pkg = args.package
+    raw = args.raw
     rows = build_rows(
-        load(pkg / "_raw_official_recommendations.json"),
-        load(pkg / "_scoped_evaluations_148.json"),
+        load(raw / "_raw_official_recommendations.json"),
+        load(raw / "_scoped_evaluations_148.json"),
+        {r["fixture_id"]: r["result_available_at"]
+         for r in load(raw / "_result_times.json")},
+        {r["evaluation_id"]: r["evaluation_policy_version"]
+         for r in load(raw / "_policy_versions.json")},
     )
     with (pkg / "OFFICIAL_148_MANIFEST.jsonl").open("w", encoding="utf-8") as handle:
         for row in rows:

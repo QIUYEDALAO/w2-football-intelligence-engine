@@ -1,0 +1,419 @@
+{
+  "calibration_by_segment": {
+    "ALL_148": {
+      "actual_graded_rate": 0.42963,
+      "actual_graded_rate_ci95": [
+        0.34507,
+        0.514388
+      ],
+      "calibration_gap_ci95": [
+        -0.300869,
+        -0.123842
+      ],
+      "calibration_gap_point": -0.212242,
+      "cluster_unit": "fixture_id",
+      "clusters": 103,
+      "decisive_rows": 135,
+      "gap_ci_excludes_zero": true,
+      "iterations": 10000,
+      "predicted_graded_rate": 0.641871
+    },
+    "FIRST_138": {
+      "actual_graded_rate": 0.440476,
+      "actual_graded_rate_ci95": [
+        0.353846,
+        0.527344
+      ],
+      "calibration_gap_ci95": [
+        -0.292224,
+        -0.110757
+      ],
+      "calibration_gap_point": -0.2016,
+      "cluster_unit": "fixture_id",
+      "clusters": 95,
+      "decisive_rows": 126,
+      "gap_ci_excludes_zero": true,
+      "iterations": 10000,
+      "predicted_graded_rate": 0.642076
+    },
+    "LAST_10_INCIDENT_REPLAY": {
+      "actual_graded_rate": 0.277778,
+      "actual_graded_rate_ci95": [
+        0.0,
+        0.555556
+      ],
+      "calibration_gap_ci95": [
+        -0.616526,
+        -0.070636
+      ],
+      "calibration_gap_point": -0.361224,
+      "cluster_unit": "fixture_id",
+      "clusters": 9,
+      "decisive_rows": 9,
+      "gap_ci_excludes_zero": true,
+      "iterations": 10000,
+      "predicted_graded_rate": 0.639001
+    }
+  },
+  "incident_replay": {
+    "conflict_settlements": {
+      "LOSS": 4,
+      "WIN": 1
+    },
+    "evidence_grade": "OWNER_ANNOTATED_INCIDENT_REPLAY",
+    "owner_annotated_conflicts": 5,
+    "reproduces_owner_figure": true,
+    "retained_profit_units": "-0.88",
+    "retained_rows": 5,
+    "retained_settlements": {
+      "HALF_WIN": 1,
+      "LOSS": 2,
+      "PUSH": 1,
+      "WIN": 1
+    }
+  },
+  "posthoc": {
+    "high_confidence_bucket": "POSTHOC_EXPLORATORY",
+    "reason": "the [0.65,1.01) slice was chosen after seeing results and is not a preregistered gate"
+  },
+  "provenance": {
+    "cashflow_edge": {
+      "NOT_ESTIMABLE_MISSING_CASHFLOW_EDGE": 133,
+      "PERSISTED_IN_FROZEN_PAYLOAD": 15
+    },
+    "evaluation_policy_versions": {
+      "candidate-eval.v1": 133,
+      "candidate-eval.v2": 15
+    },
+    "factor_identity_coverage": {
+      "reconstructible": 0,
+      "unknown_not_reconstructible": 148
+    },
+    "result_available_at_present": 148
+  },
+  "reproduction": {
+    "distinct_fixtures": 111,
+    "independent_settlement_oracle": {
+      "oracle_imports_production_code": false,
+      "profit_match": "148/148",
+      "settlement_match": "148/148"
+    },
+    "last10_profit_units": "-3.98",
+    "last10_settlement_counts": {
+      "HALF_WIN": 1,
+      "LOSS": 6,
+      "PUSH": 1,
+      "WIN": 2
+    },
+    "profit_units_total": "-20.375",
+    "settled_rows": 148
+  },
+  "schema_version": "w2.official_candidate_metrics.v1",
+  "temperature": {
+    "distinct_temperatures": [
+      1.0,
+      1.23,
+      1.29,
+      1.3,
+      1.32,
+      1.33,
+      1.34,
+      1.35,
+      1.36,
+      1.37,
+      1.38,
+      1.39,
+      1.4,
+      1.41,
+      1.42,
+      1.43,
+      1.44,
+      1.45,
+      1.48,
+      1.5,
+      1.52,
+      1.58,
+      1.6,
+      1.61,
+      1.63,
+      1.64,
+      1.65,
+      1.66,
+      1.67,
+      1.68,
+      1.69,
+      1.7,
+      1.71,
+      1.72
+    ],
+    "rows_at_T_1_00": 40,
+    "rows_at_T_2_00_ceiling": 0
+  },
+  "track_status": {
+    "AH_FACTOR_VETO_ONLY": "NOT_ESTIMABLE_FACTOR_IDENTITY",
+    "AH_FACTOR_VETO_PLUS_ROLLING_TEMPERATURE": "NOT_ESTIMABLE_FACTOR_IDENTITY",
+    "ALL_AH_BLOCKED_CONSERVATIVE_BOUND": "DIAGNOSTIC_ONLY_NOT_A_FACTOR_VETO_COUNTERFACTUAL",
+    "INCUMBENT": "ESTIMABLE",
+    "ROLLING_TEMPERATURE_ONLY": "ESTIMABLE_ON_CASHFLOW_COMPLETE_SUBSET"
+  },
+  "tracks_by_segment": {
+    "ALL_148": {
+      "AH_FACTOR_VETO_ONLY": {
+        "estimable_rows": 0,
+        "status": "NOT_ESTIMABLE_FACTOR_IDENTITY",
+        "universe_rows": 148
+      },
+      "AH_FACTOR_VETO_PLUS_ROLLING_TEMPERATURE": {
+        "estimable_rows": 0,
+        "status": "NOT_ESTIMABLE_FACTOR_IDENTITY",
+        "universe_rows": 148
+      },
+      "ALL_AH_BLOCKED_CONSERVATIVE_BOUND": {
+        "bootstrap": {
+          "cluster_unit": "fixture_id",
+          "clusters": 64,
+          "iterations": 10000,
+          "profit_units_p2_5": -25.23,
+          "profit_units_p50": -11.67,
+          "profit_units_p97_5": 1.98
+        },
+        "calibration_error": 0.206321,
+        "coverage": 0.432432,
+        "emitted": 64,
+        "estimable_rows": 64,
+        "five_state_log_loss": 1.04681,
+        "full_loss_rate": 0.5,
+        "graded_hit_rate": 0.418182,
+        "max_consecutive_losing": 5,
+        "max_drawdown_units": "14.22",
+        "multiclass_brier": 0.681531,
+        "profit_units": "-11.72",
+        "status": "DIAGNOSTIC_ONLY_NOT_A_FACTOR_VETO_COUNTERFACTUAL",
+        "universe_rows": 148
+      },
+      "INCUMBENT": {
+        "bootstrap": {
+          "cluster_unit": "fixture_id",
+          "clusters": 111,
+          "iterations": 10000,
+          "profit_units_p2_5": -41.78,
+          "profit_units_p50": -20.37,
+          "profit_units_p97_5": 0.76
+        },
+        "calibration_error": 0.212242,
+        "coverage": 1.0,
+        "emitted": 148,
+        "estimable_rows": 148,
+        "five_state_log_loss": 1.074912,
+        "full_loss_rate": 0.445946,
+        "graded_hit_rate": 0.42963,
+        "max_consecutive_losing": 6,
+        "max_drawdown_units": "23.520",
+        "multiclass_brier": 0.702589,
+        "profit_units": "-20.375",
+        "status": "ESTIMABLE",
+        "universe_rows": 148
+      },
+      "ROLLING_TEMPERATURE_ONLY": {
+        "bootstrap": {
+          "cluster_unit": "fixture_id",
+          "clusters": 9,
+          "iterations": 10000,
+          "profit_units_p2_5": -7.12,
+          "profit_units_p50": -3.3,
+          "profit_units_p97_5": 2.4
+        },
+        "calibration_error": 0.264136,
+        "coverage": 0.074324,
+        "coverage_of_estimable": 0.733333,
+        "coverage_of_universe": 0.074324,
+        "emitted": 11,
+        "estimable_rows": 15,
+        "five_state_log_loss": 1.126561,
+        "full_loss_rate": 0.545455,
+        "graded_hit_rate": 0.333333,
+        "max_consecutive_losing": 2,
+        "max_drawdown_units": "4.22",
+        "multiclass_brier": 0.714576,
+        "not_estimable_reason_counts": {
+          "NOT_ESTIMABLE_MISSING_CASHFLOW_EDGE": 133
+        },
+        "profit_units": "-3.30",
+        "status": "ESTIMABLE_ON_CASHFLOW_COMPLETE_SUBSET",
+        "universe_rows": 148
+      }
+    },
+    "FIRST_138": {
+      "AH_FACTOR_VETO_ONLY": {
+        "estimable_rows": 0,
+        "status": "NOT_ESTIMABLE_FACTOR_IDENTITY",
+        "universe_rows": 138
+      },
+      "AH_FACTOR_VETO_PLUS_ROLLING_TEMPERATURE": {
+        "estimable_rows": 0,
+        "status": "NOT_ESTIMABLE_FACTOR_IDENTITY",
+        "universe_rows": 138
+      },
+      "ALL_AH_BLOCKED_CONSERVATIVE_BOUND": {
+        "bootstrap": {
+          "cluster_unit": "fixture_id",
+          "clusters": 61,
+          "iterations": 10000,
+          "profit_units_p2_5": -24.88,
+          "profit_units_p50": -11.71,
+          "profit_units_p97_5": 1.86
+        },
+        "calibration_error": 0.209616,
+        "coverage": 0.442029,
+        "emitted": 61,
+        "estimable_rows": 61,
+        "five_state_log_loss": 1.033644,
+        "full_loss_rate": 0.508197,
+        "graded_hit_rate": 0.415094,
+        "max_consecutive_losing": 5,
+        "max_drawdown_units": "14.22",
+        "multiclass_brier": 0.674023,
+        "profit_units": "-11.59",
+        "status": "DIAGNOSTIC_ONLY_NOT_A_FACTOR_VETO_COUNTERFACTUAL",
+        "universe_rows": 138
+      },
+      "INCUMBENT": {
+        "bootstrap": {
+          "cluster_unit": "fixture_id",
+          "clusters": 103,
+          "iterations": 10000,
+          "profit_units_p2_5": -36.74,
+          "profit_units_p50": -16.03,
+          "profit_units_p97_5": 4.065
+        },
+        "calibration_error": 0.2016,
+        "coverage": 1.0,
+        "emitted": 138,
+        "estimable_rows": 138,
+        "five_state_log_loss": 1.058028,
+        "full_loss_rate": 0.434783,
+        "graded_hit_rate": 0.440476,
+        "max_consecutive_losing": 6,
+        "max_drawdown_units": "20.420",
+        "multiclass_brier": 0.693551,
+        "profit_units": "-16.395",
+        "status": "ESTIMABLE",
+        "universe_rows": 138
+      },
+      "ROLLING_TEMPERATURE_ONLY": {
+        "bootstrap": {
+          "cluster_unit": "fixture_id",
+          "clusters": 4,
+          "iterations": 10000,
+          "profit_units_p2_5": -4.0,
+          "profit_units_p50": -0.2,
+          "profit_units_p97_5": 3.6
+        },
+        "calibration_error": 0.103207,
+        "coverage": 0.036232,
+        "coverage_of_estimable": 1.0,
+        "coverage_of_universe": 0.036232,
+        "emitted": 5,
+        "estimable_rows": 5,
+        "five_state_log_loss": 0.94317,
+        "full_loss_rate": 0.4,
+        "graded_hit_rate": 0.5,
+        "max_consecutive_losing": 2,
+        "max_drawdown_units": "2.00",
+        "multiclass_brier": 0.61678,
+        "not_estimable_reason_counts": {
+          "NOT_ESTIMABLE_MISSING_CASHFLOW_EDGE": 133
+        },
+        "profit_units": "-0.20",
+        "status": "ESTIMABLE_ON_CASHFLOW_COMPLETE_SUBSET",
+        "universe_rows": 138
+      }
+    },
+    "LAST_10_INCIDENT_REPLAY": {
+      "AH_FACTOR_VETO_ONLY": {
+        "estimable_rows": 0,
+        "status": "NOT_ESTIMABLE_FACTOR_IDENTITY",
+        "universe_rows": 10
+      },
+      "AH_FACTOR_VETO_PLUS_ROLLING_TEMPERATURE": {
+        "estimable_rows": 0,
+        "status": "NOT_ESTIMABLE_FACTOR_IDENTITY",
+        "universe_rows": 10
+      },
+      "ALL_AH_BLOCKED_CONSERVATIVE_BOUND": {
+        "bootstrap": {
+          "cluster_unit": "fixture_id",
+          "clusters": 3,
+          "iterations": 10000,
+          "profit_units_p2_5": -3.0,
+          "profit_units_p50": -0.13,
+          "profit_units_p97_5": 2.61
+        },
+        "calibration_error": 0.119013,
+        "coverage": 0.3,
+        "emitted": 3,
+        "estimable_rows": 3,
+        "five_state_log_loss": 1.314511,
+        "full_loss_rate": 0.333333,
+        "graded_hit_rate": 0.5,
+        "max_consecutive_losing": 1,
+        "max_drawdown_units": "1.00",
+        "multiclass_brier": 0.834194,
+        "profit_units": "-0.13",
+        "status": "DIAGNOSTIC_ONLY_NOT_A_FACTOR_VETO_COUNTERFACTUAL",
+        "universe_rows": 10
+      },
+      "INCUMBENT": {
+        "bootstrap": {
+          "cluster_unit": "fixture_id",
+          "clusters": 9,
+          "iterations": 10000,
+          "profit_units_p2_5": -9.0,
+          "profit_units_p50": -3.98,
+          "profit_units_p97_5": 1.04
+        },
+        "calibration_error": 0.361224,
+        "coverage": 1.0,
+        "emitted": 10,
+        "estimable_rows": 10,
+        "five_state_log_loss": 1.307918,
+        "full_loss_rate": 0.6,
+        "graded_hit_rate": 0.277778,
+        "max_consecutive_losing": 3,
+        "max_drawdown_units": "4.85",
+        "multiclass_brier": 0.827308,
+        "profit_units": "-3.98",
+        "status": "ESTIMABLE",
+        "universe_rows": 10
+      },
+      "ROLLING_TEMPERATURE_ONLY": {
+        "bootstrap": {
+          "cluster_unit": "fixture_id",
+          "clusters": 5,
+          "iterations": 10000,
+          "profit_units_p2_5": -5.0,
+          "profit_units_p50": -3.1,
+          "profit_units_p97_5": 0.7
+        },
+        "calibration_error": 0.392878,
+        "coverage": 0.6,
+        "coverage_of_estimable": 0.6,
+        "coverage_of_universe": 0.6,
+        "emitted": 6,
+        "estimable_rows": 10,
+        "five_state_log_loss": 1.279387,
+        "full_loss_rate": 0.666667,
+        "graded_hit_rate": 0.2,
+        "max_consecutive_losing": 2,
+        "max_drawdown_units": "3.1",
+        "multiclass_brier": 0.796073,
+        "not_estimable_reason_counts": {
+          "NOT_ESTIMABLE_MISSING_CASHFLOW_EDGE": 0
+        },
+        "profit_units": "-3.1",
+        "status": "ESTIMABLE_ON_CASHFLOW_COMPLETE_SUBSET",
+        "universe_rows": 10
+      }
+    }
+  }
+}

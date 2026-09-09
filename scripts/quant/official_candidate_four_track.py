@@ -34,6 +34,14 @@ TRACKS = (
     "ROLLING_TEMPERATURE_ONLY",
     "AH_FACTOR_VETO_PLUS_ROLLING_TEMPERATURE",
 )
+# Tracks that cannot be estimated at all: the historical factor verdict was never
+# persisted (0/148), so no factor-veto counterfactual has an identity to stand on.
+FACTOR_DEPENDENT_TRACKS = ("AH_FACTOR_VETO_ONLY",
+                           "AH_FACTOR_VETO_PLUS_ROLLING_TEMPERATURE")
+# Diagnostic only. Deleting the whole AH market is NOT a factor-veto counterfactual
+# and must never be used to judge whether the bypass was the main cause.
+DIAGNOSTIC_TRACK = "ALL_AH_BLOCKED_CONSERVATIVE_BOUND"
+SEGMENTS = ("ALL_148", "FIRST_138", "LAST_10_INCIDENT_REPLAY")
 # Frozen before any track result was inspected.
 T_GRID = tuple(round(0.70 + i * 0.01, 2) for i in range(int(round((2.00 - 0.70) / 0.01)) + 1))
 
@@ -106,10 +114,11 @@ def distribution_from(dist: dict[str, float]) -> SettlementDistribution:
     return raw
 
 
-def build_tracks(rows: list[dict]) -> dict[str, list[dict]]:
-    """Emit, per track, the records that would still have been recommended."""
+def build_tracks(rows: list[dict]) -> tuple[dict[str, list[dict]], list[dict]]:
+    """Emit, per estimable track, the records that would still have been sent."""
     ordered = sorted(rows, key=lambda r: (r["evaluated_at"], r["kickoff_utc"], r["evaluation_id"]))
-    out: dict[str, list[dict]] = {name: [] for name in TRACKS}
+    out: dict[str, list[dict]] = {"INCUMBENT": [], "ROLLING_TEMPERATURE_ONLY": [],
+                                  DIAGNOSTIC_TRACK: []}
     temperature_log: list[dict] = []
     for index, row in enumerate(ordered):
         # D1 temporal contract: only records already authoritatively settled
@@ -124,34 +133,35 @@ def build_tracks(rows: list[dict]) -> dict[str, list[dict]]:
         temperature_log.append({
             "evaluation_id": row["evaluation_id"], "market": row["market"],
             "training_rows": len(training), "temperature": temperature,
+            "result_knowledge_cutoff": row["evaluated_at"],
         })
         calibrated = temper(row["dist"], temperature)
         calibrated_ev = float(expected_value(
             Decimal(str(row["decimal_odds"])), distribution_from(calibrated)))
-        # Uncertainty is never allowed to shrink: reuse the original ev_se.
         original_se = row["ev_se"]
         calibrated_ev_minus_se = (
             None if original_se is None else calibrated_ev - original_se)
-        calibrated_pass = (
-            economic_admission_pass(
+        # R5: a missing cashflow edge is absent evidence, never a refusal.
+        if row["cashflow_price_edge"] is None:
+            temperature_status = "NOT_ESTIMABLE_MISSING_CASHFLOW_EDGE"
+            calibrated_pass = None
+        elif original_se is None:
+            temperature_status = "NOT_ESTIMABLE_MISSING_EV_SE"
+            calibrated_pass = None
+        else:
+            calibrated_pass = economic_admission_pass(
                 expected_value=calibrated_ev,
                 ev_minus_se=calibrated_ev_minus_se,
-                cashflow_price_edge=row["cashflow_price_edge"],
-            ) if original_se is not None else False
-        )
-        # AH factor verdict was never persisted, so the veto track cannot be
-        # evaluated on identity. The conservative bound blocks every AH record.
-        factor_blocked = row["market"] == "ASIAN_HANDICAP"
+                cashflow_price_edge=row["cashflow_price_edge"])
+            temperature_status = "EMITTED" if calibrated_pass else "BLOCKED_BY_CALIBRATION"
         enriched = {**row, "temperature": temperature, "calibrated_ev": calibrated_ev,
                     "calibrated_ev_minus_se": calibrated_ev_minus_se,
-                    "calibrated_admission": calibrated_pass}
+                    "temperature_status": temperature_status}
         out["INCUMBENT"].append(enriched)
-        if not factor_blocked:
-            out["AH_FACTOR_VETO_ONLY"].append(enriched)
         if calibrated_pass:
             out["ROLLING_TEMPERATURE_ONLY"].append(enriched)
-        if calibrated_pass and not factor_blocked:
-            out["AH_FACTOR_VETO_PLUS_ROLLING_TEMPERATURE"].append(enriched)
+        if row["market"] != "ASIAN_HANDICAP":
+            out[DIAGNOSTIC_TRACK].append(enriched)
     return out, temperature_log
 
 
@@ -228,6 +238,47 @@ def bootstrap(emitted: list[dict], fixtures: list[str], seed: int) -> dict[str, 
     }
 
 
+def calibration_bootstrap(rows: list[dict], seed: int) -> dict[str, Any]:
+    """R9: fixture-clustered interval for the overall calibration gap.
+
+    Both markets of one fixture are resampled together, so the AH and TOTALS
+    records of the same match never enter independently.
+    """
+    decisive = [r for r in rows if r["settlement"] != "PUSH"]
+    if not decisive:
+        return {"interval": None, "reason": "NO_DECISIVE_ROWS"}
+    by_fixture: dict[str, list[dict]] = {}
+    for row in decisive:
+        by_fixture.setdefault(row["fixture_id"], []).append(row)
+    keys = sorted(by_fixture)
+    rng = random.Random(seed)  # noqa: S311 - resampling, not cryptography
+    gaps: list[float] = []
+    hits: list[float] = []
+    for _ in range(BOOTSTRAP_ITERATIONS):
+        picked = [rng.choice(keys) for _ in keys]
+        sample = [row for key in picked for row in by_fixture[key]]
+        predicted = sum(_conditional_graded(r["dist"]) for r in sample) / len(sample)
+        actual = sum(GRADE[r["settlement"]] for r in sample) / len(sample)
+        gaps.append(actual - predicted)
+        hits.append(actual)
+    gaps.sort()
+    hits.sort()
+    predicted_all = sum(_conditional_graded(r["dist"]) for r in decisive) / len(decisive)
+    actual_all = sum(GRADE[r["settlement"]] for r in decisive) / len(decisive)
+    lo = int(0.025 * BOOTSTRAP_ITERATIONS)
+    hi = int(0.975 * BOOTSTRAP_ITERATIONS)
+    return {
+        "iterations": BOOTSTRAP_ITERATIONS, "cluster_unit": "fixture_id",
+        "clusters": len(keys), "decisive_rows": len(decisive),
+        "predicted_graded_rate": round(predicted_all, 6),
+        "actual_graded_rate": round(actual_all, 6),
+        "calibration_gap_point": round(actual_all - predicted_all, 6),
+        "calibration_gap_ci95": [round(gaps[lo], 6), round(gaps[hi], 6)],
+        "actual_graded_rate_ci95": [round(hits[lo], 6), round(hits[hi], 6)],
+        "gap_ci_excludes_zero": gaps[hi] < 0 or gaps[lo] > 0,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--package", type=Path, required=True)
@@ -235,70 +286,108 @@ def main() -> int:
     pkg = args.package
     manifest = [json.loads(line) for line in
                 (pkg / "OFFICIAL_148_MANIFEST.jsonl").read_text().splitlines() if line.strip()]
-    times = {r["fixture_id"]: r["result_available_at"]
-             for r in json.loads((pkg / "_result_times.json").read_text())}
     rows = []
     for row in manifest:
         dist = row["model_settlement_distribution"] or {}
-        ev = row["current_ev"]
-        ev_minus_se = row["current_ev_minus_se"]
+        ev, ev_minus_se = row["current_ev"], row["current_ev_minus_se"]
         rows.append({
             "evaluation_id": row["evaluation_id"], "fixture_id": row["fixture_id"],
             "market": row["market"], "selection": row["selection"],
             "kickoff_utc": row["kickoff_utc"], "evaluated_at": row["evaluated_at"],
-            "result_available_at": times[row["fixture_id"]],
+            # R6: read from the committed manifest, never an untracked side file.
+            "result_available_at": row["result_available_at"],
             "settlement": row["settlement"], "profit_units": row["profit_units"],
             "decimal_odds": row["decimal_odds"],
             "cashflow_price_edge": row["current_cashflow_price_edge"],
+            "cashflow_edge_provenance": row["cashflow_edge_provenance"],
             "ev": ev,
             "ev_se": (None if ev is None or ev_minus_se is None else ev - ev_minus_se),
             "dist": {s: float(dist.get(s, 0.0)) for s in STATES},
         })
     tracks, temperature_log = build_tracks(rows)
-    seed = int.from_bytes(hashlib.sha256(
-        canonical_bytes({"task_id": TASK_ID}, domain=HashDomain.FUTURE_REFRESH_EVIDENCE)
-    ).digest()[:8], "big")
-    universe = len(rows)
+    seed = int.from_bytes(hashlib.sha256(canonical_bytes(
+        {"task_id": TASK_ID}, domain=HashDomain.FUTURE_REFRESH_EVIDENCE)).digest()[:8], "big")
+    ordered = sorted(rows, key=lambda r: (r["evaluated_at"], r["kickoff_utc"],
+                                          r["evaluation_id"]))
+    segments = {"ALL_148": ordered, "FIRST_138": ordered[:-10],
+                "LAST_10_INCIDENT_REPLAY": ordered[-10:]}
     report: dict[str, Any] = {
-        "schema_version": "w2.official_candidate_four_track.v1",
-        "task_id": TASK_ID,
-        "universe_rows": universe,
-        "bootstrap_seed": seed,
+        "schema_version": "w2.official_candidate_four_track.v2",
+        "task_id": TASK_ID, "universe_rows": len(rows), "bootstrap_seed": seed,
         "temperature_grid": {"min": T_GRID[0], "max": T_GRID[-1], "step": 0.01,
-                             "size": len(T_GRID)},
+                             "size": len(T_GRID),
+                             "frozen_before_results": True,
+                             "grid_extended_after_hitting_ceiling": False},
         "temperature_objective": "mean_multiclass_log_loss + 0.10 * (log T) ** 2",
         "min_training_rows_per_market_axis": MIN_TRAIN,
         "factor_identity_coverage": {
-            "reconstructible": 0, "unknown_not_reconstructible": universe,
-            "status": "NOT_ESTIMABLE_FACTOR_IDENTITY",
-            "treatment": "AH_FACTOR_VETO_ONLY and the combined track use the conservative "
-                         "bound that blocks every ASIAN_HANDICAP record, because the factor "
-                         "verdict was never persisted. This is the pessimistic choice for "
-                         "coverage and was fixed before any track result was read.",
+            "reconstructible": 0, "unknown_not_reconstructible": len(rows)},
+        "track_status": {
+            "INCUMBENT": "ESTIMABLE",
+            "AH_FACTOR_VETO_ONLY": "NOT_ESTIMABLE_FACTOR_IDENTITY",
+            "ROLLING_TEMPERATURE_ONLY": "ESTIMABLE_ON_CASHFLOW_COMPLETE_SUBSET",
+            "AH_FACTOR_VETO_PLUS_ROLLING_TEMPERATURE": "NOT_ESTIMABLE_FACTOR_IDENTITY",
+            DIAGNOSTIC_TRACK: "DIAGNOSTIC_ONLY_NOT_A_FACTOR_VETO_COUNTERFACTUAL",
         },
-        "tracks": {},
+        "diagnostic_track_caveat": (
+            "ALL_AH_BLOCKED_CONSERVATIVE_BOUND simply deletes every ASIAN_HANDICAP "
+            "record. It is not a factor-veto counterfactual and must not be used to "
+            "decide whether the bypass was the main cause."),
+        "segments": {},
     }
-    for name in TRACKS:
-        emitted = tracks[name]
-        for row in emitted:
-            row["dist_used"] = (
-                temper(row["dist"], row["temperature"])
-                if "TEMPERATURE" in name else row["dist"])
-        report["tracks"][name] = {
-            **metrics(emitted, universe),
-            "bootstrap": bootstrap(emitted, [], seed),
-        }
+    for segment, subset in segments.items():
+        ids = {r["evaluation_id"] for r in subset}
+        entry: dict[str, Any] = {"universe_rows": len(subset)}
+        for name in (*TRACKS, DIAGNOSTIC_TRACK):
+            if name in FACTOR_DEPENDENT_TRACKS:
+                entry[name] = {"status": "NOT_ESTIMABLE_FACTOR_IDENTITY",
+                               "reason": "historical factor verdict was never persisted "
+                                         "(0/148); no counterfactual identity exists",
+                               "universe_rows": len(subset), "estimable_rows": 0}
+                continue
+            emitted = [r for r in tracks[name] if r["evaluation_id"] in ids]
+            for row in emitted:
+                row["dist_used"] = (temper(row["dist"], row["temperature"])
+                                    if "TEMPERATURE" in name else row["dist"])
+            if name == "ROLLING_TEMPERATURE_ONLY":
+                estimable = [r for r in subset if r["cashflow_price_edge"] is not None]
+                not_estimable = len(subset) - len(estimable)
+                entry[name] = {
+                    "status": "ESTIMABLE_ON_CASHFLOW_COMPLETE_SUBSET",
+                    "universe_rows": len(subset), "estimable_rows": len(estimable),
+                    "not_estimable_reason_counts": {
+                        "NOT_ESTIMABLE_MISSING_CASHFLOW_EDGE": not_estimable},
+                    "coverage_of_universe": round(len(emitted) / max(1, len(subset)), 6),
+                    "coverage_of_estimable": (
+                        round(len(emitted) / len(estimable), 6) if estimable else None),
+                    **metrics(emitted, max(1, len(subset))),
+                    "bootstrap": bootstrap(emitted, [], seed)}
+            else:
+                entry[name] = {"status": report["track_status"][name],
+                               "universe_rows": len(subset),
+                               "estimable_rows": len(emitted),
+                               **metrics(emitted, max(1, len(subset))),
+                               "bootstrap": bootstrap(emitted, [], seed)}
+        entry["calibration"] = calibration_bootstrap(subset, seed)
+        report["segments"][segment] = entry
     report["temperature_selection"] = {
         "distinct_temperatures": sorted({t["temperature"] for t in temperature_log}),
-        "rows_at_default_T1": sum(1 for t in temperature_log if t["temperature"] == 1.00),
+        "rows_at_T_1_00": sum(1 for t in temperature_log if t["temperature"] == 1.00),
+        "rows_at_T_2_00_ceiling": sum(1 for t in temperature_log if t["temperature"] == 2.00),
+        "log": temperature_log,
+    }
+    report["posthoc_note"] = {
+        "high_confidence_bucket": "POSTHOC_EXPLORATORY",
+        "reason": "the [0.65,1.01) slice was chosen after seeing results and is not a "
+                  "preregistered gate",
     }
     (pkg / "CALIBRATION_COMPARISON.json").write_text(
         json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
         encoding="utf-8")
-    print(json.dumps({n: {k: v for k, v in report["tracks"][n].items()
-                          if k in ("emitted", "coverage", "profit_units", "graded_hit_rate",
-                                   "full_loss_rate", "five_state_log_loss")}
-                      for n in TRACKS}, ensure_ascii=False, indent=1))
+    for segment in SEGMENTS:
+        cal = report["segments"][segment]["calibration"]
+        print(f"{segment}: gap={cal['calibration_gap_point']} "
+              f"CI95={cal['calibration_gap_ci95']} excl0={cal['gap_ci_excludes_zero']}")
     return 0
 
 

@@ -1283,7 +1283,9 @@ def _factor_verdict(card: dict[str, Any], market_name: str) -> dict[str, Any]:
     analysis_calculator writes factor_veto onto card["markets"]; the dynamic
     evaluation is built from card["market_candidates"]. The two live on the same
     card but were never joined, so the factor refusal only ever reached the card
-    and never the candidate chain. This joins them.
+    and never the candidate chain. This joins them and freezes the factor inputs
+    into a canonical identity hash, so a different verdict yields a different
+    evaluation identity.
     """
     if market_name != "ASIAN_HANDICAP":
         return {}
@@ -1294,25 +1296,62 @@ def _factor_verdict(card: dict[str, Any], market_name: str) -> dict[str, Any]:
             if isinstance(item, dict) and str(item.get("market") or "") == market_name:
                 entry = item
                 break
-    if not entry:
+    score = card.get("factor_score") if isinstance(card.get("factor_score"), dict) else None
+    if not entry or score is None:
         return {"factor_decision_status": "HISTORICAL_NO_FACTOR_VERDICT_IDENTITY"}
-    veto = entry.get("factor_veto")
-    score = card.get("factor_score") if isinstance(card.get("factor_score"), dict) else {}
-    identity = str(score.get("identity_hash") or entry.get("analysis_decision") or "") or None
-    if isinstance(veto, dict) and veto.get("code"):
+    veto = entry.get("factor_veto") if isinstance(entry.get("factor_veto"), dict) else None
+    # The identity hash covers the whole normalised factor payload through the
+    # single canonical authority. A display string such as ANALYSIS_PICK or
+    # WATCH is a status, not evidence, and must never stand in for it.
+    evidence = {
+        "direction": score.get("direction"),
+        "admitted": score.get("admitted"),
+        "margin": score.get("margin"),
+        "strength": score.get("strength"),
+        "weight_sum_used": score.get("weight_sum_used"),
+        "participant_count": score.get("participant_count"),
+        "participants": score.get("participants"),
+        "absent": score.get("absent"),
+        "admission_blockers": score.get("admission_blockers"),
+        "veto": veto,
+    }
+    identity_hash = canonical_sha256(
+        evidence, domain=HashDomain.PREMATCH_READ_MODEL_GENERIC
+    )
+    digest = {
+        "participant_ids": [
+            str(item.get("feature_id"))
+            for item in (score.get("participants") or [])
+            if isinstance(item, dict)
+        ],
+        "absent_ids": [
+            str(item.get("feature_id"))
+            for item in (score.get("absent") or [])
+            if isinstance(item, dict)
+        ],
+        "admission_blockers": [str(item) for item in (score.get("admission_blockers") or [])],
+        "weight_sum_used": score.get("weight_sum_used"),
+        "participant_count": score.get("participant_count"),
+    }
+    if veto and veto.get("code"):
         return {
             "factor_decision_status": "VETOED",
             "factor_veto_code": str(veto.get("code")),
             "factor_direction": str(veto.get("factor_direction") or "") or None,
             "ev_direction": str(veto.get("ev_selection") or "") or None,
-            "factor_input_identity": identity,
+            "factor_input_identity": identity_hash,
+            "factor_input_identity_hash": identity_hash,
+            "factor_evidence_digest": digest,
         }
+    admitted = bool(score.get("admitted"))
     return {
-        "factor_decision_status": "ADMITTED" if score.get("admitted") else "NOT_ADMITTED",
+        "factor_decision_status": "ADMITTED" if admitted else "NOT_ADMITTED",
         "factor_direction": str(score.get("direction") or "") or None,
         "ev_direction": None,
-        "factor_veto_code": None if score.get("admitted") else "FACTOR_ADMISSION_FAILED",
-        "factor_input_identity": identity,
+        "factor_veto_code": None if admitted else "FACTOR_ADMISSION_FAILED",
+        "factor_input_identity": identity_hash,
+        "factor_input_identity_hash": identity_hash,
+        "factor_evidence_digest": digest,
     }
 
 

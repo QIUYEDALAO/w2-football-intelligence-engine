@@ -109,6 +109,12 @@ def _attempt(
             # validated calibration; the calibration gate has its own tests
             calibration_status="PRODUCTION_VALIDATED",
             denominator_scope=CHECKPOINT_OPPORTUNITY_SCOPE,
+            # likewise the factor gate: ASIAN_HANDICAP candidacy now also needs
+            # an admitted, direction consistent factor verdict
+            factor_decision_status="ADMITTED",
+            factor_direction="HOME",
+            factor_input_identity="f" * 64,
+            factor_input_identity_hash="f" * 64,
         )
     )
     return bind_evaluation_opportunity(version, _context(slot, suffix))

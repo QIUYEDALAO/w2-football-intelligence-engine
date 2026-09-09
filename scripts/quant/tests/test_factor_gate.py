@@ -102,3 +102,96 @@ def test_blocked_state_is_not_one_of_the_two_candidate_states():
         DynamicEvaluationState.NO_EDGE_CURRENT,
     }
     assert OpportunityState.BLOCKED_BY_GATE.value == "BLOCKED_BY_GATE"
+
+
+# --- R1/R2/R3: persistence, identity binding, real opportunity binding -------
+
+from datetime import timedelta  # noqa: E402
+
+from w2.prematch.lifecycle import (  # noqa: E402
+    FACTOR_VERDICT_SCHEMA,
+    EvaluationOpportunityContext,
+    bind_evaluation_opportunity,
+)
+
+PROTECTED = ("factor_decision_status", "factor_direction", "ev_direction",
+             "factor_veto_code", "factor_input_identity_hash")
+
+
+def _with_verdict(**overrides):
+    base = dict(factor_input_identity_hash="a" * 64,
+                factor_evidence_digest={"participant_ids": ["F3", "F6", "F9"]})
+    base.update(overrides)
+    return _input(**base)
+
+
+def test_factor_verdict_is_persisted_in_the_version_and_payload():
+    version = classify_evaluation(_with_verdict())
+    assert version.factor_verdict_schema == FACTOR_VERDICT_SCHEMA
+    assert version.factor_decision_status == "ADMITTED"
+    assert version.factor_input_identity_hash == "a" * 64
+    payload = version.as_dict()
+    for field in (*PROTECTED, "factor_verdict_schema", "factor_evidence_digest"):
+        assert field in payload, f"{field} missing from the persisted payload"
+    assert payload["factor_evidence_digest"]["participant_ids"] == ["F3", "F6", "F9"]
+
+
+@pytest.mark.parametrize("field", PROTECTED)
+def test_changing_any_protected_factor_field_changes_the_evaluation_identity(field):
+    baseline = classify_evaluation(_with_verdict()).identity_hash
+    mutated = {"factor_decision_status": "NOT_ADMITTED", "factor_direction": "AWAY",
+               "ev_direction": "AWAY", "factor_veto_code": "FACTOR_ADMISSION_FAILED",
+               "factor_input_identity_hash": "b" * 64}[field]
+    assert classify_evaluation(_with_verdict(**{field: mutated})).identity_hash != baseline
+
+
+def _context() -> EvaluationOpportunityContext:
+    return EvaluationOpportunityContext(
+        model_forecast_capture_identity_hash="c" * 64,
+        model_input_hash="mh",
+        evaluation_policy_version="candidate-eval.v2",
+        evaluation_slot_id="T-30m_VALIDATION_LOCK",
+        scheduled_checkpoint_at=NOW - timedelta(minutes=30),
+        checkpoint_plan_identity="plan-1",
+        source_event_identity="evt-1",
+    )
+
+
+@pytest.mark.parametrize("field", PROTECTED)
+def test_changing_any_protected_factor_field_changes_the_attempt_identity(field):
+    context = _context()
+    baseline = bind_evaluation_opportunity(
+        classify_evaluation(_with_verdict()), context).attempt_identity_hash
+    mutated = {"factor_decision_status": "NOT_ADMITTED", "factor_direction": "AWAY",
+               "ev_direction": "AWAY", "factor_veto_code": "FACTOR_ADMISSION_FAILED",
+               "factor_input_identity_hash": "b" * 64}[field]
+    other = bind_evaluation_opportunity(
+        classify_evaluation(_with_verdict(**{field: mutated})), context)
+    assert other.attempt_identity_hash != baseline
+
+
+def test_verdictless_evaluation_keeps_its_historical_identity():
+    """Absent verdict must not rewrite append-only history."""
+    without = classify_evaluation(_input(
+        market="TOTALS", selection="OVER", factor_decision_status=None,
+        factor_direction=None, ev_direction=None, factor_veto_code=None,
+        factor_input_identity=None))
+    assert without.factor_verdict_schema is None
+    assert without.identity_hash
+
+
+# 9 (rewritten as a real binding test, not an empty assertion)
+def test_blocked_ah_binds_to_blocked_by_gate_and_stays_in_the_denominator():
+    bound = bind_evaluation_opportunity(
+        classify_evaluation(_with_verdict(factor_veto_code="FACTOR_EV_DIRECTION_CONFLICT")),
+        _context())
+    assert bound.official_funnel_eligible is True
+    assert bound.opportunity_state is OpportunityState.BLOCKED_BY_GATE
+    assert bound.opportunity_state is not OpportunityState.EVALUATED_CANDIDATE
+    assert bound.state is DynamicEvaluationState.BLOCKED_BY_FACTOR
+
+
+def test_consistent_factor_binds_to_evaluated_candidate():
+    bound = bind_evaluation_opportunity(classify_evaluation(_with_verdict()), _context())
+    assert bound.opportunity_state is OpportunityState.EVALUATED_CANDIDATE
+    assert bound.official_funnel_eligible is True
