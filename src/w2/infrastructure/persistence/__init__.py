@@ -15,6 +15,10 @@ from w2.infrastructure.persistence.factor_model_models import (
     ProviderTeamIdentityCrosswalkModel,
     TeamRatingSnapshotModel,
 )
+from w2.infrastructure.persistence.forward_factor_models import (
+    FORWARD_AH_FACTOR_OBSERVATION_SCHEMA,
+    ForwardAhFactorObservationModel,
+)
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.future_refresh_models import (
     FreePlanFixtureScopeObservationModel,
@@ -103,7 +107,9 @@ __all__ = [
     "ForwardMarketSnapshotModel",
     "PROJECTION_VIEW_NAME",
     "current_market_projection",
+    "FORWARD_AH_FACTOR_OBSERVATION_SCHEMA",
     "FixtureModel",
+    "ForwardAhFactorObservationModel",
     "HistoricalMarketSourceSnapshotModel",
     "IngestionRunModel",
     "LineupConfirmedEventModel",

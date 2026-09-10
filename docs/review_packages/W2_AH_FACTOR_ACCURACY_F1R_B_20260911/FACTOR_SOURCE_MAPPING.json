@@ -1,0 +1,165 @@
+{
+  "schema_version": "w2.f1r_b_factor_source_mapping.v1",
+  "task_id": "W2_AH_FACTOR_ACCURACY_F1R_B_PRODUCTION_RECORDING_INTEGRATION_20260911",
+  "parent_commit": "71daa3f5ec17ac3c5484e75a87d6bcac990d4bae",
+  "method": "READ_ONLY_SOURCE_TRACE_OF_THE_PRODUCTION_TREE_AT_THE_PARENT_COMMIT",
+  "production_db_reads": 0,
+  "factors": {
+    "F3_REST_FITNESS": {
+      "builder": "src/w2/features/team_factors.py:rest_fitness_factor",
+      "reads": "kickoff spacing of the latest history row for each team",
+      "production_reader": "src/w2/ingestion/future_refresh_repository.py:canonical_match_history_for_teams",
+      "production_projection": "FutureRefreshDbRepository._canonical_match_history_dict",
+      "consumed_table": "canonical_team_match_history",
+      "evidence_time_rule": "FIXTURE_EVENT_TIME",
+      "evidence_time_field": "canonical_team_match_history.kickoff_utc",
+      "evidence_time_proof": "The fact is 'this match kicked off at T'. A fixture schedule is published before the match, so T is observable at T and needs no result. F3 never reads a result field; the port refuses a projection that still carries one.",
+      "source_time_provable": true,
+      "record_id": "canonical_team_match_history.history_id",
+      "content_hash_over": [
+        "schema_version",
+        "history_id",
+        "fixture_id",
+        "team_w2_id",
+        "opponent_w2_id",
+        "kickoff_utc"
+      ],
+      "result_fields_forbidden": [
+        "goals_for",
+        "goals_against",
+        "result_identity_hash",
+        "settlement_outcome",
+        "ah_result"
+      ],
+      "consumed_set_cross_check": "exactly two rows, and max(kickoff_utc) equals the contribution's observed_at",
+      "sole_writer": {
+        "claim": "Every canonical_team_match_history row was written by FactorModelRemediation._upsert_history_fixtures.",
+        "evidence": [
+          "CanonicalTeamMatchHistoryModel is constructed at exactly one site in the tree: src/w2/factor_model/remediation.py:514.",
+          "migrations/versions/0033_create_canonical_team_identity.py creates the table and performs no INSERT and no backfill, so there is no pre-existing population from another source."
+        ],
+        "why_it_matters": "The evidence-time proof rests on how that writer binds a row to its capture. If a second writer existed, rows from it could carry an endpoint_capture_id with a different meaning."
+      }
+    },
+    "F9_TRUE_XG": {
+      "builder": "src/w2/features/live_factors.py:true_xg_factor",
+      "reads": "the latest rolling xG snapshot for each team",
+      "production_reader": "src/w2/ingestion/future_refresh_repository.py:team_xg_rolling_snapshots_for_teams",
+      "production_projection": "FutureRefreshDbRepository._team_xg_rolling_snapshot_dict",
+      "consumed_table": "team_xg_rolling_snapshot",
+      "evidence_time_rule": "SOURCE_SNAPSHOT_OBSERVED_AT",
+      "evidence_time_field": "team_xg_rolling_snapshot.as_of_time",
+      "evidence_time_proof": "src/w2/features/xg_materialization.py:materialize_rolling_xg sets as_of_time to max over the selected components of max(component.kickoff_at, component.captured_at) -- 'the latest time at which every selected component was knowable'. component.captured_at is the provider response capture time carried by TeamXgMatch. It is neither a kickoff nor a write clock.",
+      "source_time_provable": true,
+      "record_id": "team_xg_rolling_snapshot.snapshot_id",
+      "content_hash_over": [
+        "schema_version",
+        "snapshot_id",
+        "team_id",
+        "as_of_fixture_id",
+        "as_of_time",
+        "match_count",
+        "rolling_xg_for",
+        "rolling_xg_against",
+        "rolling_goals_for",
+        "rolling_goals_against",
+        "regression_index",
+        "source_system"
+      ],
+      "consumed_set_cross_check": "exactly two snapshots, and max(as_of_time) equals the contribution's observed_at",
+      "as_of_time_sole_authority": {
+        "claim": "as_of_time is always materialize_rolling_xg's available_at, on both the write path and the repair path.",
+        "evidence": [
+          "src/w2/features/xg_materialization.py:materialize_rolling_xg has exactly one call site, src/w2/ingestion/xg_backfill.py:698, and it is what computes as_of_time. The two sites that construct TeamXgRollingSnapshotModel -- src/w2/ingestion/future_refresh_repository.py:2886 (upsert of supplied rows) and src/w2/ingestion/xg_retention.py:427 (repair from the rebuilt plan) -- both persist rows whose as_of_time came from that computation; neither derives one of its own.",
+          "src/w2/ingestion/xg_retention.py repairs as_of_time only from build_saved_raw_plan (xg_backfill.py:426), which rebuilds snapshots through the same materialize_rolling_xg, and _guarded_timestamp_updates restricts the repair to that one field.",
+          "src/w2/normalization/api_football.py:89 writes as_of_time on a FeatureSnapshot, a different type, and never on a rolling xG snapshot."
+        ],
+        "why_it_matters": "A repair path that recomputed as_of_time some other way could silently substitute a kickoff-derived time for a component-availability one."
+      }
+    },
+    "F6_H2H": {
+      "builder": "src/w2/features/team_factors.py:h2h_factor",
+      "reads": "goals for and against in every prior meeting",
+      "production_reader": "src/w2/prematch/analysis_calculator.py:_canonical_h2h_meetings over canonical_match_history_for_teams",
+      "consumed_table": "canonical_team_match_history",
+      "evidence_time_rule": "RESULT_DERIVED_REQUIRES_EXPLICIT_SOURCE_OBSERVED_TIME",
+      "evidence_time_field": "matchday_endpoint_captures.provider_captured_at, reached through canonical_team_match_history.endpoint_capture_id",
+      "evidence_time_proof": "src/w2/factor_model/remediation.py:_seed_history captures a fixtures response, records its capture with provider_captured_at = response.captured_at (via endpoint_capture_contract), then binds every FINISHED fixture item in that payload to that capture_id and passes the mapping to _upsert_history_fixtures. The history row therefore points at the very provider read whose payload already reported the result as finished, which is a real observation time for that result.",
+      "source_time_provable": true,
+      "rejected_alternative": {
+        "field": "canonical_team_match_history.captured_at",
+        "reason": "_upsert_history_fixtures sets it to FactorModelRemediation.now -- the clock at the start of the materialisation run, which is earlier than the provider read it points at. Using it would claim the result was knowable before it was."
+      },
+      "record_id": "canonical_team_match_history.history_id",
+      "content_hash_over": [
+        "schema_version",
+        "history_id",
+        "fixture_id",
+        "team_w2_id",
+        "opponent_w2_id",
+        "kickoff_utc",
+        "goals_for",
+        "goals_against",
+        "result_identity_hash",
+        "source_raw_hash",
+        "history_hash",
+        "endpoint_capture_id",
+        "capture_raw_payload_sha256",
+        "provider_captured_at"
+      ],
+      "fail_closed_when": [
+        "endpoint_capture_id is null",
+        "the capture cannot be resolved",
+        "capture_status is not CAPTURED",
+        "provider_captured_at is at or before the fixture kickoff"
+      ],
+      "consumed_set_cross_check": "row count equals the contribution's meeting_count",
+      "sole_writer": {
+        "claim": "Every canonical_team_match_history row was written by FactorModelRemediation._upsert_history_fixtures.",
+        "evidence": [
+          "CanonicalTeamMatchHistoryModel is constructed at exactly one site in the tree: src/w2/factor_model/remediation.py:514.",
+          "migrations/versions/0033_create_canonical_team_identity.py creates the table and performs no INSERT and no backfill, so there is no pre-existing population from another source."
+        ],
+        "why_it_matters": "The evidence-time proof rests on how that writer binds a row to its capture. If a second writer existed, rows from it could carry an endpoint_capture_id with a different meaning."
+      }
+    },
+    "F5_RECENT_AH_COVER": {
+      "builder": "src/w2/features/team_factors.py:recent_ah_cover_factor",
+      "reads": "settled Asian-handicap outcomes of prior matches",
+      "evidence_time_rule": "RESULT_DERIVED_REQUIRES_EXPLICIT_SOURCE_OBSERVED_TIME",
+      "source_time_provable": false,
+      "status": "BLOCKED_BY_UNPROVABLE_FACTOR_SOURCE",
+      "required_but_missing": [
+        "the time the result of each consumed history match became available",
+        "the time the canonical AH quote or settlement fact became available"
+      ],
+      "blocking_evidence": [
+        {
+          "code": "NO_PRODUCTION_WRITER_EMITS_CANONICAL_AH_FACT_ROWS_INTO_THE_FACTOR_PATH",
+          "detail": "src/w2/features/team_factors.py:_canonical_ah_rows admits a row only when source == 'canonical_historical_ah_fact', source_group == 'canonical_historical_ah_fact' and collection_status == 'CANONICAL_AH_FACT'. src/w2/prematch/analysis_calculator.py:_fixture_source_group looks for the same three markers in items read from runtime/independent_signal_backfill/raw_payloads/. The only writer of that directory, src/w2/ingestion/independent_signal_backfill.py:write_raw_artifact, stores {endpoint, captured_at, payload} with the provider payload unchanged and adds none of those markers. Repository-wide, the string CANONICAL_AH_FACT appears in src/ only at those two reader sites."
+        },
+        {
+          "code": "CANONICAL_HISTORICAL_AH_FACTS_TABLE_HAS_NO_READER_IN_SRC",
+          "detail": "CanonicalHistoricalAhFactModel is written and read only within src/w2/historical/fah_repository.py. No factor, feature or prematch module reads canonical_historical_ah_facts, so its quote_captured_at never reaches a factor builder."
+        },
+        {
+          "code": "CANONICAL_HISTORICAL_AH_FACT_CARRIES_NO_SETTLEMENT_OBSERVATION_TIME",
+          "detail": "The table carries kickoff_utc and quote_captured_at only. quote_captured_at is a pre-match odds capture: src/w2/historical/formal_ah.py admits a source only when snapshot_semantics == 'CAPTURED_AT' and blocks CLOSING, AGGREGATE and DATE_ONLY. The settlement itself is derived locally by w2.domain.odds.settle_asian_handicap from the goals, so it becomes knowable when the result does -- a time the row does not record."
+        },
+        {
+          "code": "RESULTS_CONFIRMED_AT_HAS_TWO_WRITER_SEMANTICS_AND_NO_DISCRIMINATOR",
+          "detail": "src/w2/tracking/outcome_ledger_repository.py:493 sets confirmed_at from _authoritative_result, which is the earliest RawPayloadModel.captured_at whose fixture status is terminal -- a genuine observation time. The same module at :792 sets confirmed_at = datetime.now(UTC), a materialisation clock. No column records which writer produced a row, so the column alone proves no observation semantic. The order forbids assuming one."
+        }
+      ],
+      "recorded_as": "SOURCE_UNAVAILABLE or INSUFFICIENT_DATA with applied_weight = canonical zero and evidence_time_semantics = SOURCE_QUERIED_AT_AS_OF",
+      "substitutions_refused": [
+        "kickoff_at",
+        "an inferred full-time",
+        "the query time",
+        "file mtime",
+        "a synthetic time",
+        "results.confirmed_at without a proven semantic"
+      ]
+    }
+  }
+}
