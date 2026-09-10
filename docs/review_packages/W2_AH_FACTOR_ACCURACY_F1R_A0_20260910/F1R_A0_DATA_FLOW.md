@@ -1,8 +1,10 @@
 # F1R-A0 数据流：从活对象到 F1P 观测
 
 ```text
-TASK_ID   W2_AH_FACTOR_ACCURACY_F1R_A0_20260910
+TASK_ID   W2_AH_FACTOR_ACCURACY_F1R_A0_NARROW_REMEDIATION_2_20260910
+PARENT    7e8b07f77bf0638692aea9e4bf30b9d0107fd8bd
 阶段      F1R-A0_OFFLINE_FACTOR_RECORDER（Freeze A0 离线实装）
+终态      BLOCKED_BY_UNPROVABLE_FACTOR_SOURCE
 ```
 
 ## 1. 为什么 F1R-A0 拿得到 F1 拿不到的东西
@@ -103,3 +105,21 @@ append_batch(ledger, batch)
 只 import 了 `w2.features` 与 `w2.competitions.registry`——这正是 §4 要求的
 "用真实四因子来源"，不是绕过。因此 package matrix 里这两个包各 +2 个 scripts caller，
 已用机械生成器同步（2 增 2 删）。
+
+
+## 6. applied_weight 的语义闭合（第二次窄整改）
+
+F1P 冻结合同：`applied_weight = 该次评估实际采用的权重`。因此：
+
+```text
+参与计分            applied_weight = team_score 权威行的 weight
+未参与              applied_weight = canonical zero
+builder 声明值      factor_inputs.declared_weight（审计字段，不得当作应用值）
+```
+
+**全批不变量**：`sum(applied_weight) == weight_sum_used`，Decimal 比较，
+在 `build_batch` 与 `append_batch` 两处都检查，不符即整批拒绝。
+另有两条结构守卫：未参与的行不得携带非零 applied_weight，也不得携带 score。
+
+零权重的含义是"这一条没有参与加权"，**不是**"它投了一个 0 分"。
+`participated=false` 仍恒对应 `signed_score=null`。

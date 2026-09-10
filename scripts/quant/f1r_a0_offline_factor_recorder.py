@@ -28,6 +28,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, replace
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -44,7 +45,13 @@ else:
     sys.modules[_MODULE_NAME] = contract
     _spec.loader.exec_module(contract)
 
-RECORDER_ID = "w2.f1r_a0_offline_factor_recorder.v2"
+RECORDER_ID = "w2.f1r_a0_offline_factor_recorder.v3"
+# F1P freezes applied_weight as "the weight this evaluation actually applied".
+# A factor the scoring authority excluded applied none of its declared weight,
+# so it records a canonical zero and its builder-declared value is kept in an
+# audit field instead. Anything else would make the batch's applied weights sum
+# to something the authority never used.
+NO_WEIGHT_APPLIED = Decimal(0)
 REQUIRED_FACTORS = contract.ALLOWED_FACTOR_IDS
 
 STATUS_MAP = {
@@ -187,14 +194,16 @@ def observation_from_contribution(
             raise BatchError("PARTICIPATED_WITHOUT_OBSERVED_AT", factor_id)
         evidence_time, semantics = contribution_observed_at, rule
 
-    applied_weight = contribution.weight
+    declared_weight = contribution.weight
     if participated:
         authority_weight = float(scored["weight"])
-        if float(contribution.weight) != authority_weight:
+        if float(declared_weight) != authority_weight:
             raise BatchError(
                 "APPLIED_WEIGHT_DISAGREES_WITH_SCORING_AUTHORITY",
-                f"{factor_id}:{contribution.weight}!={authority_weight}")
-        applied_weight = authority_weight
+                f"{factor_id}:{declared_weight}!={authority_weight}")
+        applied_weight: Any = Decimal(str(scored["weight"]))
+    else:
+        applied_weight = NO_WEIGHT_APPLIED
 
     inputs = {
         str(key): _text(value) for key, value in (contribution.inputs or {}).items()
@@ -211,6 +220,9 @@ def observation_from_contribution(
             bool(getattr(contribution, "is_independent_signal", False))).lower(),
         "source_group": _text(getattr(contribution, "source_group", None)),
         "weight_entered_weight_sum_used": "true" if participated else "false",
+        # What the builder declared, kept for audit. It is not the applied
+        # weight and must never be read as one.
+        "declared_weight": _text(declared_weight),
         "scoring_authority_share": (
             _text(scored.get("share")) if participated else None),
         "recorder": RECORDER_ID,
@@ -269,6 +281,7 @@ def build_batch(
 
     authority = scoring_authority_view(feature_set.contributions)
     batch = []
+
     for factor_id in REQUIRED_FACTORS:
         factor_provenance = provenance.get(factor_id)
         if factor_provenance is None:
@@ -281,10 +294,14 @@ def build_batch(
             evaluation_id=evaluation_id, attempt_id=attempt_id,
             fixture_id=fixture_id, evaluated_at_utc=evaluated_at_utc,
             created_at_utc=created_at_utc, as_of_utc=as_of_utc))
+    # Checked here as well as at append time, so a caller that never appends
+    # still cannot build a batch whose weights disagree with the authority.
+    _batch_coherence([contract.validate(record) for record in batch],
+                     authority["weight_sum_used"])
     return batch
 
 
-def _batch_coherence(sealed: list[Any]) -> None:
+def _batch_coherence(sealed: list[Any], weight_sum_used: float | None = None) -> None:
     for field_name in ("evaluation_id", "attempt_id", "fixture_id",
                        "evaluated_at_utc", "market"):
         values = {getattr(record, field_name) for record in sealed}
@@ -294,6 +311,24 @@ def _batch_coherence(sealed: list[Any]) -> None:
     factor_ids = [record.factor_id for record in sealed]
     if sorted(factor_ids) != sorted(REQUIRED_FACTORS):
         raise BatchError("BATCH_FACTOR_SET_INVALID", ",".join(sorted(factor_ids)))
+    for record in sealed:
+        if record.participated:
+            continue
+        if Decimal(str(record.applied_weight)) != NO_WEIGHT_APPLIED:
+            raise BatchError("NON_PARTICIPATING_FACTOR_CARRIES_APPLIED_WEIGHT",
+                             f"{record.factor_id}={record.applied_weight}")
+        if record.signed_score is not None:
+            raise BatchError("NON_PARTICIPATING_FACTOR_CARRIES_SCORE",
+                             record.factor_id)
+    if weight_sum_used is None:
+        return
+    # The mechanical invariant: what the batch says was applied is exactly what
+    # the scoring authority summed.
+    total = sum((Decimal(str(record.applied_weight)) for record in sealed),
+                Decimal(0))
+    if total != Decimal(str(weight_sum_used)):
+        raise BatchError("BATCH_APPLIED_WEIGHT_SUM_DISAGREES_WITH_AUTHORITY",
+                         f"{total}!={weight_sum_used}")
 
 
 def _atomic_replace(path: Path, lines: list[str]) -> None:

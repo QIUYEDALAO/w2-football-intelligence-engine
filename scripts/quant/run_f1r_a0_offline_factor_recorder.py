@@ -17,6 +17,7 @@ import json
 import sys
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -42,8 +43,8 @@ for _name, _file in (("w2_f1p_forward_factor_contract", "f1p_forward_factor_cont
 contract = sys.modules["w2_f1p_forward_factor_contract"]
 recorder = sys.modules["w2_f1r_a0_recorder"]
 
-TASK_ID = "W2_AH_FACTOR_ACCURACY_F1R_A0_20260910"
-PARENT_COMMIT = "d8c8bf8259b30cd9fd81dfbf7be8555aa42680aa"
+TASK_ID = "W2_AH_FACTOR_ACCURACY_F1R_A0_NARROW_REMEDIATION_2_20260910"
+PARENT_COMMIT = "7e8b07f77bf0638692aea9e4bf30b9d0107fd8bd"
 FIXTURE_KIND = "SYNTHETIC_CONTRACT_FIXTURE"
 LEDGER_NAME = "F1R_A0_REFERENCE_LEDGER.jsonl"
 
@@ -163,6 +164,17 @@ def build(feature_set: FeatureSet, *, suffix: str,
         provenance=provenance or SYNTHETIC_PROVENANCE)
 
 
+def _authority_closure(feature_set: FeatureSet) -> dict[str, Any]:
+    """What team_score scored, so the applied-weight semantics are auditable."""
+    authority = recorder.scoring_authority_view(feature_set.contributions)
+    return {
+        "scoring_factors": {
+            factor_id: {"weight": row["weight"], "share": row["share"]}
+            for factor_id, row in sorted(authority["scoring_factors"].items())},
+        "weight_sum_used": authority["weight_sum_used"],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
@@ -244,6 +256,11 @@ def main() -> int:
                 for row in seen},
             "evidence_time_utc": {
                 row["factor_id"]: row["evidence_time_utc"] for row in seen},
+            "declared_weights": {
+                row["factor_id"]: row["factor_inputs"]["declared_weight"]
+                for row in seen},
+            "applied_weight_sum": str(sum(
+                (Decimal(row["applied_weight"]) for row in seen), Decimal(0))),
             "every_evidence_time_strictly_before_evaluated_at": all(
                 contract.parse_aware_utc(row["evidence_time_utc"], field_name="e")
                 < contract.parse_aware_utc(row["evaluated_at_utc"], field_name="v")
@@ -280,6 +297,10 @@ def main() -> int:
             "time. Wiring one would change src/w2/features and src/w2/prematch, "
             "both out of scope for A0."),
         "ledger_unchanged_after_refusal": unchanged_after_refusal,
+        "scoring_authority_closure": {
+            "complete_batch": _authority_closure(complete_feature_set()),
+            "absent_factor_batch": _authority_closure(degraded_feature_set()),
+        },
         "ledger_rows": len(rows),
         "readback_verified_rows": len(rows),
         "offline_recorder_implemented": True,

@@ -1,10 +1,15 @@
 # W2 AH-FACTOR-ACCURACY-V1 / F1R-A0 交付包（窄整改后）
 
 ```text
-TASK_ID             W2_AH_FACTOR_ACCURACY_F1R_A0_NARROW_REMEDIATION_20260910
-PARENT_COMMIT       0821f472115ca2d1aabf0d0c51248057de9c5693
+TASK_ID             W2_AH_FACTOR_ACCURACY_F1R_A0_NARROW_REMEDIATION_2_20260910
+PARENT_COMMIT       7e8b07f77bf0638692aea9e4bf30b9d0107fd8bd
 F1R_A0_FINAL_STATE  BLOCKED_BY_UNPROVABLE_FACTOR_SOURCE
 ```
+
+提交链：`d8c8bf82`（矩阵收口）→ `0821f472`（A0 首版）→
+`7e8b07f7`（第一次窄整改）→ 本轮 successor。
+包内 task id、parent 与终态在 `INDEX.md`、`OFFLINE_RECORDER_RESULT.json`、
+映射与数据流之间一致，有测试锁定。
 
 ## 结论：仍然阻塞，而且这是正确的终态
 
@@ -49,6 +54,37 @@ F5 / F6           RESULT_DERIVED                必须由调用方显式传入�
 但它**从未被带到因子 builder 消费的对象上**——`TeamMatchHistory` 根本没有这个字段。
 要接通必须改 `src/w2/features/`（本轮只读）与 `src/w2/prematch/`（本轮禁止）。
 因此终态保持 `BLOCKED_BY_UNPROVABLE_FACTOR_SOURCE`。
+
+### P1b —— `applied_weight` 必须是"实际采用的权重"（本轮第二次窄整改）
+
+上一轮把 participated 修对了，却仍让被排除的因子带着 builder 声明的权重：
+F3 是 `FACTOR_ADMISSION_FAILED` 却写 `applied_weight=0.1`，
+四行合计 `0.3`，而权威 `weight_sum_used` 只有 `0.2`。加一个布尔说明字段
+并不能改变 F1P 冻结合同里 `applied_weight` 的语义。
+
+修复：
+
+```text
+出现在权威 scoring_factors      applied_weight = 该权威行的 weight
+                                与 contribution 不一致仍整批拒绝
+未出现在权威 scoring_factors    applied_weight = canonical zero
+  （含 READY 但准入失败、INSUFFICIENT_DATA、SOURCE_UNAVAILABLE）
+builder 声明的权重              移到 factor_inputs.declared_weight（审计用，非应用值）
+全批机械不变量                  sum(applied_weight) == team_score.weight_sum_used
+                                （Decimal 比较；不符即拒绝整批）
+```
+
+参考账本实测闭合：
+
+```text
+complete_batch        F3 admission-failed applied=0  其余 0.05+0.05+0.1
+                      SUM=0.20   weight_sum_used=0.2   MATCH
+absent_factor_batch   F3 participated applied=0.1  其余三条 applied=0
+                      SUM=0.1    weight_sum_used=0.1   MATCH
+```
+
+`participated=false` 仍恒对应 `score=null`，且零权重不是中性得分——
+它表示"这一条没有参与加权"，不是"它投了一个 0 分"。
 
 ### P1 —— READY 不等于参与计分
 

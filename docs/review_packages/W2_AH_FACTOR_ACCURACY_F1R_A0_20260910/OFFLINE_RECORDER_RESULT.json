@@ -1,7 +1,14 @@
 {
   "absent_factor_batch": {
     "appended": 4,
+    "applied_weight_sum": "0.1",
     "applied_weights": {
+      "F3_REST_FITNESS": "0.1",
+      "F5_RECENT_AH_COVER": "0",
+      "F6_H2H": "0",
+      "F9_TRUE_XG": "0"
+    },
+    "declared_weights": {
       "F3_REST_FITNESS": "0.1",
       "F5_RECENT_AH_COVER": "0.05",
       "F6_H2H": "0.05",
@@ -41,13 +48,20 @@
   },
   "complete_batch": {
     "appended": 4,
+    "applied_weight_sum": "0.20",
     "applied_weights": {
-      "F3_REST_FITNESS": "0.1",
+      "F3_REST_FITNESS": "0",
       "F5_RECENT_AH_COVER": "0.05",
       "F6_H2H": "0.05",
       "F9_TRUE_XG": "0.1"
     },
     "batch_size": 4,
+    "declared_weights": {
+      "F3_REST_FITNESS": "0.1",
+      "F5_RECENT_AH_COVER": "0.05",
+      "F6_H2H": "0.05",
+      "F9_TRUE_XG": "0.1"
+    },
     "every_evidence_time_strictly_before_evaluated_at": true,
     "evidence_time_semantics": {
       "F3_REST_FITNESS": "SOURCE_QUERIED_AT_AS_OF",
@@ -100,16 +114,44 @@
   "live_capture_not_started": true,
   "obsidian_writes": 0,
   "offline_recorder_implemented": true,
-  "parent_commit": "d8c8bf8259b30cd9fd81dfbf7be8555aa42680aa",
+  "parent_commit": "7e8b07f77bf0638692aea9e4bf30b9d0107fd8bd",
   "production_db_reads": 0,
   "production_db_writes": 0,
   "production_wiring_not_started": true,
   "provider_calls": 0,
   "public_http_fetch": 0,
   "readback_verified_rows": 8,
-  "recorder_id": "w2.f1r_a0_offline_factor_recorder.v2",
+  "recorder_id": "w2.f1r_a0_offline_factor_recorder.v3",
   "result_derived_without_source_time_refused_with": "RESULT_DERIVED_FACTOR_WITHOUT_SOURCE_OBSERVED_TIME",
   "schema_version": "w2.f1r_a0_offline_recorder_result.v1",
-  "task_id": "W2_AH_FACTOR_ACCURACY_F1R_A0_20260910",
+  "scoring_authority_closure": {
+    "absent_factor_batch": {
+      "scoring_factors": {
+        "F3_REST_FITNESS": {
+          "share": 1.0,
+          "weight": 0.1
+        }
+      },
+      "weight_sum_used": 0.1
+    },
+    "complete_batch": {
+      "scoring_factors": {
+        "F5_RECENT_AH_COVER": {
+          "share": 0.25,
+          "weight": 0.05
+        },
+        "F6_H2H": {
+          "share": 0.25,
+          "weight": 0.05
+        },
+        "F9_TRUE_XG": {
+          "share": 0.5,
+          "weight": 0.1
+        }
+      },
+      "weight_sum_used": 0.2
+    }
+  },
+  "task_id": "W2_AH_FACTOR_ACCURACY_F1R_A0_NARROW_REMEDIATION_2_20260910",
   "weight_calibration_not_started": true
 }

@@ -132,3 +132,97 @@ fsync 失败                                同上
 
 **validation failure 与 mid-write failure 是分开测的**：前者在打开文件之前就拒绝
 （上文各条 `_bytes(ledger)` 断言），后者在临时文件里失败、原账本不受影响。
+
+
+## 第二次窄整改新增的测试
+
+```text
+READY 但非独立信号 / 非权威 group / 未知 group / 零权重
+                          参数化 4 条：participated=false 且 applied_weight == 0
+INSUFFICIENT_DATA / SOURCE_UNAVAILABLE
+                          参数化 2 条：applied_weight == 0，declared_weight 保留
+三类无分状态同时出现       断言三种状态都被覆盖，且每条 applied_weight == 0
+完整批次逐行核对           participated 集合与权威一致；每行权重等于权威值或 0；
+                          SUM(applied_weight) == weight_sum_used
+缺数据批次同样闭合         SUM == weight_sum_used
+不变量必须能失败           人为给未参与行塞 0.1，断言被拒绝（守卫非空转）
+已发布参考账本             每条 FACTOR_ADMISSION_FAILED 行 applied_weight == 0
+已发布结果自洽             两个批次的 applied_weight_sum 与自带权威块一致
+交付身份一致               parent/task_id/final_state 在 RESULT 与 INDEX 之间一致，
+                          且不等于 d8c8bf82 或 0821f472
+```
+
+修订链测试改为修订 `factor_version` 而非 `applied_weight`：给一个未参与的因子
+改权重现在会被新不变量拒绝，那正是期望行为，所以夹具改用一个合法的修订字段。
+
+
+## 全仓失败集合：两种调用方式，两套精确数字
+
+执行令要求用工作树自己的解释器 `./.venv/bin/python`。这会改变一个既有测试的结果，
+原因与本任务无关，如实分列：
+
+```text
+./.venv/bin/python -m pytest -q      9 failed / 3072 passed / 9 skipped
+uv run … python -m pytest -q         8 failed / 3073 passed / 9 skipped
+```
+
+差的那一条是：
+
+```text
+tests/contract/test_sc18_input_authority.py::test_sc18_authority_artifacts_are_complete_and_self_checking
+```
+
+它在第 22 行 `subprocess` 调用裸名 `"python"`：
+
+```python
+["python", "scripts/check_sc18_input_authority.py"]
+```
+
+`uv run` 会在 PATH 上放一个 `python` shim，所以通过；直接用 `./.venv/bin/python`
+不会，于是 `FileNotFoundError: No such file or directory: 'python'`。
+
+**归属证明（自包含、可复现）**：
+
+```text
+该测试文件在 d8c8bf82 与 HEAD 之间          git diff --stat 无输出（逐字节相同）
+本轮改动是否触及 tests/ 或 SC18 输入        无
+同一节点 + PATH 上有 python shim            1 passed
+同一节点 + 直接 venv 解释器                 1 failed
+在早于全部 F1R 工作的 71cffa8d 工作树上
+用同样的直接调用复跑该节点                   1 failed
+```
+
+即：这是调用方式与 PATH 的事实，不是本任务引入的回归。
+
+### 逐节点差集（同一调用方式内比较）
+
+`uv run` 口径下，目标与 `d8c8bf82` 的失败集合**逐条相同，新增 0、消失 0**：
+
+```text
+tests/contract/test_api_projection_read_authority.py::test_missing_projection_is_explicit_system_degraded_not_empty
+tests/contract/test_compose_env_dedup.py::test_compose_expansion_matches_authorized_runtime_delta[path0]
+tests/contract/test_compose_env_dedup.py::test_compose_expansion_matches_authorized_runtime_delta[path1]
+tests/contract/test_production_odds_reads.py::test_api_dashboard_card_keeps_historical_v3_identity_immutable
+tests/integration/test_future_refresh_staging_parity.py::test_preflight_fails_root_0700_runtime_for_worker_uid
+tests/integration/test_future_refresh_staging_parity.py::test_preflight_passes_worker_owned_0750_runtime
+tests/regression/test_stage3_contracts.py::test_no_hardcoded_real_teams_leagues_or_fixtures
+tests/unit/test_ev_migration_2b.py::test_frozen_29601_rows_match_exactly
+```
+
+`./.venv/bin/python` 口径下即上表加 SC18 一条，共 9 条。
+
+### 关于 `EV_CONTRACT_2A_20260906/differences.json`
+
+执行令提到该文件在目标与基线都缺失。已核实：
+`docs/review_packages/EV_CONTRACT_2A_20260906/` **在整个仓库历史里从未被提交过**
+（`git ls-tree` 在 `d8c8bf82` 与 `HEAD` 都为空，`git log --all` 无任何记录，
+也不在 `.gitignore` 内）。因此 `test_frozen_29601_rows_match_exactly`
+在两个提交上以相同文件状态失败，属仓库既有事实。
+本轮未从其他工作树复制该文件，也未改动 EV_CONTRACT。
+
+### Ruff
+
+```text
+./.venv/bin/ruff check .     Found 10 errors，exit=1 —— **不是 exit 0**
+与 3ac86c14 干净基线的 10 条逐条相同，差集为空；本轮未引入任何新 lint
+```

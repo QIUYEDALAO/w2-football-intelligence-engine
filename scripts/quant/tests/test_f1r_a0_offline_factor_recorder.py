@@ -14,6 +14,7 @@ import subprocess
 import sys
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -156,7 +157,8 @@ def test_01_a_complete_four_factor_batch_is_recorded(tmp_path) -> None:
     assert sorted(row["factor_id"] for row in rows) == sorted(
         contract.ALLOWED_FACTOR_IDS)
     for row in rows:
-        assert row["applied_weight"] in {"0.1", "0.05"}
+        # a participant carries the authority's weight, an excluded factor zero
+        assert row["applied_weight"] in {"0.1", "0.05", "0"}
         assert contract.parse_aware_utc(row["evidence_time_utc"], field_name="e") < (
             contract.parse_aware_utc(row["evaluated_at_utc"], field_name="v"))
         if row["participated"]:
@@ -380,6 +382,10 @@ def test_p1_a_ready_factor_the_authority_excludes_does_not_participate(
     assert row["signed_score"] is None, label
     assert row["factor_inputs"]["weight_entered_weight_sum_used"] == "false", label
     assert row["factor_inputs"]["feature_status"] == "READY", label
+    # applied_weight means the weight this evaluation actually applied, and an
+    # excluded factor applied none of it
+    assert Decimal(row["applied_weight"]) == Decimal(0), label
+    assert row["factor_inputs"]["declared_weight"] not in (None, "0"), label
 
 
 def test_p1_the_recorder_reuses_team_score_rather_than_reimplementing_it() -> None:
@@ -650,7 +656,8 @@ def test_18_a_revision_appends_and_leaves_the_old_rows_byte_identical(
     batch = [contract.validate(record) for record in _build()]
     revised = [
         recorder.revise(record, supersedes=observation_id,
-                        reason="WEIGHT_CORRECTED_BY_SOURCE", applied_weight="0.12")
+                        reason="FACTOR_VERSION_CORRECTED_BY_SOURCE",
+                        factor_version="SYNTHETIC_FIXTURE_v2")
         for record, observation_id in zip(batch, first["observation_ids"], strict=True)
     ]
 
@@ -661,14 +668,16 @@ def test_18_a_revision_appends_and_leaves_the_old_rows_byte_identical(
     rows = ledger.rows()
     assert len(rows) == 8
     for observation_id in first["observation_ids"]:
-        assert ledger.readback(observation_id)["applied_weight"] in {"0.1", "0.05"}
+        assert ledger.readback(observation_id)["factor_version"] == (
+            "SYNTHETIC_FIXTURE_v1")
 
 
 def test_19_a_dangling_supersedes_refuses_the_batch(tmp_path) -> None:
     ledger = _ledger(tmp_path)
     batch = [contract.validate(record) for record in _build()]
     dangling = [recorder.revise(record, supersedes="e" * 64, reason="r",
-                                applied_weight="0.12") for record in batch]
+                                factor_version="SYNTHETIC_FIXTURE_v2")
+                for record in batch]
 
     with pytest.raises(ContractError) as excinfo:
         recorder.append_batch(ledger, dangling)
@@ -683,7 +692,7 @@ def test_20_a_supersedes_cycle_refuses(tmp_path) -> None:
     batch = [contract.validate(record) for record in _build()]
     revised = [
         recorder.revise(record, supersedes=observation_id, reason="r1",
-                        applied_weight="0.12")
+                        factor_version="SYNTHETIC_FIXTURE_v2")
         for record, observation_id in zip(batch, first["observation_ids"], strict=True)]
     second = recorder.append_batch(ledger, revised)
     rows = ledger.rows()
@@ -697,7 +706,7 @@ def test_20_a_supersedes_cycle_refuses(tmp_path) -> None:
     batch3 = [contract.validate(record) for record in _build()]
     cyclic = [
         recorder.revise(record, supersedes=observation_id, reason="r2",
-                        applied_weight="0.13")
+                        factor_version="SYNTHETIC_FIXTURE_v3")
         for record, observation_id in zip(batch3, second["observation_ids"],
                                           strict=True)]
 
@@ -1024,3 +1033,178 @@ def test_atomicity_replay_after_a_rewrite_is_still_idempotent(tmp_path) -> None:
     assert again["appended"] == 0
     assert again["idempotent_no_ops"] == 4
     assert _bytes(ledger) == before
+
+
+# --- applied_weight is the weight actually applied, never the declared one ---
+# F1P freezes applied_weight as "the weight this evaluation actually adopted".
+# A factor the scoring authority excluded adopted none of it, so it must record
+# a canonical zero; the builder's declared value lives in an audit field.
+def _authority(feature_set) -> dict:  # type: ignore[no-untyped-def]
+    return recorder.scoring_authority_view(feature_set.contributions)
+
+
+@pytest.mark.parametrize(("label", "changes"), [
+    ("ready but not an independent signal", {"is_independent_signal": False}),
+    ("ready but a non authoritative source group", {"source_group": "match_importance"}),
+    ("ready but an unknown source group", {"source_group": "some_other_group"}),
+    ("ready but zero weight", {"weight": 0.0}),
+])
+def test_w1_an_excluded_ready_factor_records_zero_applied_weight(
+    tmp_path, label, changes
+) -> None:
+    context = _context()
+    target = "F9_TRUE_XG"
+    adjusted = tuple(
+        replace(c, **changes) if c.feature_id == target else c
+        for c in _complete_contributions(context))
+    feature_set = _feature_set(adjusted)
+    ledger = _ledger(tmp_path)
+
+    recorder.append_batch(ledger, _build(feature_set, context=context))
+
+    row = next(r for r in ledger.rows() if r["factor_id"] == target)
+    assert row["participated"] is False, label
+    assert Decimal(row["applied_weight"]) == Decimal(0), label
+    assert row["signed_score"] is None, label
+    assert row["factor_inputs"]["weight_entered_weight_sum_used"] == "false", label
+
+
+@pytest.mark.parametrize(("label", "status_field"), [
+    ("insufficient data", contract.INSUFFICIENT_DATA),
+    ("source unavailable", contract.SOURCE_UNAVAILABLE),
+])
+def test_w1_a_missing_data_factor_records_zero_applied_weight(
+    tmp_path, label, status_field
+) -> None:
+    context = _context()
+    ledger = _ledger(tmp_path)
+
+    recorder.append_batch(ledger, _build(_degraded_set(context), context=context))
+
+    rows = [r for r in ledger.rows() if r["factor_status"] == status_field]
+    assert rows, label
+    for row in rows:
+        assert Decimal(row["applied_weight"]) == Decimal(0), (label, row["factor_id"])
+        assert row["signed_score"] is None
+        assert row["factor_inputs"]["declared_weight"] not in (None, "0")
+
+
+def test_w1_the_admission_failed_case_records_zero_in_all_three_scoreless_states(
+    tmp_path,
+) -> None:
+    """FACTOR_ADMISSION_FAILED, INSUFFICIENT_DATA and SOURCE_UNAVAILABLE alike."""
+    context = _context()
+    ledger = _ledger(tmp_path)
+    recorder.append_batch(ledger, _build(_degraded_set(context), context=context))
+    recorder.append_batch(
+        ledger,
+        _build(_feature_set(tuple(
+            replace(c, is_independent_signal=False) if c.feature_id == "F9_TRUE_XG"
+            else c for c in _complete_contributions(context))),
+            context=context,
+            evaluation_id="dqe-" + "6" * 64, attempt_id="att-" + "6" * 60))
+
+    seen = {row["factor_status"] for row in ledger.rows() if not row["participated"]}
+    assert {contract.INSUFFICIENT_DATA, contract.SOURCE_UNAVAILABLE,
+            contract.FACTOR_ADMISSION_FAILED} <= seen
+    for row in ledger.rows():
+        if not row["participated"]:
+            assert Decimal(row["applied_weight"]) == Decimal(0), row["factor_id"]
+
+
+def test_w1_every_row_matches_the_authority_and_the_batch_sum_closes(
+    tmp_path,
+) -> None:
+    """The mechanical invariant: what was applied is exactly what was summed."""
+    context = _context()
+    feature_set = _feature_set(_complete_contributions(context))
+    authority = _authority(feature_set)
+    ledger = _ledger(tmp_path)
+
+    recorder.append_batch(ledger, _build(feature_set, context=context))
+
+    rows = {row["factor_id"]: row for row in ledger.rows()}
+    scored = authority["scoring_factors"]
+    assert scored
+    for factor_id, row in rows.items():
+        assert row["participated"] is (factor_id in scored), factor_id
+        expected = (Decimal(str(scored[factor_id]["weight"])) if factor_id in scored
+                    else Decimal(0))
+        assert Decimal(row["applied_weight"]) == expected, factor_id
+    total = sum((Decimal(row["applied_weight"]) for row in rows.values()), Decimal(0))
+    assert total == Decimal(str(authority["weight_sum_used"]))
+
+
+def test_w1_the_degraded_batch_sum_also_closes(tmp_path) -> None:
+    context = _context()
+    feature_set = _degraded_set(context)
+    authority = _authority(feature_set)
+    ledger = _ledger(tmp_path)
+
+    recorder.append_batch(ledger, _build(feature_set, context=context))
+
+    total = sum((Decimal(row["applied_weight"]) for row in ledger.rows()), Decimal(0))
+    assert total == Decimal(str(authority["weight_sum_used"]))
+
+
+def test_w1_a_batch_whose_weights_do_not_close_is_refused() -> None:
+    """The invariant must be capable of failing, or it proves nothing."""
+    context = _context()
+    batch = _build(_feature_set(_complete_contributions(context)), context=context)
+    excluded = next(r for r in batch if not r.participated)
+    tampered = [
+        replace(r, applied_weight="0.1") if r.factor_id == excluded.factor_id else r
+        for r in batch]
+
+    with pytest.raises(ContractError) as excinfo:
+        recorder._batch_coherence(
+            [contract.validate(r) for r in tampered],
+            _authority(_feature_set(_complete_contributions(context)))[
+                "weight_sum_used"])
+
+    assert excinfo.value.code in {
+        "NON_PARTICIPATING_FACTOR_CARRIES_APPLIED_WEIGHT",
+        "BATCH_APPLIED_WEIGHT_SUM_DISAGREES_WITH_AUTHORITY"}
+
+
+def test_w1_the_published_ledger_has_zero_weight_on_every_admission_failed_row(
+) -> None:
+    """The shipped artifact, not just a fixture."""
+    rows = [json.loads(line) for line in
+            (OUTPUT / "F1R_A0_REFERENCE_LEDGER.jsonl").read_text(
+                encoding="utf-8").splitlines() if line.strip()]
+    failed = [r for r in rows
+              if r["factor_status"] == contract.FACTOR_ADMISSION_FAILED]
+
+    assert failed, "the reference ledger must exercise this case"
+    for row in failed:
+        assert Decimal(row["applied_weight"]) == Decimal(0), row["factor_id"]
+
+
+def test_w1_the_published_result_closes_against_its_own_authority_block() -> None:
+    result = json.loads(
+        (OUTPUT / "OFFLINE_RECORDER_RESULT.json").read_text(encoding="utf-8"))
+
+    for name in ("complete_batch", "absent_factor_batch"):
+        closure = result["scoring_authority_closure"][name]
+        assert Decimal(result[name]["applied_weight_sum"]) == Decimal(
+            str(closure["weight_sum_used"])), name
+
+
+# --- delivery identity is consistent across the package -------------------
+def test_w2_the_published_parent_commit_is_this_rounds_parent() -> None:
+    result = json.loads(
+        (OUTPUT / "OFFLINE_RECORDER_RESULT.json").read_text(encoding="utf-8"))
+    index = (OUTPUT / "INDEX.md").read_text(encoding="utf-8")
+
+    assert result["parent_commit"] == "7e8b07f77bf0638692aea9e4bf30b9d0107fd8bd"
+    assert result["task_id"] == (
+        "W2_AH_FACTOR_ACCURACY_F1R_A0_NARROW_REMEDIATION_2_20260910")
+    assert result["final_state"] == "BLOCKED_BY_UNPROVABLE_FACTOR_SOURCE"
+    assert result["parent_commit"] in index
+    assert result["task_id"] in index
+    assert result["final_state"] in index
+    # the superseded parents must not linger anywhere in the package identity
+    for stale in ("d8c8bf8259b30cd9fd81dfbf7be8555aa42680aa",
+                  "0821f472115ca2d1aabf0d0c51248057de9c5693"):
+        assert result["parent_commit"] != stale
