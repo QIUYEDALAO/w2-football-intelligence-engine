@@ -28,11 +28,13 @@ participated、evidence_time 与 source_hash。
 
 逐项看，最好的情况是"两个来源各有一半，但没有一个能对齐到评估时刻"：
 
-| 来源类型 | 覆盖 | score | weight | participated | evidence_time | 绑定 evaluation |
+| 来源类型 | 官方 ID 精确命中 | score | weight | participated | evidence_time | 绑定 evaluation |
 |---|---:|:-:|:-:|:-:|:-:|:-:|
 | 按 evaluation 键控的诊断 | 66/84 | 否(全 null) | 否 | 否 | 否 | **是** |
-| 赛前分析卡归档（t5） | 9/84 fixture | **是** | **是** | **是** | 否 | 否 |
-| 源码权重默认值 | 全部 | 否 | **是** | 否 | 是（提交时间） | 否 |
+| 赛前分析卡归档（t5） | **0** | **是** | 默认值 | **是** | 否 | 否 |
+| 源码权重默认值 | 0 | 否 | 默认值 | 否 | **否** | 否 |
+
+**没有任何一个来源的 `proves_evidence_time_before_evaluated_at` 为真。**
 
 **没有一行的六项能凑齐**，因为最关键的 `evidence_time` 在所有来源里都不存在：
 逐因子证据时点从未被序列化。代码里 `FeatureContribution` 确实有 `observed_at`
@@ -40,6 +42,13 @@ participated、evidence_time 与 source_hash。
 序列化里没有这一项——实测其可用字段为
 `collection_status / coverage_profile_status / id / inputs / is_independent_signal /
 proxy_of / score / side / source / source_group / status`，**没有 observed_at**。
+
+关于源码权重：`team_factors.py` / `live_factors.py` 里 F3=0.10、F5=0.05、F6=0.05、
+F9=0.10 的默认值自 2026-07-25 未变，**源码提交时间确实早于全部 148 次评估**。
+但这**不是逐场、逐因子的 evidence_time**，因此不能作为任何一行的 PIT 证据；
+而且默认参数不是某次评估实际采用的 `original_weight`。登记表里这两个来源的
+`has_evidence_time` 与 `proves_evidence_time_before_evaluated_at` 均为 `false`，
+并另加 `weight_is_default_not_applied = true` 标明这一点。
 
 ### Q2：能否证明每个 evidence_time 严格早于 evaluated_at？
 
@@ -52,7 +61,7 @@ proxy_of / score / side / source / source_group / status`，**没有 observed_at
 - **赛前卡归档**：9 场里最好的一批早于 `evaluated_at` **66–68 小时**。
   严格说满足"早于"，但那是三天前的另一次观测，不是评估当时的值——
   三天里对手打了别的比赛，F3 休息天数、F9 xG、F7 状态都会变。
-  且这些卡**不含任何 `dqe-` 评估身份**（实测 430 张卡中与我们 AH 评估绑定的为 **0** 张），
+  且这些卡里**结构化 `evaluation_id` 对本批 84 条官方 evaluation_id 的精确命中数为 0**，
   无法证明它就是那次评估用的输入。
 
 ### Q3：能否形成完整、可审计的 84 × 4 矩阵？
@@ -128,7 +137,8 @@ factor_veto    FACTOR_EV_DIRECTION_CONFLICT   ev_selection=HOME  factor_directio
 
 1. 卡的时点是 **09-04 22:00**，评估是 **09-07 18:32**，相差 **68.5 小时**。
    这不是评估当时的因子状态。
-2. 卡里没有 `dqe-` 评估身份，无法证明它与那次评估是同一份输入。
+2. 卡里的结构化 `evaluation_id` 未精确命中本批任何一条官方 evaluation_id，
+   无法证明它与那次评估是同一份输入。
 3. `margin` 只有 **-0.035**，是极弱的方向信号；把这样一个数当作"应该反向"的依据，
    属于对噪声过度解读。
 4. **n=1。** 一场对上了，不构成任何权重结论。
@@ -142,11 +152,13 @@ factor_veto    FACTOR_EV_DIRECTION_CONFLICT   ev_selection=HOME  factor_directio
 FROZEN_CORPUS (2)                 148 条语料本身；manifest 的 factor_* 全是 NOT_RECONSTRUCTIBLE
 EVALUATION_KEYED_DIAGNOSIS (2)    覆盖 66/84，仅 status，score 全 null，读取时点在评估之后
 PREMATCH_ANALYSIS_CARD_ARCHIVE(17) 真实赛前 factor_score，含 score/weight/participated，
-                                  但仅覆盖 9/84 fixture、无逐因子证据时点、无评估绑定
+                                  但仅覆盖 9/84 fixture、无逐因子证据时点、
+                                  官方 evaluation_id 精确命中 0
 REGISTRY (2)                      因子注册表与角色矩阵：只有生命周期/角色，无数值权重、无逐场值
-SOURCE_CODE_DEFAULT (2)           F3=0.10 F5=0.05 F6=0.05 F9=0.10，自 2026-07-25 未变，
-                                  早于全部 148 次评估；但这是"默认参数"，
-                                  不是"该次评估实际生效的权重"，且无 participated 就无意义
+SOURCE_CODE_DEFAULT (2)           F3=0.10 F5=0.05 F6=0.05 F9=0.10，自 2026-07-25 未变。
+                                  源码提交时间早于全部 148 次评估，但那不是逐场逐因子的
+                                  evidence_time，不能证明任何一行满足 PIT；
+                                  且默认参数不是该次评估实际生效的 original_weight
 LOCAL_SQLITE (1)                  7 个本地库全部 0 字节、0 表；读取前后 SHA-256 未变
 PRODUCTION_DATABASE (1)           未访问（本执行令 PRODUCTION_DB_READS=0）；
                                   且 read_model_checkpoint 就地覆盖，赛前值已不存在
@@ -155,7 +167,8 @@ PRODUCTION_DATABASE (1)           未访问（本执行令 PRODUCTION_DB_READS=0
 ## 7. 为什么不能就这样进 F2
 
 F2 是全局权重搜索，自变量是四因子的 signed score 与 participated。
-现在 336 行里这两项的可用数为 **0**。
+现在 336 行里这两项的可用数为 **0**，且没有任何来源能被绑定到具体 evaluation
+（官方 evaluation_id 精确命中数 = 0）。
 
 在没有自变量的情况下做权重搜索，唯一还能拟合的目标就是结算标签本身——
 那不是校准，是直接对赛果拟合。这也是本任务反复设防的原因：
@@ -173,7 +186,8 @@ F2 是全局权重搜索，自变量是四因子的 signed score 与 participate
 要让 B 成立，必须同时满足三件事，缺一不可：
 
 1. 存在一个**逐因子**证据时点（今天任何来源都没有）；
-2. 存在能把该值绑定到具体 evaluation 的身份（今天 0/430 张卡有）；
+2. 存在能把该值绑定到具体 evaluation 的身份
+   （今天官方 evaluation_id 的精确命中数为 0）；
 3. 覆盖率足以支撑权重拟合（今天最好的赛前卡只有 9/84）。
 
 在这三件事被证明之前，B 是假设不是任务。
@@ -193,3 +207,64 @@ WEIGHT_CALIBRATION_STATUS = BLOCKED_BY_MATRIX
 
 F1 的交付是完整的：来源已穷举登记、矩阵 336 行齐备可审计、机制已在代码中定位。
 结论是历史重建这条路在当前证据下走不通。这是合法终态，不是任务失败。
+
+
+## 10. 本轮窄整改（验收方指出的两处登记错误）
+
+验收方独立复核确认了 F1 的核心结论，但指出交付包有两处**证据登记口径**错误。
+两处都已修正，**核心结论与四个受保护数字均未改变**。
+
+### A. 源码默认参数的时间语义
+
+原登记把 `SOURCE_CODE_DEFAULT` 写成
+`proves_evidence_time_before_evaluated_at = true`。**这是错的**：源码提交时间
+只是代码的时间，不是某一场比赛、某一个因子的赛前证据时间；默认权重也不是
+某次评估实际采用的 `original_weight`。
+
+已改为 `has_evidence_time = false`、`proves_evidence_time_before_evaluated_at = false`，
+并新增 `weight_is_default_not_applied = true` 使这一区分可被机器检查。
+修正后**全部 27 个来源中，`proves_evidence_time_before_evaluated_at` 为真的有 0 个**。
+
+### B. 归档绑定必须精确匹配官方 evaluation_id
+
+原逻辑用 `"dqe-" in json.dumps(dynamic_prematch)` 判断绑定。**这是错的**：
+实测归档中携带 `dqe-` 值的键有两个——`evaluation_id`（1080 次）与
+`superseded_by_evaluation_id`（592 次），后者指向的是另一条更晚的评估，
+不构成本卡片的绑定；此外还有其他 fixture 的评估 ID。
+
+已改为 `extract_structured_evaluation_ids()`：只读取 key 恰为 `evaluation_id`
+的结构化字段，显式跳过 `superseded_by_evaluation_id`，再与从唯一输入包读出的
+84 条官方 AH `evaluation_id` 求精确交集。`covered_evaluation_ids` 同样改为
+结构化精确匹配，不再用字符串包含关系估计。
+
+修正前后：
+
+```text
+                                          修正前   修正后
+归档被标记为 bound_to_evaluation_identity     13       0
+官方 evaluation_id 精确命中总数               —        0
+按 evaluation 键控的诊断的覆盖数              66       66   （未因精确化而丢失真实覆盖）
+```
+
+13 → 0 说明原来的 13 个"绑定"全部来自 `superseded_by_evaluation_id` 或
+其他比赛的评估 ID，没有一个是真绑定。
+
+### 未重新调查、未新增来源
+
+本轮使用同一套证据目录重新扫描**仅为修正描述**，并在 runner 中加了硬保护：
+若重扫后 `(source_path, source_sha256)` 集合与既有索引不一致即抛
+`ARCHIVE_SOURCE_SET_CHANGED` 并终止。实测集合完全一致（17 个归档，SHA 全同），
+因此这次重扫没有引入或丢弃任何来源。该保护有自包含测试。
+
+### 受保护数字未变
+
+```text
+matrix_rows = 336          exact_pit_rows = 0
+post_capture_rows = 264    not_reconstructible_rows = 72
+f2_allowed = false         f3_allowed = false
+weight_calibration_status = BLOCKED_BY_MATRIX
+final_state = F1_NOT_RECONSTRUCTIBLE_FROM_FROZEN_148
+```
+
+并有测试断言：修正绑定逻辑后，336 行的历史六项仍全部为 `NOT_RECONSTRUCTIBLE`，
+没有因为改判绑定而填入任何历史值。

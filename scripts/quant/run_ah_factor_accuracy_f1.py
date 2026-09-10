@@ -86,6 +86,35 @@ def _stamp_from_name(name: str) -> datetime | None:
         f"{day[:4]}-{day[4:6]}-{day[6:8]}T{clock[:2]}:{clock[2:4]}:{clock[4:6]}Z")
 
 
+# Only this key names the evaluation a record *is*. superseded_by_evaluation_id
+# names a different, later evaluation, so it is never a binding for this card.
+EVALUATION_ID_KEY = "evaluation_id"
+NON_BINDING_ID_KEYS = frozenset({"superseded_by_evaluation_id"})
+
+
+def extract_structured_evaluation_ids(node: Any) -> set[str]:
+    """Every value of a structured `evaluation_id` field, and nothing else.
+
+    Deliberately not a substring search. A `dqe-` string can appear in a log
+    line, a note, a superseded pointer or another fixture's record; none of
+    those makes this card an observation of one of our evaluations. Only an
+    exact value under the `evaluation_id` key counts.
+    """
+    found: set[str] = set()
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in NON_BINDING_ID_KEYS:
+                continue
+            if key == EVALUATION_ID_KEY and isinstance(value, str):
+                found.add(value)
+            else:
+                found |= extract_structured_evaluation_ids(value)
+    elif isinstance(node, list):
+        for value in node:
+            found |= extract_structured_evaluation_ids(value)
+    return found
+
+
 def _cards(node: Any):  # type: ignore[no-untyped-def]
     if isinstance(node, dict):
         if "factor_score" in node and "fixture_id" in node:
@@ -114,7 +143,9 @@ def _records(path: Path):  # type: ignore[no-untyped-def]
     yield from (loaded if isinstance(loaded, list) else [loaded])
 
 
-def scan_factor_archives(root: Path, ah_fixtures: set[str]) -> list[dict[str, Any]]:
+def scan_factor_archives(
+    root: Path, ah_fixtures: set[str], official_evaluation_ids: set[str]
+) -> list[dict[str, Any]]:
     """Register every local archive that holds a factor_score for an AH fixture."""
     entries: list[dict[str, Any]] = []
     for path in sorted(root.rglob("*")):
@@ -125,17 +156,19 @@ def scan_factor_archives(root: Path, ah_fixtures: set[str]) -> list[dict[str, An
             continue
         captured = _stamp_from_name(path.name)
         observations: list[dict[str, Any]] = []
-        # whether any card here binds to a dynamic evaluation identity; none do,
-        # and the inventory records that as the reason no cell can be exact
-        bound_to_evaluation = False
+        # Exact hits only: which of the 84 official AH evaluation ids appear as
+        # a structured evaluation_id inside a card here.
+        official_hits: set[str] = set()
         for record in _records(path):
             for card in _cards(record):
                 fixture_id = str(card.get("fixture_id"))
                 if fixture_id not in ah_fixtures:
                     continue
                 score = card.get("factor_score") or {}
-                if "dqe-" in json.dumps(card.get("dynamic_prematch") or {}):
-                    bound_to_evaluation = True
+                official_hits |= (
+                    extract_structured_evaluation_ids(card.get("dynamic_prematch"))
+                    & official_evaluation_ids
+                )
                 participants = {
                     str(item.get("feature_id")): item
                     for item in (score.get("participants") or [])
@@ -158,7 +191,8 @@ def scan_factor_archives(root: Path, ah_fixtures: set[str]) -> list[dict[str, An
             "source_path": str(path),
             "source_sha256": sha256_file(path),
             "captured_at_utc": captured.isoformat() if captured else None,
-            "bound_to_evaluation_identity": bound_to_evaluation,
+            "official_evaluation_id_matches": sorted(official_hits),
+            "bound_to_evaluation_identity": bool(official_hits),
             "observations": observations,
         })
     return entries
@@ -376,6 +410,20 @@ IN_REPO_SOURCES = (
 )
 
 
+def _official_ids_in_file(path: Path, official_evaluation_ids: set[str]) -> set[str]:
+    """Official evaluation ids present as structured fields in a JSON source.
+
+    A non-JSON source (a .py file) can hold no structured field, so it covers
+    nothing; that is a fact about the file, not an omission.
+    """
+    if path.suffix not in {".json", ".jsonl"}:
+        return set()
+    found: set[str] = set()
+    for record in _records(path):
+        found |= extract_structured_evaluation_ids(record)
+    return found & official_evaluation_ids
+
+
 def _any_non_null_factor_score(
     diagnosis: dict[str, dict[str, Any]], ah_ids: set[str]
 ) -> bool:
@@ -404,6 +452,8 @@ def inventory_rows(
             "has_original_weight": False, "has_participated": False,
             "has_evidence_time": False, "has_source_identity": False,
             "proves_evidence_time_before_evaluated_at": False,
+            "weight_is_default_not_applied": False,
+            "official_evaluation_id_exact_matches": 0,
         }
         base.update(fields)
         return base
@@ -413,12 +463,14 @@ def inventory_rows(
         if not path.is_file():
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
-        covered = sum(1 for i in ah_ids if i in text)
         rows.append(entry(
             source_path=path_text, source_type=source_type,
             source_sha256=sha256_file(path),
             source_commit_or_generated_at="IN_GIT_AT_PARENT_COMMIT",
-            covered_evaluation_ids=covered,
+            # exact structured match against the 84 official ids, never a
+            # substring test over the file text
+            covered_evaluation_ids=len(
+                _official_ids_in_file(path, ah_ids)),
             covered_ah_fixtures=sum(1 for f in ah_fixtures if f in text),
             covered_factors=[f for f in FACTORS if f in text],
             # measured, not inferred from the schema: the diagnosis has a score
@@ -428,8 +480,13 @@ def inventory_rows(
                 and _any_non_null_factor_score(diagnosis, ah_ids)),
             has_original_weight=source_type == "SOURCE_CODE_DEFAULT",
             has_source_identity=source_type == "EVALUATION_KEYED_DIAGNOSIS",
-            proves_evidence_time_before_evaluated_at=(
-                source_type == "SOURCE_CODE_DEFAULT"),
+            # A source-code commit predates the evaluations, but a commit time
+            # is not a per-match, per-factor evidence time, so it proves PIT for
+            # no row. And a default parameter is not the weight some particular
+            # evaluation actually applied.
+            has_evidence_time=False,
+            proves_evidence_time_before_evaluated_at=False,
+            weight_is_default_not_applied=source_type == "SOURCE_CODE_DEFAULT",
             conclusion=conclusion, exclusion_reason=exclusion,
         ))
 
@@ -445,7 +502,9 @@ def inventory_rows(
             source_type="PREMATCH_ANALYSIS_CARD_ARCHIVE",
             source_sha256=archive["source_sha256"],
             source_commit_or_generated_at=archive["captured_at_utc"],
-            covered_evaluation_ids=0,
+            covered_evaluation_ids=len(archive["official_evaluation_id_matches"]),
+            official_evaluation_id_exact_matches=len(
+                archive["official_evaluation_id_matches"]),
             covered_ah_fixtures=len(fixtures),
             covered_factors=factors,
             has_signed_score=True, has_original_weight=True,
@@ -455,7 +514,8 @@ def inventory_rows(
             conclusion=(
                 "A real pre-match factor_score with signed magnitude, weight and "
                 "participation, but only a file-level capture instant, no "
-                "per-factor evidence time, and no dynamic-evaluation binding."),
+                "per-factor evidence time, and no structured evaluation_id that "
+                "exactly matches one of the 84 official AH evaluations."),
             exclusion_reason="UNBOUND_SNAPSHOT_NO_PER_FACTOR_EVIDENCE_TIME",
         ))
 
@@ -506,7 +566,18 @@ def main() -> int:
 
     index_path = output / "F1_FACTOR_ARCHIVE_INDEX.json"
     if args.scan is not None:
-        archives = scan_factor_archives(args.scan, ah_fixtures)
+        archives = scan_factor_archives(
+            args.scan, ah_fixtures, {row["evaluation_id"] for row in ah})
+        # A rescan may only correct how an already-registered source is
+        # described. It may not introduce or drop one.
+        if index_path.is_file():
+            previous = json.loads(index_path.read_text(encoding="utf-8"))["archives"]
+            before = {(a["source_path"], a["source_sha256"]) for a in previous}
+            after = {(a["source_path"], a["source_sha256"]) for a in archives}
+            if before != after:
+                raise ValueError(
+                    f"ARCHIVE_SOURCE_SET_CHANGED:added={sorted(after - before)}:"
+                    f"removed={sorted(before - after)}")
         index_path.write_text(
             json.dumps({"schema_version": "w2.f1_factor_archive_index.v1",
                         "archives": archives},

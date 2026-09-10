@@ -331,3 +331,174 @@ def test_the_production_database_is_registered_as_not_accessed(inventory) -> Non
 
     assert entry["source_sha256"] == "NOT_ACCESSED"
     assert entry["covered_evaluation_ids"] == 0
+
+
+# --- narrow remediation: two registration errors, and their guards ------
+# A source-code commit predates the evaluations, but a commit time is not a
+# per-match, per-factor evidence time. And a `dqe-` substring is not a binding.
+def test_r1_a_source_code_default_proves_pit_for_nothing(inventory) -> None:
+    defaults = [e for e in inventory if e["source_type"] == "SOURCE_CODE_DEFAULT"]
+
+    assert defaults, "the weight defaults must still be registered"
+    assert not [e for e in defaults if e["proves_evidence_time_before_evaluated_at"]]
+    assert not [e for e in defaults if e["has_evidence_time"]]
+    for entry in defaults:
+        assert entry["weight_is_default_not_applied"] is True
+        assert entry["covered_evaluation_ids"] == 0
+
+
+def test_r1_no_registered_source_proves_pit_at_all(inventory) -> None:
+    assert not [e for e in inventory if e["proves_evidence_time_before_evaluated_at"]]
+
+
+def _card(dynamic_prematch: dict | None) -> dict:
+    return {
+        "fixture_id": "1570366",
+        "factor_score": {"participants": [], "absent": [], "direction": "AWAY",
+                         "weight_sum_used": 0.0},
+        "dynamic_prematch": dynamic_prematch,
+    }
+
+
+def test_r2_a_foreign_dqe_string_is_not_a_binding(tmp_path, bundle) -> None:
+    official = {row["evaluation_id"] for row in bundle
+                if row["market"] == "ASIAN_HANDICAP"}
+    foreign = "dqe-" + "0" * 64
+    assert foreign not in official
+    archive = tmp_path / "foreign_20260904T120000Z.jsonl"
+    archive.write_text(json.dumps(_card({
+        "schema_version": "w2.dynamic_quote_ev_lifecycle.v1",
+        "current": {"evaluation_id": foreign},
+        "versions": [{"evaluation_id": foreign}],
+        "note": f"see {sorted(official)[0]} for context",
+    })) + "\n", encoding="utf-8")
+
+    scanned = runner.scan_factor_archives(tmp_path, {"1570366"}, official)
+
+    assert len(scanned) == 1
+    assert scanned[0]["official_evaluation_id_matches"] == []
+    assert scanned[0]["bound_to_evaluation_identity"] is False
+
+
+def test_r2_an_exact_official_id_is_a_binding(tmp_path, bundle) -> None:
+    official = {row["evaluation_id"] for row in bundle
+                if row["market"] == "ASIAN_HANDICAP"}
+    target = sorted(official)[0]
+    archive = tmp_path / "hit_20260904T120000Z.jsonl"
+    archive.write_text(json.dumps(_card({
+        "schema_version": "w2.dynamic_quote_ev_lifecycle.v1",
+        "current": {"evaluation_id": target},
+    })) + "\n", encoding="utf-8")
+
+    scanned = runner.scan_factor_archives(tmp_path, {"1570366"}, official)
+
+    assert scanned[0]["official_evaluation_id_matches"] == [target]
+    assert scanned[0]["bound_to_evaluation_identity"] is True
+
+
+def test_r2_superseded_by_evaluation_id_is_never_a_current_binding(
+    tmp_path, bundle
+) -> None:
+    official = {row["evaluation_id"] for row in bundle
+                if row["market"] == "ASIAN_HANDICAP"}
+    target = sorted(official)[0]
+    archive = tmp_path / "superseded_20260904T120000Z.jsonl"
+    archive.write_text(json.dumps(_card({
+        "schema_version": "w2.dynamic_quote_ev_lifecycle.v1",
+        "current": {"evaluation_id": "dqe-" + "1" * 64,
+                    "superseded_by_evaluation_id": target},
+        "versions": [{"evaluation_id": "dqe-" + "2" * 64,
+                      "superseded_by_evaluation_id": target}],
+    })) + "\n", encoding="utf-8")
+
+    scanned = runner.scan_factor_archives(tmp_path, {"1570366"}, official)
+
+    assert scanned[0]["official_evaluation_id_matches"] == []
+    assert scanned[0]["bound_to_evaluation_identity"] is False
+
+
+def test_r2_the_extractor_reads_only_structured_evaluation_id_fields() -> None:
+    node = {
+        "evaluation_id": "dqe-a",
+        "superseded_by_evaluation_id": "dqe-b",
+        "message": "dqe-c appeared in a log line",
+        "nested": [{"evaluation_id": "dqe-d"}, {"other_id": "dqe-e"}],
+    }
+
+    assert runner.extract_structured_evaluation_ids(node) == {"dqe-a", "dqe-d"}
+
+
+def test_r2_no_archive_exactly_matches_an_official_evaluation_id(inventory) -> None:
+    archives = [e for e in inventory
+                if e["source_type"] == "PREMATCH_ANALYSIS_CARD_ARCHIVE"]
+
+    assert archives
+    assert sum(e["official_evaluation_id_exact_matches"] for e in archives) == 0
+    assert not [e for e in archives if e["has_source_identity"]]
+
+
+def test_r2_in_repo_coverage_is_counted_structurally_not_by_substring(
+    inventory,
+) -> None:
+    """Exact counting must not silently lose the coverage that is genuinely there."""
+    diagnosis = next(
+        e for e in inventory
+        if e["source_path"].endswith("SETTLED_CANDIDATE_INPUT_DIAGNOSIS.json"))
+
+    assert diagnosis["covered_evaluation_ids"] == 66
+
+
+def test_r3_the_six_historical_fields_are_still_all_not_reconstructible(
+    matrix,
+) -> None:
+    """Correcting the binding logic must not have filled in a single value."""
+    for row in matrix:
+        for field in SIX_HISTORICAL_FIELDS:
+            if field == "source_sha256":
+                continue
+            assert row[field] == NR, (row["evaluation_id"], row["factor_id"], field)
+
+
+def test_r4_the_protected_totals_are_unchanged() -> None:
+    result = json.loads((OUTPUT / "F1_RESULT.json").read_text(encoding="utf-8"))
+
+    assert result["matrix_rows"] == 336
+    assert result["exact_pit_rows"] == 0
+    assert result["post_capture_rows"] == 264
+    assert result["not_reconstructible_rows"] == 72
+    assert result["f2_allowed"] is False
+    assert result["f3_allowed"] is False
+    assert result["weight_calibration_status"] == "BLOCKED_BY_MATRIX"
+    assert result["final_state"] == "F1_NOT_RECONSTRUCTIBLE_FROM_FROZEN_148"
+
+
+def test_r5_a_rescan_may_not_add_or_drop_a_source(tmp_path, bundle) -> None:
+    """The guard that keeps a correction from turning into a new investigation.
+
+    Self-contained: it builds its own two-file evidence tree rather than
+    depending on the local archive location.
+    """
+    official = {row["evaluation_id"] for row in bundle
+                if row["market"] == "ASIAN_HANDICAP"}
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    for name in ("one_20260904T120000Z.jsonl", "two_20260904T130000Z.jsonl"):
+        (evidence / name).write_text(
+            json.dumps(_card(None)) + "\n", encoding="utf-8")
+
+    both = runner.scan_factor_archives(evidence, {"1570366"}, official)
+    assert len(both) == 2
+
+    target = tmp_path / "out"
+    target.mkdir()
+    (target / "F1_FACTOR_ARCHIVE_INDEX.json").write_text(
+        json.dumps({"schema_version": "w2.f1_factor_archive_index.v1",
+                    "archives": both[:1]}), encoding="utf-8")
+
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, str(RUNNER_PATH), "--package", str(PACKAGE),
+         "--output", str(target), "--scan", str(evidence)],
+        capture_output=True, text=True, check=False, cwd=REPO)
+
+    assert result.returncode != 0
+    assert "ARCHIVE_SOURCE_SET_CHANGED" in result.stderr

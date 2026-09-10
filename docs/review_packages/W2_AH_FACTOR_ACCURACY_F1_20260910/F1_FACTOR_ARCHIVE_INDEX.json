@@ -385,6 +385,7 @@
           "weight_sum_used": 0.43
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/backstop_A_20260904T155503Z.jsonl",
       "source_sha256": "8391907d22a5e122558be3a2a916d90ade1f6e684b004da059266e9f153eecc3"
     },
@@ -957,6 +958,7 @@
           "weight_sum_used": 0.43
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/backstop_B_20260904T195017Z.jsonl",
       "source_sha256": "5fd1664273c73889c30af3041566b6aeb88cbef3b25b9783f0a357786777e03f"
     },
@@ -1529,11 +1531,12 @@
           "weight_sum_used": 0.43
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/backstop_C_20260904T220029Z.jsonl",
       "source_sha256": "d1add0dd32a7b4079e26fa7737b2efa437385e6ec0551c7b14d1254af082d122"
     },
     {
-      "bound_to_evaluation_identity": true,
+      "bound_to_evaluation_identity": false,
       "captured_at_utc": null,
       "observations": [
         {
@@ -1595,11 +1598,12 @@
           "weight_sum_used": 0.38
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/t5_backstop/post/1494748.json",
       "source_sha256": "506bb2bc34147337ed73438d373bf375b5cf4dced02da9bf8bdee11030243e64"
     },
     {
-      "bound_to_evaluation_identity": true,
+      "bound_to_evaluation_identity": false,
       "captured_at_utc": null,
       "observations": [
         {
@@ -1663,11 +1667,12 @@
           "weight_sum_used": 0.43
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/t5_backstop/post/1494750.json",
       "source_sha256": "4fe20e9ea42c00061ca222650dfea3e9d70d29cb373a5f2d8a931fa9c83ab910"
     },
     {
-      "bound_to_evaluation_identity": true,
+      "bound_to_evaluation_identity": false,
       "captured_at_utc": null,
       "observations": [
         {
@@ -1731,11 +1736,12 @@
           "weight_sum_used": 0.43
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/t5_backstop/post/1550112.json",
       "source_sha256": "d605f13d5d5da95fe27feab97be1ec7dc2e33ded222509bb5667853b141bf4e3"
     },
     {
-      "bound_to_evaluation_identity": true,
+      "bound_to_evaluation_identity": false,
       "captured_at_utc": null,
       "observations": [
         {
@@ -1799,11 +1805,12 @@
           "weight_sum_used": 0.43
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/t5_backstop/post/1557393.json",
       "source_sha256": "1d79293b7ab49c195e4afd42750f241d4a54fade7362d0bff0674a21b3028971"
     },
     {
-      "bound_to_evaluation_identity": true,
+      "bound_to_evaluation_identity": false,
       "captured_at_utc": null,
       "observations": [
         {
@@ -1865,11 +1872,12 @@
           "weight_sum_used": 0.25
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/t5_backstop/post/1575149.json",
       "source_sha256": "9d28c336375250d64f74e5a389fff66b0be706d5e79f0ea9bc1bfd961717878b"
     },
     {
-      "bound_to_evaluation_identity": true,
+      "bound_to_evaluation_identity": false,
       "captured_at_utc": null,
       "observations": [
         {
@@ -1933,11 +1941,12 @@
           "weight_sum_used": 0.43
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/t5_backstop/post/1575485.json",
       "source_sha256": "2835ebb9cfbf070aa16894b6f89cba7b6668f830fea17e416e1c228ee9b978c6"
     },
     {
-      "bound_to_evaluation_identity": true,
+      "bound_to_evaluation_identity": false,
       "captured_at_utc": null,
       "observations": [
         {
@@ -1999,11 +2008,12 @@
           "weight_sum_used": 0.38
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/t5_backstop/pre/1494748.json",
       "source_sha256": "d31372c836f3357b92e52b96b1a1b645b6ad5e00a980ea1f7d4ba22d7726c7ee"
     },
     {
-      "bound_to_evaluation_identity": true,
+      "bound_to_evaluation_identity": false,
       "captured_at_utc": null,
       "observations": [
         {
@@ -2067,11 +2077,12 @@
           "weight_sum_used": 0.43
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/t5_backstop/pre/1494750.json",
       "source_sha256": "7db0e7f1253352c786c87f4bee4958a4bd8a8491799b998f1e8a896dc02da4b2"
     },
     {
-      "bound_to_evaluation_identity": true,
+      "bound_to_evaluation_identity": false,
       "captured_at_utc": null,
       "observations": [
         {
@@ -2135,11 +2146,12 @@
           "weight_sum_used": 0.43
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/t5_backstop/pre/1550112.json",
       "source_sha256": "4b368e1c72fabbdf83faeff7f460f411c209ad71ecdffdd1573f3ebad096afb3"
     },
     {
-      "bound_to_evaluation_identity": true,
+      "bound_to_evaluation_identity": false,
       "captured_at_utc": null,
       "observations": [
         {
@@ -2203,11 +2215,12 @@
           "weight_sum_used": 0.43
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/t5_backstop/pre/1557393.json",
       "source_sha256": "86e19e8342e8c46a095cad3d0c4fa147c1dbd4e4f4d17c0f056d8da9c7dbdce1"
     },
     {
-      "bound_to_evaluation_identity": true,
+      "bound_to_evaluation_identity": false,
       "captured_at_utc": null,
       "observations": [
         {
@@ -2269,11 +2282,12 @@
           "weight_sum_used": 0.25
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/t5_backstop/pre/1575149.json",
       "source_sha256": "6fc6b831dc7341e9e16746c4f6c914d2d116a77c463a484719d8988ba3d47b08"
     },
     {
-      "bound_to_evaluation_identity": true,
+      "bound_to_evaluation_identity": false,
       "captured_at_utc": null,
       "observations": [
         {
@@ -2337,11 +2351,12 @@
           "weight_sum_used": 0.43
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/t5_backstop/pre/1575485.json",
       "source_sha256": "4075c49c4b4d8bff74e44a62ab42585f61e1e0ecbd9c3425a5bce9e5fb933b17"
     },
     {
-      "bound_to_evaluation_identity": true,
+      "bound_to_evaluation_identity": false,
       "captured_at_utc": "2026-09-04T16:01:43+00:00",
       "observations": [
         {
@@ -2701,6 +2716,7 @@
           "weight_sum_used": 0.43
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/tier0_archive/t8a_A_execution_complete_20260904T160143Z.jsonl",
       "source_sha256": "335958faf99db356b4b2c5c7a0ad33b1cf6a4046f1e24a49e1624ac950d9bf7f"
     },
@@ -3089,6 +3105,7 @@
           "weight_sum_used": 0.43
         }
       ],
+      "official_evaluation_id_matches": [],
       "source_path": "/Users/liudehua/Desktop/W2文档/w2-t5-evidence/tier0_archive/tier0_prematch_20260904T092805Z.jsonl",
       "source_sha256": "7b4542870aee20d7cb4f0b48e6652de6ed7474e31e247b0a85c105e0bb9c1f9b"
     }
