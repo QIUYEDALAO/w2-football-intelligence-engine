@@ -1,0 +1,111 @@
+{
+  "absent_factor_batch": {
+    "appended": 4,
+    "applied_weights": {
+      "F3_REST_FITNESS": "0.1",
+      "F5_RECENT_AH_COVER": "0.05",
+      "F6_H2H": "0.05",
+      "F9_TRUE_XG": "0.1"
+    },
+    "every_evidence_time_strictly_before_evaluated_at": true,
+    "evidence_time_semantics": {
+      "F3_REST_FITNESS": "LATEST_UNDERLYING_OBSERVATION",
+      "F5_RECENT_AH_COVER": "SOURCE_QUERIED_AT_AS_OF",
+      "F6_H2H": "SOURCE_QUERIED_AT_AS_OF",
+      "F9_TRUE_XG": "SOURCE_QUERIED_AT_AS_OF"
+    },
+    "evidence_time_utc": {
+      "F3_REST_FITNESS": "2026-09-28T19:30:00+00:00",
+      "F5_RECENT_AH_COVER": "2026-10-01T18:30:00+00:00",
+      "F6_H2H": "2026-10-01T18:30:00+00:00",
+      "F9_TRUE_XG": "2026-10-01T18:30:00+00:00"
+    },
+    "factor_ids": [
+      "F3_REST_FITNESS",
+      "F5_RECENT_AH_COVER",
+      "F6_H2H",
+      "F9_TRUE_XG"
+    ],
+    "signed_scores": {
+      "F3_REST_FITNESS": "-0.25",
+      "F5_RECENT_AH_COVER": null,
+      "F6_H2H": null,
+      "F9_TRUE_XG": null
+    },
+    "statuses": {
+      "F3_REST_FITNESS": "PARTICIPATED",
+      "F5_RECENT_AH_COVER": "INSUFFICIENT_DATA",
+      "F6_H2H": "SOURCE_UNAVAILABLE",
+      "F9_TRUE_XG": "SOURCE_UNAVAILABLE"
+    }
+  },
+  "complete_batch": {
+    "appended": 4,
+    "applied_weights": {
+      "F3_REST_FITNESS": "0.1",
+      "F5_RECENT_AH_COVER": "0.05",
+      "F6_H2H": "0.05",
+      "F9_TRUE_XG": "0.1"
+    },
+    "batch_size": 4,
+    "every_evidence_time_strictly_before_evaluated_at": true,
+    "evidence_time_semantics": {
+      "F3_REST_FITNESS": "LATEST_UNDERLYING_OBSERVATION",
+      "F5_RECENT_AH_COVER": "LATEST_UNDERLYING_OBSERVATION",
+      "F6_H2H": "LATEST_UNDERLYING_OBSERVATION",
+      "F9_TRUE_XG": "LATEST_UNDERLYING_OBSERVATION"
+    },
+    "evidence_time_utc": {
+      "F3_REST_FITNESS": "2026-09-28T19:30:00+00:00",
+      "F5_RECENT_AH_COVER": "2026-09-28T19:30:00+00:00",
+      "F6_H2H": "2026-03-15T19:30:00+00:00",
+      "F9_TRUE_XG": "2026-09-30T18:30:00+00:00"
+    },
+    "factor_ids": [
+      "F3_REST_FITNESS",
+      "F5_RECENT_AH_COVER",
+      "F6_H2H",
+      "F9_TRUE_XG"
+    ],
+    "signed_scores": {
+      "F3_REST_FITNESS": "-0.25",
+      "F5_RECENT_AH_COVER": "1.0",
+      "F6_H2H": "0.0",
+      "F9_TRUE_XG": "0.47"
+    },
+    "statuses": {
+      "F3_REST_FITNESS": "PARTICIPATED",
+      "F5_RECENT_AH_COVER": "PARTICIPATED",
+      "F6_H2H": "PARTICIPATED",
+      "F9_TRUE_XG": "PARTICIPATED"
+    }
+  },
+  "contract_id": "w2.forward_ah_factor_observation.v1",
+  "deployment_not_executed": true,
+  "f2_allowed": false,
+  "f3_allowed": false,
+  "final_state": "OFFLINE_FACTOR_RECORDER_READY_FOR_R1",
+  "fixture_kind": "SYNTHETIC_CONTRACT_FIXTURE",
+  "fixture_note": "Synthetic contract fixture. Not a real match, not evidence about any match, and not proof that the production chain is wired.",
+  "idempotent_replay": {
+    "appended": 0,
+    "idempotent_no_ops": 4
+  },
+  "incomplete_batch_refused_with": "BATCH_FACTOR_SET_INVALID",
+  "ledger_rows": 8,
+  "ledger_unchanged_after_refusal": true,
+  "live_capture_not_started": true,
+  "obsidian_writes": 0,
+  "offline_recorder_implemented": true,
+  "parent_commit": "d8c8bf8259b30cd9fd81dfbf7be8555aa42680aa",
+  "production_db_reads": 0,
+  "production_db_writes": 0,
+  "production_wiring_not_started": true,
+  "provider_calls": 0,
+  "public_http_fetch": 0,
+  "readback_verified_rows": 8,
+  "recorder_id": "w2.f1r_a0_offline_factor_recorder.v1",
+  "schema_version": "w2.f1r_a0_offline_recorder_result.v1",
+  "task_id": "W2_AH_FACTOR_ACCURACY_F1R_A0_20260910",
+  "weight_calibration_not_started": true
+}
