@@ -1,9 +1,9 @@
 # F1R-A0 测试与自检结果
 
 ```text
-F1R-A0 定向  scripts/quant/tests/test_f1r_a0_offline_factor_recorder.py   73 passed
+F1R-A0 定向  scripts/quant/tests/test_f1r_a0_offline_factor_recorder.py   86 passed
 F1P 定向                                                       72 passed / 1 skipped
-quant 全集   scripts/quant/tests                              367 passed / 1 skipped
+quant 全集   scripts/quant/tests                              380 passed / 1 skipped
 package matrix                                                5 passed
 arch P2-05                                                    6 passed
 全仓 pytest                          8 failed / 3073 passed / 9 skipped

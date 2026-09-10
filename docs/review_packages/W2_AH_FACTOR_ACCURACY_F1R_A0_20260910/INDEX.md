@@ -154,6 +154,6 @@ OBSIDIAN_ACCESS_MODE = READ_ONLY     OBSIDIAN_WRITES = 0
 `src/w2/api`、Dashboard、Scheduler、Provider allowlist、`migrations`、生产配置，
 以及 F0/F1/F1P 冻结产物。`src/w2` 整棵树变更 0 字节。
 
-下一步：**R1-A0 独立复验**。解除阻塞需要 F1R-B 把
+R1-A0 结论：**ACCEPTED_WITH_BLOCKED_PRODUCTION_SOURCE**。离线记录器合同、评分权重闭合、批次原子性与双跑确定性均已接受；这不等于生产接线或部署放行。下一步进入 **F1R-B**，把
 `results.confirmed_at` 一类的真实来源观测时点接到因子 builder 消费的对象上，
 那需要单独授权。
