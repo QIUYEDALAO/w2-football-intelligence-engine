@@ -1,12 +1,15 @@
 # F1R-A0 测试与自检结果
 
 ```text
-F1R-A0 定向  scripts/quant/tests/test_f1r_a0_offline_factor_recorder.py   47 passed
-quant 全集   scripts/quant/tests                              341 passed / 1 skipped
+F1R-A0 定向  scripts/quant/tests/test_f1r_a0_offline_factor_recorder.py   73 passed
+F1P 定向                                                       72 passed / 1 skipped
+quant 全集   scripts/quant/tests                              367 passed / 1 skipped
 package matrix                                                5 passed
 arch P2-05                                                    6 passed
 全仓 pytest                          8 failed / 3073 passed / 9 skipped
   相对 d8c8bf82 基线：新增失败 0，消失失败 0，测试 ID 逐条相同
+ruff check .                         Found 10 errors —— **不是 exit 0**，
+  但与干净生产基线 3ac86c14 的 10 条逐条相同，差集为空（本轮未引入任何新 lint）
 ruff check .                         与 3ac86c14 基线差集为空
 python -m compileall -q src scripts  exit 0
 git diff --check                     clean
@@ -84,3 +87,48 @@ F1P 包哈希 7/7 通过，其 6 份合同产物内容未变。
 （§4 要求用真实四因子来源），使这两个包各多 2 个 scripts caller。
 已用机械生成器 `regenerate_src_w2_package_matrix.py` 同步，
 治理文档 diff **2 增 2 删**，重算后 `DRIFT_ROWS=0`，matrix 5/5 与 arch P2-05 6/6 均通过。
+
+
+## 窄整改新增的测试
+
+### P0 —— kickoff 不能冒充来源观测时点
+
+```text
+result-derived 因子缺显式来源时点         参数化 F5/F6，各自整批拒绝、磁盘 0 新行
+传入值等于 kickoff                        参数化 F5/F6，SOURCE_OBSERVED_TIME_IS_KICKOFF_DERIVED
+底层类前提                                直接断言 TeamMatchHistory.observed_at == kickoff_at
+来源时点晚于 evaluated_at                 PIT_EVIDENCE_TIME_AFTER_EVALUATED_AT
+F3/F9 的语义与 F5/F6 分开验证             断言三种规则各自生效，且 F5/F6 记录的是传入值
+非 result-derived 因子被塞来源时点        SOURCE_OBSERVED_TIME_NOT_APPLICABLE（防止偷换）
+```
+
+### P1 —— 参与与权重必须来自评分权威
+
+```text
+READY + 非独立信号 / 非权威 source_group / 未知 group / 零权重
+                                          参数化 4 条：一律 participated=false、
+                                          FACTOR_ADMISSION_FAILED、score=null、
+                                          weight_entered_weight_sum_used=false
+逐项与权威一致                            participated 集合、每条 applied_weight、
+                                          以及权重合计与 weight_sum_used 相符
+权重与权威不一致                          APPLIED_WEIGHT_DISAGREES_WITH_SCORING_AUTHORITY
+不复制过滤逻辑                            源码断言不出现 AUTHORITATIVE_SIGNAL_GROUPS /
+                                          NON_SCORING_GROUPS / is_scoring_factor
+```
+
+### P1 —— 批次原子性（故障注入）
+
+```text
+第一行写入失败                            账本逐字节不变，行数仍为 4
+中途写入失败                              同上
+fsync 失败                                同上
+提交点 os.replace 失败                    同上
+以上三个阶段各自                          不残留临时文件
+成功提交                                  四行全部落盘且可 readback
+失败后重试                                仍能正常提交，不被前次失败污染
+旧行原样重写                              新文件以旧内容为字节前缀
+重写后重放                                仍是幂等 no-op
+```
+
+**validation failure 与 mid-write failure 是分开测的**：前者在打开文件之前就拒绝
+（上文各条 `_bytes(ledger)` 断言），后者在临时文件里失败、原账本不受影响。

@@ -55,7 +55,24 @@ AS_OF = KICKOFF - timedelta(hours=1)
 EVALUATED_AT = (KICKOFF - timedelta(minutes=55)).isoformat()
 CREATED_AT = (KICKOFF - timedelta(minutes=54)).isoformat()
 CAPTURE_SHA = "3" * 64
-VERSIONS = dict.fromkeys(contract.ALLOWED_FACTOR_IDS, "v1")
+SOURCE_OBSERVED = (AS_OF - timedelta(hours=6)).isoformat()
+
+
+def _provenance(**per_factor):  # type: ignore[no-untyped-def]
+    """Synthetic provenance. Result-derived factors get an explicit source time."""
+    base = {
+        factor_id: recorder.FactorProvenance(
+            factor_version="SYNTHETIC_FIXTURE_v1",
+            source_capture_id=f"capture-{factor_id.lower()}",
+            source_capture_sha256=CAPTURE_SHA,
+            source_version="w2.features.v1",
+            source_observed_at=(SOURCE_OBSERVED
+                                if factor_id in recorder.RESULT_DERIVED_FACTORS
+                                else None))
+        for factor_id in contract.ALLOWED_FACTOR_IDS
+    }
+    base.update(per_factor)
+    return base
 COVERAGE = CoverageProfile(
     xg="READY", lineups_injuries="READY", squad_value="READY",
     bookmaker_depth="READY", h2h="READY", settled_ah="READY")
@@ -114,8 +131,7 @@ def _build(feature_set: FeatureSet | None = None, **overrides):  # type: ignore[
         context=context,
         evaluation_id="dqe-" + "1" * 64, attempt_id="att-" + "2" * 60,
         evaluated_at_utc=EVALUATED_AT, created_at_utc=CREATED_AT,
-        factor_versions=dict(VERSIONS), source_capture_id="capture-a",
-        source_capture_sha256=CAPTURE_SHA, source_version="w2.features.v1")
+        provenance=_provenance())
     base.update(overrides)
     return recorder.build_batch(**base)
 
@@ -140,13 +156,15 @@ def test_01_a_complete_four_factor_batch_is_recorded(tmp_path) -> None:
     assert sorted(row["factor_id"] for row in rows) == sorted(
         contract.ALLOWED_FACTOR_IDS)
     for row in rows:
-        assert row["factor_status"] == contract.PARTICIPATED
-        assert row["signed_score"] is not None
         assert row["applied_weight"] in {"0.1", "0.05"}
         assert contract.parse_aware_utc(row["evidence_time_utc"], field_name="e") < (
             contract.parse_aware_utc(row["evaluated_at_utc"], field_name="v"))
-        assert row["factor_inputs"]["evidence_time_semantics"] == (
-            recorder.EVIDENCE_FROM_OBSERVATION)
+        if row["participated"]:
+            assert row["signed_score"] is not None
+            assert row["factor_inputs"]["weight_entered_weight_sum_used"] == "true"
+        else:
+            assert row["signed_score"] is None
+            assert row["factor_inputs"]["weight_entered_weight_sum_used"] == "false"
 
 
 def test_01_each_factor_gets_its_own_evidence_time(tmp_path) -> None:
@@ -157,6 +175,98 @@ def test_01_each_factor_gets_its_own_evidence_time(tmp_path) -> None:
              for row in _ledger(tmp_path).rows()}
 
     assert len(set(times.values())) > 1, times
+
+
+# --- P0: a kickoff is not the time a result was observed ----------------
+@pytest.mark.parametrize("factor_id", sorted(recorder.RESULT_DERIVED_FACTORS))
+def test_p0_a_result_derived_factor_needs_an_explicit_source_time(
+    tmp_path, factor_id
+) -> None:
+    """F5 reads settled outcomes and F6 reads goals; neither is known at kickoff."""
+    provenance = _provenance(**{
+        factor_id: replace(_provenance()[factor_id], source_observed_at=None)})
+    ledger = _ledger(tmp_path)
+
+    with pytest.raises(ContractError) as excinfo:
+        recorder.append_batch(ledger, _build(provenance=provenance))
+
+    assert excinfo.value.code == "RESULT_DERIVED_FACTOR_WITHOUT_SOURCE_OBSERVED_TIME"
+    assert excinfo.value.detail == factor_id
+    assert _bytes(ledger) == b""
+
+
+@pytest.mark.parametrize("factor_id", sorted(recorder.RESULT_DERIVED_FACTORS))
+def test_p0_a_kickoff_derived_timestamp_is_refused_as_a_source_time(
+    tmp_path, factor_id
+) -> None:
+    """TeamMatchHistory.observed_at *is* kickoff_at, so echoing it is the bug."""
+    context = _context()
+    contribution = next(c for c in _complete_contributions(context)
+                        if c.feature_id == factor_id)
+    provenance = _provenance(**{
+        factor_id: replace(_provenance()[factor_id],
+                           source_observed_at=contribution.observed_at.isoformat())})
+    ledger = _ledger(tmp_path)
+
+    with pytest.raises(ContractError) as excinfo:
+        recorder.append_batch(ledger, _build(provenance=provenance, context=context))
+
+    assert excinfo.value.code == "SOURCE_OBSERVED_TIME_IS_KICKOFF_DERIVED"
+    assert _bytes(ledger) == b""
+
+
+def test_p0_the_underlying_history_row_really_does_return_kickoff(tmp_path) -> None:
+    """The premise of the whole P0 fix, asserted against the live type."""
+    row = _fact("home-1", days_ago=3, settlement="WIN")
+
+    assert row.observed_at == row.kickoff_at
+
+
+def test_p0_a_source_time_later_than_evaluated_at_is_refused(tmp_path) -> None:
+    late = (KICKOFF - timedelta(minutes=10)).isoformat()
+    provenance = _provenance(**{
+        factor_id: replace(_provenance()[factor_id], source_observed_at=late)
+        for factor_id in recorder.RESULT_DERIVED_FACTORS})
+    ledger = _ledger(tmp_path)
+
+    with pytest.raises(ContractError) as excinfo:
+        recorder.append_batch(ledger, _build(provenance=provenance))
+
+    assert excinfo.value.code == "PIT_EVIDENCE_TIME_AFTER_EVALUATED_AT"
+    assert _bytes(ledger) == b""
+
+
+def test_p0_f3_and_f9_use_their_own_semantics_not_the_result_derived_one(
+    tmp_path,
+) -> None:
+    """The four factors are not treated alike; each rule is checked separately."""
+    assert recorder.EVIDENCE_RULES["F3_REST_FITNESS"] == recorder.FIXTURE_EVENT_TIME
+    assert recorder.EVIDENCE_RULES["F9_TRUE_XG"] == (
+        recorder.SOURCE_SNAPSHOT_OBSERVED_AT)
+    assert recorder.RESULT_DERIVED_FACTORS == {"F5_RECENT_AH_COVER", "F6_H2H"}
+
+    ledger = _ledger(tmp_path)
+    recorder.append_batch(ledger, _build())
+    rows = {row["factor_id"]: row for row in ledger.rows()}
+
+    assert rows["F9_TRUE_XG"]["factor_inputs"]["evidence_time_semantics"] == (
+        recorder.SOURCE_SNAPSHOT_OBSERVED_AT)
+    for factor_id in recorder.RESULT_DERIVED_FACTORS:
+        assert rows[factor_id]["factor_inputs"]["evidence_time_semantics"] == (
+            recorder.RESULT_DERIVED)
+        assert rows[factor_id]["evidence_time_utc"] == SOURCE_OBSERVED
+
+
+def test_p0_a_non_result_factor_may_not_be_handed_a_source_time() -> None:
+    """F9 has a real capture time of its own; overriding it would hide a swap."""
+    provenance = _provenance(**{
+        "F9_TRUE_XG": replace(_provenance()["F9_TRUE_XG"],
+                              source_observed_at=SOURCE_OBSERVED)})
+
+    with pytest.raises(ContractError) as excinfo:
+        _build(provenance=provenance)
+
+    assert excinfo.value.code == "SOURCE_OBSERVED_TIME_NOT_APPLICABLE"
 
 
 # --- 2, 3, 4, 5: batch shape --------------------------------------------
@@ -234,9 +344,86 @@ def test_06_a_missing_applied_weight_refuses_the_batch(tmp_path) -> None:
 def test_06_the_recorder_never_supplies_a_weight_of_its_own() -> None:
     source = RECORDER_PATH.read_text(encoding="utf-8")
 
-    assert "applied_weight=contribution.weight" in source
-    for invented in ("0.10", "0.05", "DEFAULT_WEIGHT", "registry"):
+    for invented in ("0.10", "0.05", "DEFAULT_WEIGHT"):
         assert invented not in source, invented
+
+
+# --- P1: participation is the scoring authority's verdict ---------------
+def _non_scoring(contribution, **changes):  # type: ignore[no-untyped-def]
+    return replace(contribution, **changes)
+
+
+@pytest.mark.parametrize(("label", "changes"), [
+    ("not an independent signal", {"is_independent_signal": False}),
+    ("non authoritative source group", {"source_group": "match_importance"}),
+    ("unknown source group", {"source_group": "some_other_group"}),
+    ("zero weight", {"weight": 0.0}),
+])
+def test_p1_a_ready_factor_the_authority_excludes_does_not_participate(
+    tmp_path, label, changes
+) -> None:
+    """READY is not participation; team_score decides, and it is reused, not copied."""
+    context = _context()
+    contributions = _complete_contributions(context)
+    target = "F9_TRUE_XG"
+    adjusted = tuple(
+        _non_scoring(c, **changes) if c.feature_id == target else c
+        for c in contributions)
+    ledger = _ledger(tmp_path)
+
+    recorder.append_batch(
+        ledger, _build(_feature_set(adjusted), context=context))
+
+    row = next(r for r in ledger.rows() if r["factor_id"] == target)
+    assert row["participated"] is False, label
+    assert row["factor_status"] == contract.FACTOR_ADMISSION_FAILED, label
+    assert row["signed_score"] is None, label
+    assert row["factor_inputs"]["weight_entered_weight_sum_used"] == "false", label
+    assert row["factor_inputs"]["feature_status"] == "READY", label
+
+
+def test_p1_the_recorder_reuses_team_score_rather_than_reimplementing_it() -> None:
+    source = RECORDER_PATH.read_text(encoding="utf-8")
+
+    assert "independent_team_scores_from_contributions" in source
+    for copied in ("AUTHORITATIVE_SIGNAL_GROUPS", "NON_SCORING_GROUPS",
+                   "is_scoring_factor"):
+        assert copied not in source, copied
+
+
+def test_p1_recorded_weights_match_the_authority_row_for_row(tmp_path) -> None:
+    context = _context()
+    feature_set = _feature_set(_complete_contributions(context))
+    authority = recorder.scoring_authority_view(feature_set.contributions)
+    ledger = _ledger(tmp_path)
+
+    recorder.append_batch(ledger, _build(feature_set, context=context))
+
+    rows = {row["factor_id"]: row for row in ledger.rows()}
+    scored = authority["scoring_factors"]
+    assert scored, "the fixture must actually score something"
+    for factor_id, row in rows.items():
+        assert row["participated"] is (factor_id in scored), factor_id
+        if factor_id in scored:
+            assert float(row["applied_weight"]) == float(scored[factor_id]["weight"])
+    total = sum(float(rows[f]["applied_weight"]) for f in scored)
+    assert abs(total - authority["weight_sum_used"]) < 1e-9
+
+
+def test_p1_a_weight_disagreeing_with_the_authority_refuses_the_batch() -> None:
+    context = _context()
+    ready = next(c for c in _complete_contributions(context)
+                 if c.feature_id == "F9_TRUE_XG")
+
+    with pytest.raises(ContractError) as excinfo:
+        recorder.observation_from_contribution(
+            ready, _provenance()["F9_TRUE_XG"],
+            scored={"weight": 0.99, "share": 1.0},
+            evaluation_id="dqe-" + "1" * 64, attempt_id="att-" + "2" * 60,
+            fixture_id="9000001", evaluated_at_utc=EVALUATED_AT,
+            created_at_utc=CREATED_AT, as_of_utc=AS_OF.isoformat())
+
+    assert excinfo.value.code == "APPLIED_WEIGHT_DISAGREES_WITH_SCORING_AUTHORITY"
 
 
 def test_07_a_missing_evidence_time_refuses_the_batch(tmp_path) -> None:
@@ -251,19 +438,20 @@ def test_07_a_missing_evidence_time_refuses_the_batch(tmp_path) -> None:
     assert _bytes(ledger) == b""
 
 
-def test_07_a_participating_factor_without_observed_at_is_refused() -> None:
+def test_07_a_scored_factor_without_observed_at_is_refused() -> None:
     """The look-up instant may stand in for an absence, never for a real score."""
     context = _context()
-    ready = _complete_contributions(context)[0]
+    ready = next(c for c in _complete_contributions(context)
+                 if c.feature_id == "F9_TRUE_XG")
     stripped = replace(ready, observed_at=None)
 
     with pytest.raises(ContractError) as excinfo:
         recorder.observation_from_contribution(
-            stripped, evaluation_id="dqe-" + "1" * 64, attempt_id="att-" + "2" * 60,
+            stripped, _provenance()["F9_TRUE_XG"],
+            scored={"weight": stripped.weight, "share": 1.0},
+            evaluation_id="dqe-" + "1" * 64, attempt_id="att-" + "2" * 60,
             fixture_id="9000001", evaluated_at_utc=EVALUATED_AT,
-            created_at_utc=CREATED_AT, as_of_utc=AS_OF.isoformat(),
-            factor_version="v1", source_capture_id="c",
-            source_capture_sha256=CAPTURE_SHA, source_version="v")
+            created_at_utc=CREATED_AT, as_of_utc=AS_OF.isoformat())
 
     assert excinfo.value.code == "PARTICIPATED_WITHOUT_OBSERVED_AT"
 
@@ -404,9 +592,12 @@ def test_13_participated_without_a_score_is_refused(tmp_path) -> None:
 @pytest.mark.parametrize("bad", ["", "abc", "A" * 64, "z" * 64])
 def test_14_an_illegal_source_capture_hash_refuses(tmp_path, bad) -> None:
     ledger = _ledger(tmp_path)
+    provenance = {
+        factor_id: replace(entry, source_capture_sha256=bad)
+        for factor_id, entry in _provenance().items()}
 
     with pytest.raises(ContractError):
-        recorder.append_batch(ledger, _build(source_capture_sha256=bad))
+        recorder.append_batch(ledger, _build(provenance=provenance))
 
     assert _bytes(ledger) == b""
 
@@ -624,7 +815,12 @@ def test_the_published_result_states_what_is_not_done() -> None:
     result = json.loads(
         (OUTPUT / "OFFLINE_RECORDER_RESULT.json").read_text(encoding="utf-8"))
 
-    assert result["final_state"] == "OFFLINE_FACTOR_RECORDER_READY_FOR_R1"
+    assert result["final_state"] == "BLOCKED_BY_UNPROVABLE_FACTOR_SOURCE"
+    assert result["f5_f6_source_observed_time_exists_in_production"] is False
+    assert result["result_derived_without_source_time_refused_with"] == (
+        "RESULT_DERIVED_FACTOR_WITHOUT_SOURCE_OBSERVED_TIME")
+    assert result["kickoff_echo_as_source_time_refused_with"] == (
+        "SOURCE_OBSERVED_TIME_IS_KICKOFF_DERIVED")
     assert result["offline_recorder_implemented"] is True
     assert result["production_wiring_not_started"] is True
     assert result["live_capture_not_started"] is True
@@ -635,3 +831,196 @@ def test_the_published_result_states_what_is_not_done() -> None:
     assert result["production_db_reads"] == 0
     assert result["production_db_writes"] == 0
     assert result["f2_allowed"] is False
+
+
+# --- P1: batch atomicity under injected I/O failure ---------------------
+# Validation failures were already covered above. These inject failures *after*
+# validation, at each stage of the write, which is where the previous
+# row-by-row append could leave a partial batch behind.
+class _Boom(OSError):
+    """An injected I/O failure."""
+
+
+def _seeded(tmp_path: Path):  # type: ignore[no-untyped-def]
+    """A ledger that already holds one committed batch."""
+    ledger = _ledger(tmp_path)
+    recorder.append_batch(ledger, _build())
+    return ledger
+
+
+def _second_batch():  # type: ignore[no-untyped-def]
+    return _build(evaluation_id="dqe-" + "7" * 64, attempt_id="att-" + "8" * 60)
+
+
+def test_atomicity_a_failure_on_the_first_write_leaves_the_ledger_untouched(
+    tmp_path, monkeypatch
+) -> None:
+    ledger = _seeded(tmp_path)
+    before = _bytes(ledger)
+    calls = {"n": 0}
+    real_write = recorder.tempfile.NamedTemporaryFile
+
+    def failing(*args, **kwargs):  # type: ignore[no-untyped-def]
+        handle = real_write(*args, **kwargs)
+        original = handle.write
+
+        def write(payload):  # type: ignore[no-untyped-def]
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise _Boom("first write failed")
+            return original(payload)
+
+        handle.write = write  # type: ignore[method-assign]
+        return handle
+
+    monkeypatch.setattr(recorder.tempfile, "NamedTemporaryFile", failing)
+
+    with pytest.raises(_Boom):
+        recorder.append_batch(ledger, _second_batch())
+
+    assert _bytes(ledger) == before
+    assert len(ledger.rows()) == 4
+
+
+def test_atomicity_a_failure_midway_through_leaves_the_ledger_untouched(
+    tmp_path, monkeypatch
+) -> None:
+    ledger = _seeded(tmp_path)
+    before = _bytes(ledger)
+    calls = {"n": 0}
+    real_write = recorder.tempfile.NamedTemporaryFile
+
+    def failing(*args, **kwargs):  # type: ignore[no-untyped-def]
+        handle = real_write(*args, **kwargs)
+        original = handle.write
+
+        def write(payload):  # type: ignore[no-untyped-def]
+            calls["n"] += 1
+            if calls["n"] == 3:
+                raise _Boom("write failed part way through")
+            return original(payload)
+
+        handle.write = write  # type: ignore[method-assign]
+        return handle
+
+    monkeypatch.setattr(recorder.tempfile, "NamedTemporaryFile", failing)
+
+    with pytest.raises(_Boom):
+        recorder.append_batch(ledger, _second_batch())
+
+    assert _bytes(ledger) == before
+    assert len(ledger.rows()) == 4
+
+
+def test_atomicity_an_fsync_failure_leaves_the_ledger_untouched(
+    tmp_path, monkeypatch
+) -> None:
+    ledger = _seeded(tmp_path)
+    before = _bytes(ledger)
+
+    def failing_fsync(_fd):  # type: ignore[no-untyped-def]
+        raise _Boom("fsync failed")
+
+    monkeypatch.setattr(recorder.os, "fsync", failing_fsync)
+
+    with pytest.raises(_Boom):
+        recorder.append_batch(ledger, _second_batch())
+
+    assert _bytes(ledger) == before
+    assert len(ledger.rows()) == 4
+
+
+def test_atomicity_a_failure_at_the_commit_point_leaves_the_ledger_untouched(
+    tmp_path, monkeypatch
+) -> None:
+    """os.replace is the commit point; failing there must change nothing."""
+    ledger = _seeded(tmp_path)
+    before = _bytes(ledger)
+
+    def failing_replace(_src, _dst):  # type: ignore[no-untyped-def]
+        raise _Boom("replace failed")
+
+    monkeypatch.setattr(recorder.os, "replace", failing_replace)
+
+    with pytest.raises(_Boom):
+        recorder.append_batch(ledger, _second_batch())
+
+    assert _bytes(ledger) == before
+    assert len(ledger.rows()) == 4
+
+
+@pytest.mark.parametrize("stage", ["write", "fsync", "replace"])
+def test_atomicity_no_temporary_file_survives_a_failure(
+    tmp_path, monkeypatch, stage
+) -> None:
+    """A refusal must not leave litter next to the ledger either."""
+    ledger = _seeded(tmp_path)
+    if stage == "fsync":
+        monkeypatch.setattr(recorder.os, "fsync",
+                            lambda _fd: (_ for _ in ()).throw(_Boom("x")))
+    elif stage == "replace":
+        monkeypatch.setattr(recorder.os, "replace",
+                            lambda _s, _d: (_ for _ in ()).throw(_Boom("x")))
+    else:
+        real = recorder.tempfile.NamedTemporaryFile
+
+        def failing(*args, **kwargs):  # type: ignore[no-untyped-def]
+            handle = real(*args, **kwargs)
+            handle.write = lambda _p: (_ for _ in ()).throw(_Boom("x"))  # type: ignore[method-assign]
+            return handle
+
+        monkeypatch.setattr(recorder.tempfile, "NamedTemporaryFile", failing)
+
+    with pytest.raises(_Boom):
+        recorder.append_batch(ledger, _second_batch())
+
+    leftovers = [p.name for p in tmp_path.iterdir() if p.name != ledger.path.name]
+    assert leftovers == [], leftovers
+
+
+def test_atomicity_a_successful_commit_lands_all_four_rows(tmp_path) -> None:
+    ledger = _seeded(tmp_path)
+
+    result = recorder.append_batch(ledger, _second_batch())
+
+    assert result["appended"] == 4
+    assert len(ledger.rows()) == 8
+    for observation_id in result["observation_ids"]:
+        ledger.readback(observation_id)
+
+
+def test_atomicity_recovery_after_a_failure_still_commits(tmp_path, monkeypatch) -> None:
+    """A failed batch must not poison the next attempt."""
+    ledger = _seeded(tmp_path)
+    monkeypatch.setattr(recorder.os, "replace",
+                        lambda _s, _d: (_ for _ in ()).throw(_Boom("x")))
+    with pytest.raises(_Boom):
+        recorder.append_batch(ledger, _second_batch())
+    monkeypatch.undo()
+
+    result = recorder.append_batch(ledger, _second_batch())
+
+    assert result["appended"] == 4
+    assert len(ledger.rows()) == 8
+
+
+def test_atomicity_prior_rows_are_re_emitted_verbatim(tmp_path) -> None:
+    """Rewriting the file must not reformat or reorder what was already there."""
+    ledger = _seeded(tmp_path)
+    before = _bytes(ledger)
+
+    recorder.append_batch(ledger, _second_batch())
+
+    assert _bytes(ledger).startswith(before)
+
+
+def test_atomicity_replay_after_a_rewrite_is_still_idempotent(tmp_path) -> None:
+    ledger = _seeded(tmp_path)
+    recorder.append_batch(ledger, _second_batch())
+    before = _bytes(ledger)
+
+    again = recorder.append_batch(ledger, _second_batch())
+
+    assert again["appended"] == 0
+    assert again["idempotent_no_ops"] == 4
+    assert _bytes(ledger) == before

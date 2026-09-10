@@ -1,28 +1,37 @@
 """F1R-A0: record a complete four-factor AH observation batch, offline.
 
-Freeze A0 scope. This turns the live `FeatureContribution` objects an evaluation
-already produces into F1P forward observations. It reads objects, never a
-network or a database, and the production chain does not import it.
+Freeze A0 scope. Reads live `FeatureContribution` objects, writes F1P forward
+observations. No network, no database, and the production chain does not import
+it.
 
-Why this can carry what F1 could not: F1 was trying to rebuild history from
-serialised analysis cards, which never carried a per-factor evidence time. The
-contribution object does -- `observed_at` is set and UTC-validated on every
-factor's ready branch -- and it carries the weight that actually entered the
-aggregation. Recording at evaluation time therefore has what recording after
-the fact never could.
+Three things this module refuses to do, each of which the first version got
+wrong:
 
-A batch is all four factors or nothing. Validation runs over the whole batch
-before a single line is written, so a partially recorded evaluation cannot exist.
+1. It will not treat a fixture kickoff as the time a *result* was observed.
+   F5 reads settled AH outcomes and F6 reads historical goals; neither fact is
+   knowable at kickoff. Those two factors may only participate when an explicit
+   per-factor source-observed time is supplied, and a supplied time that merely
+   echoes the kickoff is refused.
+2. It will not call a contribution "participated" because its status is READY.
+   Participation is whatever `w2.pricing.team_score` actually scored, and the
+   applied weight is the weight that authority actually summed.
+3. It will not append row by row. The whole ledger is rebuilt in a sibling
+   temporary file, flushed and fsynced, and committed with one atomic replace,
+   so a failure part way through leaves the original file untouched.
 """
 from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
-from dataclasses import replace
+import tempfile
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from w2.pricing.team_score import independent_team_scores_from_contributions
 
 _CONTRACT_PATH = Path(__file__).resolve().parent / "f1p_forward_factor_contract.py"
 _MODULE_NAME = "w2_f1p_forward_factor_contract"
@@ -35,12 +44,9 @@ else:
     sys.modules[_MODULE_NAME] = contract
     _spec.loader.exec_module(contract)
 
-RECORDER_ID = "w2.f1r_a0_offline_factor_recorder.v1"
+RECORDER_ID = "w2.f1r_a0_offline_factor_recorder.v2"
 REQUIRED_FACTORS = contract.ALLOWED_FACTOR_IDS
 
-# How a live FeatureStatus becomes a contract status. DEGRADED, NOT_WHITELISTED
-# and LEAKAGE_BLOCKED are refusals the feature layer reached on purpose, so they
-# map to the contract's refusal, not to "no data".
 STATUS_MAP = {
     "READY": contract.PARTICIPATED,
     "INSUFFICIENT_DATA": contract.INSUFFICIENT_DATA,
@@ -50,13 +56,49 @@ STATUS_MAP = {
     "LEAKAGE_BLOCKED": contract.FACTOR_ADMISSION_FAILED,
 }
 
-# Two different facts, both real, and the batch records which one it used.
-EVIDENCE_FROM_OBSERVATION = "LATEST_UNDERLYING_OBSERVATION"
+# What each factor's evidence time is allowed to be.
+#
+# FIXTURE_EVENT_TIME  the fact is "a match kicked off at T", which is observable
+#                     at T and needs no result. F3 reads only kickoff spacing.
+# SOURCE_SNAPSHOT     the source itself carries when it was observed. F9 reads
+#                     TeamXgSnapshot.observed_at, which is a real capture time.
+# RESULT_DERIVED      the fact is a result or a settlement, which cannot be
+#                     known at kickoff. F5 reads settled AH outcomes and F6
+#                     reads historical goals, so both need an explicit
+#                     source-observed time from the caller.
+FIXTURE_EVENT_TIME = "FIXTURE_EVENT_TIME"
+SOURCE_SNAPSHOT_OBSERVED_AT = "SOURCE_SNAPSHOT_OBSERVED_AT"
+RESULT_DERIVED = "RESULT_DERIVED_REQUIRES_EXPLICIT_SOURCE_OBSERVED_TIME"
 EVIDENCE_FROM_LOOKUP = "SOURCE_QUERIED_AT_AS_OF"
+
+EVIDENCE_RULES = {
+    "F3_REST_FITNESS": FIXTURE_EVENT_TIME,
+    "F5_RECENT_AH_COVER": RESULT_DERIVED,
+    "F6_H2H": RESULT_DERIVED,
+    "F9_TRUE_XG": SOURCE_SNAPSHOT_OBSERVED_AT,
+}
+RESULT_DERIVED_FACTORS = frozenset(
+    factor_id for factor_id, rule in EVIDENCE_RULES.items() if rule == RESULT_DERIVED)
 
 
 class BatchError(contract.ContractError):
     """A batch-level refusal. Nothing is written when one is raised."""
+
+
+@dataclass(frozen=True, kw_only=True)
+class FactorProvenance:
+    """Per-factor provenance the caller must supply. Nothing here is defaulted.
+
+    `source_observed_at` is the instant the underlying source observed the fact.
+    It is required for a result-derived factor and must not be the fixture
+    kickoff; there is no default and the recorder will not infer one.
+    """
+
+    factor_version: str
+    source_capture_id: str
+    source_capture_sha256: str
+    source_version: str
+    source_observed_at: str | None = None
 
 
 def _text(value: object) -> str | None:
@@ -68,44 +110,91 @@ def _text(value: object) -> str | None:
     return str(value)
 
 
+def scoring_authority_view(contributions: Any) -> dict[str, Any]:
+    """What `team_score` actually scored, straight from that authority.
+
+    The eligibility rules -- READY, scoring factor, independent signal,
+    authoritative source group, non-zero weight -- live there and are not
+    re-implemented here, so the two cannot drift apart.
+    """
+    scores = independent_team_scores_from_contributions(contributions)
+    breakdown = {
+        str(row["id"]): row for row in scores.get("scoring_factors") or []
+    }
+    return {
+        "scoring_factors": breakdown,
+        "weight_sum_used": float(scores.get("weight_sum_used") or 0.0),
+    }
+
+
 def observation_from_contribution(
     contribution: Any,
+    provenance: FactorProvenance,
     *,
+    scored: dict[str, Any] | None,
     evaluation_id: str,
     attempt_id: str,
     fixture_id: str,
     evaluated_at_utc: str,
     created_at_utc: str,
     as_of_utc: str,
-    factor_version: str,
-    source_capture_id: str,
-    source_capture_sha256: str,
-    source_version: str,
 ) -> Any:
-    """One contribution becomes one forward observation. Nothing is invented.
-
-    An absent factor keeps its absence: no score is supplied, and its evidence
-    time is the instant the source was queried, which is a real fact about when
-    we looked and found nothing -- not a stand-in for data that never existed.
-    """
+    """One contribution becomes one forward observation. Nothing is invented."""
+    factor_id = contribution.feature_id
+    rule = EVIDENCE_RULES.get(factor_id)
+    if rule is None:
+        raise BatchError("FACTOR_ID_NOT_ALLOWED", str(factor_id))
     status_name = getattr(contribution.status, "value", str(contribution.status))
-    mapped = STATUS_MAP.get(status_name)
-    if mapped is None:
+    if status_name not in STATUS_MAP:
         raise BatchError("FEATURE_STATUS_UNMAPPED", status_name)
-    participated = mapped == contract.PARTICIPATED
-    if participated and contribution.score is None:
-        raise BatchError("READY_CONTRIBUTION_WITHOUT_SCORE", contribution.feature_id)
 
-    observed_at = _text(getattr(contribution, "observed_at", None))
-    if observed_at is not None:
-        evidence_time, semantics = observed_at, EVIDENCE_FROM_OBSERVATION
-    elif participated:
-        # A participating factor must say when its evidence was observed; the
-        # look-up instant is not an acceptable substitute for a real score.
-        raise BatchError(
-            "PARTICIPATED_WITHOUT_OBSERVED_AT", contribution.feature_id)
+    # Participation is the scoring authority's verdict, never the raw status.
+    participated = scored is not None
+    if participated and status_name != "READY":
+        raise BatchError("SCORED_FACTOR_IS_NOT_READY", factor_id)
+    if participated:
+        mapped = contract.PARTICIPATED
+    elif status_name == "READY":
+        # READY but excluded by the authority: a real refusal, not missing data.
+        mapped = contract.FACTOR_ADMISSION_FAILED
     else:
+        mapped = STATUS_MAP[status_name]
+
+    if participated and contribution.score is None:
+        raise BatchError("SCORED_CONTRIBUTION_WITHOUT_SCORE", factor_id)
+
+    contribution_observed_at = _text(getattr(contribution, "observed_at", None))
+    supplied = provenance.source_observed_at
+    if not participated:
         evidence_time, semantics = as_of_utc, EVIDENCE_FROM_LOOKUP
+    elif rule is RESULT_DERIVED:
+        if not supplied:
+            raise BatchError(
+                "RESULT_DERIVED_FACTOR_WITHOUT_SOURCE_OBSERVED_TIME", factor_id)
+        if contribution_observed_at is not None and (
+            contract.parse_aware_utc(supplied, field_name="source_observed_at")
+            == contract.parse_aware_utc(
+                contribution_observed_at, field_name="observed_at")
+        ):
+            # observed_at on these rows is the fixture kickoff; a "source time"
+            # equal to it is the kickoff wearing a different name.
+            raise BatchError("SOURCE_OBSERVED_TIME_IS_KICKOFF_DERIVED", factor_id)
+        evidence_time, semantics = supplied, rule
+    else:
+        if supplied:
+            raise BatchError("SOURCE_OBSERVED_TIME_NOT_APPLICABLE", factor_id)
+        if contribution_observed_at is None:
+            raise BatchError("PARTICIPATED_WITHOUT_OBSERVED_AT", factor_id)
+        evidence_time, semantics = contribution_observed_at, rule
+
+    applied_weight = contribution.weight
+    if participated:
+        authority_weight = float(scored["weight"])
+        if float(contribution.weight) != authority_weight:
+            raise BatchError(
+                "APPLIED_WEIGHT_DISAGREES_WITH_SCORING_AUTHORITY",
+                f"{factor_id}:{contribution.weight}!={authority_weight}")
+        applied_weight = authority_weight
 
     inputs = {
         str(key): _text(value) for key, value in (contribution.inputs or {}).items()
@@ -118,28 +207,30 @@ def observation_from_contribution(
         "feature_status": status_name,
         "feature_reason": _text(getattr(contribution, "reason", None)),
         "collection_status": _text(getattr(contribution, "collection_status", None)),
-        # A non-participating factor carries a declared weight that never
-        # entered weight_sum_used. Recording the flag keeps the difference
-        # visible instead of implying the weight was applied.
+        "is_independent_signal": str(
+            bool(getattr(contribution, "is_independent_signal", False))).lower(),
+        "source_group": _text(getattr(contribution, "source_group", None)),
         "weight_entered_weight_sum_used": "true" if participated else "false",
+        "scoring_authority_share": (
+            _text(scored.get("share")) if participated else None),
         "recorder": RECORDER_ID,
     })
     return contract.ForwardFactorObservation(
         evaluation_id=evaluation_id,
         attempt_id=attempt_id,
         fixture_id=fixture_id,
-        factor_id=contribution.feature_id,
-        factor_version=factor_version,
+        factor_id=factor_id,
+        factor_version=provenance.factor_version,
         factor_status=mapped,
         participated=participated,
-        applied_weight=contribution.weight,
+        applied_weight=applied_weight,
         factor_inputs=inputs,
         evidence_time_utc=evidence_time,
         evaluated_at_utc=evaluated_at_utc,
         created_at_utc=created_at_utc,
-        source_capture_id=source_capture_id,
-        source_capture_sha256=source_capture_sha256,
-        source_version=source_version,
+        source_capture_id=provenance.source_capture_id,
+        source_capture_sha256=provenance.source_capture_sha256,
+        source_version=provenance.source_version,
         signed_score=contribution.score if participated else None,
     )
 
@@ -152,10 +243,7 @@ def build_batch(
     attempt_id: str,
     evaluated_at_utc: str,
     created_at_utc: str,
-    factor_versions: dict[str, str],
-    source_capture_id: str,
-    source_capture_sha256: str,
-    source_version: str,
+    provenance: dict[str, FactorProvenance],
     market: str = contract.AH_MARKET,
 ) -> list[Any]:
     """Exactly the four AH factors, in a fixed order, or a refusal."""
@@ -163,8 +251,7 @@ def build_batch(
         raise BatchError("MARKET_OUT_OF_CONTRACT", market)
     fixture_id = str(feature_set.fixture_id)
     if str(context.fixture_id) != fixture_id:
-        raise BatchError("FIXTURE_ID_MISMATCH",
-                         f"{context.fixture_id}!={fixture_id}")
+        raise BatchError("FIXTURE_ID_MISMATCH", f"{context.fixture_id}!={fixture_id}")
     as_of_utc = contract.parse_aware_utc(
         _text(context.as_of), field_name="as_of").isoformat()
 
@@ -180,24 +267,24 @@ def build_batch(
     if missing:
         raise BatchError("INCOMPLETE_BATCH_MISSING_FACTOR", ",".join(missing))
 
+    authority = scoring_authority_view(feature_set.contributions)
     batch = []
     for factor_id in REQUIRED_FACTORS:
-        version = factor_versions.get(factor_id)
-        if not version:
+        factor_provenance = provenance.get(factor_id)
+        if factor_provenance is None:
+            raise BatchError("FACTOR_PROVENANCE_MISSING", factor_id)
+        if not factor_provenance.factor_version:
             raise BatchError("FACTOR_VERSION_MISSING", factor_id)
         batch.append(observation_from_contribution(
-            seen[factor_id],
+            seen[factor_id], factor_provenance,
+            scored=authority["scoring_factors"].get(factor_id),
             evaluation_id=evaluation_id, attempt_id=attempt_id,
             fixture_id=fixture_id, evaluated_at_utc=evaluated_at_utc,
-            created_at_utc=created_at_utc, as_of_utc=as_of_utc,
-            factor_version=version, source_capture_id=source_capture_id,
-            source_capture_sha256=source_capture_sha256,
-            source_version=source_version))
+            created_at_utc=created_at_utc, as_of_utc=as_of_utc))
     return batch
 
 
 def _batch_coherence(sealed: list[Any]) -> None:
-    """One evaluation, one attempt, one fixture, one evaluated_at, four factors."""
     for field_name in ("evaluation_id", "attempt_id", "fixture_id",
                        "evaluated_at_utc", "market"):
         values = {getattr(record, field_name) for record in sealed}
@@ -207,17 +294,41 @@ def _batch_coherence(sealed: list[Any]) -> None:
     factor_ids = [record.factor_id for record in sealed]
     if sorted(factor_ids) != sorted(REQUIRED_FACTORS):
         raise BatchError("BATCH_FACTOR_SET_INVALID", ",".join(sorted(factor_ids)))
-    if len(set(factor_ids)) != len(factor_ids):
-        raise BatchError("DUPLICATE_FACTOR_ID", ",".join(sorted(factor_ids)))
+
+
+def _atomic_replace(path: Path, lines: list[str]) -> None:
+    """Rebuild the ledger in a sibling temp file and commit with one replace.
+
+    The commit point is `os.replace`. Everything before it -- serialising,
+    writing, flushing, fsyncing -- happens on a file the readers never see, so
+    an exception at any earlier point leaves the original ledger exactly as it
+    was. `os.replace` is atomic within a filesystem, which is why the temp file
+    is created in the same directory rather than in the system temp dir.
+    """
+    directory = path.parent
+    directory.mkdir(parents=True, exist_ok=True)
+    handle = tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=directory,
+        prefix=f".{path.name}.", suffix=".tmp", delete=False)
+    temporary = Path(handle.name)
+    try:
+        with handle:
+            for line in lines:
+                handle.write(line)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)          # <- commit point
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def append_batch(ledger: Any, batch: list[Any]) -> dict[str, Any]:
     """All four or none.
 
-    Every record is validated and every conflict resolved before the file is
-    opened, so a refusal leaves the ledger byte-identical rather than half
-    written. F1P's own validate and identity rules do the work; this only
-    guarantees the batch is atomic.
+    Validation, conflict resolution and serialisation all complete before the
+    commit point, and the commit itself is a single atomic replace, so neither a
+    refusal nor an I/O failure part way through can leave a partial batch.
     """
     sealed = [contract.validate(record) for record in batch]
     _batch_coherence(sealed)
@@ -248,11 +359,16 @@ def append_batch(ledger: Any, batch: list[Any]) -> dict[str, Any]:
         to_write.append(payload)
 
     if to_write:
-        with ledger.path.open("a", encoding="utf-8") as handle:
-            for payload in to_write:
-                handle.write(json.dumps(
-                    payload, ensure_ascii=False, sort_keys=True,
-                    separators=(",", ":")) + "\n")
+        # Append-only is preserved by rewriting the prior rows verbatim ahead of
+        # the new ones; the existing bytes are re-emitted, never edited.
+        previous = (
+            ledger.path.read_text(encoding="utf-8") if ledger.path.exists() else "")
+        lines = [previous] if previous else []
+        lines.extend(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True,
+                       separators=(",", ":")) + "\n"
+            for payload in to_write)
+        _atomic_replace(ledger.path, lines)
     return {
         "observation_ids": [record.observation_id for record in sealed],
         "appended": len(to_write),

@@ -15,6 +15,7 @@ import argparse
 import importlib.util
 import json
 import sys
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -55,9 +56,16 @@ EVALUATION_ID = "dqe-" + "1" * 64
 ATTEMPT_ID = "att-" + "2" * 60
 FIXTURE_ID = "9000001"
 CAPTURE_SHA = "3" * 64
-FACTOR_VERSIONS = {
-    "F3_REST_FITNESS": "v1", "F5_RECENT_AH_COVER": "v1",
-    "F6_H2H": "v1", "F9_TRUE_XG": "v1",
+# Synthetic provenance for a synthetic fixture. "SYNTHETIC_FIXTURE_v1" is a
+# fixture value, not a production factor version: no builder emits one, and
+# F1R-B must supply a real source before anything is wired.
+SYNTHETIC_PROVENANCE = {
+    factor_id: recorder.FactorProvenance(
+        factor_version="SYNTHETIC_FIXTURE_v1",
+        source_capture_id=f"synthetic-capture-{factor_id.lower()}",
+        source_capture_sha256=CAPTURE_SHA,
+        source_version="w2.feature_engine.synthetic.v1")
+    for factor_id in contract.ALLOWED_FACTOR_IDS
 }
 
 
@@ -145,16 +153,14 @@ def degraded_feature_set() -> FeatureSet:
         contributions=contributions, status=FeatureStatus.DEGRADED)
 
 
-def build(feature_set: FeatureSet, *, suffix: str) -> list[Any]:
+def build(feature_set: FeatureSet, *, suffix: str,
+          provenance: dict | None = None) -> list[Any]:
     return recorder.build_batch(
         feature_set=feature_set, context=_context(),
         evaluation_id=EVALUATION_ID if suffix == "a" else "dqe-" + "4" * 64,
         attempt_id=ATTEMPT_ID if suffix == "a" else "att-" + "5" * 60,
         evaluated_at_utc=EVALUATED_AT, created_at_utc=CREATED_AT,
-        factor_versions=FACTOR_VERSIONS,
-        source_capture_id=f"synthetic-capture-{suffix}",
-        source_capture_sha256=CAPTURE_SHA,
-        source_version="w2.feature_engine.synthetic.v1")
+        provenance=provenance or SYNTHETIC_PROVENANCE)
 
 
 def main() -> int:
@@ -168,7 +174,38 @@ def main() -> int:
         ledger_path.unlink()
     ledger = contract.ForwardFactorLedger(ledger_path)
 
-    complete = build(complete_feature_set(), suffix="a")
+    # A batch whose F5/F6 have no explicit source-observed time is refused.
+    # This is the blocking finding, demonstrated rather than merely asserted.
+    result_derived_refusal = None
+    try:
+        build(complete_feature_set(), suffix="a")
+    except contract.ContractError as exc:
+        result_derived_refusal = exc.code
+
+    # A supplied time that merely echoes the fixture kickoff is refused too.
+    kickoff_echo = dict(SYNTHETIC_PROVENANCE)
+    for factor_id in recorder.RESULT_DERIVED_FACTORS:
+        contribution = next(c for c in complete_feature_set().contributions
+                            if c.feature_id == factor_id)
+        kickoff_echo[factor_id] = replace(
+            SYNTHETIC_PROVENANCE[factor_id],
+            source_observed_at=contribution.observed_at.isoformat())
+    kickoff_echo_refusal = None
+    try:
+        build(complete_feature_set(), suffix="a", provenance=kickoff_echo)
+    except contract.ContractError as exc:
+        kickoff_echo_refusal = exc.code
+
+    # With a synthetic explicit source-observed time the batch records, which
+    # shows the port works. It is not evidence that such a time exists in
+    # production: it does not.
+    with_source_time = dict(SYNTHETIC_PROVENANCE)
+    for factor_id in recorder.RESULT_DERIVED_FACTORS:
+        with_source_time[factor_id] = replace(
+            SYNTHETIC_PROVENANCE[factor_id],
+            source_observed_at=(AS_OF - timedelta(hours=6)).isoformat())
+    complete = build(complete_feature_set(), suffix="a",
+                     provenance=with_source_time)
     first = recorder.append_batch(ledger, complete)
     repeat = recorder.append_batch(ledger, complete)
 
@@ -232,6 +269,16 @@ def main() -> int:
         "absent_factor_batch": {
             "appended": absent["appended"], **summarise(absent["observation_ids"])},
         "incomplete_batch_refused_with": refusal,
+        "result_derived_without_source_time_refused_with": result_derived_refusal,
+        "kickoff_echo_as_source_time_refused_with": kickoff_echo_refusal,
+        "f5_f6_source_observed_time_exists_in_production": False,
+        "f5_f6_blocking_reason": (
+            "TeamMatchHistory carries no source-observed timestamp and its "
+            "observed_at property returns kickoff_at. results.confirmed_at exists "
+            "in the database but is never carried onto the object the factor "
+            "builders consume, so F5 and F6 have no bindable per-factor source "
+            "time. Wiring one would change src/w2/features and src/w2/prematch, "
+            "both out of scope for A0."),
         "ledger_unchanged_after_refusal": unchanged_after_refusal,
         "ledger_rows": len(rows),
         "readback_verified_rows": len(rows),
@@ -247,7 +294,7 @@ def main() -> int:
         "obsidian_writes": 0,
         "f2_allowed": False,
         "f3_allowed": False,
-        "final_state": "OFFLINE_FACTOR_RECORDER_READY_FOR_R1",
+        "final_state": "BLOCKED_BY_UNPROVABLE_FACTOR_SOURCE",
     }
     (output / "OFFLINE_RECORDER_RESULT.json").write_text(
         json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
@@ -258,6 +305,8 @@ def main() -> int:
         "complete_batch_appended": first["appended"],
         "idempotent_replay_appended": repeat["appended"],
         "incomplete_batch_refused_with": refusal,
+        "result_derived_without_source_time_refused_with": result_derived_refusal,
+        "kickoff_echo_as_source_time_refused_with": kickoff_echo_refusal,
         "ledger_unchanged_after_refusal": unchanged_after_refusal,
         "complete_batch_semantics": result["complete_batch"][
             "evidence_time_semantics"],

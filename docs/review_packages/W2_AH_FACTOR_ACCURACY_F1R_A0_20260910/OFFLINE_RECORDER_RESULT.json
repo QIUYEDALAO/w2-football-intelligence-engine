@@ -9,7 +9,7 @@
     },
     "every_evidence_time_strictly_before_evaluated_at": true,
     "evidence_time_semantics": {
-      "F3_REST_FITNESS": "LATEST_UNDERLYING_OBSERVATION",
+      "F3_REST_FITNESS": "FIXTURE_EVENT_TIME",
       "F5_RECENT_AH_COVER": "SOURCE_QUERIED_AT_AS_OF",
       "F6_H2H": "SOURCE_QUERIED_AT_AS_OF",
       "F9_TRUE_XG": "SOURCE_QUERIED_AT_AS_OF"
@@ -50,15 +50,15 @@
     "batch_size": 4,
     "every_evidence_time_strictly_before_evaluated_at": true,
     "evidence_time_semantics": {
-      "F3_REST_FITNESS": "LATEST_UNDERLYING_OBSERVATION",
-      "F5_RECENT_AH_COVER": "LATEST_UNDERLYING_OBSERVATION",
-      "F6_H2H": "LATEST_UNDERLYING_OBSERVATION",
-      "F9_TRUE_XG": "LATEST_UNDERLYING_OBSERVATION"
+      "F3_REST_FITNESS": "SOURCE_QUERIED_AT_AS_OF",
+      "F5_RECENT_AH_COVER": "RESULT_DERIVED_REQUIRES_EXPLICIT_SOURCE_OBSERVED_TIME",
+      "F6_H2H": "RESULT_DERIVED_REQUIRES_EXPLICIT_SOURCE_OBSERVED_TIME",
+      "F9_TRUE_XG": "SOURCE_SNAPSHOT_OBSERVED_AT"
     },
     "evidence_time_utc": {
-      "F3_REST_FITNESS": "2026-09-28T19:30:00+00:00",
-      "F5_RECENT_AH_COVER": "2026-09-28T19:30:00+00:00",
-      "F6_H2H": "2026-03-15T19:30:00+00:00",
+      "F3_REST_FITNESS": "2026-10-01T18:30:00+00:00",
+      "F5_RECENT_AH_COVER": "2026-10-01T12:30:00+00:00",
+      "F6_H2H": "2026-10-01T12:30:00+00:00",
       "F9_TRUE_XG": "2026-09-30T18:30:00+00:00"
     },
     "factor_ids": [
@@ -68,13 +68,13 @@
       "F9_TRUE_XG"
     ],
     "signed_scores": {
-      "F3_REST_FITNESS": "-0.25",
+      "F3_REST_FITNESS": null,
       "F5_RECENT_AH_COVER": "1.0",
       "F6_H2H": "0.0",
       "F9_TRUE_XG": "0.47"
     },
     "statuses": {
-      "F3_REST_FITNESS": "PARTICIPATED",
+      "F3_REST_FITNESS": "FACTOR_ADMISSION_FAILED",
       "F5_RECENT_AH_COVER": "PARTICIPATED",
       "F6_H2H": "PARTICIPATED",
       "F9_TRUE_XG": "PARTICIPATED"
@@ -84,7 +84,9 @@
   "deployment_not_executed": true,
   "f2_allowed": false,
   "f3_allowed": false,
-  "final_state": "OFFLINE_FACTOR_RECORDER_READY_FOR_R1",
+  "f5_f6_blocking_reason": "TeamMatchHistory carries no source-observed timestamp and its observed_at property returns kickoff_at. results.confirmed_at exists in the database but is never carried onto the object the factor builders consume, so F5 and F6 have no bindable per-factor source time. Wiring one would change src/w2/features and src/w2/prematch, both out of scope for A0.",
+  "f5_f6_source_observed_time_exists_in_production": false,
+  "final_state": "BLOCKED_BY_UNPROVABLE_FACTOR_SOURCE",
   "fixture_kind": "SYNTHETIC_CONTRACT_FIXTURE",
   "fixture_note": "Synthetic contract fixture. Not a real match, not evidence about any match, and not proof that the production chain is wired.",
   "idempotent_replay": {
@@ -92,6 +94,7 @@
     "idempotent_no_ops": 4
   },
   "incomplete_batch_refused_with": "BATCH_FACTOR_SET_INVALID",
+  "kickoff_echo_as_source_time_refused_with": "SOURCE_OBSERVED_TIME_IS_KICKOFF_DERIVED",
   "ledger_rows": 8,
   "ledger_unchanged_after_refusal": true,
   "live_capture_not_started": true,
@@ -104,7 +107,8 @@
   "provider_calls": 0,
   "public_http_fetch": 0,
   "readback_verified_rows": 8,
-  "recorder_id": "w2.f1r_a0_offline_factor_recorder.v1",
+  "recorder_id": "w2.f1r_a0_offline_factor_recorder.v2",
+  "result_derived_without_source_time_refused_with": "RESULT_DERIVED_FACTOR_WITHOUT_SOURCE_OBSERVED_TIME",
   "schema_version": "w2.f1r_a0_offline_recorder_result.v1",
   "task_id": "W2_AH_FACTOR_ACCURACY_F1R_A0_20260910",
   "weight_calibration_not_started": true

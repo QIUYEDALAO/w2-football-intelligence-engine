@@ -1,13 +1,20 @@
 {
-  "evidence_time_note": "observed_at is set and UTC-validated on every ready branch and is absent on every missing-data branch. An absence is therefore recorded with the look-up instant (FeatureContext.as_of) under an explicit SOURCE_QUERIED_AT_AS_OF semantic, never with a fabricated observation time, and a participating factor without observed_at is refused outright.",
+  "blocking_status": {
+    "F5_RECENT_AH_COVER": "BLOCKED_NO_PRODUCTION_SOURCE_OBSERVED_TIME",
+    "F6_H2H": "BLOCKED_NO_PRODUCTION_SOURCE_OBSERVED_TIME",
+    "unblock_requires": "把 results.confirmed_at 一类的真实来源观测时点带到 TeamMatchHistory 上，需改 src/w2/features/ 与 src/w2/prematch/，两者均不在 A0 授权范围内。"
+  },
+  "evidence_time_note": "四因子不再一视同仁。F3 用事件时点、F9 用来源快照时点，两者可用 observed_at；F5/F6 是结果派生，必须由调用方显式传入真实来源观测时点，且传入值等于 kickoff 会被识别并拒绝。缺数据的因子仍用 FeatureContext.as_of 并标注 SOURCE_QUERIED_AT_AS_OF，但参与计分的因子永远不能用它顶替。",
   "factor_version_note": "No factor builder emits a version. The recorder therefore requires the caller to supply one per factor and refuses the batch when it is absent; it does not invent one. Wiring a real version source belongs to F1R-B, not A0.",
   "factors": [
     {
-      "ACTUAL_APPLIED_WEIGHT_FIELD": "FeatureContribution.weight",
-      "EVIDENCE_TIME_SOURCE": "FeatureContribution.observed_at = max(home_last.kickoff_at, away_last.kickoff_at)",
+      "ACTUAL_APPLIED_WEIGHT_FIELD": "w2.pricing.team_score.independent_team_scores_from_contributions() -> scoring_factors[factor_id]['weight']；与 FeatureContribution.weight 不一致即拒绝整批",
+      "EVIDENCE_TIME_RULE": "FIXTURE_EVENT_TIME",
+      "EVIDENCE_TIME_SOURCE": "FeatureContribution.observed_at = max(主/客最近一场 kickoff_at)。F3 只读开球间隔，不读任何结果字段，'某场比赛在 T 开球'在 T 即可观察，因此事件时点成立。",
       "FACTOR_ID": "F3_REST_FITNESS",
       "FACTOR_VERSION_SOURCE": "NOT_RECORDABLE_NO_PER_FACTOR_VERSION_FIELD_SUPPLIED_BY_CALLER",
       "MISSING_DATA_BEHAVIOUR": "status=INSUFFICIENT_DATA, score=None, observed_at=None, reason=REST_HISTORY_UNAVAILABLE",
+      "PARTICIPATION_AUTHORITY": "同上权威的 scoring_factors 成员资格；READY 但被排除 → FACTOR_ADMISSION_FAILED",
       "SCORE_FIELD": "FeatureContribution.score",
       "SOURCE_CAPTURE_ID_SOURCE": "FeatureContribution.source (+ caller-supplied capture id)",
       "SOURCE_MODULE": "src/w2/features/team_factors.py",
@@ -15,11 +22,13 @@
       "STATUS_FIELD": "FeatureContribution.status (FeatureStatus)"
     },
     {
-      "ACTUAL_APPLIED_WEIGHT_FIELD": "FeatureContribution.weight",
-      "EVIDENCE_TIME_SOURCE": "FeatureContribution.observed_at = max(kickoff_at of the canonical settled AH rows used)",
+      "ACTUAL_APPLIED_WEIGHT_FIELD": "w2.pricing.team_score.independent_team_scores_from_contributions() -> scoring_factors[factor_id]['weight']；与 FeatureContribution.weight 不一致即拒绝整批",
+      "EVIDENCE_TIME_RULE": "NOT_RECORDABLE_NO_SETTLEMENT_OBSERVED_TIME",
+      "EVIDENCE_TIME_SOURCE": "F5 读已结算 AH 结果。TeamMatchHistory.observed_at 的实现是 return self.kickoff_at，开球时结算结果尚不存在。results.confirmed_at 在库中存在但从未被带到该对象上，TeamMatchHistory 也没有承载它的字段。记录器因此要求调用方显式传入来源观测时点，缺失或等于 kickoff 一律拒绝整批。",
       "FACTOR_ID": "F5_RECENT_AH_COVER",
       "FACTOR_VERSION_SOURCE": "NOT_RECORDABLE_NO_PER_FACTOR_VERSION_FIELD_SUPPLIED_BY_CALLER",
       "MISSING_DATA_BEHAVIOUR": "status=INSUFFICIENT_DATA, score=None, observed_at=None, reason=MISSING_AH_EVIDENCE",
+      "PARTICIPATION_AUTHORITY": "同上权威的 scoring_factors 成员资格；READY 但被排除 → FACTOR_ADMISSION_FAILED",
       "SCORE_FIELD": "FeatureContribution.score",
       "SOURCE_CAPTURE_ID_SOURCE": "TeamMatchHistory.ah_fact_id / ah_fact_hash via FeatureContribution.source",
       "SOURCE_MODULE": "src/w2/features/team_factors.py",
@@ -27,11 +36,13 @@
       "STATUS_FIELD": "FeatureContribution.status"
     },
     {
-      "ACTUAL_APPLIED_WEIGHT_FIELD": "FeatureContribution.weight",
-      "EVIDENCE_TIME_SOURCE": "FeatureContribution.observed_at = max(kickoff_at of prior meetings)",
+      "ACTUAL_APPLIED_WEIGHT_FIELD": "w2.pricing.team_score.independent_team_scores_from_contributions() -> scoring_factors[factor_id]['weight']；与 FeatureContribution.weight 不一致即拒绝整批",
+      "EVIDENCE_TIME_RULE": "NOT_RECORDABLE_NO_RESULT_OBSERVED_TIME",
+      "EVIDENCE_TIME_SOURCE": "F6 读历史进球。同上：observed_at 即 kickoff_at，进球结果在开球时不存在。",
       "FACTOR_ID": "F6_H2H",
       "FACTOR_VERSION_SOURCE": "NOT_RECORDABLE_NO_PER_FACTOR_VERSION_FIELD_SUPPLIED_BY_CALLER",
       "MISSING_DATA_BEHAVIOUR": "status=UNAVAILABLE, score=None, observed_at=None, reason=NO_H2H_HISTORY",
+      "PARTICIPATION_AUTHORITY": "同上权威的 scoring_factors 成员资格；READY 但被排除 → FACTOR_ADMISSION_FAILED",
       "SCORE_FIELD": "FeatureContribution.score",
       "SOURCE_CAPTURE_ID_SOURCE": "FeatureContribution.source (prior[0].source)",
       "SOURCE_MODULE": "src/w2/features/team_factors.py",
@@ -39,11 +50,13 @@
       "STATUS_FIELD": "FeatureContribution.status"
     },
     {
-      "ACTUAL_APPLIED_WEIGHT_FIELD": "FeatureContribution.weight",
-      "EVIDENCE_TIME_SOURCE": "FeatureContribution.observed_at = max(home.observed_at, away.observed_at) from TeamXgSnapshot.observed_at",
+      "ACTUAL_APPLIED_WEIGHT_FIELD": "w2.pricing.team_score.independent_team_scores_from_contributions() -> scoring_factors[factor_id]['weight']；与 FeatureContribution.weight 不一致即拒绝整批",
+      "EVIDENCE_TIME_RULE": "SOURCE_SNAPSHOT_OBSERVED_AT",
+      "EVIDENCE_TIME_SOURCE": "FeatureContribution.observed_at = max(主/客 TeamXgSnapshot.observed_at)，是来源自带的真实抓取时点，与 kickoff 无关。",
       "FACTOR_ID": "F9_TRUE_XG",
       "FACTOR_VERSION_SOURCE": "NOT_RECORDABLE_NO_PER_FACTOR_VERSION_FIELD_SUPPLIED_BY_CALLER",
       "MISSING_DATA_BEHAVIOUR": "status=UNAVAILABLE, score=None, observed_at=None, reason=XG_DATA_UNAVAILABLE",
+      "PARTICIPATION_AUTHORITY": "同上权威的 scoring_factors 成员资格；READY 但被排除 → FACTOR_ADMISSION_FAILED",
       "SCORE_FIELD": "FeatureContribution.score",
       "SOURCE_CAPTURE_ID_SOURCE": "FeatureContribution.source = api_football_statistics (+ caller-supplied capture id)",
       "SOURCE_MODULE": "src/w2/features/live_factors.py",
@@ -54,5 +67,5 @@
   "note": "Located read-only in the current source. Every field names a real attribute of the live FeatureContribution the evaluation produces; nothing is a registry default or a file timestamp.",
   "schema_version": "w2.f1r_a0_factor_source_mapping.v1",
   "task_id": "W2_AH_FACTOR_ACCURACY_F1R_A0_20260910",
-  "weight_note": "FeatureContribution.weight is the value the aggregation actually consumes: team_score.py sums exactly these weights into weight_sum_used for the participating factors. It is not read back from config/factors/factor_registry.v1.json, which carries no numeric weight at all."
+  "weight_note": "applied_weight 取自 team_score 评分权威实际累加进 weight_sum_used 的那个值，不是 FeatureContribution.weight 的盲取，也不是注册表默认值（注册表无数值权重）。两者不一致即拒绝整批。"
 }
