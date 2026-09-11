@@ -113,3 +113,11 @@ def test_worker_composition_root_injects_current_reader_explicitly() -> None:
     assert keyword_defaults["calculate_analysis_card"] is None
     worker_source = WORKER_COMPOSITION_ROOT.read_text(encoding="utf-8")
     assert "materialize_public_artifacts=_materialize_shadow_projection_events" in worker_source
+
+
+def test_legacy_posthoc_denominator_producer_is_absent_from_worker_runtime() -> None:
+    worker_source = WORKER_COMPOSITION_ROOT.read_text(encoding="utf-8")
+
+    assert "def _refresh_model_forecast_denominator_cards" not in worker_source
+    assert 'event_type="MODEL_FORECAST_CAPTURE_SCOPE"' not in worker_source
+    assert "MODEL_FORECAST_DENOMINATOR_ENTRY" not in worker_source

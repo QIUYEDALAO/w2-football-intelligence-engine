@@ -11,7 +11,6 @@ from w2.features.framework import (
     FeatureContribution,
     FeatureStatus,
     TeamSide,
-    coverage_or_unavailable,
 )
 from w2.markets.consensus import MarketConsensusBuilder, OddsQuote
 from w2.markets.movement import MarketSnapshot, MovementFeatureBuilder
@@ -38,15 +37,7 @@ def market_movement_factor(
     snapshots: list[MarketSnapshot],
     weight: float = 0.16,
 ) -> FeatureContribution:
-    blocked = coverage_or_unavailable(
-        profile=profile,
-        key="bookmaker_depth",
-        feature_id="F1_MARKET_MOVEMENT",
-        label="盘口变化",
-        weight=weight,
-    )
-    if blocked is not None:
-        return blocked
+    coverage_profile_status = profile.as_dict().get("bookmaker_depth", "UNKNOWN")
     try:
         for snapshot in snapshots:
             assert_not_future(snapshot.captured_at, context.as_of, label="market_movement")
@@ -59,6 +50,7 @@ def market_movement_factor(
             weight=weight,
             reason=str(exc),
             coverage_key="bookmaker_depth",
+            coverage_profile_status=coverage_profile_status,
         )
     features = MovementFeatureBuilder().build(snapshots)
     if features.first_seen_to_current is None:
@@ -70,6 +62,7 @@ def market_movement_factor(
             weight=weight,
             reason="INSUFFICIENT_MARKET_SNAPSHOTS",
             coverage_key="bookmaker_depth",
+            coverage_profile_status=coverage_profile_status,
             diagnostics=features.diagnostics,
         )
     score = max(min(-features.first_seen_to_current / 0.25, 1.0), -1.0)
@@ -84,6 +77,7 @@ def market_movement_factor(
         reason="OPEN_TO_CURRENT_MOVE_CAPTURED",
         risk="盘口变化不是庄家意图证明，U2 再做意图判断。",
         coverage_key="bookmaker_depth",
+        coverage_profile_status=coverage_profile_status,
         diagnostics=features.diagnostics,
         observed_at=max(snapshot.captured_at for snapshot in snapshots),
         inputs={
@@ -104,15 +98,7 @@ def bookmaker_divergence_factor(
     sharp_bookmakers: frozenset[str] = frozenset({"Pinnacle"}),
     weight: float = 0.12,
 ) -> FeatureContribution:
-    blocked = coverage_or_unavailable(
-        profile=profile,
-        key="bookmaker_depth",
-        feature_id="F2_BOOKMAKER_DIVERGENCE",
-        label="庄家分歧",
-        weight=weight,
-    )
-    if blocked is not None:
-        return blocked
+    coverage_profile_status = profile.as_dict().get("bookmaker_depth", "UNKNOWN")
     try:
         for quote in quotes:
             assert_not_future(quote.provider_updated_at, context.as_of, label="bookmaker_quote")
@@ -125,6 +111,7 @@ def bookmaker_divergence_factor(
             weight=weight,
             reason=str(exc),
             coverage_key="bookmaker_depth",
+            coverage_profile_status=coverage_profile_status,
         )
     odds_quotes = [
         OddsQuote(
@@ -152,6 +139,7 @@ def bookmaker_divergence_factor(
             weight=weight,
             reason="CONSENSUS_UNAVAILABLE",
             coverage_key="bookmaker_depth",
+            coverage_profile_status=coverage_profile_status,
             diagnostics=(str(exc),),
         )
     if consensus.fair_decimal_odds is None:
@@ -163,6 +151,7 @@ def bookmaker_divergence_factor(
             weight=weight,
             reason="INSUFFICIENT_BOOKMAKERS",
             coverage_key="bookmaker_depth",
+            coverage_profile_status=coverage_profile_status,
             diagnostics=consensus.diagnostics,
             inputs={"effective_bookmakers": consensus.effective_bookmakers},
         )
@@ -184,6 +173,7 @@ def bookmaker_divergence_factor(
         reason="CONSENSUS_DISPERSION_COMPUTED",
         risk="分歧只表示市场不一致，不单独构成推荐。",
         coverage_key="bookmaker_depth",
+        coverage_profile_status=coverage_profile_status,
         diagnostics=consensus.diagnostics + tuple(f"OUTLIER:{item}" for item in consensus.outliers),
         observed_at=max(quote.provider_updated_at for quote in quotes),
         inputs={

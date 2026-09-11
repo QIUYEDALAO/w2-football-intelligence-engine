@@ -3,11 +3,18 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
+
+from w2.domain import calibration_authority
+from w2.domain.admission_contract import (
+    MIN_CASHFLOW_PRICE_EDGE_FLOAT,
+    economic_admission_pass,
+)
 
 ACTIVE_DELTA_THRESHOLD = 0.05
 ACTIVE_EV_THRESHOLD = 0.0
@@ -16,7 +23,23 @@ LINEUP_CONFIRMED_CHECKPOINT = "LINEUP_CONFIRMED"
 T30_VALIDATION_CHECKPOINT = "T-30m_VALIDATION_LOCK"
 DYNAMIC_EVALUATION_V1_SCHEMA = "w2.dynamic_quote_evaluation.v1"
 DYNAMIC_EVALUATION_V2_SCHEMA = "w2.dynamic_quote_evaluation.v2"
+DYNAMIC_EVALUATION_V3_SCHEMA = "w2.dynamic_quote_evaluation.v3"
+MODEL_FORECAST_DENOMINATOR_SCOPE = "MODEL_FORECAST_CAPTURE_MARKET_V1"
+CHECKPOINT_OPPORTUNITY_SCOPE = "CHECKPOINT_EVALUATION_OPPORTUNITY_V2"
+CHECKPOINT_OPPORTUNITY_SEMANTICS = "CHECKPOINT_EVALUATION_OPPORTUNITY"
+MIN_DYNAMIC_BOOKMAKER_DEPTH = 3
 SETTLEMENT_STATE_ORDER = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
+# Calibration decides admission, so it belongs in the identity that append-only
+# dedup keys on. Adding a key changes every future hash, so the payloads carry an
+# explicit version: an old and a new hash then differ for a reason a reader can see.
+EVALUATION_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.identity.v2"
+FACTOR_VERDICT_SCHEMA = "w2.dynamic_quote_evaluation.factor_verdict.v1"
+LEGACY_EVALUATION_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.identity.v1"
+ATTEMPT_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v2"
+# v3 exists only for attempts that carry a factor verdict. A verdict-less attempt
+# -- every TOTALS attempt, and every row written before the verdict existed --
+# keeps the v2 preimage byte for byte, so its identity is exactly what it was.
+ATTEMPT_IDENTITY_FACTOR_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v3"
 EVAL_02B_DISTRIBUTION_TOLERANCE = 1e-9
 SOURCE_ABSENT_USER_MESSAGE = "当前采集窗口尚未取得完整盘口"
 SOURCE_ABSENT_NEXT_ACTION = "等待下一次受控采集"
@@ -30,7 +53,90 @@ class DynamicEvaluationState(StrEnum):
     NOT_READY_SOURCE_ABSENT = "NOT_READY_SOURCE_ABSENT"
     NOT_READY_QUOTE_INCOMPLETE = "NOT_READY_QUOTE_INCOMPLETE"
     NOT_READY_MODEL_INPUT = "NOT_READY_MODEL_INPUT"
+    BLOCKED_BY_FACTOR = "BLOCKED_BY_FACTOR"
     SUPERSEDED = "SUPERSEDED"
+
+
+class OpportunityState(StrEnum):
+    EVALUATED_NO_EDGE = "EVALUATED_NO_EDGE"
+    EVALUATED_CANDIDATE = "EVALUATED_CANDIDATE"
+    BLOCKED_BY_GATE = "BLOCKED_BY_GATE"
+    MISSED_CHECKPOINT = "MISSED_CHECKPOINT"
+    EVALUATION_ERROR = "EVALUATION_ERROR"
+
+
+EVALUATED_OPPORTUNITY_STATES = frozenset(
+    {
+        OpportunityState.EVALUATED_CANDIDATE.value,
+        OpportunityState.EVALUATED_NO_EDGE.value,
+        OpportunityState.BLOCKED_BY_GATE.value,
+    }
+)
+
+
+def evaluated_attempt_identities(rows: Sequence[Any]) -> set[tuple[str, str]]:
+    return {
+        (str(row.opportunity_identity_hash), str(row.attempt_identity_hash))
+        for row in rows
+        if getattr(row, "official_funnel_eligible", None) is True
+        and getattr(row, "opportunity_identity_hash", None)
+        and getattr(row, "attempt_identity_hash", None)
+    }
+
+
+def final_official_opportunities(
+    rows: Sequence[Any],
+    *,
+    evaluated_attempts: set[tuple[str, str]],
+) -> dict[tuple[str, str], Any]:
+    final: dict[tuple[str, str], Any] = {}
+    for row in rows:
+        if (
+            str(row.state) not in EVALUATED_OPPORTUNITY_STATES
+            or (
+                str(row.opportunity_identity_hash),
+                str(row.latest_attempt_identity_hash),
+            )
+            not in evaluated_attempts
+        ):
+            continue
+        key = (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
+        previous = final.get(key)
+        if previous is None or (
+            row.scheduled_checkpoint_at,
+            row.recorded_at,
+            row.opportunity_identity_hash,
+        ) > (
+            previous.scheduled_checkpoint_at,
+            previous.recorded_at,
+            previous.opportunity_identity_hash,
+        ):
+            final[key] = row
+    return final
+
+
+@dataclass(frozen=True, kw_only=True)
+class EvaluationOpportunityContext:
+    model_forecast_capture_identity_hash: str
+    model_input_hash: str
+    evaluation_policy_version: str
+    evaluation_slot_id: str
+    scheduled_checkpoint_at: datetime
+    checkpoint_plan_identity: str
+    source_event_identity: str
+
+    def __post_init__(self) -> None:
+        from w2.prematch.evaluation_slots import require_evaluation_slot
+
+        if not self.model_forecast_capture_identity_hash or not self.model_input_hash:
+            raise ValueError("MODEL_FORECAST_CAPTURE_IDENTITY_MISSING")
+        if not self.checkpoint_plan_identity or not self.source_event_identity:
+            raise ValueError("OPPORTUNITY_SOURCE_IDENTITY_MISSING")
+        require_evaluation_slot(
+            self.evaluation_slot_id,
+            policy_version=self.evaluation_policy_version,
+        )
+        _aware_utc(self.scheduled_checkpoint_at, field="scheduled_checkpoint_at")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -51,11 +157,15 @@ class DynamicEvaluationInput:
     quote_fresh: bool = True
     model_ready: bool = True
     market_probability_ready: bool = True
+    # Absent means unvalidated: an evaluation that never carried a calibration
+    # status is exactly the case this gate exists to catch, so it fails closed.
+    calibration_status: str | None = None
     identity_conflict: bool = False
     model_probability: float | None = None
     market_probability: float | None = None
     expected_value: float | None = None
     ev_se: float | None = None
+    cashflow_price_edge: float | None = None
     decimal_odds: float | None = None
     lineup_input_hash: str | None = None
     lineup_confirmed_at: datetime | None = None
@@ -65,6 +175,22 @@ class DynamicEvaluationInput:
     season: str | None = None
     provider: str | None = None
     model_settlement_distribution: Mapping[str, Any] | None = None
+    bookmaker_count: int = 0
+    mainline_parsed: bool = False
+    denominator_scope: str | None = None
+    calibration_identity: str | None = None
+    one_x_two_probabilities: Mapping[str, Any] | None = None
+    # Factor verdict, versioned. Absent on ASIAN_HANDICAP fails closed: an
+    # evaluation that never carried a factor verdict is exactly the case this
+    # gate exists to catch. Historical payloads are read back as
+    # HISTORICAL_NO_FACTOR_VERDICT_IDENTITY and are never treated as passing.
+    factor_decision_status: str | None = None
+    factor_direction: str | None = None
+    ev_direction: str | None = None
+    factor_veto_code: str | None = None
+    factor_input_identity: str | None = None
+    factor_input_identity_hash: str | None = None
+    factor_evidence_digest: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -87,6 +213,7 @@ class DynamicEvaluationVersion:
     current_ev: float | None
     current_delta: float | None
     current_ev_minus_se: float | None
+    decimal_odds: float | None
     required_ev: float
     required_delta: float
     required_ev_minus_se: float
@@ -94,6 +221,9 @@ class DynamicEvaluationVersion:
     blockers: tuple[str, ...]
     user_message: str | None
     next_action: str | None
+    current_cashflow_price_edge: float | None = None
+    required_cashflow_price_edge: float = MIN_CASHFLOW_PRICE_EDGE_FLOAT
+    probability_delta_admission_gate: bool = False
     supersedes_evaluation_id: str | None = None
     supersession_reason: str | None = None
     schema_version: str = DYNAMIC_EVALUATION_V1_SCHEMA
@@ -102,6 +232,45 @@ class DynamicEvaluationVersion:
     provider: str | None = None
     model_settlement_distribution: dict[str, float] | None = None
     scoreline_reference: dict[str, Any] | None = None
+    bookmaker_count: int = 0
+    denominator_scope: str | None = None
+    first_failed_gate: str | None = None
+    all_failed_gates: tuple[str, ...] = ()
+    gate_results: dict[str, bool] | None = None
+    recorded_at: datetime | None = None
+    measurement_semantics: str | None = None
+    official_funnel_eligible: bool | None = None
+    exclusion_reason: str | None = None
+    evaluation_policy_version: str | None = None
+    evaluation_slot_id: str | None = None
+    model_forecast_capture_identity_hash: str | None = None
+    opportunity_identity_hash: str | None = None
+    attempt_identity_hash: str | None = None
+    scheduled_checkpoint_at: datetime | None = None
+    checkpoint_plan_identity: str | None = None
+    source_event_identity: str | None = None
+    opportunity_state: OpportunityState | None = None
+    # The calibration behind the decision, kept on the record rather than only in
+    # gate_results. gate_results says whether the gate passed; these say what the
+    # gate was looking at, under which authority, and what it concluded.
+    calibration_status_raw: str | None = None
+    calibration_status: str | None = None
+    calibration_recommendation_admissible: bool | None = None
+    calibration_authority: str | None = None
+    # Evidence-only payload additions. They deliberately do not participate in
+    # identity_payload so existing frozen evaluation identities remain stable.
+    calibration_identity: str | None = None
+    one_x_two_probabilities: dict[str, float] | None = None
+    # Factor verdict, persisted. asdict() carries these into the evaluation
+    # payload, so the stored state itself records why an AH pick was allowed
+    # or refused instead of leaving that only on the analysis card.
+    factor_verdict_schema: str | None = None
+    factor_decision_status: str | None = None
+    factor_direction: str | None = None
+    ev_direction: str | None = None
+    factor_veto_code: str | None = None
+    factor_input_identity_hash: str | None = None
+    factor_evidence_digest: dict[str, Any] | None = None
 
     def as_dict(
         self,
@@ -114,10 +283,106 @@ class DynamicEvaluationVersion:
         payload["evaluated_at"] = _iso(self.evaluated_at)
         payload["capture_at"] = _iso(self.capture_at) if self.capture_at else None
         payload["blockers"] = list(self.blockers)
+        payload["all_failed_gates"] = list(self.all_failed_gates)
+        payload["recorded_at"] = _iso(self.recorded_at) if self.recorded_at else None
+        payload["scheduled_checkpoint_at"] = (
+            _iso(self.scheduled_checkpoint_at) if self.scheduled_checkpoint_at else None
+        )
+        payload["opportunity_state"] = (
+            self.opportunity_state.value if self.opportunity_state else None
+        )
         payload["superseded_by_evaluation_id"] = superseded_by_evaluation_id
         payload["immutable"] = True
         payload["schema_version"] = self.schema_version
         return payload
+
+
+def bind_evaluation_opportunity(
+    version: DynamicEvaluationVersion,
+    context: EvaluationOpportunityContext,
+) -> DynamicEvaluationVersion:
+    """Bind a classified attempt to its pre-registered orchestration event."""
+
+    opportunity_hash = opportunity_identity_hash(context, market=version.market)
+    attempt_payload: dict[str, Any] = {
+        "attempt_identity_version": ATTEMPT_IDENTITY_VERSION,
+        "opportunity_identity_hash": opportunity_hash,
+        "quote_identity_hash": version.quote_identity_hash,
+        "model_input_hash": context.model_input_hash,
+        "lineup_input_hash": version.lineup_input_hash,
+        "source_event_identity": context.source_event_identity,
+        # Same quote, same model input, different calibration is a different
+        # attempt: it reached its conclusion on a different basis. Without this
+        # the append-only first-write-wins swallows the second conclusion, so a
+        # downgrade from validated to unvalidated would never be recorded.
+        "calibration_status": version.calibration_status,
+        "calibration_recommendation_admissible": (
+            version.calibration_recommendation_admissible
+        ),
+    }
+    # Only an attempt that actually carries a verdict moves to v3. Binding the
+    # evaluation identity unconditionally would have re-keyed every verdict-less
+    # TOTALS and historical attempt, which append-only forbids.
+    if version.factor_input_identity_hash or version.factor_veto_code:
+        attempt_payload.update(
+            {
+                "attempt_identity_version": ATTEMPT_IDENTITY_FACTOR_VERSION,
+                "factor_verdict_schema": FACTOR_VERDICT_SCHEMA,
+                # The evaluation identity already binds the verdict; carrying it
+                # here makes the attempt differ whenever the evaluation does.
+                "evaluation_identity_hash": version.identity_hash,
+                "factor_decision_status": version.factor_decision_status,
+                "factor_direction": version.factor_direction,
+                "ev_direction": version.ev_direction,
+                "factor_veto_code": version.factor_veto_code,
+                "factor_input_identity_hash": version.factor_input_identity_hash,
+            }
+        )
+    attempt_hash = _hash(attempt_payload)
+    if version.state == DynamicEvaluationState.ANALYSIS_PICK_ACTIVE:
+        state = OpportunityState.EVALUATED_CANDIDATE
+    elif version.state == DynamicEvaluationState.NO_EDGE_CURRENT:
+        state = OpportunityState.EVALUATED_NO_EDGE
+    else:
+        state = OpportunityState.BLOCKED_BY_GATE
+    return replace(
+        version,
+        evaluation_id=f"dqe-{attempt_hash}",
+        identity_hash=attempt_hash,
+        model_input_hash=context.model_input_hash,
+        checkpoint=context.evaluation_slot_id,
+        denominator_scope=CHECKPOINT_OPPORTUNITY_SCOPE,
+        measurement_semantics=CHECKPOINT_OPPORTUNITY_SEMANTICS,
+        official_funnel_eligible=True,
+        evaluation_policy_version=context.evaluation_policy_version,
+        evaluation_slot_id=context.evaluation_slot_id,
+        model_forecast_capture_identity_hash=(
+            context.model_forecast_capture_identity_hash
+        ),
+        opportunity_identity_hash=opportunity_hash,
+        attempt_identity_hash=attempt_hash,
+        scheduled_checkpoint_at=context.scheduled_checkpoint_at,
+        checkpoint_plan_identity=context.checkpoint_plan_identity,
+        source_event_identity=context.source_event_identity,
+        opportunity_state=state,
+    )
+
+
+def opportunity_identity_hash(
+    context: EvaluationOpportunityContext,
+    *,
+    market: str,
+) -> str:
+    return _hash(
+        {
+            "model_forecast_capture_identity_hash": (
+                context.model_forecast_capture_identity_hash
+            ),
+            "evaluation_policy_version": context.evaluation_policy_version,
+            "evaluation_slot_id": context.evaluation_slot_id,
+            "market": market,
+        }
+    )
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -221,7 +486,121 @@ class LockSnapshotResult:
     checkpoint: str = T30_VALIDATION_CHECKPOINT
 
 
-def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersion:
+AH_MARKET = "ASIAN_HANDICAP"
+FACTOR_SCORE_UNAVAILABLE = "FACTOR_SCORE_UNAVAILABLE"
+FACTOR_ADMISSION_FAILED = "FACTOR_ADMISSION_FAILED"
+FACTOR_EV_DIRECTION_CONFLICT = "FACTOR_EV_DIRECTION_CONFLICT"
+FACTOR_VERDICT_MALFORMED = "FACTOR_VERDICT_MALFORMED"
+FACTOR_BLOCKING_CODES = (
+    FACTOR_SCORE_UNAVAILABLE,
+    FACTOR_ADMISSION_FAILED,
+    FACTOR_EV_DIRECTION_CONFLICT,
+    FACTOR_VERDICT_MALFORMED,
+)
+HISTORICAL_NO_FACTOR_VERDICT = "HISTORICAL_NO_FACTOR_VERDICT_IDENTITY"
+FACTOR_ADMITTED_STATUS = "ADMITTED"
+FACTOR_DIRECTIONS = frozenset({"HOME", "AWAY"})
+_HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
+
+
+def _factor_direction(raw: object) -> str | None:
+    """HOME/AWAY out of a direction or selection, or None when it is not one.
+
+    ``HOME_AH``/``AWAY_AH`` is the market-candidate spelling of the same side --
+    ``recommendation_decision_v4`` strips the suffix the same way -- so it
+    resolves; anything else does not and the caller must fail closed.
+    """
+    text = str(raw or "").strip().upper().removesuffix("_AH")
+    return text if text in FACTOR_DIRECTIONS else None
+
+
+def factor_blocker(value: DynamicEvaluationInput) -> str | None:
+    """Return the AH factor blocker code, or None when the factor permits the pick.
+
+    Only ASIAN_HANDICAP is guarded: it is the market the factor score drives.
+    TOTALS keeps its existing independent behaviour and never needs a verdict.
+
+    Strictly fail-closed -- an ASIAN_HANDICAP pick survives this gate only when
+    every one of these holds:
+
+    ``factor_decision_status == "ADMITTED"``; ``factor_veto_code`` empty;
+    ``factor_input_identity`` and ``factor_input_identity_hash`` both present,
+    both 64-char lowercase hex, and equal to each other; ``factor_direction``
+    resolving to HOME or AWAY; and that direction agreeing with the EV side.
+
+    Everything else blocks, and the code says which kind of "else" it was:
+
+    ``FACTOR_SCORE_UNAVAILABLE``      no verdict at all, or the historical marker
+    ``FACTOR_ADMISSION_FAILED``       a verdict that is not ADMITTED
+    ``FACTOR_VERDICT_MALFORMED``      a verdict present but unusable: identity
+                                      missing, malformed or inconsistent, an
+                                      unrecognised status, an unusable direction,
+                                      or an unrecognised veto code
+    ``FACTOR_EV_DIRECTION_CONFLICT``  a usable verdict pointing the other way
+
+    The market-candidate pipeline derives its direction purely from model
+    probability versus market probability plus an economic test and never
+    consults a factor, so letting a doubtful verdict through would let EV alone
+    revive a side the factor rules had refused.
+    """
+    if value.market != AH_MARKET:
+        return None
+
+    status = str(value.factor_decision_status or "").strip().upper()
+    veto_code = str(value.factor_veto_code or "").strip().upper()
+
+    # No verdict at all, and the explicit marker a pre-verdict payload reads back
+    # as, are the same thing: nothing judged this pick.
+    if not status and not veto_code:
+        return FACTOR_SCORE_UNAVAILABLE
+    if status == HISTORICAL_NO_FACTOR_VERDICT:
+        return FACTOR_SCORE_UNAVAILABLE
+
+    if veto_code:
+        # Pass a recognised refusal through verbatim so the reason survives;
+        # refuse an unrecognised one rather than trusting a string we do not know.
+        return veto_code if veto_code in FACTOR_BLOCKING_CODES else FACTOR_VERDICT_MALFORMED
+
+    identity = str(value.factor_input_identity or "").strip()
+    identity_hash = str(value.factor_input_identity_hash or "").strip()
+    if not identity or not identity_hash:
+        return FACTOR_VERDICT_MALFORMED
+    if identity != identity_hash:
+        return FACTOR_VERDICT_MALFORMED
+    if not _HEX64.match(identity_hash):
+        return FACTOR_VERDICT_MALFORMED
+
+    if status != FACTOR_ADMITTED_STATUS:
+        # NOT_ADMITTED and VETOED are refusals the factor layer reached on
+        # purpose; an unrecognised status is not a refusal we can read, so the
+        # two are reported apart.
+        return (
+            FACTOR_ADMISSION_FAILED
+            if status in {"NOT_ADMITTED", "VETOED"}
+            else FACTOR_VERDICT_MALFORMED
+        )
+
+    direction = _factor_direction(value.factor_direction)
+    if direction is None:
+        return FACTOR_VERDICT_MALFORMED
+    selection = _factor_direction(value.ev_direction or value.selection)
+    if selection is None:
+        return FACTOR_VERDICT_MALFORMED
+    if direction != selection:
+        return FACTOR_EV_DIRECTION_CONFLICT
+    return None
+
+
+def classify_evaluation(
+    value: DynamicEvaluationInput,
+    *,
+    identity_version: str = EVALUATION_IDENTITY_VERSION,
+) -> DynamicEvaluationVersion:
+    calibration_record = calibration_authority.evidence_record(value.calibration_status)
+    calibration_normalised = str(calibration_record["calibration_status"])
+    calibration_admissible = bool(
+        calibration_record["calibration_recommendation_admissible"]
+    )
     evaluated_at = _aware_utc(value.evaluated_at, field="evaluated_at")
     capture_at = (
         _aware_utc(value.capture_at, field="capture_at") if value.capture_at is not None else None
@@ -245,6 +624,10 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
     ev_se = float(value.ev_se) if value.ev_se is not None else None
     ev_minus_se = ev - ev_se if ev is not None and ev_se is not None else None
 
+    denominator_scoped = value.denominator_scope in {
+        MODEL_FORECAST_DENOMINATOR_SCOPE,
+        CHECKPOINT_OPPORTUNITY_SCOPE,
+    }
     if not value.source_observations_present:
         state = DynamicEvaluationState.NOT_READY_SOURCE_ABSENT
         blockers.append("SOURCE_OBSERVATIONS_ABSENT")
@@ -253,9 +636,15 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
     elif value.identity_conflict:
         state = DynamicEvaluationState.NOT_READY_QUOTE_INCOMPLETE
         blockers.append("QUOTE_IDENTITY_CONFLICT")
+    elif not value.mainline_parsed and denominator_scoped:
+        state = DynamicEvaluationState.NOT_READY_QUOTE_INCOMPLETE
+        blockers.append("MAINLINE_NOT_PARSED")
     elif not value.exact_quote_complete or not value.quote_identity_hash:
         state = DynamicEvaluationState.NOT_READY_QUOTE_INCOMPLETE
         blockers.append("PAIR_INCOMPLETE")
+    elif denominator_scoped and value.bookmaker_count < MIN_DYNAMIC_BOOKMAKER_DEPTH:
+        state = DynamicEvaluationState.NOT_READY_QUOTE_INCOMPLETE
+        blockers.append("INSUFFICIENT_BOOKMAKER_DEPTH")
     elif lineup_confirmed_at is not None and (
         capture_at is None
         or capture_at < lineup_confirmed_at
@@ -270,31 +659,53 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
     elif not value.model_ready or not value.market_probability_ready or not value.model_input_hash:
         state = DynamicEvaluationState.NOT_READY_MODEL_INPUT
         blockers.append("MODEL_OR_DEVIG_NOT_READY")
-    elif ev is None or delta is None or ev_minus_se is None:
+    elif not calibration_admissible:
+        # The distribution, EV and EV_SE are still computed, stored and shown; only
+        # the authority to become a candidate is withheld. An unvalidated
+        # probability is analysis evidence, not a recommendation.
+        state = DynamicEvaluationState.NOT_READY_MODEL_INPUT
+        blockers.append(calibration_authority.RECOMMENDATION_BLOCKER)
+    elif ev is None or delta is None or ev_minus_se is None or value.cashflow_price_edge is None:
         state = DynamicEvaluationState.NOT_READY_MODEL_INPUT
         blockers.append("EV_EVIDENCE_INCOMPLETE")
-    elif (
-        ev > ACTIVE_EV_THRESHOLD
-        and delta >= ACTIVE_DELTA_THRESHOLD
-        and ev_minus_se > ACTIVE_EV_MINUS_SE_THRESHOLD
+    elif (factor_block := factor_blocker(value)) is not None:
+        # Two evidence sources must agree before EV may set an AH direction.
+        # This runs before the economic test so a positive edge can never
+        # overwrite a factor refusal.
+        state = DynamicEvaluationState.BLOCKED_BY_FACTOR
+        blockers.append(factor_block)
+    elif economic_admission_pass(
+        expected_value=ev,
+        ev_minus_se=ev_minus_se,
+        cashflow_price_edge=value.cashflow_price_edge,
     ):
         state = DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
     else:
         state = DynamicEvaluationState.NO_EDGE_CURRENT
         if ev <= ACTIVE_EV_THRESHOLD:
             blockers.append("EV_NOT_POSITIVE")
-        if delta < ACTIVE_DELTA_THRESHOLD:
-            blockers.append("DELTA_BELOW_THRESHOLD")
+        if value.cashflow_price_edge < MIN_CASHFLOW_PRICE_EDGE_FLOAT:
+            blockers.append("CASHFLOW_EDGE_BELOW_THRESHOLD")
         if ev_minus_se <= ACTIVE_EV_MINUS_SE_THRESHOLD:
             blockers.append("EV_MINUS_SE_NOT_POSITIVE")
 
     shortfall = {
         "ev": round(max(ACTIVE_EV_THRESHOLD - ev, 0.0), 6) if ev is not None else 0.0,
-        "delta": round(max(ACTIVE_DELTA_THRESHOLD - delta, 0.0), 6) if delta is not None else 0.0,
+        "delta": 0.0,
+        "cashflow_price_edge": round(
+            max(MIN_CASHFLOW_PRICE_EDGE_FLOAT - value.cashflow_price_edge, 0.0), 6
+        )
+        if value.cashflow_price_edge is not None
+        else 0.0,
         "ev_minus_se": round(max(ACTIVE_EV_MINUS_SE_THRESHOLD - ev_minus_se, 0.0), 6)
         if ev_minus_se is not None
         else 0.0,
     }
+    if identity_version not in {
+        EVALUATION_IDENTITY_VERSION,
+        LEGACY_EVALUATION_IDENTITY_VERSION,
+    }:
+        raise ValueError("EVALUATION_IDENTITY_VERSION_INVALID")
     identity_payload: dict[str, Any] = {
         "fixture_id": value.fixture_id,
         "market": value.market,
@@ -308,7 +719,28 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
         "checkpoint": value.checkpoint,
         "capture_at": _iso(capture_at) if capture_at else None,
     }
-    if value.schema_version == DYNAMIC_EVALUATION_V2_SCHEMA:
+    if identity_version == EVALUATION_IDENTITY_VERSION:
+        identity_payload.update(
+            {
+                "identity_version": EVALUATION_IDENTITY_VERSION,
+                "calibration_status": calibration_normalised,
+                "calibration_recommendation_admissible": calibration_admissible,
+            }
+        )
+    if denominator_scoped:
+        identity_payload.update(
+            {
+                "denominator_scope": value.denominator_scope,
+                "bookmaker_count": value.bookmaker_count,
+                "mainline_parsed": value.mainline_parsed,
+                "source_observations_present": value.source_observations_present,
+                "exact_quote_complete": value.exact_quote_complete,
+                "quote_fresh": value.quote_fresh,
+                "model_ready": value.model_ready,
+                "market_probability_ready": value.market_probability_ready,
+            }
+        )
+    if value.schema_version in {DYNAMIC_EVALUATION_V2_SCHEMA, DYNAMIC_EVALUATION_V3_SCHEMA}:
         identity_payload.update(
             {
                 "schema_version": value.schema_version,
@@ -318,10 +750,100 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
                 "model_settlement_distribution": distribution,
             }
         )
+    # Bind the factor verdict into the identity only when one is present. A
+    # historical or verdict-less evaluation keeps the identity it already has,
+    # so append-only rows are never rewritten; two different verdicts on the
+    # same quote/model/checkpoint necessarily differ.
+    if value.factor_input_identity_hash or value.factor_veto_code:
+        identity_payload.update(
+            {
+                "factor_verdict_schema": FACTOR_VERDICT_SCHEMA,
+                "factor_decision_status": value.factor_decision_status,
+                "factor_direction": value.factor_direction,
+                "ev_direction": value.ev_direction,
+                "factor_veto_code": value.factor_veto_code,
+                "factor_input_identity_hash": value.factor_input_identity_hash,
+            }
+        )
     identity_hash = _hash(identity_payload)
+    evaluation_complete = bool(
+        value.model_ready
+        and value.mainline_parsed
+        and value.exact_quote_complete
+        and value.bookmaker_count >= MIN_DYNAMIC_BOOKMAKER_DEPTH
+        and value.quote_fresh
+        and value.market_probability_ready
+        and value.model_input_hash
+        and ev is not None
+        and delta is not None
+        and ev_minus_se is not None
+        and value.cashflow_price_edge is not None
+    )
+    gate_results = (
+        {
+            "model_ready": bool(value.model_ready),
+            "mainline_parsed": bool(value.mainline_parsed),
+            "bookmaker_depth": value.bookmaker_count >= MIN_DYNAMIC_BOOKMAKER_DEPTH,
+            "quote_fresh": bool(value.quote_fresh),
+            "evaluated": evaluation_complete,
+            "calibration_validated": calibration_admissible,
+            "no_edge": evaluation_complete and state == DynamicEvaluationState.NO_EDGE_CURRENT,
+            "candidate": evaluation_complete
+            and state == DynamicEvaluationState.ANALYSIS_PICK_ACTIVE,
+        }
+        if denominator_scoped
+        else None
+    )
+    failed_gates = (
+        tuple(
+            gate
+            for gate in (
+                "MODEL_READY",
+                "MAINLINE_PARSED",
+                "BOOKMAKER_DEPTH",
+                "QUOTE_FRESH",
+                "CALIBRATION_VALIDATED",
+                "EVALUATION_COMPLETE",
+            )
+            if not bool(
+                gate_results[
+                    {
+                        "MODEL_READY": "model_ready",
+                        "MAINLINE_PARSED": "mainline_parsed",
+                        "BOOKMAKER_DEPTH": "bookmaker_depth",
+                        "QUOTE_FRESH": "quote_fresh",
+                        "CALIBRATION_VALIDATED": "calibration_validated",
+                        "EVALUATION_COMPLETE": "evaluated",
+                    }[gate]
+                ]
+            )
+        )
+        if gate_results is not None
+        else ()
+    )
     return DynamicEvaluationVersion(
         evaluation_id=f"dqe-{identity_hash}",
         identity_hash=identity_hash,
+        calibration_status_raw=calibration_record["calibration_status_raw"],
+        calibration_status=calibration_record["calibration_status"],
+        calibration_recommendation_admissible=calibration_admissible,
+        calibration_authority=calibration_record["calibration_authority"],
+        calibration_identity=value.calibration_identity,
+        one_x_two_probabilities=_one_x_two_probabilities(value.one_x_two_probabilities),
+        factor_verdict_schema=(
+            FACTOR_VERDICT_SCHEMA
+            if value.factor_input_identity_hash or value.factor_veto_code
+            else None
+        ),
+        factor_decision_status=value.factor_decision_status,
+        factor_direction=value.factor_direction,
+        ev_direction=value.ev_direction,
+        factor_veto_code=value.factor_veto_code,
+        factor_input_identity_hash=value.factor_input_identity_hash,
+        factor_evidence_digest=(
+            dict(value.factor_evidence_digest)
+            if value.factor_evidence_digest else None
+        ),
         fixture_id=str(value.fixture_id),
         market=str(value.market),
         selection=str(value.selection),
@@ -338,8 +860,16 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
         current_ev=round(ev, 6) if ev is not None else None,
         current_delta=round(delta, 6) if delta is not None else None,
         current_ev_minus_se=round(ev_minus_se, 6) if ev_minus_se is not None else None,
+        current_cashflow_price_edge=(
+            round(value.cashflow_price_edge, 6) if value.cashflow_price_edge is not None else None
+        ),
+        decimal_odds=(
+            round(float(value.decimal_odds), 6) if value.decimal_odds is not None else None
+        ),
         required_ev=ACTIVE_EV_THRESHOLD,
-        required_delta=ACTIVE_DELTA_THRESHOLD,
+        required_delta=0.0,
+        required_cashflow_price_edge=MIN_CASHFLOW_PRICE_EDGE_FLOAT,
+        probability_delta_admission_gate=False,
         required_ev_minus_se=ACTIVE_EV_MINUS_SE_THRESHOLD,
         shortfall=shortfall,
         blockers=tuple(blockers),
@@ -350,12 +880,40 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
         season=str(value.season) if value.season else None,
         provider=str(value.provider) if value.provider else None,
         model_settlement_distribution=distribution,
+        bookmaker_count=max(0, int(value.bookmaker_count)),
+        denominator_scope=value.denominator_scope,
+        first_failed_gate=failed_gates[0] if failed_gates else None,
+        all_failed_gates=failed_gates,
+        gate_results=gate_results,
     )
+
+
+def _one_x_two_probabilities(raw: Mapping[str, Any] | None) -> dict[str, float] | None:
+    if raw is None:
+        return None
+    if set(raw) != {"home", "draw", "away"}:
+        raise ValueError("DYNAMIC_EVALUATION_1X2_INVALID")
+    try:
+        probabilities = {side: float(raw[side]) for side in ("home", "draw", "away")}
+    except (TypeError, ValueError):
+        raise ValueError("DYNAMIC_EVALUATION_1X2_INVALID") from None
+    if any(not math.isfinite(value) or value < 0 for value in probabilities.values()):
+        raise ValueError("DYNAMIC_EVALUATION_1X2_INVALID")
+    # Simulation public probabilities are rounded to six decimals; the three
+    # rounded values can differ from one by at most 1.5e-6.
+    if abs(sum(probabilities.values()) - 1.0) > 2e-6:
+        raise ValueError("DYNAMIC_EVALUATION_1X2_INVALID")
+    return probabilities
 
 
 def _v2_distribution(value: DynamicEvaluationInput) -> dict[str, float] | None:
     if value.schema_version == DYNAMIC_EVALUATION_V1_SCHEMA:
         return None
+    if value.schema_version == DYNAMIC_EVALUATION_V3_SCHEMA:
+        raw = value.model_settlement_distribution
+        if raw is None:
+            return None
+        return _validated_distribution(raw)
     if value.schema_version != DYNAMIC_EVALUATION_V2_SCHEMA:
         raise ValueError("DYNAMIC_EVALUATION_SCHEMA_UNSUPPORTED")
     required_identity = (
@@ -376,6 +934,10 @@ def _v2_distribution(value: DynamicEvaluationInput) -> dict[str, float] | None:
     if value.exact_line is None or value.capture_at is None:
         raise ValueError("DYNAMIC_EVALUATION_V2_IDENTITY_INCOMPLETE")
     raw = value.model_settlement_distribution
+    return _validated_distribution(raw)
+
+
+def _validated_distribution(raw: Mapping[str, Any] | None) -> dict[str, float]:
     if not isinstance(raw, Mapping) or set(raw) != set(SETTLEMENT_STATE_ORDER):
         raise ValueError("DYNAMIC_EVALUATION_V2_DISTRIBUTION_INVALID")
     try:
@@ -466,6 +1028,7 @@ class DynamicEvaluationLedger:
                 current_ev=None,
                 current_delta=None,
                 current_ev_minus_se=None,
+                decimal_odds=None,
                 required_ev=ACTIVE_EV_THRESHOLD,
                 required_delta=ACTIVE_DELTA_THRESHOLD,
                 required_ev_minus_se=ACTIVE_EV_MINUS_SE_THRESHOLD,

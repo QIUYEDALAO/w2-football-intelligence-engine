@@ -146,7 +146,7 @@ def test_scoreline_reference_direction_top3_filters_by_formal_home_ah_direction(
     reference = scoreline_reference_from_card(
         card,
         recommendation={
-            "tier": "FORMAL",
+            "decision_tier": "RECOMMEND",
             "formal_recommendation": True,
             "market": "ASIAN_HANDICAP",
             "selection": "HOME_AH",
@@ -192,7 +192,7 @@ def test_scoreline_reference_direction_top3_filters_by_formal_away_ah_direction(
     reference = scoreline_reference_from_card(
         card,
         recommendation={
-            "tier": "FORMAL",
+            "decision_tier": "RECOMMEND",
             "formal_recommendation": True,
             "market": "ASIAN_HANDICAP",
             "selection": "AWAY_AH",
@@ -283,6 +283,7 @@ def test_scoreline_projection_fails_closed_on_selected_quote_line_mismatch() -> 
 
     assert reference is not None
     assert reference["scoreline_projection"]["status"] == "NOT_READY"
+    assert reference["scoreline_projection"]["simulations_completed"] is None
     assert reference["scoreline_projection"]["reason"] == (
         "AH_SELECTED_SIDE_LINE_MISMATCH"
     )
@@ -307,7 +308,7 @@ def test_scoreline_reference_direction_top3_accepts_analysis_pick_and_plus_half(
     reference = scoreline_reference_from_card(
         card,
         recommendation={
-            "tier": "ANALYSIS_PICK",
+            "decision_tier": "ANALYSIS_PICK",
             "market": "ASIAN_HANDICAP",
             "selection": "HOME_AH",
             "line": "+0.5",
@@ -335,7 +336,7 @@ def test_scoreline_reference_direction_top3_filters_totals_pick() -> None:
     reference = scoreline_reference_from_card(
         card,
         recommendation={
-            "tier": "RECOMMEND",
+            "decision_tier": "RECOMMEND",
             "market": "TOTALS",
             "selection": "OVER",
             "line": "2.5",

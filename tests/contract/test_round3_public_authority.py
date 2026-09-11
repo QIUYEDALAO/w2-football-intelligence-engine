@@ -8,6 +8,10 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.pool import StaticPool
 
 from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.model_forecast_models import (
+    canonical_model_forecast_fixture_id,
+    model_forecast_fixture_aliases,
+)
 from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
     _fixture_aliases,
@@ -76,6 +80,31 @@ def test_round3_whitelist_is_exact_13_and_fixture_aliases_are_not_conflicts() ->
     assert _round3_active_whitelist(rows) == ACTIVE_13
     assert _round3_active_whitelist(rows[:-2]) == set()
     assert "1494218" in _fixture_aliases("api_football:1494218")
+
+
+def test_model_forecast_fixture_ids_have_one_cross_table_form() -> None:
+    assert canonical_model_forecast_fixture_id("1494244") == "api_football:1494244"
+    assert (
+        canonical_model_forecast_fixture_id("api_football:1494244")
+        == "api_football:1494244"
+    )
+    assert model_forecast_fixture_aliases("1494244") == (
+        "1494244",
+        "api_football:1494244",
+    )
+
+
+def test_capture_priority_queries_cannot_bare_join_fixture_ids() -> None:
+    for relative in (
+        "src/w2/matchday/repository.py",
+        "src/w2/ingestion/future_refresh_repository.py",
+    ):
+        source = Path(relative).read_text(encoding="utf-8")
+        assert "canonical_model_forecast_fixture_id_sql" in source
+        assert (
+            "MatchdayCheckpointPlanModel.fixture_id\n"
+            "                    == ModelForecastCaptureModel.fixture_id"
+        ) not in source
 
 
 def test_round3_materialization_read_query_count_is_constant_and_read_only() -> None:

@@ -11,6 +11,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
   "alembic>=1.14,<2",
   "celery>=5.4,<6",
+  "coverage>=7.15,<8",
   "cryptography>=45,<46",
   "fastapi>=0.115,<1",
   "psycopg[binary]>=3.2,<4",
@@ -25,7 +26,6 @@ dependencies = [
 w2-gate5-preflight = "w2.gates.gate5_preflight_cli:main"
 w2-shadow-comparison-import = "w2.shadow.comparison_import_cli:main"
 w2-stage7i-observer = "w2.observability.stage7i_observer_cli:main"
-w2-matchday = "w2.matchday.cli:main"
 w2-finished-match-scoring = "w2.tracking.finished_match_scoring_cli:main"
 
 [dependency-groups]
@@ -77,3 +77,6 @@ addopts = "-ra"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = [".", "src"]
+markers = [
+  "requires_privilege: host-privileged integration checks; opt in with W2_RUN_PRIVILEGED_TESTS=1",
+]

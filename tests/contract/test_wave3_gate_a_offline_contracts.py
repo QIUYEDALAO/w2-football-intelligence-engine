@@ -55,7 +55,8 @@ def test_gate_a_canary_compose_isolates_persistent_scheduler() -> None:
     normal = (ROOT / "infra/compose/compose.staging.yml").read_text(encoding="utf-8")
     override = (ROOT / "infra/compose/gate-a-canary.override.yml").read_text(encoding="utf-8")
 
-    assert 'W2_MARKET_TIMELINE_REFRESH_ENABLED: "true"' in normal
+    assert "W2_MARKET_TIMELINE_REFRESH_ENABLED" not in normal
+    assert "w2.market_timeline_refresh" not in normal
     assert "restart: unless-stopped" in normal
     assert 'profiles: ["persistent-scheduler"]' in override
     assert 'restart: "no"' in override

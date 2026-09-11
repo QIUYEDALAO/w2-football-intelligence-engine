@@ -1,0 +1,177 @@
+{
+  "schema": "w2.v1.a1_pit_rebuild_coverage_audit.v1",
+  "claimed_rebuild_count": 105,
+  "fixtures_with_both_teams_at_least_five_prior_rows": 81,
+  "insufficient_fixture_count": 24,
+  "insufficient_fixtures": [
+    {
+      "fixture_id": "1493056",
+      "counts": {
+        "home": 46,
+        "away": 3
+      }
+    },
+    {
+      "fixture_id": "1550090",
+      "counts": {
+        "home": 0,
+        "away": 76
+      }
+    },
+    {
+      "fixture_id": "1550100",
+      "counts": {
+        "home": 76,
+        "away": 1
+      }
+    },
+    {
+      "fixture_id": "1552121",
+      "counts": {
+        "home": 69,
+        "away": 0
+      }
+    },
+    {
+      "fixture_id": "1552130",
+      "counts": {
+        "home": 68,
+        "away": 1
+      }
+    },
+    {
+      "fixture_id": "1552139",
+      "counts": {
+        "home": 69,
+        "away": 2
+      }
+    },
+    {
+      "fixture_id": "1552141",
+      "counts": {
+        "home": 2,
+        "away": 69
+      }
+    },
+    {
+      "fixture_id": "1552731",
+      "counts": {
+        "home": 0,
+        "away": 68
+      }
+    },
+    {
+      "fixture_id": "1552737",
+      "counts": {
+        "home": 0,
+        "away": 34
+      }
+    },
+    {
+      "fixture_id": "1552740",
+      "counts": {
+        "home": 35,
+        "away": 1
+      }
+    },
+    {
+      "fixture_id": "1557367",
+      "counts": {
+        "home": 76,
+        "away": 0
+      }
+    },
+    {
+      "fixture_id": "1557368",
+      "counts": {
+        "home": 0,
+        "away": 76
+      }
+    },
+    {
+      "fixture_id": "1557380",
+      "counts": {
+        "home": 1,
+        "away": 1
+      }
+    },
+    {
+      "fixture_id": "1570334",
+      "counts": {
+        "home": 76,
+        "away": 0
+      }
+    },
+    {
+      "fixture_id": "1570337",
+      "counts": {
+        "home": 0,
+        "away": 38
+      }
+    },
+    {
+      "fixture_id": "1570339",
+      "counts": {
+        "home": 0,
+        "away": 76
+      }
+    },
+    {
+      "fixture_id": "1570348",
+      "counts": {
+        "home": 77,
+        "away": 1
+      }
+    },
+    {
+      "fixture_id": "1570349",
+      "counts": {
+        "home": 1,
+        "away": 1
+      }
+    },
+    {
+      "fixture_id": "1570359",
+      "counts": {
+        "home": 2,
+        "away": 40
+      }
+    },
+    {
+      "fixture_id": "1575143",
+      "counts": {
+        "home": 0,
+        "away": 68
+      }
+    },
+    {
+      "fixture_id": "1575146",
+      "counts": {
+        "home": 68,
+        "away": 0
+      }
+    },
+    {
+      "fixture_id": "1575451",
+      "counts": {
+        "home": 0,
+        "away": 68
+      }
+    },
+    {
+      "fixture_id": "1575455",
+      "counts": {
+        "home": 1,
+        "away": 69
+      }
+    },
+    {
+      "fixture_id": "1575468",
+      "counts": {
+        "home": 2,
+        "away": 2
+      }
+    }
+  ],
+  "strictly_pre_kickoff": true
+}

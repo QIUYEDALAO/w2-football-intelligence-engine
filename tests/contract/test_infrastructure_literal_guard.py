@@ -11,7 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "config/security/infrastructure_literal_exceptions.v1.json"
 IPV4 = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])")
-SKIP_PARTS = {".git", ".venv", "node_modules", "runtime"}
+SKIP_PARTS = {".git", ".local", ".venv", "node_modules", "runtime"}
 
 
 def _load_manifest() -> dict[str, Any]:

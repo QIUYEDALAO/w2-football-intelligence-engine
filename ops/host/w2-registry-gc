@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Registry retention and garbage collection.
+#
+# docker rmi on this host never touches the registry, so the store only grew:
+# 186 tags against 6 images locally, 1.2GB, and the stock registry:2 config
+# does not enable manifest deletion at all, so nothing could have been removed
+# even deliberately.
+#
+# The registry serves OCI manifest media types.  Asking for a digest with only
+# the docker v2 Accept header returns 404, which reads as "already gone" and
+# silently deletes nothing -- the first attempt here reported 0 deletions for
+# exactly that reason.
+#
+# GC runs with the registry stopped: a push concurrent with garbage collection
+# can have its freshly uploaded layers collected out from under it.
+set -uo pipefail
+
+REG=http://127.0.0.1:5000
+VOL=$(docker inspect w2-local-registry --format "{{range .Mounts}}{{if eq .Destination \"/var/lib/registry\"}}{{.Source}}{{end}}{{end}}")
+ACCEPT="application/vnd.oci.image.manifest.v1+json,application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.v2+json,application/vnd.docker.distribution.manifest.list.v2+json"
+
+# Whatever the four running services use, plus the runtime base they build on
+# and the pre-flatten config baseline.
+KEEP=$(docker inspect w2-staging-api-1 w2-staging-web-1 w2-staging-worker-1 w2-staging-scheduler-1 \
+        --format "{{index .Config.Labels \"w2.release.id\"}}" 2>/dev/null | sort -u | grep -v "^$")
+KEEP="$KEEP $(docker images 127.0.0.1:5000/w2/runtime-base --format "{{.Tag}}" | grep -v none)"
+KEEP="$KEEP ${W2_GC_ALSO_KEEP:-0553f07eefad2062b2950f9f2978f52e4f52085f}"
+
+deleted=0
+for repo in w2/python w2/web w2/runtime-base; do
+  tags=$(curl -s -m 20 "$REG/v2/$repo/tags/list" | python3 -c "import sys,json;print( .join(json.load(sys.stdin).get(tags) or []))" 2>/dev/null)
+  for tag in $tags; do
+    echo "$KEEP" | tr " " "\n" | grep -qx "$tag" && continue
+    d=$(curl -s -m 20 -I -H "Accept: $ACCEPT" "$REG/v2/$repo/manifests/$tag" | grep -i "^docker-content-digest" | tr -d "\r" | awk "{print \$2}")
+    [ -z "$d" ] && continue
+    code=$(curl -s -m 20 -o /dev/null -w "%{http_code}" -X DELETE "$REG/v2/$repo/manifests/$d")
+    [ "$code" = "202" ] && deleted=$((deleted+1))
+  done
+done
+
+before=$(du -sm "$VOL" 2>/dev/null | cut -f1)
+docker stop w2-local-registry >/dev/null 2>&1
+docker run --rm -v "$VOL":/var/lib/registry \
+  -v /opt/w2/deploy/registry/config.yml:/etc/docker/registry/config.yml:ro \
+  registry:2 registry garbage-collect --delete-untagged /etc/docker/registry/config.yml >/dev/null 2>&1
+docker start w2-local-registry >/dev/null 2>&1
+sleep 4
+after=$(du -sm "$VOL" 2>/dev/null | cut -f1)
+health=$(curl -s -m 10 -o /dev/null -w "%{http_code}" "$REG/v2/")
+
+echo "REGISTRY_GC deleted=$deleted store=${before}MB->${after}MB health=$health"
+[ "$health" = "200" ] || exit 2

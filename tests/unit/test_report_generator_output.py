@@ -23,7 +23,7 @@ def _formal_match() -> dict[str, object]:
         "away_team_name": "Sweden",
         "status": "NS",
         "recommendation": {
-            "tier": "FORMAL",
+            "decision_tier": "RECOMMEND",
             "formal_recommendation": True,
             "market": "ASIAN_HANDICAP",
             "selection": "HOME_AH",
@@ -106,7 +106,7 @@ def _non_formal_match() -> dict[str, object]:
         "home_team_name": "Mexico",
         "away_team_name": "Ecuador",
         "status": "NS",
-        "recommendation": {"tier": "WATCH", "market": "ASIAN_HANDICAP"},
+        "recommendation": {"decision_tier": "WATCH", "market": "ASIAN_HANDICAP"},
         "formal_recommendation": False,
         "pricing_shadow": {
             "status": "READY",
@@ -227,7 +227,7 @@ def test_render_report_suppresses_non_formal_ah_direction_fields() -> None:
     match["home_team_name"] = "Australia"
     match["away_team_name"] = "Egypt"
     match["recommendation"] = {
-        "tier": "ANALYSIS_PICK",
+        "decision_tier": "ANALYSIS_PICK",
         "market": "ASIAN_HANDICAP",
         "selection": "AWAY_AH",
         "selection_label_cn": "客队方向 0.25",
@@ -251,7 +251,7 @@ def test_render_report_keeps_invalid_formal_payload_only_as_diagnostic() -> None
     match = _formal_match()
     match["formal_recommendation"] = True
     match["recommendation"] = {
-        "tier": "FORMAL",
+        "decision_tier": "RECOMMEND",
         "market": "ASIAN_HANDICAP",
         "selection": "AWAY_AH",
         "selection_label_cn": "客队方向 0.25",
@@ -271,7 +271,7 @@ def test_render_report_keeps_invalid_formal_payload_only_as_diagnostic() -> None
 def test_render_report_does_not_emit_formal_lines_for_invalid_formal_payload() -> None:
     match = _formal_match()
     match["recommendation"] = {
-        "tier": "FORMAL",
+        "decision_tier": "RECOMMEND",
         "market": "ASIAN_HANDICAP",
         "selection": "UNKNOWN",
         "line": 2.5,

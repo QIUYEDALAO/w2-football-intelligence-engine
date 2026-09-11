@@ -119,6 +119,7 @@ class LedgeredApiFootballClient:
         competition_id: str = "",
         refresh: bool = False,
     ) -> ProviderCall:
+        raise RuntimeError("LEGACY_PRO_DAY1_COLLECTION_REMOVED_USE_XG_BACKFILL_RAW_PAYLOAD")
         params = {key: str(value) for key, value in (params or {}).items()}
         if endpoint not in ALLOWED_ENDPOINTS:
             raise RuntimeError(f"ENDPOINT_NOT_AUTHORIZED:{endpoint}")
@@ -576,10 +577,12 @@ def _coverage_summary(persistent_root: Path) -> dict[str, Any]:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run W2 Pro day-1 data sprint safely.")
+    parser = argparse.ArgumentParser(
+        description="Legacy offline Pro day-1 model recheck; live collection was removed."
+    )
     parser.add_argument(
         "--phase",
-        choices=("phase0", "collect", "audit", "model", "all", "summary"),
+        choices=("model",),
         required=True,
     )
     parser.add_argument(
@@ -594,7 +597,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--persistent-root",
         type=Path,
-        default=ROOT / "runtime" / "w2_pro_day1_provider_data",
+        required=True,
+        help="Existing offline evidence root. This command never collects Provider data.",
     )
     parser.add_argument("--out-dir", type=Path)
     parser.add_argument("--json", action="store_true", dest="json_output")

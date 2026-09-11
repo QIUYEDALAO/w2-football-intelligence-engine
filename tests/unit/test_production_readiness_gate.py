@@ -97,7 +97,7 @@ def test_production_readiness_cli_input_skip_db_reports_blocked_without_writes(
 def _dashboard_payload(*, formal: bool) -> dict[str, object]:
     recommendation = (
         {
-            "tier": "FORMAL",
+            "decision_tier": "RECOMMEND",
             "market": "ASIAN_HANDICAP",
             "selection": "HOME_AH",
             "line": "-0.5",

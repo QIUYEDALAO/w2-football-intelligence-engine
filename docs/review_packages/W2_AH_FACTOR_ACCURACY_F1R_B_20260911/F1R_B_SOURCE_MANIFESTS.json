@@ -1,0 +1,90 @@
+{
+  "F3_REST_FITNESS": {
+    "contract": "w2.f1r_b_source_capture.v1",
+    "factor_id": "F3_REST_FITNESS",
+    "hash_domain": "future_refresh.evidence",
+    "records": [
+      {
+        "content_sha256": "0f45d82e68059208fa12eb2fc34586ec5b80394c4e3dd6175908a619519b275c",
+        "observed_at_utc": "2026-09-28T19:30:00+00:00",
+        "observed_time_semantics": "FIXTURE_EVENT_TIME",
+        "record_id": "api_football:8000003:w2-team-home-1",
+        "source_version": "CanonicalTeamMatchHistoryV1",
+        "synthetic": false
+      },
+      {
+        "content_sha256": "bf0527f2b30799667404e291610376061ffeba591a22afbdc48e6476a585a61b",
+        "observed_at_utc": "2026-09-27T19:30:00+00:00",
+        "observed_time_semantics": "FIXTURE_EVENT_TIME",
+        "record_id": "api_football:8000004:w2-team-away-1",
+        "source_version": "CanonicalTeamMatchHistoryV1",
+        "synthetic": false
+      }
+    ],
+    "serializer_version": "w2.canonical-json.v2"
+  },
+  "F5_RECENT_AH_COVER": {
+    "contract": "w2.f1r_b_source_capture.v1",
+    "factor_id": "F5_RECENT_AH_COVER",
+    "hash_domain": "future_refresh.evidence",
+    "records": [
+      {
+        "content_sha256": "4bdb585fdd96293292d42c9c060093cd439a44d4ff8ecd9e84cd47eecdbda348",
+        "observed_at_utc": "2026-10-01T18:30:00+00:00",
+        "observed_time_semantics": "SOURCE_QUERIED_AT_AS_OF",
+        "record_id": "absence:F5_RECENT_AH_COVER:canonical_historical_ah_fact:none",
+        "source_version": "w2.f1r_b_absence_lookup.v1",
+        "synthetic": false
+      }
+    ],
+    "serializer_version": "w2.canonical-json.v2"
+  },
+  "F6_H2H": {
+    "contract": "w2.f1r_b_source_capture.v1",
+    "factor_id": "F6_H2H",
+    "hash_domain": "future_refresh.evidence",
+    "records": [
+      {
+        "content_sha256": "7d64ec7b4dc320f5c194721d48a0010262765d75c8030b3f9788bd5a58043dfd",
+        "observed_at_utc": "2026-03-15T22:30:00+00:00",
+        "observed_time_semantics": "PROVIDER_CAPTURE_OF_FINISHED_FIXTURE",
+        "record_id": "api_football:8000200:w2-team-home-1",
+        "source_version": "CanonicalTeamMatchHistoryV1",
+        "synthetic": false
+      },
+      {
+        "content_sha256": "4e785805a9a2c10597d2620785ac42f7320b389352a8b78c6ed0ccdc7b6c4c6c",
+        "observed_at_utc": "2025-08-27T22:30:00+00:00",
+        "observed_time_semantics": "PROVIDER_CAPTURE_OF_FINISHED_FIXTURE",
+        "record_id": "api_football:8000400:w2-team-home-1",
+        "source_version": "CanonicalTeamMatchHistoryV1",
+        "synthetic": false
+      }
+    ],
+    "serializer_version": "w2.canonical-json.v2"
+  },
+  "F9_TRUE_XG": {
+    "contract": "w2.f1r_b_source_capture.v1",
+    "factor_id": "F9_TRUE_XG",
+    "hash_domain": "future_refresh.evidence",
+    "records": [
+      {
+        "content_sha256": "7f45cf40199978ed00856e24808bb2963e79a31d7a6f3e77736ab64758808232",
+        "observed_at_utc": "2026-09-29T18:30:00+00:00",
+        "observed_time_semantics": "ROLLING_SNAPSHOT_COMPONENT_AVAILABILITY_MAX",
+        "record_id": "w2-team-away-1:9000001",
+        "source_version": "api_football_statistics",
+        "synthetic": false
+      },
+      {
+        "content_sha256": "0bf12c78259fd2482dd04af76d34b58ab0a96ae93ed87812c8b11bc430eb510b",
+        "observed_at_utc": "2026-09-30T18:30:00+00:00",
+        "observed_time_semantics": "ROLLING_SNAPSHOT_COMPONENT_AVAILABILITY_MAX",
+        "record_id": "w2-team-home-1:9000001",
+        "source_version": "api_football_statistics",
+        "synthetic": false
+      }
+    ],
+    "serializer_version": "w2.canonical-json.v2"
+  }
+}

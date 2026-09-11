@@ -36,6 +36,22 @@ export function formatAhSideLines(homeLine: unknown): { home: string; away: stri
   };
 }
 
+export function formatAhMarketHandicap(homeLine: unknown): string | null {
+  const numeric = numericValue(homeLine);
+  if (numeric == null) return null;
+  if (Math.abs(numeric) < 0.005) return "0";
+  const handicap = -numeric;
+  const absolute = Math.abs(handicap);
+  return `${handicap < 0 ? "-" : ""}${Number.isInteger(absolute) ? absolute.toFixed(1) : formatLine(absolute)}`;
+}
+
+export function formatAhRecommendationHandicap(selection: unknown, exactLine: unknown): string | null {
+  const numeric = numericValue(exactLine);
+  if (numeric == null) return null;
+  // exactLine already belongs to the selected team; do not invert it.
+  return selection === "HOME" || selection === "AWAY" ? formatSignedLine(numeric) : null;
+}
+
 export function ahDisplayContract(homeLine: unknown): {
   display_line_cn: string;
   home_display_line_cn: string;

@@ -10,6 +10,8 @@ from w2.prematch.analysis_calculator import ReadModelService
 from w2.providers.quota import (
     api_football_quota_policy,
     parse_api_football_quota,
+    postmatch_result_quota_decision,
+    provider_daily_budget_contract,
     provider_daily_hard_cap_decision,
     quota_guard_decision,
 )
@@ -36,6 +38,7 @@ def test_daily_and_burst_are_separated() -> None:
     quota = parse_api_football_quota(
         headers={
             "x-ratelimit-remaining": "299",
+            "x-ratelimit-limit": "300",
             "x-ratelimit-requests-remaining": "6774",
         },
         payload={},
@@ -44,8 +47,10 @@ def test_daily_and_burst_are_separated() -> None:
 
     assert quota.daily_remaining == 6774
     assert quota.burst_remaining == 299
+    assert quota.burst_limit == 300
     assert quota.daily_source == "x-ratelimit-requests-remaining"
     assert quota.burst_source == "x-ratelimit-remaining"
+    assert quota.burst_limit_source == "x-ratelimit-limit"
 
 
 def test_daily_below_reserve_can_be_detected_with_burst_present() -> None:
@@ -233,6 +238,79 @@ def test_provider_daily_hard_cap_blocks_before_exceeding_reserve() -> None:
     assert decision["remaining_after_plan"] == 1400
 
 
+def test_postmatch_result_quota_spends_reserved_bucket_with_independent_cap() -> None:
+    allowed = postmatch_result_quota_decision(actual_calls_today=18, planned_calls=2)
+    blocked = postmatch_result_quota_decision(actual_calls_today=19, planned_calls=2)
+
+    assert allowed["allowed"] is True
+    assert allowed["mode"] == "RESULT_RESERVE"
+    assert allowed["daily_cap"] == 20
+    assert blocked["allowed"] is False
+    assert blocked["blocker"] == "RESULT_QUOTA_EXHAUSTED"
+
+
+def test_postmatch_result_quota_reserves_unsettled_capture_calls() -> None:
+    blocked = postmatch_result_quota_decision(
+        actual_calls_today=17,
+        planned_calls=2,
+        reserved_capture_calls=2,
+    )
+    allowed = postmatch_result_quota_decision(
+        actual_calls_today=16,
+        planned_calls=2,
+        reserved_capture_calls=2,
+    )
+
+    assert blocked["blocker"] == "RESULT_QUOTA_EXHAUSTED"
+    assert blocked["reserved_capture_calls"] == 2
+    assert allowed["allowed"] is True
+
+
+def test_postmatch_result_quota_exposes_reserved_saturation_above_75_percent() -> None:
+    below = postmatch_result_quota_decision(
+        actual_calls_today=0,
+        planned_calls=2,
+        reserved_capture_calls=15,
+    )
+    saturated = postmatch_result_quota_decision(
+        actual_calls_today=0,
+        planned_calls=2,
+        reserved_capture_calls=16,
+    )
+
+    assert below["operational_status"] is None
+    assert saturated["operational_status"] == "POSTMATCH_POOL_RESERVED_SATURATED"
+
+
+def test_registered_daily_quota_pools_leave_unallocated_free_plan_buffer() -> None:
+    baseline = provider_daily_budget_contract()
+    invalid = provider_daily_budget_contract(pool_limits={"GENERAL": 100, "POSTMATCH_RESULT": 20})
+
+    assert baseline == {
+        "pool_limits": {"GENERAL": 70},
+        "orthogonal_attempt_pool_limits": {"POSTMATCH_RESULT": 20},
+        "allocated_budget": 70,
+        "unallocated_buffer": 10,
+        "configured_total": 80,
+        "provider_limit": 100,
+        "valid": True,
+    }
+    assert invalid["configured_total"] == 110
+    assert invalid["valid"] is False
+
+
+def test_pro_daily_budget_keeps_postmatch_attempt_pool_orthogonal() -> None:
+    contract = provider_daily_budget_contract(
+        pool_limits={"GENERAL": 7500, "POSTMATCH_RESULT": 20},
+        unallocated_buffer=0,
+        provider_limit=7500,
+    )
+
+    assert contract["configured_total"] == 7500
+    assert contract["orthogonal_attempt_pool_limits"] == {"POSTMATCH_RESULT": 20}
+    assert contract["valid"] is True
+
+
 def test_provider_daily_hard_cap_blocks_exhaustion() -> None:
     decision = provider_daily_hard_cap_decision(
         actual_calls_today=7495,
@@ -243,6 +321,19 @@ def test_provider_daily_hard_cap_blocks_exhaustion() -> None:
 
     assert decision["allowed"] is False
     assert decision["blocker"] == "DAILY_PROVIDER_HARD_CAP_EXCEEDED"
+
+
+def test_provider_daily_hard_cap_fails_closed_above_observed_plan_limit() -> None:
+    decision = provider_daily_hard_cap_decision(
+        actual_calls_today=1,
+        planned_calls=1,
+        daily_cap=7500,
+        reserve_bucket=1500,
+        provider_limit=100,
+    )
+
+    assert decision["allowed"] is False
+    assert decision["blocker"] == "PROVIDER_DAILY_CAP_EXCEEDS_OBSERVED_LIMIT"
 
 
 def test_provider_daily_hard_cap_reconciles_local_ceiling_and_provider_reserve() -> None:
@@ -319,10 +410,13 @@ def test_matchday_refresh_projected_calls_feed_hard_stop_contract() -> None:
 
 
 def test_independent_signal_budget_allows_only_prematch_when_quota_unknown() -> None:
-    assert independent_signal_quota_decision(
-        remaining_quota=None,
-        task_type="prematch_odds",
-    )["allowed"] is True
+    assert (
+        independent_signal_quota_decision(
+            remaining_quota=None,
+            task_type="prematch_odds",
+        )["allowed"]
+        is True
+    )
     blocked = independent_signal_quota_decision(
         remaining_quota="UNKNOWN",
         task_type="team_fixture_history_backfill",
@@ -339,10 +433,13 @@ def test_independent_signal_budget_protects_reserve_and_core_only_thresholds() -
         "squad_value_mapping",
         "ratings_backfill",
     ):
-        assert independent_signal_quota_decision(
-            remaining_quota=1499,
-            task_type=task_type,
-        )["allowed"] is False
+        assert (
+            independent_signal_quota_decision(
+                remaining_quota=1499,
+                task_type=task_type,
+            )["allowed"]
+            is False
+        )
         critical = independent_signal_quota_decision(
             remaining_quota=749,
             task_type=task_type,
@@ -350,11 +447,17 @@ def test_independent_signal_budget_protects_reserve_and_core_only_thresholds() -
         assert critical["allowed"] is False
         assert critical["mode"] == "CORE_ONLY"
 
-    assert independent_signal_quota_decision(
-        remaining_quota=749,
-        task_type="prematch_lineups",
-    )["allowed"] is True
-    assert independent_signal_quota_decision(
-        remaining_quota=6774,
-        task_type="h2h_backfill",
-    )["allowed"] is True
+    assert (
+        independent_signal_quota_decision(
+            remaining_quota=749,
+            task_type="prematch_lineups",
+        )["allowed"]
+        is True
+    )
+    assert (
+        independent_signal_quota_decision(
+            remaining_quota=6774,
+            task_type="h2h_backfill",
+        )["allowed"]
+        is True
+    )

@@ -1,0 +1,48 @@
+{
+  "base_is_ancestor_of_origin_main": false,
+  "base_parent": "bc1189e8f7f6a195075debb3d4bd7dcde3781ed2",
+  "base_sha": "3ac86c14fb951b93167d7a24f84a319663a6b9d9",
+  "committed_source_bundle": {
+    "built_by": "scripts/quant/official_candidate_manifest.py --package <pkg> --raw <restricted dir>; the replay itself runs without --raw and reads only this committed bundle",
+    "distinct_evaluation_ids": 148,
+    "distinct_fixtures": 111,
+    "fields": "exactly the fields build_rows consumes: the settled recommendation row, result_available_at, evaluation_policy_version, 13 evaluation columns and 9 payload keys",
+    "file": "OFFICIAL_148_SOURCE_BUNDLE.jsonl",
+    "is_the_only_input_the_official_replay_needs": true,
+    "non_sensitive": "no credentials, no connection strings, no provider raw bodies, no team or provider payloads; identifiers, timestamps, hashes, enums and numbers only",
+    "rows": 148,
+    "schema_version": "w2.official_candidate_source_bundle.v1",
+    "sha256": "da9edb11be8144991addeb1c6e83724d3cca083ca46b0bd8de2eaa6d45f6e7e4"
+  },
+  "dispatch_sha256": "761208c67c9215ccc45b4c4ff3d8bb98534dd87bea3f003854fcb0b2bf5dccb6",
+  "origin_main": "3b7f87db2f0cb49d75582313ca593d30262c0d3d",
+  "production_live_identity": {
+    "access": "SSH to the production VPS documented in Obsidian 部署与运维.md; all SQL run inside BEGIN READ ONLY",
+    "api_git_sha": "3ac86c14fb951b93167d7a24f84a319663a6b9d9",
+    "containers_healthy": 6,
+    "matches_dispatch_production_reference": true,
+    "ready": "READY",
+    "release_id": "3ac86c14fb951b93167d7a24f84a319663a6b9d9",
+    "schema_head": "0070_notification_delivery_routing"
+  },
+  "raw_export_location_outside_git": {
+    "note": "kept as the original of record; since the bundle is committed no acceptance step reads this directory",
+    "path": "/Users/liudehua/Desktop/W2文档/evidence/W2_OFFICIAL_148_RAW_20260909",
+    "role": "RESTRICTED_ORIGINAL_NOT_REQUIRED_FOR_ACCEPTANCE"
+  },
+  "raw_export_sha256": {
+    "_policy_versions.json": "df8f1a5d14bbb78bc282d45d1013a9b8daf6e43487ec3eb95a04fc178a2d3efc",
+    "_raw_official_recommendations.json": "7e6bcbdc2baf4d8b255d8dbd79a907aa107d4536a642c13465b7828fd0b37110",
+    "_result_times.json": "8f1cd302b512257edcf4371cb8951477943845587fe025acddd7b74ebb654f8e",
+    "_scoped_evaluations_148.json": "4603c8611407d17cfb63b57e4226a75179dd9059b09fcd6e404d23e069e54be3"
+  },
+  "read_only_evidence": {
+    "business_entry": "GET /v1/dashboard/intelligence-workspace -> validation.model_forecast.official_recommendations",
+    "http_status": 200,
+    "production_db_writes": 0,
+    "scope_incident": "The first evaluation export pulled all 8477 rows instead of only the authorised 148. It was read-only and never written anywhere; the surplus was scoped down to the 148 authorised evaluation ids and the over-collected file was destroyed before any analysis used it.",
+    "supplementary_sql": "dynamic_prematch_evaluations and results, BEGIN READ ONLY, no DDL/DML/temp tables"
+  },
+  "schema_version": "w2.official_candidate_source_identity.v1",
+  "task_branch": "codex/w2-official-candidate-accuracy-20260909"
+}

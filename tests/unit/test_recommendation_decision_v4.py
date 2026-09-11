@@ -30,6 +30,7 @@ def _authoritative_input() -> dict[str, object]:
         "exact_line": "0.5",
         "capture_id": "capture-1",
         "captured_at": "2026-08-08T15:00:00Z",
+        "decision_evaluated_at": "2026-08-08T15:10:00Z",
         "quote_observation_ids": {"home": "observation-home", "away": "observation-away"},
         "raw_payload_sha256": "a" * 64,
         "source_revision": "e" * 40,
@@ -61,6 +62,9 @@ def _authoritative_input() -> dict[str, object]:
             "status": "READY",
             "quote_identity_status": "COMPLETE",
             "quote_freshness_status": "COMPLETE",
+            "quote_freshness_policy_version": "w2.quote_freshness.v1",
+            "quote_age_seconds": 600,
+            "quote_max_age_seconds": 1800,
             "model_status": "READY",
         },
         "capability_status": "FORMAL_ENABLED",
@@ -93,6 +97,7 @@ _IDENTITY_MUTATIONS: dict[str, object] = {
     "exact_line": "0.75",
     "capture_id": "capture-2",
     "captured_at": "2026-08-08T15:01:00Z",
+    "decision_evaluated_at": "2026-08-08T15:11:00Z",
     "quote_observation_ids": {"home": "observation-home-2", "away": "observation-away"},
     "raw_payload_sha256": "c" * 64,
     "source_revision": "3" * 40,
@@ -140,6 +145,70 @@ def test_missing_required_identity_field_is_not_ready(field: str) -> None:
 
     assert decision.outcome is RecommendationOutcomeV4.NOT_READY
     assert f"MISSING_{field.upper()}" in decision.blockers
+
+
+def test_not_ready_reason_distinguishes_fixture_model_and_quote_truth() -> None:
+    fixture_missing = _authoritative_input()
+    fixture_missing["season"] = None
+    assert build_recommendation_decision_v4(fixture_missing).reason_code == "IDENTITY_NOT_READY"
+
+    model_missing = _authoritative_input()
+    readiness = model_missing["readiness"]
+    assert isinstance(readiness, dict)
+    readiness["model_status"] = "NOT_READY"
+    readiness["status"] = "NOT_READY"
+    assert build_recommendation_decision_v4(model_missing).reason_code == "EVIDENCE_NOT_READY"
+
+    quote_missing = _authoritative_input()
+    quote_readiness = quote_missing["readiness"]
+    assert isinstance(quote_readiness, dict)
+    quote_readiness["quote_identity_status"] = "INCOMPLETE"
+    quote_readiness["status"] = "NOT_READY"
+    assert (
+        build_recommendation_decision_v4(quote_missing).reason_code
+        == "QUOTE_IDENTITY_NOT_READY"
+    )
+
+
+def test_new_decision_must_be_formed_before_kickoff() -> None:
+    payload = _authoritative_input()
+    payload["decision_evaluated_at"] = payload["kickoff_utc"]
+
+    decision = build_recommendation_decision_v4(payload)
+
+    assert decision.outcome is RecommendationOutcomeV4.NOT_READY
+    assert decision.reason_code == "FIXTURE_NOT_PREMATCH"
+    assert "DECISION_NOT_BEFORE_KICKOFF" in decision.blockers
+
+
+def test_candidate_quote_age_boundary_is_independent_and_hashed() -> None:
+    accepted = _authoritative_input()
+    accepted_readiness = accepted["readiness"]
+    assert isinstance(accepted_readiness, dict)
+    accepted_readiness["quote_age_seconds"] = 1800
+    accepted_decision = build_recommendation_decision_v4(accepted)
+
+    rejected = _authoritative_input()
+    rejected_readiness = rejected["readiness"]
+    assert isinstance(rejected_readiness, dict)
+    rejected_readiness["quote_age_seconds"] = 1801
+    rejected_decision = build_recommendation_decision_v4(rejected)
+
+    assert accepted_decision.outcome is RecommendationOutcomeV4.FORMAL_RECOMMEND
+    assert rejected_decision.outcome is RecommendationOutcomeV4.NOT_READY
+    assert "QUOTE_FRESHNESS_BOUNDARY_INVALID" in rejected_decision.blockers
+    assert accepted_decision.decision_hash != rejected_decision.decision_hash
+
+
+def test_decision_evaluation_time_is_part_of_v4_identity() -> None:
+    original = _authoritative_input()
+    changed = deepcopy(original)
+    changed["decision_evaluated_at"] = "2026-08-08T15:11:00Z"
+
+    assert (
+        build_recommendation_decision_v4(changed).decision_hash
+        != build_recommendation_decision_v4(original).decision_hash
+    )
 
 
 def test_declared_fair_odds_and_ev_must_reconcile_with_five_state_distribution() -> None:

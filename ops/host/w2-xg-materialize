@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Recompute rolling xG snapshots from evidence already in the database.
+#
+# The snapshot reader takes the most recent snapshot per team, so a new fixture
+# reuses whatever that team already has.  What it will not do is notice that the
+# team has since played: the rolling window only moves when something
+# recomputes it, and the sole caller of the materializer lives inside
+# xg_backfill.  With that disabled, snapshots quietly go stale -- the gate keeps
+# passing while the model reads an older five matches.  Staleness is worse than
+# absence here, because absence at least blocks and says so.
+#
+# This makes no Provider calls: it reads persisted fixture/statistics evidence
+# only.  Verified as statistics_request_count=0 with team_xg_match unchanged.
+set -uo pipefail
+
+IMAGE=$(docker inspect w2-staging-api-1 --format '{{.Image}}' 2>/dev/null)
+NET=$(docker inspect w2-staging-api-1 --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null)
+if [ -z "$IMAGE" ] || [ -z "$NET" ]; then
+  echo "XG_MATERIALIZE_SKIPPED_API_CONTAINER_ABSENT"; exit 0
+fi
+
+REPORTS=/opt/w2/shared/runtime/reports
+mkdir -p "$REPORTS"
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+
+# Taken from the running container so it follows the release rather than a copy
+# that drifts.  PATH and the interpreter's own vars are dropped: inheriting them
+# would point the container at the host's paths.
+ENVFILE=$(mktemp)
+trap 'rm -f "$ENVFILE"' EXIT
+docker inspect w2-staging-api-1 --format '{{range .Config.Env}}{{println .}}{{end}}' \
+  | grep -vE '^(PATH|HOME|HOSTNAME|LANG|GPG_KEY|PYTHON_|VIRTUAL_ENV)=' | grep -v '^$' > "$ENVFILE"
+
+before_rows=$(docker exec w2-staging-postgres-1 psql -U w2_user -d w2 -A -t -c \
+  "SELECT count(*) FROM team_xg_rolling_snapshot;" 2>/dev/null | tr -d ' ')
+before_match=$(docker exec w2-staging-postgres-1 psql -U w2_user -d w2 -A -t -c \
+  "SELECT count(*) FROM team_xg_match;" 2>/dev/null | tr -d ' ')
+
+docker run --rm --network "$NET" --env-file "$ENVFILE" \
+  -v "$REPORTS":/app/runtime/reports \
+  --entrypoint python "$IMAGE" \
+  /app/scripts/run_xg_history_backfill.py --saved-raw-only \
+  --report "/app/runtime/reports/xg-materialize-$STAMP.json" >/dev/null 2>&1
+rc=$?
+
+after_rows=$(docker exec w2-staging-postgres-1 psql -U w2_user -d w2 -A -t -c \
+  "SELECT count(*) FROM team_xg_rolling_snapshot;" 2>/dev/null | tr -d ' ')
+after_match=$(docker exec w2-staging-postgres-1 psql -U w2_user -d w2 -A -t -c \
+  "SELECT count(*) FROM team_xg_match;" 2>/dev/null | tr -d ' ')
+visible=$(docker exec w2-staging-postgres-1 psql -U w2_user -d w2 -A -t -c \
+  "SELECT count(*) FROM team_xg_rolling_snapshot WHERE as_of_time <= now();" 2>/dev/null | tr -d ' ')
+stale=$(docker exec w2-staging-postgres-1 psql -U w2_user -d w2 -A -t -c \
+  "SELECT count(*) FROM (SELECT x.team_id FROM team_xg_match x
+     JOIN (SELECT team_id, max(as_of_time) m FROM team_xg_rolling_snapshot GROUP BY team_id) s
+       ON s.team_id = x.team_id WHERE x.kickoff_at > s.m GROUP BY x.team_id) q;" 2>/dev/null | tr -d ' ')
+
+# team_xg_match must not move: this path materialises snapshots from evidence
+# already stored, and any change there means it did something it should not.
+if [ "$before_match" != "$after_match" ]; then
+  echo "XG_MATERIALIZE_FAILED_PROTECTED_LEDGER_CHANGED $before_match->$after_match"
+  logger -t w2-xg-materialize "protected team_xg_match changed $before_match->$after_match"
+  exit 2
+fi
+# as_of_time in the future hid 98.4% of snapshots once; it is asserted rather
+# than assumed.
+if [ "$visible" != "$after_rows" ]; then
+  echo "XG_MATERIALIZE_FAILED_INVISIBLE_SNAPSHOTS visible=$visible total=$after_rows"
+  logger -t w2-xg-materialize "invisible snapshots visible=$visible total=$after_rows"
+  exit 2
+fi
+
+echo "XG_MATERIALIZE_OK rc=$rc snapshots=${before_rows}->${after_rows} visible=$visible team_xg_match=$after_match stale_teams=$stale"
+[ "${stale:-0}" -gt 0 ] && logger -t w2-xg-materialize "stale_teams=$stale after materialize"
+exit 0

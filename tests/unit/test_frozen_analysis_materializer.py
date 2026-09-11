@@ -20,7 +20,11 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 )
 from w2.operations.observability import default_metric_registry
 from w2.prematch.analysis_calculator import ReadModelService
-from w2.prematch.lifecycle import LineupConfirmedEvent
+from w2.prematch.lifecycle import (
+    LEGACY_EVALUATION_IDENTITY_VERSION,
+    MODEL_FORECAST_DENOMINATOR_SCOPE,
+    LineupConfirmedEvent,
+)
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_CANARY_PREFIX,
     ANALYSIS_CARD_CANARY_SCHEMA,
@@ -29,8 +33,11 @@ from w2.prematch.read_model_projection import (
     FrozenAnalysisError,
     HashDomain,
     ProjectionSourceEvent,
+    _dynamic_evaluations,
     _post_lineup_odds_plan,
+    _projection_business_hash,
     canonical_sha256,
+    materialize_projection_events,
     read_frozen_analysis_artifact,
     read_shadow_analysis_artifact,
     validate_frozen_analysis_payload,
@@ -121,6 +128,106 @@ class ScopedRepository:
         }
 
 
+def test_model_forecast_denominator_emits_both_markets_without_candidates() -> None:
+    versions = _dynamic_evaluations(
+        {
+            "fixture_id": "1494246",
+            "simulation": {"status": "READY", "calibration_status": "PRODUCTION_VALIDATED"},
+        },
+        {
+            "evaluated_at": "2026-08-17T16:30:00Z",
+            "simulation_sha256": "simulation",
+            "analysis_evidence_sha256": "evidence",
+            "dynamic_evaluation_denominator_scope": MODEL_FORECAST_DENOMINATOR_SCOPE,
+        },
+        fixture_identity={
+            "competition_id": "113",
+            "season": "2026",
+            "provider": "api_football",
+        },
+        lineup_identity=None,
+    )
+
+    assert {version.market for version in versions} == {"ASIAN_HANDICAP", "TOTALS"}
+    assert all(version.first_failed_gate == "MAINLINE_PARSED" for version in versions)
+    assert all(version.gate_results and version.gate_results["model_ready"] for version in versions)
+    assert all(
+        version.gate_results and version.gate_results["evaluated"] is False
+        for version in versions
+    )
+
+
+def test_model_forecast_denominator_write_does_not_rewrite_frozen_card(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_projection(monkeypatch)
+    engine = _engine(dynamic=True)
+    event = ProjectionSourceEvent.create(
+        fixture_id="1576804",
+        event_type="MODEL_FORECAST_CAPTURE_SCOPE",
+        event_id="denominator:1576804",
+        event_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
+        payload={"scope": "fixture_x_market"},
+    )
+
+    materialize_projection_events(
+        [event],
+        repository=ScopedRepository(),
+        calculate_analysis_card=_calculate_projection,
+        engine=engine,
+        evaluations_only=True,
+    )
+
+    with Session(engine) as session:
+        assert session.query(ReadModelCheckpointModel).count() == 0
+        rows = session.query(DynamicPrematchEvaluationModel).all()
+        # The legacy scope is read-only now.  The sweep that filled it recorded
+        # scan-time state under checkpoint names it never observed, so letting a
+        # projection refresh mint more of those rows would just regrow the same
+        # unusable data.  Real opportunities come from the checkpoint
+        # orchestrator under CHECKPOINT_EVALUATION_OPPORTUNITY_V2 instead.
+        assert all(
+            row.denominator_scope != MODEL_FORECAST_DENOMINATOR_SCOPE for row in rows
+        )
+
+
+def test_projection_events_batch_round3_read_once_per_fixture_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+
+    class CountingRound3Repository(ScopedRepository):
+        def __init__(self) -> None:
+            super().__init__()
+            self.round3_calls: list[list[str]] = []
+
+        def round3_market_evidence_for_fixtures(
+            self,
+            fixture_ids: list[str],
+        ) -> list[dict[str, Any]]:
+            self.round3_calls.append(list(fixture_ids))
+            return []
+
+    repository = CountingRound3Repository()
+    first = _event()
+    second = ProjectionSourceEvent.create(
+        fixture_id=first.fixture_id,
+        event_type="ODDS_CHANGED",
+        event_id="odds:capture-2",
+        event_at=first.event_at + timedelta(minutes=1),
+        payload={"capture_id": "capture-2"},
+    )
+
+    materialize_projection_events(
+        [first, second],
+        repository=repository,
+        calculate_analysis_card=_calculate_projection,
+        engine=_engine(dynamic=True),
+    )
+
+    assert repository.round3_calls == [["1576804"]]
+
+
 def _patch_projection(monkeypatch: pytest.MonkeyPatch) -> None:
     def project(
         self: ReadModelService,
@@ -160,6 +267,9 @@ def _patch_ready_projection(monkeypatch: pytest.MonkeyPatch) -> None:
             "evaluated_at": evaluation_time.astimezone(UTC).isoformat(),
             "simulation": {
                 "status": "READY",
+                # a shaped production card declares its calibration; these tests are
+                # about materialisation and replay, not the calibration gate
+                "calibration_status": "PRODUCTION_VALIDATED",
                 "lambda_home": 1.4,
                 "lambda_away": 0.9,
                 "scoreline_picks": [],
@@ -186,7 +296,7 @@ def _patch_ready_projection(monkeypatch: pytest.MonkeyPatch) -> None:
                                     "expected_value": 0.08,
                                     "ev_se": 0.01,
                                 },
-                                "comparison": {},
+                                "comparison": {"cashflow_price_edge": 0.10},
                             }
                         },
                         "quote_identity": {
@@ -444,6 +554,10 @@ def test_input_manifest_declares_optional_model_enhancements_unused() -> None:
     ).build("1576804", evaluated_at=evaluated_at)
 
     manifest = artifact.payload["input_manifest"]
+    assert (
+        manifest["analysis_evidence_contract_version"]
+        == "w2.analysis-market-evidence-projection.v4"
+    )
     assert manifest["ratings_used_in_lambda"] is False
     assert manifest["squad_value_used_in_lambda"] is False
 
@@ -772,6 +886,70 @@ def test_evidence_missing_checkpoint_is_replaced_by_verified_materialization(
 
     write_frozen_analysis_artifacts(engine, [artifact])
     assert read_frozen_analysis_artifact(engine, "1576804") is not None
+
+
+def test_incompatible_analysis_evidence_checkpoint_is_replaced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_projection(monkeypatch)
+    artifact = _materializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
+    )
+    old_payload = deepcopy(artifact.payload)
+    old_payload["input_manifest"]["analysis_evidence_contract_version"] = (
+        "w2.analysis-market-evidence-projection.v3"
+    )
+    engine = _engine()
+    with Session(engine) as session:
+        session.add(
+            ReadModelCheckpointModel(
+                checkpoint_key=artifact.checkpoint_key,
+                source_hash="0" * 64,
+                created_at=datetime.now(UTC),
+                payload=old_payload,
+            )
+        )
+        session.commit()
+
+    write_frozen_analysis_artifacts(engine, [artifact])
+
+    persisted = read_frozen_analysis_artifact(engine, "1576804")
+    assert persisted is not None
+    assert (
+        persisted.payload["input_manifest"]["analysis_evidence_contract_version"]
+        == "w2.analysis-market-evidence-projection.v4"
+    )
+
+
+def test_bounded_repair_rejects_checkpoint_changed_after_audit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_projection(monkeypatch)
+    artifact = _materializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
+    )
+    engine = _engine()
+    write_frozen_analysis_artifacts(engine, [artifact])
+
+    with pytest.raises(
+        FrozenAnalysisError,
+        match="checkpoint changed after bounded repair audit",
+    ):
+        write_frozen_analysis_artifacts(
+            engine,
+            [artifact],
+            expected_existing_source_hashes={artifact.checkpoint_key: "0" * 64},
+        )
+
+    write_frozen_analysis_artifacts(
+        engine,
+        [artifact],
+        expected_existing_source_hashes={
+            artifact.checkpoint_key: artifact.source_hash,
+        },
+    )
 
 
 def test_payload_validation_rejects_fixture_identity_conflict(
@@ -1290,6 +1468,54 @@ def test_single_event_shadow_matches_post_write_current_read_with_lifecycle(
         assert "lineup_event_payload_sha256" not in artifact.payload
 
 
+def test_frozen_reader_accepts_the_pre_calibration_identity_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    artifact = _materializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=_event().event_at,
+        source_event=_event(),
+    )
+    payload = deepcopy(artifact.payload)
+    manifest = payload["input_manifest"]
+    legacy = tuple(
+        _dynamic_evaluations(
+            payload["analysis_card"],
+            manifest,
+            fixture_identity=manifest["dynamic_fixture_identity"],
+            lineup_identity=manifest["dynamic_lineup_identity"],
+            build_scoreline_reference=_scoreline_reference,
+            evaluation_identity_version=LEGACY_EVALUATION_IDENTITY_VERSION,
+        )
+    )
+    primary = min(legacy, key=lambda item: item.evaluation_id)
+    payload.update(
+        {
+            "source_evaluation_id": primary.evaluation_id,
+            "source_evaluation_hash": primary.identity_hash,
+            "source_evaluation_ids": sorted(item.evaluation_id for item in legacy),
+            "source_evaluation_hashes": sorted(item.identity_hash for item in legacy),
+            "source_evaluation_scoreline_references": {
+                item.identity_hash: item.scoreline_reference
+                for item in legacy
+                if item.scoreline_reference is not None
+            },
+        }
+    )
+    payload["projection_hash"] = _projection_business_hash(payload)
+    payload["artifact_hash"] = canonical_sha256(
+        {key: value for key, value in payload.items() if key != "artifact_hash"},
+        domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT,
+    )
+
+    restored = validate_frozen_analysis_payload("1576804", payload)
+
+    assert [item.identity_hash for item in restored.evaluations] == [
+        item.identity_hash for item in legacy
+    ]
+
+
 def test_same_source_event_replay_adds_scoreline_contract_as_new_immutable_evaluation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1470,7 +1696,7 @@ def test_lineup_shadow_payload_requires_event_payload_identity(
         validate_frozen_analysis_payload("1576804", payload)
 
 
-def test_post_write_current_read_difference_rolls_back_entire_shadow_unit(
+def test_post_write_refresh_does_not_recalculate_full_analysis_card(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_ready_projection(monkeypatch)
@@ -1489,7 +1715,7 @@ def test_post_write_current_read_difference_rolls_back_entire_shadow_unit(
         lifecycle = scoped_repository.dynamic_prematch_lifecycle(fixture_id)
         if lifecycle.get("versions"):
             card["dynamic_prematch"] = lifecycle
-        card["decision"] = "ANALYSIS_ONLY" if calls <= 4 else "SKIP"
+        card["decision"] = "ANALYSIS_ONLY" if calls <= 2 else "SKIP"
         return card
 
     event = _event()
@@ -1502,16 +1728,65 @@ def test_post_write_current_read_difference_rolls_back_entire_shadow_unit(
         source_event=event,
     )
 
-    with pytest.raises(
-        FrozenAnalysisError,
-        match="persisted-readback reconciliation mismatch:decision",
-    ):
-        write_frozen_analysis_artifacts(engine, [artifact])
+    write_frozen_analysis_artifacts(engine, [artifact])
 
     with Session(engine) as session:
-        assert session.query(DynamicPrematchEvaluationModel).count() == 0
+        assert session.query(DynamicPrematchEvaluationModel).count() == 1
         assert session.query(DynamicPrematchSupersessionModel).count() == 0
-        assert session.query(ReadModelCheckpointModel).count() == 0
+        checkpoint = session.query(ReadModelCheckpointModel).one()
+        assert checkpoint.payload["analysis_card"]["decision"] == "ANALYSIS_ONLY"
+    assert calls == 2
+
+
+def test_incremental_post_write_refresh_byte_matches_full_rebuild(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    engine = _engine(dynamic=True)
+
+    def calculate(
+        scoped_repository: Any,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, Any] | None:
+        card = _calculate_projection(scoped_repository, fixture_id, evaluated_at)
+        assert card is not None
+        lifecycle = scoped_repository.dynamic_prematch_lifecycle(fixture_id)
+        if lifecycle.get("versions"):
+            card["dynamic_prematch"] = lifecycle
+        return card
+
+    projected_at = datetime(2026, 7, 18, 5, 0, 3, tzinfo=UTC)
+    event = _event()
+    materializer = AnalysisCardCanaryMaterializer(
+        ScopedRepository(),
+        calculate_analysis_card=calculate,
+        clock=lambda: projected_at,
+    )
+    artifact = materializer.build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+
+    repository = DynamicPrematchRepository(engine)
+    with Session(engine) as session:
+        for evaluation in artifact.evaluations:
+            repository.append_evaluation_in_session(session, evaluation)
+        lifecycle = repository.lifecycle_in_session(session, event.fixture_id)
+        incremental = materializer.refresh_shadow_after_write(
+            artifact,
+            lifecycle=lifecycle,
+        )
+        rebuilt = materializer.build(
+            event.fixture_id,
+            evaluated_at=event.event_at,
+            source_event=event,
+            session=session,
+        )
+        assert incremental.canonical_bytes == rebuilt.canonical_bytes
+        assert incremental.payload == rebuilt.payload
+        session.rollback()
 
 
 def test_projection_failure_after_evaluation_is_repairable_without_duplicate(
@@ -1629,6 +1904,7 @@ def test_multiple_evaluation_mid_write_failure_rolls_back_entire_batch(
         version: Any,
         *,
         supersession_reason: str = "NEW_CAPTURE_OR_MODEL_INPUT",
+        recommendation_decision_v4: Any = None,
     ) -> tuple[Any, bool]:
         nonlocal calls
         calls += 1
@@ -1639,6 +1915,7 @@ def test_multiple_evaluation_mid_write_failure_rolls_back_entire_batch(
             session,
             version,
             supersession_reason=supersession_reason,
+            recommendation_decision_v4=recommendation_decision_v4,
         )
 
     monkeypatch.setattr(
@@ -1742,3 +2019,113 @@ def test_checkpoint_update_failure_restores_evaluation_and_supersession(
         assert latest.payload["lineup_input_hash"] == "lineup-1"
         checkpoint = session.query(ReadModelCheckpointModel).one()
         assert checkpoint.source_hash == second.source_hash
+
+
+def _depth_card(*, ah_mainline: dict[str, Any], ou_mainline: dict[str, Any]) -> dict[str, Any]:
+    def branch(selection: str, mainline: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "selection": selection,
+            "market_mainline": mainline,
+            "line": mainline.get("line"),
+            "analysis_evidence": {
+                "quote_identity": {
+                    "identity_status": "COMPLETE",
+                    "selected_line": mainline.get("line"),
+                    "captured_at": "2026-08-18T11:00:00Z",
+                },
+                "market_probability": {selection.lower(): 0.5},
+            },
+        }
+
+    return {
+        "fixture_id": "1523198",
+        "simulation": {"status": "READY", "calibration_status": "PRODUCTION_VALIDATED"},
+        "market_candidates": {
+            "ah": branch("HOME", ah_mainline),
+            "ou": branch("OVER", ou_mainline),
+        },
+    }
+
+
+def _depth_by_market(card: dict[str, Any]) -> dict[str, int]:
+    versions = _dynamic_evaluations(
+        card,
+        {
+            "evaluated_at": "2026-08-18T11:06:00Z",
+            "simulation_sha256": "simulation",
+            "analysis_evidence_sha256": "evidence",
+            "dynamic_evaluation_denominator_scope": MODEL_FORECAST_DENOMINATOR_SCOPE,
+        },
+        fixture_identity={
+            "competition_id": "113",
+            "season": "2026",
+            "provider": "api_football",
+        },
+        lineup_identity=None,
+    )
+    return {version.market: int(version.bookmaker_count or 0) for version in versions}
+
+
+def test_asian_handicap_depth_is_read_from_its_own_mainline_field() -> None:
+    """Accept AH depth when a non-degraded producer populated its own field.
+
+    This is synthetic consumer-contract data, not a production-card replay: it
+    assumes upstream card construction has already populated
+    ``ah.market_mainline.bookmaker_count``. It proves field-name compatibility,
+    not that a degraded card contains six bookmakers.
+    """
+
+    depth = _depth_by_market(
+        _depth_card(
+            ah_mainline={"line": "+0.25", "bookmaker_count": 6},
+            ou_mainline={
+                "line": "2.5",
+                "bookmaker_count": 5,
+                "complete_pair_bookmaker_count": 5,
+            },
+        )
+    )
+
+    assert depth["ASIAN_HANDICAP"] == 6
+    assert depth["TOTALS"] == 5
+
+
+def test_absent_mainline_depth_is_still_zero() -> None:
+    """Normalize omitted synthetic consumer-boundary depth to zero.
+
+    This minimal candidate is not the production fallback shape; the dedicated
+    fallback-card test below covers that path.
+    """
+
+    depth = _depth_by_market(
+        _depth_card(ah_mainline={"line": "+0.25"}, ou_mainline={"line": "2.5"})
+    )
+
+    assert depth["ASIAN_HANDICAP"] == 0
+    assert depth["TOTALS"] == 0
+
+
+def test_fallback_card_has_empty_mainlines_and_expected_zero_depth() -> None:
+    card = ReadModelService(repository=ScopedRepository())._fallback_analysis_card(
+        fixture_id="1523202",
+        market_coverage={"ASIAN_HANDICAP": True, "TOTALS": True},
+        source="future_refresh_without_analysis_payload",
+    )
+
+    assert "current_odds" not in card
+    assert card["markets"]
+    mainlines = [
+        card["market_candidates"][key]["market_mainline"] for key in ("ah", "ou")
+    ]
+    assert all(value is None for mainline in mainlines for value in mainline.values())
+    assert _depth_by_market(card) == {"ASIAN_HANDICAP": 0, "TOTALS": 0}
+
+
+def test_depth_falls_back_to_balanced_current_odds() -> None:
+    card = _depth_card(ah_mainline={"line": "+0.25"}, ou_mainline={"line": "2.5"})
+    card["current_odds"] = {
+        "ah": {"bookmaker_count": 6},
+        "ou": {"bookmaker_count": 5},
+    }
+
+    assert _depth_by_market(card) == {"ASIAN_HANDICAP": 6, "TOTALS": 5}

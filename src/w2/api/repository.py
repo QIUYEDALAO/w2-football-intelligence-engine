@@ -13,6 +13,7 @@ from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from time import monotonic
 from typing import Any, Literal, cast
 
@@ -28,7 +29,6 @@ from w2.api.schemas import (
     PerformanceResponse,
     PerformanceWindowProjection,
 )
-from w2.competitions.league_whitelist_scope import load_league_whitelist_scope
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryError
 from w2.config import get_settings
 from w2.dashboard.date_strip import build_persisted_date_strip, next_available_date
@@ -38,48 +38,301 @@ from w2.dashboard.date_window import (
     default_football_day,
     football_day_window,
 )
+from w2.dashboard.factor_checklist import MIN_XG_MATCHES
 from w2.dashboard.performance import dashboard_performance
-from w2.dashboard.results import normalize_match_status
+from w2.dashboard.results import FINISHED_STATUSES, normalize_match_status
 from w2.dashboard.validation_summary import validation_summary
 from w2.domain.decision_card import compute_card_hash
+from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
-    build_recommendation_decision_v4,
     validate_decision_v4_identity,
 )
-from w2.identity.public_team_labels import reviewed_public_team_labels
+from w2.identity.public_team_labels import (
+    pending_public_team_labels,
+    reviewed_public_team_labels,
+)
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.infrastructure.persistence.dynamic_prematch_models import (
+    DynamicPrematchEvaluationModel,
+    DynamicPrematchOpportunityModel,
+    DynamicPrematchSupersessionModel,
+)
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamModel,
 )
+from w2.infrastructure.persistence.future_refresh_models import TeamXgMatchModel
+from w2.infrastructure.persistence.league_models import LeagueSeasonModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
+    MatchdayEndpointCapturePlanModel,
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
+from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureDataVersionModel,
+    ModelForecastCaptureModel,
+    ModelForecastOutcomeModel,
+    model_forecast_fixture_aliases,
+)
 from w2.infrastructure.persistence.models import ResultModel
+from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
 from w2.lineups.intelligence import lineup_requirement
 from w2.matchday.timezone import (
     BEIJING_TZ,
     BeijingOperationalDayPolicy,
     FixtureOperationalDateResolver,
+    next_7_days_window,
     next_36_hours_window,
 )
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.release_evidence import build_release_identity
+from w2.prematch.evaluation_slots import EvaluationSlotError, is_evaluation_slot
+from w2.prematch.lifecycle import (
+    EVALUATED_OPPORTUNITY_STATES,
+    evaluated_attempt_identities,
+    final_official_opportunities,
+)
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_SHADOW_PREFIX,
     FrozenAnalysisError,
     validate_frozen_analysis_payload,
 )
 from w2.providers.quota import api_football_quota_policy, parse_int
-from w2.tracking.forward_ledger_performance import MIN_DECISIVE_SAMPLES_FOR_RATE
+from w2.settlement.settle import WIN_UNITS
+from w2.tracking.forward_ledger_performance import (
+    MIN_DECISIVE_SAMPLES_FOR_RATE,
+    SAMPLE_TARGET,
+)
 from w2.tracking.performance_scoring import ece
 
 MAX_PUBLIC_FIXTURES = 512
+MODEL_FORECAST_LEAD_TIME_BUCKETS = (
+    "LT_6H",
+    "H6_TO_LT_24H",
+    "D1_TO_D3",
+    "GT_3D",
+)
+MODEL_FORECAST_MARKETS = ("ASIAN_HANDICAP", "TOTALS")
+
+
+CHECKPOINT_OPPORTUNITY_SCOPE = "CHECKPOINT_EVALUATION_OPPORTUNITY_V2"
+CHECKPOINT_OPPORTUNITY_SEMANTICS = "CHECKPOINT_EVALUATION_OPPORTUNITY"
+_CHECKPOINT_LABELS = {
+    "T3_ODDS": "T-3h",
+    "T60_ODDS_LINEUPS": "T-60m",
+    "T45_ODDS": "T-45m",
+    "T-30m_VALIDATION_LOCK": "T-30m",
+    "T15_ODDS": "T-15m",
+}
+
+
+def _opportunity_contract_defect(row: DynamicPrematchEvaluationModel) -> str | None:
+    """Why a row claiming to be official is not usable, or None if it is.
+
+    Only rows that assert ``official_funnel_eligible`` are judged here.  A row
+    that makes the claim and then fails it is a writer defect, and reporting it
+    as "no opportunity" would repeat the mistake this whole rework exists to
+    undo: a failure rendered as absence.
+    """
+
+    if row.denominator_scope != CHECKPOINT_OPPORTUNITY_SCOPE:
+        return "SCOPE_MISMATCH"
+    if row.measurement_semantics != CHECKPOINT_OPPORTUNITY_SEMANTICS:
+        return "SEMANTICS_MISMATCH"
+    if row.market not in MODEL_FORECAST_MARKETS:
+        return "MARKET_NOT_REGISTERED"
+    # The odds-snapshot capture_id cannot stand in here: two model tracks
+    # reading the same quote would collapse into one opportunity.
+    if not row.model_forecast_capture_identity_hash:
+        return "FORECAST_CAPTURE_IDENTITY_MISSING"
+    policy = str(row.evaluation_policy_version or "")
+    slot = str(row.evaluation_slot_id or "")
+    if not policy:
+        return "POLICY_VERSION_MISSING"
+    if not slot:
+        return "SLOT_MISSING"
+    try:
+        if not is_evaluation_slot(slot, policy_version=policy):
+            return "SLOT_NOT_REGISTERED"
+    except EvaluationSlotError:
+        return "POLICY_NOT_REGISTERED"
+    return None
+
+
+def _model_forecast_market_evaluation_funnel(
+    captures: Sequence[ModelForecastCaptureModel],
+    evaluations: Sequence[DynamicPrematchEvaluationModel],
+    superseded_evaluation_ids: set[str],
+    opportunities: Sequence[DynamicPrematchOpportunityModel] | None = None,
+) -> dict[str, Any]:
+    """Rates come from opportunities that exist, never from ones inferred.
+
+    The previous shape multiplied captures by markets and then read every
+    fixture x market with no row as "all gates failed, entry not traversed".
+    That turns silence into evidence: a fixture whose checkpoints have not come
+    due yet is indistinguishable from one that genuinely failed mainline
+    parsing.  With no opportunity writer in production the whole grid resolved
+    that way, which would have published a 100%-model / 0%-everything funnel
+    describing nothing.
+    """
+
+    current: dict[tuple[str, str, str, str], DynamicPrematchEvaluationModel] = {}
+    opportunity_hashes = (
+        {row.opportunity_identity_hash for row in opportunities}
+        if opportunities is not None
+        else None
+    )
+    defects: Counter[str] = Counter()
+    for row in evaluations:
+        if row.evaluation_id in superseded_evaluation_ids:
+            continue
+        if row.official_funnel_eligible is not True:
+            # Legacy rows and ordinary dynamic evaluations were never
+            # opportunities; excluding them silently is correct.
+            continue
+        if (
+            opportunity_hashes is not None
+            and row.opportunity_identity_hash not in opportunity_hashes
+        ):
+            defects["OPPORTUNITY_ROW_MISSING"] += 1
+            continue
+        defect = _opportunity_contract_defect(row)
+        if defect is not None:
+            defects[defect] += 1
+            continue
+        # One opportunity per slot x market; retries within a slot supersede
+        # rather than accumulate, so the denominator counts chances, not tries.
+        # Identity is the opportunity: the frozen model track, the policy that
+        # scheduled it, the slot, and the market.  Anything coarser merges
+        # tracks; anything keyed on the quote splits a slot across retries.
+        key = (
+            str(row.model_forecast_capture_identity_hash),
+            str(row.evaluation_policy_version),
+            str(row.evaluation_slot_id),
+            row.market,
+        )
+        previous = current.get(key)
+        if previous is None or (row.evaluated_at, row.evaluation_id) > (
+            previous.evaluated_at,
+            previous.evaluation_id,
+        ):
+            current[key] = row
+
+    gate_names = (
+        "model_ready",
+        "mainline_parsed",
+        "bookmaker_depth",
+        "quote_fresh",
+        "evaluated",
+        "no_edge",
+        "candidate",
+    )
+    counts = Counter({name: 0 for name in gate_names})
+    first_failed: Counter[str] = Counter()
+    recorded_at = 0
+    for row in current.values():
+        gates, blocker = _dynamic_gate_results(row)
+        recorded_at += int(row.recorded_at is not None)
+        counts.update(name for name in gate_names if gates[name])
+        if blocker:
+            first_failed[blocker] += 1
+
+    if opportunities is not None:
+        evaluated_opportunities = {
+            str(row.opportunity_identity_hash)
+            for row in current.values()
+            if row.opportunity_identity_hash
+        }
+        for opportunity in opportunities:
+            if opportunity.opportunity_identity_hash not in evaluated_opportunities:
+                first_failed[str(opportunity.state)] += 1
+
+    denominator = len(opportunities) if opportunities is not None else len(current)
+    fixture_ids = {
+        row.fixture_id.removeprefix("api_football:")
+        for row in (opportunities if opportunities is not None else current.values())
+    }
+    # A broken official row is neither a measurement nor an absence.  Surfacing
+    # it as INVALID keeps "the writer is wrong" distinguishable from "nothing has
+    # happened yet".
+    if defects:
+        status = "INVALID"
+    elif denominator > 0:
+        status = "MEASURABLE"
+    else:
+        status = "NOT_MEASURABLE"
+    measurable = status == "MEASURABLE"
+    return {
+        "scope": CHECKPOINT_OPPORTUNITY_SCOPE,
+        "denominator_unit": "CHECKPOINT_EVALUATION_OPPORTUNITY_SLOT_X_MARKET",
+        "measurement_status": status,
+        "invalid_opportunity_row_count": sum(defects.values()),
+        "invalid_opportunity_reasons": dict(sorted(defects.items())),
+        "opportunity_count": denominator,
+        "fixture_count": len(fixture_ids),
+        "market_unit_count": denominator,
+        "persisted_market_unit_count": denominator,
+        "recorded_at_count": (
+            sum(int(row.recorded_at is not None) for row in opportunities)
+            if opportunities is not None
+            else recorded_at
+        ),
+        "capture_count": len({row.fixture_id for row in captures}),
+        "gate_counts": dict(counts) if measurable else {},
+        # Null, not zeroes: a rate of 0.0 asserts the gate was tested and failed.
+        "gate_rates": (
+            {name: round(counts[name] / denominator, 6) for name in gate_names}
+            if measurable
+            else None
+        ),
+        "first_failed_gate_counts": dict(sorted(first_failed.items())),
+    }
+
+
+def _dynamic_gate_results(
+    row: DynamicPrematchEvaluationModel,
+) -> tuple[dict[str, bool], str | None]:
+    """Only a real row has gate results.
+
+    This used to accept None and answer "model ready, everything else failed,
+    entry not traversed" -- turning a fixture whose checkpoints had not come due
+    into a reported failure.  The type now forbids the call, so the shape cannot
+    be resurrected by a future refactor.
+    """
+
+    empty = {
+        "model_ready": True,
+        "mainline_parsed": False,
+        "bookmaker_depth": False,
+        "quote_fresh": False,
+        "evaluated": False,
+        "no_edge": False,
+        "candidate": False,
+    }
+    if isinstance(row.gate_results, dict):
+        gates = {name: bool(row.gate_results.get(name)) for name in empty}
+        return gates, row.first_failed_gate
+    payload = row.payload if isinstance(row.payload, dict) else {}
+    state = str(payload.get("state") or row.original_state)
+    evaluated = state in {"ANALYSIS_PICK_ACTIVE", "NO_EDGE_CURRENT"}
+    return {
+        "model_ready": state != "NOT_READY_MODEL_INPUT",
+        "mainline_parsed": payload.get("exact_line") is not None,
+        "bookmaker_depth": False,
+        "quote_fresh": state
+        not in {
+            "NOT_READY_SOURCE_ABSENT",
+            "NOT_READY_QUOTE_INCOMPLETE",
+            "STALE_PENDING_REFRESH",
+        },
+        "evaluated": evaluated,
+        "no_edge": state == "NO_EDGE_CURRENT",
+        "candidate": state == "ANALYSIS_PICK_ACTIVE",
+    }, "LEGACY_GATE_ATTRIBUTION_UNAVAILABLE"
 
 
 class SystemDegradedError(RuntimeError):
@@ -126,6 +379,31 @@ def _iso_or_none(value: datetime | None) -> str | None:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
+def _utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+def _collection_window(
+    plans: list[MatchdayCheckpointPlanModel],
+    satisfied_plan_ids: set[str],
+    reference: datetime,
+) -> tuple[MatchdayCheckpointPlanModel | None, str | None, bool]:
+    ordered = sorted(plans, key=lambda plan: (_utc(plan.scheduled_at), plan.plan_id))
+    due = [plan for plan in ordered if _utc(plan.scheduled_at) <= reference]
+    future = [plan for plan in ordered if _utc(plan.scheduled_at) > reference]
+    target = due[-1] if due and due[-1].plan_id not in satisfied_plan_ids else None
+    cause = "AWAITING_COLLECTION" if target is not None else None
+    if target is None and future:
+        target = future[0]
+        cause = "NOT_YET_DUE"
+    overdue = bool(
+        cause == "AWAITING_COLLECTION"
+        and target is not None
+        and reference > _utc(target.window_end)
+    )
+    return target, cause, overdue
+
+
 def _checkpoint_metadata(row: Checkpoint) -> dict[str, Any]:
     return {
         "checkpoint_key": row.key,
@@ -140,6 +418,7 @@ def _public_team_label_from_identity(
     side: Literal["home", "away"],
     canonical: Mapping[str, CanonicalTeamModel],
     reviewed_labels: Mapping[str, str] | None = None,
+    pending_labels: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     provider_team_id = str(getattr(fixture, f"{side}_provider_team_id"))
     w2_team_id = getattr(fixture, f"{side}_w2_team_id")
@@ -173,6 +452,15 @@ def _public_team_label_from_identity(
                 "provider_team_id": provider_team_id,
                 "raw_provider_name": raw_provider_name,
             }
+        pending_label = (pending_labels or {}).get(w2_team_id)
+        if pending_label:
+            return {
+                "display_name": str(pending_label).strip(),
+                "state": "CHINESE_LABEL_PENDING_OWNER_REVIEW",
+                "canonical_team_id": w2_team_id,
+                "provider_team_id": provider_team_id,
+                "raw_provider_name": raw_provider_name,
+            }
         state = "CANONICAL_IDENTITY_READY_LABEL_MISSING"
     return {
         "display_name": None,
@@ -181,6 +469,211 @@ def _public_team_label_from_identity(
         "provider_team_id": provider_team_id,
         "raw_provider_name": raw_provider_name,
     }
+
+
+def _official_funnel_recommendations(
+    evaluations: Sequence[DynamicPrematchEvaluationModel],
+    opportunities: Sequence[DynamicPrematchOpportunityModel],
+    fixtures: Mapping[str, MatchdayFixtureIdentityModel],
+    results: Mapping[str, ResultModel],
+    public_team_labels: Mapping[str, Mapping[str, Mapping[str, Any]]],
+    active_competitions: frozenset[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Project picks whose last opportunity with a real evaluation is a candidate.
+
+    A competition withdrawn from the whitelist keeps its rows -- the ledgers are
+    append-only and the corpus is frozen against them -- but its picks stop
+    counting towards the record, because the record is meant to describe the
+    system as it currently stands. Chinese Super League and Allsvenskan were
+    withdrawn on 2026-08-23: the Provider returns their fixture statistics with
+    expected_goals null, so the four-field xG gate was being satisfied by
+    evidence that could never be refreshed.
+    """
+
+    evaluated_attempts = evaluated_attempt_identities(evaluations)
+    final_opportunities = final_official_opportunities(
+        opportunities, evaluated_attempts=evaluated_attempts
+    )
+
+    latest: dict[tuple[str, str], DynamicPrematchEvaluationModel] = {}
+    for row in evaluations:
+        payload = row.payload if isinstance(row.payload, dict) else {}
+        if (
+            row.official_funnel_eligible is not True
+            or payload.get("state") != "ANALYSIS_PICK_ACTIVE"
+        ):
+            continue
+        fixture_id = str(row.fixture_id).removeprefix("api_football:")
+        key = (fixture_id, str(row.market))
+        final = final_opportunities.get(key)
+        if (
+            final is None
+            or final.state != "EVALUATED_CANDIDATE"
+            or row.opportunity_identity_hash != final.opportunity_identity_hash
+            or row.attempt_identity_hash != final.latest_attempt_identity_hash
+        ):
+            continue
+        previous = latest.get(key)
+        if previous is None or (row.evaluated_at, row.evaluation_id) > (
+            previous.evaluated_at,
+            previous.evaluation_id,
+        ):
+            latest[key] = row
+
+    projected: list[dict[str, Any]] = []
+    for (fixture_id, market), row in latest.items():
+        final = final_opportunities[(fixture_id, market)]
+        payload = row.payload
+        fixture = fixtures.get(fixture_id)
+        if (
+            active_competitions is not None
+            and fixture is not None
+            and str(fixture.competition_id) not in active_competitions
+        ):
+            continue
+        canonical_fixture_id = (
+            str(fixture.fixture_id) if fixture is not None else f"api_football:{fixture_id}"
+        )
+        result = results.get(canonical_fixture_id)
+        line = str(payload["exact_line"])
+        decimal_odds = Decimal(str(payload["decimal_odds"]))
+        outcome = None
+        profit_units = None
+        if result is not None:
+            if market == "ASIAN_HANDICAP":
+                outcome = settle_asian_handicap(
+                    result.home_goals,
+                    result.away_goals,
+                    str(row.selection),
+                    Decimal(line),
+                ).value
+            elif market == "TOTALS":
+                outcome = settle_total_goals(
+                    result.home_goals + result.away_goals,
+                    str(row.selection),
+                    Decimal(line),
+                ).value
+            else:
+                raise ValueError(f"unsupported official recommendation market {market}")
+            units = WIN_UNITS[outcome]
+            profit_units = units * (decimal_odds - 1) if units > 0 else units
+
+        labels: dict[str, dict[str, Any]] = {}
+        for side in ("home", "away"):
+            team_label = dict(public_team_labels.get(fixture_id, {}).get(side, {}))
+            if not team_label:
+                team_label = {
+                    "display_name": None,
+                    "state": "IDENTITY_UNRESOLVED",
+                    "canonical_team_id": None,
+                    "provider_team_id": None,
+                    "raw_provider_name": None,
+                }
+            teams = (
+                fixture.payload.get("teams")
+                if fixture is not None and isinstance(fixture.payload, dict)
+                else None
+            )
+            team = teams.get(side) if isinstance(teams, dict) else None
+            if not team_label.get("raw_provider_name") and isinstance(team, dict):
+                team_label["raw_provider_name"] = str(team.get("name") or "").strip() or None
+            labels[side] = team_label
+
+        projected.append(
+            {
+                "evaluation_id": row.evaluation_id,
+                "fixture_id": fixture_id,
+                "evaluated_at": _iso_or_none(row.evaluated_at),
+                "kickoff_utc": _iso_or_none(fixture.kickoff_utc) if fixture else None,
+                "market": market,
+                "selection": str(row.selection),
+                "exact_line": line,
+                "decimal_odds": float(decimal_odds),
+                "home_team_label": labels["home"],
+                "away_team_label": labels["away"],
+                "score": (
+                    f"{result.home_goals}-{result.away_goals}" if result is not None else None
+                ),
+                "settlement": outcome or "PENDING",
+                "profit_units": float(profit_units) if profit_units is not None else None,
+                "confirmed_checkpoint": _CHECKPOINT_LABELS.get(
+                    str(getattr(final, "evaluation_slot_id", "UNKNOWN_CHECKPOINT")),
+                    str(getattr(final, "evaluation_slot_id", "UNKNOWN_CHECKPOINT")),
+                ),
+                "later_unassessed_checkpoints": _later_unassessed_checkpoints(
+                    opportunities,
+                    fixture_id=fixture_id,
+                    market=market,
+                    after=final,
+                    evaluated_attempts=evaluated_attempts,
+                ),
+            }
+        )
+        later = projected[-1]["later_unassessed_checkpoints"]
+        projected[-1]["lifecycle_note_zh"] = (
+            f"最终确认于 {projected[-1]['confirmed_checkpoint']}；"
+            f"此后 {' / '.join(later)} 未产出评估，不影响该确认"
+            if later
+            else None
+        )
+    return sorted(
+        projected,
+        key=lambda item: (
+            str(item.get("kickoff_utc") or ""),
+            str(item["fixture_id"]),
+            str(item["market"]),
+        ),
+    )
+
+
+def _later_unassessed_checkpoints(
+    opportunities: Sequence[DynamicPrematchOpportunityModel],
+    *,
+    fixture_id: str,
+    market: str,
+    after: DynamicPrematchOpportunityModel,
+    evaluated_attempts: set[tuple[str, str]],
+) -> list[str]:
+    after_order = (
+        after.scheduled_checkpoint_at,
+        after.recorded_at,
+        after.opportunity_identity_hash,
+    )
+    rows = sorted(
+        (
+            row
+            for row in opportunities
+            if str(row.fixture_id).removeprefix("api_football:") == fixture_id
+            and str(row.market) == market
+            and (
+                str(row.state) not in EVALUATED_OPPORTUNITY_STATES
+                or (
+                    str(row.opportunity_identity_hash),
+                    str(row.latest_attempt_identity_hash),
+                )
+                not in evaluated_attempts
+            )
+            and (
+                row.scheduled_checkpoint_at,
+                row.recorded_at,
+                row.opportunity_identity_hash,
+            )
+            > after_order
+        ),
+        key=lambda row: (
+            row.scheduled_checkpoint_at,
+            row.recorded_at,
+            row.opportunity_identity_hash,
+        ),
+    )
+    return list(
+        dict.fromkeys(
+            _CHECKPOINT_LABELS.get(str(row.evaluation_slot_id), str(row.evaluation_slot_id))
+            if getattr(row, "evaluation_slot_id", None)
+            else "UNKNOWN_CHECKPOINT"
+            for row in rows
+        )
+    )
 
 
 def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
@@ -193,24 +686,13 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
         if isinstance(fallback_non_pick, dict)
         else "当前推荐缺少 V4 权威身份"
     )
-    if authority_missing:
-        decision = build_recommendation_decision_v4(
-            {
-                "fixture_id": card.get("fixture_id"),
-                "competition_id": card.get("competition_id"),
-                "season": card.get("season"),
-                "kickoff_utc": card.get("kickoff_utc"),
-            }
-        ).as_dict()
-        card["recommendation_decision_v4"] = decision
-    else:
-        decision = cast(dict[str, Any], decision_value)
-    card["recommendation_decision_v3_role"] = "HISTORY_ONLY"
+    decision = {} if authority_missing else cast(dict[str, Any], decision_value)
     try:
-        validate_decision_v4_identity(decision)
+        if not authority_missing:
+            validate_decision_v4_identity(decision)
     except ValueError as exc:
         raise SystemDegradedError("RECOMMENDATION_DECISION_V4_INVALID") from exc
-    outcome = str(decision.get("outcome") or "")
+    outcome = "NOT_READY" if authority_missing else str(decision.get("outcome") or "")
     tier = {
         RecommendationOutcomeV4.FORMAL_RECOMMEND.value: "RECOMMEND",
         RecommendationOutcomeV4.ANALYSIS_PICK.value: "ANALYSIS_PICK",
@@ -246,9 +728,7 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
         fallback_reason_code if authority_missing else str(reason.get("code") or "")
     )
     projected_reason_human = (
-        fallback_reason_human
-        if authority_missing
-        else str(reason.get("message") or "证据尚未就绪")
+        fallback_reason_human if authority_missing else str(reason.get("message") or "证据尚未就绪")
     )
     projected_non_pick = (
         None
@@ -291,9 +771,14 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
             "reason_code": contract.get("reason_code"),
             "action": contract.get("action"),
             "card_hash": contract.get("card_hash"),
-            "recommendation_decision_v3_role": "HISTORY_ONLY",
         }
     )
+    card.pop("recommendation_decision_v3", None)
+    card.pop("recommendation_decision_v3_role", None)
+    if pick is None:
+        card["candidate"] = False
+        card["formal_recommendation"] = False
+        card["recommendation"] = None
     return card
 
 
@@ -542,9 +1027,9 @@ def _canonical_performance_rows(
     anchor: datetime,
 ) -> list[dict[str, Any]]:
     prefix = "performance:cohort:league:"
-    sources: dict[
-        str, list[tuple[str, Checkpoint, PerformanceCohortProjection]]
-    ] = defaultdict(list)
+    sources: dict[str, list[tuple[str, Checkpoint, PerformanceCohortProjection]]] = defaultdict(
+        list
+    )
     identity_by_group: dict[str, CompetitionIdentity | None] = {}
     for key, (checkpoint, cohort) in cohorts.items():
         if not key.startswith(prefix) or key.startswith("performance:cohort:league-tier:"):
@@ -663,14 +1148,10 @@ def _dashboard_forward_ledger_from_checkpoints(
         anchor=global_cohort.scoring_window_anchor.astimezone(UTC),
     )
     leagues = [
-        row
-        for row in competitions
-        if row["scope_group"] in {"top_five", "national_leagues"}
+        row for row in competitions if row["scope_group"] in {"top_five", "national_leagues"}
     ]
     tournaments = [
-        row
-        for row in competitions
-        if row["scope_group"] not in {"top_five", "national_leagues"}
+        row for row in competitions if row["scope_group"] not in {"top_five", "national_leagues"}
     ]
     processed = window.fixture_checkpoint_count
     eligible = window.canonical_settled_count
@@ -767,14 +1248,17 @@ class ReadModelRepository:
 
     def _dashboard_competition_ids(self) -> tuple[str, ...]:
         try:
-            scope = load_league_whitelist_scope(
-                CompetitionRegistry(engine=self._database_engine())
+            competition_ids = tuple(
+                sorted(CompetitionRegistry(engine=self._database_engine()).enabled_ids())
             )
         except CompetitionRegistryError as exc:
             raise SystemDegradedError("COMPETITION_WHITELIST_UNAVAILABLE") from exc
-        if len(scope.all_whitelist) != 13:
+        if not competition_ids:
             raise SystemDegradedError("COMPETITION_WHITELIST_INVALID")
-        return scope.all_whitelist
+        return competition_ids
+
+    def active_competition_count(self) -> int:
+        return len(self._dashboard_competition_ids())
 
     def checkpoints(self, prefix: str) -> list[Checkpoint]:
         try:
@@ -816,28 +1300,14 @@ class ReadModelRepository:
         )
 
     def dashboard_latest_fixtures(self) -> list[dict[str, Any]]:
-        fixtures: list[dict[str, Any]] = []
-        for row in self.checkpoints(ANALYSIS_CARD_SHADOW_PREFIX):
-            fixture_id = row.key.removeprefix(ANALYSIS_CARD_SHADOW_PREFIX)
-            card = self._analysis_card_from_checkpoint(row, fixture_id)
-            fixtures.append(self._dashboard_fixture_from_projection(card, row))
-        return fixtures
+        return self.dashboard_fixtures_for_window(
+            start=None,
+            end=None,
+            limit=MAX_PUBLIC_FIXTURES,
+        )
 
     def analysis_checkpoint_count(self) -> int:
-        try:
-            with Session(self._database_engine()) as session:
-                return int(
-                    session.scalar(
-                        select(func.count(ReadModelCheckpointModel.id)).where(
-                            ReadModelCheckpointModel.checkpoint_key.like(
-                                f"{ANALYSIS_CARD_SHADOW_PREFIX}%"
-                            )
-                        )
-                    )
-                    or 0
-                )
-        except SQLAlchemyError as exc:
-            raise SystemDegradedError("READ_MODEL_CHECKPOINT_QUERY_FAILED") from exc
+        return self.release_counts()["read_model_fixture_count"]
 
     def dashboard_fixtures_for_window(
         self,
@@ -845,6 +1315,7 @@ class ReadModelRepository:
         start: datetime | None,
         end: datetime | None,
         limit: int = MAX_PUBLIC_FIXTURES,
+        fixture_ids: Sequence[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Read only checkpoint projections belonging to the requested window."""
 
@@ -858,15 +1329,19 @@ class ReadModelRepository:
                     literal(ANALYSIS_CARD_SHADOW_PREFIX)
                     + MatchdayFixtureIdentityModel.provider_fixture_id
                 )
-                projection_query = select(
-                    MatchdayFixtureIdentityModel,
-                    ReadModelCheckpointModel,
-                ).outerjoin(
-                    ReadModelCheckpointModel,
-                    ReadModelCheckpointModel.checkpoint_key == checkpoint_identity,
-                ).where(
-                    MatchdayFixtureIdentityModel.provider == "api_football",
-                    MatchdayFixtureIdentityModel.competition_id.in_(competition_ids),
+                projection_query = (
+                    select(
+                        MatchdayFixtureIdentityModel,
+                        ReadModelCheckpointModel,
+                    )
+                    .outerjoin(
+                        ReadModelCheckpointModel,
+                        ReadModelCheckpointModel.checkpoint_key == checkpoint_identity,
+                    )
+                    .where(
+                        MatchdayFixtureIdentityModel.provider == "api_football",
+                        MatchdayFixtureIdentityModel.competition_id.in_(competition_ids),
+                    )
                 )
                 if start is not None:
                     projection_query = projection_query.where(
@@ -875,6 +1350,16 @@ class ReadModelRepository:
                 if end is not None:
                     projection_query = projection_query.where(
                         MatchdayFixtureIdentityModel.kickoff_utc < end
+                    )
+                if fixture_ids is not None:
+                    requested = tuple(
+                        dict.fromkeys(
+                            str(value or "").strip().removeprefix("api_football:")
+                            for value in fixture_ids
+                        )
+                    )
+                    projection_query = projection_query.where(
+                        MatchdayFixtureIdentityModel.provider_fixture_id.in_(requested)
                     )
                 projection_rows = list(
                     session.execute(
@@ -908,6 +1393,7 @@ class ReadModelRepository:
             raise SystemDegradedError("READ_MODEL_CHECKPOINT_QUERY_FAILED") from exc
 
         reviewed_labels = reviewed_public_team_labels()
+        pending_labels = pending_public_team_labels()
         fixtures: list[dict[str, Any]] = []
         for identity, model in zip(identities, rows, strict=True):
             fixture_id = str(identity.provider_fixture_id)
@@ -919,11 +1405,9 @@ class ReadModelRepository:
                     "kickoff_utc": _iso_or_none(identity.kickoff_utc),
                     "status": identity.fixture_status,
                     "home_team_id": identity.home_provider_team_id,
-                    "home_team_name": payload.get("home_team_name")
-                    or payload.get("home_name"),
+                    "home_team_name": payload.get("home_team_name") or payload.get("home_name"),
                     "away_team_id": identity.away_provider_team_id,
-                    "away_team_name": payload.get("away_team_name")
-                    or payload.get("away_name"),
+                    "away_team_name": payload.get("away_team_name") or payload.get("away_name"),
                     "_analysis_card_projection": None,
                 }
             else:
@@ -944,12 +1428,14 @@ class ReadModelRepository:
                     side="home",
                     canonical=canonical,
                     reviewed_labels=reviewed_labels,
+                    pending_labels=pending_labels,
                 ),
                 "away": _public_team_label_from_identity(
                     fixture=identity,
                     side="away",
                     canonical=canonical,
                     reviewed_labels=reviewed_labels,
+                    pending_labels=pending_labels,
                 ),
             }
             fixtures.append(fixture)
@@ -997,6 +1483,587 @@ class ReadModelRepository:
         }
         return [by_requested[value] for value in requested if value in by_requested]
 
+    def dashboard_model_forecasts_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+    ) -> dict[str, dict[str, Any]]:
+        """Read persisted model-forecast ledger facts without materializing anything."""
+
+        requested = list(dict.fromkeys(str(value or "").strip() for value in fixture_ids))
+        requested = [value for value in requested if value]
+        aliases = {
+            value: {
+                value,
+                value.removeprefix("api_football:"),
+                f"api_football:{value.removeprefix('api_football:')}",
+            }
+            for value in requested
+        }
+        if not aliases:
+            return {}
+        all_aliases = tuple({alias for values in aliases.values() for alias in values})
+        try:
+            with Session(self._database_engine()) as session:
+                captures = list(
+                    session.scalars(
+                        select(ModelForecastCaptureModel)
+                        .where(ModelForecastCaptureModel.fixture_id.in_(all_aliases))
+                        .order_by(ModelForecastCaptureModel.captured_at.desc())
+                    )
+                )
+                capture_hashes = tuple(row.capture_identity_hash for row in captures)
+                versions = (
+                    list(
+                        session.scalars(
+                            select(ModelForecastCaptureDataVersionModel).where(
+                                ModelForecastCaptureDataVersionModel.capture_identity_hash.in_(
+                                    capture_hashes
+                                )
+                            )
+                        )
+                    )
+                    if capture_hashes
+                    else []
+                )
+                outcomes = (
+                    list(
+                        session.scalars(
+                            select(ModelForecastOutcomeModel).where(
+                                ModelForecastOutcomeModel.capture_identity_hash.in_(capture_hashes)
+                            )
+                        )
+                    )
+                    if capture_hashes
+                    else []
+                )
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("DASHBOARD_MODEL_FORECAST_QUERY_FAILED") from exc
+        version_by_capture = {row.capture_identity_hash: row for row in versions}
+        outcome_by_capture = {row.capture_identity_hash: row for row in outcomes}
+        result: dict[str, dict[str, Any]] = {}
+        for requested_id, requested_aliases in aliases.items():
+            capture = next((row for row in captures if row.fixture_id in requested_aliases), None)
+            if capture is None:
+                result[requested_id] = {"state": "NOT_CAPTURED"}
+                continue
+            payload = capture.payload if isinstance(capture.payload, dict) else {}
+            raw_xg_identity = payload.get("four_field_xg_identity")
+            xg_identity = (
+                cast(dict[str, Any], raw_xg_identity) if isinstance(raw_xg_identity, dict) else {}
+            )
+            raw_home_xg = xg_identity.get("home")
+            home_xg = cast(dict[str, Any], raw_home_xg) if isinstance(raw_home_xg, dict) else {}
+            raw_away_xg = xg_identity.get("away")
+            away_xg = cast(dict[str, Any], raw_away_xg) if isinstance(raw_away_xg, dict) else {}
+            outcome = outcome_by_capture.get(capture.capture_identity_hash)
+            version = version_by_capture.get(capture.capture_identity_hash)
+            result[requested_id] = {
+                "state": "SETTLED" if outcome is not None else "CAPTURED",
+                "capture_identity_hash": capture.capture_identity_hash,
+                "captured_at": _iso_or_none(capture.captured_at),
+                "lead_time_seconds": capture.lead_time_seconds,
+                "lead_time_bucket": capture.lead_time_bucket,
+                "capture_policy": payload.get("capture_policy", "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"),
+                "data_version": version.data_version if version else "LEGACY_UNVERSIONED",
+                "team_xg_match_count": version.team_xg_match_count if version else None,
+                "model_family": capture.model_family,
+                "model_version": capture.model_version,
+                "calibration_version": payload.get("calibration_version"),
+                "calibration_status": payload.get("calibration_status"),
+                "four_field_xg": {
+                    "status": "READY",
+                    "identity_hash": xg_identity.get("identity_hash")
+                    or capture.four_field_xg_identity_hash,
+                    "home_snapshot_identity": home_xg.get("snapshot_identity"),
+                    "away_snapshot_identity": away_xg.get("snapshot_identity"),
+                    "home_match_count": home_xg.get("match_count"),
+                    "away_match_count": away_xg.get("match_count"),
+                },
+                "settled_at": _iso_or_none(outcome.settled_at) if outcome else None,
+                "brier": outcome.brier if outcome else None,
+                "log_loss": outcome.log_loss if outcome else None,
+                "rps": outcome.rps if outcome else None,
+            }
+        return result
+
+    def dashboard_dynamic_evaluations_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+    ) -> dict[str, dict[str, Any]]:
+        """Read complete evaluation lifecycles through canonical fixture aliases."""
+
+        requested = list(dict.fromkeys(str(value or "").strip() for value in fixture_ids))
+        requested = [value for value in requested if value]
+        aliases = {value: model_forecast_fixture_aliases(value) for value in requested}
+        all_aliases = tuple({alias for values in aliases.values() for alias in values})
+        if not all_aliases:
+            return {}
+        try:
+            with Session(self._database_engine()) as session:
+                rows = list(
+                    session.scalars(
+                        select(DynamicPrematchEvaluationModel)
+                        .where(DynamicPrematchEvaluationModel.fixture_id.in_(all_aliases))
+                        .order_by(DynamicPrematchEvaluationModel.evaluated_at)
+                    )
+                )
+                opportunities = list(
+                    session.scalars(
+                        select(DynamicPrematchOpportunityModel)
+                        .where(DynamicPrematchOpportunityModel.fixture_id.in_(all_aliases))
+                        .order_by(
+                            DynamicPrematchOpportunityModel.scheduled_checkpoint_at,
+                            DynamicPrematchOpportunityModel.recorded_at,
+                        )
+                    )
+                )
+                supersessions = {
+                    row.superseded_evaluation_id: row
+                    for row in session.scalars(
+                        select(DynamicPrematchSupersessionModel).where(
+                            DynamicPrematchSupersessionModel.fixture_id.in_(all_aliases)
+                        )
+                    )
+                }
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("DASHBOARD_DYNAMIC_EVALUATION_QUERY_FAILED") from exc
+        by_fixture: dict[str, list[DynamicPrematchEvaluationModel]] = defaultdict(list)
+        for evaluation_row in rows:
+            by_fixture[evaluation_row.fixture_id].append(evaluation_row)
+        opportunities_by_fixture: dict[str, list[DynamicPrematchOpportunityModel]] = defaultdict(
+            list
+        )
+        for opportunity_row in opportunities:
+            opportunities_by_fixture[opportunity_row.fixture_id].append(opportunity_row)
+        result: dict[str, dict[str, Any]] = {}
+        for fixture_id, fixture_aliases in aliases.items():
+            versions = []
+            opportunity_versions = []
+            for alias in fixture_aliases:
+                for evaluation_row in by_fixture[alias]:
+                    payload = dict(evaluation_row.payload)
+                    payload["original_state"] = evaluation_row.original_state
+                    payload["bookmaker_count"] = evaluation_row.bookmaker_count
+                    payload["first_failed_gate"] = evaluation_row.first_failed_gate
+                    payload["all_failed_gates"] = list(evaluation_row.all_failed_gates or [])
+                    payload["gate_results"] = dict(evaluation_row.gate_results or {})
+                    supersession = supersessions.get(evaluation_row.evaluation_id)
+                    if supersession is not None:
+                        payload["state"] = "SUPERSEDED"
+                        payload["superseded_by_evaluation_id"] = (
+                            supersession.superseded_by_evaluation_id
+                        )
+                        payload["supersession_reason"] = supersession.reason
+                    versions.append(payload)
+                for opportunity_row in opportunities_by_fixture[alias]:
+                    payload = dict(opportunity_row.payload or {})
+                    payload.update(
+                        {
+                            "opportunity_identity_hash": (
+                                opportunity_row.opportunity_identity_hash
+                            ),
+                            "market": opportunity_row.market,
+                            "evaluation_slot_id": opportunity_row.evaluation_slot_id,
+                            "scheduled_checkpoint_at": _iso_or_none(
+                                opportunity_row.scheduled_checkpoint_at
+                            ),
+                            "recorded_at": _iso_or_none(opportunity_row.recorded_at),
+                            "evaluated_at": _iso_or_none(opportunity_row.evaluated_at),
+                            "latest_attempt_identity_hash": (
+                                opportunity_row.latest_attempt_identity_hash
+                            ),
+                            "state": opportunity_row.state,
+                        }
+                    )
+                    opportunity_versions.append(payload)
+            if versions or opportunity_versions:
+                versions.sort(key=lambda item: str(item.get("evaluated_at") or ""))
+                opportunity_versions.sort(
+                    key=lambda item: (
+                        str(item.get("scheduled_checkpoint_at") or ""),
+                        str(item.get("recorded_at") or ""),
+                    )
+                )
+                result[fixture_id] = {
+                    "schema_version": "w2.dynamic_quote_ev_lifecycle.v1",
+                    "fixture_id": fixture_id,
+                    "versions": versions,
+                    "current": [row for row in versions if row.get("state") != "SUPERSEDED"],
+                    "opportunities": opportunity_versions,
+                }
+        return result
+
+    def dashboard_evaluation_checkpoints_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Read the five registered candidate-evaluation checkpoint plans."""
+
+        requested = list(dict.fromkeys(str(value or "").strip() for value in fixture_ids))
+        requested = [value for value in requested if value]
+        aliases = {value: model_forecast_fixture_aliases(value) for value in requested}
+        all_aliases = tuple({alias for values in aliases.values() for alias in values})
+        evaluation_slots = (
+            "T3_ODDS",
+            "T60_ODDS_LINEUPS",
+            "T45_ODDS",
+            "T-30m_VALIDATION_LOCK",
+            "T15_ODDS",
+        )
+        if not all_aliases:
+            return {}
+        try:
+            with Session(self._database_engine()) as session:
+                plans = list(
+                    session.scalars(
+                        select(MatchdayCheckpointPlanModel).where(
+                            MatchdayCheckpointPlanModel.fixture_id.in_(all_aliases),
+                            MatchdayCheckpointPlanModel.checkpoint.in_(evaluation_slots),
+                            MatchdayCheckpointPlanModel.test_only.is_(False),
+                        )
+                    )
+                )
+                plan_ids = tuple(row.plan_id for row in plans)
+                links = (
+                    list(
+                        session.scalars(
+                            select(MatchdayEndpointCapturePlanModel).where(
+                                MatchdayEndpointCapturePlanModel.plan_id.in_(plan_ids)
+                            )
+                        )
+                    )
+                    if plan_ids
+                    else []
+                )
+                capture_ids = tuple({row.capture_id for row in links})
+                captures = (
+                    list(
+                        session.scalars(
+                            select(MatchdayEndpointCaptureModel).where(
+                                MatchdayEndpointCaptureModel.capture_id.in_(capture_ids)
+                            )
+                        )
+                    )
+                    if capture_ids
+                    else []
+                )
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("DASHBOARD_EVALUATION_CHECKPOINT_QUERY_FAILED") from exc
+        captures_by_id = {row.capture_id: row for row in captures}
+        endpoints_by_plan: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for link in links:
+            capture = captures_by_id.get(link.capture_id)
+            if capture is None:
+                continue
+            endpoints_by_plan[link.plan_id].append(
+                {
+                    "endpoint": capture.endpoint,
+                    "status": capture.capture_status,
+                    "response_count": capture.response_count,
+                    "status_code": capture.status_code,
+                    "captured_at": _iso_or_none(capture.provider_captured_at),
+                }
+            )
+        result: dict[str, list[dict[str, Any]]] = {}
+        for fixture_id, fixture_aliases in aliases.items():
+            rows = [row for row in plans if row.fixture_id in fixture_aliases]
+            if not rows:
+                continue
+            result[fixture_id] = [
+                {
+                    "plan_id": row.plan_id,
+                    "checkpoint": row.checkpoint,
+                    "scheduled_at": _iso_or_none(row.scheduled_at),
+                    "window_start": _iso_or_none(row.window_start),
+                    "window_end": _iso_or_none(row.window_end),
+                    "status": row.status,
+                    "endpoints": list(row.endpoints or []),
+                    "attempt_count": row.attempt_count,
+                    "blockers": list(row.blockers or []),
+                    "endpoint_results": sorted(
+                        endpoints_by_plan.get(row.plan_id, []),
+                        key=lambda item: (str(item["captured_at"] or ""), item["endpoint"]),
+                    ),
+                }
+                for row in sorted(rows, key=lambda item: (item.scheduled_at, item.checkpoint))
+            ]
+        return result
+
+    def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
+        """Read the complete append-only model-forecast ledger as one projection."""
+
+        try:
+            with Session(self._database_engine()) as session:
+                captures = list(session.scalars(select(ModelForecastCaptureModel)))
+                versions = list(session.scalars(select(ModelForecastCaptureDataVersionModel)))
+                outcomes = list(session.scalars(select(ModelForecastOutcomeModel)))
+                dynamic_evaluations = list(session.scalars(select(DynamicPrematchEvaluationModel)))
+                dynamic_opportunities = list(
+                    session.scalars(select(DynamicPrematchOpportunityModel))
+                )
+                t30_plans = list(
+                    session.scalars(
+                        select(MatchdayCheckpointPlanModel).where(
+                            MatchdayCheckpointPlanModel.checkpoint == "T-30m_VALIDATION_LOCK"
+                        )
+                    )
+                )
+                candidate_fixture_ids = {
+                    str(row.fixture_id).removeprefix("api_football:")
+                    for row in dynamic_evaluations
+                    if row.official_funnel_eligible is True
+                    and isinstance(row.payload, dict)
+                    and row.payload.get("state") == "ANALYSIS_PICK_ACTIVE"
+                }
+                candidate_fixtures = list(
+                    session.scalars(
+                        select(MatchdayFixtureIdentityModel).where(
+                            MatchdayFixtureIdentityModel.provider == "api_football",
+                            MatchdayFixtureIdentityModel.provider_fixture_id.in_(
+                                candidate_fixture_ids
+                            ),
+                        )
+                    )
+                )
+                candidate_results = list(
+                    session.scalars(
+                        select(ResultModel).where(
+                            ResultModel.fixture_id.in_(
+                                [row.fixture_id for row in candidate_fixtures]
+                            )
+                        )
+                    )
+                )
+                superseded_evaluation_ids = set(
+                    session.scalars(
+                        select(DynamicPrematchSupersessionModel.superseded_evaluation_id)
+                    )
+                )
+                ready_team_ids = set(
+                    session.scalars(
+                        select(TeamXgMatchModel.team_id)
+                        .group_by(TeamXgMatchModel.team_id)
+                        .having(
+                            func.count(func.distinct(TeamXgMatchModel.fixture_id)) >= MIN_XG_MATCHES
+                        )
+                    )
+                )
+                now = datetime.now(UTC)
+                next_7d_ready_fixtures = session.scalar(
+                    select(
+                        func.count(func.distinct(MatchdayFixtureIdentityModel.fixture_id))
+                    ).where(
+                        MatchdayFixtureIdentityModel.provider == "api_football",
+                        MatchdayFixtureIdentityModel.kickoff_utc >= now,
+                        MatchdayFixtureIdentityModel.kickoff_utc < now + timedelta(days=7),
+                        MatchdayFixtureIdentityModel.home_provider_team_id.in_(ready_team_ids),
+                        MatchdayFixtureIdentityModel.away_provider_team_id.in_(ready_team_ids),
+                    )
+                )
+                current_flow_capture_hashes = select(
+                    OutcomeLedgerModel.capture_identity_hash
+                ).where(
+                    OutcomeLedgerModel.record_type == "capture",
+                    OutcomeLedgerModel.source_artifact == "db:forward_outcome_ledger",
+                    OutcomeLedgerModel.recommendation_scope.in_(("VALIDATION", "SHADOW")),
+                    OutcomeLedgerModel.payload["checkpoint"].as_string() == "T-30m_VALIDATION_LOCK",
+                )
+                current_flow_candidate_count = session.scalar(
+                    select(func.count(func.distinct(OutcomeLedgerModel.fixture_id))).where(
+                        OutcomeLedgerModel.record_type == "capture",
+                        OutcomeLedgerModel.source_artifact == "db:forward_outcome_ledger",
+                        OutcomeLedgerModel.recommendation_scope.in_(("VALIDATION", "SHADOW")),
+                        OutcomeLedgerModel.payload["checkpoint"].as_string()
+                        == "T-30m_VALIDATION_LOCK",
+                    )
+                )
+                current_flow_settled_count = session.scalar(
+                    select(func.count(func.distinct(OutcomeLedgerModel.fixture_id))).where(
+                        OutcomeLedgerModel.record_type == "outcome",
+                        OutcomeLedgerModel.capture_identity_hash.in_(current_flow_capture_hashes),
+                    )
+                )
+                active_competitions = frozenset(
+                    str(row.competition_id)
+                    for row in session.scalars(select(LeagueSeasonModel))
+                    if isinstance(row.payload, dict) and row.payload.get("enabled") is True
+                )
+            candidate_team_labels = self.public_team_labels_for_fixtures(
+                sorted(candidate_fixture_ids)
+            )
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("DASHBOARD_MODEL_FORECAST_QUERY_FAILED") from exc
+        settled_hashes = {row.capture_identity_hash for row in outcomes}
+        market_evaluation_funnel = _model_forecast_market_evaluation_funnel(
+            captures,
+            dynamic_evaluations,
+            superseded_evaluation_ids,
+            dynamic_opportunities,
+        )
+        official_recommendations = _official_funnel_recommendations(
+            dynamic_evaluations,
+            dynamic_opportunities,
+            {row.provider_fixture_id: row for row in candidate_fixtures},
+            {row.fixture_id: row for row in candidate_results},
+            candidate_team_labels,
+            active_competitions=active_competitions,
+        )
+        ever_formed_candidate_count = len(
+            {
+                (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
+                for row in dynamic_evaluations
+                if row.official_funnel_eligible is True
+                and isinstance(row.payload, dict)
+                and row.payload.get("state") == "ANALYSIS_PICK_ACTIVE"
+            }
+        )
+        final_candidate_count = len(official_recommendations)
+        t30_candidate_opportunities = [
+            row
+            for row in dynamic_opportunities
+            if row.evaluation_slot_id == "T-30m_VALIDATION_LOCK"
+            and row.state == "EVALUATED_CANDIDATE"
+        ]
+        captured_t30_plan_ids = {row.plan_id for row in t30_plans if row.status == "CAPTURED"}
+        t30_evaluated_candidate_count = len(
+            {
+                (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
+                for row in t30_candidate_opportunities
+            }
+        )
+        t30_confirmed_candidate_count = len(
+            {
+                (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
+                for row in t30_candidate_opportunities
+                if row.checkpoint_plan_identity in captured_t30_plan_ids
+            }
+        )
+        version_by_capture = {row.capture_identity_hash: row for row in versions}
+        version_names = sorted(
+            {
+                (
+                    version_by_capture[row.capture_identity_hash].data_version
+                    if row.capture_identity_hash in version_by_capture
+                    else "LEGACY_UNVERSIONED"
+                )
+                for row in captures
+            }
+        )
+        return {
+            "capture_count": len(captures),
+            "settled_count": len(outcomes),
+            "pending_count": len(captures) - len(outcomes),
+            "sample_target": SAMPLE_TARGET,
+            "current_flow_candidate_count": int(current_flow_candidate_count or 0),
+            "current_flow_settled_count": int(current_flow_settled_count or 0),
+            "ever_formed_candidate_count": ever_formed_candidate_count,
+            "final_candidate_count": final_candidate_count,
+            "invalidated_candidate_count": max(
+                ever_formed_candidate_count - final_candidate_count, 0
+            ),
+            "t30_evaluated_candidate_count": t30_evaluated_candidate_count,
+            "t30_confirmed_candidate_count": t30_confirmed_candidate_count,
+            "min_xg_matches": MIN_XG_MATCHES,
+            "xg_ready_team_count": len(ready_team_ids),
+            "next_7d_xg_ready_fixture_count": int(next_7d_ready_fixtures or 0),
+            "capture_policy": "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
+            "market_evaluation_funnel": market_evaluation_funnel,
+            "official_recommendations": official_recommendations,
+            "lead_time_buckets": {
+                bucket: {
+                    "capture_count": sum(row.lead_time_bucket == bucket for row in captures),
+                    "settled_count": sum(row.lead_time_bucket == bucket for row in outcomes),
+                    "pending_count": sum(
+                        row.lead_time_bucket == bucket
+                        and row.capture_identity_hash not in settled_hashes
+                        for row in captures
+                    ),
+                }
+                for bucket in MODEL_FORECAST_LEAD_TIME_BUCKETS
+            },
+            "data_versions": {
+                version_name: {
+                    "team_xg_match_count": next(
+                        (
+                            version_by_capture[row.capture_identity_hash].team_xg_match_count
+                            for row in captures
+                            if row.capture_identity_hash in version_by_capture
+                            and version_by_capture[row.capture_identity_hash].data_version
+                            == version_name
+                        ),
+                        None,
+                    ),
+                    "capture_count": sum(
+                        (
+                            version_by_capture[row.capture_identity_hash].data_version
+                            if row.capture_identity_hash in version_by_capture
+                            else "LEGACY_UNVERSIONED"
+                        )
+                        == version_name
+                        for row in captures
+                    ),
+                    "settled_count": sum(
+                        (
+                            version_by_capture[row.capture_identity_hash].data_version
+                            if row.capture_identity_hash in version_by_capture
+                            else "LEGACY_UNVERSIONED"
+                        )
+                        == version_name
+                        and row.capture_identity_hash in settled_hashes
+                        for row in captures
+                    ),
+                    "pending_count": sum(
+                        (
+                            version_by_capture[row.capture_identity_hash].data_version
+                            if row.capture_identity_hash in version_by_capture
+                            else "LEGACY_UNVERSIONED"
+                        )
+                        == version_name
+                        and row.capture_identity_hash not in settled_hashes
+                        for row in captures
+                    ),
+                    "lead_time_buckets": {
+                        bucket: {
+                            "capture_count": sum(
+                                row.lead_time_bucket == bucket
+                                and (
+                                    version_by_capture[row.capture_identity_hash].data_version
+                                    if row.capture_identity_hash in version_by_capture
+                                    else "LEGACY_UNVERSIONED"
+                                )
+                                == version_name
+                                for row in captures
+                            ),
+                            "settled_count": sum(
+                                row.lead_time_bucket == bucket
+                                and row.capture_identity_hash in settled_hashes
+                                and (
+                                    version_by_capture[row.capture_identity_hash].data_version
+                                    if row.capture_identity_hash in version_by_capture
+                                    else "LEGACY_UNVERSIONED"
+                                )
+                                == version_name
+                                for row in captures
+                            ),
+                            "pending_count": sum(
+                                row.lead_time_bucket == bucket
+                                and row.capture_identity_hash not in settled_hashes
+                                and (
+                                    version_by_capture[row.capture_identity_hash].data_version
+                                    if row.capture_identity_hash in version_by_capture
+                                    else "LEGACY_UNVERSIONED"
+                                )
+                                == version_name
+                                for row in captures
+                            ),
+                        }
+                        for bucket in MODEL_FORECAST_LEAD_TIME_BUCKETS
+                    },
+                }
+                for version_name in version_names
+            },
+        }
+
     def fixture_statuses_for_fixtures(self, fixture_ids: list[str]) -> dict[str, str]:
         provider_ids = {
             str(fixture_id or "").removeprefix("api_football:")
@@ -1020,11 +2087,18 @@ class ReadModelRepository:
         return statuses
 
     def dashboard_fixture(self, fixture_id: str) -> dict[str, Any] | None:
-        row = self.checkpoint(f"{ANALYSIS_CARD_SHADOW_PREFIX}{fixture_id}")
-        if row is None:
+        rows = self.dashboard_fixtures_for_window(
+            start=None,
+            end=None,
+            limit=1,
+            fixture_ids=(fixture_id,),
+        )
+        if not rows or not isinstance(rows[0].get("_analysis_card_projection"), dict):
             return None
-        card = self._analysis_card_from_checkpoint(row, fixture_id)
-        return self._dashboard_fixture_from_projection(card, row)
+        fixture = deepcopy(rows[0])
+        fixture.pop("_analysis_card_projection", None)
+        fixture.pop("_public_team_labels", None)
+        return fixture
 
     def dashboard_provider(self) -> dict[str, Any] | None:
         row = self.checkpoint("dashboard:provider_status")
@@ -1039,10 +2113,16 @@ class ReadModelRepository:
         return None if row is None else deepcopy(row.payload)
 
     def analysis_card_projection(self, fixture_id: str) -> dict[str, Any] | None:
-        row = self.checkpoint(f"{ANALYSIS_CARD_SHADOW_PREFIX}{fixture_id}")
-        if row is None:
+        rows = self.dashboard_fixtures_for_window(
+            start=None,
+            end=None,
+            limit=1,
+            fixture_ids=(fixture_id,),
+        )
+        if not rows:
             return None
-        return self._analysis_card_from_checkpoint(row, fixture_id)
+        projection = rows[0].get("_analysis_card_projection")
+        return deepcopy(projection) if isinstance(projection, dict) else None
 
     def _analysis_card_from_checkpoint(
         self,
@@ -1101,23 +2181,43 @@ class ReadModelRepository:
         ]
 
     def release_counts(self) -> dict[str, int]:
-        fixtures = self.dashboard_latest_fixtures()
+        competition_ids = self._dashboard_competition_ids()
+        try:
+            status = func.upper(
+                ReadModelCheckpointModel.payload["analysis_card"]["status"].as_string()
+            )
+            with Session(self._database_engine()) as session:
+                fixture_count, result_count = session.execute(
+                    select(
+                        func.count(ReadModelCheckpointModel.id),
+                        func.count(ReadModelCheckpointModel.id).filter(
+                            status.in_(FINISHED_STATUSES)
+                        ),
+                    )
+                    .select_from(MatchdayFixtureIdentityModel)
+                    .join(
+                        ReadModelCheckpointModel,
+                        ReadModelCheckpointModel.checkpoint_key
+                        == literal(ANALYSIS_CARD_SHADOW_PREFIX)
+                        + MatchdayFixtureIdentityModel.provider_fixture_id,
+                    )
+                    .where(
+                        MatchdayFixtureIdentityModel.provider == "api_football",
+                        MatchdayFixtureIdentityModel.competition_id.in_(competition_ids),
+                    )
+                ).one()
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("READ_MODEL_CHECKPOINT_QUERY_FAILED") from exc
         return {
-            "read_model_fixture_count": len(fixtures),
-            "matchday_card_count": len(fixtures),
-            "future_fixture_count": len(fixtures),
-            "result_event_count": len(
-                [
-                    item
-                    for item in fixtures
-                    if normalize_match_status(item.get("status")) == "FINISHED"
-                ]
-            ),
+            "read_model_fixture_count": int(fixture_count),
+            "matchday_card_count": int(fixture_count),
+            "future_fixture_count": int(fixture_count),
+            "result_event_count": int(result_count),
         }
 
     def public_release_counts(self, *, limit: int = MAX_PUBLIC_FIXTURES) -> dict[str, int]:
         bounded = max(0, min(int(limit), MAX_PUBLIC_FIXTURES))
-        fixtures = self.dashboard_latest_fixtures()[:bounded]
+        fixtures = self.dashboard_fixtures_for_window(start=None, end=None, limit=bounded)
         return {
             "read_model_fixture_count": len(fixtures),
             "matchday_card_count": len(fixtures),
@@ -1178,7 +2278,7 @@ class ReadModelRepository:
         canonical_ids = {f"api_football:{fixture_id}" for fixture_id in provider_ids}
         if not canonical_ids:
             return {}
-        reference = now or datetime.now(UTC)
+        reference = _utc(now or datetime.now(UTC))
         with Session(self._database_engine()) as session:
             captures = list(
                 session.scalars(
@@ -1197,60 +2297,128 @@ class ReadModelRepository:
                     )
                 )
             )
-            plans = session.execute(
-                select(
-                    MatchdayCheckpointPlanModel.fixture_id,
-                    MatchdayCheckpointPlanModel.scheduled_at,
-                    MatchdayCheckpointPlanModel.endpoints,
-                    MatchdayCheckpointPlanModel.status,
-                ).where(
-                    MatchdayCheckpointPlanModel.fixture_id.in_(canonical_ids),
-                    MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE")),
+            plans = list(
+                session.scalars(
+                    select(MatchdayCheckpointPlanModel).where(
+                        MatchdayCheckpointPlanModel.fixture_id.in_(canonical_ids),
+                        MatchdayCheckpointPlanModel.test_only.is_(False),
+                        MatchdayCheckpointPlanModel.namespace.is_(None),
+                    )
                 )
-            ).all()
-        latest: dict[str, MatchdayEndpointCaptureModel] = {}
-        for capture in captures:
-            if capture.fixture_id and capture.fixture_id not in latest:
-                latest[capture.fixture_id] = capture
-        next_by_fixture: dict[str, tuple[datetime, str]] = {}
-        for fixture_id, scheduled_at, endpoints, plan_status in plans:
-            if "odds" not in set(endpoints or []):
-                continue
-            if not isinstance(scheduled_at, datetime):
-                continue
-            scheduled = (
-                scheduled_at.replace(tzinfo=UTC)
-                if scheduled_at.tzinfo is None
-                else scheduled_at.astimezone(UTC)
             )
-            current = next_by_fixture.get(fixture_id)
-            if current is None or scheduled < current[0]:
-                next_by_fixture[fixture_id] = (scheduled, plan_status)
+            satisfied_plan_ids = set(
+                session.scalars(
+                    select(MatchdayEndpointCapturePlanModel.plan_id).where(
+                        MatchdayEndpointCapturePlanModel.endpoint == "odds",
+                        MatchdayEndpointCapturePlanModel.link_status == "LINKED",
+                        MatchdayEndpointCapturePlanModel.capture_id.in_(observed_capture_ids),
+                    )
+                )
+            )
+            captured_lineup_ids = set(
+                session.scalars(
+                    select(MatchdayEndpointCaptureModel.capture_id).where(
+                        MatchdayEndpointCaptureModel.endpoint == "lineups",
+                        MatchdayEndpointCaptureModel.fixture_id.in_(canonical_ids),
+                        MatchdayEndpointCaptureModel.capture_status == "CAPTURED",
+                        MatchdayEndpointCaptureModel.response_count > 0,
+                    )
+                )
+            )
+            satisfied_lineup_plan_ids = set(
+                session.scalars(
+                    select(MatchdayEndpointCapturePlanModel.plan_id).where(
+                        MatchdayEndpointCapturePlanModel.endpoint == "lineups",
+                        MatchdayEndpointCapturePlanModel.link_status == "LINKED",
+                        MatchdayEndpointCapturePlanModel.capture_id.in_(captured_lineup_ids),
+                    )
+                )
+            )
+        latest_capture: dict[str, MatchdayEndpointCaptureModel] = {}
+        latest_snapshot: dict[str, MatchdayEndpointCaptureModel] = {}
+        for capture in captures:
+            if capture.fixture_id and capture.fixture_id not in latest_capture:
+                latest_capture[capture.fixture_id] = capture
+            if (
+                capture.fixture_id
+                and capture.capture_id in observed_capture_ids
+                and capture.fixture_id not in latest_snapshot
+            ):
+                latest_snapshot[capture.fixture_id] = capture
+        plans_by_fixture: dict[str, list[MatchdayCheckpointPlanModel]] = defaultdict(list)
+        lineup_plans_by_fixture: dict[str, list[MatchdayCheckpointPlanModel]] = defaultdict(list)
+        for plan in plans:
+            endpoints = set(plan.endpoints or [])
+            if "odds" in endpoints:
+                plans_by_fixture[plan.fixture_id].append(plan)
+            if "lineups" in endpoints:
+                lineup_plans_by_fixture[plan.fixture_id].append(plan)
         result: dict[str, dict[str, Any]] = {}
         for canonical_id in canonical_ids:
-            current_capture = latest.get(canonical_id)
-            next_plan = next_by_fixture.get(canonical_id)
-            if current_capture is None:
-                status = (
-                    "WINDOW_DUE"
-                    if next_plan and (next_plan[1] == "DUE" or next_plan[0] <= reference)
-                    else "WAITING_WINDOW"
-                    if next_plan
-                    else "NOT_SCHEDULED"
-                )
-            elif current_capture.response_count == 0:
-                status = "PROVIDER_EMPTY"
-            elif current_capture.capture_id not in observed_capture_ids:
-                status = "MARKET_UNAVAILABLE"
-            else:
-                status = "READY"
+            current_capture = latest_capture.get(canonical_id)
+            current_snapshot = latest_snapshot.get(canonical_id)
+            fixture_plans = plans_by_fixture.get(canonical_id, [])
+            target, cause, overdue = _collection_window(
+                fixture_plans, satisfied_plan_ids, reference
+            )
+            target_scheduled_at = _utc(target.scheduled_at) if target is not None else None
+            target_window_end = _utc(target.window_end) if target is not None else None
+            lineup_plans = lineup_plans_by_fixture.get(canonical_id, [])
+            lineup_target, lineup_cause, lineup_overdue = _collection_window(
+                lineup_plans, satisfied_lineup_plan_ids, reference
+            )
+            status = (
+                "PROVIDER_EMPTY"
+                if current_capture is not None and current_capture.response_count == 0
+                else "MARKET_UNAVAILABLE"
+                if current_capture is not None
+                and current_capture.capture_id not in observed_capture_ids
+                else "READY"
+                if current_snapshot is not None
+                else "WINDOW_DUE"
+                if cause == "AWAITING_COLLECTION"
+                else "WAITING_WINDOW"
+                if cause == "NOT_YET_DUE"
+                else "NOT_SCHEDULED"
+            )
             payload = {
                 "odds_status": status,
                 "last_refresh_hint": _iso_or_none(
                     current_capture.provider_captured_at if current_capture is not None else None
                 ),
-                "next_refresh_at": _iso_or_none(next_plan[0] if next_plan else None),
+                "market_collection": {
+                    "latest_snapshot_at": _iso_or_none(
+                        current_snapshot.provider_captured_at
+                        if current_snapshot is not None
+                        else None
+                    ),
+                    "latest_snapshot_checkpoint": (
+                        current_snapshot.checkpoint if current_snapshot is not None else None
+                    ),
+                    "target_checkpoint": target.checkpoint if target is not None else None,
+                    "scheduled_at": _iso_or_none(target_scheduled_at),
+                    "window_end_at": _iso_or_none(target_window_end),
+                    "overdue": overdue,
+                    "public_semantics": {"scope": "MATCH", "cause": cause},
+                },
             }
+            if lineup_plans:
+                payload["lineup_collection"] = {
+                    "target_checkpoint": (
+                        lineup_target.checkpoint if lineup_target is not None else None
+                    ),
+                    "scheduled_at": _iso_or_none(
+                        _utc(lineup_target.scheduled_at) if lineup_target is not None else None
+                    ),
+                    "window_end_at": _iso_or_none(
+                        _utc(lineup_target.window_end) if lineup_target is not None else None
+                    ),
+                    "overdue": lineup_overdue,
+                    "public_semantics": {
+                        "scope": "MATCH",
+                        "cause": lineup_cause,
+                    },
+                }
             result[canonical_id] = payload
             result[canonical_id.removeprefix("api_football:")] = payload
         return result
@@ -1308,6 +2476,7 @@ class ReadModelRepository:
                 ).all()
             }
         reviewed_labels = reviewed_public_team_labels()
+        pending_labels = pending_public_team_labels()
         output: dict[str, dict[str, dict[str, Any]]] = {}
         for fixture in fixtures:
             labels = {
@@ -1316,12 +2485,14 @@ class ReadModelRepository:
                     side="home",
                     canonical=canonical,
                     reviewed_labels=reviewed_labels,
+                    pending_labels=pending_labels,
                 ),
                 "away": _public_team_label_from_identity(
                     fixture=fixture,
                     side="away",
                     canonical=canonical,
                     reviewed_labels=reviewed_labels,
+                    pending_labels=pending_labels,
                 ),
             }
             output[str(fixture.fixture_id)] = labels
@@ -1396,7 +2567,9 @@ class ReadModelRepository:
             ),
             market_evidence_fixture_ids=evidence_ids,
             as_of=now or datetime.now(UTC),
+            active_whitelist_count=len(competition_ids),
         )
+
 
 class ReadModelService:
     def __init__(self, repository: ReadModelRepository | None = None) -> None:
@@ -1418,6 +2591,53 @@ class ReadModelService:
         fixture_ids: Sequence[str],
     ) -> list[dict[str, Any]]:
         return self.repository.dashboard_outcomes_for_fixtures(fixture_ids)
+
+    def dashboard_model_forecasts_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+    ) -> dict[str, dict[str, Any]]:
+        return self.repository.dashboard_model_forecasts_for_fixtures(fixture_ids)
+
+    def dashboard_dynamic_evaluations_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+    ) -> dict[str, dict[str, Any]]:
+        return self.repository.dashboard_dynamic_evaluations_for_fixtures(fixture_ids)
+
+    def dashboard_evaluation_checkpoints_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+    ) -> dict[str, list[dict[str, Any]]]:
+        return self.repository.dashboard_evaluation_checkpoints_for_fixtures(fixture_ids)
+
+    def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
+        return self.repository.dashboard_model_forecast_validation_progress()
+
+    def dashboard_cards_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+        *,
+        generated_at: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        requested = tuple(dict.fromkeys(str(value or "").strip() for value in fixture_ids))
+        requested = tuple(value for value in requested if value)
+        if not requested:
+            return []
+        if len(requested) > MAX_PUBLIC_FIXTURES:
+            raise SystemDegradedError("DASHBOARD_FIXTURE_SCOPE_EXCEEDED")
+        fixtures = self.repository.dashboard_fixtures_for_window(
+            start=None,
+            end=None,
+            limit=len(requested),
+            fixture_ids=requested,
+        )
+        cards = [self._project_dashboard_card(item) for item in fixtures]
+        missing = set(requested) - {str(card.get("fixture_id") or "") for card in cards}
+        if missing:
+            raise SystemDegradedError("DASHBOARD_FIXTURE_PROJECTION_MISSING")
+        self._apply_collection_status(cards, generated_at or datetime.now(UTC))
+        by_fixture = {str(card.get("fixture_id") or ""): card for card in cards}
+        return [by_fixture[fixture_id] for fixture_id in requested]
 
     def public_validation_summary(self, **kwargs: Any) -> dict[str, Any]:
         return self.validation_summary(**kwargs)
@@ -1596,6 +2816,8 @@ class ReadModelService:
         query_end: datetime | None
         if window == "next36":
             query_start, query_end = next_36_hours_window()
+        elif window == "next7":
+            query_start, query_end = next_7_days_window()
         elif window == "future":
             query_start, _ = football_day_window(requested_date)
             query_end = None
@@ -1616,13 +2838,13 @@ class ReadModelService:
             fixtures = self.repository.dashboard_latest_fixtures()[:MAX_PUBLIC_FIXTURES]
         checkpoint_count_reader = getattr(self.repository, "analysis_checkpoint_count", None)
         fixture_checkpoint_count = (
-            checkpoint_count_reader()
-            if callable(checkpoint_count_reader)
+            checkpoint_count_reader() if callable(checkpoint_count_reader) else len(fixtures)
+        )
+        analysis_projection_count = (
+            sum(isinstance(item.get("_analysis_card_projection"), dict) for item in fixtures)
+            if batched_window_read
             else len(fixtures)
         )
-        analysis_projection_count = sum(
-            isinstance(item.get("_analysis_card_projection"), dict) for item in fixtures
-        ) if batched_window_read else len(fixtures)
         canonical_competitions: dict[str, str] = {}
         public_team_labels: dict[str, dict[str, dict[str, Any]]] = {}
         if not batched_window_read:
@@ -1662,31 +2884,13 @@ class ReadModelService:
                 canonical_competition_id=canonical_competitions.get(
                     str(item.get("fixture_id") or "")
                 ),
-                public_team_labels=public_team_labels.get(
-                    str(item.get("fixture_id") or ""), {}
-                ),
+                public_team_labels=public_team_labels.get(str(item.get("fixture_id") or ""), {}),
             )
             for item in fixtures
         ]
         selected = self._filter_dashboard_cards(cards, requested_date=requested_date, window=window)
-        collection_reader = getattr(
-            self.repository,
-            "market_collection_status_for_fixtures",
-            None,
-        )
-        collection_status = (
-            collection_reader([str(card.get("fixture_id") or "") for card in selected])
-            if callable(collection_reader)
-            else {}
-        )
-        for card in selected:
-            fixture_status = collection_status.get(str(card.get("fixture_id") or ""))
-            if fixture_status:
-                current_refresh = card.get("data_refresh")
-                card["data_refresh"] = {
-                    **(current_refresh if isinstance(current_refresh, dict) else {}),
-                    **fixture_status,
-                }
+        generated_at = datetime.now(UTC)
+        self._apply_collection_status(selected, generated_at)
         recommendations = [
             card
             for card in selected
@@ -1694,7 +2898,6 @@ class ReadModelService:
         ]
         upcoming = [card for card in selected if card["status"] != "FINISHED"]
         finished = [card for card in selected if card["status"] == "FINISHED"]
-        generated_at = datetime.now(UTC)
         date_strip_reader = getattr(self.repository, "persisted_date_strip", None)
         date_strip = (
             date_strip_reader(requested_date, now=generated_at)
@@ -1713,6 +2916,18 @@ class ReadModelService:
                 odds_plans=(),
                 market_evidence_fixture_ids=set(),
                 as_of=generated_at,
+                active_whitelist_count=len(
+                    {str(card.get("competition_id") or "") for card in cards} - {""}
+                ),
+            )
+        )
+        active_count_reader = getattr(self.repository, "active_competition_count", None)
+        active_whitelist_count = (
+            active_count_reader()
+            if callable(active_count_reader)
+            else max(
+                (int(item.get("active_whitelist_count") or 0) for item in date_strip),
+                default=0,
             )
         )
         start, end = football_day_window(requested_date)
@@ -1758,6 +2973,7 @@ class ReadModelService:
             "window": window,
             "data_profile": "real-db" if fixture_checkpoint_count else "empty",
             "data_source": "read_model_checkpoint",
+            "active_whitelist_count": active_whitelist_count,
             "version": {
                 "api_git_sha": git_sha,
                 "release_id": os.getenv("W2_RELEASE_ID") or git_sha,
@@ -1782,6 +2998,33 @@ class ReadModelService:
         }
         self._dashboard_response_cache[cache_key] = (now_tick, deepcopy(payload))
         return payload
+
+    def _apply_collection_status(
+        self,
+        cards: list[dict[str, Any]],
+        generated_at: datetime,
+    ) -> None:
+        collection_reader = getattr(
+            self.repository,
+            "market_collection_status_for_fixtures",
+            None,
+        )
+        collection_status = (
+            collection_reader(
+                [str(card.get("fixture_id") or "") for card in cards],
+                now=generated_at,
+            )
+            if callable(collection_reader)
+            else {}
+        )
+        for card in cards:
+            fixture_status = collection_status.get(str(card.get("fixture_id") or ""))
+            if fixture_status:
+                current_refresh = card.get("data_refresh")
+                card["data_refresh"] = {
+                    **(current_refresh if isinstance(current_refresh, dict) else {}),
+                    **fixture_status,
+                }
 
     def _project_dashboard_card(
         self,
@@ -1848,7 +3091,7 @@ class ReadModelService:
         merged["recommendation"] = (
             {
                 **cast(dict[str, Any], selected),
-                "tier": merged.get("decision_tier"),
+                "decision_tier": merged.get("decision_tier"),
                 "formal_recommendation": merged.get("decision_tier") == "RECOMMEND",
             }
             if isinstance(selected, dict)
@@ -1916,7 +3159,6 @@ class ReadModelService:
                 "action": "等待权威读模型投影",
                 "next_eval_at": None,
             },
-            "recommendation_decision_v3_role": "HISTORY_ONLY",
             "projection_health": {
                 "status": "SYSTEM_DEGRADED",
                 "reason_code": effective_blocker,
@@ -1935,6 +3177,14 @@ class ReadModelService:
             return sorted(cards, key=lambda row: str(row.get("kickoff_utc") or ""))
         if window == "next36":
             start, end = next_36_hours_window()
+            return [
+                card
+                for card in cards
+                if (kickoff := _parse_datetime(card.get("kickoff_utc"))) is not None
+                and start <= kickoff < end
+            ]
+        if window == "next7":
+            start, end = next_7_days_window()
             return [
                 card
                 for card in cards

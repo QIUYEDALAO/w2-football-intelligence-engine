@@ -107,9 +107,7 @@ def test_seven_intelligence_states_are_deterministic(
     projection = build_intelligence_projection({**_base_card(), **changes})
 
     assert projection["intelligence_state"] == expected
-    assert projection["recommendation_decision_v4_role"] == (
-        "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY"
-    )
+    assert projection["recommendation_decision_v4_role"] == "PRODUCT_AUTHORITY"
 
 
 def test_frozen_precedence_and_reason_order_are_deterministic() -> None:
@@ -277,9 +275,9 @@ def test_collection_risk_requires_fresh_persisted_capture_for_ok() -> None:
         "dimension": "COLLECTION_RISK",
         "status": "OK",
         "reason_codes": [],
-        "explanation": "采集状态已有新鲜持久化证据",
+        "explanation": "采集状态已有持久化证据",
         "assessment_status": "ASSESSED_CURRENT",
-        "evidence_basis": "PERSISTED_ODDS_CAPTURE_AND_MARKET_FRESHNESS",
+        "evidence_basis": "PERSISTED_ODDS_CAPTURE",
         "source_as_of": "2026-08-09T10:00:00Z",
     }
 
@@ -352,7 +350,7 @@ def test_not_ready_does_not_become_event_risk_and_market_facts_remain_visible() 
     assert view["counts"]["market_complete_fixtures"] == 1
 
 
-def test_market_stable_is_non_empty_and_zero_alerts_are_valid() -> None:
+def test_missing_v4_prevents_market_stable_even_when_legacy_inputs_are_ready() -> None:
     contract = {
         "decision_tier": "SKIP",
         "data_status": "READY",
@@ -398,10 +396,10 @@ def test_market_stable_is_non_empty_and_zero_alerts_are_valid() -> None:
     )
 
     assert len(view["cards"]) == 1
-    assert view["cards"][0]["intelligence_state"] == "MARKET_STABLE"
-    assert view["cards"][0]["intelligence_reason_codes"] == ["MARKET_STABLE_NO_MATERIAL_ALERT"]
-    assert view["counts"]["market_stable_fixtures"] == 1
+    assert view["cards"][0]["intelligence_state"] == "DATA_INCOMPLETE"
+    assert "DATA_STATUS_BLOCKED" in view["cards"][0]["intelligence_reason_codes"]
+    assert view["counts"]["market_stable_fixtures"] == 0
     assert view["counts"]["market_movement_fixtures"] == 0
     assert view["counts"]["model_diagnostic_warnings"] == 0
-    assert view["counts"]["data_incidents"] == 0
+    assert view["counts"]["data_incidents"] == 1
     assert view["counts"]["collection_incidents"] == 0

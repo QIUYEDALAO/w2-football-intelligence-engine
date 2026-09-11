@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from w2.ingestion.checkpoint_refresh import (
+    FixtureCheckpointPlan,
     checkpoint_plan_for_fixture,
     line_jump_confirmation_plan,
     lineups_retry_plans,
@@ -38,9 +39,11 @@ def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> N
         "T6_ODDS",
         "T3_ODDS",
         "T60_ODDS_LINEUPS",
+        "T45_ODDS",
         "T45_LINEUPS_RETRY",
         "T30_LINEUPS_RETRY",
         "T-30m_VALIDATION_LOCK",
+        "T15_ODDS",
     ]
     by_checkpoint = {plan.checkpoint: plan for plan in plans}
     assert by_checkpoint["T168_OPEN_ODDS"].due_at_utc == kickoff - timedelta(days=7)
@@ -52,6 +55,10 @@ def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> N
     assert by_checkpoint["T6_ODDS"].due_at_utc == kickoff - timedelta(hours=6)
     assert by_checkpoint["T60_ODDS_LINEUPS"].due_at_utc == kickoff - timedelta(hours=1)
     assert by_checkpoint["T60_ODDS_LINEUPS"].endpoints == ("odds", "lineups")
+    assert by_checkpoint["T45_ODDS"].due_at_utc == kickoff - timedelta(minutes=45)
+    assert by_checkpoint["T45_ODDS"].endpoints == ("odds",)
+    assert by_checkpoint["T15_ODDS"].due_at_utc == kickoff - timedelta(minutes=15)
+    assert by_checkpoint["T15_ODDS"].endpoints == ("odds",)
     assert [plan.plan_id for plan in plans].count("fixture-1:T60_ODDS_LINEUPS") == 1
 
 
@@ -205,6 +212,39 @@ def test_checkpoint_batch_reserves_retry_budget(monkeypatch) -> None:
     assert (len(selected), projected) == (15, 30)
 
 
+def test_checkpoint_batch_skips_expensive_row_and_keeps_later_zero_increment_row(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+    common = {
+        "kickoff_utc": NOW + timedelta(hours=1),
+        "due_at_utc": NOW,
+    }
+    first = FixtureCheckpointPlan(
+        fixture_id="fixture-a",
+        checkpoint="T60_ODDS_LINEUPS",
+        endpoints=("odds", "lineups"),
+        **common,
+    )
+    expensive = FixtureCheckpointPlan(
+        fixture_id="fixture-b",
+        checkpoint="T15_ODDS",
+        endpoints=("odds",),
+        **common,
+    )
+    shared_call = FixtureCheckpointPlan(
+        fixture_id="fixture-a",
+        checkpoint="T15_ODDS",
+        endpoints=("odds",),
+        **common,
+    )
+
+    selected, projected = select_checkpoint_batch([first, expensive, shared_call], hard_cap=2)
+
+    assert selected == [first, shared_call]
+    assert projected == 2
+
+
 def test_world_cup_five_fixture_budget_stays_under_100_including_retries() -> None:
     projection = world_cup_matchday_budget_projection(fixture_count=5, include_retries=True)
 
@@ -245,11 +285,11 @@ def test_world_cup_policy_disables_trickle_backfill_until_final_hibernation() ->
         item for item in payload["competitions"] if item["competition_id"] == "world_cup_2026"
     )
 
-    assert policy["daily_hard_cap"] == 120
-    assert policy["daily_reserve"] == 0
+    assert policy["daily_hard_cap"] == 7500
+    assert policy["daily_reserve"] == 1500
     assert policy["request_budget"] == 30
-    assert policy["checkpoint_mode"] == "matchday_intake_v2_compatibility"
-    assert policy["trickle_backfill_daily_budget"] == 0
+    assert policy["checkpoint_mode"] == "matchday_checkpoint_plan"
+    assert policy["trickle_backfill_daily_budget"] == 120
 
 
 def test_hibernate_workorder_records_post_final_trickle_switch_to_60_40() -> None:

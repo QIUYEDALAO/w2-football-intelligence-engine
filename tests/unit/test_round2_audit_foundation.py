@@ -26,7 +26,6 @@ from w2.competitions.league_whitelist_provider_audit import (
 )
 from w2.competitions.league_whitelist_scope import load_league_whitelist_scope
 from w2.competitions.registry import CompetitionRegistry
-from w2.ingestion.free_fixture_runtime import _runtime_policies
 
 CURRENT_SEASON = datetime.now(UTC).year
 
@@ -88,14 +87,11 @@ def test_audit_candidates_are_unreachable_from_runtime_paths() -> None:
     assert registered.isdisjoint(AUDIT_ONLY_IDS)
     assert set(future_fixture_refresh_competition_ids()).isdisjoint(AUDIT_ONLY_IDS)
     assert set(matchday_checkpoint_competition_ids()).isdisjoint(AUDIT_ONLY_IDS)
-    bridge_policies = _runtime_policies(CompetitionRegistry(), expected_whitelist_size=13)
-    assert len(bridge_policies) == 13
-    assert set(bridge_policies).isdisjoint(AUDIT_ONLY_IDS)
+    assert registered.isdisjoint(AUDIT_ONLY_IDS)
 
     for path in (
         Path("src/w2/competitions/registry.py"),
         Path("src/w2/ingestion/future_refresh.py"),
-        Path("src/w2/ingestion/free_fixture_runtime.py"),
         Path("src/w2/matchday/intake_v2.py"),
         Path("apps/scheduler/main.py"),
         Path("src/w2/dashboard/day_view.py"),

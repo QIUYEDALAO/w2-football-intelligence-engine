@@ -27,6 +27,10 @@ from w2.competitions.seed import seed_competition_runtime_authority
 from w2.config import get_settings
 from w2.infrastructure.database import Base
 from w2.infrastructure.database import create_engine as w2_create_engine
+from w2.infrastructure.persistence.dynamic_prematch_models import (
+    DynamicPrematchEvaluationModel,
+    LineupConfirmedEventModel,
+)
 from w2.infrastructure.persistence.future_refresh_models import GateARunReservationModel
 from w2.ingestion.future_refresh import (
     FutureRefreshError,
@@ -270,6 +274,27 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
             "exact_pair": 1,
             "bootstrap_seed_evidence": 1,
         }
+        # The pair exists because both evaluations are complete, not because
+        # either became recommendable. The factor gate refused both, and that
+        # refusal has to survive into the persisted rows: a pair projected off
+        # rows that had been rewritten to an active or no-edge state would be
+        # measuring something the gate never allowed.
+        with create_engine(database_url_text).connect() as connection:
+            persisted = connection.execute(
+                text(
+                    "SELECT original_state, payload FROM dynamic_prematch_evaluations "
+                    "ORDER BY evaluated_at"
+                )
+            ).all()
+        assert [row[0] for row in persisted] == ["BLOCKED_BY_FACTOR", "BLOCKED_BY_FACTOR"]
+        for _, persisted_payload in persisted:
+            assert persisted_payload["blockers"] == ["FACTOR_SCORE_UNAVAILABLE"]
+            assert persisted_payload["state"] == "BLOCKED_BY_FACTOR"
+            assert persisted_payload.get("opportunity_state") in {None, "BLOCKED_BY_GATE"}
+            # gate_results is None outside the denominator scope, which the
+            # staged bootstrap is; either way it must not claim a candidate.
+            assert (persisted_payload.get("gate_results") or {}).get("candidate") is not True
+
         assert evidence["lineage"]["fixture_selection"]["selected_fixture_id"] == FIXTURE_ID
         assert evidence["lineage"]["fixture_selection"]["eligible_candidate_count"] == 2
         assert [path.split("?", 1)[0] for path in _FakeProviderHandler.requests] == [
@@ -524,3 +549,88 @@ def test_policy_hash_drift_rejects_before_provider_call(
     assert stored_reservation is not None
     assert stored_reservation.status == "BLOCKED"
     get_settings.cache_clear()
+
+
+def _diagnostic_evaluation_row(fixture_id: str, *, checkpoint: str) -> dict[str, Any]:
+    """Minimal persisted evaluation, enough for the diagnostic to read it back."""
+    suffix = uuid4().hex
+    return {
+        "evaluation_id": f"eval-{suffix[:12]}",
+        # Unique per row: the table enforces one evaluation per identity.
+        "identity_hash": (suffix * 2)[:64],
+        "fixture_id": fixture_id,
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME",
+        "checkpoint": checkpoint,
+        "evaluated_at": datetime.now(UTC),
+        "original_state": "NOT_READY_MODEL_INPUT",
+        "payload": {"blockers": ["EV_EVIDENCE_INCOMPLETE"]},
+    }
+
+
+def test_pair_projection_diagnostic_reads_only_the_current_runs_fixture() -> None:
+    """A failing run's diagnostic must not read another run's rows.
+
+    The diagnostic used to select every lineup event, fixture identity and
+    evaluation in the database. On a shared instance that put a concurrent or
+    earlier run's rows into this run's failure output, so the operator could not
+    tell which rows belonged to the failure being diagnosed -- and a Gate A
+    diagnostic that reports another run's state is worse than no diagnostic.
+    """
+    from scripts.run_gate_a_staged_canary import (
+        _diagnostic_fixture_aliases,
+        _pair_evaluation_diagnostic,
+    )
+
+    source_url = os.environ.get("W2_TEST_POSTGRES_URL")
+    if not source_url:
+        pytest.skip("W2_TEST_POSTGRES_URL is required for the diagnostic scope test")
+    database_name = f"w2_diag_{uuid4().hex[:12]}"
+    source = make_url(source_url)
+    admin_url = source.set(database="postgres")
+    database_url_text = source.set(database=database_name).render_as_string(False)
+    with create_engine(admin_url, isolation_level="AUTOCOMMIT").connect() as connection:
+        connection.execute(text(f'CREATE DATABASE "{database_name}"'))
+    try:
+        engine = create_engine(database_url_text)
+        Base.metadata.create_all(engine)
+        mine, theirs = "api_football:900001", "api_football:900002"
+        with Session(engine) as session:
+            # One confirmed lineup per fixture, with the Pre and Post evaluations
+            # either side of it -- the shape a real staged run leaves behind.
+            for fixture_id in (mine, theirs):
+                session.execute(
+                    LineupConfirmedEventModel.__table__.insert(),
+                    {
+                        "event_id": f"lineup:{uuid4().hex}",
+                        "fixture_id": fixture_id,
+                        "lineup_input_hash": uuid4().hex * 2,
+                        "captured_at": datetime.now(UTC),
+                        "checkpoint": "GATE_A_STAGED_POST",
+                        "payload": {},
+                    },
+                )
+                for checkpoint in ("GATE_A_STAGED_PRE", "GATE_A_STAGED_POST"):
+                    session.execute(
+                        DynamicPrematchEvaluationModel.__table__.insert(),
+                        _diagnostic_evaluation_row(fixture_id, checkpoint=checkpoint),
+                    )
+            session.commit()
+
+        rows = _pair_evaluation_diagnostic(
+            engine, fixture_aliases=_diagnostic_fixture_aliases("900001")
+        )
+
+        assert rows, "the current run's own rows must still be reported"
+        seen = {str(row["fixture_id"]) for row in rows}
+        assert seen == {mine}, f"diagnostic leaked another run's fixtures: {seen}"
+        assert theirs not in json.dumps(rows, default=str)
+
+        # Bare and prefixed spellings address the same run, and an unresolved
+        # fixture must report nothing rather than fall back to an unscoped dump.
+        assert _diagnostic_fixture_aliases("900001") == _diagnostic_fixture_aliases(mine)
+        assert _pair_evaluation_diagnostic(engine, fixture_aliases=frozenset()) == []
+        engine.dispose()
+    finally:
+        with create_engine(admin_url, isolation_level="AUTOCOMMIT").connect() as connection:
+            connection.execute(text(f'DROP DATABASE IF EXISTS "{database_name}" WITH (FORCE)'))

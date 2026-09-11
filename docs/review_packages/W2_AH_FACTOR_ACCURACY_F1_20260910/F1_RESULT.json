@@ -1,0 +1,32 @@
+{
+  "ah_fixtures_total": 84,
+  "ah_fixtures_with_a_prematch_factor_archive": 9,
+  "ah_fixtures_with_any_registered_source": 75,
+  "ah_rows": 84,
+  "ah_rows_with_evaluation_keyed_checkpoint_source": 66,
+  "deployment_executed": false,
+  "exact_pit_rows": 0,
+  "f2_allowed": false,
+  "f3_allowed": false,
+  "factor_count": 4,
+  "final_state": "F1_NOT_RECONSTRUCTIBLE_FROM_FROZEN_148",
+  "input_bundle_sha256": "da9edb11be8144991addeb1c6e83724d3cca083ca46b0bd8de2eaa6d45f6e7e4",
+  "mainline_id": "AH-FACTOR-ACCURACY-V1",
+  "matrix_rows": 336,
+  "not_reconstructible_rows": 72,
+  "obsidian_writes": 0,
+  "parent_commit": "f5dd9c23cf90cd836139bacbde559421f6dd59a2",
+  "post_capture_rows": 264,
+  "production_db_reads": 0,
+  "production_db_writes": 0,
+  "provider_calls": 0,
+  "public_http_fetch": 0,
+  "row_status_counts": {
+    "NOT_RECONSTRUCTIBLE": 72,
+    "SOURCE_ONLY_POST_CAPTURE": 264
+  },
+  "schema_version": "w2.ah_factor_accuracy_f1_result.v1",
+  "source_count": 27,
+  "task_id": "W2_AH_FACTOR_ACCURACY_F1_READINESS_20260910",
+  "weight_calibration_status": "BLOCKED_BY_MATRIX"
+}

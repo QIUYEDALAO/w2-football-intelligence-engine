@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -9,17 +11,379 @@ from typing import Any
 import pytest
 
 from w2.api import repository as repository_module
-from w2.api.schemas import DashboardIntelligenceWorkspaceResponse
+from w2.api.routers import _isolate_workspace_match_projection_failures
+from w2.api.schemas import (
+    DashboardIntelligenceWorkspaceResponse,
+    WorkspaceMatchProjectionError,
+    WorkspaceModelForecastProgress,
+)
 from w2.config import get_settings
+from w2.dashboard import workspace as workspace_module
 from w2.dashboard.results import outcome_public_cause
 from w2.dashboard.workspace import build_dashboard_intelligence_workspace
-from w2.identity.public_team_labels import reviewed_public_team_labels
+from w2.identity.public_team_labels import (
+    pending_public_team_labels,
+    reviewed_public_team_labels,
+)
+
+
+def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> None:
+    base = datetime(2026, 8, 20, tzinfo=UTC)
+    picks = [
+        ("1490391", "TOTALS", "OVER", "3.5", "1.87", 2, 2, "WIN", "0.87"),
+        ("1490392", "ASIAN_HANDICAP", "AWAY", "0.5", "1.87", 2, 1, "LOSS", "-1"),
+        ("1490394", "TOTALS", "OVER", "3.0", "1.8", 0, 1, "LOSS", "-1"),
+        ("1490396", "ASIAN_HANDICAP", "AWAY", "0.25", "1.77", 3, 3, "HALF_WIN", "0.385"),
+        ("1490398", "ASIAN_HANDICAP", "AWAY", "-0.5", "1.88", 1, 1, "LOSS", "-1"),
+        ("1490398", "TOTALS", "UNDER", "3.0", "1.95", 1, 1, "WIN", "0.95"),
+        ("1490399", "TOTALS", "UNDER", "3.0", "1.81", 1, 2, "PUSH", "0"),
+        ("1490400", "ASIAN_HANDICAP", "HOME", "0.25", "1.55", 1, 0, "WIN", "0.55"),
+        ("1490401", "ASIAN_HANDICAP", "AWAY", "0.75", "1.75", 1, 2, "WIN", "0.75"),
+        ("1490402", "ASIAN_HANDICAP", "AWAY", "0.5", "1.88", 3, 4, "WIN", "0.88"),
+        ("1490404", "ASIAN_HANDICAP", "AWAY", "1.0", "1.87", 0, 1, "WIN", "0.87"),
+        ("1490404", "TOTALS", "UNDER", "2.75", "1.89", 0, 1, "WIN", "0.89"),
+        ("1490405", "ASIAN_HANDICAP", "HOME", "-0.5", "1.85", 3, 1, "WIN", "0.85"),
+        ("1490405", "TOTALS", "UNDER", "3.5", "1.9", 3, 1, "LOSS", "-1"),
+    ]
+    evaluations = [
+        SimpleNamespace(
+            evaluation_id=f"eval-{fixture_id}-{market}",
+            fixture_id=fixture_id,
+            market=market,
+            selection=selection,
+            evaluated_at=base + timedelta(minutes=index),
+            official_funnel_eligible=True,
+            opportunity_identity_hash=f"opp-{fixture_id}-{market}",
+            attempt_identity_hash=f"attempt-{fixture_id}-{market}",
+            payload={
+                "state": "ANALYSIS_PICK_ACTIVE",
+                "exact_line": line,
+                "decimal_odds": odds,
+            },
+        )
+        for index, (fixture_id, market, selection, line, odds, *_rest) in enumerate(picks)
+    ]
+    opportunities = [
+        SimpleNamespace(
+            opportunity_identity_hash=row.opportunity_identity_hash,
+            fixture_id=row.fixture_id,
+            market=row.market,
+            state="EVALUATED_CANDIDATE",
+            evaluation_slot_id=(
+                "T-30m_VALIDATION_LOCK" if row.fixture_id == "1490399" else "T45_ODDS"
+            ),
+            scheduled_checkpoint_at=row.evaluated_at,
+            recorded_at=row.evaluated_at,
+            latest_attempt_identity_hash=row.attempt_identity_hash,
+        )
+        for row in evaluations
+    ]
+    for fixture_id, market in (
+        ("1490391", "TOTALS"),
+        ("1490392", "ASIAN_HANDICAP"),
+        ("1490394", "TOTALS"),
+        ("1490396", "ASIAN_HANDICAP"),
+    ):
+        opportunities.append(
+            SimpleNamespace(
+                opportunity_identity_hash=f"missed-{fixture_id}-{market}",
+                fixture_id=fixture_id,
+                market=market,
+                state="MISSED_CHECKPOINT",
+                evaluation_slot_id="T15_ODDS",
+                scheduled_checkpoint_at=base + timedelta(hours=1),
+                recorded_at=base + timedelta(hours=1),
+                latest_attempt_identity_hash=None,
+            )
+        )
+    # Older attempts, legacy rows, and non-candidates must not inflate the 14 picks.
+    evaluations.extend(
+        [
+            SimpleNamespace(
+                evaluation_id="older-vancouver-ah",
+                fixture_id="1490404",
+                market="ASIAN_HANDICAP",
+                selection="AWAY",
+                evaluated_at=base - timedelta(minutes=1),
+                official_funnel_eligible=True,
+                opportunity_identity_hash="older-vancouver-opportunity",
+                attempt_identity_hash="older-vancouver-attempt",
+                payload={
+                    "state": "ANALYSIS_PICK_ACTIVE",
+                    "exact_line": "1.0",
+                    "decimal_odds": "9.99",
+                },
+            ),
+            SimpleNamespace(
+                evaluation_id="legacy",
+                fixture_id="legacy",
+                market="TOTALS",
+                selection="UNDER",
+                evaluated_at=base,
+                official_funnel_eligible=None,
+                payload={
+                    "state": "ANALYSIS_PICK_ACTIVE",
+                    "exact_line": "3.0",
+                    "decimal_odds": "1.90",
+                },
+            ),
+            SimpleNamespace(
+                evaluation_id="no-edge",
+                fixture_id="no-edge",
+                market="TOTALS",
+                selection="UNDER",
+                evaluated_at=base,
+                official_funnel_eligible=True,
+                payload={"state": "NO_EDGE_CURRENT"},
+            ),
+        ]
+    )
+    fixture_ids = {row[0] for row in picks}
+    fixtures = {
+        fixture_id: SimpleNamespace(
+            fixture_id=f"api_football:{fixture_id}",
+            provider_fixture_id=fixture_id,
+            kickoff_utc=base + timedelta(hours=index),
+            home_provider_team_id=f"home-{fixture_id}",
+            away_provider_team_id=f"away-{fixture_id}",
+            home_w2_team_id=None,
+            away_w2_team_id=None,
+            team_identity_status="UNRESOLVED",
+            payload={
+                "teams": {
+                    "home": {"name": f"Home {fixture_id}"},
+                    "away": {"name": f"Away {fixture_id}"},
+                }
+            },
+        )
+        for index, fixture_id in enumerate(sorted(fixture_ids))
+    }
+    scores = {fixture_id: (home, away) for fixture_id, _, _, _, _, home, away, *_ in picks}
+    results = {
+        f"api_football:{fixture_id}": SimpleNamespace(home_goals=home, away_goals=away)
+        for fixture_id, (home, away) in scores.items()
+    }
+
+    rows = repository_module._official_funnel_recommendations(
+        evaluations, opportunities, fixtures, results, {}
+    )
+
+    assert len(rows) == 14
+    assert len({row["fixture_id"] for row in rows}) == 11
+    assert sum(Decimal(str(row["profit_units"])) for row in rows) == Decimal("2.995")
+    by_pick = {(row["fixture_id"], row["market"]): row for row in rows}
+    vancouver = by_pick[("1490404", "ASIAN_HANDICAP")]
+    portland = by_pick[("1490405", "TOTALS")]
+    minnesota = by_pick[("1490399", "TOTALS")]
+    assert (vancouver["settlement"], vancouver["profit_units"], vancouver["decimal_odds"]) == (
+        "WIN",
+        0.87,
+        1.87,
+    )
+    assert (portland["settlement"], portland["profit_units"]) == ("LOSS", -1.0)
+    assert (minnesota["settlement"], minnesota["profit_units"]) == ("PUSH", 0.0)
+    assert minnesota["confirmed_checkpoint"] == "T-30m"
+    restored = {
+        ("1490391", "TOTALS"),
+        ("1490392", "ASIAN_HANDICAP"),
+        ("1490394", "TOTALS"),
+        ("1490396", "ASIAN_HANDICAP"),
+    }
+    assert restored <= set(by_pick)
+    assert by_pick[("1490391", "TOTALS")]["lifecycle_note_zh"] == (
+        "最终确认于 T-45m；此后 T-15m 未产出评估，不影响该确认"
+    )
+
+    pending = repository_module._official_funnel_recommendations(
+        evaluations,
+        opportunities,
+        fixtures,
+        {key: value for key, value in results.items() if not key.endswith("1490404")},
+        {},
+    )
+    pending_vancouver = next(
+        row
+        for row in pending
+        if row["fixture_id"] == "1490404" and row["market"] == "ASIAN_HANDICAP"
+    )
+    assert pending_vancouver["settlement"] == "PENDING"
+    assert pending_vancouver["score"] is None
+    assert pending_vancouver["profit_units"] is None
+    WorkspaceModelForecastProgress.model_validate(
+        workspace_module._model_forecast_progress(
+            {"official_recommendations": [rows[0], pending_vancouver]}
+        )
+    )
+
+
+def test_official_recommendation_is_removed_by_later_evaluated_no_edge() -> None:
+    base = datetime(2026, 8, 20, tzinfo=UTC)
+    candidate = SimpleNamespace(
+        evaluation_id="candidate",
+        fixture_id="1570351",
+        market="TOTALS",
+        selection="OVER",
+        evaluated_at=base,
+        official_funnel_eligible=True,
+        opportunity_identity_hash="candidate-opportunity",
+        attempt_identity_hash="candidate-attempt",
+        payload={"state": "ANALYSIS_PICK_ACTIVE", "exact_line": "2.0", "decimal_odds": "1.82"},
+    )
+    no_edge = SimpleNamespace(
+        evaluation_id="no-edge",
+        fixture_id="1570351",
+        market="TOTALS",
+        selection="OVER",
+        evaluated_at=base + timedelta(minutes=15),
+        official_funnel_eligible=True,
+        opportunity_identity_hash="no-edge-opportunity",
+        attempt_identity_hash="no-edge-attempt",
+        payload={"state": "NO_EDGE_CURRENT"},
+    )
+    opportunities = [
+        SimpleNamespace(
+            opportunity_identity_hash="candidate-opportunity",
+            fixture_id="1570351",
+            market="TOTALS",
+            state="EVALUATED_CANDIDATE",
+            evaluation_slot_id="T-30m_VALIDATION_LOCK",
+            scheduled_checkpoint_at=base,
+            recorded_at=base,
+            latest_attempt_identity_hash="candidate-attempt",
+        ),
+        SimpleNamespace(
+            opportunity_identity_hash="no-edge-opportunity",
+            fixture_id="1570351",
+            market="TOTALS",
+            state="EVALUATED_NO_EDGE",
+            evaluation_slot_id="T15_ODDS",
+            scheduled_checkpoint_at=base + timedelta(minutes=15),
+            recorded_at=base + timedelta(minutes=15),
+            latest_attempt_identity_hash="no-edge-attempt",
+        ),
+    ]
+
+    assert (
+        repository_module._official_funnel_recommendations(
+            [candidate, no_edge], opportunities, {}, {}, {}
+        )
+        == []
+    )
+
+
+def test_later_opportunity_without_evaluation_does_not_override_candidate() -> None:
+    base = datetime(2026, 8, 20, tzinfo=UTC)
+    candidate = SimpleNamespace(
+        evaluation_id="candidate",
+        fixture_id="1570351",
+        market="TOTALS",
+        selection="OVER",
+        evaluated_at=base,
+        official_funnel_eligible=True,
+        opportunity_identity_hash="candidate-opportunity",
+        attempt_identity_hash="candidate-attempt",
+        payload={"state": "ANALYSIS_PICK_ACTIVE", "exact_line": "2.0", "decimal_odds": "1.82"},
+    )
+    opportunities = [
+        SimpleNamespace(
+            opportunity_identity_hash="candidate-opportunity",
+            fixture_id="1570351",
+            market="TOTALS",
+            state="EVALUATED_CANDIDATE",
+            evaluation_slot_id="T-30m_VALIDATION_LOCK",
+            scheduled_checkpoint_at=base,
+            recorded_at=base,
+            latest_attempt_identity_hash="candidate-attempt",
+        ),
+        SimpleNamespace(
+            opportunity_identity_hash="orphan-opportunity",
+            fixture_id="1570351",
+            market="TOTALS",
+            state="EVALUATED_NO_EDGE",
+            evaluation_slot_id="T15_ODDS",
+            scheduled_checkpoint_at=base + timedelta(minutes=15),
+            recorded_at=base + timedelta(minutes=15),
+            latest_attempt_identity_hash="orphan-attempt",
+        ),
+    ]
+
+    rows = repository_module._official_funnel_recommendations(
+        [candidate], opportunities, {}, {}, {}
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["confirmed_checkpoint"] == "T-30m"
+    assert rows[0]["later_unassessed_checkpoints"] == ["T-15m"]
+
+
+def test_model_forecast_funnel_reports_not_measurable_without_opportunities() -> None:
+    """Captures are not opportunities, so they cannot stand in as a denominator.
+
+    The previous contract multiplied captures by markets and read every missing
+    row as "all gates failed, entry not traversed".  With no opportunity writer
+    in production that published a 100%-model / 0%-everything funnel describing
+    fixtures whose checkpoints had not even come due.  Silence must read as
+    silence.
+    """
+
+    captures = [
+        SimpleNamespace(fixture_id="1"),
+        SimpleNamespace(fixture_id="api_football:2"),
+    ]
+
+    funnel = repository_module._model_forecast_market_evaluation_funnel(captures, [], set())
+
+    assert funnel["measurement_status"] == "NOT_MEASURABLE"
+    assert funnel["opportunity_count"] == 0
+    assert funnel["invalid_opportunity_row_count"] == 0
+    assert funnel["market_unit_count"] == 0
+    assert funnel["gate_rates"] is None
+    assert funnel["gate_counts"] == {}
+    assert funnel["first_failed_gate_counts"] == {}
+    # The captures are still reported -- they are just not the denominator.
+    assert funnel["capture_count"] == 2
+
+
+def test_model_forecast_funnel_flags_official_rows_missing_the_contract() -> None:
+    """A row asserting official status must satisfy the contract or be flagged.
+
+    Silently dropping it would report "nothing has happened" about a writer that
+    is producing broken records.  Rows that never claimed official status are a
+    different case and stay quietly excluded.
+    """
+
+    partial = SimpleNamespace(
+        evaluation_id="eval-1",
+        fixture_id="api_football:1",
+        market="ASIAN_HANDICAP",
+        denominator_scope="CHECKPOINT_EVALUATION_OPPORTUNITY_V2",
+        measurement_semantics="CHECKPOINT_EVALUATION_OPPORTUNITY",
+        official_funnel_eligible=True,
+        evaluation_policy_version="candidate-eval.v1",
+        evaluation_slot_id=None,
+        model_forecast_capture_identity_hash="capture-hash-A",
+        capture_id="quote-capture-1",
+        evaluated_at=None,
+        recorded_at=None,
+        original_state="NO_EDGE_CURRENT",
+        gate_results=None,
+        payload={"state": "NO_EDGE_CURRENT"},
+    )
+
+    funnel = repository_module._model_forecast_market_evaluation_funnel(
+        [SimpleNamespace(fixture_id="1")], [partial], set()
+    )
+
+    assert funnel["measurement_status"] == "INVALID"
+    assert funnel["opportunity_count"] == 0
+    assert funnel["invalid_opportunity_reasons"] == {"SLOT_MISSING": 1}
 
 
 def _market(snapshot_count: int) -> dict[str, Any]:
     points = [
         {
             "capture_id": f"capture-{index}",
+            "checkpoint": f"T{index}",
             "captured_at": f"2026-08-09T0{index}:00:00Z",
             "canonical_line": "-0.25",
             "bookmaker_count": 2,
@@ -154,6 +518,22 @@ def _card(fixture_id: str, snapshot_count: int) -> dict[str, Any]:
             "statistics_captured_at": "2026-08-09T01:00:00Z",
             "lineups_status": "PROVIDER_EMPTY",
             "injuries_status": "AVAILABLE",
+            "market_collection": {
+                "latest_snapshot_at": "2026-08-09T01:00:00Z",
+                "latest_snapshot_checkpoint": "T24_OPEN_ODDS",
+                "target_checkpoint": "T12_ODDS",
+                "scheduled_at": "2026-08-09T14:30:00Z",
+                "window_end_at": "2026-08-09T15:00:00Z",
+                "overdue": False,
+                "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
+            },
+            "lineup_collection": {
+                "target_checkpoint": "T60_ODDS_LINEUPS",
+                "scheduled_at": "2026-08-10T09:00:00Z",
+                "window_end_at": "2026-08-10T09:20:00Z",
+                "overdue": False,
+                "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
+            },
         },
         "card_hash": f"hash-{fixture_id}",
         "source": "decision_contract",
@@ -194,9 +574,7 @@ def _day_view() -> dict[str, Any]:
                 "persisted_competition_coverage_count": 1 if index == 7 else 0,
                 "active_whitelist_count": 13,
                 "market_collection_window_status": (
-                    "MARKET_EVIDENCE_AVAILABLE"
-                    if index == 7
-                    else "EMPTY_PERSISTED_DAY"
+                    "MARKET_EVIDENCE_AVAILABLE" if index == 7 else "EMPTY_PERSISTED_DAY"
                 ),
                 "market_evidence_fixture_count": 3 if index == 7 else 0,
             }
@@ -259,11 +637,14 @@ def _workspace(
     *,
     candidate_enabled: bool = False,
     replay: dict[str, Any] | None = None,
+    model_forecasts: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     return build_dashboard_intelligence_workspace(
         day_view,
         candidate_enabled=candidate_enabled,
-        replay=replay or {
+        model_forecasts=model_forecasts,
+        replay=replay
+        or {
             "replay_status": "MISSING_OUTCOMES",
             "known_at_summary": {
                 "has_day_view": True,
@@ -321,6 +702,7 @@ def test_shadow_candidate_activation_reuses_v4_and_stays_non_production() -> Non
     candidate = payload["matches"][0]["shadow_candidate"]
 
     assert payload["runtime"]["candidate"] == "SHADOW_ONLY"
+    assert payload["matches"][0]["readiness"]["market_aggregate_status"] == "PARTIAL"
     assert candidate == {
         "status": "ACTIVE",
         "mode": "SHADOW_ONLY",
@@ -346,7 +728,7 @@ def test_shadow_candidate_activation_reuses_v4_and_stays_non_production() -> Non
     )
 
 
-def test_active_shadow_candidate_contract_rejects_missing_quote_identity() -> None:
+def test_shadow_candidate_fails_closed_when_selected_market_is_not_eligible() -> None:
     day_view = _day_view()
     day_view["cards"][0]["recommendation_decision_v4"] = {
         "outcome": "ANALYSIS_PICK",
@@ -356,10 +738,488 @@ def test_active_shadow_candidate_contract_rejects_missing_quote_identity() -> No
     }
     payload = _workspace(day_view, candidate_enabled=True)
 
-    with pytest.raises(ValueError, match="active shadow candidate requires complete V4 identity"):
-        DashboardIntelligenceWorkspaceResponse.model_validate(
-            {"request_id": "candidate-contract", **payload}
+    candidate = payload["matches"][0]["shadow_candidate"]
+    assert candidate["status"] == "NOT_READY"
+    assert candidate["market"] is None
+    assert candidate["outcome_tracked"] is False
+    DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "candidate-contract", **payload}
+    )
+
+
+def test_shadow_candidate_uses_exact_quote_age_not_diagnostic_market_age() -> None:
+    day_view = _day_view()
+    day_view["cards"][0]["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(2)
+    day_view["generated_at"] = "2026-08-09T03:00:00Z"
+    day_view["cards"][0]["market_candidates"] = {
+        "ah": {
+            "quote_status": "STALE",
+            "quote_usage": "REFERENCE_ONLY",
+            "quote_identity": {"identity_status": "COMPLETE"},
+            "model_status": "READY",
+            "blockers": [],
+        }
+    }
+    day_view["cards"][0]["recommendation_decision_v4"] = {
+        "outcome": "ANALYSIS_PICK",
+        "reason": {"code": "ANALYSIS_ONLY"},
+        "selected_candidate": {
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME",
+            "exact_line": "-0.25",
+        },
+        "decision_hash": "a" * 64,
+    }
+
+    payload = _workspace(day_view, candidate_enabled=True)
+    match = payload["matches"][0]
+    assert match["market_radar"]["markets"]["ASIAN_HANDICAP"]["status"] == "READY"
+    assert match["market_radar"]["markets"]["ASIAN_HANDICAP"]["quote_age_seconds"] == 7200
+    assert match["shadow_candidate"]["status"] == "NOT_READY"
+    assert match["shadow_candidate"]["outcome_tracked"] is False
+    DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "candidate-stale", **payload}
+    )
+
+
+def _factor_checklist_card() -> dict[str, Any]:
+    card = _card("fixture-factor-checklist", 2)
+    for side in ("home", "away"):
+        card[f"{side}_team_label"] = {
+            "display_name": "主队" if side == "home" else "客队",
+            "state": "CHINESE_LABEL_READY",
+            "canonical_team_id": f"w2:{side}",
+            "provider_team_id": side,
+        }
+    for market in ("ASIAN_HANDICAP", "TOTALS"):
+        raw = _market(2)
+        raw["current"]["bookmaker_count"] = 4
+        for point in raw["timeline"]["points"]:
+            point["bookmaker_count"] = 4
+        card["market_radar"]["markets"][market] = raw
+    card["market_candidates"] = {
+        key: {
+            "quote_status": "STALE",
+            "quote_usage": "REFERENCE_ONLY",
+            "quote_identity": {"identity_status": "COMPLETE"},
+            "model_status": "READY",
+            "blockers": ["QUOTE_OLDER_THAN_30_MINUTES"],
+        }
+        for key in ("ah", "ou")
+    }
+    card["factor_checklist_inputs"] = {
+        "data_readiness": {
+            "xg": True,
+            "xg_status": "READY",
+            "xg_home_match_count": 3,
+            "xg_away_match_count": 3,
+            "xg_snapshot_count": 2,
+            "lineups": False,
+            "lineups_status": "NOT_REQUESTED",
+        },
+        "feature_contributions": [],
+        "provider_xg_unavailable_confirmed": False,
+    }
+    return card
+
+
+def test_factor_checklist_separates_model_track_from_stale_quote_gate() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-09T03:00:00Z"
+    day_view["cards"] = [_factor_checklist_card()]
+
+    checklist = _workspace(day_view, candidate_enabled=True)["matches"][0]["factor_checklist"]
+
+    assert checklist["track_model_forecast"] == {
+        "state": "READY",
+        "blocking_factor_ids": [],
+    }
+    assert checklist["track_shadow_candidate"]["state"] == "BLOCKED"
+    assert checklist["track_shadow_candidate"]["blocking_factor_ids"] == ["MK_QUOTE_AGE"]
+    quote_rows = [row for row in checklist["factors"] if row["factor_id"] == "MK_QUOTE_AGE"]
+    assert {row["market"] for row in quote_rows} == {"ASIAN_HANDICAP", "TOTALS"}
+    assert all(row["next_window_at"] == "2026-08-09T14:30:00Z" for row in quote_rows)
+    identity_rows = [row for row in checklist["factors"] if row["factor_id"] == "MK_EXACT_QUOTE"]
+    assert all(row["state"] == "READY" for row in identity_rows)
+    match = _workspace(day_view, candidate_enabled=True)["matches"][0]
+    assert match["readiness"]["market_aggregate_status"] == "NOT_READY"
+    assert all(
+        market["eligibility"]["candidate_quote_lock_status"] == "NOT_READY"
+        for market in match["market_radar"]["markets"].values()
+    )
+    assert "主盘身份可解析 ≠ 候选报价可锁定" in checklist["market_identity_note_zh"]
+
+
+def test_factor_checklist_reports_waiting_quote_before_unassessed_decision() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-09T03:00:00Z"
+    card = _factor_checklist_card()
+    for candidate in card["market_candidates"].values():
+        candidate.update(
+            quote_status="COMPLETE",
+            quote_usage="EXECUTABLE",
+            blockers=[],
         )
+    day_view["cards"] = [card]
+
+    checklist = _workspace(day_view, candidate_enabled=True)["matches"][0]["factor_checklist"]
+
+    assert checklist["track_shadow_candidate"]["blocking_factor_ids"] == ["MK_QUOTE_AGE"]
+    assert "等待中，尚未评估" in checklist["conclusion_zh"]
+    assert "最上游待满足：报价时效" in checklist["conclusion_zh"]
+    assert "Decision V4" not in checklist["conclusion_zh"]
+
+
+def test_factor_checklist_reports_no_edge_as_assessed_not_gate_failed() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-09T01:20:00Z"
+    card = _factor_checklist_card()
+    for candidate in card["market_candidates"].values():
+        candidate.update(
+            quote_status="COMPLETE",
+            quote_usage="EXECUTABLE",
+            blockers=[],
+        )
+    card["recommendation_decision_v4"] = {
+        "outcome": "NO_EDGE",
+        "reason": {
+            "code": "CASHFLOW_EDGE_INSUFFICIENT",
+            "message": "五态现金流优势不足",
+        },
+    }
+    day_view["cards"] = [card]
+
+    checklist = _workspace(day_view, candidate_enabled=True)["matches"][0]["factor_checklist"]
+
+    assert checklist["track_shadow_candidate"]["blocking_factor_ids"] == ["NO_EDGE"]
+    assert "Decision V4 已评估" in checklist["conclusion_zh"]
+    assert "NO_EDGE（模型与市场一致，无价值差）" in checklist["conclusion_zh"]
+    assert "未通过" not in checklist["conclusion_zh"]
+
+
+def test_factor_checklist_provider_unavailable_requires_explicit_confirmation() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["factor_checklist_inputs"]["data_readiness"].update(
+        {
+            "xg": False,
+            "xg_status": "PROVIDER_EMPTY_OR_UNAVAILABLE",
+            "xg_home_match_count": 0,
+            "xg_away_match_count": 0,
+        }
+    )
+    card["factor_checklist_inputs"]["provider_xg_unavailable_confirmed"] = True
+    day_view["cards"] = [card]
+
+    checklist = _workspace(day_view)["matches"][0]["factor_checklist"]
+    xg = next(row for row in checklist["factors"] if row["factor_id"] == "F9_TRUE_XG")
+
+    assert xg["cause"] == "PROVIDER_NOT_AVAILABLE"
+    assert xg["permanence"] == "STRUCTURAL_PERMANENT"
+    assert "待采集" not in checklist["conclusion_zh"]
+
+
+def test_factor_checklist_does_not_promote_generic_provider_empty_to_unsupported() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["factor_checklist_inputs"]["data_readiness"].update(
+        {
+            "xg": False,
+            "xg_status": "PROVIDER_EMPTY_OR_UNAVAILABLE",
+            "xg_home_match_count": 0,
+            "xg_away_match_count": 0,
+        }
+    )
+    day_view["cards"] = [card]
+
+    xg = next(
+        row
+        for row in _workspace(day_view)["matches"][0]["factor_checklist"]["factors"]
+        if row["factor_id"] == "F9_TRUE_XG"
+    )
+
+    assert xg["cause"] == "NO_MATERIALIZED_HISTORY"
+    assert xg["permanence"] == "UNKNOWN"
+
+
+def test_factor_checklist_reports_xg_shortfall_and_market_depth_per_market() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["factor_checklist_inputs"]["data_readiness"].update(
+        {
+            "xg": False,
+            "xg_status": "PARTIAL_HISTORY",
+            "xg_home_match_count": 3,
+            "xg_away_match_count": 1,
+        }
+    )
+    card["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"]["bookmaker_count"] = 1
+    card["market_radar"]["markets"]["TOTALS"]["current"]["bookmaker_count"] = 7
+    day_view["cards"] = [card]
+
+    checklist = _workspace(day_view)["matches"][0]["factor_checklist"]
+    xg = next(row for row in checklist["factors"] if row["factor_id"] == "F9_TRUE_XG")
+    depth = {
+        row["market"]: row["evidence"]["bookmaker_count"]
+        for row in checklist["factors"]
+        if row["factor_id"] == "MK_BOOKMAKER_DEPTH"
+    }
+
+    assert xg["cause"] == "UNDER_SAMPLED"
+    assert xg["evidence"]["shortfall"] == 2
+    assert "还差 2 场" in checklist["conclusion_zh"]
+    assert depth == {"ASIAN_HANDICAP": 1, "TOTALS": 7}
+
+
+def test_factor_checklist_roles_are_loaded_from_sc21_authority_matrix() -> None:
+    day_view = _day_view()
+    day_view["cards"] = [_factor_checklist_card()]
+    checklist = _workspace(day_view)["matches"][0]["factor_checklist"]
+    matrix = json.loads(
+        Path(
+            "docs/review_packages/SC21_FACTOR_INPUT_CHAIN/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json"
+        ).read_text()
+    )["fixture_factor_roles"]
+
+    for row in checklist["factors"]:
+        expected = matrix[row["factor_id"]]
+        assert row["role_model_forecast"] == expected["role_model_forecast"]
+        assert row["role_shadow_candidate"] == expected["role_shadow_candidate"]
+
+
+def test_factor_checklist_preserves_source_truth_and_waiting_state() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["factor_checklist_inputs"]["feature_contributions"] = [
+        {
+            "id": "F7_STRENGTH_FORM",
+            "status": "INSUFFICIENT_DATA",
+            "source": "internal_elo_v1",
+            "source_group": "ratings",
+            "collection_status": "INSUFFICIENT_RATING_HISTORY",
+        },
+        {
+            "id": "F8_SQUAD_VALUE",
+            "status": "UNAVAILABLE",
+            "source": "team_value_mapping",
+            "source_group": "squad_value",
+            "collection_status": "MAPPING_MISSING",
+        },
+    ]
+    day_view["cards"] = [card]
+
+    checklist = _workspace(day_view)["matches"][0]["factor_checklist"]
+    by_id = {row["factor_id"]: row for row in checklist["factors"] if row.get("market") is None}
+
+    assert "F7_STRENGTH_FORM" not in by_id
+    assert "F8_SQUAD_VALUE" not in by_id
+    assert by_id["F10_LMM_V1"]["state"] == "WAITING"
+    assert by_id["F10_LMM_V1"]["cause"] == "NOT_YET_DUE"
+    assert by_id["F10_LMM_V1"]["next_window_at"] == "2026-08-10T09:00:00Z"
+    assert all(
+        row["permanence"] != "SELF_RESOLVING"
+        for row in checklist["factors"]
+        if row["factor_id"] in {"F7_STRENGTH_FORM", "F8_SQUAD_VALUE"}
+    )
+
+
+def test_factor_checklist_exposes_four_non_probability_contributions() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["factor_checklist_inputs"]["feature_contributions"] = [
+        {
+            "id": "F1_MARKET_MOVEMENT",
+            "status": "READY",
+            "score": 0.5,
+            "weight": 0.16,
+            "inputs": {"first_seen_to_current": -0.125},
+        },
+        {
+            "id": "F2_BOOKMAKER_DIVERGENCE",
+            "status": "READY",
+            "score": 0.25,
+            "weight": 0.12,
+            "inputs": {"dispersion": 0.075},
+        },
+        {
+            "id": "F3_REST_FITNESS",
+            "status": "READY",
+            "score": -0.5,
+            "weight": 0.1,
+            "inputs": {"home_rest_days": 4.0, "away_rest_days": 6.0},
+        },
+        {
+            "id": "F5_RECENT_AH_COVER",
+            "status": "READY",
+            "score": 0.2,
+            "weight": 0.05,
+            "inputs": {"home_cover_rate": 0.6, "away_cover_rate": 0.4},
+        },
+    ]
+    day_view["cards"] = [card]
+
+    factors = _workspace(day_view)["matches"][0]["factor_checklist"]["factors"]
+    expected = {
+        "F1_MARKET_MOVEMENT": (-0.125, 0.5, 0.16),
+        "F2_BOOKMAKER_INTENT": (0.075, 0.25, 0.12),
+        "F3_REST_FITNESS": (4.0, -0.5, 0.1),
+        "F5_RECENT_AH_COVER": (0.6, 0.2, 0.05),
+    }
+    # As of the score-driven-recommendation change (2026-09-03), F3/F5 are
+    # in team_score's ALLOWED_INDEPENDENT_FACTORS with registry
+    # ACTIVE/SCORING/numeric_effect_enabled=true, so a READY reading of
+    # either now feeds the AH factor score directly. F1/F2 are not yet in
+    # that allowlist (a separate, not-yet-taken step), so they still only
+    # count toward READY totals for now — update this expectation the day
+    # that changes.
+    expected_drives_ah = {
+        "F1_MARKET_MOVEMENT": False,
+        "F2_BOOKMAKER_INTENT": False,
+        "F3_REST_FITNESS": True,
+        "F5_RECENT_AH_COVER": True,
+    }
+    seen: set[str] = set()
+    for factor in factors:
+        factor_id = factor["factor_id"]
+        if factor_id not in expected:
+            continue
+        evidence = factor["evidence"]
+        raw_value, score, weight = expected[factor_id]
+        assert raw_value in evidence["raw_inputs"].values()
+        assert evidence["score"] == score
+        assert evidence["status"] == "READY"
+        assert evidence["weight"] == weight
+        # None of these four factors enter the λ/probability model.
+        assert evidence["probability_effect"] is False
+        drives_ah = expected_drives_ah[factor_id]
+        assert evidence["drives_ah_recommendation"] is drives_ah
+        assert evidence["coverage_bonus_role"] == (
+            "TEAM_SCORE_PARTICIPANT" if drives_ah else "READY_COUNT_ONLY"
+        )
+        seen.add(factor_id)
+    assert seen == set(expected)
+
+
+def test_factor_checklist_exposes_registry_policy_and_ledger_fact() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    day_view["cards"] = [card]
+    fixture_id = card["fixture_id"]
+    ledger = {
+        "state": "SETTLED",
+        "capture_identity_hash": "a" * 64,
+        "captured_at": "2026-08-09T01:00:00Z",
+        "model_family": "W2_FOUR_FIELD_XG",
+        "model_version": "w2-model-v1",
+        "calibration_version": "cal-v1",
+        "calibration_status": "AVAILABLE",
+        "settled_at": "2026-08-10T01:00:00Z",
+        "brier": 0.2,
+        "log_loss": 0.4,
+        "rps": 0.1,
+    }
+
+    checklist = _workspace(
+        day_view,
+        model_forecasts={fixture_id: ledger},
+    )["matches"][0]["factor_checklist"]
+
+    explanations = [
+        row
+        for row in checklist["factors"]
+        if row["factor_id"] in {"F1_MARKET_MOVEMENT", "F2_BOOKMAKER_INTENT"}
+    ]
+    assert all(row["factor_lifecycle"] == "EXPLANATION_ONLY" for row in explanations)
+    assert all(row["numeric_effect_enabled"] is False for row in explanations)
+    assert checklist["ledger_fact"] == ledger
+    assert checklist["conclusion_zh"].startswith("本场模型预测已结算；")
+    assert "当前因子投影仅供对照" in checklist["conclusion_zh"]
+
+
+def test_factor_checklist_uses_persisted_capture_xg_identity_as_authority() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["factor_checklist_inputs"]["data_readiness"].update(
+        {
+            "xg": False,
+            "xg_status": "PROVIDER_EMPTY_OR_UNAVAILABLE",
+            "xg_home_match_count": 0,
+            "xg_away_match_count": 0,
+            "xg_snapshot_count": 0,
+        }
+    )
+    day_view["cards"] = [card]
+    ledger = {
+        "state": "CAPTURED",
+        "capture_identity_hash": "a" * 64,
+        "captured_at": "2026-08-09T01:00:00Z",
+        "model_family": "EXACT_DC_POISSON",
+        "model_version": "model-v1",
+        "calibration_version": "cal-v1",
+        "calibration_status": "AVAILABLE",
+        "four_field_xg": {
+            "status": "READY",
+            "identity_hash": "b" * 64,
+            "home_snapshot_identity": "home-snapshot",
+            "away_snapshot_identity": "away-snapshot",
+            "home_match_count": 5,
+            "away_match_count": 4,
+        },
+    }
+
+    checklist = _workspace(
+        day_view,
+        model_forecasts={card["fixture_id"]: ledger},
+    )["matches"][0]["factor_checklist"]
+    xg = next(row for row in checklist["factors"] if row["factor_id"] == "F9_TRUE_XG")
+
+    assert checklist["track_model_forecast"] == {
+        "state": "READY",
+        "blocking_factor_ids": [],
+    }
+    assert xg["state"] == "READY"
+    assert xg["cause"] is None
+    expected_evidence = {
+        "as_of": "2026-08-09T01:00:00Z",
+        "source": "model_forecast_capture.four_field_xg_identity",
+        "sample_count": 4,
+        "minimum_required": 3,
+        "shortfall": 0,
+        "home_sample_count": 5,
+        "away_sample_count": 4,
+        "home_shortfall": 0,
+        "away_shortfall": 0,
+        "rolling_snapshot_count": 2,
+        "provider_unavailable_confirmed": False,
+        "identity_hash": "b" * 64,
+        "home_snapshot_identity": "home-snapshot",
+        "away_snapshot_identity": "away-snapshot",
+    }
+    assert {key: xg["evidence"].get(key) for key in expected_evidence} == expected_evidence
+
+
+def test_data_risk_excludes_enhancement_only_gaps() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["missing_fields"] = ["ratings", "team_value"]
+    card["risk_dimensions"]["DATA_RISK"] = {
+        "dimension": "DATA_RISK",
+        "status": "INCIDENT",
+        "reason_codes": ["DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"],
+    }
+    day_view["cards"] = [card]
+
+    match = _workspace(day_view)["matches"][0]
+
+    assert match["risks"]["DATA_RISK"]["status"] == "OK"
+    assert match["factor_checklist"]["enhancement_quality"] == {
+        "state": "DEGRADED",
+        "missing_factor_ids": [
+            "F3_REST_FITNESS",
+            "F5_RECENT_AH_COVER",
+            "F6_H2H",
+        ],
+    }
 
 
 def _keys(value: Any) -> set[str]:
@@ -400,9 +1260,7 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
         "intelligence_state": "MARKET_STABLE",
         "reason_codes": ["MARKET_STABLE_ALL_AVAILABLE_MARKETS"],
         "affected_domains": ["MARKET"],
-        "factual_summary": (
-            "尚无已落盘 AH/OU 市场证据；无法生成走势或当前模型—市场比较；等待既有调度形成证据。"
-        ),
+        "factual_summary": "模型核心输入未就绪；四字段 xG：主队 0/3，客队 0/3。",
         "readiness_status": "READY",
         "readiness_context": {
             "reason_code": None,
@@ -411,7 +1269,18 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
             "action": None,
         },
         "next_eval_at": None,
-        "risks": _risks(),
+        "risks": {
+            **_risks(),
+            "COLLECTION_RISK": {
+                "dimension": "COLLECTION_RISK",
+                "status": "OK",
+                "reason_codes": [],
+                "explanation": "尚未到下一采集窗口，按既有计划正常等待",
+                "assessment_status": "ASSESSED_CURRENT",
+                "evidence_basis": "COLLECTION_WINDOW_NOT_YET_DUE",
+                "source_as_of": "2026-08-09T01:00:00Z",
+            },
+        },
     }
     assert first["validation"]["history_replay"]["decision_summary"] == {
         "total_cards": 3,
@@ -425,6 +1294,16 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
         "is_recorded": False,
         "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
     }
+    assert first["matches"][0]["market_collection"] == {
+        "latest_snapshot_at": "2026-08-09T01:00:00Z",
+        "latest_snapshot_checkpoint": "T24_OPEN_ODDS",
+        "target_checkpoint": "T12_ODDS",
+        "scheduled_at": "2026-08-09T14:30:00Z",
+        "window_end_at": "2026-08-09T15:00:00Z",
+        "overdue": False,
+        "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
+    }
+    assert first["matches"][0]["readiness"]["next_eval_at"] is None
     scoreline = first["matches"][0]["scoreline_reference"]
     assert scoreline["simulations_completed"] == 10_000
     assert scoreline["top3"] == [
@@ -509,6 +1388,15 @@ def test_focus_is_derived_only_from_public_semantics_and_facts() -> None:
     assert blocked_payload["today_summary"]["primary_reason_counts"] == {}
     assert blocked_payload["global_focus"]["affected_fixture_count"] == 3
 
+    mixed = deepcopy(blocked)
+    mixed["cards"][0]["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(1)
+    mixed["cards"][0]["market_radar"]["markets"]["TOTALS"] = _market(1)
+    mixed_payload = _workspace(mixed)
+    assert mixed_payload["global_focus"]["affected_fixture_count"] == 2
+    assert mixed_payload["global_focus"]["factual_summary"] == (
+        "所选比赛日已有 1 场市场证据；另有 2 场尚未就绪。"
+    )
+
 
 def test_schema_rejects_selected_fixture_outside_match_facts() -> None:
     payload = _workspace(_day_view())
@@ -517,6 +1405,31 @@ def test_schema_rejects_selected_fixture_outside_match_facts() -> None:
     with pytest.raises(ValueError):
         DashboardIntelligenceWorkspaceResponse.model_validate(
             {"request_id": "test-request", **payload}
+        )
+
+
+def test_schema_allows_persisted_inventory_before_read_model_projection() -> None:
+    payload = _workspace(_day_view())
+    payload["date_strip"][7]["fixture_count"] += 1
+    payload["date_strip"][7]["upcoming_fixture_count"] += 1
+    payload["date_strip"][7]["market_evidence_fixture_count"] += 1
+
+    validated = DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "persisted-inventory-ahead", **payload}
+    )
+
+    assert validated.date_strip[7].fixture_count == validated.today_summary.match_count + 1
+
+
+def test_schema_rejects_projected_match_missing_from_persisted_inventory() -> None:
+    payload = _workspace(_day_view())
+    payload["date_strip"][7]["fixture_count"] -= 1
+    payload["date_strip"][7]["upcoming_fixture_count"] -= 1
+    payload["date_strip"][7]["market_evidence_fixture_count"] -= 1
+
+    with pytest.raises(ValueError, match="inventory cannot omit projected matches"):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "persisted-inventory-behind", **payload}
         )
 
 
@@ -570,7 +1483,7 @@ def test_primary_reason_grouping_counts_each_match_once() -> None:
     match = next(item for item in payload["matches"] if item["fixture_id"] == "fixture-two")
 
     assert match["priority_reason_primary"] == "MARKET_MOVEMENT"
-    assert match["priority_reason_secondary"] == ["MODEL_DIAGNOSTIC"]
+    assert match["priority_reason_secondary"] == ["MODEL_DIAGNOSTIC", "DATA_INCOMPLETE"]
     assert payload["today_summary"]["priority_match_count"] == 1
     assert payload["today_summary"]["primary_reason_counts"] == {"MARKET_MOVEMENT": 1}
 
@@ -736,16 +1649,13 @@ def test_postdeploy_real_shape_uses_stale_evidence_and_scopes_raw_blocked_health
 
     assert payload["selected_fixture_id"] == "stale-useful"
     assert payload["data_operations"]["system_health"] == "BLOCKED_DAY"
-    assert payload["today_summary"]["primary_reason_counts"] == {"STALE_MARKET_MEMORY": 1}
-    assert focused["priority_reason_primary"] == "STALE_MARKET_MEMORY"
-    assert focused["priority_reason_secondary"] == [
-        "MARKET_MOVEMENT",
-        "DATA_INCOMPLETE",
-    ]
+    assert payload["today_summary"]["primary_reason_counts"] == {"MARKET_MOVEMENT": 1}
+    assert focused["priority_reason_primary"] == "MARKET_MOVEMENT"
+    assert focused["priority_reason_secondary"] == ["DATA_INCOMPLETE"]
     assert payload["matches"][0]["priority_reason_primary"] is None
     assert payload["matches"][0]["priority_reason_secondary"] == ["DATA_INCOMPLETE"]
     assert focused["factual_summary"] == payload["attention"][1]["factual_summary"]
-    assert "当前走势与模型—市场比较暂停" in focused["factual_summary"]
+    assert focused["factual_summary"] == "模型核心输入未就绪；四字段 xG：主队 0/3，客队 0/3。"
     assert focused["risks"]["DATA_RISK"]["explanation"] == (
         "数据字段已超过新鲜度边界；比赛或盘口身份尚未完成；另有 1 项技术原因"
     )
@@ -784,7 +1694,7 @@ def test_schema_rejects_unknown_public_status_field() -> None:
         )
 
 
-def test_public_market_readiness_is_single_source_bound_authority() -> None:
+def test_public_market_readiness_ignores_retired_fixed_age_source_status() -> None:
     day_view = _day_view()
     market = day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
     market["current"]["freshness"] = {"status": "STALE"}
@@ -793,17 +1703,53 @@ def test_public_market_readiness_is_single_source_bound_authority() -> None:
     match = payload["matches"][2]
     radar = match["market_radar"]["markets"]["ASIAN_HANDICAP"]
 
-    assert radar["status"] == "STALE"
+    assert radar["status"] == "READY"
     assert radar["source_status"] == "READY"
     assert radar["bookmaker_pair_count"] == 4
     assert radar["quote_row_count"] == radar["observation_count"] == 8
-    assert match["market_fact"]["status"] == "STALE"
+    assert match["market_fact"]["status"] == "READY"
     assert match["market_fact"]["source_status"] == "READY"
-    assert match["model_lab"]["market"]["ASIAN_HANDICAP"]["status"] == "STALE"
+    assert match["model_lab"]["market"]["ASIAN_HANDICAP"]["status"] == "READY"
     assert match["model_lab"]["market"]["ASIAN_HANDICAP"]["source_status"] == "READY"
 
 
-def test_unknown_market_freshness_fails_closed_as_insufficient() -> None:
+def test_market_quote_age_is_recomputed_at_workspace_generation_time() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-09T09:00:00Z"
+    source = day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
+    source["current"]["freshness"] = {
+        "status": "COMPLETE",
+        "age_seconds": 0,
+        "max_age_seconds": 3600,
+    }
+
+    match = _workspace(day_view)["matches"][2]
+    market = match["market_radar"]["markets"]["ASIAN_HANDICAP"]
+
+    assert market["latest_snapshot_at"] == "2026-08-09T01:00:00Z"
+    assert market["quote_age_seconds"] == 8 * 3600
+    assert market["status"] == "READY"
+    assert market["eligibility"]["observation_status"] == "AVAILABLE"
+    assert market["eligibility"]["cross_sectional_comparison_status"] == "AVAILABLE"
+
+
+def test_market_quote_age_clock_conflict_is_not_invented() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-09T00:30:00Z"
+    source = day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
+    source["current"]["freshness"] = {
+        "status": "COMPLETE",
+        "age_seconds": 0,
+        "max_age_seconds": 3600,
+    }
+
+    market = _workspace(day_view)["matches"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
+
+    assert market["status"] == "READY"
+    assert market["quote_age_seconds"] is None
+
+
+def test_retired_market_freshness_payload_is_not_public() -> None:
     day_view = _day_view()
     day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"]["freshness"] = {
         "status": "UNKNOWN"
@@ -811,16 +1757,17 @@ def test_unknown_market_freshness_fails_closed_as_insufficient() -> None:
 
     market = _workspace(day_view)["matches"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
 
-    assert market["status"] == "INSUFFICIENT"
+    assert market["status"] == "READY"
     assert market["source_status"] == "READY"
+    assert "freshness" not in market
 
 
-def test_workspace_schema_rejects_ready_market_with_stale_freshness() -> None:
+def test_workspace_schema_rejects_retired_market_freshness_field() -> None:
     payload = _workspace(_day_view())
     market = payload["matches"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
     market["freshness"] = {"status": "STALE"}
 
-    with pytest.raises(ValueError, match="READY market evidence must be current"):
+    with pytest.raises(ValueError, match="Extra inputs are not permitted"):
         DashboardIntelligenceWorkspaceResponse.model_validate(
             {"request_id": "test-request", **payload}
         )
@@ -828,7 +1775,7 @@ def test_workspace_schema_rejects_ready_market_with_stale_freshness() -> None:
 
 def test_workspace_schema_rejects_competing_public_market_readiness() -> None:
     payload = _workspace(_day_view())
-    payload["matches"][2]["model_lab"]["market"]["ASIAN_HANDICAP"]["status"] = "STALE"
+    payload["matches"][2]["model_lab"]["market"]["ASIAN_HANDICAP"]["status"] = "INSUFFICIENT"
 
     with pytest.raises(ValueError, match="market readiness must match"):
         DashboardIntelligenceWorkspaceResponse.model_validate(
@@ -1101,9 +2048,7 @@ def test_market_eligibility_preserves_ah_ou_partial_truth_without_cross_contamin
     card = day_view["cards"][0]
     card["intelligence_state"] = "DATA_INCOMPLETE"
     card["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(2)
-    card["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"][
-        "bookmaker_count"
-    ] = 1
+    card["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"]["bookmaker_count"] = 1
     card["market_radar"]["markets"]["TOTALS"] = _market(2)
     card["market_radar"]["markets"]["TOTALS"]["current"]["bookmaker_count"] = 7
     card["model_lab"]["markets"] = {
@@ -1134,12 +2079,692 @@ def test_market_eligibility_preserves_ah_ou_partial_truth_without_cross_contamin
     assert ah["observation_status"] == totals["observation_status"] == "AVAILABLE"
     assert ah["model_diagnostic_status"] == "INSUFFICIENT_BOOKMAKER_DEPTH"
     assert totals["model_diagnostic_status"] == "MODEL_NOT_READY"
-    assert ah["candidate_quote_identity_status"] == "NOT_READY"
-    assert totals["candidate_quote_identity_status"] == "NOT_READY"
-    assert match["readiness"]["market_aggregate_status"] == "PARTIAL"
+    assert ah["candidate_quote_lock_status"] == "NOT_READY"
+    assert totals["candidate_quote_lock_status"] == "NOT_READY"
+    assert match["readiness"]["market_aggregate_status"] == "NOT_READY"
     assert match["readiness"]["market_evidence_status"] == "AVAILABLE"
     assert match["readiness"]["candidate_input_status"] == "NOT_READY"
-    assert match["priority_reason_secondary"] == ["CANDIDATE_INPUT_NOT_READY"]
+    assert match["priority_reason_secondary"] == ["DATA_INCOMPLETE"]
+    assert match["factual_summary"] == "模型核心输入未就绪；四字段 xG：主队 0/3，客队 0/3。"
+
+
+def test_completed_no_edge_evaluations_take_precedence_over_calibration_gap() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    checkpoints = [
+        ("T3_ODDS", "2026-08-10T07:04:31Z"),
+        ("T60_ODDS_LINEUPS", "2026-08-10T09:02:28Z"),
+        ("T45_ODDS", "2026-08-10T09:17:02Z"),
+        ("T-30m_VALIDATION_LOCK", "2026-08-10T09:31:31Z"),
+        ("T15_ODDS", "2026-08-10T09:46:10Z"),
+    ]
+    card["dynamic_prematch"] = {
+        "versions": [
+            {
+                "checkpoint": checkpoint,
+                "evaluation_slot_id": checkpoint,
+                "evaluated_at": evaluated_at,
+                "market": market,
+                "state": "NO_EDGE_CURRENT",
+                "original_state": "NO_EDGE_CURRENT",
+                "official_funnel_eligible": True,
+                "measurement_semantics": "CHECKPOINT_EVALUATION_OPPORTUNITY",
+            }
+            for checkpoint, evaluated_at in checkpoints
+            for market in ("ASIAN_HANDICAP", "TOTALS")
+        ]
+        + [
+            {
+                "checkpoint": "capture",
+                "evaluated_at": "2026-08-10T07:04:31Z",
+                "market": market,
+                "state": "ANALYSIS_PICK_ACTIVE",
+                "original_state": "ANALYSIS_PICK_ACTIVE",
+            }
+            for market in ("ASIAN_HANDICAP", "TOTALS")
+        ]
+    }
+
+    match = _workspace(day_view)["matches"][0]
+
+    assert {
+        key: value for key, value in match["evaluation_execution"].items() if key != "diagnosis"
+    } == {
+        "status": "NO_EDGE",
+        "ever_formed_candidate": False,
+        "final_states": [],
+        "latest_candidates": [],
+        "checkpoint_count": 5,
+        "market_evaluation_count": 10,
+        "checkpoints": ["T-3h", "T-60m", "T-45m", "T-30m", "T-15m"],
+        "markets": ["ASIAN_HANDICAP", "TOTALS"],
+        "summary_zh": (
+            "已评估 5 次（T-3h / T-60m / T-45m / T-30m / T-15m），"
+            "两个市场均为 NO_EDGE —— 模型与市场看法一致，无可利用价差。"
+            "模型—市场对比图需已验证校准，暂不绘制。"
+        ),
+        "lifecycle_note_zh": None,
+    }
+    assert match["factual_summary"] == match["evaluation_execution"]["summary_zh"]
+
+
+def test_candidate_execution_can_precede_current_shadow_candidate_readiness() -> None:
+    payload = _workspace(_day_view(), candidate_enabled=True)
+    payload["matches"][0]["evaluation_execution"]["status"] = "CANDIDATE"
+
+    validated = DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "historical-candidate", **payload}
+    )
+
+    assert validated.matches[0].evaluation_execution.status == "CANDIDATE"
+    assert validated.matches[0].shadow_candidate.status == "NOT_READY"
+
+
+def test_finished_match_keeps_final_candidate_state_and_kickoff_quote_age() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-10T20:00:00Z"
+    card = day_view["cards"][0]
+    card["status"] = "FT"
+    market = _market(1)
+    market["timeline"]["points"][0]["captured_at"] = "2026-08-10T09:50:00Z"
+    card["market_radar"]["markets"]["TOTALS"] = market
+    card["dynamic_prematch"] = {
+        "versions": [
+            {
+                "checkpoint": "T45_ODDS",
+                "evaluation_slot_id": "T45_ODDS",
+                "evaluated_at": "2026-08-10T09:15:00Z",
+                "capture_at": "2026-08-10T09:14:00Z",
+                "market": "TOTALS",
+                "selection": "OVER",
+                "exact_line": "3.5",
+                "decimal_odds": "1.87",
+                "state": "ANALYSIS_PICK_ACTIVE",
+                "original_state": "ANALYSIS_PICK_ACTIVE",
+                "official_funnel_eligible": True,
+                "measurement_semantics": "CHECKPOINT_EVALUATION_OPPORTUNITY",
+                "opportunity_identity_hash": "candidate",
+                "attempt_identity_hash": "candidate-attempt",
+            }
+        ],
+        "opportunities": [
+            {
+                "opportunity_identity_hash": "candidate",
+                "latest_attempt_identity_hash": "candidate-attempt",
+                "market": "TOTALS",
+                "evaluation_slot_id": "T45_ODDS",
+                "scheduled_checkpoint_at": "2026-08-10T09:15:00Z",
+                "recorded_at": "2026-08-10T09:15:00Z",
+                "state": "EVALUATED_CANDIDATE",
+            },
+            {
+                "opportunity_identity_hash": "missed",
+                "market": "TOTALS",
+                "evaluation_slot_id": "T15_ODDS",
+                "scheduled_checkpoint_at": "2026-08-10T09:45:00Z",
+                "recorded_at": "2026-08-10T10:00:00Z",
+                "state": "MISSED_CHECKPOINT",
+                "blocker": "CHECKPOINT_WINDOW_MISSED",
+            },
+        ],
+    }
+
+    match = _workspace(day_view)["matches"][0]
+
+    assert match["evaluation_execution"]["status"] == "CANDIDATE"
+    assert match["evaluation_execution"]["ever_formed_candidate"] is True
+    assert match["evaluation_execution"]["latest_candidates"][0]["final_active"] is True
+    assert match["evaluation_execution"]["latest_candidates"][0][
+        "later_unassessed_checkpoints"
+    ] == ["T-15m"]
+    assert match["evaluation_execution"]["lifecycle_note_zh"] == (
+        "最终确认于 T-45m；此后 T-15m 未产出评估，不影响该确认"
+    )
+    assert match["market_radar"]["markets"]["TOTALS"]["quote_age_seconds"] == 600
+    quote_age = next(
+        factor
+        for factor in match["factor_checklist"]["factors"]
+        if factor["factor_id"] == "MK_QUOTE_AGE" and factor["market"] == "TOTALS"
+    )
+    assert quote_age["state"] == "READY"
+    assert match["risks"]["COLLECTION_RISK"]["status"] == "OK"
+    DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "finished-candidate-lifecycle", **_workspace(day_view)}
+    )
+
+
+@pytest.mark.parametrize("fixture_id", ("1490393", "1490395", "1490397"))
+def test_missed_checkpoint_without_prior_candidate_does_not_claim_candidate_loss(
+    fixture_id: str,
+) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["fixture_id"] = fixture_id
+    card["dynamic_prematch"] = {
+        "versions": [
+            {
+                "checkpoint": "T45_ODDS",
+                "evaluation_slot_id": "T45_ODDS",
+                "evaluated_at": "2026-08-10T09:15:00Z",
+                "market": market,
+                "state": "NO_EDGE_CURRENT",
+                "official_funnel_eligible": True,
+                "measurement_semantics": "CHECKPOINT_EVALUATION_OPPORTUNITY",
+            }
+            for market in ("ASIAN_HANDICAP", "TOTALS")
+        ],
+        "opportunities": [
+            {
+                "opportunity_identity_hash": f"{fixture_id}-{market}",
+                "market": market,
+                "evaluation_slot_id": "T15_ODDS",
+                "scheduled_checkpoint_at": "2026-08-10T09:45:00Z",
+                "recorded_at": "2026-08-10T10:00:00Z",
+                "state": "MISSED_CHECKPOINT",
+                "blocker": "CHECKPOINT_WINDOW_MISSED",
+            }
+            for market in ("ASIAN_HANDICAP", "TOTALS")
+        ],
+    }
+
+    match = _workspace(day_view)["matches"][0]
+
+    assert match["evaluation_execution"]["status"] == "NO_EDGE"
+    assert match["evaluation_execution"]["ever_formed_candidate"] is False
+    assert "NO_EDGE" in match["evaluation_execution"]["summary_zh"]
+    assert "曾形成候选" not in match["evaluation_execution"]["summary_zh"]
+    assert match["factual_summary"] == match["evaluation_execution"]["summary_zh"]
+
+
+def _evaluation_plan(
+    checkpoint: str,
+    status: str,
+    scheduled_at: str,
+    *,
+    endpoint_results: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    return {
+        "plan_id": f"plan-{checkpoint}",
+        "checkpoint": checkpoint,
+        "scheduled_at": scheduled_at,
+        "window_start": scheduled_at,
+        "window_end": scheduled_at,
+        "status": status,
+        "endpoints": (
+            ["odds", "lineups"] if "LINEUPS" in checkpoint or "30m" in checkpoint else ["odds"]
+        ),
+        "attempt_count": 0 if status == "PLANNED" else 1,
+        "blockers": [],
+        "endpoint_results": endpoint_results or [],
+    }
+
+
+def _official_evaluation(
+    fixture_id: str,
+    market: str,
+    state: str,
+    checkpoint: str,
+    evaluated_at: str,
+    **values: Any,
+) -> dict[str, Any]:
+    return {
+        "evaluation_id": f"eval-{fixture_id}-{market}-{checkpoint}",
+        "attempt_identity_hash": f"attempt-{fixture_id}-{market}-{checkpoint}",
+        "opportunity_identity_hash": f"opp-{fixture_id}-{market}-{checkpoint}",
+        "checkpoint": checkpoint,
+        "evaluation_slot_id": checkpoint,
+        "evaluated_at": evaluated_at,
+        "market": market,
+        "state": state,
+        "original_state": state,
+        "official_funnel_eligible": True,
+        "measurement_semantics": "CHECKPOINT_EVALUATION_OPPORTUNITY",
+        "blockers": [],
+        "all_failed_gates": [],
+        **values,
+    }
+
+
+def _official_opportunity(
+    fixture_id: str,
+    market: str,
+    state: str,
+    checkpoint: str,
+    scheduled_at: str,
+) -> dict[str, Any]:
+    return {
+        "opportunity_identity_hash": f"opp-{fixture_id}-{market}-{checkpoint}",
+        "latest_attempt_identity_hash": f"attempt-{fixture_id}-{market}-{checkpoint}",
+        "market": market,
+        "evaluation_slot_id": checkpoint,
+        "scheduled_checkpoint_at": scheduled_at,
+        "recorded_at": scheduled_at,
+        "state": state,
+    }
+
+
+def test_fixture_1570351_reports_checkpoint_not_due_before_first_slot() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["fixture_id"] = "1570351"
+    card["evaluation_checkpoints"] = [
+        _evaluation_plan(checkpoint, "PLANNED", scheduled_at)
+        for checkpoint, scheduled_at in (
+            ("T3_ODDS", "2026-08-20T16:00:00Z"),
+            ("T60_ODDS_LINEUPS", "2026-08-20T18:00:00Z"),
+            ("T45_ODDS", "2026-08-20T18:15:00Z"),
+            ("T-30m_VALIDATION_LOCK", "2026-08-20T18:30:00Z"),
+            ("T15_ODDS", "2026-08-20T18:45:00Z"),
+        )
+    ]
+    day_view["cards"] = [card]
+
+    card["intelligence_state"] = "DATA_INCOMPLETE"
+    card["missing_fields"] = ["lineups", "ratings", "team_value"]
+    payload = _workspace(day_view)
+    match = payload["matches"][0]
+    diagnosis = match["evaluation_execution"]["diagnosis"]
+
+    assert diagnosis["status"] == "CHECKPOINT_NOT_DUE"
+    assert diagnosis["next_checkpoint"] == "T3_ODDS"
+    assert diagnosis["next_checkpoint_at"] == "2026-08-20T16:00:00Z"
+    assert "输入缺失" not in diagnosis["missing_detail_zh"]
+    assert match["priority_reason_secondary"] == []
+    assert match["factual_summary"] == (
+        "第一个评估档位尚未到达；候选轨道尚未启动；尚未发生门禁判定。"
+    )
+    assert payload["attention"][0]["factual_summary"] == match["factual_summary"]
+    assert not any(field in match["factual_summary"] for field in card["missing_fields"])
+
+
+def test_fixture_1570334_reports_four_field_xg_hard_gate() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["fixture_id"] = "1570334"
+    card["factor_checklist_inputs"]["data_readiness"].update(
+        {"xg": False, "xg_status": "NO_HISTORY", "xg_home_match_count": 0, "xg_away_match_count": 0}
+    )
+    card["evaluation_checkpoints"] = [
+        _evaluation_plan("T3_ODDS", "CAPTURED", "2026-08-19T16:00:00Z")
+    ]
+    day_view["cards"] = [card]
+
+    diagnosis = _workspace(day_view)["matches"][0]["evaluation_execution"]["diagnosis"]
+
+    assert diagnosis["status"] == "XG_INPUT_MISSING"
+    assert diagnosis["missing_detail_zh"] == "四字段 xG：主队 0/3，客队 0/3。"
+
+
+def test_gate_blocker_uses_official_attempt_values_not_readiness_missing_fields() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["fixture_id"] = "gate-blocked"
+    card["missing_fields"] = ["lineups", "ratings", "team_value"]
+    card["dynamic_prematch"] = {
+        "versions": [
+            _official_evaluation(
+                "gate-blocked",
+                "ASIAN_HANDICAP",
+                "NOT_READY_QUOTE_INCOMPLETE",
+                "T45_ODDS",
+                "2026-08-19T22:52:50Z",
+                bookmaker_count=2,
+                first_failed_gate="BOOKMAKER_DEPTH",
+                blockers=["INSUFFICIENT_BOOKMAKER_DEPTH"],
+                all_failed_gates=["BOOKMAKER_DEPTH"],
+            )
+        ],
+        "opportunities": [
+            _official_opportunity(
+                "gate-blocked",
+                "ASIAN_HANDICAP",
+                "BLOCKED_BY_GATE",
+                "T45_ODDS",
+                "2026-08-19T22:45:00Z",
+            )
+        ],
+    }
+    day_view["cards"] = [card]
+
+    diagnosis = _workspace(day_view)["matches"][0]["evaluation_execution"]["diagnosis"]
+
+    assert diagnosis["status"] == "GATE_BLOCKED"
+    assert diagnosis["missing_detail_zh"] == "机构深度 2 家 / 需 3 家。"
+    assert not any(
+        value in diagnosis["missing_detail_zh"] for value in ("lineups", "ratings", "team_value")
+    )
+
+
+def test_fixture_1490391_reports_candidate_then_missed_checkpoints() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["fixture_id"] = "1490391"
+    card["dynamic_prematch"] = {
+        "versions": [
+            _official_evaluation(
+                "1490391", "TOTALS", "ANALYSIS_PICK_ACTIVE", "T45_ODDS", "2026-08-19T22:52:50Z"
+            ),
+            _official_evaluation(
+                "1490391",
+                "ASIAN_HANDICAP",
+                "NOT_READY_QUOTE_INCOMPLETE",
+                "T45_ODDS",
+                "2026-08-19T22:52:49Z",
+                bookmaker_count=2,
+                first_failed_gate="BOOKMAKER_DEPTH",
+                blockers=["INSUFFICIENT_BOOKMAKER_DEPTH"],
+            ),
+        ],
+        "opportunities": [
+            _official_opportunity(
+                "1490391", "TOTALS", "EVALUATED_CANDIDATE", "T45_ODDS", "2026-08-19T22:45:00Z"
+            ),
+            *[
+                _official_opportunity(
+                    "1490391", market, "MISSED_CHECKPOINT", checkpoint, scheduled_at
+                )
+                for checkpoint, scheduled_at in (
+                    ("T-30m_VALIDATION_LOCK", "2026-08-19T23:00:00Z"),
+                    ("T15_ODDS", "2026-08-19T23:15:00Z"),
+                )
+                for market in ("ASIAN_HANDICAP", "TOTALS")
+            ],
+        ],
+    }
+    day_view["cards"] = [card]
+
+    diagnosis = _workspace(day_view)["matches"][0]["evaluation_execution"]["diagnosis"]
+
+    assert diagnosis["status"] == "CANDIDATE_ACTIVE"
+    assert diagnosis["missing_detail_zh"] == (
+        "此后 T-30m / T-15m 未产出评估，不影响最后一次成功确认。"
+    )
+
+
+def test_mixed_market_candidate_takes_precedence_over_no_edge() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["fixture_id"] = "1570351"
+    card["dynamic_prematch"] = {
+        "versions": [
+            _official_evaluation(
+                "1570351", "TOTALS", "ANALYSIS_PICK_ACTIVE", "T3_ODDS", "2026-08-20T16:04:00Z"
+            ),
+            _official_evaluation(
+                "1570351", "ASIAN_HANDICAP", "NO_EDGE_CURRENT", "T3_ODDS", "2026-08-20T16:04:00Z"
+            ),
+        ],
+        "opportunities": [
+            _official_opportunity(
+                "1570351", "TOTALS", "EVALUATED_CANDIDATE", "T3_ODDS", "2026-08-20T16:00:00Z"
+            ),
+            _official_opportunity(
+                "1570351", "ASIAN_HANDICAP", "EVALUATED_NO_EDGE", "T3_ODDS", "2026-08-20T16:00:00Z"
+            ),
+        ],
+    }
+    day_view["cards"] = [card]
+
+    match = _workspace(day_view)["matches"][0]
+
+    assert match["evaluation_execution"]["status"] == "CANDIDATE"
+    assert match["evaluation_execution"]["diagnosis"]["status"] == "CANDIDATE_ACTIVE"
+
+
+def test_fixture_1490399_keeps_candidate_when_lineups_endpoint_is_empty() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["fixture_id"] = "1490399"
+    card["dynamic_prematch"] = {
+        "versions": [
+            _official_evaluation(
+                "1490399",
+                "TOTALS",
+                "ANALYSIS_PICK_ACTIVE",
+                "T-30m_VALIDATION_LOCK",
+                "2026-08-20T00:04:23Z",
+            )
+        ],
+        "opportunities": [
+            _official_opportunity(
+                "1490399",
+                "TOTALS",
+                "EVALUATED_CANDIDATE",
+                "T-30m_VALIDATION_LOCK",
+                "2026-08-20T00:00:00Z",
+            )
+        ],
+    }
+    card["evaluation_checkpoints"] = [
+        _evaluation_plan(
+            "T-30m_VALIDATION_LOCK",
+            "PROVIDER_EMPTY",
+            "2026-08-20T00:00:00Z",
+            endpoint_results=[
+                {"endpoint": "odds", "status": "CAPTURED"},
+                {"endpoint": "lineups", "status": "PROVIDER_EMPTY"},
+            ],
+        )
+    ]
+    day_view["cards"] = [card]
+
+    diagnosis = _workspace(day_view)["matches"][0]["evaluation_execution"]["diagnosis"]
+
+    assert diagnosis["status"] == "CANDIDATE_ACTIVE"
+    assert diagnosis["primary_blocker_zh"] == "最终仍为候选"
+
+
+def test_fixture_1490393_reports_no_edge_gap_not_incidental_missed_slot() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["fixture_id"] = "1490393"
+    card["dynamic_prematch"] = {
+        "versions": [
+            _official_evaluation(
+                "1490393",
+                market,
+                "NO_EDGE_CURRENT",
+                "T45_ODDS",
+                "2026-08-19T22:52:52Z",
+                current_ev=0.107717 if market == "ASIAN_HANDICAP" else 0.012793,
+                current_delta=0.012982 if market == "ASIAN_HANDICAP" else 0.022439,
+                required_delta=0.05,
+                current_ev_minus_se=0.057611 if market == "ASIAN_HANDICAP" else -0.036147,
+                shortfall={"delta": 0.037018 if market == "ASIAN_HANDICAP" else 0.027561},
+                blockers=["DELTA_BELOW_THRESHOLD"],
+            )
+            for market in ("ASIAN_HANDICAP", "TOTALS")
+        ],
+        "opportunities": [
+            *[
+                _official_opportunity(
+                    "1490393", market, "EVALUATED_NO_EDGE", "T45_ODDS", "2026-08-19T22:45:00Z"
+                )
+                for market in ("ASIAN_HANDICAP", "TOTALS")
+            ],
+            *[
+                _official_opportunity(
+                    "1490393", market, "MISSED_CHECKPOINT", "T15_ODDS", "2026-08-19T23:15:00Z"
+                )
+                for market in ("ASIAN_HANDICAP", "TOTALS")
+            ],
+        ],
+    }
+    card["evaluation_checkpoints"] = [
+        _evaluation_plan("T60_ODDS_LINEUPS", "PROVIDER_EMPTY", "2026-08-19T22:30:00Z"),
+        _evaluation_plan("T15_ODDS", "MISSED", "2026-08-19T23:15:00Z"),
+    ]
+    day_view["cards"] = [card]
+
+    diagnosis = _workspace(day_view)["matches"][0]["evaluation_execution"]["diagnosis"]
+
+    assert diagnosis["status"] == "NO_EDGE"
+    assert "delta +1.30% / 需 ≥5.00%（差 3.70 个点）" in diagnosis["missing_detail_zh"]
+    assert "EV−SE -3.61% / 需 >0" in diagnosis["missing_detail_zh"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    (
+        ("market_aggregate_status", "PARTIAL", "market aggregate"),
+        ("market_evidence_status", "NOT_READY", "market evidence"),
+    ),
+)
+def test_schema_rejects_cross_panel_market_readiness_contradictions(
+    field: str,
+    value: str,
+    message: str,
+) -> None:
+    payload = _workspace(_day_view())
+    payload["matches"][2]["readiness"][field] = value
+
+    with pytest.raises(ValueError, match=message):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": f"contradictory-{field}", **payload}
+        )
+
+
+def test_data_risk_names_missing_inputs_and_clearance_condition() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["missing_fields"] = ["lineups", "xg", "ratings", "team_value"]
+    card["risk_dimensions"]["DATA_RISK"] = {
+        "dimension": "DATA_RISK",
+        "status": "INCIDENT",
+        "reason_codes": ["DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"],
+    }
+
+    explanation = _workspace(day_view)["matches"][0]["risks"]["DATA_RISK"]["explanation"]
+
+    assert explanation == "待补齐：模型核心输入 xG；既有采集或模型投影形成后解除"
+
+
+def test_data_risk_keeps_lineup_missing_after_collection_is_due() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["missing_fields"] = ["lineups", "xg"]
+    card["risk_dimensions"]["DATA_RISK"] = {
+        "dimension": "DATA_RISK",
+        "status": "INCIDENT",
+        "reason_codes": ["DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"],
+    }
+    card["data_refresh"]["lineup_collection"]["public_semantics"]["cause"] = "AWAITING_COLLECTION"
+
+    explanation = _workspace(day_view)["matches"][0]["risks"]["DATA_RISK"]["explanation"]
+
+    assert explanation == "待补齐：模型核心输入 xG；既有采集或模型投影形成后解除"
+
+
+def test_not_yet_due_lineup_alone_is_not_an_abnormal_data_risk() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["evaluation_checkpoints"] = [
+        _evaluation_plan(checkpoint, "PLANNED", scheduled_at)
+        for checkpoint, scheduled_at in (
+            ("T3_ODDS", "2026-08-09T05:00:00Z"),
+            ("T60_ODDS_LINEUPS", "2026-08-10T09:00:00Z"),
+            ("T45_ODDS", "2026-08-10T09:15:00Z"),
+            ("T-30m_VALIDATION_LOCK", "2026-08-10T09:30:00Z"),
+            ("T15_ODDS", "2026-08-10T09:45:00Z"),
+        )
+    ]
+    card["missing_fields"] = ["lineups"]
+    card["risk_dimensions"]["DATA_RISK"] = {
+        "dimension": "DATA_RISK",
+        "status": "INCIDENT",
+        "reason_codes": [
+            "DATA_MARKET_TIMELINE_INSUFFICIENT",
+            "DATA_REQUIRED_INPUT_MISSING",
+            "DATA_STATUS_BLOCKED",
+        ],
+    }
+
+    risk = _workspace(day_view)["matches"][0]["risks"]["DATA_RISK"]
+
+    assert risk["status"] == "OK"
+    assert risk["reason_codes"] == []
+    assert risk["explanation"] == "尚无到期的数据输入缺口"
+
+
+def test_schema_rejects_not_yet_due_lineup_as_anomalous_missing_input() -> None:
+    payload = _workspace(_day_view())
+    match = payload["matches"][0]
+    match["readiness"]["missing_fields"] = ["lineups", "xg"]
+    match["risks"]["DATA_RISK"]["explanation"] = "待补齐：首发、xG"
+
+    with pytest.raises(
+        ValueError, match="not-yet-due lineups cannot be an anomalous missing input"
+    ):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "lineup-cross-panel-contradiction", **payload}
+        )
+
+
+def test_one_invalid_match_projection_does_not_fail_the_selected_day(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    payload = _workspace(_day_view())
+    failed = payload["matches"][0]
+    failed["readiness"]["missing_fields"] = ["lineups"]
+    failed["lineup_collection"]["public_semantics"]["cause"] = "NOT_YET_DUE"
+    failed["risks"]["DATA_RISK"].update(
+        {
+            "status": "INCIDENT",
+            "reason_codes": ["DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"],
+            "explanation": "必需输入尚未齐全",
+        }
+    )
+
+    isolated = _isolate_workspace_match_projection_failures(payload)
+    validated = DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "isolated-match-projection", **isolated}
+    )
+
+    assert len(validated.matches) == 3
+    assert validated.matches[0].fixture_id == failed["fixture_id"]
+    assert isinstance(validated.matches[0], WorkspaceMatchProjectionError)
+    assert validated.matches[0].projection_status == "ERROR"
+    assert {match.fixture_id for match in validated.matches[1:]} == {
+        "fixture-one",
+        "fixture-two",
+    }
+    assert failed["fixture_id"] not in {
+        item.fixture_id for item in validated.attention
+    }
+    assert "dashboard_match_projection_contract_violation" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("ah_depth", "ou_depth", "same_snapshot", "expected"),
+    (
+        (1, 7, True, True),
+        (5, 7, True, False),
+        (1, 7, False, False),
+    ),
+)
+def test_market_depth_asymmetry_is_a_non_blocking_same_snapshot_technical_signal(
+    ah_depth: int,
+    ou_depth: int,
+    same_snapshot: bool,
+    expected: bool,
+) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    for name, depth in (("ASIAN_HANDICAP", ah_depth), ("TOTALS", ou_depth)):
+        market = _market(1)
+        market["current"]["bookmaker_count"] = depth
+        market["timeline"]["points"][0]["bookmaker_count"] = depth
+        card["market_radar"]["markets"][name] = market
+    if not same_snapshot:
+        card["market_radar"]["markets"]["TOTALS"]["timeline"]["points"][0]["captured_at"] = (
+            "2026-08-09T02:00:00Z"
+        )
+
+    match = _workspace(day_view)["matches"][0]
+    handicap = match["market_radar"]["markets"]["ASIAN_HANDICAP"]
+
+    assert ("MARKET_DEPTH_ASYMMETRY" in handicap["reason_codes"]) is expected
+    assert match["readiness"]["market_aggregate_status"] == "NOT_READY"
 
 
 def test_public_team_label_never_silently_uses_raw_english() -> None:
@@ -1182,6 +2807,31 @@ def test_known_team_without_chinese_label_keeps_readable_raw_name() -> None:
     assert label["public_semantics"] == {"scope": "MATCH", "cause": "LABEL_MISSING"}
 
 
+def test_pending_owner_review_team_label_is_visible_and_counted() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["home_team_label"] = {
+        "display_name": "AIK索尔纳",
+        "state": "CHINESE_LABEL_PENDING_OWNER_REVIEW",
+        "canonical_team_id": "w2:team:api_football:377",
+        "provider_team_id": "377",
+        "raw_provider_name": "AIK Stockholm",
+    }
+
+    payload = _workspace(day_view)
+    label = payload["matches"][0]["home_team_label"]
+
+    assert label["display_name"] == "AIK索尔纳"
+    assert label["public_semantics"] == {
+        "scope": "MATCH",
+        "cause": "LABEL_PENDING_OWNER_REVIEW",
+    }
+    assert payload["today_summary"]["pending_owner_review_team_count"] == 1
+    DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "pending-label-contract", **payload}
+    )
+
+
 def test_scope_and_cause_separate_future_day_from_cumulative_validation() -> None:
     day_view = _day_view()
     day_view["date_strip"][7]["market_collection_window_status"] = (
@@ -1200,9 +2850,7 @@ def test_scope_and_cause_separate_future_day_from_cumulative_validation() -> Non
         "cause": "NOT_YET_DUE",
     }
     assert payload["validation"]["history_replay"]["status"] == "FORWARD_RECORD"
-    assert "MISSING_OUTCOMES" not in payload["validation"]["history_replay"][
-        "replay_gaps"
-    ]
+    assert "MISSING_OUTCOMES" not in payload["validation"]["history_replay"]["replay_gaps"]
     assert payload["validation"]["forward_validation_records"]["public_semantics"] == {
         "scope": "CROSS_DAY_CUMULATIVE",
         "cause": None,
@@ -1216,8 +2864,7 @@ def test_past_due_upcoming_status_awaits_update_instead_of_claiming_not_yet_due(
     payload = _workspace(day_view)
 
     assert all(
-        match["outcome"]["public_semantics"]
-        == {"scope": "MATCH", "cause": "AWAITING_COLLECTION"}
+        match["outcome"]["public_semantics"] == {"scope": "MATCH", "cause": "AWAITING_COLLECTION"}
         for match in payload["matches"]
     )
     replay = payload["validation"]["history_replay"]
@@ -1282,13 +2929,16 @@ def test_match_outcome_cause_uses_one_temporal_authority(
     recorded: bool,
     cause: str | None,
 ) -> None:
-    assert outcome_public_cause(
-        status=status,
-        kickoff_utc=kickoff,
-        as_of=as_of,
-        is_tracked=tracked,
-        is_recorded=recorded,
-    ) == cause
+    assert (
+        outcome_public_cause(
+            status=status,
+            kickoff_utc=kickoff,
+            as_of=as_of,
+            is_tracked=tracked,
+            is_recorded=recorded,
+        )
+        == cause
+    )
 
 
 def test_schema_rejects_not_yet_due_after_result_collection_delay() -> None:
@@ -1324,9 +2974,7 @@ def test_finished_match_missing_outcome_is_awaiting_collection() -> None:
         "outcome_tracking_summary": {
             "tracked_fixture_ids": [card["fixture_id"] for card in day_view["cards"]],
             "matched_fixture_ids": [],
-            "missing_outcome_fixture_ids": [
-                card["fixture_id"] for card in day_view["cards"]
-            ],
+            "missing_outcome_fixture_ids": [card["fixture_id"] for card in day_view["cards"]],
             "missing_outcome_count": 3,
         },
         "card_hash_checks": [],
@@ -1386,6 +3034,14 @@ def test_finished_match_missing_outcome_is_awaiting_collection() -> None:
             (True, True, True, None),
         ),
         (
+            "NS",
+            True,
+            "MATCHED",
+            "READY",
+            [],
+            (True, True, True, None),
+        ),
+        (
             "FT",
             True,
             "MISSING_OUTCOME",
@@ -1438,11 +3094,11 @@ def test_match_outcome_truth_table_is_derived_from_persisted_facts(
         ],
         "known_at_summary": {},
         "reason_summary": [],
-            "outcome_tracking_summary": {
-                "tracked_count": 1 if tracked else 0,
-                "matched_outcome_count": 1 if recorded else 0,
-                "missing_outcome_count": 1 if missing else 0,
-                "tracked_fixture_ids": [fixture_id] if tracked else [],
+        "outcome_tracking_summary": {
+            "tracked_count": 1 if tracked else 0,
+            "matched_outcome_count": 1 if recorded else 0,
+            "missing_outcome_count": 1 if missing else 0,
+            "tracked_fixture_ids": [fixture_id] if tracked else [],
             "matched_fixture_ids": [fixture_id] if recorded else [],
             "missing_outcome_fixture_ids": [fixture_id] if missing else [],
         },
@@ -1673,6 +3329,33 @@ def test_canonical_identity_and_approved_public_label_are_the_only_ready_path() 
     assert label_missing["display_name"] is None
 
 
+def test_pending_owner_review_label_is_visible_but_not_approved() -> None:
+    fixture = SimpleNamespace(
+        provider="api_football",
+        competition_id="allsvenskan",
+        season="2026",
+        team_identity_status="PROVIDER_PRIMARY_READY",
+        home_provider_team_id="377",
+        home_w2_team_id="w2:team:api_football:377",
+        payload={"home_team_name": "AIK Stockholm"},
+    )
+    pending = repository_module._public_team_label_from_identity(
+        fixture=fixture,
+        side="home",
+        canonical={fixture.home_w2_team_id: SimpleNamespace()},
+        reviewed_labels={},
+        pending_labels={fixture.home_w2_team_id: "AIK索尔纳"},
+    )
+
+    assert pending == {
+        "display_name": "AIK索尔纳",
+        "state": "CHINESE_LABEL_PENDING_OWNER_REVIEW",
+        "canonical_team_id": fixture.home_w2_team_id,
+        "provider_team_id": "377",
+        "raw_provider_name": "AIK Stockholm",
+    }
+
+
 def test_approved_public_label_authority_reuses_existing_product_labels() -> None:
     labels = reviewed_public_team_labels()
     fixture = SimpleNamespace(
@@ -1684,9 +3367,7 @@ def test_approved_public_label_authority_reuses_existing_product_labels() -> Non
         home_w2_team_id="w2:team:api_football:370",
         payload={"home_team_name": "Sirius"},
     )
-    canonical = {
-        fixture.home_w2_team_id: SimpleNamespace(display_name="Sirius", payload={})
-    }
+    canonical = {fixture.home_w2_team_id: SimpleNamespace(display_name="Sirius", payload={})}
     ready = repository_module._public_team_label_from_identity(
         fixture=fixture,
         side="home",
@@ -1698,27 +3379,137 @@ def test_approved_public_label_authority_reuses_existing_product_labels() -> Non
     assert ready["display_name"] == "天狼星"
 
 
-def test_unreviewed_future_team_labels_are_not_self_approved() -> None:
-    unreviewed_team_ids = {
-        "w2:team:api_football:124",
-        "w2:team:api_football:130",
-        "w2:team:api_football:2143",
-        "w2:team:api_football:2149",
-        "w2:team:api_football:2170",
-        "w2:team:api_football:319",
-        "w2:team:api_football:325",
-        "w2:team:api_football:326",
-        "w2:team:api_football:329",
-        "w2:team:api_football:331",
-        "w2:team:api_football:332",
-        "w2:team:api_football:333",
-        "w2:team:api_football:377",
-        "w2:team:api_football:757",
-        "w2:team:api_football:794",
+def test_r18_eliteserien_candidates_are_owner_approved() -> None:
+    labels = reviewed_public_team_labels()
+    pending = pending_public_team_labels()
+
+    assert pending == {}
+    assert {
+        team_id: labels[team_id]
+        for team_id in (
+            "w2:team:api_football:2149",
+            "w2:team:api_football:319",
+            "w2:team:api_football:325",
+            "w2:team:api_football:326",
+            "w2:team:api_football:329",
+            "w2:team:api_football:332",
+            "w2:team:api_football:333",
+            "w2:team:api_football:757",
+        )
+    } == {
+        "w2:team:api_football:2149": "费德列斯达",
+        "w2:team:api_football:319": "布兰",
+        "w2:team:api_football:325": "特罗姆瑟",
+        "w2:team:api_football:326": "瓦勒伦加",
+        "w2:team:api_football:329": "莫尔德",
+        "w2:team:api_football:332": "桑纳菲尤尔",
+        "w2:team:api_football:333": "萨尔普斯堡08",
+        "w2:team:api_football:757": "阿勒桑",
     }
+
+
+def test_r16_allsvenskan_candidates_remain_owner_approved() -> None:
+    labels = reviewed_public_team_labels()
+    pending = pending_public_team_labels()
+
+    assert pending == {}
+    assert {
+        team_id: labels[team_id]
+        for team_id in (
+            "w2:team:api_football:2170",
+            "w2:team:api_football:377",
+        )
+    } == {
+        "w2:team:api_football:2170": "哥德堡盖斯",
+        "w2:team:api_football:377": "AIK索尔纳",
+    }
+
+
+def test_owner_authorized_current_schedule_labels_are_all_approved() -> None:
     labels = reviewed_public_team_labels()
 
-    assert unreviewed_team_ids.isdisjoint(labels)
+    expected = {
+        "435": "河床",
+        "437": "罗萨里奥中央",
+        "445": "飓风队",
+        "458": "阿根廷青年人",
+        "474": "萨米恩托",
+        "478": "科尔多瓦学院",
+        "2432": "巴拉卡斯中央",
+        "438": "萨斯菲尔德",
+        "442": "国防与司法",
+        "446": "拉努斯",
+        "453": "阿根廷独立",
+        "455": "图库曼竞技",
+        "2424": "里奥夸尔托学生队",
+        "193": "兹沃勒",
+        "194": "阿贾克斯",
+        "198": "海牙",
+        "202": "格罗宁根",
+        "209": "费耶诺德",
+        "210": "海伦芬",
+        "410": "前进之鹰",
+        "415": "特温特",
+        "533": "比利亚雷亚尔",
+        "539": "莱万特",
+        "540": "西班牙人",
+        "4665": "桑坦德竞技",
+        "544": "拉科鲁尼亚",
+        "797": "埃尔切",
+        "1595": "西雅图海湾人",
+        "1597": "达拉斯FC",
+        "1599": "费城联合",
+        "1603": "温哥华白帽",
+        "1604": "纽约城",
+        "1607": "芝加哥火焰",
+        "1617": "波特兰伐木者",
+        "16489": "奥斯汀FC",
+        "214": "马里迪莫",
+        "215": "莫雷伦斯",
+        "217": "布拉加",
+        "230": "埃斯托里尔",
+        "240": "阿罗卡",
+        "242": "法马利康",
+        "762": "吉尔维森特",
+        "211": "本菲卡",
+        "4716": "卡萨皮亚",
+    }
+
+    assert pending_public_team_labels() == {}
+    assert {team_id: labels[f"w2:team:api_football:{team_id}"] for team_id in expected} == expected
+
+
+def test_owner_authorized_public_label_review_closes_observed_gaps() -> None:
+    labels = reviewed_public_team_labels()
+
+    assert {
+        team_id: labels[f"w2:team:api_football:{team_id}"]
+        for team_id in (
+            "124",
+            "130",
+            "2143",
+            "225",
+            "227",
+            "331",
+            "440",
+            "441",
+            "449",
+            "794",
+            "1065",
+        )
+    } == {
+        "124": "弗鲁米嫩塞",
+        "130": "格雷米奥",
+        "2143": "KFUM奥斯陆",
+        "225": "国民队",
+        "227": "圣克拉拉",
+        "331": "罗森博格",
+        "440": "贝尔格拉诺",
+        "441": "圣菲联合",
+        "449": "班菲尔德",
+        "794": "布拉干蒂诺红牛",
+        "1065": "科尔多瓦中央",
+    }
 
 
 def test_sc19_public_label_authority_uses_runtime_config_root(
@@ -1727,14 +3518,69 @@ def test_sc19_public_label_authority_uses_runtime_config_root(
 ) -> None:
     target = tmp_path / "identity" / "public_team_labels.zh-CN.v1.json"
     target.parent.mkdir()
-    target.write_bytes(
-        Path("config/identity/public_team_labels.zh-CN.v1.json").read_bytes()
-    )
+    target.write_bytes(Path("config/identity/public_team_labels.zh-CN.v1.json").read_bytes())
     monkeypatch.setenv("W2_READINESS_CONFIG_PATH", str(tmp_path))
     get_settings.cache_clear()
     reviewed_public_team_labels.cache_clear()
+    pending_public_team_labels.cache_clear()
     try:
         assert reviewed_public_team_labels()["w2:team:api_football:370"] == "天狼星"
     finally:
         reviewed_public_team_labels.cache_clear()
+        pending_public_team_labels.cache_clear()
         get_settings.cache_clear()
+
+
+def test_factor_checklist_never_offers_a_next_window_in_the_past() -> None:
+    """A collection window that has already elapsed is not a recovery condition.
+
+    A postponed fixture kept its plans on the original date, so the page
+    advertised 2026-07-11 as the next window for a match moved to 08-18. The
+    stale plans are fixed upstream, but the page must not present a past
+    instant as a future one regardless of what the plan table holds.
+    """
+
+    from w2.dashboard.factor_checklist import build_fixture_factor_checklist
+
+    generated_at = "2026-08-18T11:01:00Z"
+    elapsed = "2026-08-18T10:50:00Z"
+    checklist = build_fixture_factor_checklist(
+        {"fixture_id": "api_football:1523198", "competition_id": "chinese_super_league"},
+        markets={},
+        market_collection={"scheduled_at": elapsed},
+        lineup_collection={"scheduled_at": elapsed},
+        home_identity_ready=True,
+        away_identity_ready=True,
+        shadow_candidate={},
+        market_aggregate_status="PENDING",
+        ledger_fact=None,
+        generated_at=generated_at,
+    )
+
+    windows = [
+        (row["factor_id"], row["next_window_at"])
+        for row in checklist["factors"]
+        if row.get("next_window_at") is not None
+    ]
+    assert not [item for item in windows if str(item[1]) < generated_at], windows
+
+
+def test_factor_checklist_keeps_a_next_window_that_is_still_ahead() -> None:
+    from w2.dashboard.factor_checklist import build_fixture_factor_checklist
+
+    generated_at = "2026-08-18T11:01:00Z"
+    ahead = "2026-08-18T11:20:00Z"
+    checklist = build_fixture_factor_checklist(
+        {"fixture_id": "api_football:1523198", "competition_id": "chinese_super_league"},
+        markets={},
+        market_collection={"scheduled_at": ahead},
+        lineup_collection={"scheduled_at": ahead},
+        home_identity_ready=True,
+        away_identity_ready=True,
+        shadow_candidate={},
+        market_aggregate_status="PENDING",
+        ledger_fact=None,
+        generated_at=generated_at,
+    )
+
+    assert any(row.get("next_window_at") == ahead for row in checklist["factors"])

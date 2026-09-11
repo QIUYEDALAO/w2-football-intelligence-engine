@@ -6,12 +6,13 @@ import os
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.ingestion_models import (
+    ProviderQuotaObservationModel,
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
@@ -132,6 +133,33 @@ class DbProviderRequestLedger:
             payload=payload,
             observed_at=completed_at,
         )
+        quota_values = (
+            quota.daily_limit,
+            quota.daily_remaining,
+            quota.burst_limit,
+            quota.burst_remaining,
+        )
+        if any(value is not None for value in quota_values):
+            with Session(engine) as session:
+                session.add(
+                    ProviderQuotaObservationModel(
+                        provider=provider,
+                        endpoint=endpoint,
+                        request_hash=request_hash,
+                        observed_at=completed_at.astimezone(UTC),
+                        daily_limit=quota.daily_limit,
+                        daily_remaining=quota.daily_remaining,
+                        burst_limit=quota.burst_limit,
+                        burst_remaining=quota.burst_remaining,
+                    )
+                )
+                try:
+                    session.commit()
+                except IntegrityError:
+                    session.rollback()
+                except Exception:
+                    session.rollback()
+                    raise
         if quota.daily_remaining is not None and quota.daily_limit is not None:
             window_start = completed_at.astimezone(UTC).replace(
                 hour=0,
@@ -158,12 +186,20 @@ class DbProviderRequestLedger:
                             limit=quota.daily_limit,
                             window_start=window_start,
                             window_end=window_end,
+                            observed_at=completed_at.astimezone(UTC),
+                            burst_limit=quota.burst_limit,
+                            burst_remaining=quota.burst_remaining,
                         )
                     )
                 else:
-                    quota_usage.used = max(quota_usage.used, used)
+                    quota_usage.used = used
                     quota_usage.limit = quota.daily_limit
                     quota_usage.window_end = window_end
+                    quota_usage.observed_at = completed_at.astimezone(UTC)
+                    if quota.burst_limit is not None:
+                        quota_usage.burst_limit = quota.burst_limit
+                    if quota.burst_remaining is not None:
+                        quota_usage.burst_remaining = quota.burst_remaining
                 try:
                     session.commit()
                 except Exception:
@@ -175,6 +211,23 @@ def provider_request_ledger_from_env() -> ProviderRequestLedger | None:
     if os.environ.get("W2_PROVIDER_REQUEST_LEDGER_ENABLED", "false").lower() != "true":
         return None
     return DbProviderRequestLedger()
+
+
+def provider_timeout_count_since(since: datetime) -> int:
+    with Session(create_engine()) as session:
+        return int(
+            session.scalar(
+                select(func.count())
+                .select_from(ProviderRequestLogModel)
+                .where(
+                    ProviderRequestLogModel.provider == "api_football",
+                    ProviderRequestLogModel.live.is_(True),
+                    ProviderRequestLogModel.error == "PROVIDER_TIMEOUT",
+                    ProviderRequestLogModel.requested_at >= since.astimezone(UTC),
+                )
+            )
+            or 0
+        )
 
 
 def _utc(value: datetime | None) -> datetime | None:

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import urllib.error
 from base64 import b64encode
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -41,8 +44,30 @@ from w2.operations.gate_a import (
     authorization_signing_message,
 )
 from w2.providers.api_football import LiveApiFootballResponse
+from w2.providers.control import (
+    free_plan_fixture_scope_restriction,
+    is_free_plan_fixture_scope_restricted,
+)
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_settings_cache() -> Iterator[None]:
+    """Recompute settings on both sides of every test in this module.
+
+    ``get_settings`` is ``lru_cache``d. Tests below point ``W2_DATABASE_URL`` or
+    the provider allowlist at a value of their own and then ``cache_clear()`` so
+    their value is the one read. ``monkeypatch`` puts the environment back at
+    teardown but cannot put the cache back, so the value computed under the patched
+    environment outlived the test that patched it: whichever test ran next read
+    this module's settings, and for ``W2_DATABASE_URL`` that is a path inside a
+    ``tmp_path`` pytest has already deleted. Clearing on the way out is what makes
+    the order the suite happens to run in stop mattering.
+    """
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def _refresh_result(**overrides: Any) -> FutureRefreshResult:
@@ -65,9 +90,166 @@ def test_refresh_progress_distinguishes_data_empty_and_failure() -> None:
     assert refresh_progress_status(_refresh_result(market_snapshot_count=1)) == "DATA_PROGRESS"
     assert refresh_progress_status(_refresh_result()) == "PROVIDER_EMPTY"
     assert (
-        refresh_progress_status(_refresh_result(blockers=["PROVIDER_REQUEST_FAILED"]))
-        == "FAILED"
+        refresh_progress_status(_refresh_result(blockers=["PROVIDER_REQUEST_FAILED"])) == "FAILED"
     )
+
+
+def test_free_plan_fixture_scope_restriction_is_exact() -> None:
+    assert free_plan_fixture_scope_restriction({"league": "39", "season": "2026"}) is not None
+    assert free_plan_fixture_scope_restriction({"league": "39", "season": "2025"}) is None
+    assert free_plan_fixture_scope_restriction({"league": "140", "season": "2026"}) == {
+        "competition_id": "la_liga",
+        "sample_count": 3,
+        "observed_at_utc": "2026-08-12T05:54:21Z/2026-08-14T00:01:01Z",
+        "payload_sha256": "1ab19d614ffaa2fd97cd2abddaeaa6e199ddc5de2e6a6b29606833704cf98ab8",
+        "provider_error": (
+            "Free plans do not have access to this season, try from 2022 to 2024."
+        ),
+    }
+    assert (
+        free_plan_fixture_scope_restriction(
+            {"id": "1494248", "league": "39", "season": "2026"}
+        )
+        is None
+    )
+
+
+def test_free_plan_fixture_scope_restriction_matches_only_exact_provider_error() -> None:
+    assert is_free_plan_fixture_scope_restricted(
+        {
+            "errors": {
+                "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            },
+            "response": [],
+        }
+    )
+    assert not is_free_plan_fixture_scope_restricted(
+        {"errors": {"plan": "another restriction"}, "response": []}
+    )
+
+
+def test_runtime_scope_observation_overrides_static_seed(tmp_path: Path) -> None:
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            competition_id="premier_league",
+            league_id="39",
+            season="2026",
+            persistence="db",
+        ),
+        now=NOW,
+    )
+
+    class Repository:
+        @staticmethod
+        def latest_provider_quota_authority() -> dict[str, Any]:
+            return {"daily_limit": 100}
+
+        @staticmethod
+        def free_plan_fixture_scope_state(**_kwargs: Any) -> dict[str, Any]:
+            return {"observed": True, "restriction": None, "consecutive_count": 0}
+
+        @staticmethod
+        def record_free_plan_fixture_scope_observation(**_kwargs: Any) -> dict[str, Any]:
+            return {
+                "observed": True,
+                "restriction": {"sample_count": 3},
+                "consecutive_count": 3,
+                "newly_confirmed": True,
+            }
+
+    service._db_repository = lambda: Repository()  # type: ignore[method-assign]
+
+    assert service._free_plan_fixture_scope_restriction(
+        {"league": "39", "season": "2026"}
+    ) is None
+    observation = service._record_free_plan_fixture_scope_observation(
+        endpoint="fixtures",
+        params={"league": "253", "season": "2027"},
+        payload={
+            "errors": {
+                "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            },
+            "response": [],
+        },
+        payload_sha256="a" * 64,
+        captured_at=NOW,
+    )
+    assert observation is not None and observation["newly_confirmed"] is True
+    assert service._free_plan_restriction_auto_detected_count == 1
+
+
+def test_pro_quota_authority_disables_free_scope_seed(tmp_path: Path) -> None:
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            competition_id="premier_league",
+            league_id="39",
+            season="2026",
+            persistence="db",
+        ),
+        now=NOW,
+    )
+
+    class Repository:
+        @staticmethod
+        def latest_provider_quota_authority() -> dict[str, Any]:
+            return {"daily_limit": 7500}
+
+    service._db_repository = lambda: Repository()  # type: ignore[method-assign]
+
+    assert service._free_plan_fixture_scope_restriction(
+        {"league": "39", "season": "2026"}
+    ) is None
+
+
+def test_future_refresh_skips_confirmed_free_plan_restricted_scope_without_dispatch(
+    tmp_path: Path,
+) -> None:
+    client = FakeApiFootballClient()
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            competition_id="premier_league",
+            league_id="39",
+            season="2026",
+            persistence="file",
+        ),
+        now=NOW,
+    ).run()
+
+    assert result.status == "SKIPPED_FREE_PLAN_RESTRICTED"
+    assert result.request_count == 0
+    assert result.skipped_free_plan_restricted_count == 1
+    assert client.calls == []
+    audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+    assert audit["skipped_free_plan_restricted_count"] == 1
+    assert audit["requests"] == [
+        {
+            "attempt": 0,
+            "captured_at_utc": "2026-06-23T10:00:00Z",
+            "diagnostic_code": "SKIPPED_FREE_PLAN_RESTRICTED",
+            "elapsed_ms": 0,
+            "endpoint": "fixtures",
+            "error_code": None,
+            "params": {
+                "from": "2026-06-23",
+                "league": "39",
+                "season": "2026",
+                "to": "2026-06-27",
+            },
+            "payload_sha256": None,
+            "provider_dispatched": False,
+            "response_count": 0,
+            "restriction_evidence": free_plan_fixture_scope_restriction(
+                {"league": "39", "season": "2026"}
+            ),
+            "status_code": None,
+        }
+    ]
 
 
 def _gate_a_authorization() -> GateARuntimeAuthorization:
@@ -958,6 +1140,192 @@ def test_future_refresh_loads_strictest_persisted_quota(monkeypatch: Any, tmp_pa
     assert service._latest_remaining == 95
 
 
+def test_future_refresh_uses_provider_quota_as_daily_usage_authority(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    class Repository:
+        @staticmethod
+        def request_count_since(
+            _day_start: datetime,
+            *,
+            include_quota_usage: bool = True,
+        ) -> int:
+            assert include_quota_usage is True
+            return 10
+
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="db",
+            daily_usage_scope="w2_ledger",
+        ),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", Repository)
+
+    assert service._actual_provider_calls_today() == 10
+
+
+def test_future_refresh_surfaces_quota_usage_ledger_divergence(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+
+    class Repository:
+        @staticmethod
+        def fixture_payloads() -> list[dict[str, Any]]:
+            return []
+
+        @staticmethod
+        def request_count_evidence_since(
+            _day_start: datetime,
+            *,
+            include_quota_usage: bool = True,
+            as_of: datetime | None = None,
+        ) -> dict[str, int | bool]:
+            assert include_quota_usage is True
+            assert as_of == NOW
+            return {
+                "known_count": 10,
+                "quota_usage_count": 10,
+                "run_audit_count": 135,
+                "provider_ledger_count": 135,
+                "billable_from_provider": 10,
+                "local_ledger_count": 135,
+                "last_authority_at": NOW.isoformat(),
+                "authority_age_seconds": 0,
+                "dispatched_count": 135,
+                "dispatched_since_authority_count": 0,
+                "attempt_count": 135,
+                "quota_authority_status": "AUTHORITATIVE",
+                "quota_authority_degraded": False,
+                "quota_degradation_classification": None,
+                "quota_usage_ledger_delta": 125,
+                "quota_usage_ledger_divergence": True,
+            }
+
+        @staticmethod
+        def successful_request_count_since(_day_start: datetime) -> int:
+            return 135
+
+        @staticmethod
+        def postmatch_result_request_count_since(_day_start: datetime) -> int:
+            return 10
+
+        @staticmethod
+        def postmatch_result_successful_request_count_since(_day_start: datetime) -> int:
+            return 10
+
+        @staticmethod
+        def unsettled_model_forecast_postmatch_count(**_kwargs: Any) -> int:
+            return 2
+
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="db",
+            daily_hard_cap=70,
+            daily_reserve=0,
+        ),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", Repository)
+
+    decision = service._provider_hard_cap_preflight()
+
+    assert decision["allowed"] is True
+    assert decision["operational_status"] == "QUOTA_USAGE_LEDGER_DIVERGENCE"
+    assert decision["actual_calls_today"] == 10
+    assert decision["quota_usage_ledger_delta"] == 125
+
+    postmatch_service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="db",
+            checkpoint_fixture_ids=("1494241",),
+            refresh_checkpoints=(
+                {
+                    "checkpoint": "POSTMATCH_RESULT",
+                    "endpoints": ["status", "fixtures"],
+                },
+            ),
+        ),
+        now=NOW,
+    )
+    monkeypatch.setattr(postmatch_service, "_db_repository", Repository)
+
+    postmatch_decision = postmatch_service._provider_hard_cap_preflight()
+
+    assert postmatch_decision["planned_calls"] == 3, postmatch_decision
+    assert postmatch_decision["reserved_capture_calls"] == 6, postmatch_decision
+    assert postmatch_decision["allowed"] is True, postmatch_decision
+    assert postmatch_decision["actual_calls_today"] == 10
+    assert postmatch_decision["operational_status"] == "QUOTA_USAGE_LEDGER_DIVERGENCE"
+
+
+def test_future_refresh_classifies_stale_quota_authority_as_expected_degraded(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+
+    class Repository:
+        @staticmethod
+        def fixture_payloads() -> list[dict[str, Any]]:
+            return []
+
+        @staticmethod
+        def request_count_evidence_since(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            return {
+                "known_count": 12,
+                "quota_usage_count": 10,
+                "run_audit_count": 135,
+                "provider_ledger_count": 135,
+                "billable_from_provider": 10,
+                "local_ledger_count": 135,
+                "last_authority_at": "2026-06-23T07:00:00Z",
+                "authority_age_seconds": 10800,
+                "dispatched_count": 135,
+                "dispatched_since_authority_count": 2,
+                "attempt_count": 135,
+                "quota_authority_status": "DEGRADED",
+                "quota_authority_degraded": True,
+                "quota_degradation_classification": "EXPECTED_DEGRADED",
+                "quota_usage_ledger_delta": 125,
+                "quota_usage_ledger_divergence": True,
+            }
+
+        @staticmethod
+        def successful_request_count_since(_day_start: datetime) -> int:
+            return 135
+
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="db",
+            daily_hard_cap=70,
+            daily_reserve=0,
+        ),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", Repository)
+
+    decision = service._provider_hard_cap_preflight()
+
+    assert decision["actual_calls_today"] == 12
+    assert decision["operational_statuses"] == [
+        "QUOTA_AUTHORITY_DEGRADED",
+        "EXPECTED_DEGRADED",
+        "QUOTA_USAGE_LEDGER_DIVERGENCE",
+    ]
+
+
 def test_future_refresh_blocks_when_header_remaining_below_preflight_minimum(
     tmp_path: Path,
 ) -> None:
@@ -1001,7 +1369,76 @@ def test_provider_ingress_defaults_to_fail_closed(tmp_path: Path) -> None:
     assert service.client.allow_live is False
 
 
-def test_gate_a_uncertain_delivery_reserves_once_and_never_retries(tmp_path: Path) -> None:
+def test_timeout_retries_once_with_bounded_backoff(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+    monkeypatch.setenv("W2_PROVIDER_TIMEOUT_MAX_ATTEMPTS", "2")
+    monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
+    client = _FailingProvider()
+    sleeps: list[float] = []
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="file",
+            request_budget=2,
+        ),
+        now=NOW,
+        sleep=sleeps.append,
+    ).run()
+
+    assert result.status == "BLOCKED"
+    assert result.blockers == ["TimeoutError"]
+    assert client.calls == 2
+    assert sleeps == [2]
+    assert "competition_id=world_cup_2026 endpoint=status" in caplog.text
+    assert "attempt=2 retry_number=1 max_attempts=2" in caplog.text
+
+
+def test_url_error_retries_once_without_retrying_http_statuses(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+    monkeypatch.setenv("W2_PROVIDER_TIMEOUT_MAX_ATTEMPTS", "2")
+    monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
+    calls = 0
+    sleeps: list[float] = []
+
+    class UrlErrorProvider:
+        def request_live(
+            self,
+            endpoint: str,
+            params: dict[str, str],
+        ) -> LiveApiFootballResponse:
+            nonlocal calls
+            calls += 1
+            raise urllib.error.URLError("connection reset")
+
+    result = FutureFixtureRefreshService(
+        client=UrlErrorProvider(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="file",
+            request_budget=2,
+        ),
+        now=NOW,
+        sleep=sleeps.append,
+    ).run()
+
+    assert result.blockers == ["URLError"]
+    assert calls == 2
+    assert sleeps == [2]
+
+
+def test_gate_a_uncertain_delivery_reserves_once_and_never_retries(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
     client = _FailingProvider()
     reservation = _CallReservation()
     result = FutureFixtureRefreshService(
@@ -1033,7 +1470,7 @@ def test_gate_a_http_failure_is_not_automatically_retried(tmp_path: Path) -> Non
     ).run()
 
     assert result.status == "BLOCKED"
-    assert result.blockers == ["PROVIDER_HTTP_429"]
+    assert result.blockers == ["PROVIDER_MINUTE_RATE_LIMIT_EXCEEDED"]
     assert client.calls == [("status", {})]
     assert reservation.endpoints == ["status"]
     assert reservation.outcomes == [(1, "RESPONSE_RECEIVED", None)]
@@ -1105,7 +1542,21 @@ def test_gate_a_abnormal_empty_fails_closed(tmp_path: Path) -> None:
 
 def test_future_refresh_controlled_feature_enrichment_uses_budget_and_audit(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # This test is about STATISTICS_NOT_POSTMATCH: statistics has to be an
+    # authorised endpoint, so that skipping it is attributed to the fixture not
+    # being finished rather than to the endpoint being unauthorised. conftest
+    # only setdefault()s the allowlist, so a caller that already exports a
+    # narrower one -- the release workflow exports it without statistics --
+    # silently turned this into ENDPOINT_NOT_AUTHORIZED and the assertion below
+    # stopped testing what it names. State the precondition here instead of
+    # depending on whatever the environment happens to hold.
+    monkeypatch.setenv(
+        "W2_PROVIDER_ENDPOINT_ALLOWLIST",
+        "status,fixtures,odds,lineups,statistics",
+    )
+    get_settings.cache_clear()
     client = FakeApiFootballClient()
     config = FutureRefreshConfig(
         runtime_root=tmp_path,
@@ -1130,7 +1581,7 @@ def test_future_refresh_controlled_feature_enrichment_uses_budget_and_audit(
     assert ("lineups", {"fixture": "1489404"}) in client.calls
     assert ("injuries", {"fixture": "1489404"}) not in client.calls
     assert list((tmp_path / "raw").glob("lineups_*.json"))
-    assert "ENDPOINT_NOT_AUTHORIZED:statistics" in audit
+    assert "STATISTICS_NOT_POSTMATCH" in audit
     assert "ENDPOINT_NOT_AUTHORIZED:injuries" in audit
     assert '"candidate": false' in audit
     assert '"formal_recommendation": false' in audit
@@ -1200,9 +1651,7 @@ def test_future_refresh_skips_optional_enrichment_at_request_budget(tmp_path: Pa
     assert result.request_count == 3
     assert [endpoint for endpoint, _params in client.calls] == ["status", "fixtures", "odds"]
     assert result.feature_enrichment_payload_count == 0
-    assert audit["requests"][-1]["error_code"] == (
-        "FEATURE_ENRICHMENT_SKIPPED_REQUEST_BUDGET"
-    )
+    assert audit["requests"][-1]["error_code"] == ("FEATURE_ENRICHMENT_SKIPPED_REQUEST_BUDGET")
 
 
 def test_future_refresh_tick_hard_cap_blocks_before_provider_call(
@@ -1233,6 +1682,44 @@ def test_future_refresh_tick_hard_cap_blocks_before_provider_call(
     assert client.calls == []
     assert audit["request_count"] == 0
     assert audit["requests"][0]["projected_calls"] == 99
+
+
+def test_postmatch_minute_preflight_uses_recent_local_attempts(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status,fixtures")
+
+    class Repository:
+        @staticmethod
+        def provider_request_count_since(_since: datetime) -> int:
+            return 9
+
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="db",
+            checkpoint_fixture_ids=("1494241",),
+            refresh_checkpoints=(
+                {
+                    "checkpoint": "POSTMATCH_RESULT",
+                    "endpoints": ["status", "fixtures"],
+                },
+            ),
+        ),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", Repository)
+
+    decision = service._provider_tick_hard_cap_preflight()
+
+    assert decision["allowed"] is False
+    assert decision["blocker"] == "PROVIDER_MINUTE_RATE_LIMIT_PROTECTED"
+    assert decision["minute_limit"] == 10
+    assert decision["minute_calls_observed"] == 9
+    assert decision["projected_calls"] == 2
 
 
 def test_future_refresh_projected_calls_ignore_disallowed_enrichment(tmp_path: Path) -> None:
@@ -1279,7 +1766,9 @@ def test_future_refresh_records_401_without_retry(tmp_path: Path) -> None:
     assert "PROVIDER_HTTP_401" in audit
 
 
-def test_future_refresh_records_429_without_tight_retry(tmp_path: Path) -> None:
+def test_future_refresh_records_429_without_tight_retry(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_TIMEOUT_MAX_ATTEMPTS", "2")
+    monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
     client = FakeApiFootballClient(status_code=429)
     config = FutureRefreshConfig(runtime_root=tmp_path, persistence="file")
     result = FutureFixtureRefreshService(
@@ -1290,9 +1779,9 @@ def test_future_refresh_records_429_without_tight_retry(tmp_path: Path) -> None:
     ).run()
     audit = (tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8")
 
-    assert result.blockers == ["PROVIDER_HTTP_429"]
+    assert result.blockers == ["PROVIDER_MINUTE_RATE_LIMIT_EXCEEDED"]
     assert len(client.calls) == 1
-    assert "PROVIDER_HTTP_429" in audit
+    assert "PROVIDER_MINUTE_RATE_LIMIT_EXCEEDED" in audit
 
 
 def test_future_refresh_caps_configured_provider_retries(
@@ -1309,7 +1798,7 @@ def test_future_refresh_caps_configured_provider_retries(
         sleep=lambda _: None,
     ).run()
 
-    assert result.blockers == ["PROVIDER_HTTP_429"]
+    assert result.blockers == ["PROVIDER_MINUTE_RATE_LIMIT_EXCEEDED"]
     assert result.request_count == 3
     assert len(client.calls) == 3
 
@@ -1416,11 +1905,47 @@ def test_future_refresh_staging_requires_exact_source_revision(monkeypatch) -> N
 def test_world_cup_future_refresh_policy_uses_zero_trickle_backfill_budget() -> None:
     config = config_from_policy(competition_id="world_cup_2026")
 
-    assert config.daily_hard_cap == 120
-    assert config.daily_reserve == 0
+    assert config.daily_hard_cap == 7500
+    assert config.daily_unallocated_buffer == 0
+    assert config.daily_reserve == 1500
     assert config.request_budget == 30
-    assert config.checkpoint_mode == "matchday_intake_v2_compatibility"
-    assert config.trickle_backfill_daily_budget == 0
+    assert config.checkpoint_mode == "matchday_checkpoint_plan"
+    assert config.trickle_backfill_daily_budget == 120
+
+
+def test_future_refresh_rejects_registered_budget_above_observed_plan_limit(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "7501")
+
+    try:
+        config_from_policy(competition_id="world_cup_2026")
+    except FutureRefreshError as exc:
+        assert str(exc) == "PROVIDER_DAILY_BUDGET_EXCEEDS_OBSERVED_PLAN_LIMIT"
+    else:  # pragma: no cover
+        raise AssertionError("registered budget above the observed plan limit must fail closed")
+
+
+def test_future_refresh_accepts_header_bound_pro_budget(monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "7500")
+    monkeypatch.setenv("W2_PROVIDER_DAILY_UNALLOCATED_BUFFER", "0")
+    monkeypatch.setenv("W2_PROVIDER_DAILY_RESERVE", "1500")
+    monkeypatch.setenv("W2_PROVIDER_OBSERVED_DAILY_LIMIT", "7500")
+    monkeypatch.setenv("W2_PROVIDER_OBSERVED_DAILY_LIMIT_AT", "2026-08-16T16:47:41Z")
+
+    config = config_from_policy(competition_id="world_cup_2026")
+
+    assert config.daily_hard_cap == 7500
+    assert config.daily_reserve == 1500
+    assert config.quota_reserve == 1500
+
+
+def test_future_refresh_rejects_unattributed_non_free_limit(monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_OBSERVED_DAILY_LIMIT", "7500")
+    monkeypatch.delenv("W2_PROVIDER_OBSERVED_DAILY_LIMIT_AT", raising=False)
+
+    with pytest.raises(FutureRefreshError, match="PROVIDER_PLAN_LIMIT_AUTHORITY_MISSING"):
+        config_from_policy(competition_id="world_cup_2026")
 
 
 def test_future_refresh_file_lock_prevents_duplicate_owner(tmp_path: Path) -> None:
@@ -1581,6 +2106,7 @@ def test_fixture_change_triggers_projection_before_task_success(
         RuntimeRepository,
     )
     monkeypatch.setattr(service, "_write_audit", lambda _result: None)
+    monkeypatch.setattr(service, "_seed_provider_primary_identities", lambda **_kwargs: None)
     response = LiveApiFootballResponse(
         endpoint="fixtures",
         params={},
@@ -1664,3 +2190,21 @@ def test_checkpoint_refresh_fails_before_completion_when_materialization_fails(
 
 def test_future_refresh_error_type_is_runtime_error() -> None:
     assert issubclass(FutureRefreshError, RuntimeError)
+
+
+def test_settings_cache_does_not_outlive_the_test_that_patched_the_environment() -> None:
+    """Cached settings must match the ambient environment, not an earlier test's.
+
+    Two tests in this module point ``W2_DATABASE_URL`` and the provider allowlist at
+    values of their own and clear the ``lru_cache`` so their value is read.
+    ``monkeypatch`` restores the environment at teardown; it cannot restore the
+    cache. Without ``_isolate_settings_cache`` the value computed under the patched
+    environment is still cached here -- and for ``W2_DATABASE_URL`` it names a file
+    inside a ``tmp_path`` pytest has already removed, so the failure surfaces in
+    whichever test ran next rather than in the one that caused it.
+
+    This assertion only means something in file order, which is the point: it is
+    the ordering leak itself that is under test.
+    """
+    ambient = os.environ["W2_DATABASE_URL"]
+    assert get_settings().database_url.get_secret_value() == ambient

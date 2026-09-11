@@ -3,6 +3,7 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import logging
 import os
 import re
 import time
@@ -49,15 +50,28 @@ from w2.prematch.read_model_projection import (
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.control import (
     env_int,
+    free_plan_fixture_scope_restriction,
+    is_free_plan_fixture_scope_restricted,
     provider_endpoint_allowlist,
     provider_http_max_attempts,
     provider_refresh_tick_hard_cap,
+    provider_request_max_attempts,
+    provider_timeout_max_attempts,
+    provider_timeout_retry_backoff_seconds,
 )
 from w2.providers.quota import (
+    API_FOOTBALL_FREE_DAILY_LIMIT,
+    API_FOOTBALL_FREE_MINUTE_LIMIT,
+    API_FOOTBALL_FREE_UNALLOCATED_BUFFER,
+    REGISTERED_PROVIDER_DAILY_QUOTA_POOLS,
     parse_api_football_quota,
+    postmatch_result_quota_decision,
+    provider_daily_budget_contract,
     provider_daily_hard_cap_decision,
     quota_guard_decision,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class FutureRefreshError(RuntimeError):
@@ -97,6 +111,7 @@ class CompetitionRefreshPolicy:
     market_freshness_seconds: int
     enabled: bool
     daily_hard_cap: int
+    daily_unallocated_buffer: int
     daily_reserve: int
     daily_usage_scope: str
     checkpoint_mode: str
@@ -124,9 +139,10 @@ class FutureRefreshConfig:
     enabled: bool = True
     persistence: str = "db"
     daily_hard_cap: int = 7500
+    daily_unallocated_buffer: int = API_FOOTBALL_FREE_UNALLOCATED_BUFFER
     daily_reserve: int = 1500
     daily_usage_scope: str = "w2_ledger"
-    checkpoint_mode: str = "matchday_intake_v2_compatibility"
+    checkpoint_mode: str = "matchday_checkpoint_plan"
     trickle_backfill_daily_budget: int = 0
     actual_provider_calls_today: int | None = None
     provider_refresh_batch_size: int = 3
@@ -134,6 +150,7 @@ class FutureRefreshConfig:
     checkpoint_fixture_ids: tuple[str, ...] = ()
     refresh_checkpoints: tuple[dict[str, Any], ...] = ()
     result_refresh_fixture_ids: tuple[str, ...] = ()
+    discovery_date: str | None = None
 
 
 @dataclass(frozen=True)
@@ -153,6 +170,11 @@ class FutureRefreshResult:
     error_code: str | None = None
     materialized_fixture_ids: list[str] = field(default_factory=list)
     exact_pair_count: int = 0
+    skipped_free_plan_restricted_count: int = 0
+    free_plan_restriction_auto_detected_count: int = 0
+    identity_pool_expansions: list[dict[str, Any]] = field(default_factory=list)
+    requests: list[dict[str, Any]] = field(default_factory=list)
+    refresh_checkpoints: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -172,7 +194,11 @@ class RefreshTaskAudit:
 def refresh_progress_status(result: FutureRefreshResult) -> str:
     if result.blockers or result.status in {"BLOCKED", "PARTIAL_FAILED", "FAILED"}:
         return "FAILED"
-    if result.market_snapshot_count > 0 or result.materialized_fixture_ids:
+    if (
+        result.status == "DISCOVERY_COMPLETE"
+        or result.market_snapshot_count > 0
+        or result.materialized_fixture_ids
+    ):
         return "DATA_PROGRESS"
     return "PROVIDER_EMPTY"
 
@@ -311,9 +337,12 @@ def load_refresh_policy(
             market_freshness_seconds=item["market_freshness_seconds"],
             enabled=entry.enabled and entry.refresh_switches.get("fixtures") is True,
             daily_hard_cap=int(item.get("daily_hard_cap", 7500)),
+            daily_unallocated_buffer=int(
+                item.get("daily_unallocated_buffer", API_FOOTBALL_FREE_UNALLOCATED_BUFFER)
+            ),
             daily_reserve=int(item.get("daily_reserve", quota_reserve)),
             daily_usage_scope=str(item.get("daily_usage_scope", "provider_quota")),
-            checkpoint_mode=str(item.get("checkpoint_mode", "matchday_intake_v2_compatibility")),
+            checkpoint_mode=str(item.get("checkpoint_mode", "matchday_checkpoint_plan")),
             trickle_backfill_daily_budget=int(item.get("trickle_backfill_daily_budget", 0)),
             config_hash=entry.config_hash,
         )
@@ -327,6 +356,41 @@ def config_from_policy(
     registry: CompetitionRegistry | None = None,
 ) -> FutureRefreshConfig:
     policy = load_refresh_policy(competition_id=competition_id, registry=registry)
+    effective_daily_cap = env_int(
+        "W2_PROVIDER_DAILY_HARD_CAP",
+        default=policy.daily_hard_cap,
+    )
+    pool_limits = {
+        pool.name: env_int(
+            pool.env_var,
+            default=effective_daily_cap if pool.name == "GENERAL" else pool.default_limit,
+        )
+        for pool in REGISTERED_PROVIDER_DAILY_QUOTA_POOLS
+    }
+    daily_unallocated_buffer = env_int(
+        "W2_PROVIDER_DAILY_UNALLOCATED_BUFFER",
+        default=policy.daily_unallocated_buffer,
+    )
+    observed_provider_limit = env_int(
+        "W2_PROVIDER_OBSERVED_DAILY_LIMIT",
+        default=API_FOOTBALL_FREE_DAILY_LIMIT,
+    )
+    observed_provider_limit_at = os.environ.get(
+        "W2_PROVIDER_OBSERVED_DAILY_LIMIT_AT", ""
+    ).strip()
+    if observed_provider_limit != API_FOOTBALL_FREE_DAILY_LIMIT and not observed_provider_limit_at:
+        raise FutureRefreshError("PROVIDER_PLAN_LIMIT_AUTHORITY_MISSING")
+    budget = provider_daily_budget_contract(
+        pool_limits=pool_limits,
+        unallocated_buffer=daily_unallocated_buffer,
+        provider_limit=observed_provider_limit,
+    )
+    if not budget["valid"]:
+        raise FutureRefreshError("PROVIDER_DAILY_BUDGET_EXCEEDS_OBSERVED_PLAN_LIMIT")
+    effective_daily_reserve = env_int(
+        "W2_PROVIDER_DAILY_RESERVE",
+        default=policy.daily_reserve,
+    )
     return FutureRefreshConfig(
         runtime_root=runtime_root or FutureRefreshConfig().runtime_root,
         competition_id=policy.competition_id,
@@ -335,7 +399,7 @@ def config_from_policy(
         horizon_days=policy.horizon_days,
         max_fixture_candidates=policy.max_fixture_candidates,
         max_odds_requests=policy.max_odds_requests,
-        quota_reserve=policy.quota_reserve,
+        quota_reserve=effective_daily_reserve,
         market_freshness_seconds=policy.market_freshness_seconds,
         request_budget=policy.request_budget,
         feature_enrichment_enabled=policy.feature_enrichment_enabled,
@@ -345,8 +409,9 @@ def config_from_policy(
         source_revision=_bound_source_revision(),
         enabled=policy.enabled,
         persistence=os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db").lower(),
-        daily_hard_cap=policy.daily_hard_cap,
-        daily_reserve=policy.daily_reserve,
+        daily_hard_cap=effective_daily_cap,
+        daily_unallocated_buffer=daily_unallocated_buffer,
+        daily_reserve=effective_daily_reserve,
         daily_usage_scope=policy.daily_usage_scope,
         checkpoint_mode=policy.checkpoint_mode,
         trickle_backfill_daily_budget=policy.trickle_backfill_daily_budget,
@@ -739,6 +804,9 @@ class FutureFixtureRefreshService:
         self.materialize_results = materialize_results
         self._attempt_count = 0
         self._latest_remaining: int | None = None
+        self._latest_burst_limit: int | None = None
+        self._latest_burst_remaining: int | None = None
+        self._burst_observed_at: datetime | None = None
         self._audit: list[dict[str, Any]] = []
         self._odds_request_fixture_ids: list[str] = []
         self._raw_payload_written: set[str] = set()
@@ -749,6 +817,9 @@ class FutureFixtureRefreshService:
         self._checkpoint_errors: list[str] = []
         self._checkpoint_attempted_plan_ids: set[str] = set()
         self._checkpoint_preflight_failures: set[str] = set()
+        self._identity_pool_expansions: list[dict[str, Any]] = []
+        self._provider_usage_evidence: dict[str, Any] = {}
+        self._free_plan_restriction_auto_detected_count = 0
 
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
@@ -758,11 +829,22 @@ class FutureFixtureRefreshService:
             return
         day_start = self.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
         try:
-            remaining = self._db_repository().provider_quota_snapshot(day_start).get("remaining")
+            snapshot = self._db_repository().provider_quota_snapshot(day_start)
         except FutureRefreshPersistenceError:
             return
+        remaining = snapshot.get("remaining")
         if remaining is not None:
             self._latest_remaining = max(int(remaining), 0)
+        burst_limit = snapshot.get("burst_limit")
+        burst_remaining = snapshot.get("burst_remaining")
+        burst_observed_at = snapshot.get("burst_observed_at")
+        self._latest_burst_limit = int(burst_limit) if burst_limit is not None else None
+        self._latest_burst_remaining = (
+            int(burst_remaining) if burst_remaining is not None else None
+        )
+        self._burst_observed_at = (
+            parse_utc(burst_observed_at) if burst_observed_at else None
+        )
 
     def _allowed_live_endpoints(self, config: FutureRefreshConfig) -> frozenset[str]:
         base = {"status", "fixtures", "odds"}
@@ -795,6 +877,46 @@ class FutureFixtureRefreshService:
             )
             self._write_audit(result)
             return result
+        fixture_params = self._fixtures_request_params()
+        restriction = (
+            self._free_plan_fixture_scope_restriction(fixture_params)
+            if not self.config.refresh_checkpoints
+            and not self.config.result_refresh_fixture_ids
+            and self.config.discovery_date is None
+            else None
+        )
+        if restriction is not None:
+            self._audit.append(
+                {
+                    "endpoint": "fixtures",
+                    "params": sanitize_params(fixture_params),
+                    "attempt": 0,
+                    "provider_dispatched": False,
+                    "status_code": None,
+                    "elapsed_ms": 0,
+                    "captured_at_utc": iso(self.now),
+                    "response_count": 0,
+                    "payload_sha256": None,
+                    "error_code": None,
+                    "diagnostic_code": "SKIPPED_FREE_PLAN_RESTRICTED",
+                    "restriction_evidence": restriction,
+                }
+            )
+            result = FutureRefreshResult(
+                generated_at_utc=self.now,
+                fixture_count=0,
+                mapping_count=0,
+                market_snapshot_count=0,
+                feature_enrichment_payload_count=0,
+                ledger_appended_count=0,
+                request_count=0,
+                remaining_quota=None,
+                selected_market_fixture_ids=[],
+                status="SKIPPED_FREE_PLAN_RESTRICTED",
+                skipped_free_plan_restricted_count=1,
+            )
+            self._write_audit(result)
+            return result
         self._load_persisted_provider_remaining()
         self._validate_checkpoint_claims()
         tick_cap = self._provider_tick_hard_cap_preflight()
@@ -813,6 +935,12 @@ class FutureFixtureRefreshService:
                     "error_code": blocker,
                     "projected_calls": tick_cap["projected_calls"],
                     "tick_hard_cap": tick_cap["tick_hard_cap"],
+                    "minute_limit": tick_cap["minute_limit"],
+                    "minute_calls_observed": tick_cap["minute_calls_observed"],
+                    "minute_remaining_before_plan": tick_cap[
+                        "minute_remaining_before_plan"
+                    ],
+                    "effective_tick_cap": tick_cap["effective_tick_cap"],
                 }
             )
             result = FutureRefreshResult(
@@ -832,6 +960,62 @@ class FutureFixtureRefreshService:
             self._write_audit(result)
             return result
         preflight = self._provider_hard_cap_preflight()
+        if preflight.get("operational_status") or preflight.get("operational_statuses"):
+            self._audit.append(
+                {
+                    "endpoint": "provider_daily_hard_cap_preflight",
+                    "params": {},
+                    "attempt": 0,
+                    "status_code": None,
+                    "elapsed_ms": 0,
+                    "captured_at_utc": iso(utc_now()),
+                    "remaining_quota": self._latest_remaining,
+                    "payload_sha256": None,
+                    "error_code": None,
+                    "operational_status": preflight["operational_status"],
+                    "operational_statuses": preflight.get("operational_statuses", []),
+                    "quota_guard_mode": preflight["mode"],
+                    "actual_calls_today": preflight["actual_calls_today"],
+                    "billable_calls_today": preflight.get("billable_calls_today"),
+                    "postmatch_request_attempts_today": preflight.get(
+                        "postmatch_request_attempts_today"
+                    ),
+                    "successful_calls_today": preflight["successful_calls_today"],
+                    "budget_basis": preflight["budget_basis"],
+                    "planned_calls": preflight["planned_calls"],
+                    "reserved_capture_count": preflight.get("reserved_capture_count", 0),
+                    "reserved_capture_calls": preflight.get("reserved_capture_calls", 0),
+                    "daily_cap": preflight["daily_cap"],
+                    "reserve_bucket": preflight["reserve_bucket"],
+                    "remaining_after_plan": preflight["remaining_after_plan"],
+                    "quota_scope": preflight.get("quota_scope", "GENERAL"),
+                    "quota_usage_calls_today": preflight.get("quota_usage_count"),
+                    "provider_ledger_calls_today": preflight.get("provider_ledger_count"),
+                    "run_audit_calls_today": preflight.get("run_audit_count"),
+                    "billable_from_provider": preflight.get("billable_from_provider"),
+                    "provider_daily_limit": preflight.get("provider_daily_limit"),
+                    "provider_daily_remaining": preflight.get("provider_daily_remaining"),
+                    "local_ledger_count": preflight.get("local_ledger_count"),
+                    "last_authority_at": preflight.get("last_authority_at"),
+                    "authority_age_seconds": preflight.get("authority_age_seconds"),
+                    "dispatched_count": preflight.get("dispatched_count"),
+                    "dispatched_since_authority_count": preflight.get(
+                        "dispatched_since_authority_count"
+                    ),
+                    "attempt_count": preflight.get("attempt_count"),
+                    "quota_degradation_classification": preflight.get(
+                        "quota_degradation_classification"
+                    ),
+                    "quota_authority_status": preflight.get("quota_authority_status"),
+                    "quota_authority_observed_at": preflight.get(
+                        "quota_authority_observed_at"
+                    ),
+                    "quota_authority_age_seconds": preflight.get(
+                        "quota_authority_age_seconds"
+                    ),
+                    "quota_usage_ledger_delta": preflight.get("quota_usage_ledger_delta"),
+                }
+            )
         if not preflight["allowed"]:
             blocker = str(preflight["blocker"])
             self._audit.append(
@@ -845,11 +1029,48 @@ class FutureFixtureRefreshService:
                     "remaining_quota": self._latest_remaining,
                     "payload_sha256": None,
                     "error_code": blocker,
+                    "operational_status": preflight.get("operational_status"),
+                    "operational_statuses": preflight.get("operational_statuses", []),
                     "quota_guard_mode": preflight["mode"],
                     "actual_calls_today": preflight["actual_calls_today"],
+                    "billable_calls_today": preflight.get("billable_calls_today"),
+                    "postmatch_request_attempts_today": preflight.get(
+                        "postmatch_request_attempts_today"
+                    ),
+                    "successful_calls_today": preflight["successful_calls_today"],
+                    "budget_basis": preflight["budget_basis"],
                     "planned_calls": preflight["planned_calls"],
+                    "reserved_capture_count": preflight.get("reserved_capture_count", 0),
+                    "reserved_capture_calls": preflight.get("reserved_capture_calls", 0),
                     "daily_cap": preflight["daily_cap"],
                     "reserve_bucket": preflight["reserve_bucket"],
+                    "remaining_after_plan": preflight["remaining_after_plan"],
+                    "quota_scope": preflight.get("quota_scope", "GENERAL"),
+                    "quota_usage_calls_today": preflight.get("quota_usage_count"),
+                    "provider_ledger_calls_today": preflight.get("provider_ledger_count"),
+                    "run_audit_calls_today": preflight.get("run_audit_count"),
+                    "billable_from_provider": preflight.get("billable_from_provider"),
+                    "provider_daily_limit": preflight.get("provider_daily_limit"),
+                    "provider_daily_remaining": preflight.get("provider_daily_remaining"),
+                    "local_ledger_count": preflight.get("local_ledger_count"),
+                    "last_authority_at": preflight.get("last_authority_at"),
+                    "authority_age_seconds": preflight.get("authority_age_seconds"),
+                    "dispatched_count": preflight.get("dispatched_count"),
+                    "dispatched_since_authority_count": preflight.get(
+                        "dispatched_since_authority_count"
+                    ),
+                    "attempt_count": preflight.get("attempt_count"),
+                    "quota_degradation_classification": preflight.get(
+                        "quota_degradation_classification"
+                    ),
+                    "quota_authority_status": preflight.get("quota_authority_status"),
+                    "quota_authority_observed_at": preflight.get(
+                        "quota_authority_observed_at"
+                    ),
+                    "quota_authority_age_seconds": preflight.get(
+                        "quota_authority_age_seconds"
+                    ),
+                    "quota_usage_ledger_delta": preflight.get("quota_usage_ledger_delta"),
                 }
             )
             result = FutureRefreshResult(
@@ -871,7 +1092,17 @@ class FutureFixtureRefreshService:
         try:
             checkpoint_mode = self._checkpoint_mode()
             direct_checkpoint = checkpoint_mode == "DIRECT"
-            if direct_checkpoint:
+            discovery_only = self.config.discovery_date is not None
+            if discovery_only:
+                fixtures_response = self._request(
+                    "fixtures",
+                    self._fixtures_request_params(),
+                    allow_empty_response=True,
+                )
+                future_fixtures = self._discovery_fixtures(fixtures_response.payload)
+                odds_responses: list[tuple[str, LiveApiFootballResponse]] = []
+                enrichment_responses: list[tuple[str, str, LiveApiFootballResponse]] = []
+            elif direct_checkpoint:
                 (
                     fixtures_response,
                     future_fixtures,
@@ -911,6 +1142,9 @@ class FutureFixtureRefreshService:
                 status="BLOCKED",
                 raw_payload_written_count=self._raw_payload_written_count,
                 error_code=str(exc),
+                free_plan_restriction_auto_detected_count=(
+                    self._free_plan_restriction_auto_detected_count
+                ),
             )
             self._write_audit(result)
         except Exception as exc:
@@ -934,9 +1168,68 @@ class FutureFixtureRefreshService:
                 status="BLOCKED" if self.runtime_authorization is not None else "PARTIAL_FAILED",
                 raw_payload_written_count=self._raw_payload_written_count,
                 error_code=error_code,
+                free_plan_restriction_auto_detected_count=(
+                    self._free_plan_restriction_auto_detected_count
+                ),
             )
             self._write_audit(result)
         return result
+
+    def _free_plan_fixture_scope_restriction(
+        self,
+        params: dict[str, str],
+    ) -> dict[str, Any] | None:
+        static = free_plan_fixture_scope_restriction(params)
+        if self.config.persistence != "db" or "id" in params or "fixture" in params:
+            return static
+        league_id = str(params.get("league") or "")
+        season = str(params.get("season") or "")
+        if not league_id or not season:
+            return static
+        try:
+            repository = self._db_repository()
+            authority_reader = getattr(repository, "latest_provider_quota_authority", None)
+            authority = authority_reader() if callable(authority_reader) else {}
+            if int(authority.get("daily_limit") or 0) > API_FOOTBALL_FREE_DAILY_LIMIT:
+                return None
+            state = repository.free_plan_fixture_scope_state(
+                league_id=league_id,
+                season=season,
+            )
+        except FutureRefreshPersistenceError as exc:
+            if static is not None:
+                return static
+            raise FutureRefreshError(str(exc)) from exc
+        return state["restriction"] if state["observed"] else static
+
+    def _record_free_plan_fixture_scope_observation(
+        self,
+        *,
+        endpoint: str,
+        params: dict[str, str],
+        payload: dict[str, Any],
+        payload_sha256: str,
+        captured_at: datetime,
+    ) -> dict[str, Any] | None:
+        if self.config.persistence != "db" or endpoint != "fixtures":
+            return None
+        league_id = str(params.get("league") or "")
+        season = str(params.get("season") or "")
+        if not league_id or not season or "id" in params or "fixture" in params:
+            return None
+        errors = payload.get("errors")
+        provider_error = errors.get("plan") if isinstance(errors, dict) else None
+        observation = self._db_repository().record_free_plan_fixture_scope_observation(
+            league_id=league_id,
+            season=season,
+            restricted=is_free_plan_fixture_scope_restricted(payload),
+            observed_at=captured_at,
+            payload_sha256=payload_sha256,
+            provider_error=str(provider_error) if provider_error else None,
+        )
+        if observation["newly_confirmed"]:
+            self._free_plan_restriction_auto_detected_count += 1
+        return observation
 
     def run_staged_gate_a_canary(self, fixture_id: str | None = None) -> FutureRefreshResult:
         """Run the isolated five-call Pre/Lineup/Post feasibility path."""
@@ -1240,23 +1533,38 @@ class FutureFixtureRefreshService:
     def _validate_checkpoint_claims(self) -> None:
         if self.config.persistence != "db" or not self.config.refresh_checkpoints:
             return
-        from w2.matchday.repository import MatchdayRuntimeRepository
+        from w2.matchday.repository import MatchdayRepositoryError, MatchdayRuntimeRepository
 
         repository = MatchdayRuntimeRepository()
+        valid: list[dict[str, Any]] = []
         for checkpoint in self.config.refresh_checkpoints:
             plan_id = str(checkpoint.get("id") or checkpoint.get("plan_id") or "")
             claim_token = str(checkpoint.get("claim_token") or "")
             fixture_id = str(checkpoint.get("fixture_id") or "")
             if not plan_id or not claim_token:
                 raise FutureRefreshError("CHECKPOINT_CLAIM_REQUIRED")
-            canonical = repository.validate_checkpoint_claim(
-                plan_id=plan_id,
-                claim_token=claim_token,
-                now=self.now,
-                fixture_id=fixture_id or None,
-                competition_id=self.config.competition_id,
-                season=self.config.season,
-            )
+            try:
+                canonical = repository.validate_checkpoint_claim(
+                    plan_id=plan_id,
+                    claim_token=claim_token,
+                    now=self.now,
+                    fixture_id=fixture_id or None,
+                    competition_id=self.config.competition_id,
+                    season=self.config.season,
+                )
+            except MatchdayRepositoryError as exc:
+                reason = str(exc)
+                if not reason.startswith("CHECKPOINT_PLAN_NOT_DUE:"):
+                    raise
+                self._audit.append(
+                    {
+                        "endpoint": "checkpoint_claim",
+                        "params": {"plan_id": plan_id, "fixture_id": fixture_id},
+                        "provider_dispatched": False,
+                        "diagnostic_code": reason,
+                    }
+                )
+                continue
             if any(
                 (
                     checkpoint.get("checkpoint") != canonical.get("checkpoint"),
@@ -1266,6 +1574,16 @@ class FutureFixtureRefreshService:
                 )
             ):
                 raise FutureRefreshError("CHECKPOINT_CLAIM_PAYLOAD_MISMATCH")
+            valid.append(checkpoint)
+        if not valid:
+            raise FutureRefreshError("CHECKPOINT_BATCH_NO_VALID_CLAIMS")
+        self.config = replace(
+            self.config,
+            refresh_checkpoints=tuple(valid),
+            checkpoint_fixture_ids=tuple(
+                dict.fromkeys(str(item.get("fixture_id") or "") for item in valid)
+            ),
+        )
 
     def _request(
         self,
@@ -1277,7 +1595,9 @@ class FutureFixtureRefreshService:
         if not self._endpoint_authorized(endpoint):
             raise FutureRefreshError(f"ENDPOINT_NOT_AUTHORIZED:{endpoint}")
         last_error: Exception | None = None
-        max_attempts = provider_http_max_attempts()
+        max_attempts = (
+            1 if self.runtime_authorization is not None else provider_request_max_attempts()
+        )
         for attempt in range(1, max_attempts + 1):
             if self._attempt_count >= self.config.request_budget:
                 raise FutureRefreshError("REQUEST_BUDGET_EXHAUSTED")
@@ -1293,6 +1613,9 @@ class FutureFixtureRefreshService:
             try:
                 response = self.client.request_live(endpoint, params)
             except Exception as exc:
+                elapsed_ms = int((time.monotonic() - started) * 1000)
+                timeout_error = ApiFootballClient._transport_error(exc) == "PROVIDER_TIMEOUT"
+                transport_error = isinstance(exc, OSError)
                 if self.provider_call_reservation is not None and call_ordinal is not None:
                     self.provider_call_reservation.record_provider_outcome(
                         call_ordinal,
@@ -1306,19 +1629,41 @@ class FutureFixtureRefreshService:
                         "params": sanitize_params(params),
                         "attempt": attempt,
                         "status_code": None,
-                        "elapsed_ms": int((time.monotonic() - started) * 1000),
+                        "elapsed_ms": elapsed_ms,
                         "captured_at_utc": iso(captured_at),
                         "remaining_quota": self._latest_remaining,
                         "payload_sha256": None,
                         "error_code": exc.__class__.__name__,
                     }
                 )
+                if timeout_error:
+                    timeout_max_attempts = min(provider_timeout_max_attempts(), max_attempts)
+                    logger.warning(
+                        "PROVIDER_REQUEST_TIMEOUT competition_id=%s endpoint=%s "
+                        "elapsed_ms=%s attempt=%s retry_number=%s max_attempts=%s",
+                        self.config.competition_id,
+                        endpoint,
+                        elapsed_ms,
+                        attempt,
+                        attempt - 1,
+                        timeout_max_attempts,
+                    )
                 if self.runtime_authorization is not None:
                     raise FutureRefreshError(
                         f"PROVIDER_DELIVERY_UNCERTAIN:{exc.__class__.__name__}"
                     ) from exc
-                if attempt < max_attempts:
-                    self.sleep(0.2 * (2 ** (attempt - 1)))
+                retry_limit = (
+                    min(provider_timeout_max_attempts(), max_attempts)
+                    if transport_error
+                    else min(provider_http_max_attempts(), max_attempts)
+                )
+                if attempt < retry_limit:
+                    delay = (
+                        provider_timeout_retry_backoff_seconds()
+                        if transport_error
+                        else 0.2
+                    )
+                    self.sleep(delay * (2 ** (attempt - 1)))
                     continue
                 raise FutureRefreshError(exc.__class__.__name__) from exc
             if self.provider_call_reservation is not None and call_ordinal is not None:
@@ -1335,6 +1680,11 @@ class FutureFixtureRefreshService:
             if remaining is None and self._latest_remaining is not None:
                 remaining = max(self._latest_remaining - 1, 0)
             self._latest_remaining = remaining
+            if quota.burst_limit is not None:
+                self._latest_burst_limit = quota.burst_limit
+            if quota.burst_remaining is not None:
+                self._latest_burst_remaining = quota.burst_remaining
+                self._burst_observed_at = quota.observed_at
             status = response.status_code
             raw_payload = self._raw_payload_record(
                 endpoint=endpoint,
@@ -1371,6 +1721,18 @@ class FutureFixtureRefreshService:
                 endpoint_capture_error is not None or endpoint_capture_id is None
             ):
                 raise FutureRefreshError(f"ENDPOINT_CAPTURE_WRITE_FAILED:{endpoint_capture_error}")
+            scope_observation = None
+            scope_observation_error = None
+            try:
+                scope_observation = self._record_free_plan_fixture_scope_observation(
+                    endpoint=endpoint,
+                    params=params,
+                    payload=response.payload,
+                    payload_sha256=payload_sha,
+                    captured_at=response.captured_at,
+                )
+            except FutureRefreshPersistenceError as exc:
+                scope_observation_error = str(exc)
             self._audit.append(
                 {
                     "endpoint": endpoint,
@@ -1383,19 +1745,25 @@ class FutureFixtureRefreshService:
                     "daily_remaining": quota.daily_remaining,
                     "daily_limit": quota.daily_limit,
                     "burst_remaining": quota.burst_remaining,
+                    "burst_limit": quota.burst_limit,
                     "quota_observed_at": iso(quota.observed_at),
                     "daily_source": quota.daily_source,
                     "daily_limit_source": quota.daily_limit_source,
                     "burst_source": quota.burst_source,
+                    "burst_limit_source": quota.burst_limit_source,
                     "response_count": response_size,
                     "payload_sha256": payload_sha,
                     "raw_payload_persisted": raw_payload_persisted,
                     "raw_payload_error": raw_payload_error,
                     "matchday_endpoint_capture_id": endpoint_capture_id,
                     "matchday_endpoint_capture_error": endpoint_capture_error,
-                    "diagnostic_code": self._diagnostic_code_for_response(
-                        endpoint=endpoint,
-                        response_count=response_size,
+                    "diagnostic_code": (
+                        "FREE_PLAN_RESTRICTION_AUTO_DETECTED"
+                        if scope_observation and scope_observation.get("newly_confirmed") is True
+                        else self._diagnostic_code_for_response(
+                            endpoint=endpoint,
+                            response_count=response_size,
+                        )
                     ),
                     "error_code": (
                         f"PROVIDER_HTTP_{status}"
@@ -1408,29 +1776,41 @@ class FutureFixtureRefreshService:
                     ),
                 }
             )
+            if scope_observation is not None:
+                self._audit[-1]["free_plan_scope_observation"] = scope_observation
+            if scope_observation_error is not None:
+                self._audit[-1]["free_plan_scope_observation_error"] = scope_observation_error
+            if scope_observation_error is not None:
+                raise FutureRefreshError(scope_observation_error)
             if status == 429 and self.runtime_authorization is not None:
-                raise FutureRefreshError("PROVIDER_HTTP_429")
-            if status == 429 and attempt < max_attempts:
+                raise FutureRefreshError("PROVIDER_MINUTE_RATE_LIMIT_EXCEEDED")
+            if status == 429 and attempt < min(provider_http_max_attempts(), max_attempts):
                 self.sleep(0.2 * (2 ** (attempt - 1)))
                 continue
             if status >= 400:
-                raise FutureRefreshError(f"PROVIDER_HTTP_{status}")
+                raise FutureRefreshError(
+                    "PROVIDER_MINUTE_RATE_LIMIT_EXCEEDED"
+                    if status == 429
+                    else f"PROVIDER_HTTP_{status}"
+                )
             if payload_error:
                 raise FutureRefreshError(f"PROVIDER_{endpoint.upper()}_ERRORS")
             if response_schema_error:
                 raise FutureRefreshError(f"PROVIDER_{endpoint.upper()}_SCHEMA_DRIFT")
-            if remaining is None:
-                raise FutureRefreshError("DAILY_QUOTA_UNKNOWN")
-            min_remaining = env_int("W2_PROVIDER_PREFLIGHT_MIN_REMAINING", default=50)
-            if remaining < min_remaining:
-                raise FutureRefreshError("PROVIDER_HEADER_REMAINING_BELOW_MINIMUM")
-            guard = quota_guard_decision(
-                remaining_quota=remaining,
-                reserve_bucket=self.config.quota_reserve,
-                task_type=endpoint,
-            )
-            if not guard["allowed"]:
-                raise FutureRefreshError(str(guard["blocker"]))
+            postmatch_result = self._checkpoint_mode() == "POSTMATCH"
+            if not postmatch_result:
+                if remaining is None:
+                    raise FutureRefreshError("DAILY_QUOTA_UNKNOWN")
+                min_remaining = env_int("W2_PROVIDER_PREFLIGHT_MIN_REMAINING", default=50)
+                if remaining < min_remaining:
+                    raise FutureRefreshError("PROVIDER_HEADER_REMAINING_BELOW_MINIMUM")
+                guard = quota_guard_decision(
+                    remaining_quota=remaining,
+                    reserve_bucket=self.config.quota_reserve,
+                    task_type=endpoint,
+                )
+                if not guard["allowed"]:
+                    raise FutureRefreshError(str(guard["blocker"]))
             if self.runtime_authorization is not None:
                 self._validate_gate_a_response(
                     endpoint,
@@ -1476,7 +1856,7 @@ class FutureFixtureRefreshService:
             matching_plans = self._matching_checkpoint_plans(
                 endpoint=endpoint,
                 fixture_id=fixture_id,
-                captured_at=response.captured_at,
+                captured_at=response.requested_at or response.captured_at,
             )
             checkpoint_names = sorted(
                 {
@@ -1504,7 +1884,11 @@ class FutureFixtureRefreshService:
                 elapsed_ms=response.elapsed_ms,
                 payload=payload,
                 fixture_id=f"api_football:{fixture_id}" if fixture_id else None,
-                competition_id=self.config.competition_id,
+                competition_id=(
+                    None
+                    if self.config.discovery_date is not None and endpoint == "fixtures"
+                    else self.config.competition_id
+                ),
                 checkpoint=",".join(checkpoint_names) or None,
                 checkpoint_plan_ids=checkpoint_plan_ids,
                 attempt=attempt,
@@ -1512,10 +1896,12 @@ class FutureFixtureRefreshService:
                     "daily_remaining": quota.daily_remaining,
                     "daily_limit": quota.daily_limit,
                     "burst_remaining": quota.burst_remaining,
+                    "burst_limit": quota.burst_limit,
                     "observed_at": iso(quota.observed_at),
                     "daily_source": quota.daily_source,
                     "daily_limit_source": quota.daily_limit_source,
                     "burst_source": quota.burst_source,
+                    "burst_limit_source": quota.burst_limit_source,
                 },
                 request_task_key_override=(
                     self.runtime_authorization.task_key
@@ -1606,9 +1992,7 @@ class FutureFixtureRefreshService:
             payload = fixtures.get(fixture_id) or repository.fixture_payload(fixture_id)
             if payload is None or fixture_id_from_payload(payload) != fixture_id:
                 self._checkpoint_preflight_failures.add(plan_id)
-                self._checkpoint_errors.append(
-                    f"CHECKPOINT_FIXTURE_PAYLOAD_MISSING:{fixture_id}"
-                )
+                self._checkpoint_errors.append(f"CHECKPOINT_FIXTURE_PAYLOAD_MISSING:{fixture_id}")
                 continue
             fixtures[fixture_id] = payload
             for endpoint in plan.get("endpoints") or []:
@@ -1617,7 +2001,12 @@ class FutureFixtureRefreshService:
                 seen.add((fixture_id, endpoint))
                 if endpoint == "odds":
                     self._odds_request_fixture_ids.append(fixture_id)
-                self._checkpoint_attempted_plan_ids.add(plan_id)
+                self._checkpoint_attempted_plan_ids.update(
+                    str(item.get("id") or item.get("plan_id") or "")
+                    for item in self.config.refresh_checkpoints
+                    if _api_football_fixture_id(str(item.get("fixture_id") or "")) == fixture_id
+                    and endpoint in set(item.get("endpoints") or [])
+                )
                 try:
                     response = self._request(str(endpoint), {"fixture": fixture_id})
                 except FutureRefreshError as exc:
@@ -1749,30 +2138,146 @@ class FutureFixtureRefreshService:
         return None if self.config.persistence == "db" else "LINEUPS_MATERIALIZATION_MISSING"
 
     def _provider_hard_cap_preflight(self) -> dict[str, Any]:
+        planned_calls = self._planned_provider_calls()
+        if self._checkpoint_mode() == "POSTMATCH":
+            daily_cap = env_int("W2_POSTMATCH_RESULT_DAILY_HARD_CAP", default=20)
+            day_start = self.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+            try:
+                repository = self._db_repository()
+                actual_calls_today = (
+                    repository.postmatch_result_request_count_since(day_start)
+                    if self.config.persistence == "db"
+                    else 0
+                )
+                successful_calls_today = (
+                    self._postmatch_result_successful_calls_today(day_start)
+                    if self.config.persistence == "db"
+                    else 0
+                )
+                reserved_capture_count = (
+                    repository.unsettled_model_forecast_postmatch_count(
+                        window_start=day_start,
+                        window_end=day_start + timedelta(days=1),
+                        exclude_fixture_ids=self.config.checkpoint_fixture_ids,
+                    )
+                    if self.config.persistence == "db"
+                    else 0
+                )
+                evidence_reader = getattr(repository, "request_count_evidence_since", None)
+                if self.config.persistence == "db" and callable(evidence_reader):
+                    self._provider_usage_evidence = dict(
+                        evidence_reader(
+                            day_start,
+                            include_quota_usage=True,
+                            as_of=self.now,
+                        )
+                    )
+            except FutureRefreshPersistenceError as exc:
+                raise FutureRefreshError("RESULT_USAGE_AUDIT_UNAVAILABLE") from exc
+            decision = {
+                **postmatch_result_quota_decision(
+                    actual_calls_today=actual_calls_today,
+                    planned_calls=planned_calls,
+                    reserved_capture_calls=reserved_capture_count * planned_calls,
+                    daily_cap=daily_cap,
+                ),
+                "reserved_capture_count": reserved_capture_count,
+                "successful_calls_today": successful_calls_today,
+                **self._provider_usage_evidence,
+            }
+            statuses = [
+                status
+                for status in (decision.get("operational_status"),)
+                if status is not None
+            ]
+            if self._provider_usage_evidence.get("quota_authority_degraded") is True:
+                statuses.append("QUOTA_AUTHORITY_DEGRADED")
+                statuses.append("EXPECTED_DEGRADED")
+            if self._provider_usage_evidence.get("quota_usage_ledger_divergence") is True:
+                statuses.append("QUOTA_USAGE_LEDGER_DIVERGENCE")
+            decision["operational_statuses"] = statuses
+            if statuses:
+                decision["operational_status"] = statuses[0]
+            return decision
         daily_cap = env_int("W2_PROVIDER_DAILY_HARD_CAP", default=self.config.daily_hard_cap)
         reserve = env_int("W2_PROVIDER_DAILY_RESERVE", default=self.config.daily_reserve)
-        planned_calls = self._planned_provider_calls()
         actual_calls_today = self._actual_provider_calls_today()
-        return provider_daily_hard_cap_decision(
-            actual_calls_today=actual_calls_today,
-            planned_calls=planned_calls,
-            daily_cap=daily_cap,
-            reserve_bucket=reserve,
-        )
+        decision = {
+            **provider_daily_hard_cap_decision(
+                actual_calls_today=actual_calls_today,
+                planned_calls=planned_calls,
+                daily_cap=daily_cap,
+                reserve_bucket=reserve,
+                provider_remaining=self._provider_usage_evidence.get(
+                    "provider_daily_remaining"
+                ),
+                provider_limit=self._provider_usage_evidence.get("provider_daily_limit"),
+            ),
+            "successful_calls_today": self._successful_provider_calls_today(),
+            **self._provider_usage_evidence,
+        }
+        statuses = []
+        if self._provider_usage_evidence.get("quota_authority_degraded") is True:
+            statuses.append("QUOTA_AUTHORITY_DEGRADED")
+            statuses.append("EXPECTED_DEGRADED")
+        if self._provider_usage_evidence.get("quota_usage_ledger_divergence") is True:
+            statuses.append("QUOTA_USAGE_LEDGER_DIVERGENCE")
+        decision["operational_statuses"] = statuses
+        if statuses:
+            decision["operational_status"] = statuses[0]
+        return decision
 
     def _provider_tick_hard_cap_preflight(self) -> dict[str, Any]:
         projected_calls = self._planned_provider_calls()
         tick_hard_cap = provider_refresh_tick_hard_cap()
+        if self.config.persistence != "db":
+            return {
+                "allowed": projected_calls <= tick_hard_cap,
+                "blocker": None
+                if projected_calls <= tick_hard_cap
+                else "PROVIDER_REFRESH_BUDGET_TOO_HIGH",
+                "projected_calls": projected_calls,
+                "tick_hard_cap": tick_hard_cap,
+                "minute_limit": None,
+                "minute_calls_observed": None,
+                "minute_remaining_before_plan": None,
+                "effective_tick_cap": tick_hard_cap,
+            }
+        recent_calls = 0
+        try:
+            recent_calls = self._db_repository().provider_request_count_since(
+                self.now - timedelta(seconds=60)
+            )
+        except FutureRefreshPersistenceError as exc:
+            raise FutureRefreshError("PROVIDER_MINUTE_USAGE_AUDIT_UNAVAILABLE") from exc
+        burst_limit = self._latest_burst_limit or API_FOOTBALL_FREE_MINUTE_LIMIT
+        available = max(burst_limit - recent_calls, 0)
+        if (
+            self._burst_observed_at is not None
+            and self._latest_burst_remaining is not None
+            and self.now - self._burst_observed_at <= timedelta(seconds=60)
+        ):
+            available = min(available, self._latest_burst_remaining)
+        effective_cap = min(tick_hard_cap, available)
+        allowed = projected_calls <= effective_cap
         return {
-            "allowed": projected_calls <= tick_hard_cap,
+            "allowed": allowed,
             "blocker": None
+            if allowed
+            else "PROVIDER_MINUTE_RATE_LIMIT_PROTECTED"
             if projected_calls <= tick_hard_cap
             else "PROVIDER_REFRESH_BUDGET_TOO_HIGH",
             "projected_calls": projected_calls,
             "tick_hard_cap": tick_hard_cap,
+            "minute_limit": burst_limit,
+            "minute_calls_observed": recent_calls,
+            "minute_remaining_before_plan": available,
+            "effective_tick_cap": effective_cap,
         }
 
     def _projected_provider_calls(self) -> int:
+        if self.config.discovery_date is not None:
+            return 1
         if self._checkpoint_mode() == "DIRECT":
             return len(
                 {
@@ -1833,7 +2338,10 @@ class FutureFixtureRefreshService:
         )
 
     def _planned_provider_calls(self) -> int:
-        return self._projected_provider_calls() * provider_http_max_attempts()
+        max_attempts = (
+            1 if self.runtime_authorization is not None else provider_request_max_attempts()
+        )
+        return self._projected_provider_calls() * max_attempts
 
     def _endpoint_authorized(self, endpoint: str) -> bool:
         return endpoint in provider_endpoint_allowlist()
@@ -1860,12 +2368,38 @@ class FutureFixtureRefreshService:
             return 0
         day_start = self.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
         try:
-            return self._db_repository().request_count_since(
-                day_start,
-                include_quota_usage=self.config.daily_usage_scope != "w2_ledger",
-            )
+            repository = self._db_repository()
+            evidence_reader = getattr(repository, "request_count_evidence_since", None)
+            if callable(evidence_reader):
+                self._provider_usage_evidence = dict(
+                    evidence_reader(
+                        day_start,
+                        include_quota_usage=True,
+                        as_of=self.now,
+                    )
+                )
+                return int(self._provider_usage_evidence["known_count"])
+            return repository.request_count_since(day_start, include_quota_usage=True)
         except FutureRefreshPersistenceError as exc:
             raise FutureRefreshError("PROVIDER_USAGE_AUDIT_UNAVAILABLE") from exc
+
+    def _successful_provider_calls_today(self) -> int:
+        if self.config.persistence != "db":
+            return 0
+        day_start = self.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        try:
+            reader = getattr(self._db_repository(), "successful_request_count_since", None)
+            return int(reader(day_start)) if callable(reader) else 0
+        except FutureRefreshPersistenceError as exc:
+            raise FutureRefreshError("PROVIDER_SUCCESS_AUDIT_UNAVAILABLE") from exc
+
+    def _postmatch_result_successful_calls_today(self, day_start: datetime) -> int:
+        reader = getattr(
+            self._db_repository(),
+            "postmatch_result_successful_request_count_since",
+            None,
+        )
+        return int(reader(day_start)) if callable(reader) else 0
 
     def _future_fixtures(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
         response = payload.get("response")
@@ -1939,6 +2473,28 @@ class FutureFixtureRefreshService:
             for endpoint in endpoints:
                 if not self._endpoint_authorized(endpoint):
                     self._append_unauthorized_endpoint_skip(endpoint, fixture_id)
+                    continue
+                fixture_status = str(
+                    ((item.get("fixture") or {}).get("status") or {}).get("short") or ""
+                ).upper()
+                if endpoint == "statistics" and fixture_status not in {
+                    "FT",
+                    "AET",
+                    "PEN",
+                }:
+                    self._audit.append(
+                        {
+                            "endpoint": endpoint,
+                            "params": {"fixture": fixture_id},
+                            "attempt": 0,
+                            "status_code": None,
+                            "elapsed_ms": 0,
+                            "captured_at_utc": iso(utc_now()),
+                            "remaining_quota": self._latest_remaining,
+                            "payload_sha256": None,
+                            "error_code": "STATISTICS_NOT_POSTMATCH",
+                        }
+                    )
                     continue
                 if self._attempt_count >= self.config.request_budget:
                     self._audit.append(
@@ -2156,6 +2712,20 @@ class FutureFixtureRefreshService:
                                 payload=fixture_identity,
                             )
                         )
+            if self.config.discovery_date is not None:
+                from w2.ingestion.checkpoint_refresh import (
+                    canonical_checkpoint_plans_from_fixture_payloads,
+                )
+
+                for plan in canonical_checkpoint_plans_from_fixture_payloads(
+                    fixtures,
+                    now=self.now,
+                ):
+                    repository.upsert_checkpoint_plan(plan)
+            self._seed_provider_primary_identities(
+                fixture_identities=fixture_identities,
+                captured_at=fixtures_response.captured_at,
+            )
             self._materialize_lineup_enrichment(
                 fixtures=fixtures,
                 enrichment_responses=enrichment_responses,
@@ -2244,6 +2814,8 @@ class FutureFixtureRefreshService:
             materialized_fixture_ids = list(result_refresh["confirmed_fixture_ids"])
             if result_refresh["status"] == "BLOCKED":
                 blockers.extend(str(item) for item in result_refresh.get("blockers", []))
+        elif self.config.discovery_date is not None:
+            materialized_fixture_ids = []
         else:
             materialized_fixture_ids = self._materialize_refreshed_public_artifacts()
         mappings = [self._mapping_from_fixture(item) for item in fixtures]
@@ -2264,6 +2836,10 @@ class FutureFixtureRefreshService:
             blockers=blockers,
             raw_payload_written_count=self._raw_payload_written_count,
             materialized_fixture_ids=materialized_fixture_ids,
+            identity_pool_expansions=self._identity_pool_expansions,
+            status=(
+                "DISCOVERY_COMPLETE" if self.config.discovery_date is not None else "COMPLETED"
+            ),
         )
         self._write_audit(result)
         return result
@@ -2328,9 +2904,7 @@ class FutureFixtureRefreshService:
                 )
                 lineup_event = repository.canonical_lineup_confirmed_event(fixture_id)
             except AuthoritativeLineupError as exc:
-                raise FutureRefreshError(
-                    f"LINEUP_MATERIALIZATION_FAILED:{exc.code}"
-                ) from exc
+                raise FutureRefreshError(f"LINEUP_MATERIALIZATION_FAILED:{exc.code}") from exc
             except FutureRefreshPersistenceError as exc:
                 reason = str(exc)
                 if reason.startswith("LINEUP_MATERIALIZATION_FAILED:"):
@@ -2361,7 +2935,11 @@ class FutureFixtureRefreshService:
                 )
 
     def _fixtures_request_params(self) -> dict[str, str]:
+        if self.config.discovery_date is not None:
+            return {"date": self.config.discovery_date}
         if self.config.result_refresh_fixture_ids:
+            if len(self.config.result_refresh_fixture_ids) == 1:
+                return {"id": _api_football_fixture_id(self.config.result_refresh_fixture_ids[0])}
             kickoff_dates = [
                 parsed.date()
                 for item in self.config.refresh_checkpoints
@@ -2403,16 +2981,22 @@ class FutureFixtureRefreshService:
                 captured_at=fixtures_response.captured_at,
             )
         )
-        team_mapping: dict[str, str] = {}
+        policy_by_league: dict[str, Any] = {}
+        team_mappings: dict[tuple[str, str], dict[str, str]] = {}
+        reader: Any = None
         if self.config.persistence == "db":
+            from w2.matchday.intake_v2 import (
+                REQUIRED_MATCHDAY_COMPETITIONS,
+                competition_policies,
+                load_matchday_policy,
+            )
+
+            policy_by_league = {
+                policy.provider_league_id: policy
+                for competition_id, policy in competition_policies(load_matchday_policy()).items()
+                if competition_id in REQUIRED_MATCHDAY_COMPETITIONS and policy.enabled
+            }
             reader = getattr(self._db_repository(), "provider_team_mapping", None)
-            if callable(reader):
-                team_mapping = reader(
-                    provider="api_football",
-                    competition_id=self.config.competition_id,
-                    season=self.config.season,
-                    as_of=fixtures_response.captured_at,
-                )
         rows: list[dict[str, Any]] = []
         for item in fixtures:
             if not isinstance(item, dict):
@@ -2433,6 +3017,23 @@ class FutureFixtureRefreshService:
             away: Mapping[str, Any] = away_value if isinstance(away_value, dict) else {}
             if not provider_fixture_id or kickoff is None:
                 continue
+            provider_league_id = str(league.get("id") or self.config.league_id)
+            policy = policy_by_league.get(provider_league_id)
+            if self.config.discovery_date is not None and policy is None:
+                continue
+            competition_id = (
+                str(policy.competition_id) if policy is not None else self.config.competition_id
+            )
+            season = str(league.get("season") or (policy.season if policy else self.config.season))
+            mapping_key = (competition_id, season)
+            if callable(reader) and mapping_key not in team_mappings:
+                team_mappings[mapping_key] = reader(
+                    provider="api_football",
+                    competition_id=competition_id,
+                    season=season,
+                    as_of=fixtures_response.captured_at,
+                )
+            team_mapping = team_mappings.get(mapping_key, {})
             fixture_id = f"api_football:{provider_fixture_id}"
             home_provider_team_id = str(home.get("id") or "")
             away_provider_team_id = str(away.get("id") or "")
@@ -2442,9 +3043,9 @@ class FutureFixtureRefreshService:
                 "fixture_id": fixture_id,
                 "provider": "api_football",
                 "provider_fixture_id": provider_fixture_id,
-                "competition_id": self.config.competition_id,
-                "provider_league_id": str(league.get("id") or self.config.league_id),
-                "season": str(league.get("season") or self.config.season),
+                "competition_id": competition_id,
+                "provider_league_id": provider_league_id,
+                "season": season,
                 "kickoff_utc": iso(kickoff),
                 "fixture_status": str(status.get("short") or ""),
                 "home_provider_team_id": home_provider_team_id,
@@ -2470,6 +3071,66 @@ class FutureFixtureRefreshService:
                     ),
                 }
             )
+        return rows
+
+    def _seed_provider_primary_identities(
+        self,
+        *,
+        fixture_identities: list[dict[str, Any]],
+        captured_at: datetime,
+    ) -> None:
+        unresolved_scopes = {
+            (
+                str(item["competition_id"]),
+                str(item["provider_league_id"]),
+                str(item["season"]),
+            )
+            for item in fixture_identities
+            if item.get("team_identity_status") != "PROVIDER_PRIMARY_READY"
+        }
+        if not unresolved_scopes:
+            return
+        repository = self._db_repository()
+
+        for competition_id, provider_league_id, season in sorted(unresolved_scopes):
+            result = repository.seed_provider_primary_identity(
+                competition_id=competition_id,
+                season=season,
+                now=captured_at,
+            )
+            event = {
+                "event": "TEAM_IDENTITY_POOL_EXPANDED",
+                "competition_id": competition_id,
+                "provider_league_id": provider_league_id,
+                "season": season,
+                **result,
+            }
+            self._identity_pool_expansions.append(event)
+            logger.warning("TEAM_IDENTITY_POOL_EXPANDED %s", event)
+
+    def _discovery_fixtures(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
+        response = payload.get("response")
+        if not isinstance(response, list) or any(not isinstance(item, dict) for item in response):
+            raise FutureRefreshError("PROVIDER_FIXTURES_SCHEMA_DRIFT")
+        from w2.matchday.intake_v2 import (
+            REQUIRED_MATCHDAY_COMPETITIONS,
+            competition_policies,
+            load_matchday_policy,
+        )
+
+        allowed = {
+            policy.provider_league_id: policy.fixture_status_allowlist
+            for competition_id, policy in competition_policies(load_matchday_policy()).items()
+            if competition_id in REQUIRED_MATCHDAY_COMPETITIONS and policy.enabled
+        }
+        rows = [
+            item
+            for item in response
+            if str((item.get("league") or {}).get("id") or "") in allowed
+            and str(((item.get("fixture") or {}).get("status") or {}).get("short") or "")
+            in allowed[str((item.get("league") or {}).get("id") or "")]
+        ]
+        rows.sort(key=lambda item: kickoff_from_payload(item) or datetime.max.replace(tzinfo=UTC))
         return rows
 
     def _audit_for_payload(self, payload_hash: str) -> dict[str, Any] | None:
@@ -2540,7 +3201,11 @@ class FutureFixtureRefreshService:
     def _write_audit(self, result: FutureRefreshResult) -> None:
         payload = {
             "generated_at_utc": iso(result.generated_at_utc),
-            "competition_id": self.config.competition_id,
+            "competition_id": (
+                "fixture_discovery"
+                if self.config.discovery_date is not None
+                else self.config.competition_id
+            ),
             "request_count": result.request_count,
             "remaining_quota": result.remaining_quota,
             "fixture_count": result.fixture_count,
@@ -2565,6 +3230,13 @@ class FutureFixtureRefreshService:
             "progress_status": refresh_progress_status(result),
             "error_code": result.error_code,
             "requests": self._audit,
+            "skipped_free_plan_restricted_count": (
+                result.skipped_free_plan_restricted_count
+            ),
+            "free_plan_restriction_auto_detected_count": (
+                result.free_plan_restriction_auto_detected_count
+            ),
+            "identity_pool_expansions": result.identity_pool_expansions,
             "candidate": False,
             "formal_recommendation": False,
         }
@@ -2602,37 +3274,62 @@ class FutureFixtureRefreshService:
                 continue
             capture_id = None
             capture_ids: list[str] = []
-            if self._checkpoint_mode() == "DIRECT":
+            checkpoint_mode = self._checkpoint_mode()
+            if checkpoint_mode == "DIRECT":
                 progress_status, capture_id, capture_ids = self._checkpoint_capture_outcome(
                     checkpoint, result
                 )
-                if progress_status == "NOT_ATTEMPTED":
-                    repository.write_checkpoint_audit(
-                        fixture_id=fixture_id,
-                        checkpoint=name,
-                        as_of=result.generated_at_utc,
-                        calls_used=0,
-                        status="RETRY_PENDING",
-                        details={
-                            "contract": "w2.checkpoint_refresh.v1",
-                            "blockers": result.blockers,
-                            "progress_status": "RETRY_PENDING",
-                            "endpoints": list(checkpoint.get("endpoints") or []),
-                            "endpoint_capture_ids": [],
-                            "source": checkpoint.get("source"),
-                        },
+            elif (
+                checkpoint_mode == "POSTMATCH"
+                and result.request_count == 0
+                and any(
+                    blocker in result.blockers
+                    for blocker in (
+                        "DAILY_PROVIDER_HARD_CAP_EXCEEDED",
+                        "RESULT_QUOTA_EXHAUSTED",
                     )
-                    from w2.matchday.repository import MatchdayRuntimeRepository
-
-                    MatchdayRuntimeRepository().release_checkpoint_claim(
-                        plan_id=str(checkpoint.get("id") or checkpoint.get("plan_id") or ""),
-                        claim_token=str(checkpoint.get("claim_token") or ""),
-                        reason="CHECKPOINT_BATCH_NOT_ATTEMPTED",
-                    )
-                    continue
-                status = "COMPLETED" if progress_status == "CAPTURED" else progress_status
+                )
+            ):
+                progress_status = "NOT_ATTEMPTED"
             else:
                 progress_status = refresh_progress_status(result)
+            if progress_status == "NOT_ATTEMPTED":
+                repository.write_checkpoint_audit(
+                    fixture_id=fixture_id,
+                    checkpoint=name,
+                    as_of=result.generated_at_utc,
+                    calls_used=0,
+                    status="RETRY_PENDING",
+                    details={
+                        "contract": "w2.checkpoint_refresh.v1",
+                        "blockers": result.blockers,
+                        "progress_status": "RETRY_PENDING",
+                        "result_collection_state": (
+                            "RESULT_QUOTA_EXHAUSTED"
+                            if "RESULT_QUOTA_EXHAUSTED" in result.blockers
+                            else None
+                        ),
+                        "endpoints": list(checkpoint.get("endpoints") or []),
+                        "endpoint_capture_ids": [],
+                        "source": checkpoint.get("source"),
+                    },
+                )
+                from w2.matchday.repository import MatchdayRuntimeRepository
+
+                MatchdayRuntimeRepository().release_checkpoint_claim(
+                    plan_id=str(checkpoint.get("id") or checkpoint.get("plan_id") or ""),
+                    claim_token=str(checkpoint.get("claim_token") or ""),
+                    reason=(
+                        "RESULT_QUOTA_EXHAUSTED"
+                        if "RESULT_QUOTA_EXHAUSTED" in result.blockers
+                        else "CHECKPOINT_BATCH_NOT_ATTEMPTED"
+                    ),
+                    restore_attempt=True,
+                )
+                continue
+            if checkpoint_mode == "DIRECT":
+                status = "COMPLETED" if progress_status == "CAPTURED" else progress_status
+            else:
                 status = "COMPLETED" if progress_status == "DATA_PROGRESS" else progress_status
             repository.write_checkpoint_audit(
                 fixture_id=fixture_id,
@@ -2657,7 +3354,7 @@ class FutureFixtureRefreshService:
             self._transition_checkpoint_plan(
                 checkpoint,
                 result,
-                status_override=progress_status if self._checkpoint_mode() == "DIRECT" else None,
+                status_override=progress_status if checkpoint_mode == "DIRECT" else None,
                 capture_id=capture_id,
             )
 
@@ -2770,6 +3467,7 @@ def run_future_fixture_refresh(
     materialize_results: ResultMaterializer | None = None,
     runtime_authorization: GateARuntimeAuthorization | None = None,
     provider_call_reservation: GateARunReservation | None = None,
+    discovery_date: str | None = None,
 ) -> FutureRefreshResult:
     config = config_from_policy(
         competition_id=competition_id,
@@ -2779,6 +3477,20 @@ def run_future_fixture_refresh(
         raise FutureRefreshError("GATE_A_POLICY_SEASON_MISMATCH")
     if persistence is not None:
         config = replace(config, persistence=persistence)
+    if discovery_date is not None:
+        try:
+            datetime.fromisoformat(discovery_date)
+        except ValueError as exc:
+            raise FutureRefreshError("FIXTURE_DISCOVERY_DATE_INVALID") from exc
+        config = replace(
+            config,
+            discovery_date=discovery_date,
+            max_fixture_candidates=500,
+            max_odds_requests=0,
+            feature_enrichment_enabled=False,
+            feature_enrichment_request_budget=0,
+            request_budget=max(config.request_budget, provider_request_max_attempts()),
+        )
     if checkpoint_fixture_ids or refresh_checkpoints:
         endpoint_sets = [set(item.get("endpoints") or []) for item in refresh_checkpoints]
         logical_calls = (
@@ -2822,10 +3534,10 @@ def run_future_fixture_refresh(
             feature_enrichment_request_budget=lineups_count,
             request_budget=max(
                 config.request_budget,
-                logical_calls * provider_http_max_attempts(),
+                logical_calls * provider_request_max_attempts(),
             ),
         )
-    return FutureFixtureRefreshService(
+    service = FutureFixtureRefreshService(
         client=client,
         config=config,
         now=now,
@@ -2833,7 +3545,12 @@ def run_future_fixture_refresh(
         materialize_results=materialize_results,
         runtime_authorization=runtime_authorization,
         provider_call_reservation=provider_call_reservation,
-    ).run()
+    )
+    return replace(
+        service.run(),
+        requests=list(service._audit),
+        refresh_checkpoints=[dict(item) for item in service.config.refresh_checkpoints],
+    )
 
 
 def run_future_refresh_task(
@@ -2859,6 +3576,7 @@ def run_future_refresh_task(
     materialize_results: ResultMaterializer | None = None,
     runtime_authorization: GateARuntimeAuthorization | None = None,
     provider_call_reservation: GateARunReservation | None = None,
+    discovery_date: str | None = None,
 ) -> RefreshTaskAudit:
     execution_started_at = utc_now()
     evaluation_time = now or execution_started_at
@@ -2965,6 +3683,7 @@ def run_future_refresh_task(
             materialize_results=materialize_results,
             runtime_authorization=runtime_authorization,
             provider_call_reservation=provider_call_reservation,
+            discovery_date=discovery_date,
         )
         progress_status = refresh_progress_status(result)
         status = (
@@ -2986,9 +3705,18 @@ def run_future_refresh_task(
             "candidate": False,
             "formal_recommendation": False,
             "checkpoint_fixture_ids": list(checkpoint_fixture_ids),
-            "refresh_checkpoints": list(refresh_checkpoints),
+            "refresh_checkpoints": result.refresh_checkpoints,
             "materialized_fixture_ids": result.materialized_fixture_ids,
+            "identity_pool_expansions": result.identity_pool_expansions,
+            "requests": result.requests,
+            "skipped_free_plan_restricted_count": (
+                result.skipped_free_plan_restricted_count
+            ),
+            "free_plan_restriction_auto_detected_count": (
+                result.free_plan_restriction_auto_detected_count
+            ),
             "progress_status": progress_status,
+            "discovery_date": discovery_date,
         }
     except Exception as exc:
         summary = {

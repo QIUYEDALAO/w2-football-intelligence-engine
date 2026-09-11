@@ -11,6 +11,7 @@ PYTHON_IMAGE="$2"
 WEB_IMAGE="$3"
 DEPLOY_MODE="${4:-all}"
 REVISION="${W2_GIT_SHA:-$(git rev-parse HEAD)}"
+PUBLIC_RESPONSE_SCHEMA_TOUCHED="${W2_PUBLIC_RESPONSE_SCHEMA_TOUCHED:-}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [[ ! "${REVISION}" =~ ^[0-9a-f]{40}$ ]]; then
@@ -21,9 +22,15 @@ if [ "${DEPLOY_MODE}" != "all" ] && [ "${DEPLOY_MODE}" != "web" ]; then
   echo "deploy mode must be all or web" >&2
   exit 2
 fi
+if [ "${PUBLIC_RESPONSE_SCHEMA_TOUCHED}" != "YES" ] && \
+  [ "${PUBLIC_RESPONSE_SCHEMA_TOUCHED}" != "NO" ]; then
+  echo "W2_PUBLIC_RESPONSE_SCHEMA_TOUCHED must be YES or NO" >&2
+  exit 2
+fi
+IMAGE_REF_RE='^(ghcr\.io/[a-z0-9._/-]+|127\.0\.0\.1:5000/w2/[a-z0-9._/-]+)@sha256:[0-9a-f]{64}$'
 for image in "${PYTHON_IMAGE}" "${WEB_IMAGE}"; do
-  if [[ ! "${image}" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$ ]]; then
-    echo "image must be an immutable GHCR digest reference" >&2
+  if [[ ! "${image}" =~ ${IMAGE_REF_RE} ]]; then
+    echo "image must be an immutable GHCR or VPS-loopback registry digest reference" >&2
     exit 2
   fi
 done
@@ -58,13 +65,14 @@ scp "${TMP_DIR}/compose.staging.yml" "${TMP_DIR}/controlled-future-refresh.overr
 
 ssh "${SSH_HOST}" bash -s -- \
   "${REVISION}" "${DEPLOY_MODE}" "${PYTHON_IMAGE}" "${WEB_IMAGE}" \
-  "${REMOTE_TMP_DIR}" <<'REMOTE'
+  "${REMOTE_TMP_DIR}" "${PUBLIC_RESPONSE_SCHEMA_TOUCHED}" <<'REMOTE'
 set -Eeuo pipefail
 REVISION="$1"
 DEPLOY_MODE="$2"
 PYTHON_IMAGE="$3"
 WEB_IMAGE="$4"
 REMOTE_TMP_DIR="$5"
+PUBLIC_RESPONSE_SCHEMA_TOUCHED="$6"
 if [ "${REMOTE_TMP_DIR}" != "/tmp/w2-deploy-${REVISION}" ] || \
   [ ! -d "${REMOTE_TMP_DIR}" ] || [ -L "${REMOTE_TMP_DIR}" ]; then
   echo "invalid remote deployment staging directory" >&2
@@ -96,12 +104,16 @@ verify_runtime() {
   expected_python_id="$(release_value W2_API_IMAGE_ID "${env_file}")"
   expected_registry_digest="$(release_value W2_API_REGISTRY_DIGEST "${env_file}")"
 
-  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/ready >/dev/null &&
+  curl -fsS --connect-timeout 3 --max-time 15 http://127.0.0.1:18000/ready >/dev/null &&
     version_json="$(
-      curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/v1/version
+      curl -fsS --connect-timeout 3 --max-time 30 http://127.0.0.1:18000/v1/version
     )" &&
     curl -fsS --connect-timeout 3 --max-time 8 \
-      http://127.0.0.1:18080/meta.json >/dev/null || return 1
+      http://127.0.0.1:18080/meta.json >/dev/null &&
+    workspace_date="$(TZ=Asia/Shanghai date +%F)" &&
+    curl -fsS --connect-timeout 3 --max-time 30 \
+      "http://127.0.0.1:18080/v1/dashboard/intelligence-workspace?date=${workspace_date}&timezone=Asia%2FShanghai" \
+      >/dev/null || return 1
 
   printf '%s' "${version_json}" |
     python3 -c '
@@ -134,11 +146,11 @@ assert image["registry_digest"] == {"status": "AVAILABLE", "value": expected_dig
 }
 
 wait_for_runtime() {
-  for attempt in $(seq 1 24); do
+  for attempt in $(seq 1 8); do
     if verify_runtime /opt/w2/shared/release.env; then
       return 0
     fi
-    [ "${attempt}" -lt 24 ] && sleep 5
+    [ "${attempt}" -lt 8 ] && sleep 5
   done
   return 1
 }
@@ -146,8 +158,11 @@ wait_for_runtime() {
 rollback() {
   original_status=$?
   trap - ERR
-  if [ "${ACTIVATED}" != true ] ||
-    [ ! -f /opt/w2/shared/release.previous.env ]; then
+  if [ "${ACTIVATED}" != true ]; then
+    echo "activation=SKIPPED preactivation_verification_failed" >&2
+    exit "${original_status}"
+  fi
+  if [ ! -f /opt/w2/shared/release.previous.env ]; then
     echo "rollback=FAIL no_previous_digest_set" >&2
     exit "${original_status}"
   fi
@@ -155,8 +170,10 @@ rollback() {
   rollback_started="$(date +%s)"
   sudo install -o root -g root -m 0644 \
     /opt/w2/shared/release.previous.env /opt/w2/shared/release.env
-  if "${COMPOSE[@]}" pull migration api worker scheduler web </dev/null &&
-    "${COMPOSE[@]}" run --rm migration </dev/null &&
+  # The database may already be at a newer, backward-compatible revision that
+  # the previous image cannot name. Roll back services by digest without asking
+  # the old migration image to interpret the newer Alembic head.
+  if "${COMPOSE[@]}" pull api worker scheduler web </dev/null &&
     "${COMPOSE[@]}" up -d --remove-orphans api worker scheduler web </dev/null &&
     wait_for_runtime; then
     rollback_seconds="$(( $(date +%s) - rollback_started ))"
@@ -201,14 +218,6 @@ else
   TIMING_SCOPE=COLD_PULL_END_TO_END
 fi
 
-if [ -f /opt/w2/shared/release.env ]; then
-  sudo install -o root -g root -m 0644 \
-    /opt/w2/shared/release.env /opt/w2/shared/release.previous.env
-fi
-sudo install -o root -g root -m 0644 "${REMOTE_TMP_DIR}/release.env" \
-  /opt/w2/shared/release.env
-ACTIVATED=true
-
 sudo docker pull "${PYTHON_IMAGE}" </dev/null
 sudo docker pull "${WEB_IMAGE}" </dev/null
 
@@ -235,6 +244,14 @@ WEB_REGISTRY_DIGEST="${WEB_ACTUAL_REF##*@}"
 [[ "${WEB_IMAGE_ID}" =~ ^sha256:[0-9a-f]{64}$ ]]
 [[ "${PYTHON_REGISTRY_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
 [[ "${WEB_REGISTRY_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
+
+if [ -f /opt/w2/shared/release.env ]; then
+  sudo install -o root -g root -m 0644 \
+    /opt/w2/shared/release.env /opt/w2/shared/release.previous.env
+fi
+sudo install -o root -g root -m 0644 "${REMOTE_TMP_DIR}/release.env" \
+  /opt/w2/shared/release.env
+ACTIVATED=true
 
 {
   printf 'W2_PYTHON_IMAGE=%s\n' "${PYTHON_ACTUAL_REF}"
@@ -273,7 +290,8 @@ python3 - \
   "${PYTHON_ACTUAL_REF}" "${PYTHON_IMAGE_ID}" "${PYTHON_REGISTRY_DIGEST}" \
   "${PYTHON_CREATED}" "${PYTHON_RELEASE_ID}" \
   "${WEB_ACTUAL_REF}" "${WEB_IMAGE_ID}" "${WEB_REGISTRY_DIGEST}" \
-  "${WEB_CREATED}" "${WEB_REVISION}" "${WEB_RELEASE_ID}" <<'PY' | sudo tee \
+  "${WEB_CREATED}" "${WEB_REVISION}" "${WEB_RELEASE_ID}" \
+  "${PUBLIC_RESPONSE_SCHEMA_TOUCHED}" <<'PY' | sudo tee \
   "/opt/w2/shared/releases/${REVISION}.json" >/dev/null
 import json
 import sys
@@ -295,6 +313,7 @@ from datetime import UTC, datetime
     web_created,
     web_revision,
     web_release_id,
+    public_response_schema_touched,
 ) = sys.argv[1:]
 print(json.dumps({
     "schema_version": "w2.release_record.v1",
@@ -320,6 +339,8 @@ print(json.dumps({
         "created": web_created,
         "release_id": web_release_id,
     },
+    "public_response_schema_touched": public_response_schema_touched == "YES",
+    "workspace_http_status": "PASS",
     "status": "PASS",
     "recorded_at": datetime.now(UTC).isoformat(),
 }, sort_keys=True))

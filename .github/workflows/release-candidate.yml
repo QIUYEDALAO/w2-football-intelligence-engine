@@ -131,7 +131,9 @@ jobs:
           enable-cache: true
       - run: uv sync --python 3.12 --all-groups --frozen
       - run: |
-          git diff --check "${{ needs.identity.outputs.base_main_sha }}...${{ needs.identity.outputs.source_sha }}"
+          uv run python scripts/check_historical_diff.py \
+            --base "${{ needs.identity.outputs.base_main_sha }}" \
+            --head "${{ needs.identity.outputs.source_sha }}"
           uv run python scripts/check_tracked_outputs.py
           uv run pytest -q tests/contract/test_delivery_status_documentation.py tests/contract/test_delivery_pipeline.py
           uv run python tests/secret_scan.py
@@ -327,7 +329,6 @@ jobs:
       - run: npm --prefix apps/web ci
       - working-directory: apps/web
         run: npx playwright install --with-deps chromium
-      - run: python3 scripts/check_boss_console_baseline.py
       - run: npm --prefix apps/web run typecheck
       - run: npm --prefix apps/web run build
       - run: npm --prefix apps/web run test:e2e

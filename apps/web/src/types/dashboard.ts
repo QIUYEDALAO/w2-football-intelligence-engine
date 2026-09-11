@@ -252,13 +252,6 @@ export type MatchStatus =
   | "CANCELLED"
   | "UNKNOWN";
 
-export type RecommendationTier =
-  | "FORMAL"
-  | "CANDIDATE"
-  | "ANALYSIS_PICK"
-  | "WATCH"
-  | "NO_RECOMMENDATION";
-
 export type SettlementStatus =
   | "PENDING"
   | "HIT"
@@ -323,7 +316,7 @@ export interface ScorelineReference {
     reason?: string | null;
     simulation_method?: string;
     simulations_requested?: number;
-    simulations_completed?: number;
+    simulations_completed?: number | null;
     seed?: number;
     source_score_matrix_hash?: string;
     simulation_input_hash?: string;
@@ -356,7 +349,7 @@ export interface ScorelineReadiness {
 }
 
 export interface RecommendationPick {
-  tier: RecommendationTier;
+  decision_tier: DecisionTier;
   market: string;
   market_label_cn: string;
   selection: string;
@@ -505,7 +498,7 @@ export interface ValidationSummary {
   profit_units?: number;
   closing_line_value?: string;
   validation_notes?: string[];
-  tier?: RecommendationTier;
+  decision_tier?: DecisionTier;
   counted_in_official?: boolean;
   counted_in_analysis_shadow?: boolean;
 }

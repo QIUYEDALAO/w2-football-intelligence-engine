@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -10,10 +11,12 @@ class ProviderQuota:
     daily_remaining: int | None
     daily_limit: int | None
     burst_remaining: int | None
+    burst_limit: int | None
     observed_at: datetime
     daily_source: str | None
     daily_limit_source: str | None
     burst_source: str | None
+    burst_limit_source: str | None
 
 
 DAILY_HEADER_SOURCES = {
@@ -27,8 +30,18 @@ DAILY_LIMIT_HEADER_SOURCES = {
 BURST_HEADER_SOURCES = {
     "x-ratelimit-remaining",
 }
+BURST_LIMIT_HEADER_SOURCES = {
+    "x-ratelimit-limit",
+}
 API_FOOTBALL_DAILY_BUDGET = 7500
 API_FOOTBALL_RESERVE_BUCKET = 1500
+API_FOOTBALL_FREE_DAILY_LIMIT = 100
+API_FOOTBALL_FREE_DAILY_LIMIT_SOURCE = "x-ratelimit-requests-limit"
+API_FOOTBALL_FREE_DAILY_LIMIT_OBSERVED_AT = "2026-08-16T03:30:27.493845Z"
+API_FOOTBALL_FREE_MINUTE_LIMIT = 10
+API_FOOTBALL_FREE_UNALLOCATED_BUFFER = 10
+GENERAL_PROVIDER_DAILY_HARD_CAP = 70
+POSTMATCH_RESULT_DAILY_HARD_CAP = 20
 API_FOOTBALL_UPGRADE_EVALUATION_DAILY_BUDGET = 75000
 API_FOOTBALL_BACKFILL_STOP_RATIO = 0.15
 API_FOOTBALL_CORE_ONLY_RATIO = 0.10
@@ -42,6 +55,65 @@ API_FOOTBALL_CORE_TASKS = {
     "live_lineups",
 }
 API_FOOTBALL_BACKFILL_TASKS = {"xg_backfill", "historical_backfill", "statistics_backfill"}
+
+
+@dataclass(frozen=True)
+class ProviderDailyQuotaPool:
+    name: str
+    env_var: str
+    default_limit: int
+    budget_basis: str
+
+
+REGISTERED_PROVIDER_DAILY_QUOTA_POOLS = (
+    ProviderDailyQuotaPool(
+        name="GENERAL",
+        env_var="W2_PROVIDER_DAILY_HARD_CAP",
+        default_limit=GENERAL_PROVIDER_DAILY_HARD_CAP,
+        budget_basis="PROVIDER_BILLABLE_HEADER",
+    ),
+    ProviderDailyQuotaPool(
+        name="POSTMATCH_RESULT",
+        env_var="W2_POSTMATCH_RESULT_DAILY_HARD_CAP",
+        default_limit=POSTMATCH_RESULT_DAILY_HARD_CAP,
+        budget_basis="POSTMATCH_REQUEST_ATTEMPTS",
+    ),
+)
+
+
+def provider_daily_budget_contract(
+    *,
+    pool_limits: Mapping[str, int] | None = None,
+    unallocated_buffer: int = API_FOOTBALL_FREE_UNALLOCATED_BUFFER,
+    provider_limit: int = API_FOOTBALL_FREE_DAILY_LIMIT,
+) -> dict[str, Any]:
+    overrides = pool_limits or {}
+    registered = {
+        pool.name: max(int(overrides.get(pool.name, pool.default_limit)), 0)
+        for pool in REGISTERED_PROVIDER_DAILY_QUOTA_POOLS
+    }
+    billable = {
+        pool.name: registered[pool.name]
+        for pool in REGISTERED_PROVIDER_DAILY_QUOTA_POOLS
+        if pool.budget_basis == "PROVIDER_BILLABLE_HEADER"
+    }
+    attempt = {
+        pool.name: registered[pool.name]
+        for pool in REGISTERED_PROVIDER_DAILY_QUOTA_POOLS
+        if pool.budget_basis == "POSTMATCH_REQUEST_ATTEMPTS"
+    }
+    allocated = sum(billable.values())
+    buffer = max(int(unallocated_buffer), 0)
+    total = allocated + buffer
+    return {
+        "pool_limits": billable,
+        "orthogonal_attempt_pool_limits": attempt,
+        "allocated_budget": allocated,
+        "unallocated_buffer": buffer,
+        "configured_total": total,
+        "provider_limit": provider_limit,
+        "valid": total <= provider_limit,
+    }
 
 
 def parse_int(value: Any) -> int | None:
@@ -60,9 +132,11 @@ def parse_api_football_quota(
     daily_remaining: int | None = None
     daily_limit: int | None = None
     burst_remaining: int | None = None
+    burst_limit: int | None = None
     daily_source: str | None = None
     daily_limit_source: str | None = None
     burst_source: str | None = None
+    burst_limit_source: str | None = None
     for raw_key, raw_value in headers.items():
         key = raw_key.lower()
         if daily_remaining is None and key in DAILY_HEADER_SOURCES:
@@ -74,6 +148,9 @@ def parse_api_football_quota(
         if burst_remaining is None and key in BURST_HEADER_SOURCES:
             burst_remaining = parse_int(raw_value)
             burst_source = raw_key if burst_remaining is not None else None
+        if burst_limit is None and key in BURST_LIMIT_HEADER_SOURCES:
+            burst_limit = parse_int(raw_value)
+            burst_limit_source = raw_key if burst_limit is not None else None
     if daily_remaining is None:
         response = payload.get("response")
         if isinstance(response, dict):
@@ -94,10 +171,12 @@ def parse_api_football_quota(
         daily_remaining=daily_remaining,
         daily_limit=daily_limit,
         burst_remaining=burst_remaining,
+        burst_limit=burst_limit,
         observed_at=observed_at.astimezone(UTC),
         daily_source=daily_source,
         daily_limit_source=daily_limit_source,
         burst_source=burst_source,
+        burst_limit_source=burst_limit_source,
     )
 
 
@@ -113,9 +192,7 @@ def api_football_quota_policy(remaining_quota: int | None) -> dict[str, Any]:
         "reserve_bucket": API_FOOTBALL_RESERVE_BUCKET,
         "available_after_reserve": available_after_reserve,
         "reserve_locked": (
-            remaining_quota <= API_FOOTBALL_RESERVE_BUCKET
-            if remaining_quota is not None
-            else None
+            remaining_quota <= API_FOOTBALL_RESERVE_BUCKET if remaining_quota is not None else None
         ),
         "upgrade_evaluation_daily_budget": API_FOOTBALL_UPGRADE_EVALUATION_DAILY_BUDGET,
         "upgrade_enabled": False,
@@ -191,6 +268,7 @@ def provider_daily_hard_cap_decision(
     provider_remaining: int | None = None,
     min_provider_remaining: int = 0,
     require_provider_remaining: bool = False,
+    provider_limit: int | None = None,
 ) -> dict[str, Any]:
     actual = max(actual_calls_today, 0)
     planned = max(planned_calls, 0)
@@ -199,7 +277,11 @@ def provider_daily_hard_cap_decision(
     provider_remaining_after_plan = (
         provider_remaining - planned if provider_remaining is not None else None
     )
-    if projected_total > daily_cap:
+    if provider_limit is not None and daily_cap > provider_limit:
+        allowed = False
+        blocker = "PROVIDER_DAILY_CAP_EXCEEDS_OBSERVED_LIMIT"
+        mode = "BLOCKED"
+    elif projected_total > daily_cap:
         allowed = False
         blocker = "DAILY_PROVIDER_HARD_CAP_EXCEEDED"
         mode = "HARD_CAP"
@@ -227,12 +309,50 @@ def provider_daily_hard_cap_decision(
         "mode": mode,
         "blocker": blocker,
         "actual_calls_today": actual,
+        "billable_calls_today": actual,
+        "budget_basis": "PROVIDER_BILLABLE_HEADER",
         "planned_calls": planned,
         "projected_total": projected_total,
         "daily_cap": daily_cap,
         "reserve_bucket": reserve_bucket,
         "remaining_after_plan": remaining_after_plan,
         "provider_remaining": provider_remaining,
+        "provider_limit": provider_limit,
         "min_provider_remaining": min_provider_remaining,
         "provider_remaining_after_plan": provider_remaining_after_plan,
+    }
+
+
+def postmatch_result_quota_decision(
+    *,
+    actual_calls_today: int,
+    planned_calls: int,
+    reserved_capture_calls: int = 0,
+    daily_cap: int = POSTMATCH_RESULT_DAILY_HARD_CAP,
+) -> dict[str, Any]:
+    actual = max(actual_calls_today, 0)
+    planned = max(planned_calls, 0)
+    reserved = max(reserved_capture_calls, 0)
+    projected_total = actual + planned + reserved
+    allowed = projected_total <= daily_cap
+    operational_status = (
+        "POSTMATCH_POOL_RESERVED_SATURATED"
+        if daily_cap > 0 and reserved * 4 > daily_cap * 3
+        else None
+    )
+    return {
+        "allowed": allowed,
+        "mode": "RESULT_RESERVE" if allowed else "RESULT_HARD_CAP",
+        "blocker": None if allowed else "RESULT_QUOTA_EXHAUSTED",
+        "actual_calls_today": actual,
+        "postmatch_request_attempts_today": actual,
+        "budget_basis": "POSTMATCH_REQUEST_ATTEMPTS",
+        "planned_calls": planned,
+        "reserved_capture_calls": reserved,
+        "projected_total": projected_total,
+        "daily_cap": daily_cap,
+        "reserve_bucket": daily_cap,
+        "remaining_after_plan": daily_cap - projected_total,
+        "quota_scope": "POSTMATCH_RESULT",
+        "operational_status": operational_status,
     }

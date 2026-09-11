@@ -161,7 +161,10 @@ def snapshot_from_card(
     captured_at = now or utc_now()
     recommendation = first_dict(card.get("recommendation"))
     pricing_shadow = first_dict(card.get("pricing_shadow"))
-    if card.get("formal_recommendation") is not True or recommendation.get("tier") != "FORMAL":
+    if (
+        card.get("formal_recommendation") is not True
+        or recommendation.get("decision_tier") != "RECOMMEND"
+    ):
         return None, "NOT_FORMAL"
     kickoff = parse_dt(card.get("kickoff_utc"))
     as_of = _capture_as_of(card, captured_at)
@@ -184,7 +187,7 @@ def snapshot_from_card(
         "away_team_name": card.get("away_team_name"),
         "competition": card.get("competition_name"),
         "recommendation": {
-            "tier": "FORMAL",
+            "decision_tier": "RECOMMEND",
             "market": market,
             "selection": recommendation.get("selection"),
             "selection_side": side,
@@ -344,7 +347,10 @@ def capture_formal_locks(
         recommendation = first_dict(card.get("recommendation"))
         recommendation_id = _recommendation_id(card)
         if recommendation_id is None:
-            if card.get("formal_recommendation") is True or recommendation.get("tier") == "FORMAL":
+            if (
+                card.get("formal_recommendation") is True
+                or recommendation.get("decision_tier") == "RECOMMEND"
+            ):
                 counts["MISSING_RECOMMENDATION_ID"] += 1
             else:
                 counts["NOT_FORMAL"] += 1

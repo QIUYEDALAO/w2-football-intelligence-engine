@@ -44,6 +44,7 @@ def _empty_day_view() -> dict[str, Any]:
         "football_day_start_utc": "2026-08-09T04:00:00Z",
         "football_day_end_utc": "2026-08-10T04:00:00Z",
         "source": "dashboard_read_model",
+        "active_whitelist_count": 11,
         "checkpoint_key": "dashboard:day_view:2026-08-09",
         "provider_calls": 0,
         "db_writes": 0,
@@ -58,7 +59,7 @@ def _empty_day_view() -> dict[str, Any]:
                 "upcoming_fixture_count": 0,
                 "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
                 "persisted_competition_coverage_count": 0,
-                "active_whitelist_count": 13,
+                "active_whitelist_count": 11,
                 "market_collection_window_status": "EMPTY_PERSISTED_DAY",
                 "market_evidence_fixture_count": 0,
             }
@@ -154,6 +155,7 @@ def test_workspace_is_a_pure_adapter_without_provider_or_scheduler_imports() -> 
         "collections.abc",
         "datetime",
         "typing",
+        "w2.dashboard.factor_checklist",
         "w2.dashboard.results",
     }
     assert "create_engine" not in source
@@ -187,6 +189,41 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     assert schemas["WorkspaceMatch"]["properties"]["outcome"] == {
         "$ref": "#/components/schemas/WorkspaceMatchOutcome"
     }
+    assert schemas["WorkspaceMatch"]["properties"]["market_collection"] == {
+        "$ref": "#/components/schemas/WorkspaceMarketCollection"
+    }
+    assert schemas["WorkspaceMatch"]["properties"]["lineup_collection"] == {
+        "$ref": "#/components/schemas/WorkspaceLineupCollection"
+    }
+    assert schemas["WorkspaceMatch"]["properties"]["factor_checklist"] == {
+        "$ref": "#/components/schemas/WorkspaceFixtureFactorChecklist"
+    }
+    assert "market_collection" in schemas["WorkspaceMatch"]["required"]
+    assert "lineup_collection" in schemas["WorkspaceMatch"]["required"]
+    assert "factor_checklist" in schemas["WorkspaceMatch"]["required"]
+    assert set(schemas["WorkspaceFixtureFactor"]["properties"]["state"]["enum"]) == {
+        "READY",
+            "PARTIAL",
+            "MISSING",
+            "WAITING",
+            "DISABLED",
+    }
+    assert set(schemas["WorkspaceMarketCollection"]["properties"]) == {
+        "latest_snapshot_at",
+        "latest_snapshot_checkpoint",
+        "target_checkpoint",
+        "scheduled_at",
+        "window_end_at",
+        "overdue",
+        "public_semantics",
+    }
+    assert set(schemas["WorkspaceLineupCollection"]["properties"]) == {
+        "target_checkpoint",
+        "scheduled_at",
+        "window_end_at",
+        "overdue",
+        "public_semantics",
+    }
     assert set(schemas["WorkspaceMatchOutcome"]["properties"]) == {
         "is_finished",
         "is_tracked",
@@ -216,7 +253,6 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     assert next(set(option["enum"]) for option in priority_options if "enum" in option) == {
         "MARKET_MOVEMENT",
         "MODEL_DIAGNOSTIC",
-        "STALE_MARKET_MEMORY",
     }
     assert set(schemas["WorkspaceRisks"]["properties"]) == {
         "EVENT_RISK",
@@ -232,7 +268,6 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     assert schemas["WorkspaceRisks"]["additionalProperties"] is False
     assert set(schemas["WorkspaceMarket"]["properties"]["status"]["enum"]) == {
         "READY",
-        "STALE",
         "INSUFFICIENT",
     }
     assert {
@@ -244,7 +279,7 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
         "trend_evidence_status",
         "cross_sectional_comparison_status",
         "latest_snapshot_at",
-        "freshness_max_age_seconds",
+        "quote_age_seconds",
     } <= set(schemas["WorkspaceMarket"]["properties"])
     workspace = schemas["DashboardIntelligenceWorkspaceResponse"]["properties"]
     assert "selected_fixture_id" in workspace
@@ -257,7 +292,6 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     }
     assert set(schemas["WorkspaceMarketFact"]["properties"]["status"]["enum"]) == {
         "READY",
-        "STALE",
         "INSUFFICIENT",
     }
     assert "source_status" in schemas["WorkspaceMarketFact"]["properties"]

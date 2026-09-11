@@ -1,0 +1,6 @@
+[Unit]
+Description=W2 rolling xG snapshot materialization (zero Provider)
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/w2-xg-materialize

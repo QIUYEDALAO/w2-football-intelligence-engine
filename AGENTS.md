@@ -75,6 +75,16 @@ Provider allowlist, V4 or Dashboard.
 
 ## Source and branch rules
 
+Local workspace layout:
+
+- the only W2 repository allowed directly under `/Users/liudehua/Documents/Projects/` is
+  `/Users/liudehua/Documents/Projects/w2-football-intelligence-engine`;
+- every additional task, audit, baseline or detached worktree must be created under
+  `/Users/liudehua/Documents/Projects/W2-workspaces/`;
+- do not create new `/Users/liudehua/Documents/Projects/w2-*` or `_w2_*` sibling directories;
+- use `git worktree move` for relocation, and never delete or reset a dirty worktree while
+  consolidating directories.
+
 ```bash
 git remote -v
 git fetch --all --prune --tags

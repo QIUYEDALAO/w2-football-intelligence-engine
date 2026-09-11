@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Totals calibration snapshot: model P(over 2.5) against realised frequency.
+# Read-only. No provider calls, no writes. Safe to run at any time.
+set -uo pipefail
+PSQL=(docker exec -i w2-staging-postgres-1 psql -At -F, -U w2_user -d w2)
+
+"${PSQL[@]}" -c "
+WITH x AS (
+  SELECT (SELECT (e->'over_settlement_distribution'->>'WIN')::float
+            FROM jsonb_array_elements(c.payload::jsonb->'ou_settlement_distributions'->'ladder') e
+           WHERE (e->>'line')::float = 2.5 LIMIT 1) p,
+         (r.home_goals + r.away_goals > 2.5)::int AS hit
+  FROM model_forecast_capture c
+  JOIN results r ON replace(r.fixture_id,'api_football:','') = c.fixture_id
+  WHERE r.result_status IN ('FT','AET','PEN'))
+SELECT p,hit FROM x WHERE p IS NOT NULL;" > /tmp/w2-cal.csv 2>/dev/null
+
+python3 - <<'PY'
+import csv, math, random, statistics
+rows=[(float(a),int(b)) for a,b in csv.reader(open('/tmp/w2-cal.csv')) if a]
+n=len(rows)
+if n < 20:
+    print(f"TOTALS_CALIBRATION n={n} INSUFFICIENT_SAMPLE"); raise SystemExit(0)
+pred=statistics.mean(p for p,_ in rows); real=statistics.mean(h for _,h in rows)
+def slope(s):
+    mx=statistics.mean(x for x,_ in s); my=statistics.mean(y for _,y in s)
+    den=sum((x-mx)**2 for x,_ in s)
+    return sum((x-mx)*(y-my) for x,y in s)/den if den else float('nan')
+def dbrier(s):
+    b=statistics.mean(y for _,y in s)
+    return statistics.mean((x-y)**2 for x,y in s)-statistics.mean((b-y)**2 for _,y in s)
+random.seed(20260823)
+bs=sorted(slope(random.choices(rows,k=n)) for _ in range(4000))
+db=sorted(dbrier(random.choices(rows,k=n)) for _ in range(4000))
+lo,hi=bs[100],bs[3900]; dlo,dhi=db[100],db[3900]
+se=math.sqrt(real*(1-real)/n)
+print(f"TOTALS_CALIBRATION n={n}")
+print(f"  mean_predicted={pred:.4f} mean_realised={real:.4f} gap={real-pred:+.4f} se={se:.4f} z={(real-pred)/se:+.2f}")
+print(f"  slope={slope(rows):.4f} ci95=[{lo:.3f},{hi:.3f}] {'RESOLVED' if not (lo<1<hi) else 'INCONCLUSIVE_SPANS_1'}")
+print(f"  brier_minus_constant={dbrier(rows):+.4f} ci95=[{dlo:+.4f},{dhi:+.4f}] {'RESOLVED' if not (dlo<0<dhi) else 'INCONCLUSIVE_SPANS_0'}")
+hiconf=[(p,h) for p,h in rows if p>=0.60]
+if len(hiconf)>=10:
+    hp=statistics.mean(p for p,_ in hiconf); hr=statistics.mean(h for _,h in hiconf)
+    hse=math.sqrt(hr*(1-hr)/len(hiconf)) or 1e-9
+    print(f"  high_confidence_over n={len(hiconf)} predicted={hp:.3f} realised={hr:.3f} z={(hr-hp)/hse:+.2f}")
+print(f"  note: about 500 settled forecasts are needed before slope ci can exclude 1.0")
+PY

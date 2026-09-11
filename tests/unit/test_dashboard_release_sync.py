@@ -365,7 +365,7 @@ def test_dashboard_all_window_compacts_heavy_card_payload(monkeypatch) -> None:
             "recommendation": {
                 "recommendation_id": f"rec-{fixture_id}",
                 "id": f"rec-row-{fixture_id}",
-                "tier": "FORMAL",
+                "decision_tier": "RECOMMEND",
                 "market": "ASIAN_HANDICAP",
                 "selection": "HOME_AH",
                 "line": -0.5,
@@ -446,7 +446,7 @@ def test_dashboard_all_window_compacts_heavy_card_payload(monkeypatch) -> None:
     assert card["recommendation"] == {
         "recommendation_id": f"rec-{card['fixture_id']}",
         "id": f"rec-row-{card['fixture_id']}",
-        "tier": "FORMAL",
+        "decision_tier": "RECOMMEND",
         "market": "ASIAN_HANDICAP",
         "selection": "HOME_AH",
         "line": -0.5,
@@ -469,7 +469,7 @@ def test_dashboard_all_window_compacts_heavy_card_payload(monkeypatch) -> None:
     assert "current_odds" not in card
     assert "pricing_shadow" not in card
     assert card["competition_name"] == "FIFA World Cup"
-    assert card["recommendation"]["tier"] == "FORMAL"
+    assert card["recommendation"]["decision_tier"] == "RECOMMEND"
 
 
 def test_dashboard_all_window_index_contract_is_not_formal_authority(

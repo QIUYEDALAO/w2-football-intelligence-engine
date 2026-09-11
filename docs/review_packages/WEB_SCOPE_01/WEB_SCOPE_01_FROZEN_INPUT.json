@@ -1,0 +1,67 @@
+{
+  "schema_version": "w2.web-scope-01.frozen-input.v1",
+  "observed_at_utc": "2026-08-24T08:20:00Z",
+  "enabled_competitions": [
+    "argentina_primera",
+    "brasileirao_serie_a",
+    "bundesliga",
+    "eliteserien",
+    "eredivisie",
+    "la_liga",
+    "ligue_1",
+    "mls",
+    "premier_league",
+    "primeira_liga",
+    "serie_a"
+  ],
+  "football_day": "2026-08-24",
+  "matchday_rows": [
+    {"fixture_id": "1550089", "competition_id": "serie_a"},
+    {"fixture_id": "1494253", "competition_id": "allsvenskan"},
+    {"fixture_id": "1570350", "competition_id": "la_liga"},
+    {"fixture_id": "1550087", "competition_id": "serie_a"},
+    {"fixture_id": "1557376", "competition_id": "premier_league"},
+    {"fixture_id": "1575467", "competition_id": "primeira_liga"},
+    {"fixture_id": "1570349", "competition_id": "la_liga"},
+    {"fixture_id": "1493091", "competition_id": "argentina_primera"},
+    {"fixture_id": "1492340", "competition_id": "brasileirao_serie_a"},
+    {"fixture_id": "1493085", "competition_id": "argentina_primera"},
+    {"fixture_id": "1493090", "competition_id": "argentina_primera"}
+  ],
+  "analysis_checkpoint_counts_by_competition": {
+    "allsvenskan": 25,
+    "argentina_primera": 33,
+    "brasileirao_serie_a": 38,
+    "bundesliga": 20,
+    "chinese_super_league": 26,
+    "eliteserien": 23,
+    "eredivisie": 18,
+    "la_liga": 27,
+    "ligue_1": 20,
+    "mls": 37,
+    "premier_league": 20,
+    "primeira_liga": 13,
+    "serie_a": 20
+  },
+  "fixture_1494253": {
+    "competition_id": "allsvenskan",
+    "checkpoint_plans_captured": 3,
+    "checkpoint_plans_skipped_policy": 11,
+    "dynamic_evaluations": 6,
+    "legacy_analysis_pick_active": 2,
+    "official_funnel_eligible_true": 0,
+    "dynamic_opportunities": 0,
+    "outcome_ledger_capture_rows": 4,
+    "current_card": {
+      "decision_tier": "NOT_READY",
+      "candidate": false,
+      "formal_recommendation": false,
+      "v4_outcome": "NOT_READY"
+    }
+  },
+  "release": {
+    "api_git_sha": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1",
+    "web_git_sha": "ae5b4d884c9f2f4da98b5c6874e7703fef4d720b",
+    "existing_public_release_sync_exit_code": 1
+  }
+}

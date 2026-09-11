@@ -18,9 +18,12 @@ from w2.competitions.seed import (
 )
 from w2.config import get_settings
 from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.factor_model_models import (
+    CanonicalTeamModel,
+    ProviderTeamIdentityCrosswalkModel,
+)
 from w2.infrastructure.persistence.future_refresh_models import (
     FutureRefreshCheckpointAuditModel,
-    FutureRefreshCheckpointPlanModel,
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
     RawPayloadModel,
@@ -33,6 +36,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
     MatchdayEndpointCapturePlanModel,
+    MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
 from w2.infrastructure.persistence.models import ResultModel, StructuredLineupSnapshotModel
@@ -377,6 +381,78 @@ def run_direct_checkpoint(
     )
 
 
+def test_discovery_mode_uses_the_canonical_refresh_writer_only(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+
+    class DiscoveryClient(FakeApiFootballClient):
+        def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+            payload = super().payload(endpoint, params)
+            if endpoint == "fixtures":
+                payload["response"][0]["league"] = {
+                    "id": 113,
+                    "name": "Allsvenskan",
+                    "season": 2026,
+                }
+            return payload
+
+    client = DiscoveryClient()
+    audit = run_future_refresh_task(
+        task_id="fixture-discovery",
+        key="fixture-discovery:2026-06-23:2026-06-23",
+        queued_at=NOW,
+        competition_id="allsvenskan",
+        runtime_root=tmp_path / "runtime",
+        client=client,
+        now=NOW,
+        persistence="db",
+        discovery_date="2026-06-23",
+    )
+
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        identity = session.get(MatchdayFixtureIdentityModel, "api_football:1489404")
+        canonical_team_count = session.scalar(select(func.count()).select_from(CanonicalTeamModel))
+        crosswalk_count = session.scalar(
+            select(func.count()).select_from(ProviderTeamIdentityCrosswalkModel)
+        )
+        observation_count = session.scalar(
+            select(func.count()).select_from(MatchdayMarketObservationModel)
+        )
+        plan_count = session.scalar(
+            select(func.count())
+            .select_from(MatchdayCheckpointPlanModel)
+            .where(MatchdayCheckpointPlanModel.fixture_id == "api_football:1489404")
+        )
+
+    assert client.calls == [("fixtures", {"date": "2026-06-23"})]
+    assert audit.status == "COMPLETED"
+    assert audit.result["discovery_date"] == "2026-06-23"
+    assert audit.result["market_snapshot_count"] == 0
+    assert identity is not None
+    assert identity.competition_id == "allsvenskan"
+    assert identity.team_identity_status == "PROVIDER_PRIMARY_READY"
+    assert identity.home_w2_team_id == "w2:team:api_football:10"
+    assert identity.away_w2_team_id == "w2:team:api_football:20"
+    assert canonical_team_count == 2
+    assert crosswalk_count == 2
+    assert audit.result["identity_pool_expansions"] == [
+        {
+            "event": "TEAM_IDENTITY_POOL_EXPANDED",
+            "competition_id": "allsvenskan",
+            "provider_league_id": "113",
+            "season": "2026",
+            "canonical_team_count": 2,
+            "provider_crosswalk_count": 2,
+            "fixture_identity_ready_count": 1,
+        }
+    ]
+    assert observation_count == 0
+    assert plan_count == 14
+
+
 def test_checkpoint_missing_persisted_fixture_fails_without_provider_call(
     tmp_path: Path,
     monkeypatch: Any,
@@ -398,9 +474,181 @@ def test_checkpoint_missing_persisted_fixture_fails_without_provider_call(
     assert audit.status == "BLOCKED"
 
 
+def test_stale_checkpoint_claim_does_not_block_valid_plan_in_same_batch(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    seed_odds_checkpoint(
+        "1489404",
+        with_identity=True,
+        checkpoint="T-30m_VALIDATION_LOCK",
+    )
+    repository = MatchdayRuntimeRepository()
+    repository.upsert_checkpoint_plan(
+        CheckpointPlan(
+            fixture_id="api_football:1489404",
+            competition_id="allsvenskan",
+            season="2026",
+            checkpoint="T15_ODDS",
+            kickoff_utc=NOW + timedelta(hours=7),
+            scheduled_at=NOW,
+            window_start=NOW - timedelta(minutes=1),
+            window_end=NOW + timedelta(hours=1),
+            endpoints=("odds",),
+            status="DUE",
+            blockers=(),
+        )
+    )
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.execute(
+            update(MatchdayCheckpointPlanModel)
+            .where(MatchdayCheckpointPlanModel.checkpoint == "T-30m_VALIDATION_LOCK")
+            .values(window_end=NOW + timedelta(minutes=1))
+        )
+        session.commit()
+    claimed = repository.claim_due_checkpoint_plans(now=NOW, worker_id="batch-test")
+    assert len(claimed) == 2
+    with Session(engine) as session:
+        session.execute(
+            update(MatchdayCheckpointPlanModel)
+            .where(MatchdayCheckpointPlanModel.checkpoint == "T-30m_VALIDATION_LOCK")
+            .values(claim_expires_at=NOW + timedelta(minutes=1))
+        )
+        session.commit()
+    client = FakeApiFootballClient()
+
+    audit = run_future_refresh_task(
+        task_id="partial-stale-checkpoint",
+        key="partial-stale-checkpoint",
+        queued_at=NOW,
+        competition_id="allsvenskan",
+        runtime_root=tmp_path / "runtime",
+        client=client,
+        now=NOW + timedelta(minutes=2),
+        persistence="db",
+        checkpoint_fixture_ids=tuple(str(item["fixture_id"]) for item in claimed),
+        refresh_checkpoints=tuple(claimed),
+        materialize_public_artifacts=materialize_projection_events_for_test,
+    )
+
+    with Session(engine) as session:
+        plans = {
+            row.checkpoint: row.status
+            for row in session.scalars(select(MatchdayCheckpointPlanModel))
+        }
+    assert client.calls == [("odds", {"fixture": "1489404"})]
+    assert plans == {"T-30m_VALIDATION_LOCK": "MISSED", "T15_ODDS": "CAPTURED"}
+    assert [row["checkpoint"] for row in audit.result["refresh_checkpoints"]] == [
+        "T15_ODDS"
+    ]
+
+
+def test_checkpoint_daily_cap_preflight_restores_unattempted_claim(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "1")
+    monkeypatch.setenv("W2_PROVIDER_DAILY_RESERVE", "0")
+    checkpoint = claimed_odds_checkpoint(with_identity=True)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.add(
+            ProviderRequestLogModel(
+                provider="api_football",
+                endpoint="odds",
+                request_hash="f" * 64,
+                live=True,
+                status_code=200,
+                requested_at=NOW,
+                completed_at=NOW,
+            )
+        )
+        session.commit()
+    client = FakeApiFootballClient()
+
+    run_direct_checkpoint(tmp_path, client, checkpoint)
+
+    with Session(engine) as session:
+        plan = session.scalar(select(MatchdayCheckpointPlanModel))
+        audit = session.scalar(select(FutureRefreshCheckpointAuditModel))
+    assert client.calls == []
+    assert plan is not None and plan.status == "DUE"
+    assert plan.attempt_count == 0
+    assert plan.claim_token is None
+    assert audit is not None and (audit.status, audit.calls_used) == ("RETRY_PENDING", 0)
+
+
+def test_postmatch_result_cap_restores_unattempted_claim(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    monkeypatch.setenv("W2_POSTMATCH_RESULT_DAILY_HARD_CAP", "2")
+    repository = MatchdayRuntimeRepository()
+    repository.upsert_checkpoint_plan(
+        postmatch_result_checkpoint_plan(
+            fixture_id="api_football:1489404",
+            competition_id="world_cup_2026",
+            season="2026",
+            kickoff_utc=NOW - timedelta(hours=4),
+            now=NOW,
+        )
+    )
+    checkpoint = repository.claim_due_checkpoint_plans(
+        now=NOW,
+        worker_id="postmatch-cap-test",
+    )[0]
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.add(
+            FutureRefreshTaskAuditModel(
+                task_id="earlier-postmatch-task",
+                key="earlier-postmatch-key",
+                owner="test",
+                queued_at=NOW,
+                started_at=NOW,
+                finished_at=NOW,
+                status="COMPLETED",
+                result={
+                    "request_count": 2,
+                    "refresh_checkpoints": [{"checkpoint": "POSTMATCH_RESULT"}],
+                },
+            )
+        )
+        session.commit()
+    client = FakeApiFootballClient()
+
+    run_future_refresh_task(
+        task_id="postmatch-cap-task",
+        key="postmatch-cap:world_cup_2026:1489404",
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=client,
+        now=NOW,
+        persistence="db",
+        checkpoint_fixture_ids=("api_football:1489404",),
+        refresh_checkpoints=(checkpoint,),
+    )
+
+    with Session(engine) as session:
+        plan = session.scalar(select(MatchdayCheckpointPlanModel))
+        audit = session.scalar(select(FutureRefreshCheckpointAuditModel))
+    assert client.calls == []
+    assert plan is not None and plan.status == "DUE"
+    assert plan.attempt_count == 0
+    assert plan.claim_token is None
+    assert "RESULT_QUOTA_EXHAUSTED" in plan.blockers
+    assert audit is not None and (audit.status, audit.calls_used) == ("RETRY_PENDING", 0)
+    assert audit.details["result_collection_state"] == "RESULT_QUOTA_EXHAUSTED"
+
+
 @pytest.mark.parametrize(
     ("client", "checkpoint_name", "endpoints", "expected_status", "expected_lineups"),
     [
+        (FakeApiFootballClient(), "T45_ODDS", ("odds",), "CAPTURED", 0),
         (FakeApiFootballClient(), "T45_LINEUPS_RETRY", ("lineups",), "CAPTURED", 2),
         (
             FakeApiFootballClient(),
@@ -409,6 +657,7 @@ def test_checkpoint_missing_persisted_fixture_fails_without_provider_call(
             "CAPTURED",
             2,
         ),
+        (FakeApiFootballClient(), "T15_ODDS", ("odds",), "CAPTURED", 0),
         (SchemaDriftLineupsClient(), "T45_LINEUPS_RETRY", ("lineups",), "FAILED", 0),
     ],
 )
@@ -478,8 +727,7 @@ def test_checkpoint_batch_isolates_failure_and_releases_unattempted(
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
         plans = {
-            row.fixture_id: row
-            for row in session.scalars(select(MatchdayCheckpointPlanModel))
+            row.fixture_id: row for row in session.scalars(select(MatchdayCheckpointPlanModel))
         }
         audits = {
             row.fixture_id: row.status
@@ -498,7 +746,30 @@ def test_checkpoint_batch_isolates_failure_and_releases_unattempted(
     }
     if second_status == "DUE":
         assert plans["api_football:1489405"].claim_token is None
+        assert plans["api_football:1489405"].attempt_count == 0
         assert "CHECKPOINT_BATCH_NOT_ATTEMPTED" in plans["api_football:1489405"].blockers
+
+
+def test_shared_checkpoint_request_marks_every_claim_as_attempted(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+    seed_odds_checkpoint("1489404", with_identity=True, checkpoint="T72_OPEN_ODDS")
+    seed_odds_checkpoint("1489404", with_identity=True, checkpoint="T48_OPEN_ODDS")
+    checkpoints = MatchdayRuntimeRepository().claim_due_checkpoint_plans(
+        now=NOW, worker_id="shared-request"
+    )
+
+    run_direct_checkpoint(tmp_path, Http500OddsClient(), *checkpoints)
+
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        plans = list(session.scalars(select(MatchdayCheckpointPlanModel)))
+    assert len(plans) == 2
+    assert {plan.attempt_count for plan in plans} == {1}
+    assert {plan.status for plan in plans} == {"FAILED"}
 
 
 def test_checkpoint_retry_uses_final_capture(
@@ -517,9 +788,7 @@ def test_checkpoint_retry_uses_final_capture(
         plan = session.scalar(select(MatchdayCheckpointPlanModel))
         captures = list(
             session.scalars(
-                select(MatchdayEndpointCaptureModel).order_by(
-                    MatchdayEndpointCaptureModel.attempt
-                )
+                select(MatchdayEndpointCaptureModel).order_by(MatchdayEndpointCaptureModel.attempt)
             )
         )
         checkpoint_audit = session.scalar(select(FutureRefreshCheckpointAuditModel))
@@ -572,7 +841,7 @@ def test_checkpoint_batch_budget_covers_each_planned_retry(
 ) -> None:
     configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
     monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "2")
-    for fixture_id in map(str, range(1489404, 1489419)):
+    for fixture_id in map(str, range(1489404, 1489409)):
         seed_odds_checkpoint(fixture_id, with_identity=True)
     checkpoints = MatchdayRuntimeRepository().claim_due_checkpoint_plans(
         now=NOW, worker_id="retry-budget"
@@ -585,7 +854,7 @@ def test_checkpoint_batch_budget_covers_each_planned_retry(
     with Session(engine) as session:
         statuses = set(session.scalars(select(MatchdayCheckpointPlanModel.status)))
     assert audit.status == "COMPLETED"
-    assert len(client.calls) == 30
+    assert len(client.calls) == 10
     assert statuses == {"CAPTURED"}
 
 
@@ -684,6 +953,7 @@ def test_postmatch_checkpoint_fetches_once_and_materializes_real_result(
     monkeypatch: Any,
 ) -> None:
     configure_sqlite_db(monkeypatch, tmp_path)
+    monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "0")
     monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status,fixtures,odds,lineups")
     kickoff = NOW - timedelta(hours=4)
     repository = MatchdayRuntimeRepository()
@@ -715,15 +985,26 @@ def test_postmatch_checkpoint_fetches_once_and_materializes_real_result(
 
     assert audit.status == "COMPLETED"
     assert [endpoint for endpoint, _params in client.calls] == ["status", "fixtures"]
+    assert [
+        item["status_code"]
+        for item in audit.result["requests"]
+        if item.get("attempt", 0) > 0
+    ] == [200, 200]
+    assert FutureRefreshDbRepository().postmatch_result_successful_request_count_since(
+        NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    ) == 2
+    assert client.calls[1][1] == {"id": "1489404"}
     assert audit.result["materialized_fixture_ids"] == ["api_football:1489404"]
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
         result = session.scalar(select(ResultModel))
         checkpoint = session.scalar(select(MatchdayCheckpointPlanModel))
+        checkpoint_audit = session.scalar(select(FutureRefreshCheckpointAuditModel))
         assert result is not None
         assert (result.home_goals, result.away_goals, result.result_status) == (2, 1, "FT")
         assert checkpoint is not None
         assert checkpoint.status == "CAPTURED"
+        assert checkpoint_audit is not None and checkpoint_audit.status == "COMPLETED"
 
 
 def test_c9_fake_provider_emits_exact_required_event_set(
@@ -1045,20 +1326,29 @@ def test_fixture_scoped_market_refresh_status_never_reports_past_tick(
     monkeypatch: Any,
 ) -> None:
     configure_sqlite_db(monkeypatch, tmp_path)
-    repository = FutureRefreshDbRepository()
-    plan = {
-        "id": "fixture:T60",
-        "fixture_id": "fixture",
-        "checkpoint": "T60",
-        "kickoff_utc": NOW + timedelta(hours=1),
-        "due_at": NOW - timedelta(minutes=1),
-        "endpoints": ["odds"],
-        "source": "scheduled",
-        "status": "PENDING",
-    }
-    assert repository.upsert_checkpoint_plans([plan]) == 0
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.add(
+            MatchdayCheckpointPlanModel(
+                plan_id="past-plan",
+                fixture_id="api_football:fixture",
+                competition_id="allsvenskan",
+                season="2026",
+                policy_version="test-policy",
+                checkpoint="T60",
+                kickoff_utc=NOW + timedelta(hours=1),
+                scheduled_at=NOW - timedelta(minutes=1),
+                window_start=NOW - timedelta(minutes=2),
+                window_end=NOW + timedelta(minutes=3),
+                endpoints=["odds"],
+                status="DUE",
+                blockers=[],
+                plan_hash="a" * 64,
+            )
+        )
+        session.commit()
 
-    assert repository.market_refresh_status_for_fixtures(["fixture"], now=NOW) == {
+    assert FutureRefreshDbRepository().market_refresh_status_for_fixtures(["fixture"], now=NOW) == {
         "odds_last_confirmed_at": None,
         "next_refresh_tick": None,
     }
@@ -1072,23 +1362,41 @@ def test_fixture_scoped_market_refresh_status_reads_canonical_matchday_plan(
     engine = create_engine(get_settings().database_url.get_secret_value())
     scheduled_at = NOW + timedelta(minutes=30)
     with Session(engine) as session:
-        session.add(
-            MatchdayCheckpointPlanModel(
-                plan_id="canonical-plan",
-                fixture_id="api_football:fixture",
-                competition_id="world_cup_2026",
-                season="2026",
-                policy_version="test-policy",
-                checkpoint="T30",
-                kickoff_utc=NOW + timedelta(hours=1),
-                scheduled_at=scheduled_at,
-                window_start=scheduled_at,
-                window_end=scheduled_at + timedelta(minutes=5),
-                endpoints=["odds"],
-                status="PLANNED",
-                blockers=[],
-                plan_hash="a" * 64,
-            )
+        session.add_all(
+            [
+                MatchdayCheckpointPlanModel(
+                    plan_id="canonical-plan",
+                    fixture_id="api_football:fixture",
+                    competition_id="world_cup_2026",
+                    season="2026",
+                    policy_version="test-policy",
+                    checkpoint="T30",
+                    kickoff_utc=NOW + timedelta(hours=1),
+                    scheduled_at=scheduled_at,
+                    window_start=scheduled_at,
+                    window_end=scheduled_at + timedelta(minutes=5),
+                    endpoints=["odds"],
+                    status="PLANNED",
+                    blockers=[],
+                    plan_hash="a" * 64,
+                ),
+                MatchdayCheckpointPlanModel(
+                    plan_id="past-odds-plan",
+                    fixture_id="api_football:fixture",
+                    competition_id="world_cup_2026",
+                    season="2026",
+                    policy_version="test-policy",
+                    checkpoint="T48",
+                    kickoff_utc=NOW + timedelta(hours=1),
+                    scheduled_at=NOW - timedelta(minutes=30),
+                    window_start=NOW - timedelta(minutes=30),
+                    window_end=NOW - timedelta(minutes=25),
+                    endpoints=["odds"],
+                    status="DUE",
+                    blockers=[],
+                    plan_hash="b" * 64,
+                ),
+            ]
         )
         session.commit()
 
@@ -1098,9 +1406,258 @@ def test_fixture_scoped_market_refresh_status_reads_canonical_matchday_plan(
     assert DashboardReadModelRepository().market_collection_status_for_fixtures(
         ["fixture"], now=NOW
     )["fixture"] == {
-        "odds_status": "WAITING_WINDOW",
+        "odds_status": "WINDOW_DUE",
         "last_refresh_hint": None,
-        "next_refresh_at": scheduled_at.isoformat().replace("+00:00", "Z"),
+        "market_collection": {
+            "latest_snapshot_at": None,
+            "latest_snapshot_checkpoint": None,
+            "target_checkpoint": "T48",
+            "scheduled_at": (NOW - timedelta(minutes=30)).isoformat().replace("+00:00", "Z"),
+            "window_end_at": (NOW - timedelta(minutes=25)).isoformat().replace("+00:00", "Z"),
+            "overdue": True,
+            "public_semantics": {"scope": "MATCH", "cause": "AWAITING_COLLECTION"},
+        },
+    }
+    assert FutureRefreshDbRepository().next_market_refresh_by_fixture(
+        ["fixture", "api_football:fixture"], now=NOW
+    ) == {
+        "fixture": scheduled_at.isoformat().replace("+00:00", "Z"),
+        "api_football:fixture": scheduled_at.isoformat().replace("+00:00", "Z"),
+    }
+
+
+@pytest.mark.parametrize(
+    ("scheduled_delta", "window_end_delta", "cause", "status", "overdue"),
+    [
+        (timedelta(minutes=10), timedelta(minutes=15), "NOT_YET_DUE", "WAITING_WINDOW", False),
+        (timedelta(minutes=-2), timedelta(minutes=3), "AWAITING_COLLECTION", "WINDOW_DUE", False),
+        (timedelta(minutes=-10), timedelta(minutes=-5), "AWAITING_COLLECTION", "WINDOW_DUE", True),
+    ],
+)
+def test_market_collection_uses_plan_window_not_fixed_snapshot_age(
+    tmp_path: Path,
+    monkeypatch: Any,
+    scheduled_delta: timedelta,
+    window_end_delta: timedelta,
+    cause: str,
+    status: str,
+    overdue: bool,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    scheduled_at = NOW + scheduled_delta
+    window_end = NOW + window_end_delta
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.add(
+            MatchdayCheckpointPlanModel(
+                plan_id="window-plan",
+                fixture_id="api_football:fixture",
+                competition_id="allsvenskan",
+                season="2026",
+                policy_version="test-policy",
+                checkpoint="T24_OPEN_ODDS",
+                kickoff_utc=NOW + timedelta(days=1),
+                scheduled_at=scheduled_at,
+                window_start=scheduled_at,
+                window_end=window_end,
+                endpoints=["odds"],
+                status="DUE" if scheduled_at <= NOW else "PLANNED",
+                blockers=[],
+                plan_hash="d" * 64,
+            )
+        )
+        session.commit()
+
+    payload = DashboardReadModelRepository().market_collection_status_for_fixtures(
+        ["fixture"], now=NOW
+    )["fixture"]
+
+    assert payload["odds_status"] == status
+    assert payload["market_collection"] == {
+        "latest_snapshot_at": None,
+        "latest_snapshot_checkpoint": None,
+        "target_checkpoint": "T24_OPEN_ODDS",
+        "scheduled_at": scheduled_at.isoformat().replace("+00:00", "Z"),
+        "window_end_at": window_end.isoformat().replace("+00:00", "Z"),
+        "overdue": overdue,
+        "public_semantics": {"scope": "MATCH", "cause": cause},
+    }
+
+
+def test_satisfied_collection_window_exposes_snapshot_checkpoint_and_next_plan(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    captured_at = NOW - timedelta(minutes=4)
+    next_scheduled_at = NOW + timedelta(hours=12)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.add_all(
+            [
+                MatchdayCheckpointPlanModel(
+                    plan_id="satisfied-plan",
+                    fixture_id="api_football:fixture",
+                    competition_id="allsvenskan",
+                    season="2026",
+                    policy_version="test-policy",
+                    checkpoint="T24_OPEN_ODDS",
+                    kickoff_utc=NOW + timedelta(days=1),
+                    scheduled_at=NOW - timedelta(minutes=5),
+                    window_start=NOW - timedelta(minutes=5),
+                    window_end=NOW + timedelta(minutes=5),
+                    endpoints=["odds"],
+                    status="CAPTURED",
+                    blockers=[],
+                    plan_hash="e" * 64,
+                ),
+                MatchdayCheckpointPlanModel(
+                    plan_id="next-plan",
+                    fixture_id="api_football:fixture",
+                    competition_id="allsvenskan",
+                    season="2026",
+                    policy_version="test-policy",
+                    checkpoint="T12_OPEN_ODDS",
+                    kickoff_utc=NOW + timedelta(days=1),
+                    scheduled_at=next_scheduled_at,
+                    window_start=next_scheduled_at,
+                    window_end=next_scheduled_at + timedelta(minutes=10),
+                    endpoints=["odds"],
+                    status="PLANNED",
+                    blockers=[],
+                    plan_hash="f" * 64,
+                ),
+                MatchdayEndpointCaptureModel(
+                    capture_id="satisfied-capture",
+                    fixture_id="api_football:fixture",
+                    competition_id="allsvenskan",
+                    checkpoint="T24_OPEN_ODDS",
+                    endpoint="odds",
+                    sanitized_params={"fixture": "fixture"},
+                    params_hash="1" * 64,
+                    request_task_key="test",
+                    attempt=1,
+                    requested_at=captured_at,
+                    provider_captured_at=captured_at,
+                    status_code=200,
+                    elapsed_ms=1,
+                    response_count=1,
+                    quota_values={},
+                    raw_payload_sha256="2" * 64,
+                    provider_event_time=None,
+                    capture_status="CAPTURED",
+                    error_code=None,
+                ),
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                MatchdayEndpointCapturePlanModel(
+                    link_hash="3" * 64,
+                    capture_id="satisfied-capture",
+                    plan_id="satisfied-plan",
+                    endpoint="odds",
+                    link_status="LINKED",
+                    linked_at=captured_at,
+                ),
+                MatchdayMarketObservationModel(
+                    observation_id="4" * 64,
+                    fixture_id="api_football:fixture",
+                    provider_fixture_id="fixture",
+                    competition_id="allsvenskan",
+                    provider="api_football",
+                    bookmaker_id="1",
+                    bookmaker_name="Bookmaker",
+                    capture_id="satisfied-capture",
+                    provider_bet_id="4",
+                    raw_market_label="Asian Handicap",
+                    canonical_market="ASIAN_HANDICAP",
+                    canonical_selection="HOME",
+                    provider_selection="Home",
+                    line="-0.25",
+                    decimal_odds="1.95",
+                    suspended=False,
+                    live=False,
+                    provider_updated_at=captured_at.isoformat(),
+                    captured_at=captured_at,
+                    ingested_at=captured_at,
+                    raw_payload_sha256="2" * 64,
+                    source_revision="test",
+                ),
+            ]
+        )
+        session.commit()
+
+    payload = DashboardReadModelRepository().market_collection_status_for_fixtures(
+        ["fixture"], now=NOW
+    )["fixture"]
+
+    assert payload["odds_status"] == "READY"
+    assert payload["market_collection"] == {
+        "latest_snapshot_at": captured_at.isoformat().replace("+00:00", "Z"),
+        "latest_snapshot_checkpoint": "T24_OPEN_ODDS",
+        "target_checkpoint": "T12_OPEN_ODDS",
+        "scheduled_at": next_scheduled_at.isoformat().replace("+00:00", "Z"),
+        "window_end_at": (next_scheduled_at + timedelta(minutes=10))
+        .isoformat()
+        .replace("+00:00", "Z"),
+        "overdue": False,
+        "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
+    }
+
+
+def test_lineups_only_checkpoint_is_separate_from_market_collection(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    scheduled_at = NOW + timedelta(minutes=10)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.add(
+            MatchdayCheckpointPlanModel(
+                plan_id="lineups-only-plan",
+                fixture_id="api_football:fixture",
+                competition_id="world_cup_2026",
+                season="2026",
+                policy_version="test-policy",
+                checkpoint="T45_LINEUPS_RETRY",
+                kickoff_utc=NOW + timedelta(hours=1),
+                scheduled_at=scheduled_at,
+                window_start=scheduled_at,
+                window_end=scheduled_at + timedelta(minutes=5),
+                endpoints=["lineups"],
+                status="PLANNED",
+                blockers=[],
+                plan_hash="c" * 64,
+            )
+        )
+        session.commit()
+
+    assert DashboardReadModelRepository().market_collection_status_for_fixtures(
+        ["fixture"], now=NOW
+    )["fixture"] == {
+        "odds_status": "NOT_SCHEDULED",
+        "last_refresh_hint": None,
+        "market_collection": {
+            "latest_snapshot_at": None,
+            "latest_snapshot_checkpoint": None,
+            "target_checkpoint": None,
+            "scheduled_at": None,
+            "window_end_at": None,
+            "overdue": False,
+            "public_semantics": {"scope": "MATCH", "cause": None},
+        },
+        "lineup_collection": {
+            "target_checkpoint": "T45_LINEUPS_RETRY",
+            "scheduled_at": scheduled_at.isoformat().replace("+00:00", "Z"),
+            "window_end_at": (scheduled_at + timedelta(minutes=5))
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "overdue": False,
+            "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
+        },
     }
 
 
@@ -1147,7 +1704,15 @@ def test_market_collection_status_distinguishes_empty_provider_from_unmapped_mar
     )["fixture"] == {
         "odds_status": expected_status,
         "last_refresh_hint": NOW.isoformat().replace("+00:00", "Z"),
-        "next_refresh_at": None,
+        "market_collection": {
+            "latest_snapshot_at": None,
+            "latest_snapshot_checkpoint": None,
+            "target_checkpoint": None,
+            "scheduled_at": None,
+            "window_end_at": None,
+            "overdue": False,
+            "public_semantics": {"scope": "MATCH", "cause": None},
+        },
     }
 
 
@@ -1243,27 +1808,12 @@ def test_api_repository_reads_future_refresh_projection_from_db(
     assert provider["blockers"] == []
 
 
-def test_checkpoint_plan_is_idempotent_and_audited(
+def test_checkpoint_audit_retains_evidence_without_retired_plan_authority(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
     configure_sqlite_db(monkeypatch, tmp_path)
     repository = FutureRefreshDbRepository()
-    due_at = NOW - timedelta(minutes=1)
-    row = {
-        "id": "1489404:T24",
-        "fixture_id": "1489404",
-        "checkpoint": "T24",
-        "kickoff_utc": NOW + timedelta(hours=24),
-        "due_at": due_at,
-        "endpoints": ["odds"],
-        "source": "scheduled",
-        "status": "PENDING",
-    }
-
-    assert repository.upsert_checkpoint_plans([row]) == 0
-    assert repository.upsert_checkpoint_plans([row]) == 0
-    assert repository.due_checkpoint_plans(now=NOW) == []
     audit_id = repository.write_checkpoint_audit(
         fixture_id="1489404",
         checkpoint="T24",
@@ -1274,12 +1824,8 @@ def test_checkpoint_plan_is_idempotent_and_audited(
     )
 
     assert audit_id >= 1
-    assert repository.due_checkpoint_plans(now=NOW) == []
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
-        assert (
-            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointPlanModel)) == 0
-        )
         assert (
             session.scalar(select(func.count()).select_from(FutureRefreshCheckpointAuditModel)) == 1
         )
@@ -1334,6 +1880,75 @@ def test_scoped_raw_payload_and_xg_readers_enforce_fixed_limits(
     assert [row["payload"]["parameters"]["fixture"] for row in raw] == ["target"]
     assert len(xg) == 40
     assert {row["team_id"] for row in xg} == {"home", "away"}
+
+
+def test_team_xg_match_preserves_first_visible_evidence(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    first = {
+        "id": "fixture-1:home",
+        "fixture_id": "fixture-1",
+        "team_id": "home",
+        "opponent_team_id": "away",
+        "kickoff_at": NOW - timedelta(days=2),
+        "captured_at": NOW - timedelta(days=1),
+        "xg_for": 1.25,
+        "xg_against": 0.75,
+        "goals_for": 1,
+        "goals_against": 0,
+        "raw_payload_sha256": "a" * 64,
+        "source_system": "api_football_statistics",
+    }
+
+    assert repository.upsert_team_xg_matches([first]) == 1
+    assert repository.upsert_team_xg_matches(
+        [
+            {
+                **first,
+                "captured_at": NOW,
+                "raw_payload_sha256": "b" * 64,
+            }
+        ]
+    ) == 0
+
+    row = repository.team_xg_matches()[0]
+    assert row["captured_at"] == "2026-06-22T10:00:00Z"
+    assert row["raw_payload_sha256"] == "a" * 64
+
+
+def test_team_xg_match_rejects_conflicting_republication(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    first = {
+        "id": "fixture-2:home",
+        "fixture_id": "fixture-2",
+        "team_id": "home",
+        "opponent_team_id": "away",
+        "kickoff_at": NOW - timedelta(days=2),
+        "captured_at": NOW - timedelta(days=1),
+        "xg_for": 1.25,
+        "xg_against": 0.75,
+        "goals_for": 1,
+        "goals_against": 0,
+        "raw_payload_sha256": "a" * 64,
+        "source_system": "api_football_statistics",
+    }
+    repository.upsert_team_xg_matches([first])
+
+    with pytest.raises(
+        FutureRefreshPersistenceError,
+        match="TEAM_XG_MATCH_IMMUTABLE_CONFLICT:fixture-2:home",
+    ):
+        repository.upsert_team_xg_matches([{**first, "xg_for": 1.5}])
+
+    row = repository.team_xg_matches()[0]
+    assert row["xg_for"] == 1.25
 
 
 def test_raw_payload_inserted_at_is_first_insert_authority(
@@ -1435,9 +2050,55 @@ def test_request_count_since_includes_provider_request_logs(
 
     before_restart = FutureRefreshDbRepository().request_count_since(since)
     after_restart = FutureRefreshDbRepository().request_count_since(since)
+    successful = FutureRefreshDbRepository().successful_request_count_since(since)
 
     assert before_restart >= 120
     assert after_restart == before_restart
+    assert successful == 120
+
+
+def test_free_plan_fixture_scope_auto_confirms_after_three_consecutive_observations(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    provider_error = "Free plans do not have access to this season, try from 2022 to 2024."
+
+    for index in range(3):
+        state = repository.record_free_plan_fixture_scope_observation(
+            league_id="253",
+            season="2027",
+            restricted=True,
+            observed_at=NOW + timedelta(minutes=index),
+            payload_sha256=f"{index + 1:064x}",
+            provider_error=provider_error,
+        )
+
+    assert state["newly_confirmed"] is True
+    assert state["restriction"] == {
+        "sample_count": 3,
+        "observed_at_utc": "2026-06-23T10:00:00Z/2026-06-23T10:02:00Z",
+        "payload_sha256": f"{3:064x}",
+        "provider_error": provider_error,
+        "evidence_source": "runtime_observations",
+    }
+    assert repository.free_plan_fixture_scope_state(league_id="253", season="2028") == {
+        "observed": False,
+        "restriction": None,
+        "consecutive_count": 0,
+    }
+
+    reset = repository.record_free_plan_fixture_scope_observation(
+        league_id="253",
+        season="2027",
+        restricted=False,
+        observed_at=NOW + timedelta(minutes=3),
+        payload_sha256=f"{4:064x}",
+        provider_error=None,
+    )
+    assert reset["restriction"] is None
+    assert reset["consecutive_count"] == 0
 
 
 def test_request_count_since_includes_quota_usage(
@@ -1456,11 +2117,186 @@ def test_request_count_since_includes_quota_usage(
                 limit=7500,
                 window_start=since,
                 window_end=since + timedelta(days=1),
+                observed_at=NOW,
             )
         )
         session.commit()
 
-    assert FutureRefreshDbRepository().request_count_since(since) >= 7000
+    assert FutureRefreshDbRepository().request_count_since(since, as_of=NOW) == 7000
+
+
+def test_request_count_since_uses_fresh_provider_billing_authority(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    since = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    with Session(engine) as session:
+        for index in range(80):
+            requested_at = since + timedelta(seconds=index)
+            session.add(
+                ProviderRequestLogModel(
+                    provider="api_football",
+                    endpoint="status" if index < 40 else "fixtures",
+                    request_hash=f"{index:064x}",
+                    live=True,
+                    status_code=200,
+                    requested_at=requested_at,
+                    completed_at=requested_at,
+                )
+            )
+        session.add(
+            QuotaUsageModel(
+                provider="api_football",
+                endpoint="odds",
+                used=10,
+                limit=100,
+                window_start=since,
+                window_end=since + timedelta(days=1),
+                observed_at=NOW,
+            )
+        )
+        session.commit()
+
+    repository = FutureRefreshDbRepository()
+    assert repository.request_count_since(since, as_of=NOW) == 10
+    assert repository.request_count_since(since, include_quota_usage=False) == 80
+    assert repository.request_count_evidence_since(since, as_of=NOW) == {
+        "known_count": 10,
+        "quota_usage_count": 10,
+        "run_audit_count": 0,
+        "provider_ledger_count": 80,
+            "billable_from_provider": 10,
+            "provider_daily_limit": 100,
+            "provider_daily_remaining": 90,
+            "local_ledger_count": 80,
+        "last_authority_at": "2026-06-23T10:00:00Z",
+        "authority_age_seconds": 0,
+        "dispatched_count": 80,
+        "dispatched_since_authority_count": 0,
+        "attempt_count": 80,
+        "quota_authority_status": "AUTHORITATIVE",
+        "quota_authority_degraded": False,
+        "quota_degradation_classification": None,
+        "quota_authority_observed_at": "2026-06-23T10:00:00Z",
+        "quota_authority_age_seconds": 0,
+        "quota_authority_max_age_seconds": 7200,
+        "quota_usage_ledger_delta": 70,
+        "quota_usage_ledger_divergence": True,
+    }
+
+
+def test_request_count_since_degrades_to_local_evidence_when_provider_usage_is_stale(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    since = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    with Session(engine) as session:
+        stale_observed_at = NOW - timedelta(hours=3)
+        for index in range(12):
+            requested_at = (
+                since + timedelta(seconds=index)
+                if index < 9
+                else stale_observed_at + timedelta(seconds=index - 8)
+            )
+            session.add(
+                ProviderRequestLogModel(
+                    provider="api_football",
+                    endpoint="fixtures",
+                    request_hash=f"{index:064x}",
+                    live=True,
+                    status_code=200,
+                    requested_at=requested_at,
+                    completed_at=requested_at,
+                )
+            )
+        session.add(
+            QuotaUsageModel(
+                provider="api_football",
+                endpoint="status",
+                used=4,
+                limit=100,
+                window_start=since,
+                window_end=since + timedelta(days=1),
+                observed_at=stale_observed_at,
+            )
+        )
+        session.commit()
+
+    evidence = FutureRefreshDbRepository().request_count_evidence_since(since, as_of=NOW)
+
+    assert evidence["known_count"] == 7
+    assert evidence["quota_authority_status"] == "DEGRADED"
+    assert evidence["quota_authority_degraded"] is True
+    assert evidence["billable_from_provider"] == 4
+    assert evidence["local_ledger_count"] == 12
+    assert evidence["dispatched_count"] == 12
+    assert evidence["dispatched_since_authority_count"] == 3
+    assert evidence["attempt_count"] == 12
+    assert evidence["quota_degradation_classification"] == "EXPECTED_DEGRADED"
+
+
+def test_stale_quota_authority_counts_only_dispatches_after_authority(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    since = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    observed_at = NOW - timedelta(hours=3)
+    with Session(engine) as session:
+        session.add(
+            FutureRefreshRunAuditModel(
+                generated_at=NOW - timedelta(hours=1),
+                competition_id="attempt-heavy",
+                request_count=100,
+                remaining_quota=None,
+                fixture_count=0,
+                mapping_count=0,
+                market_snapshot_count=0,
+                ledger_appended_count=0,
+                selected_market_fixture_ids=[],
+                blockers=[],
+                requests=[],
+                candidate=False,
+                formal_recommendation=False,
+            )
+        )
+        for index in range(2):
+            requested_at = observed_at + timedelta(minutes=index + 1)
+            session.add(
+                ProviderRequestLogModel(
+                    provider="api_football",
+                    endpoint="fixtures",
+                    request_hash=f"{index + 100:064x}",
+                    live=True,
+                    status_code=200,
+                    requested_at=requested_at,
+                    completed_at=requested_at,
+                )
+            )
+        session.add(
+            QuotaUsageModel(
+                provider="api_football",
+                endpoint="status",
+                used=4,
+                limit=100,
+                window_start=since,
+                window_end=since + timedelta(days=1),
+                observed_at=observed_at,
+            )
+        )
+        session.commit()
+
+    evidence = FutureRefreshDbRepository().request_count_evidence_since(since, as_of=NOW)
+
+    assert evidence["known_count"] == 6
+    assert evidence["attempt_count"] == 100
+    assert evidence["dispatched_count"] == 2
+    assert evidence["dispatched_since_authority_count"] == 2
 
 
 def test_provider_quota_snapshot_uses_strictest_persisted_remaining(
@@ -1480,6 +2316,7 @@ def test_provider_quota_snapshot_uses_strictest_persisted_remaining(
                     limit=100,
                     window_start=since,
                     window_end=since + timedelta(days=1),
+                    observed_at=NOW,
                 ),
                 QuotaUsageModel(
                     provider="api_football",
@@ -1488,6 +2325,7 @@ def test_provider_quota_snapshot_uses_strictest_persisted_remaining(
                     limit=100,
                     window_start=since,
                     window_end=since + timedelta(days=1),
+                    observed_at=NOW,
                 ),
             ]
         )
@@ -1497,4 +2335,50 @@ def test_provider_quota_snapshot_uses_strictest_persisted_remaining(
         "daily_limit": 100,
         "used": 7,
         "remaining": 93,
+        "observed_at": "2026-06-23T10:00:00Z",
+        "burst_limit": None,
+        "burst_remaining": None,
+        "burst_observed_at": None,
     }
+
+
+def test_provider_quota_reads_latest_authority_after_reset(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    since = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    reset_at = since + timedelta(minutes=16)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                QuotaUsageModel(
+                    provider="api_football",
+                    endpoint="lineups",
+                    used=4757,
+                    limit=7500,
+                    window_start=since,
+                    window_end=since + timedelta(days=1),
+                    observed_at=since + timedelta(minutes=1),
+                ),
+                QuotaUsageModel(
+                    provider="api_football",
+                    endpoint="odds",
+                    used=3,
+                    limit=7500,
+                    window_start=since,
+                    window_end=since + timedelta(days=1),
+                    observed_at=reset_at,
+                ),
+            ]
+        )
+        session.commit()
+
+    repository = FutureRefreshDbRepository()
+    evidence = repository.request_count_evidence_since(since, as_of=reset_at)
+
+    assert evidence["known_count"] == 3
+    assert evidence["billable_from_provider"] == 3
+    assert evidence["provider_daily_remaining"] == 7497
+    assert repository.provider_quota_snapshot(since)["used"] == 3

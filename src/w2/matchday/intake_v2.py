@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -10,10 +9,11 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
 from w2.competitions.registry import CompetitionRegistry
-from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
-from w2.domain.recommendation_decision_v3 import (
-    build_recommendation_decision_v3,
-    validate_decision_v3_identity,
+from w2.domain.canonical_serialization import CURRENT_SERIALIZER_VERSION
+from w2.domain.recommendation_decision_v4 import (
+    RECOMMENDATION_SCHEMA_VERSION,
+    build_recommendation_decision_v4,
+    candidate_quote_freshness_readiness,
 )
 from w2.strategy.market_selector import select_analysis_markets
 
@@ -34,13 +34,6 @@ CHECKPOINT_STATUSES = {
     "SKIPPED_POLICY",
     "SKIPPED_BUDGET",
     "CONFLICT",
-}
-CANONICAL_OUTCOMES = {
-    "NOT_READY",
-    "NO_EDGE",
-    "ANALYSIS_PICK",
-    "FORMAL_RECOMMEND",
-    "SYSTEM_DEGRADED",
 }
 REQUIRED_MATCHDAY_COMPETITIONS = frozenset(
     {
@@ -146,32 +139,6 @@ class CheckpointPlan:
         return payload
 
 
-@dataclass(frozen=True, kw_only=True)
-class ExecutorResult:
-    mode: str
-    status: str
-    provider_calls: int
-    db_writes: int
-    endpoint_captures: tuple[dict[str, Any], ...]
-    manifests: tuple[dict[str, Any], ...]
-    blockers: tuple[str, ...]
-
-    def as_dict(self) -> dict[str, Any]:
-        return {
-            "schema_version": "MatchdayIntakeExecutorV1",
-            "mode": self.mode,
-            "status": self.status,
-            "provider_calls": self.provider_calls,
-            "db_writes": self.db_writes,
-            "endpoint_captures": list(self.endpoint_captures),
-            "manifests": list(self.manifests),
-            "blockers": list(self.blockers),
-            "formal_ah": False,
-            "formal_ou": False,
-            "recommendation_lock": False,
-            "production_recommendation": False,
-            "official_captures": 0,
-        }
 
 
 def load_matchday_policy(
@@ -772,7 +739,7 @@ def materialize_evidence_manifest(
     model_evidence: Mapping[str, Any],
 ) -> dict[str, Any]:
     movement = checkpoint_coverage(checkpoint_plans)
-    decision = v3_decision_from_matchday(
+    decision = v4_decision_from_matchday(
         fixture_identity=fixture_identity,
         market_audit=market_audit,
         model_evidence=model_evidence,
@@ -833,7 +800,7 @@ def materialize_evidence_manifest(
     }
     payload["manifest_hash"] = canonical_manifest_hash(payload)
     payload["audit"]["manifest_hash"] = payload["manifest_hash"]
-    if payload["decision"]["outcome"] == "SYSTEM_DEGRADED":
+    if payload["market_evidence"].get("integrity_status") == "CONFLICT":
         payload["audit"]["manifest_integrity_status"] = "SYSTEM_DEGRADED"
     else:
         payload["audit"]["manifest_integrity_status"] = "PASS"
@@ -854,7 +821,7 @@ def validate_manifest_identity(manifest: Mapping[str, Any]) -> str:
     return expected
 
 
-def v3_decision_from_matchday(
+def v4_decision_from_matchday(
     *,
     fixture_identity: Mapping[str, Any],
     market_audit: Mapping[str, Any],
@@ -865,110 +832,72 @@ def v3_decision_from_matchday(
     selected_candidate = _selected_analysis_candidate(model_evidence)
     exact_quote = _exact_quote_candidate(market_audit, selected_candidate)
     bound_evidence = _bound_model_evidence(model_evidence, selected_candidate, exact_quote)
-    warnings = []
-    if movement.get("checkpoint_coverage") == "PARTIAL":
-        warnings.append("CHECKPOINT_HISTORY_PARTIAL")
     freshness = _mapping(exact_quote.get("freshness")) if exact_quote else {}
-    decision = build_recommendation_decision_v3(
-        fixture_identity=fixture_identity,
-        exact_quote_candidate=exact_quote,
-        model_evidence=bound_evidence,
-        data_readiness={
-            "status": "READY" if market_audit.get("independent_candidates") else "PARTIAL",
-            "quote_status": "VALID" if exact_quote else "MISSING",
-            "quote_freshness_status": str(freshness.get("freshness_status") or "COMPLETE"),
-            "warnings": warnings,
+    comparison = _mapping(bound_evidence.get("comparison"))
+    model_probability = _mapping(bound_evidence.get("model_probability"))
+    market_probability = _mapping(bound_evidence.get("market_probability"))
+    quote = exact_quote or {}
+    authoritative_input = {
+        "fixture_id": fixture_identity.get("fixture_id"),
+        "competition_id": fixture_identity.get("competition_id"),
+        "season": fixture_identity.get("season"),
+        "kickoff_utc": fixture_identity.get("kickoff_utc"),
+        "kickoff_revision_or_fixture_identity_hash": fixture_identity.get("identity_hash"),
+        "provider": quote.get("provider"),
+        "bookmaker_id": quote.get("bookmaker_id"),
+        "market": bound_evidence.get("market"),
+        "selection": bound_evidence.get("selection"),
+        "exact_line": bound_evidence.get("line"),
+        "capture_id": quote.get("capture_id"),
+        "captured_at": quote.get("captured_at"),
+        "decision_evaluated_at": as_of,
+        "quote_observation_ids": quote.get("quote_observation_ids"),
+        "raw_payload_sha256": quote.get("raw_payload_sha256"),
+        "source_revision": quote.get("source_revision"),
+        "model_version": bound_evidence.get("model_version"),
+        "calibration_version": bound_evidence.get("calibration_version"),
+        "serializer_version": CURRENT_SERIALIZER_VERSION.value,
+        "recommendation_schema_version": RECOMMENDATION_SCHEMA_VERSION,
+        "quote_schema_version": "MatchdayMarketObservationV2",
+        "model_input_manifest_hash": bound_evidence.get("model_input_manifest_hash"),
+        "decimal_odds": quote.get("decimal_odds"),
+        "canonical_mainline_identity": {
+            "market": bound_evidence.get("market"),
+            "line": bound_evidence.get("line"),
+            "selected_side_line": bound_evidence.get("line"),
+            "candidate_role": "MARKET_MAINLINE",
+            "quote_identity_hash": quote.get("quote_identity_hash"),
         },
-        integrity={
-            "status": "CONFLICT" if market_audit.get("integrity_status") == "CONFLICT" else "PASS"
+        "settlement_distribution": model_probability.get("settlement_distribution"),
+        "fair_odds": model_probability.get("fair_decimal_odds"),
+        "expected_value": bound_evidence.get("expected_value"),
+        "uncertainty": bound_evidence.get("uncertainty"),
+        "readiness": {
+            "status": "READY" if bound_evidence.get("status") == "COMPLETE" else "NOT_READY",
+            "quote_identity_status": "COMPLETE" if exact_quote else "MISSING",
+            **candidate_quote_freshness_readiness(freshness.get("age_seconds")),
+            "model_status": model_probability.get("status"),
         },
-        capability_manifest=load_recommendation_capability_manifest(),
-        as_of=as_of,
-    ).as_dict()
-    validate_decision_v3_identity(decision)
-    reason = str(_mapping(decision.get("reason")).get("code") or "")
-    decision["reason_code"] = reason
-    decision["reason"] = reason
-    decision["formal_readiness"] = False
-    decision["capability_status"] = "ANALYSIS_ONLY"
-    return decision
+        "capability_status": "ANALYSIS_ONLY",
+        "formal_admission": {
+            "status": "DISABLED",
+            "readiness_hash": None,
+            "approval_hash": None,
+            "candidate_identity_hash": None,
+        },
+        "model_probability": model_probability.get("value"),
+        "market_probability": market_probability.get("value"),
+        "probability_delta_diagnostic": comparison.get("probability_delta"),
+    }
+    return build_recommendation_decision_v4(authoritative_input).as_dict()
 
 
-def execute_matchday_intake(
-    *,
-    mode: Literal["DRY_RUN", "SAVED_PAYLOAD_REPLAY", "CONTROLLED_PROVIDER_CANARY"],
-    fixture_ids: Sequence[str] = (),
-    approve_provider_calls: bool = False,
-    hard_cap: int = 10,
-    saved_payloads: Sequence[Mapping[str, Any]] = (),
-) -> ExecutorResult:
-    if mode == "DRY_RUN":
-        return ExecutorResult(
-            mode=mode,
-            status="DRY_RUN_READY",
-            provider_calls=0,
-            db_writes=0,
-            endpoint_captures=(),
-            manifests=(),
-            blockers=(),
-        )
-    if mode == "SAVED_PAYLOAD_REPLAY":
-        captures = tuple(
-            endpoint_capture_contract(
-                endpoint=str(payload.get("endpoint", "fixtures")),
-                params=_mapping(payload.get("params")),
-                requested_at=parse_utc(payload.get("requested_at"))
-                or _raise_invalid_replay_time("INVALID_REQUESTED_AT"),
-                provider_captured_at=parse_utc(payload.get("captured_at"))
-                or _raise_invalid_replay_time("INVALID_CAPTURED_AT"),
-                status_code=int(payload.get("status_code", 200)),
-                elapsed_ms=int(payload.get("elapsed_ms", 0)),
-                payload=_mapping(payload.get("payload")),
-            )
-            for payload in saved_payloads
-        )
-        return ExecutorResult(
-            mode=mode,
-            status="REPLAY_VALIDATED",
-            provider_calls=0,
-            db_writes=0,
-            endpoint_captures=captures,
-            manifests=(),
-            blockers=(),
-        )
-    authorized = (
-        approve_provider_calls
-        and os.environ.get("W2_MATCHDAY_CANARY_APPROVED") == "true"
-        and len(fixture_ids) > 0
-        and hard_cap <= 10
-    )
-    if not authorized:
-        return ExecutorResult(
-            mode=mode,
-            status="PROVIDER_CANARY_NOT_EXECUTED_NO_AUTHORIZATION",
-            provider_calls=0,
-            db_writes=0,
-            endpoint_captures=(),
-            manifests=(),
-            blockers=("PROVIDER_CANARY_NOT_EXECUTED_NO_AUTHORIZATION",),
-        )
-    return ExecutorResult(
-        mode=mode,
-        status="CONTROLLED_PROVIDER_CANARY_AUTHORIZED_BUT_NOT_IMPLEMENTED_IN_UNIT_PORT",
-        provider_calls=0,
-        db_writes=0,
-        endpoint_captures=(),
-        manifests=(),
-        blockers=("PROVIDER_PORT_NOT_BOUND",),
-    )
 
 
 def public_manifest_read(manifest: Mapping[str, Any]) -> dict[str, Any]:
     return {"provider_calls": 0, "db_writes": 0, "manifest": dict(manifest)}
 
 
-def _raise_invalid_replay_time(code: str) -> datetime:
-    raise ValueError(code)
 
 
 def stable_hash(payload: Any) -> str:

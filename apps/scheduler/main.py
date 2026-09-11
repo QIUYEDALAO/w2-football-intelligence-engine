@@ -6,6 +6,7 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from threading import Thread
 from typing import Any, cast
 from uuid import uuid4
 
@@ -20,14 +21,18 @@ logger = logging.getLogger("w2.scheduler")
 
 DEFAULT_REFRESH_INTERVAL_SECONDS = 900
 DEFAULT_CHECKPOINT_POLL_SECONDS = 60
+DEFAULT_CHECKPOINT_PLAN_GENERATION_SECONDS = 60 * 60
 DEFAULT_XG_BACKFILL_INTERVAL_SECONDS = 6 * 60 * 60
-DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS = 10 * 60
 DEFAULT_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS = 10 * 60
-DEFAULT_FREE_FIXTURE_BRIDGE_INTERVAL_SECONDS = 5 * 60
+DEFAULT_FIXTURE_DISCOVERY_INTERVAL_SECONDS = 5 * 60
+DEFAULT_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS = 7
+DEFAULT_CANDIDATE_NOTIFICATION_POLL_SECONDS = 5
 
 
 @dataclass(frozen=True)
 class ClaimedCheckpointPlan:
+    competition_id: str
+    season: str
     fixture_id: str
     checkpoint: str
     kickoff_utc: datetime | None
@@ -38,6 +43,8 @@ class ClaimedCheckpointPlan:
     id: str
     claim_token: str | None
     claim_expires_at: str | None
+    window_start: str | None
+    window_end: str | None
 
     @property
     def needs_lineups(self) -> bool:
@@ -58,45 +65,92 @@ def future_fixture_refresh_enabled() -> bool:
     return os.environ.get("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "false").lower() == "true"
 
 
+def postmatch_only_enabled() -> bool:
+    return os.environ.get("W2_POSTMATCH_ONLY_ENABLED", "false").lower() == "true"
+
+
 def xg_history_backfill_enabled() -> bool:
     if not future_fixture_refresh_enabled():
         return False
     return os.environ.get("W2_XG_BACKFILL_ENABLED", "false").lower() == "true"
 
 
-def market_timeline_refresh_enabled() -> bool:
-    if not future_fixture_refresh_enabled():
-        return False
-    return os.environ.get("W2_MARKET_TIMELINE_REFRESH_ENABLED", "false").lower() == "true"
-
-
 def forward_outcome_ledger_enabled() -> bool:
     return os.environ.get("W2_FORWARD_OUTCOME_LEDGER_ENABLED", "false").lower() == "true"
 
 
-def free_fixture_bridge_enabled() -> bool:
-    from w2.ingestion.free_fixture_runtime import free_fixture_bridge_enabled as enabled
+def candidate_notification_summary_tick() -> dict[str, object]:
+    from w2.prematch.candidate_notifications import (
+        enqueue_brewing_digest,
+        enqueue_operational_summaries,
+    )
 
-    return enabled()
+    inserted = enqueue_operational_summaries()
+    # Brewing candidates are batched into one push per closed window; the
+    # T-30m lock stays on the immediate path and is never routed here.
+    digest = enqueue_brewing_digest()
+    return {
+        "status": "ENQUEUED" if inserted or digest else "NO_SUMMARY_DUE",
+        "outbox_event_ids": inserted + digest,
+        "brewing_digest_ids": digest,
+        "db_writes": len(inserted) + len(digest),
+        "provider_calls": 0,
+    }
 
 
-def free_fixture_bridge_interval_seconds() -> int:
+def candidate_notification_delivery_tick() -> dict[str, object]:
+    from w2.prematch.candidate_notifications import deliver_pending_notifications
+
+    return deliver_pending_notifications()
+
+
+def candidate_notification_delivery_loop() -> None:
+    """Keep notification SLO independent from slower scheduler work."""
+
+    while True:
+        try:
+            result = candidate_notification_delivery_tick()
+            if result["status"] not in {"IDLE", "CHANNEL_NOT_CONFIGURED"}:
+                logger.info("w2 candidate notification delivery %s", result)
+        except Exception:
+            logger.exception("w2 candidate notification delivery failed")
+        time.sleep(DEFAULT_CANDIDATE_NOTIFICATION_POLL_SECONDS)
+
+
+def fixture_discovery_enabled() -> bool:
+    return os.environ.get("W2_FIXTURE_DISCOVERY_ENABLED", "false").lower() == "true"
+
+
+def fixture_discovery_interval_seconds() -> int:
     try:
         return max(
             int(
                 os.environ.get(
-                    "W2_FREE_BRIDGE_INTERVAL_SECONDS",
-                    str(DEFAULT_FREE_FIXTURE_BRIDGE_INTERVAL_SECONDS),
+                    "W2_FIXTURE_DISCOVERY_INTERVAL_SECONDS",
+                    str(DEFAULT_FIXTURE_DISCOVERY_INTERVAL_SECONDS),
                 )
             ),
             60,
         )
     except ValueError:
-        return DEFAULT_FREE_FIXTURE_BRIDGE_INTERVAL_SECONDS
+        return DEFAULT_FIXTURE_DISCOVERY_INTERVAL_SECONDS
 
 
-def free_fixture_bridge_tick() -> dict[str, object]:
-    if not free_fixture_bridge_enabled():
+def fixture_discovery_max_offset_days() -> int:
+    try:
+        value = int(
+            os.environ.get(
+                "W2_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS",
+                str(DEFAULT_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS),
+            )
+        )
+    except ValueError:
+        return DEFAULT_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS
+    return min(max(value, 0), DEFAULT_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS)
+
+
+def fixture_discovery_tick() -> dict[str, object]:
+    if not fixture_discovery_enabled():
         return {
             "status": "DISABLED",
             "provider_calls": 0,
@@ -114,10 +168,22 @@ def free_fixture_bridge_tick() -> dict[str, object]:
     from apps.worker.celery_app import celery_app
 
     now = datetime.now(UTC)
-    interval = free_fixture_bridge_interval_seconds()
-    bucket = int(now.timestamp()) // interval
-    task_key = f"free-fixture-bridge:{bucket}"
-    gate = provider_task_key_gate(task_key=task_key, ttl_seconds=interval)
+    interval = fixture_discovery_interval_seconds()
+    from w2.matchday.timezone import BeijingOperationalDayPolicy
+
+    operational_date = BeijingOperationalDayPolicy().current_window(now_utc=now).local_date
+    offset = (int(now.timestamp()) // interval) % (fixture_discovery_max_offset_days() + 1)
+    discovery_date = (operational_date + timedelta(days=offset)).isoformat()
+    task_key = f"fixture-discovery:{operational_date.isoformat()}:{discovery_date}"
+    competition_ids = matchday_checkpoint_competition_ids()
+    if not competition_ids:
+        return {
+            "status": "FIXTURE_DISCOVERY_SCOPE_INVALID",
+            "provider_calls": 0,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    gate = provider_task_key_gate(task_key=task_key, ttl_seconds=24 * 60 * 60)
     if not gate.allowed:
         return {
             "status": gate.status,
@@ -129,8 +195,13 @@ def free_fixture_bridge_tick() -> dict[str, object]:
         }
     task_id = f"{task_key}:{uuid4()}"
     celery_app.send_task(
-        "w2.free_fixture_bridge",
-        kwargs={"queued_at_utc": now.isoformat().replace("+00:00", "Z")},
+        "w2.future_fixture_refresh",
+        kwargs={
+            "competition_id": competition_ids[0],
+            "task_key": task_key,
+            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+            "discovery_date": discovery_date,
+        },
         task_id=task_id,
     )
     return {
@@ -138,6 +209,7 @@ def free_fixture_bridge_tick() -> dict[str, object]:
         "task_id": task_id,
         "task_key": task_key,
         "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+        "discovery_date": discovery_date,
         "provider_calls": 0,
         "candidate": False,
         "formal_recommendation": False,
@@ -215,10 +287,21 @@ def parse_fixture_kickoff(value: Any) -> datetime | None:
 def future_refresh_fixture_payloads(
     *,
     provider_league_id: str | None = None,
+    kickoff_from: datetime,
+    kickoff_to: datetime,
 ) -> list[dict[str, Any]]:
     from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 
-    return FutureRefreshDbRepository().fixture_payloads(provider_league_id=provider_league_id)
+    lower = kickoff_from.astimezone(UTC)
+    upper = kickoff_to.astimezone(UTC)
+    return [
+        item
+        for item in FutureRefreshDbRepository().fixture_payloads(
+            provider_league_id=provider_league_id
+        )
+        if (kickoff := parse_fixture_kickoff(item.get("fixture", {}).get("date"))) is not None
+        and lower <= kickoff <= upper
+    ]
 
 
 def checkpoint_poll_seconds() -> int:
@@ -228,98 +311,146 @@ def checkpoint_poll_seconds() -> int:
         return DEFAULT_CHECKPOINT_POLL_SECONDS
 
 
+def checkpoint_plan_generation_seconds() -> int:
+    try:
+        return max(
+            int(
+                os.environ.get(
+                    "W2_CHECKPOINT_PLAN_GENERATION_SECONDS",
+                    str(DEFAULT_CHECKPOINT_PLAN_GENERATION_SECONDS),
+                )
+            ),
+            DEFAULT_CHECKPOINT_PLAN_GENERATION_SECONDS,
+        )
+    except ValueError:
+        return DEFAULT_CHECKPOINT_PLAN_GENERATION_SECONDS
+
+
 def checkpoint_task_key(
     *,
     competition_id: str,
     season: str,
     checkpoints: list[dict[str, Any]],
 ) -> str:
-    identity = "|".join(f"{item['fixture_id']}:{item['checkpoint']}" for item in checkpoints)
+    identity = "|".join(
+        f"{item['fixture_id']}:{item['checkpoint']}:{item.get('claim_token') or ''}"
+        for item in checkpoints
+    )
     digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
     return f"checkpoint-refresh:{competition_id}:{season}:{digest}"
+
+
+def prioritized_future_fixture_refresh_competition_ids(
+    *, now: datetime, competition_ids: tuple[str, ...]
+) -> tuple[str, ...]:
+    from w2.matchday.repository import MatchdayRuntimeRepository
+
+    due_ids = MatchdayRuntimeRepository().due_checkpoint_competition_ids(
+        now=now,
+        competition_ids=competition_ids,
+    )
+    return tuple([*due_ids, *(item for item in competition_ids if item not in due_ids)])
+
+
+def generate_checkpoint_plans(
+    now: datetime,
+    *,
+    provider_league_id: str | None = None,
+) -> dict[str, Any]:
+    from w2.ingestion.checkpoint_refresh import (
+        canonical_checkpoint_plans_from_fixture_payloads,
+    )
+    from w2.matchday.repository import MatchdayRuntimeRepository
+
+    repository = MatchdayRuntimeRepository()
+    policy = next(
+        (
+            item
+            for item in matchday_checkpoint_policies().values()
+            if str(item.provider_league_id) == str(provider_league_id or "")
+        ),
+        None,
+    )
+    if policy is None:
+        return {
+            "status": "MATCHDAY_POLICY_NOT_AVAILABLE",
+            "fixture_payload_count": 0,
+            "generated_plan_count": 0,
+            "provider_calls": 0,
+        }
+    fixtures = future_refresh_fixture_payloads(
+        provider_league_id=provider_league_id,
+        kickoff_from=now - timedelta(hours=36),
+        kickoff_to=now + timedelta(hours=policy.discovery_horizon_hours),
+    )
+    plans = canonical_checkpoint_plans_from_fixture_payloads(fixtures, now=now)
+    if postmatch_only_enabled():
+        plans = [plan for plan in plans if plan.checkpoint == "POSTMATCH_RESULT"]
+    for plan in plans:
+        repository.upsert_checkpoint_plan(plan)
+    return {
+        "status": "PLANS_GENERATED",
+        "fixture_payload_count": len(fixtures),
+        "generated_plan_count": len(plans),
+        "provider_calls": 0,
+    }
+
+
+def checkpoint_plan_generation_tick() -> dict[str, Any]:
+    from w2.ingestion.future_refresh import config_from_policy
+
+    now = datetime.now(UTC)
+    results = [
+        generate_checkpoint_plans(
+            now,
+            provider_league_id=config_from_policy(competition_id=competition_id).league_id,
+        )
+        for competition_id in matchday_checkpoint_competition_ids()
+    ]
+    return {
+        "status": "PLANS_GENERATED",
+        "competition_count": len(results),
+        "fixture_payload_count": sum(int(row["fixture_payload_count"]) for row in results),
+        "generated_plan_count": sum(int(row["generated_plan_count"]) for row in results),
+        "provider_calls": 0,
+    }
+
+
+def checkpoint_plan_generation_loop() -> None:
+    while True:
+        started = time.monotonic()
+        try:
+            logger.info("w2 checkpoint plan generation %s", checkpoint_plan_generation_tick())
+        except Exception:
+            logger.exception("w2 checkpoint plan generation failed")
+        elapsed = time.monotonic() - started
+        time.sleep(max(checkpoint_plan_generation_seconds() - elapsed, 60))
 
 
 def due_checkpoint_refresh_batch(
     now: datetime,
     *,
-    provider_league_id: str | None = None,
     worker_id: str | None = None,
+    refresh_mode: str | None = None,
 ) -> dict[str, Any]:
     from w2.ingestion.checkpoint_refresh import (
-        POSTMATCH_RESULT_CHECKPOINT,
-        postmatch_result_checkpoint_plan,
         projected_calls_for_checkpoint_batch,
         select_checkpoint_batch,
     )
-    from w2.matchday.intake_v2 import (
-        build_checkpoint_plans,
-        parse_utc,
-        require_competition_policy,
-        stable_hash,
-    )
     from w2.matchday.repository import MatchdayRuntimeRepository
 
-    policy_map = matchday_checkpoint_policies()
     repository = MatchdayRuntimeRepository()
-    fixtures = future_refresh_fixture_payloads(provider_league_id=provider_league_id)
-    fixture_payload_count = len(fixtures)
-    plans = []
-    for item in fixtures:
-        league = item.get("league") if isinstance(item, dict) else None
-        fixture = item.get("fixture") if isinstance(item, dict) else None
-        if not isinstance(league, dict) or not isinstance(fixture, dict):
-            continue
-        competition_id = _matchday_competition_for_league(
-            policy_map,
-            provider_league_id=str(league.get("id") or ""),
-        )
-        if competition_id is None:
-            continue
-        policy = require_competition_policy(policy_map, competition_id)
-        provider_fixture_id = str(fixture.get("id") or "")
-        kickoff = parse_utc(fixture.get("date"))
-        if not provider_fixture_id or kickoff is None:
-            continue
-        plans.extend(
-            build_checkpoint_plans(
-                fixture_id=f"{policy.provider}:{provider_fixture_id}",
-                competition_id=competition_id,
-                season=policy.season,
-                kickoff_utc=kickoff,
-                now=now,
-                policy=policy,
-            )
-        )
-        if kickoff >= now - timedelta(hours=36) and kickoff <= now + timedelta(
-            hours=policy.discovery_horizon_hours
-        ):
-            plans.append(
-                postmatch_result_checkpoint_plan(
-                    fixture_id=f"{policy.provider}:{provider_fixture_id}",
-                    competition_id=competition_id,
-                    season=policy.season,
-                    kickoff_utc=kickoff,
-                    now=now,
-                )
-            )
-    generated_plan_ids = {stable_hash(plan.natural_identity) for plan in plans}
-    for plan in plans:
-        repository.upsert_checkpoint_plan(plan)
-    due_rows = []
-    if generated_plan_ids:
-        claim_worker_id = worker_id or f"checkpoint-scheduler:{now.isoformat()}"
-        due_rows = [
-            row
-            for row in repository.claim_due_checkpoint_plans(
-                now=now,
-                worker_id=claim_worker_id,
-                plan_ids=generated_plan_ids,
-                limit=int(os.environ.get("W2_CHECKPOINT_REFRESH_MAX_DUE", "100")),
-            )
-            if row.get("id") in generated_plan_ids
-        ]
+    mode = refresh_mode or ("POSTMATCH" if postmatch_only_enabled() else "PREMATCH")
+    due_rows = repository.claim_due_checkpoint_plans(
+        now=now,
+        worker_id=worker_id or f"checkpoint-dispatcher:{now.isoformat()}",
+        checkpoint_mode=mode,
+        limit=int(os.environ.get("W2_CHECKPOINT_REFRESH_MAX_DUE", "100")),
+    )
     due_plans = [
         ClaimedCheckpointPlan(
+            competition_id=str(row["competition_id"]),
+            season=str(row["season"]),
             fixture_id=str(row["fixture_id"]),
             checkpoint=str(row["checkpoint"]),
             kickoff_utc=parse_fixture_kickoff(row["kickoff_utc"]),
@@ -330,15 +461,13 @@ def due_checkpoint_refresh_batch(
             id=str(row["id"]),
             claim_token=str(row.get("claim_token") or "") or None,
             claim_expires_at=str(row.get("claim_expires_at") or "") or None,
+            window_start=str(row.get("window_start") or "") or None,
+            window_end=str(row.get("window_end") or "") or None,
         )
         for row in due_rows
     ]
-    postmatch_mode = bool(due_plans and due_plans[0].checkpoint == POSTMATCH_RESULT_CHECKPOINT)
-    same_mode_plans = [
-        plan
-        for plan in due_plans
-        if (plan.checkpoint == POSTMATCH_RESULT_CHECKPOINT) is postmatch_mode
-    ]
+    postmatch_mode = mode == "POSTMATCH"
+    same_mode_plans = due_plans[:1] if postmatch_mode else due_plans
     selected_raw, projected_calls = select_checkpoint_batch(
         cast(Any, same_mode_plans),
         hard_cap=provider_refresh_tick_hard_cap(),
@@ -346,6 +475,8 @@ def due_checkpoint_refresh_batch(
     selected = cast(list[ClaimedCheckpointPlan], selected_raw)
     selected_rows = [
         {
+            "competition_id": plan.competition_id,
+            "season": plan.season,
             "fixture_id": plan.fixture_id,
             "checkpoint": plan.checkpoint,
             "kickoff_utc": plan.kickoff_utc.isoformat().replace("+00:00", "Z")
@@ -360,6 +491,8 @@ def due_checkpoint_refresh_batch(
             "id": plan.id,
             "claim_token": plan.claim_token,
             "claim_expires_at": plan.claim_expires_at,
+            "window_start": plan.window_start,
+            "window_end": plan.window_end,
         }
         for plan in selected
     ]
@@ -370,11 +503,12 @@ def due_checkpoint_refresh_batch(
                 plan_id=str(row["id"]),
                 claim_token=str(row["claim_token"]),
                 reason="CHECKPOINT_NOT_SELECTED_FOR_BATCH",
+                restore_attempt=True,
             )
     return {
         "status": "READY" if selected_rows else "NO_CHECKPOINT_DUE",
-        "fixture_payload_count": fixture_payload_count,
-        "generated_plan_count": len(plans),
+        "fixture_payload_count": 0,
+        "generated_plan_count": 0,
         "due_checkpoint_count": len(due_rows),
         "selected_checkpoint_count": len(selected_rows),
         "projected_calls": projected_calls,
@@ -391,6 +525,7 @@ def release_checkpoint_batch_claims(
     checkpoints: list[dict[str, Any]],
     *,
     reason: str,
+    restore_attempt: bool = False,
 ) -> None:
     from w2.matchday.repository import MatchdayRuntimeRepository
 
@@ -404,18 +539,8 @@ def release_checkpoint_batch_claims(
             plan_id=plan_id,
             claim_token=claim_token,
             reason=reason,
+            restore_attempt=restore_attempt,
         )
-
-
-def _matchday_competition_for_league(
-    policies: dict[str, Any],
-    *,
-    provider_league_id: str,
-) -> str | None:
-    for competition_id, policy in policies.items():
-        if str(policy.provider_league_id) == provider_league_id:
-            return competition_id
-    return None
 
 
 def future_fixture_refresh_tick() -> dict[str, object]:
@@ -433,160 +558,105 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "formal_recommendation": False,
             "provider_calls": 0,
         }
-    results = [
-        _future_fixture_refresh_tick_for_competition(competition_id)
-        for competition_id in future_fixture_refresh_competition_ids()
-    ]
-    if len(results) == 1:
-        return results[0]
-    queued = [item for item in results if item.get("status") == "QUEUED"]
-    return {
-        "status": "QUEUED" if queued else "MULTI_COMPETITION_TICK",
-        "competition_ids": list(future_fixture_refresh_competition_ids()),
-        "results": results,
-        "queued_count": len(queued),
-        "candidate": False,
-        "formal_recommendation": False,
-    }
-
-
-def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[str, object]:
     from apps.worker.celery_app import celery_app
-    from w2.ingestion.future_refresh import config_from_policy, deterministic_task_key
 
     now = datetime.now(UTC)
-    config = config_from_policy(competition_id=competition_id)
-    if not config.enabled:
+    refresh_mode = "POSTMATCH" if postmatch_only_enabled() else "PREMATCH"
+    batch = due_checkpoint_refresh_batch(now, refresh_mode=refresh_mode)
+    if not batch["checkpoints"] and refresh_mode == "PREMATCH":
+        # Protect short prematch windows first, then use idle dispatcher ticks for
+        # the much wider postmatch result window.
+        postmatch_batch = due_checkpoint_refresh_batch(now, refresh_mode="POSTMATCH")
+        if postmatch_batch["checkpoints"]:
+            batch = postmatch_batch
+    checkpoints = list(batch["checkpoints"])
+    if not checkpoints:
         return {
-            "status": "DISABLED_BY_POLICY",
-            "competition_id": competition_id,
+            **batch,
+            "status": (
+                "NO_POSTMATCH_RESULT_DUE" if postmatch_only_enabled() else "NO_CHECKPOINT_DUE"
+            ),
+            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
             "candidate": False,
             "formal_recommendation": False,
+            "provider_calls": 0,
+            "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
+            "provider_refresh_min_interval_policy": "PERSISTED_PLAN_EDF",
         }
-    checkpoint_task_id = f"checkpoint-refresh:{uuid4()}"
-    batch = due_checkpoint_refresh_batch(
-        now,
-        provider_league_id=config.league_id,
-        worker_id=checkpoint_task_id,
-    )
-    if batch["status"] == "NO_CHECKPOINT_DUE":
-        if int(batch.get("fixture_payload_count") or 0) == 0:
-            task_key = deterministic_task_key(
-                competition_id=config.competition_id,
-                season=config.season,
-                now=now,
-                interval_seconds=config.scheduler_interval_seconds,
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for checkpoint in checkpoints:
+        groups.setdefault(
+            (str(checkpoint["competition_id"]), str(checkpoint["season"])), []
+        ).append(checkpoint)
+    results: list[dict[str, object]] = []
+    for (competition_id, season), group in groups.items():
+        task_key = checkpoint_task_key(
+            competition_id=competition_id,
+            season=season,
+            checkpoints=group,
+        )
+        gate = provider_task_key_gate(task_key=task_key)
+        if not gate.allowed:
+            release_checkpoint_batch_claims(
+                group,
+                reason=f"CHECKPOINT_ENQUEUE_BLOCKED:{gate.status}",
+                restore_attempt=True,
             )
-            gate = provider_task_key_gate(task_key=task_key)
-            if not gate.allowed:
-                return {
-                    **batch,
+            results.append(
+                {
                     "status": gate.status,
                     "task_key": task_key,
-                    "competition_id": config.competition_id,
-                    "season": config.season,
-                    "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-                    "candidate": False,
-                    "formal_recommendation": False,
+                    "competition_id": competition_id,
+                    "season": season,
                     "provider_calls": 0,
                     "blockers": [gate.status],
                     "dedup_backend": gate.backend,
-                    "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
-                    "provider_refresh_min_interval_policy": ("INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"),
                 }
-            task_id = f"{task_key}:{uuid4()}"
+            )
+            continue
+        task_id = f"checkpoint-refresh:{uuid4()}"
+        try:
             celery_app.send_task(
                 "w2.future_fixture_refresh",
                 kwargs={
-                    "competition_id": config.competition_id,
+                    "competition_id": competition_id,
                     "task_key": task_key,
                     "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+                    "checkpoint_fixture_ids": [str(item["fixture_id"]) for item in group],
+                    "refresh_checkpoints": group,
                 },
                 task_id=task_id,
             )
-            return {
-                **batch,
+        except Exception:
+            release_checkpoint_batch_claims(group, reason="CHECKPOINT_ENQUEUE_FAILED")
+            raise
+        results.append(
+            {
                 "status": "QUEUED",
                 "task_id": task_id,
                 "task_key": task_key,
-                "competition_id": config.competition_id,
-                "season": config.season,
-                "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-                "candidate": False,
-                "formal_recommendation": False,
-                "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
-                "provider_refresh_min_interval_policy": ("INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES"),
+                "competition_id": competition_id,
+                "season": season,
+                "checkpoint_count": len(group),
+                "provider_calls": 0,
             }
-        return {
-            **batch,
-            "competition_id": config.competition_id,
-            "season": config.season,
-            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-            "candidate": False,
-            "formal_recommendation": False,
-            "provider_calls": 0,
-            "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
-            "provider_refresh_min_interval_policy": "REPLACED_BY_PER_FIXTURE_CHECKPOINTS",
-        }
-    task_key = checkpoint_task_key(
-        competition_id=config.competition_id,
-        season=config.season,
-        checkpoints=list(batch["checkpoints"]),
-    )
-    gate = provider_task_key_gate(task_key=task_key)
-    if not gate.allowed:
-        release_checkpoint_batch_claims(
-            list(batch["checkpoints"]),
-            reason=f"CHECKPOINT_ENQUEUE_BLOCKED:{gate.status}",
         )
-        return {
-            "status": gate.status,
-            "task_key": task_key,
-            "competition_id": config.competition_id,
-            "season": config.season,
-            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-            "candidate": False,
-            "formal_recommendation": False,
-            "provider_calls": 0,
-            "blockers": [gate.status],
-            "dedup_backend": gate.backend,
-            "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
-            "provider_refresh_min_interval_policy": "REPLACED_BY_PER_FIXTURE_CHECKPOINTS",
-        }
-    task_id = checkpoint_task_id
-    try:
-        celery_app.send_task(
-            "w2.future_fixture_refresh",
-            kwargs={
-                "competition_id": config.competition_id,
-                "task_key": task_key,
-                "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-                "checkpoint_fixture_ids": [
-                    str(item["fixture_id"]) for item in batch["checkpoints"]
-                ],
-                "refresh_checkpoints": batch["checkpoints"],
-            },
-            task_id=task_id,
-        )
-    except Exception:
-        release_checkpoint_batch_claims(
-            list(batch["checkpoints"]),
-            reason="CHECKPOINT_ENQUEUE_FAILED",
-        )
-        raise
-    return {
+    queued = [item for item in results if item.get("status") == "QUEUED"]
+    response = {
         **batch,
-        "status": "QUEUED",
-        "task_id": task_id,
-        "task_key": task_key,
-        "competition_id": config.competition_id,
-        "season": config.season,
+        "status": "QUEUED" if queued else "CHECKPOINT_ENQUEUE_BLOCKED",
+        "results": results,
+        "queued_count": len(queued),
         "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
         "candidate": False,
         "formal_recommendation": False,
+        "provider_calls": 0,
         "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
-        "provider_refresh_min_interval_policy": "REPLACED_BY_PER_FIXTURE_CHECKPOINTS",
+        "provider_refresh_min_interval_policy": "PERSISTED_PLAN_EDF",
     }
+    if len(results) == 1:
+        response.update(results[0])
+    return response
 
 
 def xg_history_backfill_tick() -> dict[str, object]:
@@ -607,57 +677,34 @@ def xg_history_backfill_tick() -> dict[str, object]:
     from apps.worker.celery_app import celery_app
 
     now = datetime.now(UTC)
-    task_id = f"xg-history-backfill:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
-    celery_app.send_task(
-        "w2.xg_history_backfill",
-        kwargs={"queued_at_utc": now.isoformat().replace("+00:00", "Z")},
-        task_id=task_id,
-    )
-    return {
-        "status": "QUEUED",
-        "task_id": task_id,
-        "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-        "candidate": False,
-        "formal_recommendation": False,
-    }
-
-
-def market_timeline_refresh_tick() -> dict[str, object]:
-    if not market_timeline_refresh_enabled():
+    competition_ids = matchday_checkpoint_competition_ids()
+    if not competition_ids:
         return {
-            "status": "DISABLED",
+            "status": "XG_BACKFILL_SCOPE_INVALID",
+            "provider_calls": 0,
             "candidate": False,
             "formal_recommendation": False,
-            "beats_market": False,
         }
-    from apps.worker.celery_app import celery_app
-
-    now = datetime.now(UTC)
-    max_fixtures = int(os.environ.get("W2_MARKET_TIMELINE_MAX_FIXTURES", "10"))
-    capture_forward_ledger = (
-        os.environ.get("W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE", "false").lower() == "true"
-    )
-    task_id = f"market-timeline-refresh:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
-    celery_app.send_task(
-        "w2.market_timeline_refresh",
-        kwargs={
-            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-            "window": os.environ.get("W2_MARKET_TIMELINE_WINDOW", "next36"),
-            "checkpoint": "auto",
-            "max_fixtures": max_fixtures,
-            "capture_forward_ledger": capture_forward_ledger,
-        },
-        task_id=task_id,
-    )
+    task_ids = []
+    for competition_id in competition_ids:
+        task_id = f"xg-history-backfill:{competition_id}:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
+        celery_app.send_task(
+            "w2.xg_history_backfill",
+            kwargs={
+                "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+                "competition_id": competition_id,
+            },
+            task_id=task_id,
+        )
+        task_ids.append(task_id)
     return {
         "status": "QUEUED",
-        "task_id": task_id,
+        "task_id": task_ids[0],
+        "task_ids": task_ids,
+        "competition_ids": list(competition_ids),
         "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-        "max_fixtures": max_fixtures,
-        "capture_forward_ledger": capture_forward_ledger,
         "candidate": False,
         "formal_recommendation": False,
-        "beats_market": False,
     }
 
 
@@ -673,21 +720,53 @@ def forward_outcome_ledger_tick() -> dict[str, object]:
             "settlement_write": False,
         }
     from apps.worker.celery_app import celery_app
+    from w2.tracking.outcome_ledger_runtime import OutcomeLedgerRuntimeRepository
 
     now = datetime.now(UTC)
     task_id = f"forward-outcome-ledger:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
-    celery_app.send_task(
-        "w2.forward_outcome_ledger",
-        kwargs={
-            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-            "window": os.environ.get("W2_FORWARD_OUTCOME_LEDGER_WINDOW", "next36"),
-        },
+    runtime = OutcomeLedgerRuntimeRepository()
+    decision = runtime.prepare_dispatch(
+        now=now,
         task_id=task_id,
     )
+    if decision.status != "QUEUED":
+        return {
+            "status": decision.status,
+            "task_id": decision.task_id,
+            "reason": decision.reason,
+            "consecutive_deferrals": decision.consecutive_deferrals,
+            "pending_settlement_count": decision.pending_settlement_count,
+            "candidate": False,
+            "formal_recommendation": False,
+            "provider_calls": 0,
+            "db_writes": 0,
+            "lock_capture_write": False,
+            "settlement_write": False,
+        }
+    try:
+        celery_app.send_task(
+            "w2.forward_outcome_ledger",
+            kwargs={
+                "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+                "window": os.environ.get("W2_FORWARD_OUTCOME_LEDGER_WINDOW", "next7"),
+            },
+            task_id=task_id,
+        )
+    except Exception as exc:
+        runtime.mark_queue_failed(
+            task_id=task_id,
+            error=f"{exc.__class__.__name__}:{exc}"[:512],
+            now=datetime.now(UTC),
+        )
+        raise
     return {
         "status": "QUEUED",
         "task_id": task_id,
         "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+        "forced_after_deferral": decision.forced,
+        "defer_reason": decision.reason,
+        "consecutive_deferrals": decision.consecutive_deferrals,
+        "pending_settlement_count": decision.pending_settlement_count,
         "candidate": os.environ.get("W2_CANDIDATE_ENABLED", "false").lower() == "true",
         "formal_recommendation": False,
         "provider_calls": 0,
@@ -701,19 +780,35 @@ def run_forever() -> None:
     interval_seconds = int(os.environ.get("W2_SCHEDULER_HEARTBEAT_INTERVAL_SECONDS", "30"))
     next_refresh_at = datetime.now(UTC)
     next_xg_backfill_at = datetime.now(UTC)
-    next_market_timeline_refresh_at = datetime.now(UTC)
     next_forward_outcome_ledger_at = datetime.now(UTC)
-    next_free_fixture_bridge_at = datetime.now(UTC)
+    next_fixture_discovery_at = datetime.now(UTC)
+    Thread(
+        target=candidate_notification_delivery_loop,
+        name="candidate-notification-delivery",
+        daemon=True,
+    ).start()
+    if future_fixture_refresh_enabled():
+        Thread(
+            target=checkpoint_plan_generation_loop,
+            name="checkpoint-plan-generation",
+            daemon=True,
+        ).start()
     while True:
         heartbeat()
-        if free_fixture_bridge_enabled() and datetime.now(UTC) >= next_free_fixture_bridge_at:
+        try:
+            result = candidate_notification_summary_tick()
+            if result["status"] != "NO_SUMMARY_DUE":
+                logger.info("w2 candidate notification summary %s", result)
+        except Exception:
+            logger.exception("w2 candidate notification summary failed")
+        if fixture_discovery_enabled() and datetime.now(UTC) >= next_fixture_discovery_at:
             try:
-                result = free_fixture_bridge_tick()
-                logger.info("w2 free fixture bridge %s", result)
+                result = fixture_discovery_tick()
+                logger.info("w2 fixture discovery %s", result)
             except Exception:
-                logger.exception("w2 free fixture bridge failed")
-            next_free_fixture_bridge_at = datetime.fromtimestamp(
-                datetime.now(UTC).timestamp() + free_fixture_bridge_interval_seconds(),
+                logger.exception("w2 fixture discovery failed")
+            next_fixture_discovery_at = datetime.fromtimestamp(
+                datetime.now(UTC).timestamp() + fixture_discovery_interval_seconds(),
                 tz=UTC,
             )
         if future_fixture_refresh_enabled() and datetime.now(UTC) >= next_refresh_at:
@@ -750,32 +845,6 @@ def run_forever() -> None:
             next_xg_backfill_at = datetime.now(UTC).replace(tzinfo=UTC)
             next_xg_backfill_at = next_xg_backfill_at.fromtimestamp(
                 next_xg_backfill_at.timestamp() + xg_interval_seconds,
-                tz=UTC,
-            )
-        if (
-            market_timeline_refresh_enabled()
-            and datetime.now(UTC) >= next_market_timeline_refresh_at
-        ):
-            try:
-                result = market_timeline_refresh_tick()
-                logger.info("w2 market timeline refresh %s", result)
-                market_timeline_interval_seconds = int(
-                    os.environ.get(
-                        "W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS",
-                        str(DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS),
-                    )
-                )
-            except Exception:
-                logger.exception("w2 market timeline refresh failed")
-                market_timeline_interval_seconds = int(
-                    os.environ.get(
-                        "W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS",
-                        str(DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS),
-                    )
-                )
-            next_market_timeline_refresh_at = datetime.now(UTC).replace(tzinfo=UTC)
-            next_market_timeline_refresh_at = next_market_timeline_refresh_at.fromtimestamp(
-                next_market_timeline_refresh_at.timestamp() + market_timeline_interval_seconds,
                 tz=UTC,
             )
         if forward_outcome_ledger_enabled() and datetime.now(UTC) >= next_forward_outcome_ledger_at:

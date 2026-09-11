@@ -28,6 +28,7 @@ from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerMod
 IMPORT_CONFIRMATION_PHRASE = "EVAL_01A_IMPORT_RUNTIME_LEDGER"  # noqa: S105
 TERMINAL_STATUSES = {"FT", "AET", "PEN"}
 RUNTIME_LEDGER_SOURCE = "db:forward_outcome_ledger"
+CURRENT_FORWARD_RECORD_TYPES = frozenset({"capture", "outcome", "supersession"})
 
 
 class OutcomeLedgerError(ValueError):
@@ -316,12 +317,31 @@ class OutcomeLedgerRepository:
             "provider_calls": 0,
         }
 
-    def records(self, record_types: Iterable[str] | None = None) -> list[dict[str, Any]]:
+    def records(
+        self,
+        record_types: Iterable[str] | None = None,
+        *,
+        fixture_ids: Iterable[str] | None = None,
+    ) -> list[dict[str, Any]]:
         with Session(self.engine) as session:
             statement = select(OutcomeLedgerModel)
             if record_types is not None:
+                selected_types = tuple(
+                    sorted({str(item) for item in record_types if str(item)})
+                )
+                if not selected_types:
+                    return []
                 statement = statement.where(
-                    OutcomeLedgerModel.record_type.in_(tuple(record_types))
+                    OutcomeLedgerModel.record_type.in_(selected_types)
+                )
+            if fixture_ids is not None:
+                selected_fixture_ids = tuple(
+                    sorted({str(item) for item in fixture_ids if str(item)})
+                )
+                if not selected_fixture_ids:
+                    return []
+                statement = statement.where(
+                    OutcomeLedgerModel.fixture_id.in_(selected_fixture_ids)
                 )
             rows = list(
                 session.scalars(
@@ -343,8 +363,20 @@ class OutcomeLedgerRepository:
         return recoveries
 
     def result_payloads(self) -> dict[str, dict[str, Any]]:
+        return self.result_payloads_for_fixtures()
+
+    def result_payloads_for_fixtures(
+        self,
+        fixture_ids: Iterable[str] | None = None,
+    ) -> dict[str, dict[str, Any]]:
         with Session(self.engine) as session:
-            rows = list(session.scalars(select(ResultModel).order_by(ResultModel.fixture_id)))
+            statement = select(ResultModel)
+            if fixture_ids is not None:
+                selected = tuple(sorted({str(item) for item in fixture_ids if str(item)}))
+                if not selected:
+                    return {}
+                statement = statement.where(ResultModel.fixture_id.in_(selected))
+            rows = list(session.scalars(statement.order_by(ResultModel.fixture_id)))
         return {
             row.fixture_id: {
                 "fixture_id": row.fixture_id,
@@ -396,12 +428,9 @@ class OutcomeLedgerRepository:
                 )
             )
             selected, unresolved = _select_identities(identities, fixture_ids)
-            raw_rows = list(
-                session.scalars(
-                    select(RawPayloadModel)
-                    .where(RawPayloadModel.endpoint == "fixtures")
-                    .order_by(RawPayloadModel.captured_at, RawPayloadModel.sha256)
-                )
+            by_provider_id = _stream_fixture_payload_candidates(
+                session,
+                provider_fixture_ids={row.provider_fixture_id for row in selected},
             )
             captures = {
                 row.raw_payload_sha256: row.capture_id
@@ -411,7 +440,6 @@ class OutcomeLedgerRepository:
                     )
                 )
             }
-            by_provider_id = _fixture_payload_candidates(raw_rows)
             counts = {
                 "inspected_fixture_count": len(selected),
                 "materialized_result_count": 0,
@@ -852,6 +880,44 @@ def _fixture_payload_candidates(
             if provider_id:
                 grouped.setdefault(provider_id, []).append(
                     (row.captured_at, row.sha256, item)
+                )
+    return grouped
+
+
+def _stream_fixture_payload_candidates(
+    session: Session,
+    *,
+    provider_fixture_ids: set[str],
+) -> dict[str, list[tuple[datetime, str, Mapping[str, Any]]]]:
+    """Stream raw fixture payloads and retain only requested fixture items."""
+
+    grouped: dict[str, list[tuple[datetime, str, Mapping[str, Any]]]] = {}
+    if not provider_fixture_ids:
+        return grouped
+    rows = session.execute(
+        select(
+            RawPayloadModel.captured_at,
+            RawPayloadModel.sha256,
+            RawPayloadModel.payload,
+        )
+        .where(RawPayloadModel.endpoint == "fixtures")
+        .order_by(RawPayloadModel.captured_at, RawPayloadModel.sha256)
+        .execution_options(yield_per=16)
+    )
+    for captured_at, payload_hash, payload in rows:
+        response = payload.get("response") if isinstance(payload, Mapping) else None
+        if not isinstance(response, list):
+            continue
+        for item in response:
+            if not isinstance(item, Mapping):
+                continue
+            fixture = item.get("fixture")
+            provider_id = (
+                str(fixture.get("id") or "") if isinstance(fixture, Mapping) else ""
+            )
+            if provider_id in provider_fixture_ids:
+                grouped.setdefault(provider_id, []).append(
+                    (captured_at, str(payload_hash), item)
                 )
     return grouped
 

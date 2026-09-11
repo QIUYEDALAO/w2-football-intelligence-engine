@@ -45,27 +45,32 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
         assert scheduler["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
         assert scheduler["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
         assert scheduler["W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS"] == "900"
-        assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
+        assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == (
+            "status,fixtures,odds,lineups,statistics"
+        )
         assert scheduler["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
-        assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
-        assert scheduler["W2_FREE_BRIDGE_MODE"] == "${W2_FREE_BRIDGE_MODE:-OFF}"
+        assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "7500"
+        assert scheduler["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "0"
+        assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == (
+            "${W2_FIXTURE_DISCOVERY_ENABLED:-false}"
+        )
         assert "W2_STAGING_ENABLED_COMPETITIONS" not in scheduler
         assert scheduler["W2_XG_BACKFILL_ENABLED"] == "false"
-        assert scheduler["W2_MARKET_TIMELINE_REFRESH_ENABLED"] == "true"
-        assert scheduler["W2_MARKET_TIMELINE_WINDOW"] == "future"
+        assert "W2_MARKET_TIMELINE_REFRESH_ENABLED" not in scheduler
+        assert "W2_MARKET_TIMELINE_WINDOW" not in scheduler
+        assert "W2_MARKET_TIMELINE_MAX_FIXTURES" not in scheduler
         assert scheduler["W2_FORWARD_OUTCOME_LEDGER_ENABLED"] == (
             "${W2_FORWARD_OUTCOME_LEDGER_ENABLED:-true}"
         )
-        assert scheduler["W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE"] == (
-            "${W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE:-true}"
-        )
+        assert "W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE" not in scheduler
         assert scheduler["W2_FORWARD_OUTCOME_LEDGER_WINDOW"] == (
-            "${W2_FORWARD_OUTCOME_LEDGER_WINDOW:-future}"
+            "${W2_FORWARD_OUTCOME_LEDGER_WINDOW:-next7}"
         )
         api = env_for(path, "api")
         assert api["W2_PROVIDER_CALLS_DISABLED"] == "true"
         assert api["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
-        assert api["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
+        assert api["W2_PROVIDER_DAILY_HARD_CAP"] == "7500"
+        assert api["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "0"
         assert "W2_STAGING_ENABLED_COMPETITIONS" not in api
         for service in ("worker",):
             env = env_for(path, service)
@@ -73,9 +78,12 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
             assert env["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
             assert env["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
             assert env["W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS"] == "900"
-            assert env["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
+            assert env["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == (
+                "status,fixtures,odds,lineups,statistics"
+            )
             assert env["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
-            assert env["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
+            assert env["W2_PROVIDER_DAILY_HARD_CAP"] == "7500"
+            assert env["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "0"
             assert "W2_STAGING_ENABLED_COMPETITIONS" not in env
             assert env["W2_XG_BACKFILL_ENABLED"] == "false"
         for service in ("api", "web", "worker"):
@@ -115,18 +123,40 @@ def test_staging_compose_enables_only_shadow_candidate() -> None:
         assert scheduler["W2_EXTERNAL_ALERTING"] == "false"
 
 
-def test_controlled_override_selects_single_free_shadow_collection_owner() -> None:
+def test_controlled_override_selects_one_collection_task_and_discovery_mode() -> None:
     payload = load_compose(CONTROLLED_OVERRIDE)
     worker = payload["services"]["worker"]["environment"]
     scheduler = payload["services"]["scheduler"]["environment"]
 
-    assert worker["W2_FREE_BRIDGE_MODE"] == "${W2_FREE_BRIDGE_MODE:-OFF}"
-    assert scheduler["W2_FREE_BRIDGE_MODE"] == "${W2_FREE_BRIDGE_MODE:-OFF}"
+    assert "W2_FIXTURE_DISCOVERY_ENABLED" not in worker
+    assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == (
+        "${W2_FIXTURE_DISCOVERY_ENABLED:-false}"
+    )
+    assert scheduler["W2_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS"] == "7"
     assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
+    assert scheduler["W2_POSTMATCH_ONLY_ENABLED"] == (
+        "${W2_POSTMATCH_ONLY_ENABLED:-false}"
+    )
+    assert worker["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == (
+        "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures,odds,lineups,statistics}"
+    )
+    assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == (
+        "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures,odds,lineups,statistics}"
+    )
     assert worker["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
     assert scheduler["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
-    assert worker["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
-    assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
+    assert worker["W2_PROVIDER_DAILY_HARD_CAP"] == "7500"
+    assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "7500"
+    assert worker["W2_POSTMATCH_RESULT_DAILY_HARD_CAP"] == "200"
+    assert scheduler["W2_POSTMATCH_RESULT_DAILY_HARD_CAP"] == "200"
+    assert worker["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "0"
+    assert scheduler["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "0"
+    assert worker["W2_PROVIDER_DAILY_RESERVE"] == "1500"
+    assert scheduler["W2_PROVIDER_DAILY_RESERVE"] == "1500"
+    assert worker["W2_PROVIDER_OBSERVED_DAILY_LIMIT"] == "7500"
+    assert scheduler["W2_PROVIDER_OBSERVED_DAILY_LIMIT"] == "7500"
+    assert worker["W2_PROVIDER_PREFLIGHT_MIN_REMAINING"] == "1500"
+    assert scheduler["W2_PROVIDER_PREFLIGHT_MIN_REMAINING"] == "1500"
     assert worker["W2_CANDIDATE_ENABLED"] == "true"
     assert worker["W2_FORMAL_RECOMMENDATION_ENABLED"] == "false"
     assert worker["W2_PRODUCTION_RELEASE"] == "false"
@@ -164,6 +194,8 @@ def test_exact_13_share_seven_day_open_and_t72_t48_collection_policy() -> None:
     assert len(scope) == 13
     assert scope <= set(future_by_id) & set(matchday_by_id)
     for competition_id in scope:
+        assert future_by_id[competition_id]["feature_enrichment_enabled"] is True
+        assert "statistics" in future_by_id[competition_id]["feature_enrichment_endpoints"]
         checkpoints = {item["name"]: item for item in matchday_by_id[competition_id]["checkpoints"]}
         assert checkpoints["T168_OPEN_ODDS"] == {
             "name": "T168_OPEN_ODDS",
@@ -223,6 +255,8 @@ def test_scheduler_tick_queues_without_running_provider(monkeypatch) -> None:
             "tick_hard_cap": 30,
             "checkpoints": [
                 {
+                    "competition_id": "allsvenskan",
+                    "season": "2026",
                     "fixture_id": "1489404",
                     "checkpoint": "T24",
                     "kickoff_utc": "2026-06-24T17:00:00Z",

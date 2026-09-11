@@ -1,0 +1,40 @@
+{
+  "correction_id": "V1-XG-UNCERTAINTY-WINDOW-CORRECTION-20260901",
+  "status": "FROZEN_BEFORE_CODE_CHANGE",
+  "frozen_at": "2026-09-01T03:08:00+08:00",
+  "defect": "V1 point estimates use the latest five pre-kickoff team_xg_match values, while empirical_xg_standard_error.v1 uses every eligible row returned by the repository, up to twenty per team. The reported standard error therefore describes a different estimator from the point estimate.",
+  "fixed_change": {
+    "point_estimate": "unchanged",
+    "uncertainty_rows": "after all existing PIT/source/digest checks and kickoff ordering, retain only the latest five rows per team",
+    "standard_error_formula": "unchanged sample standard deviation divided by sqrt(n)",
+    "lambda_combination": "unchanged quadrature formula",
+    "method_version": "empirical_xg_standard_error.v2_latest_five",
+    "fallback": "fewer than three valid rows remains NOT_READY"
+  },
+  "acceptance": [
+    "seven eligible ordered rows retain exactly the latest five fixture IDs",
+    "post-evaluation captures remain excluded before the window is applied",
+    "existing five-row behavior remains numerically unchanged",
+    "simulation identity changes through lambda uncertainty method/input hash",
+    "targeted and full tests report exact results"
+  ],
+  "scope": {
+    "v1_four_field_xg_only": true,
+    "v2_factors": "FORBIDDEN",
+    "model_point_parameters": "UNCHANGED",
+    "admission_thresholds": "UNCHANGED",
+    "ledger_and_allowlist": "UNCHANGED"
+  },
+  "authority": {
+    "local_implementation": "AUTHORIZED_BY_ACTIVE_V1_MODEL_REPAIR_GOAL",
+    "deployment": "FORBIDDEN_PENDING_OWNER_AND_INDEPENDENT_ACCEPTANCE"
+  },
+  "stop_lines": {
+    "provider_calls": 0,
+    "production_reads": 0,
+    "production_writes": 0,
+    "migrations": 0,
+    "deployments": 0,
+    "github_operations": 0
+  }
+}

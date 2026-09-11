@@ -1,0 +1,75 @@
+{
+  "schema_version": "w2.factor_computation_version.v1",
+  "task_id": "W2_AH_FACTOR_ACCURACY_F1R_B_PRODUCTION_RECORDING_INTEGRATION_20260911",
+  "authority_module": "src/w2/domain/factor_versions.py",
+  "read_port": "w2.domain.factor_versions.factor_computation_version",
+  "single_mapping": true,
+  "single_mapping_proof": "scripts/quant/tests/test_f1r_b_production_recording_integration.py:test_03_there_is_exactly_one_version_mapping scans every module under src/w2 and scripts/quant and asserts no declared version string appears outside the authority module.",
+  "why_not_the_factor_registry": "config/factors/factor_registry.v1.json carries a governance version used for lifecycle decisions (ACTIVE, SCORING, numeric_effect_enabled). It is 1 for every factor and does not change when an algorithm changes, so it cannot identify the computation that produced a score.",
+  "why_not_a_commit_or_deploy_sha": "A commit SHA changes on every unrelated edit and does not change when only a builder's behaviour changes through a dependency. It identifies a tree, not a computation.",
+  "rejected_values": [
+    "SYNTHETIC_FIXTURE_v1",
+    "v1",
+    "1",
+    "a commit SHA",
+    "a deploy SHA",
+    "a build timestamp"
+  ],
+  "binding_rules": [
+    "The version is read from the authority, never supplied by the caller.",
+    "A caller must declare the version it believes it ran; a declaration that differs from the authority refuses the whole batch with FACTOR_VERSION_DISAGREES_WITH_BUILDER_AUTHORITY.",
+    "A missing or blank declaration refuses the whole batch with FACTOR_VERSION_MISSING.",
+    "An undeclared factor refuses with FACTOR_COMPUTATION_VERSION_UNKNOWN; there is no default.",
+    "factor_version is one of the seventeen protected fields, so changing a version changes factor_input_hash, factor_verdict_hash and observation_id."
+  ],
+  "algorithm_pin": {
+    "what": "Each declaration pins the SHA-256 of its builder function's own source text and the reason code that builder emits when it computes.",
+    "why": "A version that does not move when the algorithm moves is worthless. The pin is per function, not per file, so changing one factor does not force a spurious bump on the others that share a module.",
+    "enforced_by": "scripts/quant/tests/test_f1r_b_production_recording_integration.py:test_03_the_version_authority_matches_the_executed_builder, which imports the builder, hashes inspect.getsource(builder) and asserts the reason code appears in that source.",
+    "on_change": "Editing a builder fails the lock test until its version is revised. Revising the version changes every subsequent observation identity, which is the intended consequence."
+  },
+  "factors": {
+    "F3_REST_FITNESS": {
+      "version": "w2.factor.f3_rest_fitness.rest_days_diff.v1",
+      "module": "w2.features.team_factors",
+      "builder": "rest_fitness_factor",
+      "ready_reason": "REST_DAYS_DIFF_COMPUTED",
+      "builder_source_sha256": "6eadf9e79a762cc3e13ee72c30ad5d15948333df0240089e84c5c11a82615e0a"
+    },
+    "F5_RECENT_AH_COVER": {
+      "version": "w2.factor.f5_recent_ah_cover.settled_cover_rate_diff.v1",
+      "module": "w2.features.team_factors",
+      "builder": "recent_ah_cover_factor",
+      "ready_reason": "SETTLED_AH_COVER_RATE_DIFF",
+      "builder_source_sha256": "5401ae40553db5bdc356bbbe1c068c87e08f656fb457d88ff472d3bb8664da4a",
+      "note": "The version is bound even though F5 cannot currently participate. A version that only appeared once a factor scored would be missing from exactly the records that document why it did not."
+    },
+    "F6_H2H": {
+      "version": "w2.factor.f6_h2h.mean_goal_diff.v1",
+      "module": "w2.features.team_factors",
+      "builder": "h2h_factor",
+      "ready_reason": "INTERNAL_FIXTURE_H2H_DIFF",
+      "builder_source_sha256": "fe5c64d6311f3448b3af168c01e11e1964dfe43b6a122984817004adf65c6a5a"
+    },
+    "F9_TRUE_XG": {
+      "version": "w2.factor.f9_true_xg.rolling_net_xg_diff.v1",
+      "module": "w2.features.live_factors",
+      "builder": "true_xg_factor",
+      "ready_reason": "AS_OF_ROLLING_XG_DIFF",
+      "builder_source_sha256": "07b2a645092b0ac93b3ebbeb80fd24637ae2cbb2dd8b1a0c406a0dddf2c1873a"
+    }
+  },
+  "builder_files_unmodified": {
+    "statement": "F1R-B did not modify src/w2/features/team_factors.py or src/w2/features/live_factors.py.",
+    "why_it_matters": "The frozen F1 package pins both files' SHA-256 in F1_SOURCE_INVENTORY.jsonl as its SOURCE_CODE_DEFAULT weight evidence, and regenerating that package compares the live files against those hashes. Declaring the versions in a separate domain module rather than inside the builders keeps that freeze intact.",
+    "src/w2/features/team_factors.py": "eed6070afd89f7d0a33c8a8eee820276bcf568530dd49d008c5ec28e298ef62c",
+    "src/w2/features/live_factors.py": "8fccf15e55751caf70cf8216b737c3f538d4ed39afc0a3fcc2f29357bc07d66a",
+    "enforced_by": "test_19_the_pinned_builder_sources_are_still_the_frozen_f1_evidence"
+  },
+  "known_limitation": {
+    "what": "The version is declared beside the builder rather than emitted by it. A contribution object does not carry its own factor_version.",
+    "consequence": "The caller/builder disagreement check compares the caller's declaration against the authority, not against a value the builder returned at runtime.",
+    "why": "Emitting it would require adding a field to FeatureContribution and setting it in both builder modules, which changes the two files the frozen F1 package pins. The algorithm pin above is the compensating control: the authority cannot drift from the builder without failing a test.",
+    "how_to_close": "If a future task is authorised to re-freeze F1's source inventory, add factor_version to FeatureContribution, set it from this authority in every builder branch, and tighten the check to compare all three values."
+  }
+}

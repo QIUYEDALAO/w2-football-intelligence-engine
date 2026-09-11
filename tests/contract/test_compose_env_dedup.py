@@ -44,6 +44,9 @@ REMOVED_EVAL_01A_ENV = {
 EXPECTED_UNIQUE = {
     FORMAL: {
         "api": {
+            "W2_BARK_DEVICE_KEY",
+            "W2_BARK_ENDPOINT",
+            "W2_DASHBOARD_PUBLIC_BASE_URL",
             "W2_FORMAL_RECOMMENDATION_ENABLED",
             "W2_IMAGE_ID",
             "W2_OCI_DIGEST",
@@ -54,30 +57,31 @@ EXPECTED_UNIQUE = {
             "W2_FORMAL_RECOMMENDATION_ENABLED",
         },
         "scheduler": {
-            "W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE",
+            "W2_BARK_DEVICE_KEY",
+            "W2_BARK_ENDPOINT",
+            "W2_DASHBOARD_PUBLIC_BASE_URL",
             "W2_FORWARD_OUTCOME_LEDGER_ENABLED",
             "W2_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS",
             "W2_FORWARD_OUTCOME_LEDGER_WINDOW",
             "W2_FUTURE_FIXTURE_REFRESH_ENABLED",
-            "W2_MARKET_TIMELINE_MAX_FIXTURES",
-            "W2_MARKET_TIMELINE_REFRESH_ENABLED",
-            "W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS",
-            "W2_MARKET_TIMELINE_WINDOW",
         },
     },
     LITE: {
-        "api": {"W2_READINESS_RELEASE_ROOT"},
+        "api": {
+            "W2_BARK_DEVICE_KEY",
+            "W2_BARK_ENDPOINT",
+            "W2_DASHBOARD_PUBLIC_BASE_URL",
+            "W2_READINESS_RELEASE_ROOT",
+        },
         "worker": set(),
         "scheduler": {
-            "W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE",
+            "W2_BARK_DEVICE_KEY",
+            "W2_BARK_ENDPOINT",
+            "W2_DASHBOARD_PUBLIC_BASE_URL",
             "W2_FORWARD_OUTCOME_LEDGER_ENABLED",
             "W2_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS",
             "W2_FORWARD_OUTCOME_LEDGER_WINDOW",
             "W2_FUTURE_FIXTURE_REFRESH_ENABLED",
-            "W2_MARKET_TIMELINE_MAX_FIXTURES",
-            "W2_MARKET_TIMELINE_REFRESH_ENABLED",
-            "W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS",
-            "W2_MARKET_TIMELINE_WINDOW",
         },
     },
 }
@@ -87,7 +91,7 @@ def load_compose(path: Path) -> dict[str, Any]:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-@pytest.mark.parametrize(("path", "common_count"), [(FORMAL, 36), (LITE, 32)])
+@pytest.mark.parametrize(("path", "common_count"), [(FORMAL, 44), (LITE, 35)])
 def test_runtime_services_share_one_common_environment_anchor(
     path: Path,
     common_count: int,
@@ -108,6 +112,46 @@ def test_service_only_environment_variables_do_not_leak(path: Path) -> None:
     for service in SERVICES:
         environment = set(compose["services"][service]["environment"])
         assert environment - common == EXPECTED_UNIQUE[path][service]
+
+
+# The authorised runtime delta between BASE_SHA's compose and today's. Each
+# entry is a value infra/compose now sets; the test asserts the expansion
+# matches this exactly, so an unrecorded change to any of them still fails.
+#
+# Provider and statistics quota, and the endpoint allowlist, apply to every
+# service in both compose files.
+AUTHORIZED_PROVIDER_ENV = {
+    "W2_PROVIDER_DAILY_HARD_CAP": "7500",
+    "W2_PROVIDER_DAILY_RESERVE": "1500",
+    "W2_PROVIDER_DAILY_UNALLOCATED_BUFFER": "0",
+    "W2_PROVIDER_ENDPOINT_ALLOWLIST": "status,fixtures,odds,lineups,statistics",
+    "W2_STATISTICS_DAILY_HARD_CAP": "5500",
+}
+
+# Provider timeout policy and the xG backfill budget are set by the formal
+# staging compose only; the lite override inherits docker-compose.yml, which
+# does not carry them.
+AUTHORIZED_FORMAL_ONLY_ENV = {
+    "W2_PROVIDER_REQUEST_TIMEOUT_SECONDS": "45",
+    "W2_PROVIDER_TIMEOUT_MAX_ATTEMPTS": "2",
+    "W2_PROVIDER_TIMEOUT_RETRY_BACKOFF_SECONDS": "2",
+    "W2_XG_BACKFILL_RECENT_MATCHES": "5",
+    "W2_XG_BACKFILL_REQUEST_BUDGET": "120",
+}
+
+# The scheduler's forward-outcome ledger window narrowed from the open-ended
+# "future" to "next7".
+AUTHORIZED_SCHEDULER_ENV = {"W2_FORWARD_OUTCOME_LEDGER_WINDOW": "next7"}
+
+# Market-timeline refresh was retired; the scheduler no longer carries its
+# settings or the ledger ordering flag that depended on it.
+RETIRED_MARKET_TIMELINE_ENV = {
+    "W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE",
+    "W2_MARKET_TIMELINE_MAX_FIXTURES",
+    "W2_MARKET_TIMELINE_REFRESH_ENABLED",
+    "W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS",
+    "W2_MARKET_TIMELINE_WINDOW",
+}
 
 
 @pytest.mark.parametrize("path", [FORMAL, LITE])
@@ -131,11 +175,13 @@ def test_safety_switches_keep_their_values_and_ownership(path: Path) -> None:
         assert {key: environment[key] for key in fixed_common} == fixed_common
 
     assert environments["scheduler"]["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "false"
-    assert environments["scheduler"]["W2_MARKET_TIMELINE_REFRESH_ENABLED"] == "true"
+    assert "W2_MARKET_TIMELINE_REFRESH_ENABLED" not in environments["scheduler"]
     assert "W2_FUTURE_FIXTURE_REFRESH_ENABLED" not in environments["api"]
     assert "W2_FUTURE_FIXTURE_REFRESH_ENABLED" not in environments["worker"]
-    assert "W2_MARKET_TIMELINE_REFRESH_ENABLED" not in environments["api"]
-    assert "W2_MARKET_TIMELINE_REFRESH_ENABLED" not in environments["worker"]
+    assert all(
+        "W2_MARKET_TIMELINE_REFRESH_ENABLED" not in environment
+        for environment in environments.values()
+    )
     if path == FORMAL:
         expected_formal = "${W2_FORMAL_RECOMMENDATION_ENABLED:-false}"
         assert environments["api"]["W2_FORMAL_RECOMMENDATION_ENABLED"] == expected_formal
@@ -228,9 +274,24 @@ def test_compose_expansion_matches_authorized_runtime_delta(
             expected.pop(name)
         expected.update(
             {
-                "W2_FREE_BRIDGE_MODE": "OFF",
-                "W2_FREE_BRIDGE_INTERVAL_SECONDS": "300",
+                "W2_FIXTURE_DISCOVERY_ENABLED": "false",
+                "W2_FIXTURE_DISCOVERY_INTERVAL_SECONDS": "300",
                 "W2_CANDIDATE_ENABLED": "true",
             }
         )
+        if service in {"api", "scheduler"}:
+            expected.update(
+                {
+                    "W2_BARK_DEVICE_KEY": "",
+                    "W2_BARK_ENDPOINT": "",
+                    "W2_DASHBOARD_PUBLIC_BASE_URL": "",
+                }
+            )
+        expected.update(AUTHORIZED_PROVIDER_ENV)
+        if path == FORMAL:
+            expected.update(AUTHORIZED_FORMAL_ONLY_ENV)
+        if service == "scheduler":
+            expected.update(AUTHORIZED_SCHEDULER_ENV)
+            for name in RETIRED_MARKET_TIMELINE_ENV:
+                expected.pop(name, None)
         assert current_services[service]["environment"] == expected

@@ -1,0 +1,8 @@
+[Unit]
+Description=Collect registry garbage weekly
+[Timer]
+OnCalendar=Sun 04:30
+Persistent=true
+RandomizedDelaySec=600
+[Install]
+WantedBy=timers.target

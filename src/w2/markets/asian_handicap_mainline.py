@@ -25,6 +25,7 @@ class CanonicalAhMainline:
     candidate_lines: list[dict[str, Any]] | None = None
     rejected_lines: list[dict[str, Any]] | None = None
     selected_bookmakers: list[str] | None = None
+    selected_quote_rows_by_bookmaker: dict[str, dict[str, dict[str, Any]]] | None = None
     source_payload_ids: list[str] | None = None
     authoritative_quote_rows: dict[str, dict[str, Any]] | None = None
     authoritative_quote_rows_by_line: dict[str, dict[str, dict[str, Any]]] | None = None
@@ -157,6 +158,13 @@ def select_canonical_ah_mainline(
         candidate_lines=ordered_candidates,
         rejected_lines=rejected_lines,
         selected_bookmakers=sorted(str(item["bookmaker"]) for item in selected_votes),
+        selected_quote_rows_by_bookmaker={
+            str(item["bookmaker"]): {
+                side.lower(): dict(item["sides"][side]["row"])
+                for side in ("HOME", "AWAY")
+            }
+            for item in selected_votes
+        },
         source_payload_ids=sorted(
             {
                 str(payload_id)

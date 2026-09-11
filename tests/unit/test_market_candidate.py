@@ -4,6 +4,7 @@ from w2.markets import analysis_evidence
 from w2.markets.analysis_evidence import build_analysis_market_evidence
 from w2.markets.market_candidate import (
     _best_evaluated_side,
+    _market_mainline_contract,
     build_market_candidates,
     candidate_is_executable,
     select_authoritative_market_candidate,
@@ -41,8 +42,10 @@ def _market(name: str) -> dict[str, object]:
     return {"market": name, "decision": "PICK", "tendency": tendency, "line": "-0.5"}
 
 
-def _ready_simulation() -> dict[str, object]:
-    return {
+def _ready_simulation(*, calibration_status: str | None = None) -> dict[str, object]:
+    """A ready simulation. `calibration_status` is opt-in: one test asserts that an
+    absent status surfaces as UNKNOWN, and admission tests declare a validated one."""
+    simulation: dict[str, object] = {
         "status": "READY",
         "model_version": "model",
         "calibration_version": "calibration",
@@ -55,6 +58,9 @@ def _ready_simulation() -> dict[str, object]:
             "params": {"dixon_coles_rho": 0.0},
         },
     }
+    if calibration_status is not None:
+        simulation["calibration_status"] = calibration_status
+    return simulation
 
 
 def _evaluated_candidate(
@@ -68,6 +74,9 @@ def _evaluated_candidate(
         "quote_status": "COMPLETE",
         "quote_usage": "EXECUTABLE",
         "quotes": {"executable": {"decimal_odds": "1.9"}},
+        # admission consults the calibration authority; this fixture is about
+        # ranking eligible sides, so it declares a validated one
+        "calibration": {"status": "PRODUCTION_VALIDATED"},
         "analysis_evidence": {
             "status": "COMPLETE",
             "model_probability": {
@@ -135,7 +144,7 @@ def test_production_shaped_ah_side_admission_prefers_eligible_side(
         selection=None,
         line="-0.5",
         quote_identity_audit={"ah": _audit()},
-        simulation=_ready_simulation(),
+        simulation=_ready_simulation(calibration_status="PRODUCTION_VALIDATED"),
     )
     assert evidence["status"] == "NO_EDGE"
     assert _best_evaluated_side(
@@ -150,7 +159,7 @@ def test_production_shaped_ah_side_admission_prefers_eligible_side(
         quote_identity_audit={"ah": _audit()},
         current_odds={"ah": {"home_line": "-0.5", "away_line": "0.5"}},
         pricing_shadow={},
-        simulation=_ready_simulation(),
+        simulation=_ready_simulation(calibration_status="PRODUCTION_VALIDATED"),
         fixture_id="fixture-1",
         competition_id="allsvenskan",
     )["ah"]
@@ -509,6 +518,12 @@ def test_full_ladder_is_evaluated_but_alternates_remain_comparison_only() -> Non
     assert candidate["candidate_role"] == "MARKET_MAINLINE"
     assert candidate["market_mainline"]["line"] == "2.75"
     assert candidate["market_mainline"]["bookmaker_vote_count"] == 6
+
+
+def test_market_mainline_keeps_top_level_bookmaker_depth() -> None:
+    mainline = _market_mainline_contract({"line": "1.25", "bookmaker_count": 6})
+
+    assert mainline["bookmaker_count"] == 6
 
 
 def test_away_minus_point_seven_five_keeps_negative_selected_line() -> None:

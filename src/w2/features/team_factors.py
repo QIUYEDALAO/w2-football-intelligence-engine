@@ -10,7 +10,6 @@ from w2.features.framework import (
     FeatureContribution,
     FeatureStatus,
     TeamSide,
-    coverage_or_unavailable,
 )
 
 
@@ -156,15 +155,7 @@ def recent_ah_cover_factor(
     away_history: list[TeamMatchHistory],
     weight: float = 0.05,
 ) -> FeatureContribution:
-    blocked = coverage_or_unavailable(
-        profile=profile,
-        key="settled_ah",
-        feature_id="F5_RECENT_AH_COVER",
-        label="近期赢盘率",
-        weight=weight,
-    )
-    if blocked is not None:
-        return blocked
+    coverage_profile_status = profile.as_dict().get("settled_ah", "UNKNOWN")
     home_rows = _canonical_ah_rows(home_history, context.as_of)
     away_rows = _canonical_ah_rows(away_history, context.as_of)
     home = [row for row in home_rows if row.ah_result in {"COVER", "NO_COVER"}]
@@ -182,6 +173,7 @@ def recent_ah_cover_factor(
             weight=weight,
             reason="MISSING_AH_EVIDENCE",
             coverage_key="settled_ah",
+            coverage_profile_status=coverage_profile_status,
             source="team_fixture_history",
             source_group="team_fixture_history",
             is_independent_signal=False,
@@ -205,6 +197,7 @@ def recent_ah_cover_factor(
         reason="SETTLED_AH_COVER_RATE_DIFF",
         risk="赢盘率是弱信号，低权重，仅作解释因子。",
         coverage_key="settled_ah",
+        coverage_profile_status=coverage_profile_status,
         observed_at=max([row.kickoff_at for row in home + away]),
         inputs={
             "home_decisive_count": len(home),
@@ -305,15 +298,7 @@ def h2h_factor(
     meetings: list[TeamMatchHistory],
     weight: float = 0.05,
 ) -> FeatureContribution:
-    blocked = coverage_or_unavailable(
-        profile=profile,
-        key="h2h",
-        feature_id="F6_H2H",
-        label="历史交锋",
-        weight=weight,
-    )
-    if blocked is not None:
-        return blocked
+    coverage_profile_status = profile.as_dict().get("h2h", "UNKNOWN")
     prior = [row for row in meetings if row.kickoff_at <= context.as_of]
     if not prior:
         return FeatureContribution(
@@ -324,6 +309,7 @@ def h2h_factor(
             weight=weight,
             reason="NO_H2H_HISTORY",
             coverage_key="h2h",
+            coverage_profile_status=coverage_profile_status,
             source="api_football_h2h",
             source_group="h2h",
             is_independent_signal=False,
@@ -340,6 +326,7 @@ def h2h_factor(
         side=TeamSide.HOME if score > 0 else TeamSide.AWAY if score < 0 else TeamSide.NEUTRAL,
         reason="INTERNAL_FIXTURE_H2H_DIFF",
         coverage_key="h2h",
+        coverage_profile_status=coverage_profile_status,
         observed_at=max(row.kickoff_at for row in prior),
         inputs={"meeting_count": len(prior), "avg_goal_diff": diff},
         source=prior[0].source,
@@ -414,15 +401,7 @@ def squad_value_factor(
     away_values: list[TeamValueSnapshot],
     weight: float = 0.06,
 ) -> FeatureContribution:
-    blocked = coverage_or_unavailable(
-        profile=profile,
-        key="squad_value",
-        feature_id="F8_SQUAD_VALUE",
-        label="球队身价",
-        weight=weight,
-    )
-    if blocked is not None:
-        return blocked
+    coverage_profile_status = profile.as_dict().get("squad_value", "UNKNOWN")
     home = latest_as_of(home_values, context.as_of)
     away = latest_as_of(away_values, context.as_of)
     if home is None or away is None:
@@ -434,6 +413,7 @@ def squad_value_factor(
             weight=weight,
             reason="VALUE_DATA_UNAVAILABLE",
             coverage_key="squad_value",
+            coverage_profile_status=coverage_profile_status,
             source="team_value_mapping",
             source_group="squad_value",
             is_independent_signal=False,
@@ -451,6 +431,7 @@ def squad_value_factor(
         reason="AS_OF_SQUAD_VALUE_DIFF",
         risk="身价通常已被赔率消化，低权重。",
         coverage_key="squad_value",
+        coverage_profile_status=coverage_profile_status,
         observed_at=max(home.observed_at, away.observed_at),
         inputs={
             "home_value_eur": home.squad_value_eur,

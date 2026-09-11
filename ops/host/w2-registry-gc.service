@@ -1,0 +1,6 @@
+[Unit]
+Description=W2 registry retention and garbage collection
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/w2-registry-gc

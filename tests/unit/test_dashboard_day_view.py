@@ -188,15 +188,15 @@ def test_day_view_projects_valid_decision_contract_card() -> None:
     assert view["counts"]["total"] == 1
     assert view["counts"]["analysis_pick"] == 0
     assert view["counts"]["recommend"] == 0
-    assert view["counts"]["watch"] == 1
-    assert view["counts"]["not_ready"] == 0
+    assert view["counts"]["watch"] == 0
+    assert view["counts"]["not_ready"] == 1
     assert view["counts"]["skip"] == 0
     assert view["counts"]["ready"] == 0
     assert view["counts"]["partial"] == 0
     assert view["counts"]["stale"] == 0
     assert view["counts"]["blocked"] == 1
     assert view["counts"]["by_decision_tier"]["ANALYSIS_PICK"] == 0
-    assert view["counts"]["by_decision_tier"]["WATCH"] == 1
+    assert view["counts"]["by_decision_tier"]["WATCH"] == 0
     assert view["counts"]["by_data_status"]["READY"] == 0
     assert view["counts"]["by_data_status"]["BLOCKED"] == 1
     assert view["freshness"]["provider_budget_status"] == "OK"
@@ -221,7 +221,7 @@ def test_day_view_projects_valid_decision_contract_card() -> None:
 
     contract_card = view["cards"][0]
     assert contract_card["source"] == "decision_contract"
-    assert contract_card["decision_tier"] == "WATCH"
+    assert contract_card["decision_tier"] == "NOT_READY"
     assert contract_card["data_status"] == "BLOCKED"
     assert contract_card["current_odds"]["ah"]["home_line"] == "-0.25"
     assert contract_card["last_known_odds"]["status"] == "REFERENCE_ONLY"
@@ -237,9 +237,7 @@ def test_day_view_projects_valid_decision_contract_card() -> None:
     assert contract_card["model_market_divergence"]["magnitude"] == 0.12
     assert contract_card["pick"] is None
     assert contract_card["intelligence_state"] == "DATA_INCOMPLETE"
-    assert contract_card["recommendation_decision_v4_role"] == (
-        "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY"
-    )
+    assert contract_card["recommendation_decision_v4_role"] == "PRODUCT_AUTHORITY"
 
 
 def test_day_view_missing_decision_contract_fails_closed() -> None:
@@ -292,19 +290,19 @@ def test_day_view_counts_are_aggregated_from_cards_only() -> None:
     assert view["counts"]["lock_eligible"] == 0
     assert view["counts"]["analysis_pick"] == 0
     assert view["counts"]["recommend"] == 0
-    assert view["counts"]["watch"] == 1
-    assert view["counts"]["not_ready"] == 0
+    assert view["counts"]["watch"] == 0
+    assert view["counts"]["not_ready"] == 1
     assert view["counts"]["skip"] == 0
     assert view["counts"]["ready"] == 0
-    assert view["counts"]["partial"] == 1
+    assert view["counts"]["partial"] == 0
     assert view["counts"]["stale"] == 0
-    assert view["counts"]["blocked"] == 0
+    assert view["counts"]["blocked"] == 1
     assert view["counts"]["by_decision_tier"]["RECOMMEND"] == 0
-    assert view["counts"]["by_decision_tier"]["WATCH"] == 1
-    assert view["counts"]["by_data_status"]["BLOCKED"] == 0
-    assert view["freshness"]["staleness"]["blocked_cards"] == 0
-    assert view["degradation"]["state"] == "NO_LOCK_ELIGIBLE"
-    assert view["degradation"]["severity"] == "info"
+    assert view["counts"]["by_decision_tier"]["WATCH"] == 0
+    assert view["counts"]["by_data_status"]["BLOCKED"] == 1
+    assert view["freshness"]["staleness"]["blocked_cards"] == 1
+    assert view["degradation"]["state"] == "BLOCKED_DAY"
+    assert view["degradation"]["severity"] == "blocked"
 
 
 def test_day_view_retains_started_and_finished_matches_in_football_day() -> None:
@@ -356,7 +354,8 @@ def test_day_view_retains_started_and_finished_matches_in_football_day() -> None
     assert [card["status"] for card in view["cards"]] == ["FT", "FT", "FT", "NS"]
     assert view["counts"]["total"] == 4
     assert view["counts"]["analysis_pick"] == 0
-    assert view["counts"]["watch"] == 4
+    assert view["counts"]["watch"] == 0
+    assert view["counts"]["not_ready"] == 4
 
 
 def test_day_view_production_includes_production_environment_policy() -> None:
@@ -374,7 +373,7 @@ def test_day_view_production_includes_production_environment_policy() -> None:
     assert view["environment_policy"]["lock_policy"]["lock_eligible_policy"] == "recommend_only"
 
 
-def test_day_view_missing_v4_remains_diagnostic_only_while_refreshing() -> None:
+def test_day_view_missing_v4_fails_closed_while_refreshing() -> None:
     contract = _pick_contract()
     view = build_dashboard_day_view(
         {
@@ -394,12 +393,10 @@ def test_day_view_missing_v4_remains_diagnostic_only_while_refreshing() -> None:
     )
 
     assert view["freshness"]["refreshing"] is True
-    assert view["degradation"]["state"] == "REFRESHING"
-    assert view["cards"][0]["decision_tier"] == "ANALYSIS_PICK"
+    assert view["degradation"]["state"] == "BLOCKED_DAY"
+    assert view["cards"][0]["decision_tier"] == "NOT_READY"
     assert view["cards"][0]["intelligence_state"] == "DATA_INCOMPLETE"
-    assert view["cards"][0]["recommendation_decision_v4_role"] == (
-        "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY"
-    )
+    assert view["cards"][0]["recommendation_decision_v4_role"] == "PRODUCT_AUTHORITY"
 
 
 def test_day_view_module_does_not_call_strategy_decider() -> None:
@@ -531,8 +528,8 @@ def test_day_view_model_readiness_counts_match_projected_cards() -> None:
     assert counts["waiting_fresh_quote"] == 0
     assert counts["executable_quote"] == 1
     assert counts["lineup_pending"] == 1
-    assert counts["ratings_enhancement_missing"] == 1
-    assert counts["team_value_enhancement_missing"] == 1
+    assert counts["ratings_enhancement_missing"] == 0
+    assert counts["team_value_enhancement_missing"] == 0
     card = build_dashboard_day_view(payload, environment="staging")["cards"][0]
     assert card["analysis_state"] == "DATA_INCOMPLETE"
 
@@ -557,7 +554,7 @@ def test_day_view_distinguishes_model_ready_reference_quote() -> None:
 
     assert view["counts"]["waiting_fresh_quote"] == 1
     assert view["cards"][0]["analysis_state"] == "DATA_INCOMPLETE"
-    assert view["cards"][0]["analysis_blocker"] == "DATA_STATUS_PARTIAL"
+    assert view["cards"][0]["analysis_blocker"] == "DATA_STATUS_BLOCKED"
 
 
 def test_day_view_ignores_removed_shadow_simulation_source() -> None:

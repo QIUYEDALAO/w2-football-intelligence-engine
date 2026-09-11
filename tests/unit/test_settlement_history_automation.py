@@ -51,7 +51,7 @@ def test_settlement_history_dry_run_produces_candidate_without_writing(session: 
             "outcome": "WIN",
             "selection": "HOME",
             "line": "-0.5000",
-            "tier": "FORMAL",
+            "decision_tier": "RECOMMEND",
             "movement_pattern": "STABLE",
         }
     ]
@@ -116,7 +116,7 @@ def test_settlement_history_write_path_binds_lock_id_when_explicitly_confirmed(
     assert settlement.result_id == result.id
     assert settlement.outcome == "LOSS"
     assert settlement.matched_recommendation is True
-    assert settlement.tier == "FORMAL"
+    assert settlement.tier == "RECOMMEND"
     assert settlement.movement_pattern == "STABLE"
 
 
@@ -174,7 +174,7 @@ def _reproducible_lock_with_result(
         reason="formal pre-match lock",
         fixture_id="fixture-1",
         as_of=NOW,
-        tier="FORMAL",
+        tier="RECOMMEND",
         pick_side="HOME_AH",
         pick_line=Decimal("-0.5000"),
         market_timeline_json={"pattern": "STABLE"},

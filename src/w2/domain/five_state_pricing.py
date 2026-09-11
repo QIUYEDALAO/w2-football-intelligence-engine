@@ -42,6 +42,20 @@ class SettlementDistribution:
         }
 
 
+PROBABILITY_TOLERANCE = Decimal("1e-9")
+
+
+def validate_ev_inputs(decimal_odds: Decimal, distribution: SettlementDistribution) -> None:
+    """Strict EV boundary; legacy callers opt in without changing other pricing paths."""
+    if type(decimal_odds) is not Decimal or not decimal_odds.is_finite() or decimal_odds <= 1:
+        raise ValueError("INVALID_DECIMAL_ODDS")
+    values = tuple(getattr(distribution, field) for field in distribution.__dataclass_fields__)
+    if any(type(p) is not Decimal or not p.is_finite() or not 0 <= p <= 1 for p in values):
+        raise ValueError("INVALID_PROBABILITY")
+    if abs(sum(values, Decimal(0)) - 1) > PROBABILITY_TOLERANCE:
+        raise ValueError("INVALID_PROBABILITY_SUM")
+
+
 def expected_value(decimal_odds: Decimal, distribution: SettlementDistribution) -> Decimal:
     hk_profit = decimal_odds - Decimal("1")
     return (

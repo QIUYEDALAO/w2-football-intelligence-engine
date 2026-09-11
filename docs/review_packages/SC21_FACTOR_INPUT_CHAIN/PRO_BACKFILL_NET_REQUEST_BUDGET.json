@@ -1,0 +1,255 @@
+{
+  "schema_version": "w2.pro-backfill-net-request-budget.v1",
+  "status": "DRY_RUN_AWAITING_OWNER_CONFIRMATION",
+  "measured_at_utc": "2026-08-16T17:23:27.909181Z",
+  "provider_plan_authority": {
+    "plan": "Pro",
+    "daily_limit": 7500,
+    "minute_limit": 300,
+    "observed_at_utc": "2026-08-16T16:47:41.418098Z"
+  },
+  "statistics_execution_authorized": false,
+  "current_raw_statistics_rows": 141,
+  "totals": {
+    "latest_completed_season_2025": {
+      "settled_fixture_count": 4525,
+      "cached_statistics_fixture_count": 0,
+      "net_statistics_requests": 4525
+    },
+    "two_completed_seasons_2024_2025": {
+      "settled_fixture_count": 8914,
+      "cached_statistics_fixture_count": 0,
+      "net_statistics_requests": 8914
+    },
+    "two_completed_plus_current_2024_2026": {
+      "settled_fixture_count": 10218,
+      "cached_statistics_fixture_count": 134,
+      "cached_statistics_with_nonempty_xg_count": 70,
+      "net_statistics_requests": 10084
+    }
+  },
+  "execution_batches": [
+    {
+      "batch": 1,
+      "scope": [
+        "brasileirao_serie_a",
+        "argentina_primera",
+        "mls",
+        "chinese_super_league",
+        "allsvenskan",
+        "eliteserien"
+      ],
+      "basis": "HISTORICALLY_PRO_STATISTICS_XG_VERIFIED",
+      "gross_settled_fixture_count": 5426,
+      "cached_statistics_fixture_count": 134,
+      "net_statistics_requests": 5292,
+      "fast_lane_net_statistics_requests": 165,
+      "t_plus_7_fixture_count": 73,
+      "history_eligible_xg_ready_potential": 73
+    },
+    {
+      "batch": 2,
+      "scope": [
+        "premier_league",
+        "la_liga",
+        "bundesliga",
+        "serie_a",
+        "ligue_1"
+      ],
+      "basis": "PRO_FIXTURES_VERIFIED_STATISTICS_XG_PILOT_REQUIRED",
+      "gross_settled_fixture_count": 3514,
+      "cached_statistics_fixture_count": 0,
+      "conditional_net_statistics_requests": 3514,
+      "pilot_statistics_requests": 15,
+      "fast_lane_net_statistics_requests_after_pilot": 117,
+      "t_plus_7_fixture_count": 31,
+      "conditional_history_eligible_xg_ready_potential": 24
+    },
+    {
+      "batch": 3,
+      "scope": [
+        "eredivisie",
+        "primeira_liga"
+      ],
+      "basis": "PRO_FIXTURES_VERIFIED_STATISTICS_XG_PILOT_REQUIRED",
+      "gross_settled_fixture_count": 1278,
+      "cached_statistics_fixture_count": 0,
+      "conditional_net_statistics_requests": 1278,
+      "pilot_statistics_requests": 6,
+      "fast_lane_net_statistics_requests_after_pilot": 52,
+      "t_plus_7_fixture_count": 14,
+      "conditional_history_eligible_xg_ready_potential": 12
+    }
+  ],
+  "league_budgets": [
+    {
+      "competition_id": "premier_league",
+      "provider_league_id": "39",
+      "batch": 2,
+      "seasons": {
+        "2024": {"settled": 380, "cached": 0, "net": 380, "fixture_payload_sha256": "be24bb666bdda4f87708fe04fa04be07fecac932f3c5a7b8f1dc0dfcc1d60326"},
+        "2025": {"settled": 380, "cached": 0, "net": 380, "fixture_payload_sha256": "98df652e892d33e204c96f07eb3795a785bc769805cdd42988910970b4cb87f8"},
+        "2026": {"settled": 0, "cached": 0, "net": 0, "fixture_payload_sha256": "2a47fdccad510b6f73f819d4becd6e126f8276ede9cc2a00830b16a224f14ef2"}
+      },
+      "fast_lane_net": 32,
+      "t_plus_7": 9,
+      "history_eligible_potential": 7
+    },
+    {
+      "competition_id": "la_liga",
+      "provider_league_id": "140",
+      "batch": 2,
+      "seasons": {
+        "2024": {"settled": 380, "cached": 0, "net": 380, "fixture_payload_sha256": "5ef7acc4aa517e54028c7ecd596c5c081385fa214e27b8419431fbfc6ab3ca11"},
+        "2025": {"settled": 380, "cached": 0, "net": 380, "fixture_payload_sha256": "19e1c1348d3877296b71d08f3763cd94df73f9605c8e99280c8df769bae59032"},
+        "2026": {"settled": 3, "cached": 0, "net": 3, "fixture_payload_sha256": "da39ae9c3fb6cd611f229082e383d132ad07e0b68d5ebb3f37e846b379921e2e"}
+      },
+      "fast_lane_net": 27,
+      "t_plus_7": 8,
+      "history_eligible_potential": 6
+    },
+    {
+      "competition_id": "bundesliga",
+      "provider_league_id": "78",
+      "batch": 2,
+      "seasons": {
+        "2024": {"settled": 308, "cached": 0, "net": 308, "fixture_payload_sha256": "a8b5016dc16992f3810b124a9d7fc8a2a02e84bee8f5a274d401abea2d5ad640"},
+        "2025": {"settled": 308, "cached": 0, "net": 308, "fixture_payload_sha256": "ae4261fc282bca856fb8e120011c513195b4d225eedce42aebb1f8f6fe7e9b24"},
+        "2026": {"settled": 0, "cached": 0, "net": 0, "fixture_payload_sha256": "5b000c1b1b7989117b3b84d25b89220cd5227692d76ca7d26b2273b36c2ac252"}
+      },
+      "fast_lane_net": 0,
+      "t_plus_7": 0,
+      "history_eligible_potential": 0
+    },
+    {
+      "competition_id": "serie_a",
+      "provider_league_id": "135",
+      "batch": 2,
+      "seasons": {
+        "2024": {"settled": 380, "cached": 0, "net": 380, "fixture_payload_sha256": "c25153bc1c04ed87bd0da5a87ee41e417e109f992ea9cfe27072201d215f97d3"},
+        "2025": {"settled": 380, "cached": 0, "net": 380, "fixture_payload_sha256": "df952ff1b8bf73f84ceb2ba5ef28add5b1a516e20869a6423355422b233f4962"},
+        "2026": {"settled": 0, "cached": 0, "net": 0, "fixture_payload_sha256": "db18f71653936e929cd2cfda2cf1c4804dc4661b2a563a501399fcf5fae93f56"}
+      },
+      "fast_lane_net": 28,
+      "t_plus_7": 6,
+      "history_eligible_potential": 5
+    },
+    {
+      "competition_id": "ligue_1",
+      "provider_league_id": "61",
+      "batch": 2,
+      "seasons": {
+        "2024": {"settled": 308, "cached": 0, "net": 308, "fixture_payload_sha256": "1e876f9dd7fb2ca307c040ea1fc789786b2ec5e2225c120c4c3c2f8770555629"},
+        "2025": {"settled": 307, "cached": 0, "net": 307, "fixture_payload_sha256": "14e93ea2ad4ccc1fa03923f2a5c9876cded9bd4f28add0fa9d9fd7a0d812d13b"},
+        "2026": {"settled": 0, "cached": 0, "net": 0, "fixture_payload_sha256": "3a4f8d5785806afddc4d07e135b27149b48c9a2f51b75deed46f5c581274ad52"}
+      },
+      "fast_lane_net": 30,
+      "t_plus_7": 8,
+      "history_eligible_potential": 6
+    },
+    {
+      "competition_id": "brasileirao_serie_a",
+      "provider_league_id": "71",
+      "batch": 1,
+      "seasons": {
+        "2024": {"settled": 380, "cached": 0, "net": 380, "fixture_payload_sha256": "6e6174fb9ebca0f0e2c6e999e9d432075870795c12f0e8ed62ab0c5a96d68082"},
+        "2025": {"settled": 380, "cached": 0, "net": 380, "fixture_payload_sha256": "b37eb35cfae3cc65f6169497c77a75553603c65f269f24db2a175b29eadfbb61"},
+        "2026": {"settled": 219, "cached": 0, "net": 219, "fixture_payload_sha256": "490ae1b0f4d3e77c4631b8fb6afa671c9ee1f4da5154ab5120094bd9819f6ef5"}
+      },
+      "fast_lane_net": 30,
+      "t_plus_7": 9,
+      "history_eligible_potential": 9
+    },
+    {
+      "competition_id": "argentina_primera",
+      "provider_league_id": "128",
+      "batch": 1,
+      "seasons": {
+        "2024": {"settled": 378, "cached": 0, "net": 378, "fixture_payload_sha256": "149151e06275710ae274ad0414dddaa2495ada669ee12ce5ce90eae3c1aaa4e6"},
+        "2025": {"settled": 510, "cached": 0, "net": 510, "fixture_payload_sha256": "bed3fe324d86939e9b06bf137099f2d842b9421c6189d55920b7f0961140de4f"},
+        "2026": {"settled": 322, "cached": 0, "net": 322, "fixture_payload_sha256": "dd4b2f25744ae01412aceb26ca8a2444a63b78e597f0c15bedfeec317d69b805"}
+      },
+      "fast_lane_net": 48,
+      "t_plus_7": 15,
+      "history_eligible_potential": 15
+    },
+    {
+      "competition_id": "mls",
+      "provider_league_id": "253",
+      "batch": 1,
+      "seasons": {
+        "2024": {"settled": 522, "cached": 0, "net": 522, "fixture_payload_sha256": "d71b58ee48b241e26d545602371279e970a5d4df3612ec6856ee95f68739d6b9"},
+        "2025": {"settled": 540, "cached": 0, "net": 540, "fixture_payload_sha256": "ca5aefd1e34e1942e15bff590516a48e41df1a06f4d80ca62a19cd07eb84c4e2"},
+        "2026": {"settled": 280, "cached": 0, "net": 280, "fixture_payload_sha256": "8a67edc95304985bd42a1a97e6ee1fbd51c02e6e721d8cb75e1d138aa0508733"}
+      },
+      "fast_lane_net": 48,
+      "t_plus_7": 32,
+      "history_eligible_potential": 32
+    },
+    {
+      "competition_id": "chinese_super_league",
+      "provider_league_id": "169",
+      "batch": 1,
+      "seasons": {
+        "2024": {"settled": 240, "cached": 0, "net": 240, "fixture_payload_sha256": "516688b095a7222675fa822119d6cb4aa99f9ba9935b2b33fb9459e20f497580"},
+        "2025": {"settled": 240, "cached": 0, "net": 240, "fixture_payload_sha256": "ccb9a67a2646605c2e85df7fd0536bea67203a7bd3146d95b7b2b212dd3dd6f0"},
+        "2026": {"settled": 179, "cached": 31, "cached_xg_nonempty": 18, "net": 148, "fixture_payload_sha256": "a78b2759b3ae35452489685223c08df8a8c39e09e96ba519a05bd7956cc468f9"}
+      },
+      "fast_lane_net": 15,
+      "t_plus_7": 10,
+      "history_eligible_potential": 10
+    },
+    {
+      "competition_id": "allsvenskan",
+      "provider_league_id": "113",
+      "batch": 1,
+      "seasons": {
+        "2024": {"settled": 242, "cached": 0, "net": 242, "fixture_payload_sha256": "cc44c6b6ec4a44e96e003d68b0b8cd73947f68456bb8772451e905f5ca728701"},
+        "2025": {"settled": 242, "cached": 0, "net": 242, "fixture_payload_sha256": "fd48ff6703b3a1f828c4a53cd2220476ca2b789ee196c94ab05a963b3593ae30"},
+        "2026": {"settled": 134, "cached": 103, "cached_xg_nonempty": 52, "net": 31, "fixture_payload_sha256": "4fd91ed0d81934fd7a1154c167e0f213e053deb664d68a6d63cef9bf359e17c3"}
+      },
+      "fast_lane_net": 24,
+      "t_plus_7": 7,
+      "history_eligible_potential": 7
+    },
+    {
+      "competition_id": "eliteserien",
+      "provider_league_id": "103",
+      "batch": 1,
+      "seasons": {
+        "2024": {"settled": 242, "cached": 0, "net": 242, "fixture_payload_sha256": "31336fbc43503cbb0d4c274aefcab2ce8a69edf17539e173f1a974683a7a9b54"},
+        "2025": {"settled": 241, "cached": 0, "net": 241, "fixture_payload_sha256": "5e5fe7c9a7b564ca1c253dd036a3412e617dadb555fcb84ec4a9cda547f9cf96"},
+        "2026": {"settled": 135, "cached": 0, "net": 135, "fixture_payload_sha256": "112b9ae80ee71fe356533638dd9c3a4af67554d6094bed8614177dec4ffde97f"}
+      },
+      "fast_lane_net": 0,
+      "t_plus_7": 0,
+      "history_eligible_potential": 0
+    },
+    {
+      "competition_id": "eredivisie",
+      "provider_league_id": "88",
+      "batch": 3,
+      "seasons": {
+        "2024": {"settled": 321, "cached": 0, "net": 321, "fixture_payload_sha256": "0461febb9f74042c9dfb1d710b61b8417c108a40288a9be2457f310ddd25f893"},
+        "2025": {"settled": 309, "cached": 0, "net": 309, "fixture_payload_sha256": "ef39b3ac52914b0ba9fa137119e9e0d0738bb0bc7664d1b3950580c6d46c1811"},
+        "2026": {"settled": 18, "cached": 0, "net": 18, "fixture_payload_sha256": "5e754fc59bfb737f3c2041c587f41a531b16116a3c3bd240b39dca4a73a8b46c"}
+      },
+      "fast_lane_net": 29,
+      "t_plus_7": 7,
+      "history_eligible_potential": 7
+    },
+    {
+      "competition_id": "primeira_liga",
+      "provider_league_id": "94",
+      "batch": 3,
+      "seasons": {
+        "2024": {"settled": 308, "cached": 0, "net": 308, "fixture_payload_sha256": "02bf1724445ee0dd47b7fe333f8b20270554e38f8b78b9d3c1d005612cfaa52e"},
+        "2025": {"settled": 308, "cached": 0, "net": 308, "fixture_payload_sha256": "3d168337820593fd8279bee1b18e99dde80f11a5f9df924f61f1a7ee68a667a1"},
+        "2026": {"settled": 14, "cached": 0, "net": 14, "fixture_payload_sha256": "c1ef12080c98887357943f48b46bfa928a2635d8c9bd944474efa2b8e613fb4f"}
+      },
+      "fast_lane_net": 23,
+      "t_plus_7": 7,
+      "history_eligible_potential": 5
+    }
+  ]
+}

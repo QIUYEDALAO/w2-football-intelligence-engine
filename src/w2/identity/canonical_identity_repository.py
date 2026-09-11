@@ -1,11 +1,9 @@
 """Single canonical identity authority repository (ARCH-P1-03 M2A, team side).
 
 Team identity is resolved from ``provider_team_identity_crosswalks`` +
-``canonical_teams``; player identity from ``player_identity_mappings``. This
-repository never constructs a canonical ID from a provider ID and never reads
-the retired legacy crosswalk tables. Unknown
-provider identity resolves to ``None`` (callers fail closed); nothing is
-auto-created.
+``canonical_teams``; player identity from ``player_identity_mappings``. The
+controlled provider-primary mint helpers below are the sole construction
+authority. Resolvers never construct IDs, and never read retired crosswalks.
 """
 
 from __future__ import annotations
@@ -17,14 +15,100 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from w2.config import Settings
-from w2.infrastructure.database import create_engine
-from w2.infrastructure.persistence.factor_model_models import (
-    ProviderTeamIdentityCrosswalkModel,
+from w2.domain.canonical_serialization import (
+    HashDomain,
+    SerializerVersion,
+    canonical_sha256,
 )
+from w2.infrastructure.database import create_engine
+from w2.infrastructure.persistence.factor_model_models import ProviderTeamIdentityCrosswalkModel
 from w2.infrastructure.persistence.models import PlayerIdentityMappingModel
 
 _TEAM_READY_STATUS = "PROVIDER_PRIMARY_READY"
 _REVIEWED_STATUSES = ("REVIEWED", "APPROVED")
+PROVIDER_PRIMARY_READY = _TEAM_READY_STATUS
+
+
+def stable_w2_team_id(provider_team_id: str) -> str:
+    return f"w2:team:api_football:{provider_team_id}"
+
+
+def canonical_team_payload(
+    *, provider_team_id: str, display_name: str, country: str | None, created_at: datetime
+) -> dict[str, object]:
+    w2_team_id = stable_w2_team_id(provider_team_id)
+    payload = {
+        "schema_version": "CanonicalTeamV1",
+        "w2_team_id": w2_team_id,
+        "display_name": display_name,
+        "country": country,
+        "active_status": "ACTIVE",
+        "provider_primary_identity": {
+            "provider": "api_football",
+            "provider_team_id": provider_team_id,
+        },
+    }
+    return {
+        "w2_team_id": w2_team_id,
+        "display_name": display_name,
+        "country": country,
+        "active_status": "ACTIVE",
+        "created_at": _as_utc(created_at),
+        "identity_hash": canonical_sha256(
+            payload,
+            domain=HashDomain.FUTURE_REFRESH_FIXTURE_IDENTITY,
+            version=SerializerVersion.LEGACY_V1,
+        ),
+        "payload": payload,
+    }
+
+
+def provider_crosswalk_payload(
+    *,
+    provider_team_id: str,
+    w2_team_id: str,
+    competition_id: str,
+    season: str,
+    evidence_hashes: list[str],
+    valid_from: datetime,
+) -> dict[str, object]:
+    payload = {
+        "schema_version": "ProviderTeamIdentityCrosswalkV1",
+        "provider": "api_football",
+        "provider_team_id": provider_team_id,
+        "w2_team_id": w2_team_id,
+        "competition_id": competition_id,
+        "season": season,
+        "valid_from": _iso_z(valid_from),
+        "identity_status": PROVIDER_PRIMARY_READY,
+        "evidence_hashes": evidence_hashes,
+        "scope_note": (
+            "Provider-primary W2 identity; not a Football-Data or Transfermarkt match."
+        ),
+    }
+    return {
+        "id": f"api_football:{provider_team_id}:{competition_id}:{season}",
+        "provider": "api_football",
+        "provider_team_id": provider_team_id,
+        "w2_team_id": w2_team_id,
+        "competition_id": competition_id,
+        "season": season,
+        "valid_from": _as_utc(valid_from),
+        "valid_to": None,
+        "identity_status": PROVIDER_PRIMARY_READY,
+        "evidence_hashes": evidence_hashes,
+        "identity_hash": canonical_sha256(
+            payload,
+            domain=HashDomain.FUTURE_REFRESH_FIXTURE_IDENTITY,
+            version=SerializerVersion.LEGACY_V1,
+        ),
+    }
+
+
+def _iso_z(value: datetime) -> str:
+    normalized = _as_utc(value)
+    assert normalized is not None
+    return normalized.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _as_utc(value: datetime | None) -> datetime | None:

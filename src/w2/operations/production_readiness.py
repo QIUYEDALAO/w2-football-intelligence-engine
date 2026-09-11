@@ -214,7 +214,10 @@ def _valid_formal_recommendation_payload(
 ) -> bool:
     if not recommendation:
         return False
-    if recommendation.get("tier") != "FORMAL" and match.get("formal_recommendation") is not True:
+    if (
+        recommendation.get("decision_tier") != "RECOMMEND"
+        and match.get("formal_recommendation") is not True
+    ):
         return False
     if recommendation.get("market") != "ASIAN_HANDICAP":
         return False

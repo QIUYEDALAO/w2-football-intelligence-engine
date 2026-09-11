@@ -6,15 +6,17 @@ import random
 from bisect import bisect_left
 from collections import Counter
 from dataclasses import asdict, dataclass, field
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from math import exp
 from typing import Any
 
+from w2.domain.calibration_validation_registry import calibration_identity
 from w2.domain.enums import SettlementOutcome
+from w2.domain.five_state_pricing import SettlementDistribution, expected_value, validate_ev_inputs
 from w2.domain.odds import settle_asian_handicap
 from w2.markets.poisson import round_to_quarter
 from w2.models.dixon_coles import tau_correction
-from w2.strategy.calibration import calibrate_lambdas
+from w2.strategy.calibration import LambdaCalibrationParams, calibrate_lambdas
 
 SIMULATION_MODEL_VERSION = "w2.formal.exact_dc_poisson.v1"
 READY = "READY"
@@ -71,6 +73,7 @@ class SimulationOutput:
     status: str
     simulations: int
     seed: int
+    calibration_identity: str | None = None
     calibration: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
@@ -95,6 +98,7 @@ def run_simulation(
             model_version=SIMULATION_MODEL_VERSION,
             calibration_version=None,
             calibration_status=None,
+            calibration_identity=None,
             lambda_home=None,
             lambda_away=None,
             lambda_sigma_home=None,
@@ -115,30 +119,22 @@ def run_simulation(
             simulations=simulations,
             seed=seed,
         )
-    eligible_home_elo = _eligible_elo(
-        inputs.home_elo,
-        source=inputs.home_elo_source,
-        collection_status=inputs.home_elo_collection_status,
-    )
-    eligible_away_elo = _eligible_elo(
-        inputs.away_elo,
-        source=inputs.away_elo_source,
-        collection_status=inputs.away_elo_collection_status,
-    )
     calibration = calibrate_lambdas(
         home_xg_for=_required_float(inputs.home_xg_for),
         home_xg_against=_required_float(inputs.home_xg_against),
         away_xg_for=_required_float(inputs.away_xg_for),
         away_xg_against=_required_float(inputs.away_xg_against),
-        home_elo=eligible_home_elo,
-        away_elo=eligible_away_elo,
-        home_squad_value_eur=inputs.home_squad_value_eur,
-        away_squad_value_eur=inputs.away_squad_value_eur,
-        lineup_strength_adjustment=inputs.lineup_strength_adjustment,
-        lineup_ah_adjustment=inputs.lineup_ah_adjustment,
-        lineup_totals_adjustment=inputs.lineup_totals_adjustment,
-        lineup_ah_evidence_enabled=inputs.lineup_ah_evidence_enabled,
-        lineup_totals_evidence_enabled=inputs.lineup_totals_evidence_enabled,
+        home_elo=None,
+        away_elo=None,
+        # F8/lineup inputs are retained for historical compatibility but are not
+        # materialized production inputs; keep them out of the lambda path.
+        home_squad_value_eur=None,
+        away_squad_value_eur=None,
+        lineup_strength_adjustment=0.0,
+        lineup_ah_adjustment=0.0,
+        lineup_totals_adjustment=0.0,
+        lineup_ah_evidence_enabled=False,
+        lineup_totals_evidence_enabled=False,
         apply_home_advantage=not inputs.neutral_site,
     )
     sigma_home = max(float(inputs.lambda_sigma_home), 0.0)
@@ -210,6 +206,10 @@ def run_simulation(
         model_version=SIMULATION_MODEL_VERSION,
         calibration_version=calibration.calibration_version,
         calibration_status=calibration.calibration_status,
+        calibration_identity=calibration_identity(
+            calibration_version=calibration.calibration_version,
+            params=LambdaCalibrationParams(),
+        ),
         lambda_home=calibration.lambda_home,
         lambda_away=calibration.lambda_away,
         lambda_sigma_home=round(sigma_home, 6),
@@ -232,6 +232,12 @@ def run_simulation(
         simulations=simulations,
         seed=seed,
         calibration={
+            "replay_inputs": asdict(inputs),
+            "replay_schema": "w2.simulation_replay.v1",
+            "unrounded_score_matrix": [
+                {"home_goals": home, "away_goals": away, "probability": probability}
+                for (home, away), probability in sorted(score_counts.items())
+            ],
             "params": calibration.params,
             "input_weights": calibration.input_weights,
             "seed_policy": "deterministic_score_matrix_sampling.v1",
@@ -246,6 +252,36 @@ def run_simulation(
             "lambda_uncertainty_audit": inputs.lambda_uncertainty_audit,
         },
     )
+
+
+def replay_simulation(snapshot: dict[str, Any]) -> SimulationOutput:
+    """Verify a saved execution with this model version; never fill missing inputs."""
+    calibration = snapshot.get("calibration", {})
+    inputs = calibration.get("replay_inputs", {})
+    if (
+        snapshot.get("model_version") != SIMULATION_MODEL_VERSION
+        or calibration.get("replay_schema") != "w2.simulation_replay.v1"
+        or set(inputs) != set(SimulationInputs.__dataclass_fields__)
+    ):
+        raise ValueError("SIMULATION_REPLAY_EVIDENCE_MISSING_OR_VERSION_MISMATCH")
+    replay = run_simulation(
+        SimulationInputs(**inputs),
+        simulations=snapshot["simulations"],
+        max_goals=calibration["max_goals"],
+    )
+    saved = dict(snapshot)
+    saved["calibration"] = dict(calibration)
+    audit = dict(calibration.get("lambda_uncertainty_audit", {}))
+    # Added by the card builder after simulation; retain it in the capture,
+    # but do not pretend simulation alone can regenerate this provenance.
+    if "point_estimate_component_fixture_ids" not in inputs["lambda_uncertainty_audit"]:
+        audit.pop("point_estimate_component_fixture_ids", None)
+    saved["calibration"]["lambda_uncertainty_audit"] = audit
+    if replay.as_dict() != saved:
+        fields = sorted(key for key in set(replay.as_dict()) | set(saved)
+                        if replay.as_dict().get(key) != saved.get(key))
+        raise ValueError(f"SIMULATION_REPLAY_MISMATCH:{','.join(fields)}")
+    return replay
 
 
 def sample_score_matrix(
@@ -342,34 +378,30 @@ def ah_settlement_distribution(
     for (home_goals, away_goals), count in score_counts.items():
         outcome = settle_asian_handicap(home_goals, away_goals, selection, decimal_line)
         counts[outcome] += count
-    return {outcome.value: round(value / denominator, 6) for outcome, value in counts.items()}
+    return {outcome.value: value / denominator for outcome, value in counts.items()}
 
 
-def ah_expected_value(distribution: dict[str, Any], *, decimal_price: float) -> float | None:
-    if decimal_price <= 1:
+def ah_expected_value(
+    distribution: dict[str, Any], *, decimal_price: float | Decimal
+) -> Decimal | None:
+    """Explicit legacy numeric adapter; pricing and validation remain domain-owned."""
+    keys = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
+    if set(distribution) != set(keys):
         return None
-    win = _distribution_value(distribution, SettlementOutcome.WIN)
-    half_win = _distribution_value(distribution, SettlementOutcome.HALF_WIN)
-    push = _distribution_value(distribution, SettlementOutcome.PUSH)
-    half_loss = _distribution_value(distribution, SettlementOutcome.HALF_LOSS)
-    loss = _distribution_value(distribution, SettlementOutcome.LOSS)
-    if (
-        win is None
-        or half_win is None
-        or push is None
-        or half_loss is None
-        or loss is None
-    ):
+    if type(decimal_price) not in (float, int, Decimal):
         return None
-    profit = decimal_price - 1
-    ev = (
-        win * profit
-        + half_win * (profit / 2)
-        + push * 0
-        - half_loss * 0.5
-        - loss
-    )
-    return round(ev, 6)
+    if any(type(distribution[k]) not in (float, int, Decimal) for k in keys):
+        return None
+    try:
+        odds = Decimal(str(decimal_price))
+        settlement = SettlementDistribution(**dict(zip(
+            SettlementDistribution.__dataclass_fields__,
+            (Decimal(str(distribution[k])) for k in keys), strict=True,
+        )))
+        validate_ev_inputs(odds, settlement)
+    except (ValueError, InvalidOperation):
+        return None
+    return expected_value(odds, settlement)
 
 
 def ah_settlement_distribution_from_lambdas(
@@ -402,7 +434,7 @@ def ah_expected_value_uncertainty_from_lambdas(
     lambda_sigma_away: float = 0.0,
     rho: float = 0.0,
     max_goals: int = 12,
-) -> tuple[dict[str, float] | None, float | None, float | None]:
+) -> tuple[dict[str, float] | None, Decimal | None, Decimal | None]:
     if (
         lambda_home is None
         or lambda_away is None
@@ -411,7 +443,7 @@ def ah_expected_value_uncertainty_from_lambdas(
         or decimal_price <= 1
     ):
         return None, None, None
-    scenario_rows: list[tuple[float, dict[str, float], float]] = []
+    scenario_rows: list[tuple[float, dict[str, float], Decimal]] = []
     for scenario_home_lambda, home_weight in _lambda_quadrature(
         lambda_home,
         max(float(lambda_sigma_home), 0.0),
@@ -448,24 +480,33 @@ def ah_expected_value_uncertainty_from_lambdas(
             SettlementOutcome.LOSS,
         )
     }
-    normalized_rows: list[tuple[float, dict[str, float], float]] = []
+    normalized_rows: list[tuple[float, dict[str, float], Decimal]] = []
     for weight, distribution, scenario_ev in scenario_rows:
         normalized_weight = weight / total_weight
         normalized_rows.append((normalized_weight, distribution, scenario_ev))
         for outcome in mixed_distribution:
             mixed_distribution[outcome] += normalized_weight * distribution.get(outcome, 0.0)
     rounded_distribution = {
-        outcome: round(probability, 6)
+        outcome: probability
         for outcome, probability in mixed_distribution.items()
     }
     mixed_ev = ah_expected_value(rounded_distribution, decimal_price=decimal_price)
     if mixed_ev is None:
         return rounded_distribution, None, None
+    if not normalized_rows:
+        # Unreachable today: an empty scenario set gives total_weight == 0 and
+        # returns above. Asserted rather than absorbed, so that if the upstream
+        # guard is ever relaxed this surfaces instead of yielding a zero
+        # uncertainty that would read as "certain".
+        raise RuntimeError("EMPTY_NORMALIZED_SCENARIO_ROWS")
     variance = sum(
-        weight * ((scenario_ev - mixed_ev) ** 2)
-        for weight, _, scenario_ev in normalized_rows
+        (
+            Decimal(str(weight)) * ((scenario_ev - mixed_ev) ** 2)
+            for weight, _, scenario_ev in normalized_rows
+        ),
+        Decimal(0),
     )
-    return rounded_distribution, mixed_ev, float(round(max(variance, 0.0) ** 0.5, 6))
+    return rounded_distribution, mixed_ev, max(variance, Decimal(0)).sqrt()
 
 
 def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:
@@ -505,8 +546,7 @@ def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:
         {
             "xg_ready": xg_ready,
             "elo_ready": eligible_home_elo is not None and eligible_away_elo is not None,
-            "ratings_used_in_lambda": eligible_home_elo is not None
-            and eligible_away_elo is not None,
+            "ratings_used_in_lambda": False,
             "proxy_elo_excluded": proxy_elo_excluded,
             "home_elo_source": inputs.home_elo_source,
             "away_elo_source": inputs.away_elo_source,
@@ -518,8 +558,7 @@ def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:
             "lambda_sigma_away": inputs.lambda_sigma_away,
             "squad_value_ready": inputs.home_squad_value_eur is not None
             and inputs.away_squad_value_eur is not None,
-            "squad_value_used_in_lambda": inputs.home_squad_value_eur is not None
-            and inputs.away_squad_value_eur is not None,
+            "squad_value_used_in_lambda": False,
         }
     )
     return readiness

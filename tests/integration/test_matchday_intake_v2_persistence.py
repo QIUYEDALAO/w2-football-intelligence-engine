@@ -2,19 +2,28 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import create_engine
+import pytest
+from sqlalchemy import create_engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.dynamic_prematch_models import (
+    DynamicPrematchEvaluationModel,
+    DynamicPrematchOpportunityModel,
+)
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
+    MatchdayCheckpointPlanRescheduleModel,
     MatchdayEndpointCaptureModel,
     MatchdayEndpointCapturePlanModel,
     MatchdayEvidenceManifestModel,
     MatchdayFixtureIdentityModel,
 )
+from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
+from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.matchday.intake_v2 import (
+    CheckpointPlan,
     build_checkpoint_plans,
     competition_policies,
     endpoint_capture_contract,
@@ -268,6 +277,213 @@ def test_checkpoint_state_machine_due_claim_capture_and_single_winner() -> None:
         assert row.claim_token is None
 
 
+def test_prematch_collection_is_claimed_before_ordinary_postmatch_result() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    shared = {
+        "competition_id": "allsvenskan",
+        "season": "2026",
+        "kickoff_utc": NOW,
+        "window_start": NOW - timedelta(hours=1),
+        "window_end": NOW + timedelta(hours=1),
+        "status": "DUE",
+        "blockers": (),
+    }
+    repository.upsert_checkpoint_plan(
+        CheckpointPlan(
+            **shared,
+            fixture_id="api_football:prematch",
+            checkpoint="T60_ODDS_LINEUPS",
+            scheduled_at=NOW - timedelta(minutes=30),
+            endpoints=("odds", "lineups"),
+        )
+    )
+    repository.upsert_checkpoint_plan(
+        CheckpointPlan(
+            **shared,
+            fixture_id="api_football:result",
+            checkpoint="POSTMATCH_RESULT",
+            scheduled_at=NOW,
+            endpoints=("status", "fixtures"),
+        )
+    )
+
+    claimed = repository.claim_due_checkpoint_plans(now=NOW, worker_id="priority-test")
+
+    assert [row["checkpoint"] for row in claimed] == [
+        "T60_ODDS_LINEUPS",
+        "POSTMATCH_RESULT",
+    ]
+
+
+def test_near_checkpoints_use_edf_before_distant_checkpoints() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    shared = {
+        "competition_id": "allsvenskan",
+        "season": "2026",
+        "kickoff_utc": NOW + timedelta(hours=3),
+        "window_start": NOW - timedelta(minutes=1),
+        "status": "DUE",
+        "blockers": (),
+        "endpoints": ("odds",),
+    }
+    for fixture_id, checkpoint, window_end in (
+        ("far", "T3_ODDS", NOW + timedelta(minutes=2)),
+        ("near-later", "T15_ODDS", NOW + timedelta(minutes=12)),
+        ("near-earlier", "T45_ODDS", NOW + timedelta(minutes=7)),
+    ):
+        repository.upsert_checkpoint_plan(
+            CheckpointPlan(
+                **shared,
+                fixture_id=f"api_football:{fixture_id}",
+                checkpoint=checkpoint,
+                scheduled_at=NOW,
+                window_end=window_end,
+            )
+        )
+
+    claimed = repository.claim_due_checkpoint_plans(
+        now=NOW,
+        worker_id="edf-test",
+        checkpoint_mode="PREMATCH",
+    )
+
+    assert [row["fixture_id"] for row in claimed] == [
+        "api_football:near-earlier",
+        "api_football:near-later",
+        "api_football:far",
+    ]
+
+
+def test_unsettled_model_forecast_postmatch_is_claimed_before_other_results() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    shared = {
+        "competition_id": "allsvenskan",
+        "season": "2026",
+        "kickoff_utc": NOW - timedelta(hours=4),
+        "window_start": NOW - timedelta(hours=1),
+        "window_end": NOW + timedelta(hours=1),
+        "status": "DUE",
+        "blockers": (),
+        "checkpoint": "POSTMATCH_RESULT",
+        "endpoints": ("status", "fixtures"),
+    }
+    repository.upsert_checkpoint_plan(
+        CheckpointPlan(
+            **shared,
+            fixture_id="api_football:ordinary",
+            scheduled_at=NOW - timedelta(minutes=30),
+        )
+    )
+    repository.upsert_checkpoint_plan(
+        CheckpointPlan(
+            **shared,
+            fixture_id="api_football:capture",
+            scheduled_at=NOW,
+        )
+    )
+    with Session(engine) as session:
+        session.add(
+            ModelForecastCaptureModel(
+                capture_identity_hash="1" * 64,
+                fixture_id="capture",
+                competition_id="allsvenskan",
+                kickoff_utc=NOW - timedelta(hours=4),
+                captured_at=NOW - timedelta(days=1),
+                lead_time_seconds=72000,
+                lead_time_bucket="H6_TO_LT_24H",
+                model_family="EXACT_DC_POISSON",
+                model_version="model-v1",
+                model_input_manifest_hash="2" * 64,
+                four_field_xg_identity_hash="3" * 64,
+                score_matrix_hash="4" * 64,
+                payload={"fixture_id": "capture"},
+                payload_sha256="5" * 64,
+                inserted_at=NOW - timedelta(days=1),
+            )
+        )
+        session.commit()
+
+    quota_repository = FutureRefreshDbRepository(engine=engine)
+    assert quota_repository.unsettled_model_forecast_postmatch_count(
+        window_start=NOW.replace(hour=0, minute=0, second=0, microsecond=0),
+        window_end=NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+        + timedelta(days=1),
+    ) == 1
+    assert quota_repository.unsettled_model_forecast_postmatch_count(
+        window_start=NOW.replace(hour=0, minute=0, second=0, microsecond=0),
+        window_end=NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+        + timedelta(days=1),
+        exclude_fixture_ids=("api_football:capture",),
+    ) == 0
+    assert repository.due_checkpoint_plans(now=NOW, limit=1)[0]["fixture_id"] == (
+        "api_football:capture"
+    )
+    assert repository.claim_due_checkpoint_plans(
+        now=NOW,
+        worker_id="capture-priority-test",
+        limit=1,
+    )[0]["fixture_id"] == "api_football:capture"
+
+
+def test_checkpoint_claim_release_restores_only_an_exact_unattempted_claim() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    plan = next(
+        item
+        for item in build_checkpoint_plans(
+            fixture_id="api_football:release",
+            competition_id="allsvenskan",
+            season="2026",
+            kickoff_utc=KICKOFF,
+            now=KICKOFF - timedelta(hours=25),
+            policy=policy,
+        )
+        if item.checkpoint == "T24_ODDS"
+    )
+    repository.upsert_checkpoint_plan(plan)
+    now = plan.window_start + timedelta(minutes=1)
+
+    first = repository.claim_due_checkpoint_plans(now=now, worker_id="worker-a")[0]
+    assert not repository.release_checkpoint_claim(
+        plan_id=first["id"],
+        claim_token=f"wrong:{first['claim_token']}",
+        reason="NOT_ATTEMPTED",
+        restore_attempt=True,
+    )
+    assert repository.release_checkpoint_claim(
+        plan_id=first["id"],
+        claim_token=first["claim_token"],
+        reason="NOT_ATTEMPTED",
+        restore_attempt=True,
+    )
+    assert not repository.release_checkpoint_claim(
+        plan_id=first["id"],
+        claim_token=first["claim_token"],
+        reason="DUPLICATE_RELEASE",
+        restore_attempt=True,
+    )
+    second = repository.claim_due_checkpoint_plans(now=now, worker_id="worker-b")[0]
+    assert second["attempt_count"] == 1
+    assert repository.release_checkpoint_claim(
+        plan_id=second["id"],
+        claim_token=second["claim_token"],
+        reason="ENQUEUE_AMBIGUOUS",
+    )
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, second["id"])
+        assert row is not None
+        assert row.attempt_count == 1
+        assert row.claim_token is None
+
+
 def test_checkpoint_claim_expiry_releases_due_plan_inside_window() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -302,6 +518,75 @@ def test_checkpoint_claim_expiry_releases_due_plan_inside_window() -> None:
     assert first_claim[0]["claim_token"] != second_claim[0]["claim_token"]
     assert second_claim[0]["claimed_by"] == "worker-b"
     assert second_claim[0]["attempt_count"] == 2
+
+
+def test_active_checkpoint_claim_can_finish_after_its_window_closes() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    plan = next(
+        item
+        for item in build_checkpoint_plans(
+            fixture_id="api_football:active-after-window",
+            competition_id="allsvenskan",
+            season="2026",
+            kickoff_utc=KICKOFF,
+            now=KICKOFF - timedelta(hours=25),
+            policy=policy,
+        )
+        if item.checkpoint == "T24_ODDS"
+    )
+
+    repository.upsert_checkpoint_plan(plan)
+    claim = repository.claim_due_checkpoint_plans(
+        now=plan.window_end - timedelta(seconds=1),
+        worker_id="worker-a",
+        limit=1,
+        lease_seconds=60,
+    )[0]
+
+    assert repository.due_checkpoint_plans(
+        now=plan.window_end + timedelta(seconds=1)
+    ) == []
+    capture = endpoint_capture_contract(
+        endpoint="odds",
+        params={"fixture": "active-after-window"},
+        requested_at=plan.window_end - timedelta(seconds=1),
+        provider_captured_at=plan.window_end + timedelta(seconds=1),
+        status_code=200,
+        elapsed_ms=2_000,
+        payload=_odds_payload(),
+        fixture_id=plan.fixture_id,
+        competition_id=plan.competition_id,
+        checkpoint=plan.checkpoint,
+        checkpoint_plan_ids=[str(claim["id"])],
+    )
+    repository.insert_endpoint_capture(capture)
+    repository.link_endpoint_capture_plans(
+        capture_id=str(capture["capture_id"]),
+        plan_ids=[str(claim["id"])],
+        endpoint="odds",
+        linked_at=plan.window_end + timedelta(seconds=1),
+    )
+    repository.transition_checkpoint(
+        fixture_id=plan.fixture_id,
+        competition_id=plan.competition_id,
+        season=plan.season,
+        checkpoint=plan.checkpoint,
+        policy_version=plan.policy_version,
+        status="CAPTURED",
+        capture_id=str(capture["capture_id"]),
+        now=plan.window_end + timedelta(seconds=2),
+        claim_token=str(claim["claim_token"]),
+    )
+
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, str(claim["id"]))
+        assert row is not None
+        assert row.status == "CAPTURED"
+        assert row.capture_id == capture["capture_id"]
+        assert row.claim_token is None
 
 
 def test_endpoint_capture_can_link_multiple_checkpoint_plans_explicitly() -> None:
@@ -398,12 +683,71 @@ def test_checkpoint_missed_is_immutable_and_planned_due_becomes_missed() -> None
         raise AssertionError("MISSED -> CAPTURED must fail closed")
 
 
+def test_registered_missed_checkpoint_writes_two_opportunities_without_attempts() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    fixture_id = "api_football:missed-opportunity"
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    plan = next(
+        item
+        for item in build_checkpoint_plans(
+            fixture_id=fixture_id,
+            competition_id="allsvenskan",
+            season="2026",
+            kickoff_utc=KICKOFF,
+            now=KICKOFF - timedelta(hours=2),
+            policy=policy,
+        )
+        if item.checkpoint == "T60_ODDS_LINEUPS"
+    )
+    with Session(engine) as session:
+        session.add(
+            ModelForecastCaptureModel(
+                capture_identity_hash="1" * 64,
+                fixture_id="missed-opportunity",
+                competition_id="allsvenskan",
+                kickoff_utc=KICKOFF,
+                captured_at=KICKOFF - timedelta(days=1),
+                lead_time_seconds=86400,
+                lead_time_bucket="D1_TO_D3",
+                model_family="EXACT_DC_POISSON",
+                model_version="model-v1",
+                model_input_manifest_hash="2" * 64,
+                four_field_xg_identity_hash="3" * 64,
+                score_matrix_hash="4" * 64,
+                payload={"fixture_id": "missed-opportunity"},
+                payload_sha256="5" * 64,
+                inserted_at=KICKOFF - timedelta(days=1),
+            )
+        )
+        session.commit()
+
+    repository.upsert_checkpoint_plan(plan)
+    assert repository.due_checkpoint_plans(now=plan.window_end + timedelta(seconds=1)) == []
+
+    with Session(engine) as session:
+        opportunities = list(session.scalars(select(DynamicPrematchOpportunityModel)))
+        attempts = list(session.scalars(select(DynamicPrematchEvaluationModel)))
+    assert {row.market for row in opportunities} == {"ASIAN_HANDICAP", "TOTALS"}
+    assert {row.state for row in opportunities} == {"MISSED_CHECKPOINT"}
+    assert all(row.evaluated_at is None for row in opportunities)
+    assert all(row.latest_attempt_identity_hash is None for row in opportunities)
+    assert all(row.payload["blocker"] == "CHECKPOINT_WINDOW_MISSED" for row in opportunities)
+    assert attempts == []
+
+
 def test_terminal_checkpoint_is_not_rewritten_by_rescheduled_missed_plan() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     repository = MatchdayRuntimeRepository(engine=engine)
     policy = competition_policies(load_matchday_policy())["allsvenskan"]
-    for terminal_status in ("FAILED", "CAPTURED", "MISSED"):
+    # MISSED is deliberately absent: it records no provider interaction, so a
+    # moved kickoff re-dates it (see
+    # test_postponed_fixture_reschedules_its_checkpoint_plans).  FAILED is
+    # absent too, but for a different reason -- it is decided per row on
+    # whether provider evidence exists, covered by the two tests below.
+    for terminal_status in ("CAPTURED",):
         plan = next(
             item
             for item in build_checkpoint_plans(
@@ -981,3 +1325,532 @@ def _fixtures_payload() -> dict[str, object]:
             }
         ],
     }
+
+
+def test_postponed_fixture_reschedules_its_checkpoint_plans() -> None:
+    """A moved kickoff must re-date the plan, not be rejected as a conflict.
+
+    plan_id is keyed on fixture x checkpoint x policy and excludes the kickoff,
+    so a postponed match reuses the same rows. Treating the new time as a
+    conflict left every checkpoint stranded on the original date: fixture
+    1523198 moved from 2026-07-11 to 2026-08-18, kept eleven July plans marked
+    MISSED, collected no odds at all, and offered a "next window" five weeks in
+    the past.
+    """
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    original = NOW
+    moved = NOW + timedelta(days=38)
+
+    def plan(kickoff: datetime, status: str) -> CheckpointPlan:
+        return CheckpointPlan(
+            competition_id="chinese_super_league",
+            season="2026",
+            fixture_id="api_football:1523198",
+            checkpoint="T3_ODDS",
+            kickoff_utc=kickoff,
+            scheduled_at=kickoff - timedelta(hours=3),
+            window_start=kickoff - timedelta(hours=3),
+            window_end=kickoff - timedelta(hours=2, minutes=30),
+            endpoints=("odds",),
+            status=status,
+            blockers=(),
+        )
+
+    repository.upsert_checkpoint_plan(plan(original, "PLANNED"))
+    repository.upsert_checkpoint_plan(plan(original, "MISSED"))
+    repository.upsert_checkpoint_plan(plan(moved, "PLANNED"))
+
+    with Session(engine) as session:
+        rows = list(session.scalars(select(MatchdayCheckpointPlanModel)))
+
+    assert len(rows) == 1, "a reschedule reuses the row rather than forking it"
+    row = rows[0]
+    assert row.kickoff_utc.replace(tzinfo=UTC) == moved
+    assert row.scheduled_at.replace(tzinfo=UTC) == moved - timedelta(hours=3)
+    # The old MISSED verdict described a window that no longer exists, so the row
+    # takes the new projection's verdict instead of lingering as a collection
+    # failure on a date the fixture never had.
+    assert row.status == "PLANNED"
+    assert row.missed_at is None
+
+
+def test_same_kickoff_with_a_different_schedule_is_still_a_conflict() -> None:
+    """Only a moved kickoff earns the re-dating; anything else stays a conflict."""
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+
+    def plan(scheduled_at: datetime) -> CheckpointPlan:
+        return CheckpointPlan(
+            competition_id="chinese_super_league",
+            season="2026",
+            fixture_id="api_football:1523199",
+            checkpoint="T3_ODDS",
+            kickoff_utc=NOW,
+            scheduled_at=scheduled_at,
+            window_start=scheduled_at,
+            window_end=scheduled_at + timedelta(minutes=30),
+            endpoints=("odds",),
+            status="PLANNED",
+            blockers=(),
+        )
+
+    repository.upsert_checkpoint_plan(plan(NOW - timedelta(hours=3)))
+    with pytest.raises(MatchdayRepositoryError, match="CHECKPOINT_PLAN_CONFLICT"):
+        repository.upsert_checkpoint_plan(plan(NOW - timedelta(hours=2)))
+
+
+def test_reschedule_releases_a_claim_held_against_the_old_window() -> None:
+    """An in-flight worker must not report a capture into the re-dated window."""
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    original = KICKOFF
+    moved = KICKOFF + timedelta(days=38)
+
+    def projection(kickoff: datetime) -> CheckpointPlan:
+        return next(
+            item
+            for item in build_checkpoint_plans(
+                fixture_id="api_football:1523198",
+                competition_id="allsvenskan",
+                season="2026",
+                kickoff_utc=kickoff,
+                now=kickoff - timedelta(hours=25),
+                policy=policy,
+            )
+            if item.checkpoint == "T24_ODDS"
+        )
+
+    plan = projection(original)
+    plan_id = repository.upsert_checkpoint_plan(plan)
+    claimed = repository.claim_due_checkpoint_plans(
+        now=original - timedelta(hours=24),
+        worker_id="odds-worker",
+        limit=1,
+    )
+    assert claimed and claimed[0]["fixture_id"] == plan.fixture_id
+    claim_token = str(claimed[0]["claim_token"])
+
+    repository.upsert_checkpoint_plan(projection(moved))
+
+    with pytest.raises(MatchdayRepositoryError, match="CHECKPOINT_CLAIM_TOKEN_MISMATCH"):
+        repository.transition_checkpoint(
+            fixture_id=plan.fixture_id,
+            competition_id=plan.competition_id,
+            season=plan.season,
+            checkpoint=plan.checkpoint,
+            policy_version=plan.policy_version,
+            status="CAPTURED",
+            capture_id="capture-from-the-old-window",
+            claim_token=claim_token,
+        )
+
+    # All four claim fields must clear together.  claim_due_checkpoint_plans
+    # requires claimed_at and claim_token to both be null, and the lease reaper
+    # only runs where claim_expires_at is set, so a leftover claimed_at would
+    # leave the re-dated plan unclaimable for the whole of its new window.
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert row is not None
+        assert (row.claimed_at, row.claimed_by, row.claim_token, row.claim_expires_at) == (
+            None,
+            None,
+            None,
+            None,
+        )
+
+    reclaimed = repository.claim_due_checkpoint_plans(
+        now=moved - timedelta(hours=24),
+        worker_id="odds-worker-after-reschedule",
+        limit=1,
+    )
+    assert [row["id"] for row in reclaimed] == [plan_id]
+
+
+def _failed_plan_fixture(
+    repository: MatchdayRuntimeRepository,
+    *,
+    fixture_id: str,
+    kickoff: datetime,
+) -> tuple[CheckpointPlan, str]:
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    plan = next(
+        item
+        for item in build_checkpoint_plans(
+            fixture_id=fixture_id,
+            competition_id="allsvenskan",
+            season="2026",
+            kickoff_utc=kickoff,
+            now=kickoff - timedelta(hours=25),
+            policy=policy,
+        )
+        if item.checkpoint == "T24_ODDS"
+    )
+    plan_id = repository.upsert_checkpoint_plan(plan)
+    for status in ("DUE", "FAILED"):
+        repository.transition_checkpoint(
+            fixture_id=plan.fixture_id,
+            competition_id=plan.competition_id,
+            season=plan.season,
+            checkpoint=plan.checkpoint,
+            policy_version=plan.policy_version,
+            status=status,
+        )
+    return plan, plan_id
+
+
+def _reproject(plan: CheckpointPlan, kickoff: datetime, now: datetime) -> CheckpointPlan:
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    return next(
+        item
+        for item in build_checkpoint_plans(
+            fixture_id=plan.fixture_id,
+            competition_id=plan.competition_id,
+            season=plan.season,
+            kickoff_utc=kickoff,
+            now=now,
+            policy=policy,
+        )
+        if item.checkpoint == plan.checkpoint
+    )
+
+
+def test_failed_plan_without_provider_evidence_is_redated() -> None:
+    """A failure that never reached the provider describes no window worth keeping.
+
+    Nothing in production drives FAILED back to DUE, so a FAILED row left on the
+    old kickoff is lost for good once its fixture moves -- the same permanent
+    loss the re-dating exists to prevent.
+    """
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    original = KICKOFF
+    moved = KICKOFF + timedelta(days=38)
+    plan, plan_id = _failed_plan_fixture(
+        repository, fixture_id="api_football:failed-clean", kickoff=original
+    )
+
+    repository.upsert_checkpoint_plan(_reproject(plan, moved, moved - timedelta(hours=25)))
+
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert row is not None
+        assert normalize_repo_time(row.kickoff_utc) == moved
+
+
+def test_failed_plan_with_provider_evidence_stays_pinned_to_its_window() -> None:
+    """A request that was actually sent belongs to the window it was sent for."""
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    original = KICKOFF
+    moved = KICKOFF + timedelta(days=38)
+    plan, plan_id = _failed_plan_fixture(
+        repository, fixture_id="api_football:failed-with-evidence", kickoff=original
+    )
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert row is not None
+        row.capture_id = "capture-actually-sent"
+        session.commit()
+
+    repository.upsert_checkpoint_plan(_reproject(plan, moved, moved - timedelta(hours=25)))
+
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert row is not None
+        assert normalize_repo_time(row.kickoff_utc) == original
+        assert row.status == "FAILED"
+        assert session.scalars(select(MatchdayCheckpointPlanRescheduleModel)).all() == []
+
+
+def test_reschedule_records_the_window_it_overwrites() -> None:
+    """The re-date overwrites the plan in place, so the old window is kept here.
+
+    Endpoint captures and the checkpoint audit describe attempts, not the plan
+    they were scheduled against, so without this row a re-dated plan loses every
+    trace of the window it used to hold.
+    """
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    original = KICKOFF
+    moved = KICKOFF + timedelta(days=38)
+    plan, plan_id = _failed_plan_fixture(
+        repository, fixture_id="api_football:failed-audited", kickoff=original
+    )
+    with Session(engine) as session:
+        before = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert before is not None
+        previous_scheduled_at = normalize_repo_time(before.scheduled_at)
+        previous_attempt_count = int(before.attempt_count or 0)
+
+    repository.upsert_checkpoint_plan(_reproject(plan, moved, moved - timedelta(hours=25)))
+
+    with Session(engine) as session:
+        audits = list(session.scalars(select(MatchdayCheckpointPlanRescheduleModel)))
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert row is not None
+
+    assert len(audits) == 1
+    audit = audits[0]
+    assert audit.plan_id == plan_id
+    assert audit.previous_status == "FAILED"
+    assert normalize_repo_time(audit.previous_kickoff_utc) == original
+    assert normalize_repo_time(audit.previous_scheduled_at) == previous_scheduled_at
+    assert audit.previous_attempt_count == previous_attempt_count
+    assert normalize_repo_time(audit.new_kickoff_utc) == moved
+    # attempt_count spans windows by design: plan_id excludes the kickoff, so the
+    # count belongs to the plan identity rather than to one window.  Resetting it
+    # would also silently change which rows repair tooling selects on
+    # attempt_count == 1.
+    assert int(row.attempt_count or 0) == previous_attempt_count
+
+
+@pytest.mark.parametrize(
+    ("status", "redatable"),
+    [
+        ("PROVIDER_EMPTY", False),
+        ("CONFLICT", False),
+        ("SKIPPED_POLICY", True),
+        ("SKIPPED_BUDGET", True),
+    ],
+)
+def test_remaining_terminal_statuses_on_reschedule(status: str, redatable: bool) -> None:
+    """The remaining terminal statuses, one row each.
+
+    PROVIDER_EMPTY and CONFLICT already describe something that happened
+    against the old window. The two SKIPPED verdicts record a decision not to
+    collect and never reached the provider, so a window the fixture no longer
+    has is not worth keeping them on.
+    """
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    original = KICKOFF
+    moved = KICKOFF + timedelta(days=38)
+
+    def projection(kickoff: datetime) -> CheckpointPlan:
+        return next(
+            item
+            for item in build_checkpoint_plans(
+                fixture_id=f"api_football:{status.lower()}",
+                competition_id="allsvenskan",
+                season="2026",
+                kickoff_utc=kickoff,
+                now=kickoff - timedelta(hours=25),
+                policy=policy,
+            )
+            if item.checkpoint == "T24_ODDS"
+        )
+
+    plan = projection(original)
+    plan_id = repository.upsert_checkpoint_plan(plan)
+    repository.transition_checkpoint(
+        fixture_id=plan.fixture_id,
+        competition_id=plan.competition_id,
+        season=plan.season,
+        checkpoint=plan.checkpoint,
+        policy_version=plan.policy_version,
+        status="DUE",
+    )
+    repository.transition_checkpoint(
+        fixture_id=plan.fixture_id,
+        competition_id=plan.competition_id,
+        season=plan.season,
+        checkpoint=plan.checkpoint,
+        policy_version=plan.policy_version,
+        status=status,
+        capture_id="capture-provider-empty" if status == "PROVIDER_EMPTY" else None,
+    )
+
+    repository.upsert_checkpoint_plan(projection(moved))
+
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert row is not None
+        audits = list(session.scalars(select(MatchdayCheckpointPlanRescheduleModel)))
+
+    expected = moved if redatable else original
+    assert normalize_repo_time(row.kickoff_utc) == expected
+    assert len(audits) == (1 if redatable else 0)
+    if not redatable:
+        assert row.status == status
+
+
+def test_failed_with_only_a_link_row_stays_pinned() -> None:
+    """A link row is provider evidence even when the plan carries no capture_id.
+
+    The link table is what joins a plan to the endpoint capture it produced, so
+    a FAILED row reachable from it did reach the provider.
+    """
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    original = KICKOFF
+    moved = KICKOFF + timedelta(days=38)
+    plan, plan_id = _failed_plan_fixture(
+        repository, fixture_id="api_football:failed-linked", kickoff=original
+    )
+
+    capture = endpoint_capture_contract(
+        endpoint="odds",
+        params={"fixture": plan.fixture_id},
+        requested_at=original - timedelta(hours=24),
+        provider_captured_at=original - timedelta(hours=24),
+        status_code=500,
+        elapsed_ms=10,
+        payload=_odds_payload(),
+        fixture_id=plan.fixture_id,
+        competition_id=plan.competition_id,
+        checkpoint=plan.checkpoint,
+        attempt=1,
+    )
+    repository.insert_endpoint_capture(capture)
+    with Session(engine) as session:
+        session.add(
+            MatchdayEndpointCapturePlanModel(
+                link_hash=stable_hash(f"{capture['capture_id']}:{plan_id}:odds"),
+                capture_id=str(capture["capture_id"]),
+                plan_id=plan_id,
+                endpoint="odds",
+                link_status="LINKED",
+                linked_at=original,
+            )
+        )
+        session.commit()
+
+    repository.upsert_checkpoint_plan(_reproject(plan, moved, moved - timedelta(hours=25)))
+
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert row is not None
+        assert normalize_repo_time(row.kickoff_utc) == original
+        assert row.status == "FAILED"
+        assert session.scalars(select(MatchdayCheckpointPlanRescheduleModel)).all() == []
+
+
+@pytest.mark.parametrize("status", ["PLANNED", "DUE"])
+def test_widened_grace_reaches_unclaimed_open_rows(status: str) -> None:
+    """A grace change has to reach the plans it was written for.
+
+    plan_hash is taken over the plan's own fields, window_end among them, and is
+    rewritten on every regeneration. Pinning the window while the hash moved left
+    each untouched row described by a hash its contents no longer produce, and
+    confined the new grace to fixtures discovered later. T-30m_VALIDATION_LOCK is
+    what made that visible: alone on the ladder it carried 300s where every other
+    slot had 900s or more, and against a sweep that reaches a competition roughly
+    every twelve minutes it captured 9 times against 10247 missed.
+    """
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+
+    def plan(grace: timedelta) -> CheckpointPlan:
+        return CheckpointPlan(
+            competition_id="mls",
+            season="2026",
+            fixture_id="api_football:1490404",
+            checkpoint="T-30m_VALIDATION_LOCK",
+            kickoff_utc=KICKOFF,
+            scheduled_at=KICKOFF - timedelta(minutes=30),
+            window_start=KICKOFF - timedelta(minutes=30),
+            window_end=KICKOFF - timedelta(minutes=30) + grace,
+            endpoints=("odds", "lineups"),
+            status=status,
+            blockers=(),
+        )
+
+    narrow = plan(timedelta(minutes=5))
+    widened = plan(timedelta(minutes=15))
+    repository.upsert_checkpoint_plan(narrow)
+    repository.upsert_checkpoint_plan(widened)
+
+    with Session(engine) as session:
+        row = session.scalars(select(MatchdayCheckpointPlanModel)).one()
+
+    assert row.window_end.replace(tzinfo=UTC) == widened.window_end
+    assert row.plan_hash == widened.plan_hash, "the stored hash describes the stored window"
+
+
+def test_a_claimed_plan_keeps_the_window_its_worker_was_handed() -> None:
+    """Widening must not move the window under a worker already holding the row.
+
+    A claimed plan is mid-flight against the window it was given; the re-date
+    branch releases such a claim for exactly this reason. Rewriting the window in
+    place instead would let a capture be recorded against bounds the worker never
+    saw.
+    """
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    scheduled = KICKOFF - timedelta(minutes=30)
+    active_claim = stable_hash("active-claim")
+
+    def plan(grace: timedelta, status: str) -> CheckpointPlan:
+        return CheckpointPlan(
+            competition_id="mls",
+            season="2026",
+            fixture_id="api_football:1490405",
+            checkpoint="T-30m_VALIDATION_LOCK",
+            kickoff_utc=KICKOFF,
+            scheduled_at=scheduled,
+            window_start=scheduled,
+            window_end=scheduled + grace,
+            endpoints=("odds", "lineups"),
+            status=status,
+            blockers=(),
+        )
+
+    narrow = plan(timedelta(minutes=5), "PLANNED")
+    repository.upsert_checkpoint_plan(narrow)
+    with Session(engine) as session:
+        row = session.scalars(select(MatchdayCheckpointPlanModel)).one()
+        row.status = "DUE"
+        row.claimed_at = scheduled
+        row.claimed_by = "worker-1"
+        row.claim_token = active_claim
+        row.claim_expires_at = scheduled + timedelta(minutes=15)
+        session.commit()
+
+    # An open window projects DUE, which is what the sweep re-offers here.
+    repository.upsert_checkpoint_plan(plan(timedelta(minutes=15), "DUE"))
+
+    with Session(engine) as session:
+        row = session.scalars(select(MatchdayCheckpointPlanModel)).one()
+
+    assert row.window_end.replace(tzinfo=UTC) == scheduled + timedelta(minutes=5)
+    assert row.claim_token == active_claim
+    assert row.plan_hash == narrow.plan_hash
+
+
+def test_t30_validation_grace_meets_t15_at_boundary_for_every_policy() -> None:
+    policies = competition_policies(load_matchday_policy())
+
+    assert len(policies) == 14
+    for policy in policies.values():
+        checkpoints = {item.name: item for item in policy.checkpoints}
+        t30 = checkpoints["T-30m_VALIDATION_LOCK"]
+        t15 = checkpoints["T15_ODDS"]
+
+        assert t30.grace_seconds == 900
+        assert (
+            t30.offset_seconds_before_kickoff - t30.grace_seconds
+            == t15.offset_seconds_before_kickoff
+        )

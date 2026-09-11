@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    event,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -128,26 +129,6 @@ class FutureRefreshRunAuditModel(Base):
     formal_recommendation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
-class FutureRefreshCheckpointPlanModel(Base):
-    __tablename__ = "future_refresh_checkpoint_plan"
-    __table_args__ = (
-        UniqueConstraint("fixture_id", "checkpoint", name="uq_future_refresh_checkpoint"),
-        Index("ix_future_refresh_checkpoint_due", "due_at", "status"),
-        Index("ix_future_refresh_checkpoint_fixture", "fixture_id"),
-    )
-
-    id: Mapped[str] = mapped_column(String(160), primary_key=True)
-    fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    checkpoint: Mapped[str] = mapped_column(String(64), nullable=False)
-    kickoff_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    endpoints: Mapped[list[str]] = mapped_column(JSON, nullable=False)
-    source: Mapped[str] = mapped_column(String(64), nullable=False)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
-    executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    last_audit_id: Mapped[int | None] = mapped_column(Integer)
-
-
 class FutureRefreshCheckpointAuditModel(Base):
     __tablename__ = "future_refresh_checkpoint_audit"
     __table_args__ = (
@@ -174,6 +155,58 @@ class RawPayloadModel(Base):
     inserted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     storage_uri: Mapped[str] = mapped_column(String(255), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class FreePlanFixtureScopeObservationModel(Base):
+    __tablename__ = "free_plan_fixture_scope_observations"
+    __table_args__ = (
+        Index(
+            "ix_free_plan_fixture_scope_observations_scope_time",
+            "provider",
+            "league_id",
+            "season",
+            "observed_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    league_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    season: Mapped[str] = mapped_column(String(32), nullable=False)
+    restricted: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_error: Mapped[str | None] = mapped_column(String(512))
+
+
+class RawStatisticsRetentionModel(Base):
+    __tablename__ = "raw_statistics_retention"
+
+    raw_payload_sha256: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("raw_payload.sha256", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    retained_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+def _prevent_statistics_raw_mutation(
+    _mapper: Any,
+    _connection: Any,
+    target: RawPayloadModel,
+) -> None:
+    if target.endpoint == "statistics":
+        raise ValueError("raw Statistics payloads are permanently retained")
+
+
+def _prevent_retention_manifest_mutation(_mapper: Any, _connection: Any, _target: Any) -> None:
+    raise ValueError("raw Statistics retention manifest is append-only")
+
+
+event.listen(RawPayloadModel, "before_update", _prevent_statistics_raw_mutation)
+event.listen(RawPayloadModel, "before_delete", _prevent_statistics_raw_mutation)
+event.listen(RawStatisticsRetentionModel, "before_update", _prevent_retention_manifest_mutation)
+event.listen(RawStatisticsRetentionModel, "before_delete", _prevent_retention_manifest_mutation)
 
 
 class TeamXgMatchModel(Base):

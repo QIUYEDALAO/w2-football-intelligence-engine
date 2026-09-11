@@ -40,6 +40,12 @@ If `/health` or `/ready` returns HTML, fix the Web nginx config so exact health 
 
 ## Automated verification
 
+Every release must set `W2_PUBLIC_RESPONSE_SCHEMA_TOUCHED=YES|NO`. If the value is
+`YES`, the same change must pass the API response-schema contract and Web
+typecheck/build. The warm switch always performs a real HTTP read through the Web
+proxy for `/v1/dashboard/intelligence-workspace`; the release record stores both
+the schema-touch declaration and `workspace_http_status`.
+
 ```bash
 python scripts/verify_release_sync.py \
   --base-url "${W2_PUBLIC_BASE_URL}" \

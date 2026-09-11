@@ -52,7 +52,7 @@ AUDIT_TABLE_COLUMNS = {
         "reason_code",
         "reason_cn",
         "formal_recommendation",
-        "recommendation_tier",
+        "recommendation_decision_tier",
         "recommendation_market",
         "recommendation_selection",
         "recommendation_line",
@@ -304,7 +304,9 @@ def _prematch_recommendations(
                 "reason_code": decision.reason,
                 "reason_cn": decision.label_cn,
                 "formal_recommendation": match.get("formal_recommendation"),
-                "recommendation_tier": recommendation_for_export.get("tier"),
+                "recommendation_decision_tier": recommendation_for_export.get(
+                    "decision_tier"
+                ),
                 "recommendation_market": recommendation_for_export.get("market"),
                 "recommendation_selection": recommendation_for_export.get("selection"),
                 "recommendation_line": recommendation_for_export.get("line"),
@@ -394,7 +396,7 @@ def _locked_recommendation_snapshots(matches: list[dict[str, Any]]) -> list[dict
                 "as_of": locked.get("as_of"),
                 "kickoff_utc": locked.get("kickoff_utc") or match.get("kickoff_utc"),
                 "status": locked.get("status"),
-                "tier": recommendation.get("tier"),
+                "tier": recommendation.get("decision_tier"),
                 "pick_side": recommendation.get("selection"),
                 "pick_line": recommendation.get("line"),
                 "recommendation_market": recommendation.get("market"),

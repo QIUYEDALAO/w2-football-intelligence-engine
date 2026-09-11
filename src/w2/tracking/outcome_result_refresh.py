@@ -7,6 +7,10 @@ from typing import Any
 from w2.tracking.finished_match_scoring_projection import (
     run_finished_match_scoring_projection,
 )
+from w2.tracking.model_forecast_ledger import (
+    ModelForecastLedgerRepository,
+    settle_model_forecasts,
+)
 from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
 
 REFRESH_SCHEMA_VERSION = "w2.result_materialize.v1"
@@ -43,6 +47,24 @@ def run_outcome_result_refresh(
             "fixture_checkpoint_count": 0,
         }
     )
+    model_forecast_repository = ModelForecastLedgerRepository(resolved_repository.engine)
+    model_forecast_settlement = (
+        settle_model_forecasts(
+            repository=model_forecast_repository,
+            fixture_ids=result["confirmed_fixture_ids"],
+            settled_at=now,
+            dry_run=False,
+            write_db=True,
+        )
+        if write_db and result["confirmed_fixture_ids"] and model_forecast_repository.schema_ready()
+        else {
+            "status": "NO_DUE_WORK",
+            "db_writes": 0,
+            "provider_calls": 0,
+            "model_forecast_settled_count": 0,
+            "probability_metrics_sample_count": 0,
+        }
+    )
     return {
         "schema_version": REFRESH_SCHEMA_VERSION,
         **result,
@@ -55,6 +77,10 @@ def run_outcome_result_refresh(
         "scoring_projection": scoring,
         "scoring_projection_status": scoring["status"],
         "scoring_projection_db_writes": scoring["db_writes"],
-        "db_writes": result["db_writes"] + scoring["db_writes"],
+        "model_forecast_settlement": model_forecast_settlement,
+        "model_forecast_settlement_db_writes": model_forecast_settlement["db_writes"],
+        "db_writes": (
+            result["db_writes"] + scoring["db_writes"] + model_forecast_settlement["db_writes"]
+        ),
         "provider_calls": 0,
     }

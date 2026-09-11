@@ -11,7 +11,6 @@ export interface PublicFacts {
   priorityCount?: number;
   finishedCount?: number;
   outcomeRecorded?: boolean;
-  selectedFixture?: boolean;
   subject?: string;
 }
 
@@ -30,6 +29,7 @@ const causeCopy: Record<Exclude<PublicStatusSemantics["cause"], null>, Pick<Publ
   INSUFFICIENT: { label: "已采集，证据量不足", tone: "warning" },
   UNAVAILABLE: { label: "来源不可用", tone: "critical" },
   UNASSESSED: { label: "尚未评估", tone: "neutral" },
+  LABEL_PENDING_OWNER_REVIEW: { label: "候选译名待 Owner 审定", tone: "warning" },
   LABEL_MISSING: { label: "中文译名待映射", tone: "neutral" },
   IDENTITY_UNRESOLVED: { label: "身份待确认", tone: "warning" },
   AMBIGUOUS: { label: "身份存在歧义", tone: "warning" },
@@ -71,6 +71,9 @@ export function publicPresentation(
         ? "全局证据"
         : `${day}比赛`;
 
+  if (cause === "LABEL_PENDING_OWNER_REVIEW") {
+    return result(causeCopy[cause].label, causeCopy[cause].tone, subject, `${subject} 已识别，候选中文译名尚待 Owner 审定。`, "候选名可见但未进入 APPROVED 权威集。");
+  }
   if (cause === "LABEL_MISSING") {
     return result(causeCopy[cause].label, causeCopy[cause].tone, subject, `${subject} 已识别，中文译名尚未映射。`, "保留可读原名；不会用占位符替换已知身份。");
   }
@@ -102,8 +105,11 @@ export function publicPresentation(
       : `${fixtures} 场比赛的赛果已由既有流程记录。`;
     return result("赛果已记录", "neutral", "赛果已记录", summary, "只陈述已持久化的赛果事实。");
   }
+  if (ready > 0) {
+    return result("市场证据可用", "neutral", `${day}已有当前市场证据`, `${ready} 场比赛具备当前市场证据。`, "公开判断只来自持久化且新鲜的比赛级市场证据。");
+  }
   if (observations !== undefined && observations > 0 && fixtures > 0) {
-    const coverage = `已落盘市场观察 ${observations}/${fixtures} 场`;
+    const coverage = `已落盘市场观察（含历史）${observations}/${fixtures} 场`;
     const complete = observations === fixtures;
     const tone = !complete && cause === "AWAITING_COLLECTION" ? "warning" : "neutral";
     return result(coverage, tone, coverage, `${coverage}。`, complete ? "这里只陈述落盘覆盖，不等同于比赛级市场或候选就绪。" : "仍有比赛尚无落盘市场观察；不把部分覆盖表述为市场就绪。");
@@ -127,12 +133,6 @@ export function publicPresentation(
   }
   if (facts.finishedCount === fixtures) {
     return result("已完场", "neutral", `${day}比赛已完场`, `${fixtures} 场比赛已完场。`, "赛果与验证状态按各自证据作用域展示。");
-  }
-  if (facts.selectedFixture) {
-    return result("市场证据可用", "neutral", "比赛级市场证据可用", `${ready || 1} 场比赛具备当前市场证据。`, "公开判断只来自持久化证据。");
-  }
-  if (ready > 0) {
-    return result("市场证据可用", "neutral", `${day}已有市场证据`, `${ready} 场比赛具备持久化市场证据。`, "公开判断只来自持久化证据。");
   }
   if (facts.priorityCount === undefined) {
     return result("赛程可查看", "neutral", `${day}赛程可查看`, `${fixtures} 场比赛已持久化。`, "当前标签不推断市场或模型状态。");

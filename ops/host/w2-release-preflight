@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Checks that must hold before a release, run before rather than after.
+#
+# Usage: w2-release-preflight [image-to-check]
+set -uo pipefail
+
+NEED_MB=2228
+MAX_LAYERS=${W2_MAX_ROOTFS_LAYERS:-20}
+BASE_TAG=${W2_BASE_TAG:-4d5f257daa500878}
+IMAGE=${1:-}
+rc=0
+
+# A release holds the old image, the running containers, the build context,
+# the new image and a predeploy dump at once, so steady-state free space is
+# not what a release costs.
+AVAIL_MB=$(( $(df --output=avail / | tail -1) / 1024 ))
+USE=$(df --output=pcent / | tail -1 | tr -dc "0-9")
+printf "disk avail=%sMB need=%sMB use=%s%%\n" "$AVAIL_MB" "$NEED_MB" "$USE"
+if [ "$AVAIL_MB" -lt "$NEED_MB" ]; then echo "  RELEASE_BLOCKED_INSUFFICIENT_DISK"; rc=2; fi
+
+# Releases built on a pre-flatten image cannot mount at all: that lineage
+# passed the overlayfs mount-option limit at 914 layers.
+if docker image inspect "127.0.0.1:5000/w2/runtime-base:$BASE_TAG" >/dev/null 2>&1; then
+  echo "runtime-base $BASE_TAG present"
+else
+  echo "  RELEASE_BLOCKED_RUNTIME_BASE_MISSING:$BASE_TAG"; rc=2
+fi
+
+# The count is read off RootFS rather than docker history, which counts
+# history entries and not actual layers.  The failure it guards against is a
+# release built on the previous release, which shows hundreds of layers, not
+# one or two more than today -- the limit is set with room for a few more COPY
+# lines so that adding one does not trip a gate meant for something else.  A
+# release currently measures twelve.
+if [ -n "$IMAGE" ]; then
+  if L=$(docker image inspect "$IMAGE" --format "{{len .RootFS.Layers}}" 2>/dev/null); then
+    printf "rootfs layers=%s max=%s\n" "$L" "$MAX_LAYERS"
+    if [ "$L" -gt "$MAX_LAYERS" ]; then echo "  RELEASE_BLOCKED_LAYER_COUNT:$L"; rc=2; fi
+  else
+    echo "  RELEASE_BLOCKED_IMAGE_NOT_FOUND:$IMAGE"; rc=2
+  fi
+fi
+
+[ "$rc" = "0" ] && echo "PREFLIGHT_OK"
+exit $rc

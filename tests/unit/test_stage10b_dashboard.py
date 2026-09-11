@@ -7,6 +7,7 @@ from pathlib import Path
 from apps.api.main import app
 from fastapi.testclient import TestClient
 
+from w2.competitions.seed import seed_competition_runtime_authority
 from w2.config import get_settings
 from w2.infrastructure.database import Base, create_engine
 from w2.prematch.snapshot_projection import (
@@ -191,6 +192,10 @@ def test_legacy_snapshot_projection_is_not_a_production_read_fallback(
     get_settings.cache_clear()
     engine = create_engine()
     Base.metadata.create_all(engine)
+    seed = seed_competition_runtime_authority(
+        engine, environment="test", updated_by="stage10b-fixture"
+    )
+    assert not seed.conflicts
     write_projection(engine, projection)
     write_projection(engine, projection)
     client = TestClient(app)
@@ -200,8 +205,9 @@ def test_legacy_snapshot_projection_is_not_a_production_read_fallback(
     assert response.status_code == 200
     card = response.json()["card"]
     assert card["fixture_id"] == "1489399"
-    assert card["recommendation_decision_v4"]["outcome"] == "NOT_READY"
-    assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+    assert not card.get("recommendation_decision_v4")
+    assert card["decision_tier"] == "NOT_READY"
+    assert "recommendation_decision_v3" not in card
     assert card["projection_health"] == {
         "status": "SYSTEM_DEGRADED",
         "reason_code": "LINEUP_REQUIREMENT_IDENTITY_MISSING",

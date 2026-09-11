@@ -88,7 +88,7 @@ def parse_team_xg_matches(
     away_goals = _int_or_zero(goals.get("away") if isinstance(goals, dict) else None)
     if not fixture_id or kickoff is None or not home_id or not away_id:
         return []
-    xg_by_team = _xg_by_team(statistics_payload)
+    xg_by_team = statistics_xg_by_team(statistics_payload)
     if home_id not in xg_by_team or away_id not in xg_by_team:
         return []
     return [
@@ -128,6 +128,12 @@ def materialize_rolling_xg(
     window: int = 5,
     min_matches: int = 3,
 ) -> TeamXgRollingSnapshot | None:
+    """Build a target-fixture snapshot without making it visible before its inputs.
+
+    ``as_of_time`` is the target cutoff used only to select strictly earlier
+    components.  The persisted snapshot timestamp is the latest time at which
+    every selected component was knowable.
+    """
     cutoff = as_of_time.astimezone(UTC)
     eligible = [
         row
@@ -140,6 +146,10 @@ def materialize_rolling_xg(
     selected = eligible[-window:]
     if len(selected) < min_matches:
         return None
+    available_at = max(
+        max(row.kickoff_at.astimezone(UTC), row.captured_at.astimezone(UTC))
+        for row in selected
+    )
     count = len(selected)
     xg_for = sum(row.xg_for for row in selected) / count
     xg_against = sum(row.xg_against for row in selected) / count
@@ -150,7 +160,7 @@ def materialize_rolling_xg(
         snapshot_id=f"{team_id}:{as_of_fixture_id}",
         team_id=team_id,
         as_of_fixture_id=as_of_fixture_id,
-        as_of_time=cutoff,
+        as_of_time=available_at,
         match_count=count,
         rolling_xg_for=round(xg_for, 4),
         rolling_xg_against=round(xg_against, 4),
@@ -160,7 +170,8 @@ def materialize_rolling_xg(
     )
 
 
-def _xg_by_team(payload: dict[str, Any]) -> dict[str, float]:
+def statistics_xg_by_team(payload: dict[str, Any]) -> dict[str, float]:
+    """Return only Provider teams whose expected_goals value is numeric."""
     response = payload.get("response")
     if not isinstance(response, list):
         return {}

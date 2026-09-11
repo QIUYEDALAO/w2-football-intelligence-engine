@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from time import monotonic
@@ -10,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
+from w2.domain import calibration_authority
 from w2.domain.canonical_serialization import (
     CanonicalSerializationError,
     HashDomain,
@@ -25,11 +27,18 @@ from w2.domain.recommendation_capabilities import load_recommendation_capability
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.operations.observability import default_metric_registry
 from w2.prematch.lifecycle import (
+    CHECKPOINT_OPPORTUNITY_SCOPE,
     DYNAMIC_EVALUATION_V1_SCHEMA,
     DYNAMIC_EVALUATION_V2_SCHEMA,
+    DYNAMIC_EVALUATION_V3_SCHEMA,
+    EVALUATION_IDENTITY_VERSION,
+    LEGACY_EVALUATION_IDENTITY_VERSION,
+    MODEL_FORECAST_DENOMINATOR_SCOPE,
     DynamicEvaluationInput,
     DynamicEvaluationVersion,
+    EvaluationOpportunityContext,
     LineupConfirmedEvent,
+    bind_evaluation_opportunity,
     classify_evaluation,
     lineup_confirmed_refresh_plan,
 )
@@ -40,7 +49,7 @@ from w2.tracking.advisory_blind_spot_policy import (
 )
 
 ANALYSIS_CARD_CANARY_SCHEMA = "w2.analysis-card.frozen.v1"
-ANALYSIS_EVIDENCE_CONTRACT_VERSION = "w2.analysis-market-evidence.v2"
+ANALYSIS_EVIDENCE_CONTRACT_VERSION = "w2.analysis-market-evidence-projection.v4"
 ANALYSIS_CARD_CANARY_PREFIX = "analysis-card:frozen:v1:"
 ANALYSIS_CARD_SHADOW_PREFIX = "analysis-card:shadow:v1:"
 PROJECTION_VERSION = "w2.prematch-read-model-projection.v1"
@@ -92,6 +101,9 @@ class _FrozenScopedInputs:
         self.observations = observations
         self.round3_evidence = round3_evidence
         self.session = session
+        self.dynamic_lifecycle_read = False
+        self._delegated_read_cache: dict[tuple[str, str, str], Any] = {}
+        self._dynamic_lifecycle_cache: dict[str, dict[str, Any]] = {}
 
     def fixture_payload(self, fixture_id: str) -> dict[str, Any] | None:
         return self.fixture if fixture_id == self.fixture_id else None
@@ -105,20 +117,37 @@ class _FrozenScopedInputs:
         return [dict(row) for row in self.observations]
 
     def dynamic_prematch_lifecycle(self, fixture_id: str) -> dict[str, Any]:
+        self.dynamic_lifecycle_read = True
         if fixture_id != self.fixture_id:
             return {}
+        cached = self._dynamic_lifecycle_cache.get(fixture_id)
+        if cached is not None:
+            return deepcopy(cached)
         if self.session is not None:
-            return DynamicPrematchRepository.lifecycle_in_session(
+            lifecycle = DynamicPrematchRepository.lifecycle_in_session(
                 self.session,
                 fixture_id,
             )
-        reader = getattr(self.delegate, "dynamic_prematch_lifecycle", None)
-        return reader(fixture_id) if callable(reader) else {}
+        else:
+            reader = getattr(self.delegate, "dynamic_prematch_lifecycle", None)
+            lifecycle = reader(fixture_id) if callable(reader) else {}
+        self._dynamic_lifecycle_cache[fixture_id] = deepcopy(lifecycle)
+        return deepcopy(lifecycle)
 
     def __getattr__(self, name: str) -> Any:
         if name == "round3_market_evidence_for_fixtures" and self.round3_evidence is not None:
             return self._round3_market_evidence_for_fixtures
-        return getattr(self.delegate, name)
+        target = getattr(self.delegate, name)
+        if not callable(target):
+            return target
+
+        def memoized_read(*args: Any, **kwargs: Any) -> Any:
+            key = (name, repr(args), repr(sorted(kwargs.items())))
+            if key not in self._delegated_read_cache:
+                self._delegated_read_cache[key] = deepcopy(target(*args, **kwargs))
+            return deepcopy(self._delegated_read_cache[key])
+
+        return memoized_read
 
     def _round3_market_evidence_for_fixtures(
         self,
@@ -139,6 +168,7 @@ class FrozenAnalysisArtifact:
     evaluations: tuple[DynamicEvaluationVersion, ...] = ()
     lineup_event: LineupConfirmedEvent | None = None
     read_time_reference: dict[str, Any] | None = None
+    dynamic_lifecycle_projected: bool = field(default=False, compare=False, repr=False)
     projection_event: ProjectionSourceEvent | None = field(
         default=None,
         compare=False,
@@ -158,6 +188,7 @@ class ProjectionSourceEvent:
     event_id: str
     event_at: datetime
     event_hash: str
+    opportunity_contexts: tuple[EvaluationOpportunityContext, ...] = ()
 
     @classmethod
     def create(
@@ -356,11 +387,13 @@ class AnalysisCardCanaryMaterializer:
         *,
         calculate_analysis_card: AnalysisCardCalculator,
         build_scoreline_reference: ScorelineReferenceBuilder | None = None,
+        round3_evidence_by_fixture: Mapping[str, list[dict[str, Any]]] | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.repository = repository
         self.calculate_analysis_card = calculate_analysis_card
         self.build_scoreline_reference = build_scoreline_reference
+        self.round3_evidence_by_fixture = round3_evidence_by_fixture
         self.clock = clock or (lambda: datetime.now(UTC))
 
     def build(
@@ -419,17 +452,23 @@ class AnalysisCardCanaryMaterializer:
             raise FrozenAnalysisError("scoped observation input exceeds bound")
         if any(str(row.get("fixture_id") or "") != fixture_id for row in observations):
             raise FrozenAnalysisError("scoped observation identity conflict")
-        round3_reader = getattr(
-            self.repository,
-            "round3_market_evidence_for_fixtures",
-            None,
-        )
-        round3_projection_enabled = callable(round3_reader)
-        round3_evidence = (
-            cast(list[dict[str, Any]], round3_reader([fixture_id]))
-            if callable(round3_reader)
-            else []
-        )
+        if self.round3_evidence_by_fixture is not None:
+            round3_projection_enabled = True
+            round3_evidence = [
+                dict(row) for row in self.round3_evidence_by_fixture.get(fixture_id, [])
+            ]
+        else:
+            round3_reader = getattr(
+                self.repository,
+                "round3_market_evidence_for_fixtures",
+                None,
+            )
+            round3_projection_enabled = callable(round3_reader)
+            round3_evidence = (
+                cast(list[dict[str, Any]], round3_reader([fixture_id]))
+                if callable(round3_reader)
+                else []
+            )
         if len(round3_evidence) > MAX_ROUND3_EVIDENCE_ROWS_PER_FIXTURE:
             raise FrozenAnalysisError("round3 evidence input exceeds bound")
         canonical_fixture_id = (
@@ -507,6 +546,21 @@ class AnalysisCardCanaryMaterializer:
                 evaluated_at=evaluated_at,
             ),
         }
+        capture_reader = getattr(self.repository, "model_forecast_capture_exists", None)
+        model_forecast_scoped = bool(
+            source_event is not None
+            and (
+                source_event.event_type == "MODEL_FORECAST_CAPTURE_SCOPE"
+                or (callable(capture_reader) and capture_reader(fixture_id))
+            )
+        )
+        # The sweep that populated this scope recorded scan-time state under
+        # checkpoint names it never observed, so the scope is now read-only.
+        # Leaving the producer reachable would let a projection refresh mint a
+        # fresh batch of the same unusable rows.  Real opportunities will be
+        # written by the checkpoint orchestrator against
+        # CHECKPOINT_EVALUATION_OPPORTUNITY_V2, not from here.
+        _ = model_forecast_scoped
         if round3_projection_enabled:
             input_manifest.update(
                 {
@@ -591,6 +645,23 @@ class AnalysisCardCanaryMaterializer:
         )
         input_manifest["dynamic_fixture_identity"] = dynamic_fixture_identity
         input_manifest["dynamic_lineup_identity"] = dynamic_lineup_identity
+        if event.opportunity_contexts:
+            input_manifest["opportunity_contexts"] = [
+                {
+                    "model_forecast_capture_identity_hash": (
+                        item.model_forecast_capture_identity_hash
+                    ),
+                    "model_input_hash": item.model_input_hash,
+                    "evaluation_policy_version": item.evaluation_policy_version,
+                    "evaluation_slot_id": item.evaluation_slot_id,
+                    "scheduled_checkpoint_at": _normalize_evaluation_time(
+                        item.scheduled_checkpoint_at
+                    ),
+                    "checkpoint_plan_identity": item.checkpoint_plan_identity,
+                    "source_event_identity": item.source_event_identity,
+                }
+                for item in event.opportunity_contexts
+            ]
         evaluations = tuple(
             _dynamic_evaluations(
                 card,
@@ -598,6 +669,7 @@ class AnalysisCardCanaryMaterializer:
                 fixture_identity=dynamic_fixture_identity,
                 lineup_identity=dynamic_lineup_identity,
                 build_scoreline_reference=self.build_scoreline_reference,
+                opportunity_contexts=event.opportunity_contexts,
             )
         )
         if not evaluations and card.get("pick") is not None:
@@ -669,8 +741,46 @@ class AnalysisCardCanaryMaterializer:
             evaluations=evaluations,
             lineup_event=lineup_event,
             read_time_reference=read_time_reference,
+            dynamic_lifecycle_projected=frozen_inputs.dynamic_lifecycle_read,
             projection_event=event,
             projection_materializer=self,
+        )
+
+    def refresh_shadow_after_write(
+        self,
+        artifact: FrozenAnalysisArtifact,
+        *,
+        lifecycle: dict[str, Any],
+        project_dynamic_lifecycle: bool | None = None,
+    ) -> FrozenAnalysisArtifact:
+        """Refresh only the lifecycle field changed by the projection write."""
+        if artifact.payload.get("checkpoint_namespace") != "shadow":
+            raise FrozenAnalysisError("post-write refresh requires shadow artifact")
+        card = deepcopy(artifact.payload.get("analysis_card"))
+        if not isinstance(card, dict):
+            raise FrozenAnalysisError("post-write analysis card unavailable")
+        should_project_lifecycle = (
+            artifact.dynamic_lifecycle_projected
+            if project_dynamic_lifecycle is None
+            else project_dynamic_lifecycle
+        )
+        if should_project_lifecycle:
+            if lifecycle.get("versions"):
+                card["dynamic_prematch"] = deepcopy(lifecycle)
+            else:
+                card.pop("dynamic_prematch", None)
+        payload = deepcopy(artifact.payload)
+        payload["analysis_card"] = card
+        payload["last_projected_at"] = _normalize_evaluation_time(self.clock())
+        payload["shadow_reconciliation"] = _reconcile_analysis_cards(card, card)
+        payload["projection_hash"] = _projection_business_hash(payload)
+        payload["artifact_hash"] = canonical_sha256(
+            {key: value for key, value in payload.items() if key != "artifact_hash"},
+            domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT,
+        )
+        return validate_frozen_analysis_payload(
+            _checkpoint_fixture_id(artifact.checkpoint_key),
+            payload,
         )
 
 
@@ -692,12 +802,15 @@ def validate_frozen_analysis_payload(
         "quote_identity_sha256",
         "simulation_sha256",
         "analysis_evidence_sha256",
+        "analysis_evidence_contract_version",
         "capability_manifest_sha256",
         "lineup_policy_version",
         "advisory_policy_identity",
     }
     if not required_evidence.issubset(manifest):
         raise FrozenAnalysisError("frozen analysis evidence missing")
+    if manifest["analysis_evidence_contract_version"] != ANALYSIS_EVIDENCE_CONTRACT_VERSION:
+        raise FrozenAnalysisError("analysis evidence contract incompatible")
     _validate_advisory_policy_identity(manifest["advisory_policy_identity"])
     evaluated_at = _parse_utc(manifest.get("evaluated_at"))
     if evaluated_at is None or manifest["advisory_policy_identity"] != _advisory_policy_identity(
@@ -774,14 +887,27 @@ def validate_frozen_analysis_payload(
             raise FrozenAnalysisError("dynamic evaluation fixture identity missing")
         if lineup_identity is not None and not isinstance(lineup_identity, dict):
             raise FrozenAnalysisError("dynamic evaluation lineup identity invalid")
-        evaluations = tuple(
-            _dynamic_evaluations(
-                card,
-                manifest,
-                fixture_identity={str(key): str(value) for key, value in fixture_identity.items()},
-                lineup_identity=cast(dict[str, str] | None, lineup_identity),
+        def rebuild_evaluations(identity_version: str) -> tuple[DynamicEvaluationVersion, ...]:
+            return tuple(
+                _dynamic_evaluations(
+                    card,
+                    manifest,
+                    fixture_identity={
+                        str(key): str(value) for key, value in fixture_identity.items()
+                    },
+                    lineup_identity=cast(dict[str, str] | None, lineup_identity),
+                    evaluation_identity_version=identity_version,
+                )
             )
-        )
+
+        evaluations = rebuild_evaluations(EVALUATION_IDENTITY_VERSION)
+        stored_hashes = payload.get("source_evaluation_hashes")
+        if isinstance(stored_hashes, list) and sorted(
+            item.identity_hash for item in evaluations
+        ) != stored_hashes:
+            legacy_evaluations = rebuild_evaluations(LEGACY_EVALUATION_IDENTITY_VERSION)
+            if sorted(item.identity_hash for item in legacy_evaluations) == stored_hashes:
+                evaluations = legacy_evaluations
         scoreline_references = payload.get("source_evaluation_scoreline_references", {})
         if not isinstance(scoreline_references, dict) or any(
             not isinstance(identity_hash, str) or not isinstance(reference, dict)
@@ -984,6 +1110,8 @@ def _analysis_evidence(card: dict[str, Any]) -> dict[str, Any]:
 def write_frozen_analysis_artifacts(
     engine: Engine,
     artifacts: list[FrozenAnalysisArtifact],
+    *,
+    expected_existing_source_hashes: Mapping[str, str] | None = None,
 ) -> None:
     if len({artifact.checkpoint_key for artifact in artifacts}) != len(artifacts):
         raise FrozenAnalysisError("duplicate checkpoint identity in write batch")
@@ -1025,23 +1153,34 @@ def write_frozen_analysis_artifacts(
                     )
                 elif draft.payload.get("source_event_type") == "LINEUP_CHANGED":
                     raise FrozenAnalysisError("lineup event unavailable")
+                draft_card = draft.payload.get("analysis_card")
+                decision_v4 = (
+                    draft_card.get("recommendation_decision_v4")
+                    if isinstance(draft_card, dict)
+                    else None
+                )
                 for evaluation in draft.evaluations:
-                    repository.append_evaluation_in_session(session, evaluation)
+                    repository.append_evaluation_in_session(
+                        session,
+                        evaluation,
+                        recommendation_decision_v4=(
+                            decision_v4 if isinstance(decision_v4, Mapping) else None
+                        ),
+                    )
                 artifact = draft
                 if draft.payload.get("checkpoint_namespace") == "shadow":
                     materializer = original.projection_materializer
                     event = original.projection_event
                     if materializer is None or event is None:
                         raise FrozenAnalysisError("shadow post-write calculator unavailable")
-                    rebuilt = materializer.build(
+                    lifecycle = DynamicPrematchRepository.lifecycle_in_session(
+                        session,
                         event.fixture_id,
-                        evaluated_at=event.event_at,
-                        source_event=event,
-                        session=session,
                     )
-                    artifact = validate_frozen_analysis_payload(
-                        event.fixture_id,
-                        rebuilt.payload,
+                    artifact = materializer.refresh_shadow_after_write(
+                        draft,
+                        lifecycle=lifecycle,
+                        project_dynamic_lifecycle=original.dynamic_lifecycle_projected,
                     )
                     if (
                         artifact.checkpoint_key != draft.checkpoint_key
@@ -1053,6 +1192,18 @@ def write_frozen_analysis_artifacts(
                         ReadModelCheckpointModel.checkpoint_key == artifact.checkpoint_key
                     )
                 )
+                if expected_existing_source_hashes is not None:
+                    expected_source_hash = expected_existing_source_hashes.get(
+                        artifact.checkpoint_key
+                    )
+                    if (
+                        expected_source_hash is None
+                        or existing is None
+                        or existing.source_hash != expected_source_hash
+                    ):
+                        raise FrozenAnalysisError(
+                            "checkpoint changed after bounded repair audit"
+                        )
                 if existing is None:
                     existing = ReadModelCheckpointModel(
                         checkpoint_key=artifact.checkpoint_key,
@@ -1068,7 +1219,10 @@ def write_frozen_analysis_artifacts(
                     except FrozenAnalysisError as exc:
                         # A pre-evidence checkpoint is intentionally fail-closed for reads,
                         # but its verified replacement must be allowed to re-materialize.
-                        if str(exc) != "frozen analysis evidence missing":
+                        if str(exc) not in {
+                            "frozen analysis evidence missing",
+                            "analysis evidence contract incompatible",
+                        }:
                             raise
                         existing.source_hash = artifact.source_hash
                         existing.created_at = now
@@ -1099,19 +1253,18 @@ def write_frozen_analysis_artifacts(
                 persisted_card = persisted_payload.get("analysis_card")
                 if artifact.payload.get("checkpoint_namespace") != "shadow":
                     continue
-                materializer = original.projection_materializer
-                event = original.projection_event
-                if not isinstance(persisted_card, dict) or materializer is None or event is None:
+                if not isinstance(persisted_card, dict):
                     raise FrozenAnalysisError("projection persisted-readback unavailable")
-                post_write = materializer.build(
-                    event.fixture_id,
-                    evaluated_at=event.event_at,
-                    source_event=event,
-                    session=session,
+                persisted = validate_frozen_analysis_payload(
+                    _checkpoint_fixture_id(artifact.checkpoint_key),
+                    persisted_payload,
                 )
-                current_read = post_write.payload.get("analysis_card")
-                if not isinstance(current_read, dict):
-                    raise FrozenAnalysisError("projection post-write current read unavailable")
+                current_read = artifact.payload.get("analysis_card")
+                if (
+                    not isinstance(current_read, dict)
+                    or persisted.source_hash != artifact.source_hash
+                ):
+                    raise FrozenAnalysisError("projection post-write source identity changed")
                 reconciliation = _reconcile_analysis_cards(current_read, persisted_card)
                 if reconciliation != persisted_payload.get("shadow_reconciliation"):
                     raise FrozenAnalysisError(
@@ -1124,6 +1277,84 @@ def write_frozen_analysis_artifacts(
             raise
 
 
+def _factor_verdict(card: dict[str, Any], market_name: str) -> dict[str, Any]:
+    """Read the AH factor verdict the analysis card already computed.
+
+    analysis_calculator writes factor_veto onto card["markets"]; the dynamic
+    evaluation is built from card["market_candidates"]. The two live on the same
+    card but were never joined, so the factor refusal only ever reached the card
+    and never the candidate chain. This joins them and freezes the factor inputs
+    into a canonical identity hash, so a different verdict yields a different
+    evaluation identity.
+    """
+    if market_name != "ASIAN_HANDICAP":
+        return {}
+    markets = card.get("markets")
+    entry: dict[str, Any] = {}
+    if isinstance(markets, list):
+        for item in markets:
+            if isinstance(item, dict) and str(item.get("market") or "") == market_name:
+                entry = item
+                break
+    score = card.get("factor_score") if isinstance(card.get("factor_score"), dict) else None
+    if not entry or score is None:
+        return {"factor_decision_status": "HISTORICAL_NO_FACTOR_VERDICT_IDENTITY"}
+    veto = entry.get("factor_veto") if isinstance(entry.get("factor_veto"), dict) else None
+    # The identity hash covers the whole normalised factor payload through the
+    # single canonical authority. A display string such as ANALYSIS_PICK or
+    # WATCH is a status, not evidence, and must never stand in for it.
+    evidence = {
+        "direction": score.get("direction"),
+        "admitted": score.get("admitted"),
+        "margin": score.get("margin"),
+        "strength": score.get("strength"),
+        "weight_sum_used": score.get("weight_sum_used"),
+        "participant_count": score.get("participant_count"),
+        "participants": score.get("participants"),
+        "absent": score.get("absent"),
+        "admission_blockers": score.get("admission_blockers"),
+        "veto": veto,
+    }
+    identity_hash = canonical_sha256(
+        evidence, domain=HashDomain.PREMATCH_READ_MODEL_GENERIC
+    )
+    digest = {
+        "participant_ids": [
+            str(item.get("feature_id"))
+            for item in (score.get("participants") or [])
+            if isinstance(item, dict)
+        ],
+        "absent_ids": [
+            str(item.get("feature_id"))
+            for item in (score.get("absent") or [])
+            if isinstance(item, dict)
+        ],
+        "admission_blockers": [str(item) for item in (score.get("admission_blockers") or [])],
+        "weight_sum_used": score.get("weight_sum_used"),
+        "participant_count": score.get("participant_count"),
+    }
+    if veto and veto.get("code"):
+        return {
+            "factor_decision_status": "VETOED",
+            "factor_veto_code": str(veto.get("code")),
+            "factor_direction": str(veto.get("factor_direction") or "") or None,
+            "ev_direction": str(veto.get("ev_selection") or "") or None,
+            "factor_input_identity": identity_hash,
+            "factor_input_identity_hash": identity_hash,
+            "factor_evidence_digest": digest,
+        }
+    admitted = bool(score.get("admitted"))
+    return {
+        "factor_decision_status": "ADMITTED" if admitted else "NOT_ADMITTED",
+        "factor_direction": str(score.get("direction") or "") or None,
+        "ev_direction": None,
+        "factor_veto_code": None if admitted else "FACTOR_ADMISSION_FAILED",
+        "factor_input_identity": identity_hash,
+        "factor_input_identity_hash": identity_hash,
+        "factor_evidence_digest": digest,
+    }
+
+
 def _dynamic_evaluations(
     card: dict[str, Any],
     manifest: dict[str, Any],
@@ -1131,7 +1362,32 @@ def _dynamic_evaluations(
     fixture_identity: dict[str, str],
     lineup_identity: dict[str, str] | None,
     build_scoreline_reference: ScorelineReferenceBuilder | None = None,
+    opportunity_contexts: tuple[EvaluationOpportunityContext, ...] = (),
+    evaluation_identity_version: str = EVALUATION_IDENTITY_VERSION,
 ) -> list[DynamicEvaluationVersion]:
+    if not opportunity_contexts:
+        raw_contexts = manifest.get("opportunity_contexts")
+        if isinstance(raw_contexts, list):
+            try:
+                opportunity_contexts = tuple(
+                    EvaluationOpportunityContext(
+                        model_forecast_capture_identity_hash=str(
+                            item["model_forecast_capture_identity_hash"]
+                        ),
+                        model_input_hash=str(item["model_input_hash"]),
+                        evaluation_policy_version=str(item["evaluation_policy_version"]),
+                        evaluation_slot_id=str(item["evaluation_slot_id"]),
+                        scheduled_checkpoint_at=_required_utc(
+                            item["scheduled_checkpoint_at"]
+                        ),
+                        checkpoint_plan_identity=str(item["checkpoint_plan_identity"]),
+                        source_event_identity=str(item["source_event_identity"]),
+                    )
+                    for item in raw_contexts
+                    if isinstance(item, dict)
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise FrozenAnalysisError("opportunity context invalid") from exc
     if any(not fixture_identity.get(field) for field in ("competition_id", "season", "provider")):
         raise FrozenAnalysisError("dynamic evaluation fixture identity incomplete")
     if lineup_identity is not None and (
@@ -1141,8 +1397,25 @@ def _dynamic_evaluations(
     fixture_id = str(card.get("fixture_id") or "")
     evaluated_at = _parse_utc(manifest.get("evaluated_at"))
     candidates = card.get("market_candidates")
-    if not fixture_id or evaluated_at is None or not isinstance(candidates, dict):
+    denominator_scope = (
+        CHECKPOINT_OPPORTUNITY_SCOPE
+        if opportunity_contexts
+        else str(manifest.get("dynamic_evaluation_denominator_scope") or "")
+    )
+    denominator_scoped = denominator_scope in {
+        MODEL_FORECAST_DENOMINATOR_SCOPE,
+        CHECKPOINT_OPPORTUNITY_SCOPE,
+    }
+    if opportunity_contexts and len(
+        {item.evaluation_slot_id for item in opportunity_contexts}
+    ) != 1:
+        raise FrozenAnalysisError("opportunity event spans multiple slots")
+    if not fixture_id or evaluated_at is None:
         return []
+    if not isinstance(candidates, dict):
+        if not denominator_scoped:
+            return []
+        candidates = {}
     lineup_confirmed_at = _parse_utc(
         lineup_identity.get("captured_at") if lineup_identity is not None else None
     )
@@ -1150,26 +1423,43 @@ def _dynamic_evaluations(
     for key, default_market in (("ah", "ASIAN_HANDICAP"), ("ou", "TOTALS")):
         candidate = candidates.get(key)
         if not isinstance(candidate, dict):
-            continue
+            if not denominator_scoped:
+                continue
+            candidate = {}
         evidence = candidate.get("analysis_evidence")
         if not isinstance(evidence, dict):
-            continue
+            if not denominator_scoped:
+                continue
+            evidence = {}
         selection, side = _dynamic_evaluation_side(candidate, evidence)
         if not selection or not isinstance(side, dict):
-            continue
+            if not denominator_scoped:
+                continue
+            selection = str(candidate.get("selection") or "UNRESOLVED")
+            side = {}
         model = side.get("model_probability")
         comparison = side.get("comparison")
-        quote_identity = evidence.get("quote_identity")
+        quote_identity = evidence.get("quote_identity") or candidate.get("quote_identity")
+        if not isinstance(quote_identity, dict):
+            quote_audit = card.get("quote_identity_audit")
+            quote_identity = quote_audit.get(key) if isinstance(quote_audit, dict) else None
         market_probability = evidence.get("market_probability")
         if not all(
             isinstance(item, dict)
             for item in (model, comparison, quote_identity, market_probability)
         ):
-            continue
-        model = cast(dict[str, Any], model)
-        comparison = cast(dict[str, Any], comparison)
-        quote_identity = cast(dict[str, Any], quote_identity)
-        market_probability = cast(dict[str, Any], market_probability)
+            if not denominator_scoped:
+                continue
+        model = cast(dict[str, Any], model) if isinstance(model, dict) else {}
+        comparison = cast(dict[str, Any], comparison) if isinstance(comparison, dict) else {}
+        quote_identity = (
+            cast(dict[str, Any], quote_identity) if isinstance(quote_identity, dict) else {}
+        )
+        market_probability = (
+            cast(dict[str, Any], market_probability)
+            if isinstance(market_probability, dict)
+            else {}
+        )
         normalized = selection.lower().replace("_ah", "")
         quote = (quote_identity.get("quotes") or {}).get(normalized)
         quote = quote if isinstance(quote, dict) else {}
@@ -1186,13 +1476,47 @@ def _dynamic_evaluations(
             if post_lineup_quote and lineup_identity is not None
             else None
         )
-        provider = str(quote.get("provider") or quote_identity.get("provider") or "")
-        if provider != fixture_identity["provider"]:
+        provider = str(
+            quote.get("provider")
+            or quote_identity.get("provider")
+            or fixture_identity["provider"]
+        )
+        if provider and provider != fixture_identity["provider"]:
             raise FrozenAnalysisError("dynamic evaluation provider identity conflict")
         distribution = model.get("settlement_distribution")
-        model_ready = str(model.get("status") or "").upper() == "READY"
+        simulation = card.get("simulation")
+        score_matrix_summary = (
+            simulation.get("score_matrix_summary")
+            if isinstance(simulation, Mapping)
+            and isinstance(simulation.get("score_matrix_summary"), Mapping)
+            else None
+        )
+        one_x_two_probabilities = (
+            {
+                "home": score_matrix_summary.get("home_win"),
+                "draw": score_matrix_summary.get("draw"),
+                "away": score_matrix_summary.get("away_win"),
+            }
+            if score_matrix_summary is not None
+            and all(
+                score_matrix_summary.get(side) is not None
+                for side in ("home_win", "draw", "away_win")
+            )
+            else None
+        )
+        model_ready = (
+            str(model.get("status") or candidate.get("model_status") or "").upper()
+            == "READY"
+            or (
+                denominator_scoped
+                and isinstance(simulation, Mapping)
+                and str(simulation.get("status") or "").upper() == "READY"
+            )
+        )
         schema_version = (
-            DYNAMIC_EVALUATION_V1_SCHEMA
+            DYNAMIC_EVALUATION_V3_SCHEMA
+            if denominator_scoped
+            else DYNAMIC_EVALUATION_V1_SCHEMA
             if not model_ready and not isinstance(distribution, Mapping)
             else DYNAMIC_EVALUATION_V2_SCHEMA
         )
@@ -1205,11 +1529,40 @@ def _dynamic_evaluations(
             model_input_identity["scoreline_projection_contract_version"] = manifest[
                 "scoreline_projection_contract_version"
             ]
+        current_odds = card.get("current_odds")
+        odds_market = current_odds.get(key) if isinstance(current_odds, dict) else {}
+        odds_market = odds_market if isinstance(odds_market, dict) else {}
+        market_mainline = candidate.get("market_mainline")
+        market_mainline = market_mainline if isinstance(market_mainline, dict) else {}
+        # Both mainline selectors already report a complete-pair count: TOTALS
+        # mirrors complete_pair_bookmaker_count into bookmaker_count, and the AH
+        # selector only counts a bookmaker once it quotes both sides of the same
+        # line.  Reading the TOTALS-specific name alone left every AH evaluation
+        # at depth 0, so ASIAN_HANDICAP could never clear the depth gate and was
+        # recorded as BLOCKED_BY_GATE no matter how deep the book actually was.
+        bookmaker_count = max(
+            int(odds_market.get("bookmaker_count") or 0),
+            int(market_mainline.get("bookmaker_count") or 0),
+            int(market_mainline.get("complete_pair_bookmaker_count") or 0),
+        )
+        exact_line = _float_or_none(
+            quote.get("line")
+            or quote_identity.get("selected_line")
+            or candidate.get("line")
+        )
+        source_observations_present = bool(
+            quote_identity.get("observation_ids")
+            or quote_identity.get("captured_at")
+            or quote_identity.get("raw_payload_sha256")
+            or quote
+        )
+        market_name = str(candidate.get("market") or default_market)
         value = DynamicEvaluationInput(
+            **_factor_verdict(card, market_name),
             fixture_id=fixture_id,
-            market=str(candidate.get("market") or default_market),
+            market=market_name,
             selection=selection,
-            exact_line=_float_or_none(quote.get("line") or candidate.get("line")),
+            exact_line=exact_line,
             bookmaker_id=str(quote.get("bookmaker_id") or quote_identity.get("bookmaker_id") or "")
             or None,
             capture_id=str(
@@ -1219,29 +1572,49 @@ def _dynamic_evaluations(
                 or ""
             )
             or None,
-            quote_identity_hash=str(quote_identity.get("quote_identity_hash") or "")
-            or canonical_sha256(
-                quote_identity, domain=HashDomain.PREMATCH_READ_MODEL_QUOTE_IDENTITY
+            quote_identity_hash=(
+                str(quote_identity.get("quote_identity_hash") or "")
+                or (
+                    canonical_sha256(
+                        quote_identity,
+                        domain=HashDomain.PREMATCH_READ_MODEL_QUOTE_IDENTITY,
+                    )
+                    if quote_identity
+                    else None
+                )
             ),
             model_input_hash=canonical_sha256(
                 model_input_identity,
                 domain=HashDomain.PREMATCH_READ_MODEL_DYNAMIC_EVALUATION,
             ),
             evaluated_at=evaluated_at,
-            checkpoint=_latest_checkpoint(card),
+            checkpoint=(
+                opportunity_contexts[0].evaluation_slot_id
+                if opportunity_contexts
+                else _latest_checkpoint(card)
+            ),
             capture_at=capture_at,
-            source_observations_present=True,
+            source_observations_present=(
+                source_observations_present if denominator_scoped else True
+            ),
             exact_quote_complete=str(quote_identity.get("identity_status") or "").upper()
             == "COMPLETE",
-            quote_fresh=str(quote_identity.get("freshness_status") or "COMPLETE").upper()
+            quote_fresh=str(
+                quote_identity.get("freshness_status")
+                or ("INCOMPLETE" if denominator_scoped else "COMPLETE")
+            ).upper()
             == "COMPLETE",
             model_ready=model_ready,
+            calibration_status=calibration_authority.status_of(
+                simulation if isinstance(simulation, Mapping) else None
+            ),
             market_probability_ready=bool(devig),
             identity_conflict=False,
             model_probability=_float_or_none(model.get("effective_probability")),
             market_probability=_float_or_none(devig.get(selection)),
             expected_value=_float_or_none(model.get("expected_value")),
             ev_se=_float_or_none(model.get("ev_se")),
+            cashflow_price_edge=_float_or_none(comparison.get("cashflow_price_edge")),
             decimal_odds=_float_or_none(quote.get("decimal_odds")),
             lineup_input_hash=lineup_input_hash,
             lineup_confirmed_at=(lineup_confirmed_at if post_lineup_quote else None),
@@ -1249,26 +1622,46 @@ def _dynamic_evaluations(
             schema_version=schema_version,
             competition_id=(
                 fixture_identity["competition_id"]
-                if schema_version == DYNAMIC_EVALUATION_V2_SCHEMA
+                if schema_version in {DYNAMIC_EVALUATION_V2_SCHEMA, DYNAMIC_EVALUATION_V3_SCHEMA}
                 else None
             ),
             season=(
                 fixture_identity["season"]
-                if schema_version == DYNAMIC_EVALUATION_V2_SCHEMA
+                if schema_version in {DYNAMIC_EVALUATION_V2_SCHEMA, DYNAMIC_EVALUATION_V3_SCHEMA}
                 else None
             ),
-            provider=provider if schema_version == DYNAMIC_EVALUATION_V2_SCHEMA else None,
+            provider=(
+                provider
+                if schema_version in {DYNAMIC_EVALUATION_V2_SCHEMA, DYNAMIC_EVALUATION_V3_SCHEMA}
+                else None
+            ),
             model_settlement_distribution=(
                 distribution if isinstance(distribution, Mapping) else None
             ),
+            bookmaker_count=bookmaker_count,
+            mainline_parsed=exact_line is not None,
+            denominator_scope=denominator_scope if denominator_scoped else None,
+            calibration_identity=(
+                str(simulation.get("calibration_identity"))
+                if isinstance(simulation, Mapping)
+                and simulation.get("calibration_identity")
+                else None
+            ),
+            one_x_two_probabilities=one_x_two_probabilities,
         )
-        version = classify_evaluation(value)
+        version = classify_evaluation(value, identity_version=evaluation_identity_version)
         if version.state.value == "ANALYSIS_PICK_ACTIVE" and build_scoreline_reference:
             version = replace(
                 version,
                 scoreline_reference=build_scoreline_reference(card, version, quote_identity),
             )
-        versions.append(version)
+        if opportunity_contexts:
+            versions.extend(
+                bind_evaluation_opportunity(version, context)
+                for context in opportunity_contexts
+            )
+        else:
+            versions.append(version)
     return versions
 
 
@@ -1347,6 +1740,13 @@ def _parse_utc(value: Any) -> datetime | None:
         return None
 
 
+def _required_utc(value: Any) -> datetime:
+    parsed = _parse_utc(value)
+    if parsed is None:
+        raise ValueError("INVALID_DATETIME")
+    return parsed
+
+
 def _float_or_none(value: Any) -> float | None:
     try:
         return float(value) if value is not None else None
@@ -1361,6 +1761,8 @@ def materialize_projection_events(
     calculate_analysis_card: AnalysisCardCalculator,
     build_scoreline_reference: ScorelineReferenceBuilder | None = None,
     engine: Engine | None = None,
+    expected_existing_source_hashes: Mapping[str, str] | None = None,
+    evaluations_only: bool = False,
 ) -> list[str]:
     ordered = sorted(
         {(event.fixture_id, event.event_type, event.event_id): event for event in events}.values(),
@@ -1377,10 +1779,27 @@ def materialize_projection_events(
         from w2.infrastructure.database import create_engine
 
         engine = create_engine()
+    round3_by_fixture: dict[str, list[dict[str, Any]]] | None = None
+    round3_reader = getattr(repository, "round3_market_evidence_for_fixtures", None)
+    if callable(round3_reader):
+        round3_by_fixture = {event.fixture_id: [] for event in ordered}
+        fixture_ids = list(round3_by_fixture)
+        normalized_fixture_ids = {
+            fixture_id.removeprefix("api_football:"): fixture_id for fixture_id in fixture_ids
+        }
+        for start in range(0, len(fixture_ids), 64):
+            rows = cast(list[dict[str, Any]], round3_reader(fixture_ids[start : start + 64]))
+            for row in rows:
+                normalized = str(row.get("fixture_id") or "").removeprefix("api_football:")
+                fixture_id = normalized_fixture_ids.get(normalized)
+                if fixture_id is None:
+                    raise FrozenAnalysisError("round3 batch returned unexpected fixture scope")
+                round3_by_fixture[fixture_id].append(dict(row))
     materializer = AnalysisCardCanaryMaterializer(
         repository,
         calculate_analysis_card=calculate_analysis_card,
         build_scoreline_reference=build_scoreline_reference,
+        round3_evidence_by_fixture=round3_by_fixture,
     )
     for event in ordered:
         artifact = materializer.build(
@@ -1388,7 +1807,31 @@ def materialize_projection_events(
             evaluated_at=event.event_at,
             source_event=event,
         )
-        write_frozen_analysis_artifacts(engine, [artifact])
+        if evaluations_only:
+            if event.event_type not in {
+                "MODEL_FORECAST_CAPTURE_SCOPE",
+                "CHECKPOINT_EVALUATION",
+            }:
+                raise FrozenAnalysisError("evaluation-only projection scope invalid")
+            dynamic_repository = DynamicPrematchRepository(engine)
+            with Session(engine) as session:
+                for evaluation in artifact.evaluations:
+                    dynamic_repository.append_evaluation_in_session(
+                        session,
+                        evaluation,
+                        supersession_reason=(
+                            "CHECKPOINT_EVALUATION_RETRY"
+                            if event.event_type == "CHECKPOINT_EVALUATION"
+                            else "MODEL_FORECAST_DENOMINATOR_ENTRY"
+                        ),
+                    )
+                session.commit()
+            continue
+        write_frozen_analysis_artifacts(
+            engine,
+            [artifact],
+            expected_existing_source_hashes=expected_existing_source_hashes,
+        )
     return list(dict.fromkeys(event.fixture_id for event in ordered))
 
 

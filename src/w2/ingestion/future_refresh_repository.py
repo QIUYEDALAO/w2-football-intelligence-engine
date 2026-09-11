@@ -13,23 +13,37 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
 
 from w2.config import Settings
+from w2.domain.canonical_serialization import (
+    HashDomain,
+    SerializerVersion,
+    canonical_sha256,
+)
+from w2.features.xg_materialization import statistics_xg_by_team
 from w2.identity import CanonicalIdentityRepository
+from w2.identity.canonical_identity_repository import (
+    PROVIDER_PRIMARY_READY,
+    canonical_team_payload,
+    provider_crosswalk_payload,
+)
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamMatchHistoryModel,
+    CanonicalTeamModel,
     ProviderTeamIdentityCrosswalkModel,
     TeamRatingSnapshotModel,
 )
 from w2.infrastructure.persistence.future_refresh_models import (
+    FreePlanFixtureScopeObservationModel,
     FutureRefreshCheckpointAuditModel,
-    FutureRefreshCheckpointPlanModel,
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
     RawPayloadModel,
+    RawStatisticsRetentionModel,
     TeamXgMatchModel,
     TeamXgRollingSnapshotModel,
 )
 from w2.infrastructure.persistence.ingestion_models import (
+    ProviderQuotaObservationModel,
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
@@ -41,6 +55,12 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
+from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureModel,
+    ModelForecastOutcomeModel,
+    canonical_model_forecast_fixture_id_sql,
+    model_forecast_fixture_aliases,
+)
 from w2.infrastructure.persistence.models import (
     LineupSourceSnapshotModel,
     PlayerIdentityMappingModel,
@@ -49,6 +69,7 @@ from w2.infrastructure.persistence.models import (
     StructuredLineupSnapshotModel,
     TeamLineupBaselineModel,
     TransfermarktPlayerReferenceModel,
+    uuid_str,
 )
 from w2.ingestion.authoritative_lineup import (
     AuthoritativeLineupError,
@@ -61,6 +82,9 @@ from w2.lineups.intelligence import (
     lineup_requirement,
 )
 from w2.prematch.lifecycle import LineupConfirmedEvent
+from w2.providers.control import provider_quota_authority_max_age_seconds
+
+QUOTA_USAGE_LEDGER_DIVERGENCE_THRESHOLD = 5
 
 
 class FutureRefreshPersistenceError(RuntimeError):
@@ -81,14 +105,7 @@ def parse_db_datetime(value: Any) -> datetime:
 
 
 def _fixture_aliases(fixture_id: str) -> tuple[str, ...]:
-    value = str(fixture_id or "").strip()
-    if not value:
-        return ()
-    if value.startswith("api_football:"):
-        return (value, value.removeprefix("api_football:"))
-    if value.isdigit():
-        return (value, f"api_football:{value}")
-    return (value,)
+    return model_forecast_fixture_aliases(fixture_id)
 
 
 def _round3_active_whitelist(rows: list[tuple[str, Any]]) -> set[str]:
@@ -145,6 +162,80 @@ def _canonical_lineup_identity_hash(
     ).hexdigest()
 
 
+def _provider_teams_from_fixtures(
+    fixtures: list[MatchdayFixtureIdentityModel],
+) -> list[dict[str, Any]]:
+    by_id: dict[str, dict[str, Any]] = {}
+    for fixture in fixtures:
+        payload = fixture.payload if isinstance(fixture.payload, dict) else {}
+        league = payload.get("league")
+        country = (
+            str(league.get("country") or "").strip() or None if isinstance(league, dict) else None
+        )
+        teams = payload.get("teams") if isinstance(payload.get("teams"), dict) else {}
+        for side, provider_team_id in (
+            ("home", fixture.home_provider_team_id),
+            ("away", fixture.away_provider_team_id),
+        ):
+            team = teams.get(side) if isinstance(teams, dict) else None
+            display_name = (
+                str(team.get("name"))
+                if isinstance(team, dict) and team.get("name")
+                else provider_team_id
+            )
+            current = by_id.setdefault(
+                provider_team_id,
+                {
+                    "provider_team_id": provider_team_id,
+                    "display_name": display_name,
+                    "country": country,
+                    "evidence_hashes": [],
+                },
+            )
+            if fixture.identity_hash not in current["evidence_hashes"]:
+                current["evidence_hashes"].append(fixture.identity_hash)
+    return [
+        {**item, "evidence_hashes": sorted(item["evidence_hashes"])}
+        for item in sorted(by_id.values(), key=lambda row: str(row["provider_team_id"]))
+    ]
+
+
+def _fixture_identity_semantic_hash(row: MatchdayFixtureIdentityModel) -> str:
+    payload = {
+        "schema_version": "MatchdayFixtureIdentitySemanticHashV1",
+        "fixture_id": row.fixture_id,
+        "provider": row.provider,
+        "provider_fixture_id": row.provider_fixture_id,
+        "competition_id": row.competition_id,
+        "provider_league_id": row.provider_league_id,
+        "season": row.season,
+        "kickoff_utc": iso_z(parse_db_datetime(row.kickoff_utc)),
+        "fixture_status": row.fixture_status,
+        "home_provider_team_id": row.home_provider_team_id,
+        "away_provider_team_id": row.away_provider_team_id,
+        "home_w2_team_id": row.home_w2_team_id,
+        "away_w2_team_id": row.away_w2_team_id,
+        "team_identity_status": row.team_identity_status,
+    }
+    return canonical_sha256(
+        payload,
+        domain=HashDomain.FUTURE_REFRESH_FIXTURE_IDENTITY,
+        version=SerializerVersion.LEGACY_V1,
+    )
+
+
+def _provider_identity_seed_result(
+    canonical: int = 0,
+    crosswalk: int = 0,
+    ready: int = 0,
+) -> dict[str, int]:
+    return {
+        "canonical_team_count": canonical,
+        "provider_crosswalk_count": crosswalk,
+        "fixture_identity_ready_count": ready,
+    }
+
+
 def iso_z(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
@@ -174,6 +265,13 @@ class DatabaseRawPayloadObjectStore:
                 payload=payload,
             )
         )
+        if endpoint == "statistics":
+            self.session.add(
+                RawStatisticsRetentionModel(
+                    raw_payload_sha256=sha256,
+                    retained_at=datetime.now(UTC),
+                )
+            )
         return storage_uri
 
     def get(self, sha256: str) -> dict[str, Any] | None:
@@ -184,6 +282,222 @@ class DatabaseRawPayloadObjectStore:
 class FutureRefreshDbRepository:
     def __init__(self, *, engine: Engine | None = None, settings: Settings | None = None) -> None:
         self.engine = engine or create_engine(settings)
+
+    @staticmethod
+    def _free_plan_fixture_scope_state_from_rows(
+        rows: list[FreePlanFixtureScopeObservationModel],
+    ) -> dict[str, Any]:
+        if not rows:
+            return {"observed": False, "restriction": None, "consecutive_count": 0}
+        consecutive = []
+        for row in rows:
+            if not row.restricted:
+                break
+            consecutive.append(row)
+        restriction = None
+        if len(consecutive) >= 3:
+            newest = consecutive[0]
+            oldest = consecutive[-1]
+            restriction = {
+                "sample_count": len(consecutive),
+                "observed_at_utc": f"{iso_z(oldest.observed_at)}/{iso_z(newest.observed_at)}",
+                "payload_sha256": newest.payload_sha256,
+                "provider_error": newest.provider_error,
+                "evidence_source": "runtime_observations",
+            }
+        return {
+            "observed": True,
+            "restriction": restriction,
+            "consecutive_count": len(consecutive),
+        }
+
+    def free_plan_fixture_scope_state(
+        self,
+        *,
+        league_id: str,
+        season: str,
+    ) -> dict[str, Any]:
+        try:
+            with Session(self.engine) as session:
+                rows = list(
+                    session.scalars(
+                        select(FreePlanFixtureScopeObservationModel)
+                        .where(
+                            FreePlanFixtureScopeObservationModel.provider == "api_football",
+                            FreePlanFixtureScopeObservationModel.league_id == str(league_id),
+                            FreePlanFixtureScopeObservationModel.season == str(season),
+                        )
+                        .order_by(FreePlanFixtureScopeObservationModel.observed_at.desc())
+                    )
+                )
+        except Exception as exc:
+            raise FutureRefreshPersistenceError(
+                "FREE_PLAN_FIXTURE_SCOPE_OBSERVATION_READ_FAILED"
+            ) from exc
+        return self._free_plan_fixture_scope_state_from_rows(rows)
+
+    def latest_provider_quota_authority(self) -> dict[str, Any]:
+        try:
+            with Session(self.engine) as session:
+                row = session.scalar(
+                    select(ProviderQuotaObservationModel)
+                    .where(ProviderQuotaObservationModel.provider == "api_football")
+                    .order_by(ProviderQuotaObservationModel.observed_at.desc())
+                    .limit(1)
+                )
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("PROVIDER_QUOTA_AUTHORITY_READ_FAILED") from exc
+        if row is None:
+            return {}
+        return {
+            "observed_at": iso_z(row.observed_at),
+            "daily_limit": row.daily_limit,
+            "daily_remaining": row.daily_remaining,
+            "burst_limit": row.burst_limit,
+            "burst_remaining": row.burst_remaining,
+        }
+
+    def record_free_plan_fixture_scope_observation(
+        self,
+        *,
+        league_id: str,
+        season: str,
+        restricted: bool,
+        observed_at: datetime,
+        payload_sha256: str,
+        provider_error: str | None,
+    ) -> dict[str, Any]:
+        with Session(self.engine) as session:
+            try:
+                row = FreePlanFixtureScopeObservationModel(
+                    id=uuid_str(),
+                    provider="api_football",
+                    league_id=str(league_id),
+                    season=str(season),
+                    restricted=bool(restricted),
+                    observed_at=parse_db_datetime(observed_at),
+                    payload_sha256=str(payload_sha256),
+                    provider_error=str(provider_error) if provider_error else None,
+                )
+                session.add(row)
+                session.commit()
+            except Exception as exc:
+                session.rollback()
+                raise FutureRefreshPersistenceError(
+                    "FREE_PLAN_FIXTURE_SCOPE_OBSERVATION_WRITE_FAILED"
+                ) from exc
+        current = self.free_plan_fixture_scope_state(
+            league_id=str(league_id),
+            season=str(season),
+        )
+        return {
+            **current,
+            "newly_confirmed": int(current["consecutive_count"]) == 3,
+        }
+
+    def seed_provider_primary_identity(
+        self,
+        *,
+        competition_id: str,
+        season: str,
+        now: datetime,
+    ) -> dict[str, int]:
+        """Expand the canonical identity pool from already-persisted fixtures.
+
+        This is a database-only operation. It never calls the Provider and does
+        not grant reviewed Chinese-label authority.
+        """
+        normalized_now = parse_db_datetime(now)
+        with Session(self.engine) as session:
+            fixtures = list(
+                session.scalars(
+                    select(MatchdayFixtureIdentityModel)
+                    .where(
+                        MatchdayFixtureIdentityModel.provider == "api_football",
+                        MatchdayFixtureIdentityModel.competition_id == competition_id,
+                        MatchdayFixtureIdentityModel.season == season,
+                    )
+                    .order_by(MatchdayFixtureIdentityModel.kickoff_utc)
+                )
+            )
+            if not fixtures:
+                return _provider_identity_seed_result()
+            canonical_count = 0
+            crosswalk_count = 0
+            for team in _provider_teams_from_fixtures(fixtures):
+                provider_team_id = str(team["provider_team_id"])
+                canonical = canonical_team_payload(
+                    provider_team_id=provider_team_id,
+                    display_name=str(team["display_name"]),
+                    country=str(team["country"]) if team["country"] else None,
+                    created_at=normalized_now,
+                )
+                existing_team = session.get(CanonicalTeamModel, str(canonical["w2_team_id"]))
+                if existing_team is None:
+                    try:
+                        with session.begin_nested():
+                            session.add(CanonicalTeamModel(**canonical))
+                            session.flush()
+                        canonical_count += 1
+                    except IntegrityError:
+                        pass
+                    existing_team = session.get(CanonicalTeamModel, str(canonical["w2_team_id"]))
+                if existing_team is None or (
+                    existing_team.identity_hash != canonical["identity_hash"]
+                ):
+                    raise FutureRefreshPersistenceError("CANONICAL_TEAM_IDENTITY_CONFLICT")
+                crosswalk = provider_crosswalk_payload(
+                    provider_team_id=provider_team_id,
+                    w2_team_id=str(canonical["w2_team_id"]),
+                    competition_id=competition_id,
+                    season=season,
+                    evidence_hashes=list(team["evidence_hashes"]),
+                    valid_from=normalized_now,
+                )
+                existing_crosswalk = session.get(
+                    ProviderTeamIdentityCrosswalkModel, str(crosswalk["id"])
+                )
+                if existing_crosswalk is None:
+                    try:
+                        with session.begin_nested():
+                            session.add(ProviderTeamIdentityCrosswalkModel(**crosswalk))
+                            session.flush()
+                        crosswalk_count += 1
+                    except IntegrityError:
+                        pass
+                    existing_crosswalk = session.get(
+                        ProviderTeamIdentityCrosswalkModel, str(crosswalk["id"])
+                    )
+                if existing_crosswalk is None or (
+                    existing_crosswalk.provider != "api_football"
+                    or existing_crosswalk.provider_team_id != provider_team_id
+                    or existing_crosswalk.w2_team_id != canonical["w2_team_id"]
+                    or existing_crosswalk.competition_id != competition_id
+                    or existing_crosswalk.season != season
+                    or existing_crosswalk.identity_status != PROVIDER_PRIMARY_READY
+                ):
+                    raise FutureRefreshPersistenceError("PROVIDER_TEAM_CROSSWALK_CONFLICT")
+            mapping = CanonicalIdentityRepository.provider_team_mapping_in_session(
+                session,
+                provider="api_football",
+                competition=competition_id,
+                season=season,
+                as_of=normalized_now,
+            )
+            ready = 0
+            for fixture in fixtures:
+                home = mapping.get(fixture.home_provider_team_id)
+                away = mapping.get(fixture.away_provider_team_id)
+                if home is None or away is None:
+                    fixture.team_identity_status = "DATA_DEPENDENCY_MISSING"
+                    continue
+                fixture.home_w2_team_id = home
+                fixture.away_w2_team_id = away
+                fixture.team_identity_status = PROVIDER_PRIMARY_READY
+                fixture.identity_hash = _fixture_identity_semantic_hash(fixture)
+                ready += 1
+            session.commit()
+        return _provider_identity_seed_result(canonical_count, crosswalk_count, ready)
 
     def save_raw_payload(
         self,
@@ -1827,6 +2141,7 @@ class FutureRefreshDbRepository:
                     "bookmaker_id": observation.bookmaker_id,
                     "bookmaker_name": observation.bookmaker_name,
                     "capture_id": observation.capture_id,
+                    "capture_checkpoint": capture.checkpoint if capture else None,
                     "raw_market_label": observation.raw_market_label,
                     "canonical_market": observation.canonical_market,
                     "canonical_selection": observation.canonical_selection,
@@ -2187,27 +2502,28 @@ class FutureRefreshDbRepository:
     def fixture_payloads(self, *, provider_league_id: str | None = None) -> list[dict[str, Any]]:
         fixtures: dict[str, dict[str, Any]] = {}
         with Session(self.engine) as session:
-            rows = list(
-                session.scalars(
-                    select(RawPayloadModel)
-                    .where(RawPayloadModel.endpoint == "fixtures")
-                    .order_by(RawPayloadModel.captured_at)
-                )
+            # Stream raw JSON instead of materializing the entire historical
+            # ORM result; preserve chronological last-observation-wins semantics.
+            rows = session.scalars(
+                select(RawPayloadModel.payload)
+                .where(RawPayloadModel.endpoint == "fixtures")
+                .order_by(RawPayloadModel.captured_at)
+                .execution_options(yield_per=16)
             )
-        for row in rows:
-            response = row.payload.get("response")
-            if not isinstance(response, list):
-                continue
-            for item in response:
-                if not isinstance(item, dict):
+            for payload in rows:
+                response = payload.get("response")
+                if not isinstance(response, list):
                     continue
-                if provider_league_id is not None:
-                    league_id = str(item.get("league", {}).get("id") or "")
-                    if league_id != provider_league_id:
+                for item in response:
+                    if not isinstance(item, dict):
                         continue
-                fixture_id = str(item.get("fixture", {}).get("id"))
-                if fixture_id and fixture_id != "None":
-                    fixtures[fixture_id] = item
+                    if provider_league_id is not None:
+                        league_id = str(item.get("league", {}).get("id") or "")
+                        if league_id != provider_league_id:
+                            continue
+                    fixture_id = str(item.get("fixture", {}).get("id"))
+                    if fixture_id and fixture_id != "None":
+                        fixtures[fixture_id] = item
         return sorted(fixtures.values(), key=lambda item: item.get("fixture", {}).get("date", ""))
 
     def fixture_payload(self, fixture_id: str, *, payload_limit: int = 32) -> dict[str, Any] | None:
@@ -2322,6 +2638,66 @@ class FutureRefreshDbRepository:
             for row in rows
         ]
 
+    def raw_payload_count(self, endpoint: str) -> int:
+        with Session(self.engine) as session:
+            return int(
+                session.scalar(
+                    select(func.count())
+                    .select_from(RawPayloadModel)
+                    .where(RawPayloadModel.endpoint == endpoint)
+                )
+                or 0
+            )
+
+    def raw_payload_exists(self, *, sha256: str, endpoint: str) -> bool:
+        with Session(self.engine) as session:
+            return bool(
+                session.scalar(
+                    select(func.count())
+                    .select_from(RawPayloadModel)
+                    .where(
+                        RawPayloadModel.sha256 == sha256,
+                        RawPayloadModel.endpoint == endpoint,
+                    )
+                )
+            )
+
+    def raw_statistics_fixture_ids(self) -> set[str]:
+        """Return only fixtures with complete, numeric two-sided xG evidence."""
+        fixture_ids: set[str] = set()
+        with Session(self.engine) as session:
+            rows = session.execute(
+                select(RawPayloadModel.payload)
+                .where(RawPayloadModel.endpoint == "statistics")
+                .execution_options(yield_per=256)
+            )
+            for (payload,) in rows:
+                parameters = payload.get("parameters") if isinstance(payload, dict) else None
+                fixture_id = (
+                    str(parameters.get("fixture") or "")
+                    if isinstance(parameters, dict)
+                    else ""
+                )
+                if fixture_id and len(statistics_xg_by_team(payload)) == 2:
+                    fixture_ids.add(fixture_id)
+        return fixture_ids
+
+    def provider_live_request_count_since(self, *, endpoint: str, since: datetime) -> int:
+        with Session(self.engine) as session:
+            return int(
+                session.scalar(
+                    select(func.count())
+                    .select_from(ProviderRequestLogModel)
+                    .where(
+                        ProviderRequestLogModel.provider == "api_football",
+                        ProviderRequestLogModel.endpoint == endpoint,
+                        ProviderRequestLogModel.live.is_(True),
+                        ProviderRequestLogModel.requested_at >= parse_db_datetime(since),
+                    )
+                )
+                or 0
+            )
+
     def raw_payloads_for_scope(
         self,
         endpoint: str,
@@ -2375,27 +2751,59 @@ class FutureRefreshDbRepository:
     def upsert_team_xg_matches(self, matches: list[dict[str, Any]]) -> int:
         upserted = 0
         with Session(self.engine) as session:
-            for row in matches:
-                model = TeamXgMatchModel(
-                    id=str(row["id"]),
-                    fixture_id=str(row["fixture_id"]),
-                    team_id=str(row["team_id"]),
-                    opponent_team_id=str(row["opponent_team_id"]),
-                    kickoff_at=parse_db_datetime(row["kickoff_at"]),
-                    captured_at=parse_db_datetime(row["captured_at"]),
-                    xg_for=float(row["xg_for"]),
-                    xg_against=float(row["xg_against"]),
-                    goals_for=int(row["goals_for"]),
-                    goals_against=int(row["goals_against"]),
-                    raw_payload_sha256=str(row["raw_payload_sha256"]),
-                    source_system=str(row["source_system"]),
-                    candidate=False,
-                    formal_recommendation=False,
-                )
-                session.merge(model)
-                upserted += 1
             try:
+                for row in matches:
+                    row_id = str(row["id"])
+                    existing = session.get(TeamXgMatchModel, row_id)
+                    if existing is not None:
+                        existing_evidence = (
+                            existing.fixture_id,
+                            existing.team_id,
+                            existing.opponent_team_id,
+                            parse_db_datetime(existing.kickoff_at),
+                            existing.xg_for,
+                            existing.xg_against,
+                            existing.goals_for,
+                            existing.goals_against,
+                            existing.source_system,
+                        )
+                        incoming_evidence = (
+                            str(row["fixture_id"]),
+                            str(row["team_id"]),
+                            str(row["opponent_team_id"]),
+                            parse_db_datetime(row["kickoff_at"]),
+                            float(row["xg_for"]),
+                            float(row["xg_against"]),
+                            int(row["goals_for"]),
+                            int(row["goals_against"]),
+                            str(row["source_system"]),
+                        )
+                        if existing_evidence != incoming_evidence:
+                            raise ValueError(f"TEAM_XG_MATCH_IMMUTABLE_CONFLICT:{row_id}")
+                        continue
+                    session.add(
+                        TeamXgMatchModel(
+                            id=row_id,
+                            fixture_id=str(row["fixture_id"]),
+                            team_id=str(row["team_id"]),
+                            opponent_team_id=str(row["opponent_team_id"]),
+                            kickoff_at=parse_db_datetime(row["kickoff_at"]),
+                            captured_at=parse_db_datetime(row["captured_at"]),
+                            xg_for=float(row["xg_for"]),
+                            xg_against=float(row["xg_against"]),
+                            goals_for=int(row["goals_for"]),
+                            goals_against=int(row["goals_against"]),
+                            raw_payload_sha256=str(row["raw_payload_sha256"]),
+                            source_system=str(row["source_system"]),
+                            candidate=False,
+                            formal_recommendation=False,
+                        )
+                    )
+                    upserted += 1
                 session.commit()
+            except ValueError as exc:
+                session.rollback()
+                raise FutureRefreshPersistenceError(str(exc)) from exc
             except Exception as exc:
                 session.rollback()
                 raise FutureRefreshPersistenceError("TEAM_XG_MATCH_WRITE_FAILED") from exc
@@ -2731,37 +3139,6 @@ class FutureRefreshDbRepository:
             )
         return row is not None
 
-    def upsert_checkpoint_plans(self, plans: list[dict[str, Any]]) -> int:
-        # Compatibility API only. Runtime checkpoint authority moved to
-        # MatchdayRuntimeRepository / matchday_checkpoint_plans in 0029.
-        return 0
-
-    def due_checkpoint_plans(
-        self,
-        *,
-        now: datetime,
-        limit: int = 100,
-    ) -> list[dict[str, Any]]:
-        current = parse_db_datetime(now)
-        with Session(self.engine) as session:
-            rows = list(
-                session.scalars(
-                    select(FutureRefreshCheckpointPlanModel)
-                    .where(
-                        FutureRefreshCheckpointPlanModel.status == "PENDING",
-                        FutureRefreshCheckpointPlanModel.due_at <= current,
-                    )
-                    .order_by(
-                        FutureRefreshCheckpointPlanModel.due_at,
-                        FutureRefreshCheckpointPlanModel.kickoff_utc,
-                        FutureRefreshCheckpointPlanModel.fixture_id,
-                        FutureRefreshCheckpointPlanModel.checkpoint,
-                    )
-                    .limit(limit)
-                )
-            )
-        return [self._checkpoint_plan_dict(row) for row in rows]
-
     def market_refresh_status_for_fixtures(
         self,
         fixture_ids: list[str],
@@ -2786,7 +3163,7 @@ class FutureRefreshDbRepository:
             next_refresh_tick = session.scalar(
                 select(func.min(MatchdayCheckpointPlanModel.scheduled_at)).where(
                     MatchdayCheckpointPlanModel.fixture_id.in_(canonical_ids),
-                    MatchdayCheckpointPlanModel.status == "PLANNED",
+                    MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE")),
                     MatchdayCheckpointPlanModel.scheduled_at >= reference,
                 )
             )
@@ -2809,20 +3186,35 @@ class FutureRefreshDbRepository:
         if not ids or len(ids) > 64:
             return {}
         reference = parse_db_datetime(now or datetime.now(UTC))
+        canonical_by_requested = {
+            fixture_id: (
+                fixture_id
+                if fixture_id.startswith("api_football:")
+                else f"api_football:{fixture_id}"
+            )
+            for fixture_id in ids
+        }
         with Session(self.engine) as session:
             rows = session.execute(
                 select(
-                    FutureRefreshCheckpointPlanModel.fixture_id,
-                    func.min(FutureRefreshCheckpointPlanModel.due_at),
+                    MatchdayCheckpointPlanModel.fixture_id,
+                    func.min(MatchdayCheckpointPlanModel.scheduled_at),
                 )
                 .where(
-                    FutureRefreshCheckpointPlanModel.fixture_id.in_(ids),
-                    FutureRefreshCheckpointPlanModel.status == "PENDING",
-                    FutureRefreshCheckpointPlanModel.due_at >= reference,
+                    MatchdayCheckpointPlanModel.fixture_id.in_(canonical_by_requested.values()),
+                    MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE")),
+                    MatchdayCheckpointPlanModel.scheduled_at >= reference,
+                    MatchdayCheckpointPlanModel.test_only.is_(False),
+                    MatchdayCheckpointPlanModel.namespace.is_(None),
                 )
-                .group_by(FutureRefreshCheckpointPlanModel.fixture_id)
+                .group_by(MatchdayCheckpointPlanModel.fixture_id)
             ).all()
-        return {str(fixture_id): iso_z(due_at) for fixture_id, due_at in rows}
+        by_canonical = {str(fixture_id): iso_z(due_at) for fixture_id, due_at in rows}
+        return {
+            requested: by_canonical[canonical]
+            for requested, canonical in canonical_by_requested.items()
+            if canonical in by_canonical
+        }
 
     def write_checkpoint_audit(
         self,
@@ -2845,34 +3237,11 @@ class FutureRefreshDbRepository:
                     details=dict(details),
                 )
                 session.add(audit)
-                plan = session.get(
-                    FutureRefreshCheckpointPlanModel,
-                    f"{fixture_id}:{checkpoint}",
-                )
-                if plan is not None and status in {"COMPLETED", "BLOCKED", "PARTIAL_FAILED"}:
-                    plan.status = status
-                    plan.executed_at = parse_db_datetime(as_of)
-                    session.flush()
-                    plan.last_audit_id = audit.id
                 session.commit()
                 return int(audit.id)
             except Exception as exc:
                 session.rollback()
                 raise FutureRefreshPersistenceError("CHECKPOINT_AUDIT_WRITE_FAILED") from exc
-
-    def _checkpoint_plan_dict(self, row: FutureRefreshCheckpointPlanModel) -> dict[str, Any]:
-        return {
-            "id": row.id,
-            "fixture_id": row.fixture_id,
-            "checkpoint": row.checkpoint,
-            "kickoff_utc": iso_z(row.kickoff_utc),
-            "due_at": iso_z(row.due_at),
-            "endpoints": list(row.endpoints),
-            "source": row.source,
-            "status": row.status,
-            "executed_at": iso_z(row.executed_at) if row.executed_at is not None else None,
-            "last_audit_id": row.last_audit_id,
-        }
 
     def write_run_audit(self, payload: dict[str, Any]) -> None:
         with Session(self.engine) as session:
@@ -2899,7 +3268,13 @@ class FutureRefreshDbRepository:
                 session.rollback()
                 raise FutureRefreshPersistenceError("RUN_AUDIT_WRITE_FAILED") from exc
 
-    def request_count_since(self, since: datetime, *, include_quota_usage: bool = True) -> int:
+    def request_count_evidence_since(
+        self,
+        since: datetime,
+        *,
+        include_quota_usage: bool = True,
+        as_of: datetime | None = None,
+    ) -> dict[str, Any]:
         since_utc = parse_db_datetime(since)
         day_start = since_utc.replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = day_start + timedelta(days=1)
@@ -2918,26 +3293,273 @@ class FutureRefreshDbRepository:
                         ProviderRequestLogModel.requested_at >= since_utc,
                     )
                 )
-                quota_usage = (
+                dispatched_requests = session.scalar(
+                    select(func.count())
+                    .select_from(ProviderRequestLogModel)
+                    .where(
+                        ProviderRequestLogModel.provider == "api_football",
+                        ProviderRequestLogModel.live.is_(True),
+                        ProviderRequestLogModel.requested_at >= since_utc,
+                    )
+                )
+                latest_quota = (
                     session.scalar(
-                        select(func.coalesce(func.max(QuotaUsageModel.used), 0)).where(
+                        select(QuotaUsageModel)
+                        .where(
                             QuotaUsageModel.provider == "api_football",
                             QuotaUsageModel.window_start >= day_start,
                             QuotaUsageModel.window_start < day_end,
                         )
+                        .order_by(
+                            QuotaUsageModel.observed_at.desc(),
+                            QuotaUsageModel.used.desc(),
+                        )
+                        .limit(1)
                     )
                     if include_quota_usage
-                    else 0
+                    else None
                 )
         except Exception as exc:
             raise FutureRefreshPersistenceError("REQUEST_COUNT_READ_FAILED") from exc
-        return max(
-            int(future_refresh_requests or 0),
-            int(provider_request_logs or 0),
-            int(quota_usage or 0),
+        quota_usage_count = int(latest_quota.used) if latest_quota is not None else 0
+        quota_observed_at = latest_quota.observed_at if latest_quota is not None else None
+        run_audit_count = int(future_refresh_requests or 0)
+        provider_ledger_count = int(provider_request_logs or 0)
+        dispatched_count = int(dispatched_requests or 0)
+        attempt_count = max(run_audit_count, provider_ledger_count)
+        reference = parse_db_datetime(as_of or datetime.now(UTC))
+        observed = parse_db_datetime(quota_observed_at) if quota_observed_at else None
+        age_seconds = max(int((reference - observed).total_seconds()), 0) if observed else None
+        max_age_seconds = provider_quota_authority_max_age_seconds()
+        authority_ready = bool(
+            include_quota_usage
+            and observed is not None
+            and age_seconds is not None
+            and age_seconds <= max_age_seconds
+        )
+        try:
+            if observed is not None:
+                with Session(self.engine) as session:
+                    dispatched_since_authority = int(
+                        session.scalar(
+                            select(func.count())
+                            .select_from(ProviderRequestLogModel)
+                            .where(
+                                ProviderRequestLogModel.provider == "api_football",
+                                ProviderRequestLogModel.live.is_(True),
+                                ProviderRequestLogModel.requested_at > observed,
+                                ProviderRequestLogModel.requested_at >= since_utc,
+                            )
+                        )
+                        or 0
+                    )
+            else:
+                dispatched_since_authority = dispatched_count
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("REQUEST_COUNT_READ_FAILED") from exc
+        known_count = (
+            quota_usage_count
+            if authority_ready
+            else quota_usage_count + dispatched_since_authority
+        )
+        delta = attempt_count - quota_usage_count
+        return {
+            "known_count": known_count,
+            "quota_usage_count": quota_usage_count,
+            "run_audit_count": run_audit_count,
+            "provider_ledger_count": provider_ledger_count,
+            "billable_from_provider": quota_usage_count if observed is not None else None,
+            "provider_daily_limit": int(latest_quota.limit) if latest_quota else None,
+            "provider_daily_remaining": (
+                max(int(latest_quota.limit) - int(latest_quota.used), 0)
+                if latest_quota
+                else None
+            ),
+            "local_ledger_count": provider_ledger_count,
+            "last_authority_at": iso_z(observed) if observed else None,
+            "authority_age_seconds": age_seconds,
+            "dispatched_count": dispatched_count,
+            "dispatched_since_authority_count": dispatched_since_authority,
+            "attempt_count": attempt_count,
+            "quota_authority_status": "AUTHORITATIVE" if authority_ready else "DEGRADED",
+            "quota_authority_degraded": not authority_ready,
+            "quota_degradation_classification": (
+                None if authority_ready else "EXPECTED_DEGRADED"
+            ),
+            "quota_authority_observed_at": iso_z(observed) if observed else None,
+            "quota_authority_age_seconds": age_seconds,
+            "quota_authority_max_age_seconds": max_age_seconds,
+            "quota_usage_ledger_delta": delta,
+            "quota_usage_ledger_divergence": (
+                observed is not None
+                and abs(delta) > QUOTA_USAGE_LEDGER_DIVERGENCE_THRESHOLD
+            ),
+        }
+
+    def request_count_since(
+        self,
+        since: datetime,
+        *,
+        include_quota_usage: bool = True,
+        as_of: datetime | None = None,
+    ) -> int:
+        return int(
+            self.request_count_evidence_since(
+                since,
+                include_quota_usage=include_quota_usage,
+                as_of=as_of,
+            )["known_count"]
         )
 
-    def provider_quota_snapshot(self, day_start: datetime) -> dict[str, int | None]:
+    def successful_request_count_since(self, since: datetime) -> int:
+        since_utc = parse_db_datetime(since)
+        try:
+            with Session(self.engine) as session:
+                return int(
+                    session.scalar(
+                        select(func.count())
+                        .select_from(ProviderRequestLogModel)
+                        .where(
+                            ProviderRequestLogModel.provider == "api_football",
+                            ProviderRequestLogModel.live.is_(True),
+                            ProviderRequestLogModel.requested_at >= since_utc,
+                            ProviderRequestLogModel.status_code >= 200,
+                            ProviderRequestLogModel.status_code < 300,
+                        )
+                    )
+                    or 0
+                )
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("SUCCESSFUL_REQUEST_COUNT_READ_FAILED") from exc
+
+    def provider_request_count_since(self, since: datetime) -> int:
+        since_utc = parse_db_datetime(since)
+        try:
+            with Session(self.engine) as session:
+                return int(
+                    session.scalar(
+                        select(func.count())
+                        .select_from(ProviderRequestLogModel)
+                        .where(
+                            ProviderRequestLogModel.provider == "api_football",
+                            ProviderRequestLogModel.requested_at >= since_utc,
+                        )
+                    )
+                    or 0
+                )
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("PROVIDER_REQUEST_COUNT_READ_FAILED") from exc
+
+    def postmatch_result_request_count_since(self, since: datetime) -> int:
+        since_utc = parse_db_datetime(since)
+        try:
+            with Session(self.engine) as session:
+                results = list(
+                    session.scalars(
+                        select(FutureRefreshTaskAuditModel.result).where(
+                            FutureRefreshTaskAuditModel.started_at >= since_utc
+                        )
+                    )
+                )
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("RESULT_REQUEST_COUNT_READ_FAILED") from exc
+        total = 0
+        for result in results:
+            checkpoints = result.get("refresh_checkpoints") if isinstance(result, dict) else None
+            if not isinstance(checkpoints, list) or not checkpoints:
+                continue
+            if all(
+                isinstance(item, dict) and item.get("checkpoint") == "POSTMATCH_RESULT"
+                for item in checkpoints
+            ):
+                total += max(int(result.get("request_count") or 0), 0)
+        return total
+
+    def postmatch_result_successful_request_count_since(self, since: datetime) -> int:
+        since_utc = parse_db_datetime(since)
+        try:
+            with Session(self.engine) as session:
+                results = list(
+                    session.scalars(
+                        select(FutureRefreshTaskAuditModel.result).where(
+                            FutureRefreshTaskAuditModel.started_at >= since_utc
+                        )
+                    )
+                )
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("RESULT_SUCCESS_COUNT_READ_FAILED") from exc
+        total = 0
+        for result in results:
+            checkpoints = result.get("refresh_checkpoints") if isinstance(result, dict) else None
+            requests = result.get("requests") if isinstance(result, dict) else None
+            if (
+                not isinstance(checkpoints, list)
+                or not checkpoints
+                or not isinstance(requests, list)
+            ):
+                continue
+            if all(
+                isinstance(item, dict) and item.get("checkpoint") == "POSTMATCH_RESULT"
+                for item in checkpoints
+            ):
+                total += sum(
+                    isinstance(item, dict)
+                    and isinstance(item.get("status_code"), int)
+                    and 200 <= int(item["status_code"]) < 300
+                    for item in requests
+                )
+        return total
+
+    def unsettled_model_forecast_postmatch_count(
+        self,
+        *,
+        window_start: datetime,
+        window_end: datetime,
+        exclude_fixture_ids: tuple[str, ...] = (),
+    ) -> int:
+        start = parse_db_datetime(window_start)
+        end = parse_db_datetime(window_end)
+        excluded = {
+            fixture_id.removeprefix("api_football:")
+            for fixture_id in exclude_fixture_ids
+            if fixture_id
+        }
+        query = (
+            select(func.count(func.distinct(ModelForecastCaptureModel.fixture_id)))
+            .select_from(ModelForecastCaptureModel)
+            .join(
+                MatchdayCheckpointPlanModel,
+                canonical_model_forecast_fixture_id_sql(
+                    MatchdayCheckpointPlanModel.fixture_id
+                )
+                == canonical_model_forecast_fixture_id_sql(
+                    ModelForecastCaptureModel.fixture_id
+                ),
+            )
+            .outerjoin(
+                ModelForecastOutcomeModel,
+                ModelForecastOutcomeModel.capture_identity_hash
+                == ModelForecastCaptureModel.capture_identity_hash,
+            )
+            .where(
+                ModelForecastOutcomeModel.capture_identity_hash.is_(None),
+                MatchdayCheckpointPlanModel.checkpoint == "POSTMATCH_RESULT",
+                MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE")),
+                MatchdayCheckpointPlanModel.window_start < end,
+                MatchdayCheckpointPlanModel.window_end >= start,
+            )
+        )
+        if excluded:
+            query = query.where(ModelForecastCaptureModel.fixture_id.not_in(excluded))
+        try:
+            with Session(self.engine) as session:
+                return int(session.scalar(query) or 0)
+        except Exception as exc:
+            raise FutureRefreshPersistenceError(
+                "RESULT_CAPTURE_RESERVATION_READ_FAILED"
+            ) from exc
+
+    def provider_quota_snapshot(self, day_start: datetime) -> dict[str, Any]:
         start = parse_db_datetime(day_start).replace(hour=0, minute=0, second=0, microsecond=0)
         end = start + timedelta(days=1)
         try:
@@ -2954,9 +3576,47 @@ class FutureRefreshDbRepository:
         except Exception as exc:
             raise FutureRefreshPersistenceError("QUOTA_SNAPSHOT_READ_FAILED") from exc
         if not rows:
-            return {"daily_limit": None, "used": None, "remaining": None}
+            return {
+                "daily_limit": None,
+                "used": None,
+                "remaining": None,
+                "observed_at": None,
+                "burst_limit": None,
+                "burst_remaining": None,
+                "burst_observed_at": None,
+            }
+        burst_rows = [
+            row
+            for row in rows
+            if row.burst_limit is not None and row.burst_remaining is not None
+        ]
+        burst_row = max(
+            burst_rows,
+            key=lambda row: (parse_db_datetime(row.observed_at), int(row.used)),
+            default=None,
+        )
+        daily_row = max(
+            rows,
+            key=lambda row: (parse_db_datetime(row.observed_at), int(row.used)),
+        )
         return {
-            "daily_limit": min(int(row.limit) for row in rows),
-            "used": max(int(row.used) for row in rows),
-            "remaining": min(max(int(row.limit) - int(row.used), 0) for row in rows),
+            "daily_limit": int(daily_row.limit),
+            "used": int(daily_row.used),
+            "remaining": max(int(daily_row.limit) - int(daily_row.used), 0),
+            "observed_at": iso_z(parse_db_datetime(daily_row.observed_at)),
+            "burst_limit": (
+                int(burst_row.burst_limit)
+                if burst_row is not None and burst_row.burst_limit is not None
+                else None
+            ),
+            "burst_remaining": (
+                int(burst_row.burst_remaining)
+                if burst_row is not None and burst_row.burst_remaining is not None
+                else None
+            ),
+            "burst_observed_at": (
+                iso_z(parse_db_datetime(burst_row.observed_at))
+                if burst_row is not None
+                else None
+            ),
         }

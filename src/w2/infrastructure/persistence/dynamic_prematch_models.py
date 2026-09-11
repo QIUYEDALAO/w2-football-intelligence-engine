@@ -3,7 +3,17 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from w2.infrastructure.database import Base
@@ -18,6 +28,11 @@ class DynamicPrematchEvaluationModel(Base):
             "fixture_id",
             "market",
             "evaluated_at",
+        ),
+        Index(
+            "uq_dynamic_prematch_evaluation_attempt",
+            "attempt_identity_hash",
+            unique=True,
         ),
     )
 
@@ -34,7 +49,98 @@ class DynamicPrematchEvaluationModel(Base):
     evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     capture_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     original_state: Mapped[str] = mapped_column(String(64), nullable=False)
+    recorded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    denominator_scope: Mapped[str | None] = mapped_column(String(64))
+    # Rows written by the one-off sweep describe scan-time state, not checkpoint
+    # state.  They stay in the table but must never reach a pass-rate.
+    measurement_semantics: Mapped[str | None] = mapped_column(String(64))
+    official_funnel_eligible: Mapped[bool | None] = mapped_column(Boolean)
+    exclusion_reason: Mapped[str | None] = mapped_column(String(128))
+    evaluation_policy_version: Mapped[str | None] = mapped_column(String(64))
+    evaluation_slot_id: Mapped[str | None] = mapped_column(String(64))
+    # The frozen model track this opportunity belongs to.  Distinct from
+    # capture_id above, which is the odds snapshot's capture and cannot tell two
+    # model tracks apart when they read the same quote.
+    model_forecast_capture_identity_hash: Mapped[str | None] = mapped_column(String(64))
+    opportunity_identity_hash: Mapped[str | None] = mapped_column(String(64))
+    attempt_identity_hash: Mapped[str | None] = mapped_column(String(64))
+    scheduled_checkpoint_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    checkpoint_plan_identity: Mapped[str | None] = mapped_column(String(128))
+    source_event_identity: Mapped[str | None] = mapped_column(String(128))
+    bookmaker_count: Mapped[int | None] = mapped_column(Integer)
+    first_failed_gate: Mapped[str | None] = mapped_column(String(64))
+    all_failed_gates: Mapped[list[str] | None] = mapped_column(JSON)
+    gate_results: Mapped[dict[str, bool] | None] = mapped_column(JSON)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class DynamicPrematchOpportunityModel(Base):
+    __tablename__ = "dynamic_prematch_opportunities"
+    __table_args__ = (
+        Index(
+            "ix_dynamic_prematch_opportunity_fixture_slot",
+            "fixture_id",
+            "evaluation_slot_id",
+            "market",
+        ),
+    )
+
+    opportunity_identity_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    fixture_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    market: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_forecast_capture_identity_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    evaluation_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    evaluation_slot_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    scheduled_checkpoint_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    checkpoint_plan_identity: Mapped[str] = mapped_column(String(128), nullable=False)
+    state: Mapped[str] = mapped_column(String(64), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    evaluated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    latest_attempt_identity_hash: Mapped[str | None] = mapped_column(String(64))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class CandidateNotificationOutboxModel(Base):
+    __tablename__ = "candidate_notification_outbox"
+    __table_args__ = (
+        UniqueConstraint(
+            "attempt_identity_hash",
+            "event_type",
+            name="uq_candidate_notification_attempt_event",
+        ),
+        Index(
+            "ix_candidate_notification_delivery",
+            "delivery_status",
+            "created_at",
+        ),
+        Index(
+            "ix_candidate_notification_opportunity",
+            "opportunity_identity_hash",
+            "created_at",
+        ),
+        CheckConstraint(
+            "delivery_status in ('PENDING', 'RETRY_PENDING', 'DELIVERED', 'FAILED', "
+            "'DIGEST_PENDING', 'DIGESTED', 'SUPPRESSED')",
+            name="ck_candidate_notification_delivery_status",
+        ),
+    )
+
+    notification_event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    opportunity_identity_hash: Mapped[str | None] = mapped_column(String(64))
+    # MISSED/EVALUATION_ERROR closeouts and day summaries have no evaluation
+    # attempt. Their deterministic notification_event_id is the idempotency key.
+    attempt_identity_hash: Mapped[str | None] = mapped_column(String(64))
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    previous_state: Mapped[str | None] = mapped_column(String(64))
+    current_state: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    delivery_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    delivery_attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error: Mapped[str | None] = mapped_column(String(512))
 
 
 class DynamicPrematchSupersessionModel(Base):

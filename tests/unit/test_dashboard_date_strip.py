@@ -40,6 +40,7 @@ def test_date_strip_uses_fifteen_noon_to_noon_football_days() -> None:
         odds_plans=[],
         market_evidence_fixture_ids=set(),
         as_of=datetime(2026, 8, 10, 5, 0, tzinfo=UTC),
+        active_whitelist_count=11,
     )
 
     assert len(strip) == 15
@@ -69,6 +70,7 @@ def test_future_market_state_uses_persisted_checkpoint_timing() -> None:
         ],
         market_evidence_fixture_ids={"ready"},
         as_of=as_of,
+        active_whitelist_count=11,
     )
     by_day = {entry["football_day"]: entry for entry in strip}
 
@@ -112,12 +114,13 @@ def test_date_strip_reports_partial_coverage_and_persisted_next_date_only() -> N
         odds_plans=[],
         market_evidence_fixture_ids=set(),
         as_of=datetime(2026, 8, 10, 5, 0, tzinfo=UTC),
+        active_whitelist_count=11,
     )
     later = next(entry for entry in strip if entry["football_day"] == "2026-08-12")
 
     assert later["fixture_count"] == 2
     assert later["persisted_competition_coverage_count"] == 2
-    assert later["active_whitelist_count"] == 13
+    assert later["active_whitelist_count"] == 11
     assert next_available_date(selected, strip) == "2026-08-12"
     assert next_available_date(date(2026, 8, 12), strip) is None
 
@@ -136,6 +139,7 @@ def test_partial_persisted_observations_are_not_reported_as_market_evidence_read
         ],
         market_evidence_fixture_ids={"observed"},
         as_of=as_of,
+        active_whitelist_count=11,
     )
 
     selected = strip[7]
@@ -159,6 +163,7 @@ def test_partial_observations_do_not_make_undue_fixtures_awaiting_collection() -
         odds_plans=[_plan("not-due", as_of + timedelta(hours=6))],
         market_evidence_fixture_ids={"observed"},
         as_of=as_of,
+        active_whitelist_count=11,
     )
 
     future = next(entry for entry in strip if entry["football_day"] == "2026-08-12")
@@ -186,6 +191,7 @@ def test_finished_day_remains_finished_with_persisted_market_evidence() -> None:
         odds_plans=[],
         market_evidence_fixture_ids={"finished"},
         as_of=datetime(2026, 8, 11, 3, 0, tzinfo=UTC),
+        active_whitelist_count=11,
     )
 
     selected = strip[7]

@@ -1,0 +1,3296 @@
+{
+  "candidate_id": "GLOBAL_ROLLING_CONFIDENCE_SHRINKAGE_V1",
+  "distinct_temperatures": [
+    1.0,
+    1.16,
+    1.23,
+    1.25,
+    1.34,
+    1.35,
+    1.36,
+    1.37,
+    1.38,
+    1.39,
+    1.4,
+    1.41,
+    1.44,
+    1.49,
+    1.51,
+    1.52,
+    1.54,
+    1.55,
+    1.56,
+    1.57,
+    1.58,
+    1.59
+  ],
+  "grid": {
+    "max": 2.0,
+    "min": 1.0,
+    "step": 0.01
+  },
+  "min_training_rows": 20,
+  "records": [
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.359448337853,
+        "PUSH": 1e-12,
+        "WIN": 0.640551662144
+      },
+      "evaluated_at": "2026-08-19T22:52:50.948733Z",
+      "evaluation_id": "dqe-8238b5ca13fc05aa58e66d28c415a7ac84e767cc54da8147ee85a7e642101982",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.359448337854,
+        "PUSH": 0.0,
+        "WIN": 0.640551662146
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-19T22:52:50.948733Z",
+      "temperature": 1.0,
+      "training_rows": 0
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.380975004302,
+        "PUSH": 1e-12,
+        "WIN": 0.619024995695
+      },
+      "evaluated_at": "2026-08-19T22:52:51.637438Z",
+      "evaluation_id": "dqe-c8cc5fccf94cada4609e691ab7681ba8a62b56bfefa09988dbcd8dbfb3b9cd15",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.380975004303,
+        "PUSH": 0.0,
+        "WIN": 0.619024995697
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-19T22:52:51.637438Z",
+      "temperature": 1.0,
+      "training_rows": 0
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.318817479367,
+        "PUSH": 0.21544348166,
+        "WIN": 0.465739038971
+      },
+      "evaluated_at": "2026-08-19T22:52:52.929337Z",
+      "evaluation_id": "dqe-e38f1bacff9939362b3b6137e88017db0e7c07d4fc4e7fccbe5958835dcccc85",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.318817479368,
+        "PUSH": 0.21544348166,
+        "WIN": 0.465739038972
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-19T22:52:52.929337Z",
+      "temperature": 1.0,
+      "training_rows": 0
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 0.245710831264,
+        "LOSS": 0.308828428216,
+        "PUSH": 1e-12,
+        "WIN": 0.445460740518
+      },
+      "evaluated_at": "2026-08-19T22:52:54.218302Z",
+      "evaluation_id": "dqe-065cec5409dc5953b4bd80f5e6f9d4391bbd4d9b7e705daf4c239c9773011cbd",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.245710831264,
+        "LOSS": 0.308828428217,
+        "PUSH": 0.0,
+        "WIN": 0.445460740519
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-19T22:52:54.218302Z",
+      "temperature": 1.0,
+      "training_rows": 0
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.300951565592,
+        "PUSH": 0.221932014334,
+        "WIN": 0.477116420072
+      },
+      "evaluated_at": "2026-08-19T23:50:48.684942Z",
+      "evaluation_id": "dqe-3b97f34ae85b297e43c1f3e9f4c042123ff0b06e75df0bbca525ce648cc316dd",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.300951565593,
+        "PUSH": 0.221932014335,
+        "WIN": 0.477116420072
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-19T23:50:48.684942Z",
+      "temperature": 1.0,
+      "training_rows": 0
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.353548527929,
+        "PUSH": 1e-12,
+        "WIN": 0.646451472068
+      },
+      "evaluated_at": "2026-08-19T23:50:48.684942Z",
+      "evaluation_id": "dqe-6dea3e9711e0c46631cbb61520e59f1d97070f35dd5f13f02932fb580d30654e",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.35354852793,
+        "PUSH": 0.0,
+        "WIN": 0.64645147207
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-19T23:50:48.684942Z",
+      "temperature": 1.0,
+      "training_rows": 0
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.317419852787,
+        "PUSH": 0.223077651436,
+        "WIN": 0.459502495774
+      },
+      "evaluated_at": "2026-08-20T00:22:32.149069Z",
+      "evaluation_id": "dqe-a820b19b2343c3f6b640f0472cab06d4c8e047335ff79c1841d63645d480ce1e",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.317419852788,
+        "PUSH": 0.223077651437,
+        "WIN": 0.459502495775
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-20T00:22:32.149069Z",
+      "temperature": 1.0,
+      "training_rows": 0
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 0.249900506842,
+        "LOSS": 0.264455246171,
+        "PUSH": 1e-12,
+        "WIN": 0.485644246985
+      },
+      "evaluated_at": "2026-08-20T01:23:22.294448Z",
+      "evaluation_id": "dqe-cb36eb761e1915d79fa71e91c9bdd5d43aec8fbd332df240150f41efeae25686",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.249900506843,
+        "LOSS": 0.264455246171,
+        "PUSH": 0.0,
+        "WIN": 0.485644246986
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-20T01:23:22.294448Z",
+      "temperature": 1.0,
+      "training_rows": 0
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.219693934267,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.199301800164,
+        "PUSH": 1e-12,
+        "WIN": 0.581004265567
+      },
+      "evaluated_at": "2026-08-20T01:23:22.732367Z",
+      "evaluation_id": "dqe-1e06359dd5b0dda84c4096a63e3f17d76274661e16d3ddb1ac9043681698a1b7",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.219693934268,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.199301800164,
+        "PUSH": 0.0,
+        "WIN": 0.581004265568
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-20T01:23:22.732367Z",
+      "temperature": 1.0,
+      "training_rows": 0
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.395786528659,
+        "PUSH": 1e-12,
+        "WIN": 0.604213471338
+      },
+      "evaluated_at": "2026-08-20T01:23:23.105688Z",
+      "evaluation_id": "dqe-b8f300e146a6f225d01c0681af2a047b2d3d4aff44130c7c3c21e074055aad08",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.39578652866,
+        "PUSH": 0.0,
+        "WIN": 0.60421347134
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-20T01:23:23.105688Z",
+      "temperature": 1.0,
+      "training_rows": 0
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.206959260415,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.213373153913,
+        "PUSH": 1e-12,
+        "WIN": 0.57966758567
+      },
+      "evaluated_at": "2026-08-20T02:19:40.007468Z",
+      "evaluation_id": "dqe-a028f38aab7acb29be6a54493999b92761d008c220c4f80e046c269197ce1067",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.206959260415,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.213373153914,
+        "PUSH": 0.0,
+        "WIN": 0.579667585671
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-20T02:19:40.007468Z",
+      "temperature": 1.0,
+      "training_rows": 0
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.177542702997,
+        "PUSH": 0.222930331869,
+        "WIN": 0.599526965132
+      },
+      "evaluated_at": "2026-08-20T02:19:40.007468Z",
+      "evaluation_id": "dqe-dcce9cbc34b514381e0029c9cd3d03ddc487a0352c6aaf82b2b03ca76e76e340",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.177542702998,
+        "PUSH": 0.222930331869,
+        "WIN": 0.599526965133
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-20T02:19:40.007468Z",
+      "temperature": 1.0,
+      "training_rows": 0
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.285026108028,
+        "PUSH": 1e-12,
+        "WIN": 0.714973891969
+      },
+      "evaluated_at": "2026-08-20T02:19:40.418113Z",
+      "evaluation_id": "dqe-42d1e53a67b9ec4450daf688b8c4ea93fd57d85fa70770e04d2d7728ec9191b2",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.285026108029,
+        "PUSH": 0.0,
+        "WIN": 0.714973891971
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-20T02:19:40.418113Z",
+      "temperature": 1.0,
+      "training_rows": 0
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.417719320164,
+        "PUSH": 1e-12,
+        "WIN": 0.582280679833
+      },
+      "evaluated_at": "2026-08-20T02:19:40.418113Z",
+      "evaluation_id": "dqe-9f9231b0ad652335e45d822a1c62eb4dca005b47d6fcaf9fa9ff079d0ff8626c",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.417719320165,
+        "PUSH": 0.0,
+        "WIN": 0.582280679835
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-20T02:19:40.418113Z",
+      "temperature": 1.0,
+      "training_rows": 0
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.277787784723,
+        "PUSH": 0.254026982964,
+        "WIN": 0.468185232312
+      },
+      "evaluated_at": "2026-08-20T18:33:32.323507Z",
+      "evaluation_id": "dqe-382bcf82fd3364f2973ace8202c0699eb4325034ac12071c66dd72b0ac1ce83c",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.277787784723,
+        "PUSH": 0.254026982964,
+        "WIN": 0.468185232313
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-20T18:33:32.323507Z",
+      "temperature": 1.0,
+      "training_rows": 14
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.309251927041,
+        "PUSH": 0.27048442254,
+        "WIN": 0.420263650418
+      },
+      "evaluated_at": "2026-08-21T17:15:19.977626Z",
+      "evaluation_id": "dqe-30fae8d8bed9158b55c35a789ccd66b55a781311af9bd6eef4bd90cd88abfdb2",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.309251927041,
+        "PUSH": 0.27048442254,
+        "WIN": 0.420263650419
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-21T17:15:19.977626Z",
+      "temperature": 1.0,
+      "training_rows": 15
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.197156137242,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.231904315827,
+        "PUSH": 1e-12,
+        "WIN": 0.570939546929
+      },
+      "evaluated_at": "2026-08-21T18:30:40.919978Z",
+      "evaluation_id": "dqe-47233f86f07bb9a8df87b44b3dd5718f7dfcbcfef69220905c0a2adb360cdbd8",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.197156137243,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.231904315827,
+        "PUSH": 0.0,
+        "WIN": 0.57093954693
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-21T18:30:40.919978Z",
+      "temperature": 1.0,
+      "training_rows": 15
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.320662314566,
+        "PUSH": 0.21575464191,
+        "WIN": 0.463583043522
+      },
+      "evaluated_at": "2026-08-21T18:30:40.919978Z",
+      "evaluation_id": "dqe-b8df4ed9fde39571b36483c75d5b4cc1c7fe6eca57567c5bc784ef462ff6e109",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.320662314567,
+        "PUSH": 0.21575464191,
+        "WIN": 0.463583043523
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-21T18:30:40.919978Z",
+      "temperature": 1.0,
+      "training_rows": 15
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.402680289208,
+        "PUSH": 1e-12,
+        "WIN": 0.597319710789
+      },
+      "evaluated_at": "2026-08-21T18:47:34.284573Z",
+      "evaluation_id": "dqe-7a49c824054174e66d2aa984d1fbcc7e6dfd94dbc40d9e1cb6a92bb7bd27312c",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.402680289209,
+        "PUSH": 0.0,
+        "WIN": 0.597319710791
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-21T18:47:34.284573Z",
+      "temperature": 1.0,
+      "training_rows": 15
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1e-12,
+        "HALF_WIN": 1e-12,
+        "LOSS": 0.362128907692,
+        "PUSH": 1e-12,
+        "WIN": 0.637871092305
+      },
+      "evaluated_at": "2026-08-21T22:45:21.259249Z",
+      "evaluation_id": "dqe-9b45210bad48e7325e5c50ce9b922abb8d83eb2e4a50cdebca263ea1c77c50aa",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.362128907693,
+        "PUSH": 0.0,
+        "WIN": 0.637871092307
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-21T22:45:21.259249Z",
+      "temperature": 1.0,
+      "training_rows": 19
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 4.1e-11,
+        "HALF_WIN": 4.1e-11,
+        "LOSS": 0.417531075136,
+        "PUSH": 4.1e-11,
+        "WIN": 0.58246892474
+      },
+      "evaluated_at": "2026-08-22T13:46:12.899923Z",
+      "evaluation_id": "dqe-019440c1786726d47656b1392392cf175023874b697a9e1916ab8b9be346ef89",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.404636367295,
+        "PUSH": 0.0,
+        "WIN": 0.595363632705
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T13:46:12.899923Z",
+      "temperature": 1.16,
+      "training_rows": 20
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 4.1e-11,
+        "HALF_WIN": 4.1e-11,
+        "LOSS": 0.384378016717,
+        "PUSH": 4.1e-11,
+        "WIN": 0.615621983159
+      },
+      "evaluated_at": "2026-08-22T13:46:14.241908Z",
+      "evaluation_id": "dqe-669e887ac6037d23f6c34c6c1e59d364843f0ee6b0fdee3aec3a008cc88ef011",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.366707543817,
+        "PUSH": 0.0,
+        "WIN": 0.633292456183
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T13:46:14.241908Z",
+      "temperature": 1.16,
+      "training_rows": 20
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.249540477669,
+        "HALF_WIN": 3.9e-11,
+        "LOSS": 0.208232007302,
+        "PUSH": 3.9e-11,
+        "WIN": 0.542227514951
+      },
+      "evaluated_at": "2026-08-22T14:45:58.318526Z",
+      "evaluation_id": "dqe-55aa3fe1eb2d706b8f5de199ab3119677e8e13b530d5c48a904db7230c496242",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.234146667334,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.189810180279,
+        "PUSH": 0.0,
+        "WIN": 0.576043152387
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T14:45:58.318526Z",
+      "temperature": 1.16,
+      "training_rows": 20
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 4e-11,
+        "HALF_WIN": 4e-11,
+        "LOSS": 0.171940764827,
+        "PUSH": 0.196213744055,
+        "WIN": 0.631845491037
+      },
+      "evaluated_at": "2026-08-22T16:18:43.948529Z",
+      "evaluation_id": "dqe-08549b5a350a9d7dc01b6f6c9c2128c5f7b0dc1375c645ce887db7e51ca1f7a7",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.149453025334,
+        "PUSH": 0.174193270302,
+        "WIN": 0.676353704364
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T16:18:43.948529Z",
+      "temperature": 1.16,
+      "training_rows": 20
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 3.9e-11,
+        "HALF_WIN": 3.9e-11,
+        "LOSS": 0.314118067873,
+        "PUSH": 0.236608209683,
+        "WIN": 0.449273722366
+      },
+      "evaluated_at": "2026-08-22T16:18:43.948529Z",
+      "evaluation_id": "dqe-9ccccd7da06246fc514ba57d92934cbc8dd2212a5cc3924b349fda53928ca736",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.309175135533,
+        "PUSH": 0.222562173818,
+        "WIN": 0.468262690649
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T16:18:43.948529Z",
+      "temperature": 1.16,
+      "training_rows": 20
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 4.1e-11,
+        "HALF_WIN": 4.1e-11,
+        "LOSS": 0.46546503166,
+        "PUSH": 4.1e-11,
+        "WIN": 0.534534968217
+      },
+      "evaluated_at": "2026-08-22T16:18:44.531461Z",
+      "evaluation_id": "dqe-9785206f4e3e4697a23ff4147143ac1b9835ad45148ee43ac09cb759f37754d8",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.459961459768,
+        "PUSH": 0.0,
+        "WIN": 0.540038540232
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T16:18:44.531461Z",
+      "temperature": 1.16,
+      "training_rows": 20
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 3.9e-11,
+        "HALF_WIN": 0.263985199075,
+        "LOSS": 0.274842580038,
+        "PUSH": 3.9e-11,
+        "WIN": 0.461172220808
+      },
+      "evaluated_at": "2026-08-22T16:23:56.444211Z",
+      "evaluation_id": "dqe-3b013292b69a907b5531bce4b1d19e6a932606e800befa75b71ec4eb3ae90432",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.252657131706,
+        "LOSS": 0.264750452233,
+        "PUSH": 0.0,
+        "WIN": 0.482592416061
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T16:23:56.444211Z",
+      "temperature": 1.16,
+      "training_rows": 20
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 3.9e-11,
+        "HALF_WIN": 0.230761059479,
+        "LOSS": 0.32655400896,
+        "PUSH": 3.9e-11,
+        "WIN": 0.442684931482
+      },
+      "evaluated_at": "2026-08-22T16:32:30.872148Z",
+      "evaluation_id": "dqe-0eec0cb86090e08aae36e53790ec15f7509946bd7c9ca21e480947de824a7c40",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.216212304973,
+        "LOSS": 0.323444448542,
+        "PUSH": 0.0,
+        "WIN": 0.460343246485
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T16:32:30.872148Z",
+      "temperature": 1.16,
+      "training_rows": 20
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 4.1e-11,
+        "HALF_WIN": 4.1e-11,
+        "LOSS": 0.411127439744,
+        "PUSH": 4.1e-11,
+        "WIN": 0.588872560132
+      },
+      "evaluated_at": "2026-08-22T16:45:56.237713Z",
+      "evaluation_id": "dqe-ffea9d41519c4efcd890f2db22e8437f82f6eb4a4f5ceaf42fc3a74992ed66c7",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.397283787714,
+        "PUSH": 0.0,
+        "WIN": 0.602716212286
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T16:45:56.237713Z",
+      "temperature": 1.16,
+      "training_rows": 20
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.44e-10,
+        "HALF_WIN": 0.267809659509,
+        "LOSS": 0.288889838644,
+        "PUSH": 1.44e-10,
+        "WIN": 0.44330050156
+      },
+      "evaluated_at": "2026-08-22T17:15:06.180959Z",
+      "evaluation_id": "dqe-98b574168efea0d60bc78b644cea3dd04c3059f529c2984e5369b885f66d70c8",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.2527556365,
+        "LOSS": 0.277443953793,
+        "PUSH": 0.0,
+        "WIN": 0.469800409707
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T17:15:06.180959Z",
+      "temperature": 1.23,
+      "training_rows": 22
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.45e-10,
+        "HALF_WIN": 1.45e-10,
+        "LOSS": 0.253211938837,
+        "PUSH": 0.242761731716,
+        "WIN": 0.504026329158
+      },
+      "evaluated_at": "2026-08-22T18:24:32.368004Z",
+      "evaluation_id": "dqe-f0613fe47f8c7b7905899d5039b88b0442c1bf86d9700428157f89bf62638395",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.233563066867,
+        "PUSH": 0.22176362319,
+        "WIN": 0.544673309944
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T18:24:32.368004Z",
+      "temperature": 1.23,
+      "training_rows": 22
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.44e-10,
+        "HALF_WIN": 0.242068310148,
+        "LOSS": 0.323137038688,
+        "PUSH": 1.44e-10,
+        "WIN": 0.434794650876
+      },
+      "evaluated_at": "2026-08-22T18:24:32.368004Z",
+      "evaluation_id": "dqe-fdb5461bfbe2c2f30fdf494a7c8f2604f336cc35c29d7e836b1a1dc087b24486",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.223126600561,
+        "LOSS": 0.318312266952,
+        "PUSH": 0.0,
+        "WIN": 0.458561132487
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T18:24:32.368004Z",
+      "temperature": 1.23,
+      "training_rows": 22
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 3.9e-11,
+        "HALF_WIN": 3.9e-11,
+        "LOSS": 0.225206015424,
+        "PUSH": 0.243897840515,
+        "WIN": 0.530896143983
+      },
+      "evaluated_at": "2026-08-22T18:32:38.544543Z",
+      "evaluation_id": "dqe-f1163f232fb1b0a7ddecf948d49946f9656ad9950698c464cfb5f13b9a26e3f2",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.208290982217,
+        "PUSH": 0.228475118514,
+        "WIN": 0.563233899269
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T18:32:38.544543Z",
+      "temperature": 1.16,
+      "training_rows": 23
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 3.9e-11,
+        "HALF_WIN": 0.246727142577,
+        "LOSS": 0.300425596531,
+        "PUSH": 3.9e-11,
+        "WIN": 0.452847260814
+      },
+      "evaluated_at": "2026-08-22T18:37:25.234241Z",
+      "evaluation_id": "dqe-25c2e054253664dc8f26850bb77a87185aeb69732ffd4bc8218d048aa0e3965e",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.233681875572,
+        "LOSS": 0.293648801953,
+        "PUSH": 0.0,
+        "WIN": 0.472669322474
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T18:37:25.234241Z",
+      "temperature": 1.16,
+      "training_rows": 23
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 4.1e-11,
+        "HALF_WIN": 4.1e-11,
+        "LOSS": 0.416962993481,
+        "PUSH": 4.1e-11,
+        "WIN": 0.583037006396
+      },
+      "evaluated_at": "2026-08-22T18:37:25.234241Z",
+      "evaluation_id": "dqe-4a4f6571493957f9e7fd0cb3d1f9a888f658716533bc540e7461dd3c2a09ac59",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.40398364901,
+        "PUSH": 0.0,
+        "WIN": 0.59601635099
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T18:37:25.234241Z",
+      "temperature": 1.16,
+      "training_rows": 23
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 3.9e-11,
+        "HALF_WIN": 3.9e-11,
+        "LOSS": 0.301268556469,
+        "PUSH": 0.270052569095,
+        "WIN": 0.428678874358
+      },
+      "evaluated_at": "2026-08-22T18:52:49.430781Z",
+      "evaluation_id": "dqe-224eb28fd687423c93f35dabb98e88654a97ee2ba96d00e80781d95342771661",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.295302850371,
+        "PUSH": 0.260112526053,
+        "WIN": 0.444584623577
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T18:52:49.430781Z",
+      "temperature": 1.16,
+      "training_rows": 23
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.259830466046,
+        "HALF_WIN": 3.9e-11,
+        "LOSS": 0.206304003337,
+        "PUSH": 3.9e-11,
+        "WIN": 0.533865530537
+      },
+      "evaluated_at": "2026-08-22T18:56:50.905897Z",
+      "evaluation_id": "dqe-2d64ca9de9c6556c67e592b5a90cb189023e16cb1e9dc2daf17c4f36ecb0adbe",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.245651641892,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.187978451541,
+        "PUSH": 0.0,
+        "WIN": 0.566369906566
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T18:56:50.905897Z",
+      "temperature": 1.16,
+      "training_rows": 23
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 3.9e-11,
+        "HALF_WIN": 3.9e-11,
+        "LOSS": 0.301154336412,
+        "PUSH": 0.268551104156,
+        "WIN": 0.430294559354
+      },
+      "evaluated_at": "2026-08-22T18:56:50.905897Z",
+      "evaluation_id": "dqe-aaa6cbb5a7fd47fddd1b306dd5b1f8359b4c88b4f7af19f3a6405d65cf33e16a",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.295132369879,
+        "PUSH": 0.258400124053,
+        "WIN": 0.446467506068
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T18:56:50.905897Z",
+      "temperature": 1.16,
+      "training_rows": 23
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 3.9e-11,
+        "HALF_WIN": 3.9e-11,
+        "LOSS": 0.291148545132,
+        "PUSH": 0.266214787366,
+        "WIN": 0.442636667424
+      },
+      "evaluated_at": "2026-08-22T18:56:51.366896Z",
+      "evaluation_id": "dqe-1682ff01be4104844b93fb1711aa40c5198f4ba9629512be88ada603b221e53d",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.283522092998,
+        "PUSH": 0.255554342799,
+        "WIN": 0.460923564204
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T18:56:51.366896Z",
+      "temperature": 1.16,
+      "training_rows": 23
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 3.9e-11,
+        "HALF_WIN": 3.9e-11,
+        "LOSS": 0.231850939834,
+        "PUSH": 0.22474384685,
+        "WIN": 0.543405213238
+      },
+      "evaluated_at": "2026-08-22T19:16:47.054021Z",
+      "evaluation_id": "dqe-c710d3d734d75e6834642d76cfeb06cce16ea5b765e61931d428379e4021d4e1",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.215030608807,
+        "PUSH": 0.207403397328,
+        "WIN": 0.577565993865
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T19:16:47.054021Z",
+      "temperature": 1.16,
+      "training_rows": 23
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 4e-11,
+        "HALF_WIN": 0.23326206075,
+        "LOSS": 0.183195251485,
+        "PUSH": 4e-11,
+        "WIN": 0.583542687686
+      },
+      "evaluated_at": "2026-08-22T19:16:47.054021Z",
+      "evaluation_id": "dqe-d40349a7898b925319e5bbbb1fe57b153d4d5ac1b118f7268327e730bbc7eb15",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.214935490036,
+        "LOSS": 0.162401281846,
+        "PUSH": 0.0,
+        "WIN": 0.622663228119
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T19:16:47.054021Z",
+      "temperature": 1.16,
+      "training_rows": 23
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 3.9e-11,
+        "HALF_WIN": 0.235260216363,
+        "LOSS": 0.296361850841,
+        "PUSH": 3.9e-11,
+        "WIN": 0.468377932718
+      },
+      "evaluated_at": "2026-08-22T19:19:20.401530Z",
+      "evaluation_id": "dqe-15e05e9e1ab90328e39be0f27780246d271a8f80953fbf9b7cfaaddd906af810",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.220755327848,
+        "LOSS": 0.288555136313,
+        "PUSH": 0.0,
+        "WIN": 0.490689535839
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T19:19:20.401530Z",
+      "temperature": 1.16,
+      "training_rows": 23
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.198186119362,
+        "HALF_WIN": 4e-11,
+        "LOSS": 0.1706306426,
+        "PUSH": 4e-11,
+        "WIN": 0.631183237958
+      },
+      "evaluated_at": "2026-08-22T19:19:20.401530Z",
+      "evaluation_id": "dqe-31ee7541a995f96d72019ced1862efa94b5f07a348aa6bd48ca7b5248647a52f",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.176245403559,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.148149093591,
+        "PUSH": 0.0,
+        "WIN": 0.67560550285
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T19:19:20.401530Z",
+      "temperature": 1.16,
+      "training_rows": 23
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 2.23e-10,
+        "HALF_WIN": 2.23e-10,
+        "LOSS": 0.303138979675,
+        "PUSH": 2.23e-10,
+        "WIN": 0.696861019656
+      },
+      "evaluated_at": "2026-08-22T21:15:11.029817Z",
+      "evaluation_id": "dqe-2f180145f4ee99edd3f6122a26cc6d45c6a65d14ac9de85f8408b481c7c242d7",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.261054828875,
+        "PUSH": 0.0,
+        "WIN": 0.738945171125
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T21:15:11.029817Z",
+      "temperature": 1.25,
+      "training_rows": 30
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 2.03e-10,
+        "HALF_WIN": 0.287456578223,
+        "LOSS": 0.256465936904,
+        "PUSH": 2.03e-10,
+        "WIN": 0.456077484466
+      },
+      "evaluated_at": "2026-08-22T21:17:29.007631Z",
+      "evaluation_id": "dqe-8e9232e3de0eb838f12ceae9117962f4b4a88e6a872d1a61ae717a651c1f6b29",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.274139842386,
+        "LOSS": 0.237708087889,
+        "PUSH": 0.0,
+        "WIN": 0.488152069725
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T21:17:29.007631Z",
+      "temperature": 1.25,
+      "training_rows": 30
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.253e-09,
+        "HALF_WIN": 1.253e-09,
+        "LOSS": 0.442754053162,
+        "PUSH": 1.253e-09,
+        "WIN": 0.557245943081
+      },
+      "evaluated_at": "2026-08-22T23:10:34.087535Z",
+      "evaluation_id": "dqe-8e396e136421b35f7767533ee754a474b5d50ca33ec80183957b180acf5efc28",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.422434006159,
+        "PUSH": 0.0,
+        "WIN": 0.577565993841
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T23:10:34.087535Z",
+      "temperature": 1.36,
+      "training_rows": 43
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.206991923854,
+        "HALF_WIN": 1.17e-09,
+        "LOSS": 0.225748848087,
+        "PUSH": 1.17e-09,
+        "WIN": 0.56725922572
+      },
+      "evaluated_at": "2026-08-22T23:21:13.233388Z",
+      "evaluation_id": "dqe-068fe1e85395f2b6647b6c384a89caece2d643c51435979fb22e40c2f2846131",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.164887025589,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.185532756399,
+        "PUSH": 0.0,
+        "WIN": 0.649580218011
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T23:21:13.233388Z",
+      "temperature": 1.36,
+      "training_rows": 43
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.135e-09,
+        "HALF_WIN": 1.135e-09,
+        "LOSS": 0.340790584344,
+        "PUSH": 0.227034096142,
+        "WIN": 0.432175317243
+      },
+      "evaluated_at": "2026-08-22T23:21:13.233388Z",
+      "evaluation_id": "dqe-6dd9c7b76c9ba30cbdbe81d75de752afc8b18e12aa43dd22f3bb0a8659d76bba",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.33818545241,
+        "PUSH": 0.194650569392,
+        "WIN": 0.467163978198
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T23:21:13.233388Z",
+      "temperature": 1.36,
+      "training_rows": 43
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.252e-09,
+        "HALF_WIN": 1.252e-09,
+        "LOSS": 0.45002000516,
+        "PUSH": 1.252e-09,
+        "WIN": 0.549979991084
+      },
+      "evaluated_at": "2026-08-22T23:21:13.631022Z",
+      "evaluation_id": "dqe-538c5d3946b0ef47a12abd2d7513fd90fd6771dfc3399a5f315fb51c2b126d5f",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.432219286417,
+        "PUSH": 0.0,
+        "WIN": 0.567780713583
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T23:21:13.631022Z",
+      "temperature": 1.36,
+      "training_rows": 43
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.230844023039,
+        "HALF_WIN": 1.158e-09,
+        "LOSS": 0.233597622973,
+        "PUSH": 1.158e-09,
+        "WIN": 0.535558351673
+      },
+      "evaluated_at": "2026-08-22T23:21:15.353448Z",
+      "evaluation_id": "dqe-d7bc675a41da5d526bd21d79a1717500a35d84d7b731a58c452a342c543a0d25",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.193902609278,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.197054955374,
+        "PUSH": 0.0,
+        "WIN": 0.609042435348
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-22T23:21:15.353448Z",
+      "temperature": 1.36,
+      "training_rows": 43
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.258e-09,
+        "HALF_WIN": 1.258e-09,
+        "LOSS": 0.403158915556,
+        "PUSH": 1.258e-09,
+        "WIN": 0.59684108067
+      },
+      "evaluated_at": "2026-08-22T23:45:38.970734Z",
+      "evaluation_id": "dqe-e21caaf94d8c9ecf4e0ec87f27efd5e971fc7c5e40aa53acb8a36d0703c2d5a6",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.36968805563,
+        "PUSH": 0.0,
+        "WIN": 0.63031194437
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-22T23:45:38.970734Z",
+      "temperature": 1.36,
+      "training_rows": 43
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.235088236207,
+        "HALF_WIN": 1.163e-09,
+        "LOSS": 0.216047467248,
+        "PUSH": 1.163e-09,
+        "WIN": 0.54886429422
+      },
+      "evaluated_at": "2026-08-23T00:15:55.118131Z",
+      "evaluation_id": "dqe-3ba881852dce215ad0edf12b140abb977202009dc92d61c82e85ba56fef19f95",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.197644914069,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.176196998706,
+        "PUSH": 0.0,
+        "WIN": 0.626158087225
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T00:15:55.118131Z",
+      "temperature": 1.36,
+      "training_rows": 43
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.254e-09,
+        "HALF_WIN": 1.254e-09,
+        "LOSS": 0.432936995548,
+        "PUSH": 1.254e-09,
+        "WIN": 0.567063000691
+      },
+      "evaluated_at": "2026-08-23T00:15:55.536189Z",
+      "evaluation_id": "dqe-02c88aedfeb29b772a9fd1953454e2b91694f24faf416490b456cc3be751b22b",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.409257820809,
+        "PUSH": 0.0,
+        "WIN": 0.590742179191
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T00:15:55.536189Z",
+      "temperature": 1.36,
+      "training_rows": 43
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 9.31e-10,
+        "HALF_WIN": 9.31e-10,
+        "LOSS": 0.45264651316,
+        "PUSH": 9.31e-10,
+        "WIN": 0.547353484046
+      },
+      "evaluated_at": "2026-08-23T00:45:13.140382Z",
+      "evaluation_id": "dqe-803d0e3166c9ca2d9a143e3a6bf7b119b4db8e5f4313af7a8cc7defcea4c70f2",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.436697106254,
+        "PUSH": 0.0,
+        "WIN": 0.563302893746
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T00:45:13.140382Z",
+      "temperature": 1.34,
+      "training_rows": 45
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 8.47e-10,
+        "HALF_WIN": 8.47e-10,
+        "LOSS": 0.298771275739,
+        "PUSH": 0.25524692276,
+        "WIN": 0.445981799806
+      },
+      "evaluated_at": "2026-08-23T01:15:29.925382Z",
+      "evaluation_id": "dqe-e972d572d3d5a5ef3f3bfdb9547e0a73ebef4cd55ee1cc84c8d2b8296a226a87",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.284064920159,
+        "PUSH": 0.230033266983,
+        "WIN": 0.485901812858
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T01:15:29.925382Z",
+      "temperature": 1.34,
+      "training_rows": 45
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.194256449755,
+        "HALF_WIN": 9.1e-10,
+        "LOSS": 0.131134508939,
+        "PUSH": 9.1e-10,
+        "WIN": 0.674609039488
+      },
+      "evaluated_at": "2026-08-23T02:15:09.584451Z",
+      "evaluation_id": "dqe-997ef598cb7e583fb371389821f4a230be0a636f2d3900bebfff9ff80f1404dd",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.145065205523,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.085680290563,
+        "PUSH": 0.0,
+        "WIN": 0.769254503915
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T02:15:09.584451Z",
+      "temperature": 1.34,
+      "training_rows": 45
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 8.46e-10,
+        "HALF_WIN": 0.248872449846,
+        "LOSS": 0.320536808779,
+        "PUSH": 8.46e-10,
+        "WIN": 0.430590739683
+      },
+      "evaluated_at": "2026-08-23T02:15:09.584451Z",
+      "evaluation_id": "dqe-ef0c78fb8d576eb6d21f160481e7c03612315d675bf74e69887b14a68477393e",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.222799029595,
+        "LOSS": 0.312738068838,
+        "PUSH": 0.0,
+        "WIN": 0.464462901567
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T02:15:09.584451Z",
+      "temperature": 1.34,
+      "training_rows": 45
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 9.42e-10,
+        "HALF_WIN": 9.42e-10,
+        "LOSS": 0.362714201531,
+        "PUSH": 9.42e-10,
+        "WIN": 0.637285795644
+      },
+      "evaluated_at": "2026-08-23T02:15:10.191117Z",
+      "evaluation_id": "dqe-3595cd50a7a24d69de08fafa994c134d3f61d94ebfd99457e5fb77a2ee4a5b86",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.319683206297,
+        "PUSH": 0.0,
+        "WIN": 0.680316793703
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T02:15:10.191117Z",
+      "temperature": 1.34,
+      "training_rows": 45
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 8.52e-10,
+        "HALF_WIN": 8.52e-10,
+        "LOSS": 0.278610344144,
+        "PUSH": 0.245188744081,
+        "WIN": 0.476200910072
+      },
+      "evaluated_at": "2026-08-23T02:15:10.191117Z",
+      "evaluation_id": "dqe-62fb87082a58a126a32a131aac5b6c1113ddfd0909f4c4238a4e142b6d23c301",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.256837249507,
+        "PUSH": 0.216417523054,
+        "WIN": 0.526745227439
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T02:15:10.191117Z",
+      "temperature": 1.34,
+      "training_rows": 45
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.207557169104,
+        "HALF_WIN": 1.013e-09,
+        "LOSS": 0.219625834248,
+        "PUSH": 1.013e-09,
+        "WIN": 0.572816994622
+      },
+      "evaluated_at": "2026-08-23T12:15:37.382165Z",
+      "evaluation_id": "dqe-206031c240a016eec69872e07f5896f46393449dc3b781c41a9b498c508a8ad2",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.16621046045,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.179388677457,
+        "PUSH": 0.0,
+        "WIN": 0.654400862093
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T12:15:37.382165Z",
+      "temperature": 1.35,
+      "training_rows": 59
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.20606544771,
+        "HALF_WIN": 1.028e-09,
+        "LOSS": 0.180847959145,
+        "PUSH": 1.028e-09,
+        "WIN": 0.613086591089
+      },
+      "evaluated_at": "2026-08-23T12:15:37.382165Z",
+      "evaluation_id": "dqe-c59bf2a699865f12ffeb00a6e71ef9bca80d950bb2ad124dca949cd49fea6965",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.161393660971,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.135317155674,
+        "PUSH": 0.0,
+        "WIN": 0.703289183356
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T12:15:37.382165Z",
+      "temperature": 1.35,
+      "training_rows": 59
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.082e-09,
+        "HALF_WIN": 1.082e-09,
+        "LOSS": 0.43443282651,
+        "PUSH": 1.082e-09,
+        "WIN": 0.565567170243
+      },
+      "evaluated_at": "2026-08-23T12:45:49.168622Z",
+      "evaluation_id": "dqe-70d6add4837636a30689485867e6c21ea2b488603a9358ab3371410681138122",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.411900716311,
+        "PUSH": 0.0,
+        "WIN": 0.588099283689
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T12:45:49.168622Z",
+      "temperature": 1.35,
+      "training_rows": 59
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.122e-09,
+        "HALF_WIN": 1.122e-09,
+        "LOSS": 0.263715341576,
+        "PUSH": 1.122e-09,
+        "WIN": 0.736284655058
+      },
+      "evaluated_at": "2026-08-23T12:49:31.954474Z",
+      "evaluation_id": "dqe-32db2ddf380dfcb28623094a890142ecd08e6aef8ff00245db0ec237d48edce2",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.200029848162,
+        "PUSH": 0.0,
+        "WIN": 0.799970151838
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T12:49:31.954474Z",
+      "temperature": 1.35,
+      "training_rows": 59
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.237132190678,
+        "HALF_WIN": 1.008e-09,
+        "LOSS": 0.204814271969,
+        "PUSH": 1.008e-09,
+        "WIN": 0.558053535336
+      },
+      "evaluated_at": "2026-08-23T14:15:19.844389Z",
+      "evaluation_id": "dqe-3a944803291be62711a55760b5a333453008d74b6ad7743882c42984609c7a3f",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.200169383212,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.16424673667,
+        "PUSH": 0.0,
+        "WIN": 0.635583880118
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T14:15:19.844389Z",
+      "temperature": 1.35,
+      "training_rows": 59
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.240996605201,
+        "HALF_WIN": 9.94e-10,
+        "LOSS": 0.250359016799,
+        "PUSH": 9.94e-10,
+        "WIN": 0.508644376012
+      },
+      "evaluated_at": "2026-08-23T15:00:36.698614Z",
+      "evaluation_id": "dqe-07b44f6963afd74e3421ca6ea8b837a245700436226f5a7261b4a859747c830d",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.208593069703,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.219606655085,
+        "PUSH": 0.0,
+        "WIN": 0.571800275212
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T15:00:36.698614Z",
+      "temperature": 1.35,
+      "training_rows": 59
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.088e-09,
+        "HALF_WIN": 1.088e-09,
+        "LOSS": 0.391649315286,
+        "PUSH": 1.088e-09,
+        "WIN": 0.60835068145
+      },
+      "evaluated_at": "2026-08-23T15:00:36.698614Z",
+      "evaluation_id": "dqe-25a774f28dce5d1ceb1b968a8efd3b416e8b0073145e7504ad0a634a56a42e2f",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.355598592616,
+        "PUSH": 0.0,
+        "WIN": 0.644401407384
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T15:00:36.698614Z",
+      "temperature": 1.35,
+      "training_rows": 59
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.1e-09,
+        "HALF_WIN": 1.1e-09,
+        "LOSS": 0.334772824998,
+        "PUSH": 1.1e-09,
+        "WIN": 0.665227171703
+      },
+      "evaluated_at": "2026-08-23T15:15:41.153020Z",
+      "evaluation_id": "dqe-0fc6cd2dae0d847743e51166280f6dea1329b47e22873ef0da46d90eebcd1673",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.283531069092,
+        "PUSH": 0.0,
+        "WIN": 0.716468930908
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T15:15:41.153020Z",
+      "temperature": 1.35,
+      "training_rows": 59
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 9.78e-10,
+        "HALF_WIN": 9.78e-10,
+        "LOSS": 0.338772090351,
+        "PUSH": 0.249924908546,
+        "WIN": 0.411302999147
+      },
+      "evaluated_at": "2026-08-23T15:15:41.153020Z",
+      "evaluation_id": "dqe-ca8b4d543b77427271ef7ffe52e333ad442251bfd0b198e7bf679020b8376bda",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.337537205635,
+        "PUSH": 0.223866567277,
+        "WIN": 0.438596227088
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T15:15:41.153020Z",
+      "temperature": 1.35,
+      "training_rows": 59
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.925e-09,
+        "HALF_WIN": 1.925e-09,
+        "LOSS": 0.424093664968,
+        "PUSH": 1.925e-09,
+        "WIN": 0.575906329257
+      },
+      "evaluated_at": "2026-08-23T16:15:03.894650Z",
+      "evaluation_id": "dqe-8293af190e50a0cc18581a0888d91788097c34d4d249dabe7dd653d4f34abc28",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.395242738378,
+        "PUSH": 0.0,
+        "WIN": 0.604757261622
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T16:15:03.894650Z",
+      "temperature": 1.39,
+      "training_rows": 63
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.715e-09,
+        "HALF_WIN": 0.30375222515,
+        "LOSS": 0.30842453202,
+        "PUSH": 1.715e-09,
+        "WIN": 0.387823239401
+      },
+      "evaluated_at": "2026-08-23T16:45:12.446101Z",
+      "evaluation_id": "dqe-3bd51364cc467bd4179ad5af63c44f9c71f8f5cadbb89de19125484a7be4729a",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.291896555009,
+        "LOSS": 0.298156237898,
+        "PUSH": 0.0,
+        "WIN": 0.409947207093
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T16:45:12.446101Z",
+      "temperature": 1.39,
+      "training_rows": 63
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.745e-09,
+        "HALF_WIN": 0.308879787294,
+        "LOSS": 0.213602617636,
+        "PUSH": 1.745e-09,
+        "WIN": 0.477517591579
+      },
+      "evaluated_at": "2026-08-23T17:30:28.321568Z",
+      "evaluation_id": "dqe-dd9cbafc865ef0bb8f2cb9379c7a963c6398188763408958ac2e853d42bb0fd0",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.291447362893,
+        "LOSS": 0.174544381089,
+        "PUSH": 0.0,
+        "WIN": 0.534008256017
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T17:30:28.321568Z",
+      "temperature": 1.39,
+      "training_rows": 63
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.727e-09,
+        "HALF_WIN": 1.727e-09,
+        "LOSS": 0.285459596416,
+        "PUSH": 0.273955697268,
+        "WIN": 0.440584702862
+      },
+      "evaluated_at": "2026-08-23T17:30:28.823373Z",
+      "evaluation_id": "dqe-503b8b045e6a4ac3629f837f2f30dd33ebe597eacc0e5435c954bd25e163bca2",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.265076090546,
+        "PUSH": 0.250345139964,
+        "WIN": 0.48457876949
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T17:30:28.823373Z",
+      "temperature": 1.39,
+      "training_rows": 63
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 2.535e-09,
+        "HALF_WIN": 2.535e-09,
+        "LOSS": 0.422603123466,
+        "PUSH": 2.535e-09,
+        "WIN": 0.577396868929
+      },
+      "evaluated_at": "2026-08-23T18:24:41.172121Z",
+      "evaluation_id": "dqe-94261c0c5c55581b8456b73901370befe444fee9c09c1f2327dec670b75679e6",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.39172766114,
+        "PUSH": 0.0,
+        "WIN": 0.60827233886
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T18:24:41.172121Z",
+      "temperature": 1.41,
+      "training_rows": 64
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.268450206388,
+        "HALF_WIN": 2.295e-09,
+        "LOSS": 0.235388990784,
+        "PUSH": 2.295e-09,
+        "WIN": 0.496160798237
+      },
+      "evaluated_at": "2026-08-23T18:24:41.172121Z",
+      "evaluation_id": "dqe-99e54da862ec81826f92699114a1905865e9314007cbb1273bca97bec78033d2",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.237620182006,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.197425803778,
+        "PUSH": 0.0,
+        "WIN": 0.564954014217
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T18:24:41.172121Z",
+      "temperature": 1.41,
+      "training_rows": 64
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 2.534e-09,
+        "HALF_WIN": 2.534e-09,
+        "LOSS": 0.425696239846,
+        "PUSH": 2.534e-09,
+        "WIN": 0.574303752553
+      },
+      "evaluated_at": "2026-08-23T18:24:41.959633Z",
+      "evaluation_id": "dqe-955fa3c3cf8f416af85b72b57217d5a2b321aaa67fc89e53682dbdb5fd7e3e31",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.395990504381,
+        "PUSH": 0.0,
+        "WIN": 0.604009495619
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T18:24:41.959633Z",
+      "temperature": 1.41,
+      "training_rows": 64
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.255498678231,
+        "HALF_WIN": 2.329e-09,
+        "LOSS": 0.203011746291,
+        "PUSH": 2.329e-09,
+        "WIN": 0.541489570818
+      },
+      "evaluated_at": "2026-08-23T18:24:41.959633Z",
+      "evaluation_id": "dqe-e8d1c6274c0316def953519cc12a27515360abd1b7e7476950ea42bebbbaf742",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.217073214238,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.156961476368,
+        "PUSH": 0.0,
+        "WIN": 0.625965309394
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T18:24:41.959633Z",
+      "temperature": 1.41,
+      "training_rows": 64
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 2.014e-09,
+        "HALF_WIN": 2.014e-09,
+        "LOSS": 0.238007140676,
+        "PUSH": 0.249804092495,
+        "WIN": 0.512188762801
+      },
+      "evaluated_at": "2026-08-23T18:31:25.393573Z",
+      "evaluation_id": "dqe-65833c1a13713cd82c5cbb82a9cdff6c6c64b2579a581e8abaa2f0c3e6cab21e",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.200237710299,
+        "PUSH": 0.214268957939,
+        "WIN": 0.585493331762
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T18:31:25.393573Z",
+      "temperature": 1.4,
+      "training_rows": 66
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 2.212e-09,
+        "HALF_WIN": 2.212e-09,
+        "LOSS": 0.418941301531,
+        "PUSH": 2.212e-09,
+        "WIN": 0.581058691832
+      },
+      "evaluated_at": "2026-08-23T18:31:25.823087Z",
+      "evaluation_id": "dqe-e8d2fb34ca4cffccdc5d6dd44e5baf1c74f1a280f5e137732e9a7de95cf29d85",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.387467664947,
+        "PUSH": 0.0,
+        "WIN": 0.612532335053
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T18:31:25.823087Z",
+      "temperature": 1.4,
+      "training_rows": 66
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 2.222e-09,
+        "HALF_WIN": 2.222e-09,
+        "LOSS": 0.391432193177,
+        "PUSH": 2.222e-09,
+        "WIN": 0.608567800159
+      },
+      "evaluated_at": "2026-08-23T18:31:25.823087Z",
+      "evaluation_id": "dqe-ef861122f3284a8dd63124cf432cdc5342ff2291c01db66134327722c98479bc",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.350278687087,
+        "PUSH": 0.0,
+        "WIN": 0.649721312913
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T18:31:25.823087Z",
+      "temperature": 1.4,
+      "training_rows": 66
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.781e-09,
+        "HALF_WIN": 1.781e-09,
+        "LOSS": 0.200565824472,
+        "PUSH": 1.781e-09,
+        "WIN": 0.799434170185
+      },
+      "evaluated_at": "2026-08-23T19:15:21.795872Z",
+      "evaluation_id": "dqe-5658f3f0c91d42febb81954fc88c9b4c35028c7c30378691c0e678acbf86dce0",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.129181954665,
+        "PUSH": 0.0,
+        "WIN": 0.870818045335
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T19:15:21.795872Z",
+      "temperature": 1.38,
+      "training_rows": 68
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.577e-09,
+        "HALF_WIN": 0.219727441721,
+        "LOSS": 0.17781393291,
+        "PUSH": 1.577e-09,
+        "WIN": 0.602458622215
+      },
+      "evaluated_at": "2026-08-23T19:15:21.795872Z",
+      "evaluation_id": "dqe-767bd76a9eb9ad6532d6055708ac6229e70b067a520462e6c71011c185058f09",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.173333046234,
+        "LOSS": 0.129429664019,
+        "PUSH": 0.0,
+        "WIN": 0.697237289747
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T19:15:21.795872Z",
+      "temperature": 1.38,
+      "training_rows": 68
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.706e-09,
+        "HALF_WIN": 1.706e-09,
+        "LOSS": 0.319912470141,
+        "PUSH": 1.706e-09,
+        "WIN": 0.68008752474
+      },
+      "evaluated_at": "2026-08-23T19:17:44.382415Z",
+      "evaluation_id": "dqe-3f8446ea9a2fe11cd26285ee23019d24ac025afa4e0d020317a750851beb2504",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.26100333487,
+        "PUSH": 0.0,
+        "WIN": 0.73899666513
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T19:17:44.382415Z",
+      "temperature": 1.38,
+      "training_rows": 68
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.513e-09,
+        "HALF_WIN": 1.513e-09,
+        "LOSS": 0.280735390083,
+        "PUSH": 0.247733620121,
+        "WIN": 0.471530986769
+      },
+      "evaluated_at": "2026-08-23T19:17:44.382415Z",
+      "evaluation_id": "dqe-8295536cba6f040997e182181a33ac44c459052fa254080ca7c18d7400095f09",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.257270150635,
+        "PUSH": 0.216490350686,
+        "WIN": 0.526239498679
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T19:17:44.382415Z",
+      "temperature": 1.38,
+      "training_rows": 68
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.468e-09,
+        "HALF_WIN": 1.468e-09,
+        "LOSS": 0.349319387124,
+        "PUSH": 1.468e-09,
+        "WIN": 0.650680608471
+      },
+      "evaluated_at": "2026-08-23T19:45:21.965397Z",
+      "evaluation_id": "dqe-04d6127135dfc5799883670db2d9e2cccfebcd632c9074ad3782f7df2c610e5f",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.298974875648,
+        "PUSH": 0.0,
+        "WIN": 0.701025124352
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T19:45:21.965397Z",
+      "temperature": 1.37,
+      "training_rows": 69
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.306e-09,
+        "HALF_WIN": 1.306e-09,
+        "LOSS": 0.285418390412,
+        "PUSH": 0.273263211169,
+        "WIN": 0.441318395805
+      },
+      "evaluated_at": "2026-08-23T19:45:21.965397Z",
+      "evaluation_id": "dqe-2f714a3615b5f793e40bc4d18a1db39985e92700c5ac804852e5af3c778a4a71",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.266036012981,
+        "PUSH": 0.250637675962,
+        "WIN": 0.483326311056
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T19:45:21.965397Z",
+      "temperature": 1.37,
+      "training_rows": 69
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.919e-09,
+        "HALF_WIN": 1.919e-09,
+        "LOSS": 0.4569645633,
+        "PUSH": 1.919e-09,
+        "WIN": 0.543035430943
+      },
+      "evaluated_at": "2026-08-23T21:16:00.811612Z",
+      "evaluation_id": "dqe-ada31d6b49b987dbf5afc6ada76174a178988f4eaafc999a72b173d1028a311c",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.44031825831,
+        "PUSH": 0.0,
+        "WIN": 0.55968174169
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T21:16:00.811612Z",
+      "temperature": 1.39,
+      "training_rows": 72
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 3.335e-09,
+        "HALF_WIN": 3.335e-09,
+        "LOSS": 0.306145877576,
+        "PUSH": 0.289238402215,
+        "WIN": 0.40461571354
+      },
+      "evaluated_at": "2026-08-23T22:15:26.047378Z",
+      "evaluation_id": "dqe-06e5b132198a12bc76f917973e2a8ffb3d543e4c9c3145af16e20663e76236ff",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.292771274091,
+        "PUSH": 0.269774016168,
+        "WIN": 0.437454709742
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T22:15:26.047378Z",
+      "temperature": 1.44,
+      "training_rows": 79
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.253513333598,
+        "HALF_WIN": 9.012e-09,
+        "LOSS": 0.250431003549,
+        "PUSH": 9.012e-09,
+        "WIN": 0.496055644831
+      },
+      "evaluated_at": "2026-08-23T22:45:39.280065Z",
+      "evaluation_id": "dqe-1d27888370f14b04fdbd9b3c96bf626f9fc5bb2961f922abc728e0c21f9aece6",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.21027416462,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.206400428069,
+        "PUSH": 0.0,
+        "WIN": 0.583325407311
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-23T22:45:39.280065Z",
+      "temperature": 1.52,
+      "training_rows": 83
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 8.825e-09,
+        "HALF_WIN": 8.825e-09,
+        "LOSS": 0.334960812839,
+        "PUSH": 0.258592276892,
+        "WIN": 0.406446892618
+      },
+      "evaluated_at": "2026-08-23T22:45:39.280065Z",
+      "evaluation_id": "dqe-56199a1fb8fa7d5c4228aa1ab27636b5c3ac1d7ff1fece34343fae5a6452de1e",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.331494969405,
+        "PUSH": 0.223697791078,
+        "WIN": 0.444807239517
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-23T22:45:39.280065Z",
+      "temperature": 1.52,
+      "training_rows": 83
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 6.212e-09,
+        "HALF_WIN": 6.212e-09,
+        "LOSS": 0.296832087434,
+        "PUSH": 0.280014747464,
+        "WIN": 0.423153152678
+      },
+      "evaluated_at": "2026-08-24T00:15:18.873542Z",
+      "evaluation_id": "dqe-61c7cf5bc77e427a5866aeb64abeafa2af20384de4553ba2cf7b8591dcd3efaf",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.276791941013,
+        "PUSH": 0.253753375761,
+        "WIN": 0.469454683226
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-24T00:15:18.873542Z",
+      "temperature": 1.49,
+      "training_rows": 85
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 8.951e-09,
+        "HALF_WIN": 8.951e-09,
+        "LOSS": 0.463981200607,
+        "PUSH": 8.951e-09,
+        "WIN": 0.536018772539
+      },
+      "evaluated_at": "2026-08-24T17:15:38.187731Z",
+      "evaluation_id": "dqe-26087be547d377bfa95e25fda55e8c61b46847c88741a7b71314296efdfc226c",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.445731870466,
+        "PUSH": 0.0,
+        "WIN": 0.554268129534
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-24T17:15:38.187731Z",
+      "temperature": 1.51,
+      "training_rows": 90
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 9.1e-09,
+        "HALF_WIN": 9.1e-09,
+        "LOSS": 0.367433374962,
+        "PUSH": 9.1e-09,
+        "WIN": 0.63256659774
+      },
+      "evaluated_at": "2026-08-24T17:15:38.187731Z",
+      "evaluation_id": "dqe-36edda2729a46b4964301d5ce7432594b3ab2d51c15dfaa7e8c4ba539e856894",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.305700473818,
+        "PUSH": 0.0,
+        "WIN": 0.694299526182
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-24T17:15:38.187731Z",
+      "temperature": 1.51,
+      "training_rows": 90
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 9.18e-09,
+        "HALF_WIN": 9.18e-09,
+        "LOSS": 0.337535260356,
+        "PUSH": 9.18e-09,
+        "WIN": 0.662464712104
+      },
+      "evaluated_at": "2026-08-24T18:45:55.910315Z",
+      "evaluation_id": "dqe-24749aafea896e1bf89e8424e7892ac1d35e72118cbc84c6e1c4b95c49ca6730",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.265380323024,
+        "PUSH": 0.0,
+        "WIN": 0.734619676976
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-24T18:45:55.910315Z",
+      "temperature": 1.51,
+      "training_rows": 90
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.271659850809,
+        "HALF_WIN": 7.999e-09,
+        "LOSS": 0.242344294667,
+        "PUSH": 7.999e-09,
+        "WIN": 0.485995838526
+      },
+      "evaluated_at": "2026-08-24T19:00:59.539090Z",
+      "evaluation_id": "dqe-7c480380d08f6337bda7b845d18a33eb70974ec9a9431244f8c0fc489ef941cd",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.235382738461,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.198102382045,
+        "PUSH": 0.0,
+        "WIN": 0.566514879494
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-24T19:00:59.539090Z",
+      "temperature": 1.51,
+      "training_rows": 90
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 8.823e-09,
+        "HALF_WIN": 8.823e-09,
+        "LOSS": 0.300654839538,
+        "PUSH": 0.281786922231,
+        "WIN": 0.417558220586
+      },
+      "evaluated_at": "2026-08-25T00:00:03.247840Z",
+      "evaluation_id": "dqe-dd37c51cfa85ec680404a426e856dbdff47e04629a15b48a60e5177c54bf92a4",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.281397940535,
+        "PUSH": 0.254998085207,
+        "WIN": 0.463603974259
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-25T00:00:03.247840Z",
+      "temperature": 1.52,
+      "training_rows": 94
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 8.902e-09,
+        "HALF_WIN": 8.902e-09,
+        "LOSS": 0.270091759764,
+        "PUSH": 0.273378574159,
+        "WIN": 0.456529648273
+      },
+      "evaluated_at": "2026-08-25T00:00:04.450553Z",
+      "evaluation_id": "dqe-151b4d0487283cd9576771ecce5f021eeef8a7a5fc9793c7d9b6e481e93ad71d",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.235888833873,
+        "PUSH": 0.240265910029,
+        "WIN": 0.523845256097
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-25T00:00:04.450553Z",
+      "temperature": 1.52,
+      "training_rows": 94
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 9.212e-09,
+        "HALF_WIN": 9.212e-09,
+        "LOSS": 0.327179159388,
+        "PUSH": 9.212e-09,
+        "WIN": 0.672820812977
+      },
+      "evaluated_at": "2026-08-26T18:46:01.735552Z",
+      "evaluation_id": "dqe-adea513f67539ee9d9d48a510fa18f86ec712c315cc889402a454cc8c42bf905",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.251869484775,
+        "PUSH": 0.0,
+        "WIN": 0.748130515225
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-26T18:46:01.735552Z",
+      "temperature": 1.51,
+      "training_rows": 96
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 8.489e-09,
+        "HALF_WIN": 8.489e-09,
+        "LOSS": 0.166309158566,
+        "PUSH": 0.214298169727,
+        "WIN": 0.61939265473
+      },
+      "evaluated_at": "2026-08-26T18:46:01.735552Z",
+      "evaluation_id": "dqe-bf1861189abded14b110d5d976c27eb5a1bf1fa8260e9d4e11687fa346fe6615",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.102574751041,
+        "PUSH": 0.150416312594,
+        "WIN": 0.747008936365
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-26T18:46:01.735552Z",
+      "temperature": 1.51,
+      "training_rows": 96
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.6477e-08,
+        "HALF_WIN": 1.6477e-08,
+        "LOSS": 0.309458402183,
+        "PUSH": 1.6477e-08,
+        "WIN": 0.690541548385
+      },
+      "evaluated_at": "2026-08-30T14:30:38.680529Z",
+      "evaluation_id": "dqe-62358e958b9d6899ec4024d5c4da4896a6d97166391f8606344aeab319e157a2",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.222330287577,
+        "PUSH": 0.0,
+        "WIN": 0.777669712423
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T14:30:38.680529Z",
+      "temperature": 1.56,
+      "training_rows": 98
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.6015e-08,
+        "HALF_WIN": 1.6015e-08,
+        "LOSS": 0.39924259998,
+        "PUSH": 1.6015e-08,
+        "WIN": 0.600757351974
+      },
+      "evaluated_at": "2026-08-30T14:30:38.680529Z",
+      "evaluation_id": "dqe-9ea4bb65f13ea7834a96ce290fffd833878057ae58eee0f957309717ae6de49d",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.345823174496,
+        "PUSH": 0.0,
+        "WIN": 0.654176825504
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-30T14:30:38.680529Z",
+      "temperature": 1.56,
+      "training_rows": 98
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.3949e-08,
+        "HALF_WIN": 1.3949e-08,
+        "LOSS": 0.286432650117,
+        "PUSH": 0.257322982166,
+        "WIN": 0.456244339819
+      },
+      "evaluated_at": "2026-08-30T14:45:47.606454Z",
+      "evaluation_id": "dqe-662b2d35546463baf2b39d0dddfda331bc9d11e78a1df4f047b2a5e107c40371",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.255539402241,
+        "PUSH": 0.21619682906,
+        "WIN": 0.5282637687
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-30T14:45:47.606454Z",
+      "temperature": 1.56,
+      "training_rows": 98
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.26429112932,
+        "HALF_WIN": 1.4137e-08,
+        "LOSS": 0.239137918028,
+        "PUSH": 1.4137e-08,
+        "WIN": 0.496570924378
+      },
+      "evaluated_at": "2026-08-30T14:45:48.482273Z",
+      "evaluation_id": "dqe-24b13a8a1e32ea8b17f4ff5c53fd54a3b04c41148a1d16284797fb4c6514b3a5",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.220736556085,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.188850004564,
+        "PUSH": 0.0,
+        "WIN": 0.590413439351
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T14:45:48.482273Z",
+      "temperature": 1.56,
+      "training_rows": 98
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.3917e-08,
+        "HALF_WIN": 1.3917e-08,
+        "LOSS": 0.324149214453,
+        "PUSH": 0.238656272108,
+        "WIN": 0.437194485605
+      },
+      "evaluated_at": "2026-08-30T14:45:49.683491Z",
+      "evaluation_id": "dqe-8cf56a24464d0ff1a416806a09221b3c72591c181ffac532904ca665d8638d46",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.311043252551,
+        "PUSH": 0.192923119616,
+        "WIN": 0.496033627833
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-30T14:45:49.683491Z",
+      "temperature": 1.56,
+      "training_rows": 98
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.447e-08,
+        "HALF_WIN": 1.447e-08,
+        "LOSS": 0.227724684233,
+        "PUSH": 0.220927004629,
+        "WIN": 0.551348282197
+      },
+      "evaluated_at": "2026-08-30T14:45:49.683491Z",
+      "evaluation_id": "dqe-b4d59a0bb333560386ebf80db2a4703cbf533ed6ed25fa0d298d310908b712cf",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.168738416585,
+        "PUSH": 0.160946795766,
+        "WIN": 0.670314787649
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T14:45:49.683491Z",
+      "temperature": 1.56,
+      "training_rows": 98
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.6169e-08,
+        "HALF_WIN": 1.6169e-08,
+        "LOSS": 0.362680832311,
+        "PUSH": 1.6169e-08,
+        "WIN": 0.637319119181
+      },
+      "evaluated_at": "2026-08-30T15:15:04.270913Z",
+      "evaluation_id": "dqe-4f3c35b9fb9845767369d48f0e504ad91ad790fe74b715a5b5de8005db82c657",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.293292636961,
+        "PUSH": 0.0,
+        "WIN": 0.706707363039
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T15:15:04.270913Z",
+      "temperature": 1.56,
+      "training_rows": 98
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.3863e-08,
+        "HALF_WIN": 1.3863e-08,
+        "LOSS": 0.311026125986,
+        "PUSH": 0.259540727092,
+        "WIN": 0.429433119197
+      },
+      "evaluated_at": "2026-08-30T15:15:04.270913Z",
+      "evaluation_id": "dqe-e59f7fed18bb738acdfbdb95b208608a58ecf5117c1fb53b3522de756b33dfb0",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.293417285166,
+        "PUSH": 0.22124995048,
+        "WIN": 0.485332764354
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-30T15:15:04.270913Z",
+      "temperature": 1.56,
+      "training_rows": 98
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.3807e-08,
+        "HALF_WIN": 1.3807e-08,
+        "LOSS": 0.301310759081,
+        "PUSH": 0.28305538382,
+        "WIN": 0.415633829485
+      },
+      "evaluated_at": "2026-08-30T16:45:09.663844Z",
+      "evaluation_id": "dqe-2d0ba5808c1304b9ee64f0ff674c5f2d9b60ec4e27797131d5d5c68c2b14764f",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.280994868301,
+        "PUSH": 0.254891272662,
+        "WIN": 0.464113859036
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-30T16:45:09.663844Z",
+      "temperature": 1.56,
+      "training_rows": 98
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.3882e-08,
+        "HALF_WIN": 0.285137725845,
+        "LOSS": 0.275185185272,
+        "PUSH": 1.3882e-08,
+        "WIN": 0.43967706112
+      },
+      "evaluated_at": "2026-08-30T16:45:09.663844Z",
+      "evaluation_id": "dqe-8d447c28aea934ab5304e44334193f100df5d37a1ea168c49f3a6db4eae69bfd",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.255671486874,
+        "LOSS": 0.241886745656,
+        "PUSH": 0.0,
+        "WIN": 0.50244176747
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T16:45:09.663844Z",
+      "temperature": 1.56,
+      "training_rows": 98
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.6152e-08,
+        "HALF_WIN": 1.6152e-08,
+        "LOSS": 0.366216245827,
+        "PUSH": 1.6152e-08,
+        "WIN": 0.633783705716
+      },
+      "evaluated_at": "2026-08-30T17:45:53.379437Z",
+      "evaluation_id": "dqe-f1bd7325d10cdf4a9da05bccf65418cb31f531a6228ff353ebe7438eadabd75f",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.298252200626,
+        "PUSH": 0.0,
+        "WIN": 0.701747799374
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T17:45:53.379437Z",
+      "temperature": 1.56,
+      "training_rows": 98
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.257152046625,
+        "HALF_WIN": 1.4348e-08,
+        "LOSS": 0.211812951962,
+        "PUSH": 1.4348e-08,
+        "WIN": 0.531034972717
+      },
+      "evaluated_at": "2026-08-30T17:45:54.090239Z",
+      "evaluation_id": "dqe-77fe7f97e07dc398d30828f6e8719e82a2a245b9492724678ebbc05f977b12f1",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.206678376106,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.152716015308,
+        "PUSH": 0.0,
+        "WIN": 0.640605608586
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T17:45:54.090239Z",
+      "temperature": 1.56,
+      "training_rows": 98
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.1421e-08,
+        "HALF_WIN": 0.252719333532,
+        "LOSS": 0.228201971742,
+        "PUSH": 1.1421e-08,
+        "WIN": 0.519078671884
+      },
+      "evaluated_at": "2026-08-30T18:30:18.889758Z",
+      "evaluation_id": "dqe-484c2bd60279334b86e1946324a3c2a6a6638b54ca5afc5c82cabce98ca4a2ba",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.204739905518,
+        "LOSS": 0.174964976586,
+        "PUSH": 0.0,
+        "WIN": 0.620295117896
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T18:30:18.889758Z",
+      "temperature": 1.54,
+      "training_rows": 104
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.1079e-08,
+        "HALF_WIN": 1.1079e-08,
+        "LOSS": 0.330049122309,
+        "PUSH": 0.259424548459,
+        "WIN": 0.410526307075
+      },
+      "evaluated_at": "2026-08-30T18:30:18.895137Z",
+      "evaluation_id": "dqe-b4cb12d97a41d0035caf22f9352ee92ce23d66bb09cf6faa1512c74bdb34fb6c",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.323670598576,
+        "PUSH": 0.223392856501,
+        "WIN": 0.452936544922
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-30T18:30:18.895137Z",
+      "temperature": 1.54,
+      "training_rows": 104
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.4238e-08,
+        "HALF_WIN": 1.4238e-08,
+        "LOSS": 0.431970289839,
+        "PUSH": 1.4238e-08,
+        "WIN": 0.568029667446
+      },
+      "evaluated_at": "2026-08-30T18:45:30.264679Z",
+      "evaluation_id": "dqe-1d1ea7e29baa91af4509cc39f724ef7b6f0b1c54cc9c7af7cf4d02f847e42058",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.395460501456,
+        "PUSH": 0.0,
+        "WIN": 0.604539498544
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T18:45:30.264679Z",
+      "temperature": 1.55,
+      "training_rows": 106
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.2405e-08,
+        "HALF_WIN": 0.276972998582,
+        "LOSS": 0.294259834644,
+        "PUSH": 1.2405e-08,
+        "WIN": 0.428767141964
+      },
+      "evaluated_at": "2026-08-30T18:45:30.661841Z",
+      "evaluation_id": "dqe-870e5f1e7678601b1f41906a1a1fc7d601b581ed060237e1605c01d0c1690f2c",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.245880186115,
+        "LOSS": 0.270071366279,
+        "PUSH": 0.0,
+        "WIN": 0.484048447606
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T18:45:30.661841Z",
+      "temperature": 1.55,
+      "training_rows": 106
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.3828e-08,
+        "HALF_WIN": 0.273007795094,
+        "LOSS": 0.305524379179,
+        "PUSH": 1.3828e-08,
+        "WIN": 0.421467798071
+      },
+      "evaluated_at": "2026-08-30T20:15:15.711719Z",
+      "evaluation_id": "dqe-4fb3aba6dd97b7bf95bc8dea9ca045c09177465bee7784a517d8557447e8a55a",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.240344964314,
+        "LOSS": 0.286466281605,
+        "PUSH": 0.0,
+        "WIN": 0.473188754081
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T20:15:15.711719Z",
+      "temperature": 1.56,
+      "training_rows": 108
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.7562e-08,
+        "HALF_WIN": 1.7562e-08,
+        "LOSS": 0.237399229344,
+        "PUSH": 0.264893198707,
+        "WIN": 0.497707536824
+      },
+      "evaluated_at": "2026-08-30T21:15:49.235312Z",
+      "evaluation_id": "dqe-7d6aa6ddd2e3e26502297827433daeded80c7df997ba9bc0e45c1360e0900c79",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.184848982283,
+        "PUSH": 0.219791877258,
+        "WIN": 0.595359140458
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T21:15:49.235312Z",
+      "temperature": 1.58,
+      "training_rows": 110
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.9723e-08,
+        "HALF_WIN": 1.9723e-08,
+        "LOSS": 0.471084725287,
+        "PUSH": 1.9723e-08,
+        "WIN": 0.528915215543
+      },
+      "evaluated_at": "2026-08-30T21:15:49.235312Z",
+      "evaluation_id": "dqe-d37140e70786dc336485dc971df091eaf41c6fcc3be93fe68fdcf52bac12dffc",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.454390020714,
+        "PUSH": 0.0,
+        "WIN": 0.545609979286
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-30T21:15:49.235312Z",
+      "temperature": 1.58,
+      "training_rows": 110
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.9886e-08,
+        "HALF_WIN": 1.9886e-08,
+        "LOSS": 0.41072264162,
+        "PUSH": 1.9886e-08,
+        "WIN": 0.589277298721
+      },
+      "evaluated_at": "2026-08-30T21:15:49.697137Z",
+      "evaluation_id": "dqe-ba20d47e7299e0edf29eec170cf14c222d214f2e0834a6a4020c83d772f04d87",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.361156903917,
+        "PUSH": 0.0,
+        "WIN": 0.638843096083
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T21:15:49.697137Z",
+      "temperature": 1.58,
+      "training_rows": 110
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.280578469229,
+        "HALF_WIN": 1.7464e-08,
+        "LOSS": 0.238010577736,
+        "PUSH": 1.7464e-08,
+        "WIN": 0.481410918108
+      },
+      "evaluated_at": "2026-08-30T22:00:11.683995Z",
+      "evaluation_id": "dqe-32c3cc5ea7512252c99a4136eaa362313debc8ddbc9d6d4659e1dddcf2aad840",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.242852268943,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.187257143561,
+        "PUSH": 0.0,
+        "WIN": 0.569890587496
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T22:00:11.683995Z",
+      "temperature": 1.58,
+      "training_rows": 112
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.7709e-08,
+        "HALF_WIN": 1.7709e-08,
+        "LOSS": 0.460023999731,
+        "PUSH": 1.7709e-08,
+        "WIN": 0.539975947143
+      },
+      "evaluated_at": "2026-08-30T22:15:19.712761Z",
+      "evaluation_id": "dqe-15425e61c4bffefbbb0be414cd4142f49f1ff3efa3b75d90dc0677714853c6c1",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.437433140088,
+        "PUSH": 0.0,
+        "WIN": 0.562566859912
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-30T22:15:19.712761Z",
+      "temperature": 1.57,
+      "training_rows": 114
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.5837e-08,
+        "HALF_WIN": 1.5837e-08,
+        "LOSS": 0.241367447682,
+        "PUSH": 0.249668295861,
+        "WIN": 0.508964224782
+      },
+      "evaluated_at": "2026-08-30T22:45:37.978846Z",
+      "evaluation_id": "dqe-4a1694e4fd9be1e5a3a770d86726401d8cb7aa1d742ef498416c8a3d07c3bb29",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.189367530041,
+        "PUSH": 0.199691919646,
+        "WIN": 0.610940550313
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-30T22:45:37.978846Z",
+      "temperature": 1.57,
+      "training_rows": 114
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.4216e-08,
+        "HALF_WIN": 1.4216e-08,
+        "LOSS": 0.443367111713,
+        "PUSH": 1.4216e-08,
+        "WIN": 0.556632845639
+      },
+      "evaluated_at": "2026-08-31T16:15:09.038702Z",
+      "evaluation_id": "dqe-e774e0789afb2821bfe6ce36c5e60fd05392793364bc4bb09fcd7d2665c0260e",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.412743103673,
+        "PUSH": 0.0,
+        "WIN": 0.587256896327
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-31T16:15:09.038702Z",
+      "temperature": 1.55,
+      "training_rows": 121
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.4231e-08,
+        "HALF_WIN": 1.4231e-08,
+        "LOSS": 0.435208865998,
+        "PUSH": 1.4231e-08,
+        "WIN": 0.564791091308
+      },
+      "evaluated_at": "2026-08-31T18:30:37.309491Z",
+      "evaluation_id": "dqe-156d89bd873ee704c3869d16c80e28cd5739e6cae82dbb3bcd07460394215873",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.400357376635,
+        "PUSH": 0.0,
+        "WIN": 0.599642623365
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-31T18:30:37.309491Z",
+      "temperature": 1.55,
+      "training_rows": 121
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.4204e-08,
+        "HALF_WIN": 1.4204e-08,
+        "LOSS": 0.450750593502,
+        "PUSH": 1.4204e-08,
+        "WIN": 0.549249363886
+      },
+      "evaluated_at": "2026-08-31T18:30:37.309491Z",
+      "evaluation_id": "dqe-dd9ad11020704d7539c1d383c40cb9574c38cec8d9e99a410ad7cd14e3bd0591",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.424008480762,
+        "PUSH": 0.0,
+        "WIN": 0.575991519238
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-31T18:30:37.309491Z",
+      "temperature": 1.55,
+      "training_rows": 121
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.2355e-08,
+        "HALF_WIN": 1.2355e-08,
+        "LOSS": 0.323996740117,
+        "PUSH": 0.272651124542,
+        "WIN": 0.403352110631
+      },
+      "evaluated_at": "2026-08-31T18:45:42.198522Z",
+      "evaluation_id": "dqe-a9f9b0e839ef19d50850cd70dc36d396922862b380c3c393d128a3eb5289626f",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.315489306211,
+        "PUSH": 0.241455973824,
+        "WIN": 0.443054719965
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-31T18:45:42.198522Z",
+      "temperature": 1.55,
+      "training_rows": 121
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.4362e-08,
+        "HALF_WIN": 1.4362e-08,
+        "LOSS": 0.387772733015,
+        "PUSH": 1.4362e-08,
+        "WIN": 0.612227223899
+      },
+      "evaluated_at": "2026-08-31T19:00:45.721839Z",
+      "evaluation_id": "dqe-b554719884dc2b9d8af541ffccd16b248de4cb98dbc184e4b3b770cc218d6426",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.330071807389,
+        "PUSH": 0.0,
+        "WIN": 0.669928192611
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-31T19:00:45.721839Z",
+      "temperature": 1.55,
+      "training_rows": 121
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.4657e-08,
+        "HALF_WIN": 1.4657e-08,
+        "LOSS": 0.322343722831,
+        "PUSH": 1.4657e-08,
+        "WIN": 0.677656233199
+      },
+      "evaluated_at": "2026-08-31T19:00:46.440641Z",
+      "evaluation_id": "dqe-30ed4a31dec0a15406d8f102b292998c33d518bc24015b278b3d8b3ec3b771f9",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.240181697375,
+        "PUSH": 0.0,
+        "WIN": 0.759818302625
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-31T19:00:46.440641Z",
+      "temperature": 1.55,
+      "training_rows": 121
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.2923e-08,
+        "HALF_WIN": 1.2923e-08,
+        "LOSS": 0.231214303553,
+        "PUSH": 0.22259348065,
+        "WIN": 0.546192189951
+      },
+      "evaluated_at": "2026-08-31T19:15:46.998227Z",
+      "evaluation_id": "dqe-9cc66d79ddca1bf4d181d0b987850510d65dc2a78c193a80997e1318bf195112",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.174428460494,
+        "PUSH": 0.164451882701,
+        "WIN": 0.661119656805
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-31T19:15:46.998227Z",
+      "temperature": 1.55,
+      "training_rows": 121
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.189455195107,
+        "HALF_WIN": 1.3736e-08,
+        "LOSS": 0.154975645984,
+        "PUSH": 1.3736e-08,
+        "WIN": 0.655569131438
+      },
+      "evaluated_at": "2026-08-31T19:15:46.998227Z",
+      "evaluation_id": "dqe-e251939a5a7544c906cea0453f84b2db47c5756c88cb48e95aea3ea39e76d1b0",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.11653130282,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.085352422837,
+        "PUSH": 0.0,
+        "WIN": 0.798116274342
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-31T19:15:46.998227Z",
+      "temperature": 1.55,
+      "training_rows": 121
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.245e-08,
+        "HALF_WIN": 1.245e-08,
+        "LOSS": 0.278824147642,
+        "PUSH": 0.276896994603,
+        "WIN": 0.444278832855
+      },
+      "evaluated_at": "2026-08-31T21:45:19.120917Z",
+      "evaluation_id": "dqe-4ba4e58155c651238ca1dff3f2df0455436bdf32b528dfb26993ab1f97ae8f6f",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.247031933835,
+        "PUSH": 0.244390477113,
+        "WIN": 0.508577589052
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-31T21:45:19.120917Z",
+      "temperature": 1.55,
+      "training_rows": 122
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.274307727837,
+        "HALF_WIN": 1.2535e-08,
+        "LOSS": 0.258006652092,
+        "PUSH": 1.2535e-08,
+        "WIN": 0.467685595002
+      },
+      "evaluated_at": "2026-08-31T21:45:19.120917Z",
+      "evaluation_id": "dqe-b6cbd3f4437cf221892fc71cb3584b4ceb417f4ad958f5bd915b95fa6e3e973d",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.238330851279,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.216740064424,
+        "PUSH": 0.0,
+        "WIN": 0.544929084297
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-31T21:45:19.120917Z",
+      "temperature": 1.55,
+      "training_rows": 122
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 2.2103e-08,
+        "HALF_WIN": 2.2103e-08,
+        "LOSS": 0.419374671727,
+        "PUSH": 2.2103e-08,
+        "WIN": 0.580625261966
+      },
+      "evaluated_at": "2026-08-31T22:45:32.240187Z",
+      "evaluation_id": "dqe-a28fbe70744b34414a69a932afab2ebef058dc13559102480837aae506ee092a",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.373485689009,
+        "PUSH": 0.0,
+        "WIN": 0.626514310991
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-08-31T22:45:32.240187Z",
+      "temperature": 1.59,
+      "training_rows": 129
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.9037e-08,
+        "HALF_WIN": 0.292735435642,
+        "LOSS": 0.29171298823,
+        "PUSH": 1.9037e-08,
+        "WIN": 0.415551538054
+      },
+      "evaluated_at": "2026-08-31T22:45:32.240187Z",
+      "evaluation_id": "dqe-bded9d8a49807b934effa85934f5e95c38bbcc9c900aa2e7a6a94b6f6a93e908",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.267383664005,
+        "LOSS": 0.265900293106,
+        "PUSH": 0.0,
+        "WIN": 0.466716042889
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-08-31T22:45:32.240187Z",
+      "temperature": 1.59,
+      "training_rows": 129
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.5675e-08,
+        "HALF_WIN": 1.5675e-08,
+        "LOSS": 0.263798898387,
+        "PUSH": 0.254391052674,
+        "WIN": 0.481810017589
+      },
+      "evaluated_at": "2026-09-02T22:15:47.320990Z",
+      "evaluation_id": "dqe-9a2b91c76694f9e4019f9300a1b8616ce1e1e03aecbbea666509ac037e5dbb1a",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.221277075762,
+        "PUSH": 0.209014167922,
+        "WIN": 0.569708756316
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-09-02T22:15:47.320990Z",
+      "temperature": 1.57,
+      "training_rows": 133
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.6291e-08,
+        "HALF_WIN": 1.6291e-08,
+        "LOSS": 0.195728373187,
+        "PUSH": 0.236116743746,
+        "WIN": 0.568154850485
+      },
+      "evaluated_at": "2026-09-02T22:15:47.320990Z",
+      "evaluation_id": "dqe-cd95eb5518992b9be1b08393f23c569e31b51a04fee80995da90380df0e08f0c",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.130358825731,
+        "PUSH": 0.175006044072,
+        "WIN": 0.694635130197
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-09-02T22:15:47.320990Z",
+      "temperature": 1.57,
+      "training_rows": 133
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.7991e-08,
+        "HALF_WIN": 1.7991e-08,
+        "LOSS": 0.374906484057,
+        "PUSH": 1.7991e-08,
+        "WIN": 0.625093461969
+      },
+      "evaluated_at": "2026-09-03T18:30:25.346438Z",
+      "evaluation_id": "dqe-e82ca1e098b0c4ef30d1b31572bff70162eda0f1e81e26e0236f4910942666b6",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.30946480815,
+        "PUSH": 0.0,
+        "WIN": 0.69053519185
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-09-03T18:30:25.346438Z",
+      "temperature": 1.57,
+      "training_rows": 135
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.7164e-08,
+        "HALF_WIN": 0.257565723578,
+        "LOSS": 0.326620498259,
+        "PUSH": 1.7164e-08,
+        "WIN": 0.415813743835
+      },
+      "evaluated_at": "2026-09-04T16:45:27.754919Z",
+      "evaluation_id": "dqe-00dfdfebf223f08d0e3ed540ca9ced88128c6b2d7fe99b750ef5c778c941f209",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.218018274526,
+        "LOSS": 0.317306071506,
+        "PUSH": 0.0,
+        "WIN": 0.464675653967
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-09-04T16:45:27.754919Z",
+      "temperature": 1.58,
+      "training_rows": 136
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.9947e-08,
+        "HALF_WIN": 1.9947e-08,
+        "LOSS": 0.39681171629,
+        "PUSH": 1.9947e-08,
+        "WIN": 0.603188223869
+      },
+      "evaluated_at": "2026-09-04T16:45:28.282775Z",
+      "evaluation_id": "dqe-a9806b3b3612e7da0597e15d99de0f5849bf029a1eabd5a7ab6be05de9b76d53",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.340368502796,
+        "PUSH": 0.0,
+        "WIN": 0.659631497204
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-09-04T16:45:28.282775Z",
+      "temperature": 1.58,
+      "training_rows": 136
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.979e-08,
+        "HALF_WIN": 1.979e-08,
+        "LOSS": 0.438883951245,
+        "PUSH": 1.979e-08,
+        "WIN": 0.561115989386
+      },
+      "evaluated_at": "2026-09-04T16:45:28.282775Z",
+      "evaluation_id": "dqe-bfbebe0f4e48f4184015532a2dbb471acbfbbe3d6e9a8625b71867a1b85da6c3",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.404152056455,
+        "PUSH": 0.0,
+        "WIN": 0.595847943545
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-09-04T16:45:28.282775Z",
+      "temperature": 1.58,
+      "training_rows": 136
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.7517e-08,
+        "HALF_WIN": 0.241544756177,
+        "LOSS": 0.267315922608,
+        "PUSH": 1.7517e-08,
+        "WIN": 0.491139286181
+      },
+      "evaluated_at": "2026-09-04T18:15:48.152528Z",
+      "evaluation_id": "dqe-39f1b10a4a6cc8bcd8ab9adb1aff72bc91f252712e18d51100e4584ad1cebcbe",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.190748476374,
+        "LOSS": 0.223884525365,
+        "PUSH": 0.0,
+        "WIN": 0.585366998261
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-09-04T18:15:48.152528Z",
+      "temperature": 1.58,
+      "training_rows": 136
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.274617294046,
+        "HALF_WIN": 1.7364e-08,
+        "LOSS": 0.258597266536,
+        "PUSH": 1.7364e-08,
+        "WIN": 0.46678540469
+      },
+      "evaluated_at": "2026-09-04T18:30:51.783381Z",
+      "evaluation_id": "dqe-37dac95ff97fe7a3fc3d065a53ad91f14df0a3d19ab38076e843ffb07fb0a40e",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.236879956898,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.215419031352,
+        "PUSH": 0.0,
+        "WIN": 0.547701011749
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-09-04T18:30:51.783381Z",
+      "temperature": 1.58,
+      "training_rows": 136
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.7616e-08,
+        "HALF_WIN": 1.7616e-08,
+        "LOSS": 0.247431102345,
+        "PUSH": 0.246345610872,
+        "WIN": 0.506223251551
+      },
+      "evaluated_at": "2026-09-04T18:46:38.249192Z",
+      "evaluation_id": "dqe-e293633058268c8f002e6b38d8e5a31b921b495d6b5f3166e4aa79fa25dfd384",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.19638869623,
+        "PUSH": 0.195029154696,
+        "WIN": 0.608582149074
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-09-04T18:46:38.249192Z",
+      "temperature": 1.58,
+      "training_rows": 136
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.724e-08,
+        "HALF_WIN": 1.724e-08,
+        "LOSS": 0.285219535406,
+        "PUSH": 0.271935383726,
+        "WIN": 0.442845046388
+      },
+      "evaluated_at": "2026-09-04T19:00:58.187308Z",
+      "evaluation_id": "dqe-364d0dc542affa3d6c2fdb86cae51f3c001002cc33cdced8c0292da5a5253316",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.254362488006,
+        "PUSH": 0.235898760871,
+        "WIN": 0.509738751123
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-09-04T19:00:58.187308Z",
+      "temperature": 1.58,
+      "training_rows": 136
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.7499e-08,
+        "HALF_WIN": 1.7499e-08,
+        "LOSS": 0.257278579013,
+        "PUSH": 0.253590519146,
+        "WIN": 0.489130866843
+      },
+      "evaluated_at": "2026-09-04T19:00:58.187308Z",
+      "evaluation_id": "dqe-b742435815a83887585dc32316639a61e2ad54ba5f656c00caebd8a2d26f7f54",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.211099866919,
+        "PUSH": 0.206338555952,
+        "WIN": 0.582561577129
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-09-04T19:00:58.187308Z",
+      "temperature": 1.58,
+      "training_rows": 136
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 0.253119212228,
+        "HALF_WIN": 1.7804e-08,
+        "LOSS": 0.217576951616,
+        "PUSH": 1.7804e-08,
+        "WIN": 0.529303800549
+      },
+      "evaluated_at": "2026-09-07T16:15:10.178719Z",
+      "evaluation_id": "dqe-b2cce3e04a845c68c328ec39c54025466dbbf97f0bdfc63ae6c9e58092c8c4d8",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.200195773456,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.157626630843,
+        "PUSH": 0.0,
+        "WIN": 0.642177595702
+      },
+      "market": "TOTALS",
+      "result_knowledge_cutoff": "2026-09-07T16:15:10.178719Z",
+      "temperature": 1.58,
+      "training_rows": 144
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.7255e-08,
+        "HALF_WIN": 0.30827206402,
+        "LOSS": 0.25092376563,
+        "PUSH": 1.7255e-08,
+        "WIN": 0.44080413584
+      },
+      "evaluated_at": "2026-09-07T16:45:20.525626Z",
+      "evaluation_id": "dqe-e1d6cf16c8ec5a80db5f29b0183e65963bb37d254f83df5ebae2fe21509965d3",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.287200980642,
+        "LOSS": 0.207465538584,
+        "PUSH": 0.0,
+        "WIN": 0.505333480774
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-09-07T16:45:20.525626Z",
+      "temperature": 1.58,
+      "training_rows": 144
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.7114e-08,
+        "HALF_WIN": 1.7114e-08,
+        "LOSS": 0.292529971696,
+        "PUSH": 0.295407241576,
+        "WIN": 0.4120627525
+      },
+      "evaluated_at": "2026-09-07T18:30:44.460747Z",
+      "evaluation_id": "dqe-3de048648c0edc8d1afd2c978444739da7c0f6ca5678026da6073994c8119643",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.0,
+        "LOSS": 0.267819300158,
+        "PUSH": 0.27199322385,
+        "WIN": 0.460187475992
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-09-07T18:30:44.460747Z",
+      "temperature": 1.58,
+      "training_rows": 144
+    },
+    {
+      "candidate_dist": {
+        "HALF_LOSS": 1.7099e-08,
+        "HALF_WIN": 0.286123678554,
+        "LOSS": 0.30747529377,
+        "PUSH": 1.7099e-08,
+        "WIN": 0.406400993478
+      },
+      "evaluated_at": "2026-09-07T18:32:34.722346Z",
+      "evaluation_id": "dqe-e29e2309d353103e3908b8052320f6df64c6fd4e579c5c3560477c34b1c990d9",
+      "incumbent_dist": {
+        "HALF_LOSS": 0.0,
+        "HALF_WIN": 0.258972756337,
+        "LOSS": 0.29016112805,
+        "PUSH": 0.0,
+        "WIN": 0.450866115613
+      },
+      "market": "ASIAN_HANDICAP",
+      "result_knowledge_cutoff": "2026-09-07T18:32:34.722346Z",
+      "temperature": 1.58,
+      "training_rows": 144
+    }
+  ],
+  "rows_at_grid_ceiling": 0,
+  "rows_at_neutral_temperature": 20,
+  "schema_version": "w2.official_candidate_temperature_log.v1",
+  "task_id": "W2_OFFICIAL_CANDIDATE_ACCURACY_OPTIMIZATION_02",
+  "training_axis": "GLOBAL_ALL_MARKETS_POOLED"
+}

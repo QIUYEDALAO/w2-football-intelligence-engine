@@ -4,7 +4,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, case, exists, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -12,13 +12,23 @@ from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
+    MatchdayCheckpointPlanRescheduleModel,
     MatchdayEndpointCaptureModel,
     MatchdayEndpointCapturePlanModel,
     MatchdayEvidenceManifestModel,
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
+from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureModel,
+    ModelForecastOutcomeModel,
+    canonical_model_forecast_fixture_id_sql,
+    model_forecast_fixture_aliases,
+)
 from w2.matchday.intake_v2 import CheckpointPlan, parse_utc, stable_hash, validate_manifest_identity
+from w2.prematch.evaluation_slots import CURRENT_EVALUATION_POLICY, is_evaluation_slot
+from w2.prematch.lifecycle import EvaluationOpportunityContext, OpportunityState
+from w2.prematch.repository import DynamicPrematchRepository
 
 
 class MatchdayRepositoryError(RuntimeError):
@@ -35,6 +45,45 @@ def _dt(value: Any) -> datetime:
 def _iso(value: datetime) -> str:
     normalized = value.astimezone(UTC) if value.tzinfo is not None else value.replace(tzinfo=UTC)
     return normalized.isoformat().replace("+00:00", "Z")
+
+
+def _checkpoint_priority() -> Any:
+    unsettled_capture = exists(
+        select(ModelForecastCaptureModel.capture_identity_hash)
+        .outerjoin(
+            ModelForecastOutcomeModel,
+            ModelForecastOutcomeModel.capture_identity_hash
+            == ModelForecastCaptureModel.capture_identity_hash,
+        )
+        .where(
+            ModelForecastOutcomeModel.capture_identity_hash.is_(None),
+            canonical_model_forecast_fixture_id_sql(ModelForecastCaptureModel.fixture_id)
+            == canonical_model_forecast_fixture_id_sql(MatchdayCheckpointPlanModel.fixture_id),
+        )
+        .correlate(MatchdayCheckpointPlanModel)
+    )
+    return case(
+        (
+            (MatchdayCheckpointPlanModel.checkpoint == "POSTMATCH_RESULT")
+            & unsettled_capture,
+            0,
+        ),
+        (
+            MatchdayCheckpointPlanModel.checkpoint.in_(
+                (
+                    "T60_ODDS_LINEUPS",
+                    "T45_ODDS",
+                    "T45_LINEUPS_RETRY",
+                    "T-30m_VALIDATION_LOCK",
+                    "T30_LINEUPS_RETRY",
+                    "T15_ODDS",
+                )
+            ),
+            1,
+        ),
+        (MatchdayCheckpointPlanModel.checkpoint != "POSTMATCH_RESULT", 2),
+        else_=3,
+    )
 
 
 class MatchdayRuntimeRepository:
@@ -96,7 +145,58 @@ class MatchdayRuntimeRepository:
         incoming_status = str(payload["status"])
         existing = session.get(MatchdayCheckpointPlanModel, plan_id)
         if existing is not None:
+            rescheduled = normalize_repo_time(existing.kickoff_utc) != normalize_repo_time(
+                _dt(payload["kickoff_utc"])
+            )
+            # Re-dating is checked ahead of the terminal short-circuit because the
+            # stranded plans were all MISSED, which is terminal: deferring the check
+            # would leave the exact rows the bug produced untouchable.  plan_id is
+            # keyed on fixture x checkpoint x policy and deliberately excludes the
+            # kickoff, so a postponed fixture reuses these rows.  Only verdicts that
+            # recorded no provider interaction are re-dated; anything that touched
+            # the provider stays pinned to the window it describes, which for FAILED
+            # has to be decided per row rather than by status alone.
+            if rescheduled and _is_redatable(session, existing):
+                session.add(
+                    _reschedule_audit_row(
+                        existing,
+                        payload=payload,
+                        new_status=incoming_status,
+                        recorded_at=normalize_repo_time(datetime.now(UTC)),
+                    )
+                )
+                existing.kickoff_utc = _dt(payload["kickoff_utc"])
+                existing.scheduled_at = _dt(payload["scheduled_at"])
+                existing.window_start = _dt(payload["window_start"])
+                existing.window_end = _dt(payload["window_end"])
+                existing.status = incoming_status
+                existing.missed_at = (
+                    _dt(payload["missed_at"]) if payload.get("missed_at") else None
+                )
+                existing.endpoints = list(payload.get("endpoints") or existing.endpoints or [])
+                existing.blockers = list(payload.get("blockers") or [])
+                existing.plan_hash = str(payload.get("plan_hash") or existing.plan_hash)
+                # A DUE plan may be claimed by a worker mid-flight.  Its result
+                # belongs to the old window, so the claim is released here and
+                # that worker's transition fails closed rather than recording a
+                # capture against the window it never saw.  All four fields go
+                # together: claim_due_checkpoint_plans requires claimed_at and
+                # claim_token to both be null, and the lease reaper only runs
+                # where claim_expires_at is set, so leaving claimed_at behind
+                # would make the re-dated plan permanently unclaimable until its
+                # new window elapsed and it was marked MISSED.
+                existing.claimed_at = None
+                existing.claimed_by = None
+                existing.claim_token = None
+                existing.claim_expires_at = None
+                return plan_id
             if existing.status in {*_TERMINAL_CHECKPOINT_STATUSES, "FAILED"}:
+                return plan_id
+            # A claimed DUE row is the exact plan a worker is executing.  Keep
+            # its window and hash together until that claim finishes.
+            if existing.status == "DUE" and (
+                existing.claimed_at is not None or existing.claim_token is not None
+            ):
                 return plan_id
             if normalize_repo_time(existing.scheduled_at) != normalize_repo_time(
                 _dt(payload["scheduled_at"])
@@ -104,6 +204,22 @@ class MatchdayRuntimeRepository:
                 raise MatchdayRepositoryError("CHECKPOINT_PLAN_CONFLICT")
             if existing.status == "MISSED" and incoming_status == "CAPTURED":
                 raise MatchdayRepositoryError("MISSED_CHECKPOINT_IMMUTABLE")
+            # plan_hash is taken over the plan's own fields, window_end among
+            # them, and is refreshed below on every regeneration.  Leaving the
+            # window pinned while the hash moves would describe each untouched
+            # row by a hash its own contents no longer produce, so a policy that
+            # widens a grace period would land on new fixtures only and leave
+            # every already-planned row silently inconsistent.  Unclaimed DUE
+            # rows are safe to refresh; claimed rows returned above are not.
+            if (
+                existing.status in {"PLANNED", "DUE"}
+                and existing.claimed_at is None
+                and existing.claim_token is None
+                and normalize_repo_time(existing.window_end)
+                != normalize_repo_time(_dt(payload["window_end"]))
+            ):
+                existing.window_start = _dt(payload["window_start"])
+                existing.window_end = _dt(payload["window_end"])
             existing.status = _transition_status(existing.status, incoming_status)
             existing.missed_at = (
                 _dt(payload["missed_at"]) if payload.get("missed_at") else existing.missed_at
@@ -207,7 +323,8 @@ class MatchdayRuntimeRepository:
                         MatchdayCheckpointPlanModel.claimed_at.is_(None),
                     )
                     .order_by(
-                        MatchdayCheckpointPlanModel.scheduled_at,
+                        _checkpoint_priority(),
+                        MatchdayCheckpointPlanModel.window_end,
                         MatchdayCheckpointPlanModel.kickoff_utc,
                         MatchdayCheckpointPlanModel.fixture_id,
                         MatchdayCheckpointPlanModel.checkpoint,
@@ -219,12 +336,44 @@ class MatchdayRuntimeRepository:
             session.commit()
         return result
 
+    def due_checkpoint_competition_ids(
+        self,
+        *,
+        now: datetime,
+        competition_ids: Sequence[str],
+    ) -> list[str]:
+        if not competition_ids:
+            return []
+        current = normalize_repo_time(now)
+        with Session(self.engine) as session:
+            self._advance_checkpoint_windows(session, now=current)
+            rows = session.execute(
+                select(MatchdayCheckpointPlanModel.competition_id)
+                .where(
+                    MatchdayCheckpointPlanModel.competition_id.in_(competition_ids),
+                    MatchdayCheckpointPlanModel.status == "DUE",
+                    MatchdayCheckpointPlanModel.window_start <= current,
+                    MatchdayCheckpointPlanModel.window_end >= current,
+                    MatchdayCheckpointPlanModel.claimed_at.is_(None),
+                )
+                .order_by(
+                    _checkpoint_priority(),
+                    MatchdayCheckpointPlanModel.window_end,
+                    MatchdayCheckpointPlanModel.kickoff_utc,
+                    MatchdayCheckpointPlanModel.fixture_id,
+                )
+            ).scalars()
+            result = list(dict.fromkeys(str(item) for item in rows))
+            session.commit()
+        return result
+
     def claim_due_checkpoint_plans(
         self,
         *,
         now: datetime,
         worker_id: str,
         plan_ids: set[str] | None = None,
+        checkpoint_mode: str | None = None,
         limit: int = 100,
         lease_seconds: int = 900,
     ) -> list[dict[str, Any]]:
@@ -244,7 +393,8 @@ class MatchdayRuntimeRepository:
                     MatchdayCheckpointPlanModel.claim_token.is_(None),
                 )
                 .order_by(
-                    MatchdayCheckpointPlanModel.scheduled_at,
+                    _checkpoint_priority(),
+                    MatchdayCheckpointPlanModel.window_end,
                     MatchdayCheckpointPlanModel.kickoff_utc,
                     MatchdayCheckpointPlanModel.fixture_id,
                     MatchdayCheckpointPlanModel.checkpoint,
@@ -253,6 +403,12 @@ class MatchdayRuntimeRepository:
             )
             if plan_ids is not None:
                 query = query.where(MatchdayCheckpointPlanModel.plan_id.in_(plan_ids))
+            if checkpoint_mode == "PREMATCH":
+                query = query.where(MatchdayCheckpointPlanModel.checkpoint != "POSTMATCH_RESULT")
+            elif checkpoint_mode == "POSTMATCH":
+                query = query.where(MatchdayCheckpointPlanModel.checkpoint == "POSTMATCH_RESULT")
+            elif checkpoint_mode is not None:
+                raise ValueError(f"unsupported checkpoint mode {checkpoint_mode}")
             if self.engine.dialect.name == "postgresql":
                 query = query.with_for_update(skip_locked=True)
             rows = list(session.scalars(query))
@@ -279,6 +435,7 @@ class MatchdayRuntimeRepository:
         plan_id: str,
         claim_token: str,
         reason: str,
+        restore_attempt: bool = False,
     ) -> bool:
         with Session(self.engine) as session:
             row = session.get(MatchdayCheckpointPlanModel, plan_id)
@@ -286,8 +443,10 @@ class MatchdayRuntimeRepository:
                 raise MatchdayRepositoryError("CHECKPOINT_PLAN_NOT_FOUND")
             if row.claim_token != claim_token:
                 return False
-            if row.status in _TERMINAL_CHECKPOINT_STATUSES:
+            if row.status != "DUE":
                 return False
+            if restore_attempt:
+                row.attempt_count = max(int(row.attempt_count or 0) - 1, 0)
             row.claimed_at = None
             row.claimed_by = None
             row.claim_token = None
@@ -342,6 +501,7 @@ class MatchdayRuntimeRepository:
             capture = session.get(MatchdayEndpointCaptureModel, capture_id)
             if capture is None:
                 raise MatchdayRepositoryError("ENDPOINT_CAPTURE_NOT_FOUND")
+            requested_at = normalize_repo_time(capture.requested_at)
             for plan_id in plan_ids:
                 plan = session.get(MatchdayCheckpointPlanModel, plan_id)
                 if plan is None:
@@ -354,7 +514,7 @@ class MatchdayRuntimeRepository:
                     raise MatchdayRepositoryError("CAPTURE_PLAN_ENDPOINT_MISMATCH")
                 if not (
                     normalize_repo_time(plan.window_start)
-                    <= current
+                    <= requested_at
                     <= normalize_repo_time(plan.window_end)
                 ):
                     raise MatchdayRepositoryError("CAPTURE_PLAN_WINDOW_MISMATCH")
@@ -578,6 +738,12 @@ class MatchdayRuntimeRepository:
             if existing:
                 return existing[0].manifest_id
             decision = dict(manifest.get("decision") or {})
+            reason = decision.get("reason")
+            reason_code = (
+                str(reason.get("code") or "UNKNOWN")
+                if isinstance(reason, Mapping)
+                else str(reason or decision.get("reason_code") or "UNKNOWN")
+            )
             session.add(
                 MatchdayEvidenceManifestModel(
                     manifest_id=manifest_hash,
@@ -585,9 +751,7 @@ class MatchdayRuntimeRepository:
                     competition_id=str(manifest["fixture_identity"]["competition_id"]),
                     as_of=as_of,
                     outcome=str(decision.get("outcome") or "SYSTEM_DEGRADED"),
-                    reason_code=str(
-                        decision.get("reason") or decision.get("reason_code") or "UNKNOWN"
-                    ),
+                    reason_code=reason_code,
                     manifest_hash=manifest_hash,
                     input_manifest_hash=str(manifest["input_manifest_hash"]),
                     decision_hash=str(decision.get("decision_hash") or "") or None,
@@ -695,34 +859,178 @@ class MatchdayRuntimeRepository:
         }
 
     def _advance_checkpoint_windows(self, session: Session, *, now: datetime) -> None:
-        rows = list(
-            session.scalars(
-                select(MatchdayCheckpointPlanModel).where(
-                    MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE"))
-                )
+        expired_query = select(MatchdayCheckpointPlanModel).where(
+            MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE")),
+            MatchdayCheckpointPlanModel.window_end < now,
+            ~(
+                (MatchdayCheckpointPlanModel.status == "DUE")
+                & MatchdayCheckpointPlanModel.claim_expires_at.is_not(None)
+                & (MatchdayCheckpointPlanModel.claim_expires_at >= now)
+            ),
+        )
+        if self.engine.dialect.name == "postgresql":
+            expired_query = expired_query.with_for_update(skip_locked=True)
+        for row in session.scalars(expired_query):
+            row.status = "MISSED"
+            row.missed_at = row.missed_at or now
+            missed_blocker = (
+                "RESULT_WINDOW_MISSED"
+                if row.checkpoint == "POSTMATCH_RESULT"
+                else "CHECKPOINT_MISSING"
+            )
+            row.blockers = sorted({*list(row.blockers or []), missed_blocker})
+            row.claimed_at = None
+            row.claimed_by = None
+            row.claim_token = None
+            row.claim_expires_at = None
+            self._record_missed_opportunities_in_session(session, row=row, recorded_at=now)
+
+        session.execute(
+            update(MatchdayCheckpointPlanModel)
+            .where(
+                MatchdayCheckpointPlanModel.status == "DUE",
+                MatchdayCheckpointPlanModel.window_end >= now,
+                MatchdayCheckpointPlanModel.claim_expires_at < now,
+            )
+            .values(
+                claimed_at=None,
+                claimed_by=None,
+                claim_token=None,
+                claim_expires_at=None,
             )
         )
-        for row in rows:
-            window_end = normalize_repo_time(row.window_end)
-            window_start = normalize_repo_time(row.window_start)
-            claim_expires = (
-                normalize_repo_time(row.claim_expires_at) if row.claim_expires_at else None
+        session.execute(
+            update(MatchdayCheckpointPlanModel)
+            .where(
+                MatchdayCheckpointPlanModel.status == "PLANNED",
+                MatchdayCheckpointPlanModel.window_start <= now,
+                MatchdayCheckpointPlanModel.window_end >= now,
             )
-            if now > window_end:
-                row.status = "MISSED"
-                row.missed_at = row.missed_at or now
-                row.blockers = sorted({*list(row.blockers or []), "CHECKPOINT_MISSING"})
-                row.claimed_at = None
-                row.claimed_by = None
-                row.claim_token = None
-                row.claim_expires_at = None
-            elif row.status == "DUE" and claim_expires is not None and claim_expires < now:
-                row.claimed_at = None
-                row.claimed_by = None
-                row.claim_token = None
-                row.claim_expires_at = None
-            elif row.status == "PLANNED" and window_start <= now <= window_end:
-                row.status = "DUE"
+            .values(status="DUE")
+        )
+
+    def _record_missed_opportunities_in_session(
+        self,
+        session: Session,
+        *,
+        row: MatchdayCheckpointPlanModel,
+        recorded_at: datetime,
+    ) -> None:
+        if "odds" not in set(row.endpoints or ()) or not is_evaluation_slot(row.checkpoint):
+            return
+        tracks = session.execute(
+            select(
+                ModelForecastCaptureModel.capture_identity_hash,
+                ModelForecastCaptureModel.model_input_manifest_hash,
+            )
+            .where(
+                ModelForecastCaptureModel.fixture_id.in_(
+                    model_forecast_fixture_aliases(row.fixture_id)
+                )
+            )
+            .order_by(ModelForecastCaptureModel.capture_identity_hash)
+        )
+        repository = DynamicPrematchRepository(self.engine)
+        for capture_hash, model_input_hash in tracks:
+            context = EvaluationOpportunityContext(
+                model_forecast_capture_identity_hash=str(capture_hash),
+                model_input_hash=str(model_input_hash),
+                evaluation_policy_version=CURRENT_EVALUATION_POLICY,
+                evaluation_slot_id=row.checkpoint,
+                scheduled_checkpoint_at=normalize_repo_time(row.scheduled_at),
+                checkpoint_plan_identity=row.plan_id,
+                source_event_identity=f"checkpoint-missed:{row.plan_id}:{_iso(recorded_at)}",
+            )
+            for market in ("ASIAN_HANDICAP", "TOTALS"):
+                repository.record_opportunity_without_attempt_in_session(
+                    session,
+                    fixture_id=row.fixture_id.removeprefix("api_football:"),
+                    market=market,
+                    context=context,
+                    state=OpportunityState.MISSED_CHECKPOINT,
+                    recorded_at=recorded_at,
+                    blocker="CHECKPOINT_WINDOW_MISSED",
+                )
+
+
+# Statuses a moved kickoff may rewrite on the strength of the status alone.
+# None of them can have recorded a provider interaction, so the row holds only
+# a verdict about a window the fixture no longer has.  CAPTURED, PROVIDER_EMPTY
+# and CONFLICT are excluded because each already describes something that
+# happened against the old window.  FAILED is excluded here but decided per row
+# in _is_redatable: it covers both a plan that never reached the provider and
+# one whose request was sent and errored.
+_REDATABLE_CHECKPOINT_STATUSES = frozenset(
+    {"PLANNED", "DUE", "MISSED", "SKIPPED_POLICY", "SKIPPED_BUDGET"}
+)
+
+
+def _is_redatable(session: Session, row: MatchdayCheckpointPlanModel) -> bool:
+    """Whether a moved kickoff may rewrite this plan row.
+
+    Status alone is not sufficient for FAILED.  A FAILED row may record either
+    a plan that never reached the provider or one whose request was actually
+    sent and errored; the second kind describes a real interaction with the old
+    window and must stay pinned to it, exactly as CAPTURED and PROVIDER_EMPTY
+    do.  The distinguishing evidence is a capture on the row or a link row
+    joining it to an endpoint capture.
+    """
+
+    if row.status in _REDATABLE_CHECKPOINT_STATUSES:
+        return True
+    if row.status != "FAILED":
+        return False
+    if row.capture_id or row.current_unscheduled_capture_id:
+        return False
+    linked = session.scalar(
+        select(MatchdayEndpointCapturePlanModel.link_hash)
+        .where(MatchdayEndpointCapturePlanModel.plan_id == row.plan_id)
+        .limit(1)
+    )
+    return linked is None
+
+
+def _reschedule_audit_row(
+    row: MatchdayCheckpointPlanModel,
+    *,
+    payload: Mapping[str, Any],
+    new_status: str,
+    recorded_at: datetime,
+) -> MatchdayCheckpointPlanRescheduleModel:
+    """Capture the window a re-date is about to overwrite.
+
+    The re-date writes the new kickoff, window, status, blockers and missed_at
+    over the same row, and no other table records what the plan looked like
+    before: endpoint captures and the checkpoint audit describe attempts, not
+    the plan they were scheduled against.  attempt_count is carried forward
+    rather than reset -- plan_id spans windows by design, so the count is the
+    plan identity's history, not this window's -- and is recorded here so the
+    accumulated value stays interpretable.
+    """
+
+    previous_kickoff = normalize_repo_time(row.kickoff_utc)
+    return MatchdayCheckpointPlanRescheduleModel(
+        reschedule_id=stable_hash(
+            ":".join([row.plan_id, _iso(previous_kickoff), _iso(recorded_at)])
+        ),
+        plan_id=row.plan_id,
+        fixture_id=row.fixture_id,
+        checkpoint=row.checkpoint,
+        recorded_at=recorded_at,
+        previous_status=row.status,
+        previous_kickoff_utc=previous_kickoff,
+        previous_scheduled_at=normalize_repo_time(row.scheduled_at),
+        previous_window_start=normalize_repo_time(row.window_start),
+        previous_window_end=normalize_repo_time(row.window_end),
+        previous_attempt_count=int(row.attempt_count or 0),
+        previous_blockers=list(row.blockers or []),
+        previous_missed_at=normalize_repo_time(row.missed_at) if row.missed_at else None,
+        new_status=new_status,
+        new_kickoff_utc=_dt(payload["kickoff_utc"]),
+        new_scheduled_at=_dt(payload["scheduled_at"]),
+        new_window_start=_dt(payload["window_start"]),
+        new_window_end=_dt(payload["window_end"]),
+    )
 
 
 def _transition_status(current: str, incoming: str) -> str:

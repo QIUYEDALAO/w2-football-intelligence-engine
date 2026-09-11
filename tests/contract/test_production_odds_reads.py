@@ -605,6 +605,7 @@ def test_dashboard_repository_reuses_one_lazy_engine(monkeypatch: Any) -> None:
 
     monkeypatch.setattr(api_repository, "create_engine", engine_factory)
     repository = api_repository.ReadModelRepository()
+    monkeypatch.setattr(repository, "_dashboard_competition_ids", lambda: ("allsvenskan",))
 
     assert repository.analysis_checkpoint_count() == 0
     assert repository.analysis_checkpoint_count() == 0
@@ -699,9 +700,63 @@ def test_dashboard_outcome_read_is_one_fixture_scoped_select() -> None:
     assert statements[0].lstrip().upper().startswith("SELECT")
 
 
+def test_release_counts_aggregates_without_materializing_analysis_cards(
+    monkeypatch: Any,
+) -> None:
+    engine = _engine()
+    with Session(engine) as session:
+        for fixture_id, status in (("1", "NS"), ("2", "FT"), ("3", None)):
+            session.add(
+                MatchdayFixtureIdentityModel(
+                    fixture_id=f"api_football:{fixture_id}",
+                    provider="api_football",
+                    provider_fixture_id=fixture_id,
+                    competition_id="allsvenskan",
+                    provider_league_id="113",
+                    season="2026",
+                    kickoff_utc=datetime(2026, 8, 20, tzinfo=UTC),
+                    fixture_status=status or "NS",
+                    home_provider_team_id=f"home-{fixture_id}",
+                    away_provider_team_id=f"away-{fixture_id}",
+                    home_w2_team_id=None,
+                    away_w2_team_id=None,
+                    team_identity_status="REVIEW_REQUIRED",
+                    raw_payload_sha256=fixture_id * 64,
+                    captured_at=datetime(2026, 8, 20, tzinfo=UTC),
+                    identity_hash=fixture_id * 64,
+                    payload={},
+                )
+            )
+            session.add(
+                ReadModelCheckpointModel(
+                    checkpoint_key=(f"{api_repository.ANALYSIS_CARD_SHADOW_PREFIX}{fixture_id}"),
+                    source_hash=fixture_id * 64,
+                    created_at=datetime(2026, 8, 20, tzinfo=UTC),
+                    payload={"analysis_card": {"status": status}},
+                )
+            )
+        session.commit()
+
+    repository = api_repository.ReadModelRepository(engine=engine)
+    monkeypatch.setattr(repository, "_dashboard_competition_ids", lambda: ("allsvenskan",))
+    monkeypatch.setattr(
+        repository,
+        "dashboard_latest_fixtures",
+        lambda: (_ for _ in ()).throw(AssertionError("analysis cards materialized")),
+    )
+
+    assert repository.release_counts() == {
+        "read_model_fixture_count": 3,
+        "matchday_card_count": 3,
+        "future_fixture_count": 3,
+        "result_event_count": 1,
+    }
+
+
 def test_dashboard_service_consumes_batched_projection_without_per_fixture_reads() -> None:
     class Repository:
         window: tuple[datetime | None, datetime | None] | None = None
+        fixture_ids: tuple[str, ...] | None = None
 
         def dashboard_fixtures_for_window(
             self,
@@ -709,9 +764,13 @@ def test_dashboard_service_consumes_batched_projection_without_per_fixture_reads
             start: datetime | None,
             end: datetime | None,
             limit: int,
+            fixture_ids: tuple[str, ...] | None = None,
         ) -> list[dict[str, Any]]:
             self.window = (start, end)
-            assert limit == api_repository.MAX_PUBLIC_FIXTURES
+            self.fixture_ids = fixture_ids
+            assert limit == (
+                len(fixture_ids) if fixture_ids else api_repository.MAX_PUBLIC_FIXTURES
+            )
             return [
                 {
                     "fixture_id": "1493049",
@@ -777,6 +836,16 @@ def test_dashboard_service_consumes_batched_projection_without_per_fixture_reads
     assert "_analysis_card_projection" not in payload["all"][0]
     assert "_public_team_labels" not in payload["all"][0]
 
+    targeted = api_repository.ReadModelService(
+        repository=repository,  # type: ignore[arg-type]
+    ).dashboard_cards_for_fixtures(
+        ["1493049"],
+        generated_at=payload["generated_at"],
+    )
+
+    assert repository.fixture_ids == ("1493049",)
+    assert targeted == payload["all"]
+
 
 def test_api_dashboard_card_keeps_historical_v3_identity_immutable() -> None:
     class Repository:
@@ -805,8 +874,15 @@ def test_api_dashboard_card_keeps_historical_v3_identity_immutable() -> None:
     )
 
     assert card["competition_id"] == "brasileirao_serie_a"
-    assert card["recommendation_decision_v3"]["competition_id"] == "71"
-    assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+    # The projection still carries a V3 block, and the canonical competition id
+    # still replaces the provider one on the card. What changed is that the
+    # public dashboard card no longer exposes V3 at all: _project_dashboard_card
+    # pops both keys. History stays history, off the public surface.
+    #
+    # Asserted as absence rather than deleted, so re-exposing V3 on the public
+    # card fails here rather than passing silently.
+    assert "recommendation_decision_v3" not in card
+    assert "recommendation_decision_v3_role" not in card
 
 
 def test_fixture_scoped_timeline_reads_history_not_current_projection() -> None:

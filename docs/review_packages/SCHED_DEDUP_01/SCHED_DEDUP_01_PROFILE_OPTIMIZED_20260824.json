@@ -1,0 +1,2285 @@
+{
+  "analysis_card_calls": 12,
+  "content_sha256": "63434eb4cedeff38d697f9eabe42908f73ddc314183653d903ae759ae5df460c",
+  "cpu_seconds": 65.136922,
+  "database_read_only": true,
+  "deployment": false,
+  "event_count": 6,
+  "events": [
+    {
+      "artifact_hash": "255278e7191a6a731649890463974f5ecf72ca6d171e400d0c5aa808daa2014f",
+      "canonical_bytes": 641159,
+      "canonical_bytes_sha256": "559b1f14e9732700150c211b300a815f8f2cff1a08d41d8ab2ae27f957caf925",
+      "event_at": "2026-08-23T18:38:37Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492341",
+      "projection_hash": "a62a30990394b52862f7ed5a158dc8cb61a5c2cb4f5bca625891a37634ada180"
+    },
+    {
+      "artifact_hash": "c8542a05b64dd605010d9859cdecbf4f2314abf4e49b2a6db7e74d47f7ae03ef",
+      "canonical_bytes": 644164,
+      "canonical_bytes_sha256": "9afed376b843061cbb5f442047770b95792bc582aa0de116bc2de6831eb2fc62",
+      "event_at": "2026-08-23T18:38:38.142854Z",
+      "event_type": "LINEUP_CHANGED",
+      "fixture_id": "1492341",
+      "projection_hash": "dd23765e0f64278ef36a64803acf3e2b1a5373e91cc6d7144a97eed86493d442"
+    },
+    {
+      "artifact_hash": "d1c874cba7b65e26ae70b6cb91684aa95af31a687fa657bddd02d8e59f06cc4d",
+      "canonical_bytes": 616580,
+      "canonical_bytes_sha256": "36d541ca43a2fca186031d479ad0ecc959d22453ac2408a1a28c5d1862b10b2c",
+      "event_at": "2026-08-23T18:38:38Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492347",
+      "projection_hash": "0fc6e262be3e9cb7b7586ff19838bd0406ecb09b4d206115baf18a397ecf149c"
+    },
+    {
+      "artifact_hash": "5e68ac201053ff51df1f228422060f2438f9c98424845daa3bbc4d14bc9f5907",
+      "canonical_bytes": 521872,
+      "canonical_bytes_sha256": "fcd3853477e91a4d5b0c1e19133a719a6a1398a93da6cddc61305127ca14e0ea",
+      "event_at": "2026-08-23T18:38:39Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492349",
+      "projection_hash": "bb94485d27baf144a40e6cc53c1b90d075d53b66ed4afa3af490edd63b35d8ea"
+    },
+    {
+      "artifact_hash": "2aab185c1e8c4e02282248177c691ef759145de56889ee1eb1a5a0930fc41909",
+      "canonical_bytes": 530456,
+      "canonical_bytes_sha256": "4831dffacb42655b5066f41604162012b945825a887ae57e22748bbdb1bdc937",
+      "event_at": "2026-08-23T18:38:40Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492342",
+      "projection_hash": "9dc5ef98f476fa7954470ff084af602844eef56e5279b8cb6d5a2ee5b1e66b87"
+    },
+    {
+      "artifact_hash": "14f425aa6e6156475a5b71a69d9bbb809c397a1b52e83c10e05c41c0bda34b98",
+      "canonical_bytes": 585570,
+      "canonical_bytes_sha256": "66fad1b2ac6b4f32c8964707aab4a1a7f51ec646d628dbccc9fb4778df4a2c6d",
+      "event_at": "2026-08-23T18:38:40Z",
+      "event_type": "ODDS_CHANGED",
+      "fixture_id": "1492348",
+      "projection_hash": "992c28fd576d582444c60f527aa254366096eb7e624acc208533825c4a72a3d7"
+    }
+  ],
+  "manifest_sha256": "eb574ac19b9f896e32d0aff515d7d3bfe06fc0bae6d1ad7c882cc92e5fd3eed8",
+  "mode": "optimized",
+  "outcome_ledger_sql_reads": 12,
+  "production_database_writes": 0,
+  "provider_calls": 0,
+  "schema_version": "w2.sched_dedup_01.profile.v1",
+  "source_release": "d05ab74217e37af2e85732ac3a63ee4d9e214aa1",
+  "sql": {
+    "calls": 527,
+    "exact_duplicate_calls": 343,
+    "families": [
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "batch_round3_prefetch",
+        "statement_prefix": "SELECT matchday_market_observations.observation_id, matchday_market_observations.fixture_id, matchday_market_observations.provider_fixture_id, matchday_market_observations.competition_id, matchday_market_observations.provider, matchday_mark",
+        "statement_sha256": "a1348a724a1a443a27b17606a1312983375a8ca64d0b3e650596b309a492d317",
+        "tables": [
+          "matchday_endpoint_captures",
+          "matchday_fixture_identities",
+          "matchday_market_observations",
+          "raw_payload"
+        ],
+        "wall_seconds": 154.362833
+      },
+      {
+        "calls": 20,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 19,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT league_profile.id, league_profile.competition_id, league_profile.name, league_profile.country, league_profile.payload, league_season.id AS id_1, league_season.competition_id AS competition_id_1, league_season.season, league_season.li",
+        "statement_sha256": "fa0f60c5c9a7c08275fa23884321ea1b6e5f560b926ae87121815f9b59b02e64",
+        "tables": [
+          "league_profile",
+          "league_season"
+        ],
+        "wall_seconds": 0.05393
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT current_market_projection.observation_id, current_market_projection.fixture_id, current_market_projection.provider_fixture_id, current_market_projection.projection_fixture_id, current_market_projection.competition_id, current_market_",
+        "statement_sha256": "9ec2fbc7ab738ce33bde94bac58eea36525c9a4f499cd2d322a7e0ba63f50f70",
+        "tables": [
+          "current_market_projection"
+        ],
+        "wall_seconds": 0.053478
+      },
+      {
+        "calls": 20,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 19,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT league_profile.id, league_profile.competition_id, league_profile.name, league_profile.country, league_profile.payload, league_season.id AS id_1, league_season.competition_id AS competition_id_1, league_season.season, league_season.li",
+        "statement_sha256": "fa0f60c5c9a7c08275fa23884321ea1b6e5f560b926ae87121815f9b59b02e64",
+        "tables": [
+          "league_profile",
+          "league_season"
+        ],
+        "wall_seconds": 0.05298
+      },
+      {
+        "calls": 20,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 19,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT league_profile.id, league_profile.competition_id, league_profile.name, league_profile.country, league_profile.payload, league_season.id AS id_1, league_season.competition_id AS competition_id_1, league_season.season, league_season.li",
+        "statement_sha256": "fa0f60c5c9a7c08275fa23884321ea1b6e5f560b926ae87121815f9b59b02e64",
+        "tables": [
+          "league_profile",
+          "league_season"
+        ],
+        "wall_seconds": 0.049486
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT current_market_projection.observation_id, current_market_projection.fixture_id, current_market_projection.provider_fixture_id, current_market_projection.projection_fixture_id, current_market_projection.competition_id, current_market_",
+        "statement_sha256": "9ec2fbc7ab738ce33bde94bac58eea36525c9a4f499cd2d322a7e0ba63f50f70",
+        "tables": [
+          "current_market_projection"
+        ],
+        "wall_seconds": 0.047604
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT current_market_projection.observation_id, current_market_projection.fixture_id, current_market_projection.provider_fixture_id, current_market_projection.projection_fixture_id, current_market_projection.competition_id, current_market_",
+        "statement_sha256": "9ec2fbc7ab738ce33bde94bac58eea36525c9a4f499cd2d322a7e0ba63f50f70",
+        "tables": [
+          "current_market_projection"
+        ],
+        "wall_seconds": 0.046783
+      },
+      {
+        "calls": 20,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 19,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT league_profile.id, league_profile.competition_id, league_profile.name, league_profile.country, league_profile.payload, league_season.id AS id_1, league_season.competition_id AS competition_id_1, league_season.season, league_season.li",
+        "statement_sha256": "fa0f60c5c9a7c08275fa23884321ea1b6e5f560b926ae87121815f9b59b02e64",
+        "tables": [
+          "league_profile",
+          "league_season"
+        ],
+        "wall_seconds": 0.045026
+      },
+      {
+        "calls": 20,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 19,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT league_profile.id, league_profile.competition_id, league_profile.name, league_profile.country, league_profile.payload, league_season.id AS id_1, league_season.competition_id AS competition_id_1, league_season.season, league_season.li",
+        "statement_sha256": "fa0f60c5c9a7c08275fa23884321ea1b6e5f560b926ae87121815f9b59b02e64",
+        "tables": [
+          "league_profile",
+          "league_season"
+        ],
+        "wall_seconds": 0.043683
+      },
+      {
+        "calls": 20,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 19,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT league_profile.id, league_profile.competition_id, league_profile.name, league_profile.country, league_profile.payload, league_season.id AS id_1, league_season.competition_id AS competition_id_1, league_season.season, league_season.li",
+        "statement_sha256": "fa0f60c5c9a7c08275fa23884321ea1b6e5f560b926ae87121815f9b59b02e64",
+        "tables": [
+          "league_profile",
+          "league_season"
+        ],
+        "wall_seconds": 0.043044
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT current_market_projection.observation_id, current_market_projection.fixture_id, current_market_projection.provider_fixture_id, current_market_projection.projection_fixture_id, current_market_projection.competition_id, current_market_",
+        "statement_sha256": "9ec2fbc7ab738ce33bde94bac58eea36525c9a4f499cd2d322a7e0ba63f50f70",
+        "tables": [
+          "current_market_projection"
+        ],
+        "wall_seconds": 0.041931
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT current_market_projection.observation_id, current_market_projection.fixture_id, current_market_projection.provider_fixture_id, current_market_projection.projection_fixture_id, current_market_projection.competition_id, current_market_",
+        "statement_sha256": "9ec2fbc7ab738ce33bde94bac58eea36525c9a4f499cd2d322a7e0ba63f50f70",
+        "tables": [
+          "current_market_projection"
+        ],
+        "wall_seconds": 0.040656
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT current_market_projection.observation_id, current_market_projection.fixture_id, current_market_projection.provider_fixture_id, current_market_projection.projection_fixture_id, current_market_projection.competition_id, current_market_",
+        "statement_sha256": "9ec2fbc7ab738ce33bde94bac58eea36525c9a4f499cd2d322a7e0ba63f50f70",
+        "tables": [
+          "current_market_projection"
+        ],
+        "wall_seconds": 0.034339
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 3,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_match.id, team_xg_match.fixture_id, team_xg_match.team_id, team_xg_match.opponent_team_id, team_xg_match.kickoff_at, team_xg_match.captured_at, team_xg_match.xg_for, team_xg_match.xg_against, team_xg_match.goals_for, team_xg_",
+        "statement_sha256": "40719dad22d5c02b768d5c0cc959978425f6a685c6700931217dab437b87f627",
+        "tables": [
+          "team_xg_match"
+        ],
+        "wall_seconds": 0.033956
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_market_observations.observation_id, matchday_market_observations.fixture_id, matchday_market_observations.provider_fixture_id, matchday_market_observations.competition_id, matchday_market_observations.provider, matchday_mark",
+        "statement_sha256": "f8c87e545108f69f6b63dd3a49780aff70daa365bb0729f24d5f797798fea352",
+        "tables": [
+          "matchday_market_observations"
+        ],
+        "wall_seconds": 0.024908
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 3,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_match.id, team_xg_match.fixture_id, team_xg_match.team_id, team_xg_match.opponent_team_id, team_xg_match.kickoff_at, team_xg_match.captured_at, team_xg_match.xg_for, team_xg_match.xg_against, team_xg_match.goals_for, team_xg_",
+        "statement_sha256": "40719dad22d5c02b768d5c0cc959978425f6a685c6700931217dab437b87f627",
+        "tables": [
+          "team_xg_match"
+        ],
+        "wall_seconds": 0.023435
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_market_observations.observation_id, matchday_market_observations.fixture_id, matchday_market_observations.provider_fixture_id, matchday_market_observations.competition_id, matchday_market_observations.provider, matchday_mark",
+        "statement_sha256": "f8c87e545108f69f6b63dd3a49780aff70daa365bb0729f24d5f797798fea352",
+        "tables": [
+          "matchday_market_observations"
+        ],
+        "wall_seconds": 0.023332
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 3,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_match.id, team_xg_match.fixture_id, team_xg_match.team_id, team_xg_match.opponent_team_id, team_xg_match.kickoff_at, team_xg_match.captured_at, team_xg_match.xg_for, team_xg_match.xg_against, team_xg_match.goals_for, team_xg_",
+        "statement_sha256": "40719dad22d5c02b768d5c0cc959978425f6a685c6700931217dab437b87f627",
+        "tables": [
+          "team_xg_match"
+        ],
+        "wall_seconds": 0.022935
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 3,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_match.id, team_xg_match.fixture_id, team_xg_match.team_id, team_xg_match.opponent_team_id, team_xg_match.kickoff_at, team_xg_match.captured_at, team_xg_match.xg_for, team_xg_match.xg_against, team_xg_match.goals_for, team_xg_",
+        "statement_sha256": "40719dad22d5c02b768d5c0cc959978425f6a685c6700931217dab437b87f627",
+        "tables": [
+          "team_xg_match"
+        ],
+        "wall_seconds": 0.022582
+      },
+      {
+        "calls": 8,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": true,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_match.id, team_xg_match.fixture_id, team_xg_match.team_id, team_xg_match.opponent_team_id, team_xg_match.kickoff_at, team_xg_match.captured_at, team_xg_match.xg_for, team_xg_match.xg_against, team_xg_match.goals_for, team_xg_",
+        "statement_sha256": "8e41ad6b8d8cae1aeab2f73a5376b256ce17ac2a0829b134cc0fb10359245587",
+        "tables": [
+          "team_xg_match"
+        ],
+        "wall_seconds": 0.020659
+      },
+      {
+        "calls": 10,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 9,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_fixture_identities.fixture_id, matchday_fixture_identities.provider, matchday_fixture_identities.provider_fixture_id, matchday_fixture_identities.competition_id, matchday_fixture_identities.provider_league_id, matchday_fixtu",
+        "statement_sha256": "00306d0ae7beb41f226e5db445d74e0111a679c8b86576444453f6cde2e7e8fb",
+        "tables": [
+          "matchday_fixture_identities"
+        ],
+        "wall_seconds": 0.020514
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_market_observations.observation_id, matchday_market_observations.fixture_id, matchday_market_observations.provider_fixture_id, matchday_market_observations.competition_id, matchday_market_observations.provider, matchday_mark",
+        "statement_sha256": "f8c87e545108f69f6b63dd3a49780aff70daa365bb0729f24d5f797798fea352",
+        "tables": [
+          "matchday_market_observations"
+        ],
+        "wall_seconds": 0.020165
+      },
+      {
+        "calls": 8,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": true,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_match.id, team_xg_match.fixture_id, team_xg_match.team_id, team_xg_match.opponent_team_id, team_xg_match.kickoff_at, team_xg_match.captured_at, team_xg_match.xg_for, team_xg_match.xg_against, team_xg_match.goals_for, team_xg_",
+        "statement_sha256": "8e41ad6b8d8cae1aeab2f73a5376b256ce17ac2a0829b134cc0fb10359245587",
+        "tables": [
+          "team_xg_match"
+        ],
+        "wall_seconds": 0.020121
+      },
+      {
+        "calls": 8,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": true,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_match.id, team_xg_match.fixture_id, team_xg_match.team_id, team_xg_match.opponent_team_id, team_xg_match.kickoff_at, team_xg_match.captured_at, team_xg_match.xg_for, team_xg_match.xg_against, team_xg_match.goals_for, team_xg_",
+        "statement_sha256": "8e41ad6b8d8cae1aeab2f73a5376b256ce17ac2a0829b134cc0fb10359245587",
+        "tables": [
+          "team_xg_match"
+        ],
+        "wall_seconds": 0.019108
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 3,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_match.id, team_xg_match.fixture_id, team_xg_match.team_id, team_xg_match.opponent_team_id, team_xg_match.kickoff_at, team_xg_match.captured_at, team_xg_match.xg_for, team_xg_match.xg_against, team_xg_match.goals_for, team_xg_",
+        "statement_sha256": "40719dad22d5c02b768d5c0cc959978425f6a685c6700931217dab437b87f627",
+        "tables": [
+          "team_xg_match"
+        ],
+        "wall_seconds": 0.018976
+      },
+      {
+        "calls": 8,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": true,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_match.id, team_xg_match.fixture_id, team_xg_match.team_id, team_xg_match.opponent_team_id, team_xg_match.kickoff_at, team_xg_match.captured_at, team_xg_match.xg_for, team_xg_match.xg_against, team_xg_match.goals_for, team_xg_",
+        "statement_sha256": "8e41ad6b8d8cae1aeab2f73a5376b256ce17ac2a0829b134cc0fb10359245587",
+        "tables": [
+          "team_xg_match"
+        ],
+        "wall_seconds": 0.018693
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_market_observations.observation_id, matchday_market_observations.fixture_id, matchday_market_observations.provider_fixture_id, matchday_market_observations.competition_id, matchday_market_observations.provider, matchday_mark",
+        "statement_sha256": "f8c87e545108f69f6b63dd3a49780aff70daa365bb0729f24d5f797798fea352",
+        "tables": [
+          "matchday_market_observations"
+        ],
+        "wall_seconds": 0.018528
+      },
+      {
+        "calls": 8,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": true,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_match.id, team_xg_match.fixture_id, team_xg_match.team_id, team_xg_match.opponent_team_id, team_xg_match.kickoff_at, team_xg_match.captured_at, team_xg_match.xg_for, team_xg_match.xg_against, team_xg_match.goals_for, team_xg_",
+        "statement_sha256": "8e41ad6b8d8cae1aeab2f73a5376b256ce17ac2a0829b134cc0fb10359245587",
+        "tables": [
+          "team_xg_match"
+        ],
+        "wall_seconds": 0.018311
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_market_observations.observation_id, matchday_market_observations.fixture_id, matchday_market_observations.provider_fixture_id, matchday_market_observations.competition_id, matchday_market_observations.provider, matchday_mark",
+        "statement_sha256": "f8c87e545108f69f6b63dd3a49780aff70daa365bb0729f24d5f797798fea352",
+        "tables": [
+          "matchday_market_observations"
+        ],
+        "wall_seconds": 0.017667
+      },
+      {
+        "calls": 9,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 8,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_fixture_identities.fixture_id, matchday_fixture_identities.provider, matchday_fixture_identities.provider_fixture_id, matchday_fixture_identities.competition_id, matchday_fixture_identities.provider_league_id, matchday_fixtu",
+        "statement_sha256": "00306d0ae7beb41f226e5db445d74e0111a679c8b86576444453f6cde2e7e8fb",
+        "tables": [
+          "matchday_fixture_identities"
+        ],
+        "wall_seconds": 0.017483
+      },
+      {
+        "calls": 8,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": true,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_match.id, team_xg_match.fixture_id, team_xg_match.team_id, team_xg_match.opponent_team_id, team_xg_match.kickoff_at, team_xg_match.captured_at, team_xg_match.xg_for, team_xg_match.xg_against, team_xg_match.goals_for, team_xg_",
+        "statement_sha256": "8e41ad6b8d8cae1aeab2f73a5376b256ce17ac2a0829b134cc0fb10359245587",
+        "tables": [
+          "team_xg_match"
+        ],
+        "wall_seconds": 0.017395
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_market_observations.observation_id, matchday_market_observations.fixture_id, matchday_market_observations.provider_fixture_id, matchday_market_observations.competition_id, matchday_market_observations.provider, matchday_mark",
+        "statement_sha256": "f8c87e545108f69f6b63dd3a49780aff70daa365bb0729f24d5f797798fea352",
+        "tables": [
+          "matchday_market_observations"
+        ],
+        "wall_seconds": 0.017267
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_fixture_identities.fixture_id, matchday_fixture_identities.provider, matchday_fixture_identities.provider_fixture_id, matchday_fixture_identities.competition_id, matchday_fixture_identities.provider_league_id, matchday_fixtu",
+        "statement_sha256": "436b828e52c70457d262d416669a142d0106ad8cb04dc46a6b1c409799644882",
+        "tables": [
+          "matchday_fixture_identities"
+        ],
+        "wall_seconds": 0.016031
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT outcome_ledger.business_key, outcome_ledger.record_type, outcome_ledger.fixture_id, outcome_ledger.occurred_at, outcome_ledger.captured_at, outcome_ledger.settled_at, outcome_ledger.schema_version, outcome_ledger.recommendation_scope",
+        "statement_sha256": "3beaac2399a8a50b5baa8547c563194ffa69fb12fc4706b3b68296c412610833",
+        "tables": [
+          "outcome_ledger"
+        ],
+        "wall_seconds": 0.013772
+      },
+      {
+        "calls": 7,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_fixture_identities.fixture_id, matchday_fixture_identities.provider, matchday_fixture_identities.provider_fixture_id, matchday_fixture_identities.competition_id, matchday_fixture_identities.provider_league_id, matchday_fixtu",
+        "statement_sha256": "00306d0ae7beb41f226e5db445d74e0111a679c8b86576444453f6cde2e7e8fb",
+        "tables": [
+          "matchday_fixture_identities"
+        ],
+        "wall_seconds": 0.013217
+      },
+      {
+        "calls": 7,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_fixture_identities.fixture_id, matchday_fixture_identities.provider, matchday_fixture_identities.provider_fixture_id, matchday_fixture_identities.competition_id, matchday_fixture_identities.provider_league_id, matchday_fixtu",
+        "statement_sha256": "00306d0ae7beb41f226e5db445d74e0111a679c8b86576444453f6cde2e7e8fb",
+        "tables": [
+          "matchday_fixture_identities"
+        ],
+        "wall_seconds": 0.012868
+      },
+      {
+        "calls": 7,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_fixture_identities.fixture_id, matchday_fixture_identities.provider, matchday_fixture_identities.provider_fixture_id, matchday_fixture_identities.competition_id, matchday_fixture_identities.provider_league_id, matchday_fixtu",
+        "statement_sha256": "00306d0ae7beb41f226e5db445d74e0111a679c8b86576444453f6cde2e7e8fb",
+        "tables": [
+          "matchday_fixture_identities"
+        ],
+        "wall_seconds": 0.012847
+      },
+      {
+        "calls": 8,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": true,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "afd8d95fe4a9bf22f6191fde2cb773cd7416cd8d1bb2fa4508aa95b4235de98a",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.012618
+      },
+      {
+        "calls": 8,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": true,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "afd8d95fe4a9bf22f6191fde2cb773cd7416cd8d1bb2fa4508aa95b4235de98a",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.012283
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT read_model_checkpoint.id, read_model_checkpoint.checkpoint_key, read_model_checkpoint.source_hash, read_model_checkpoint.created_at, read_model_checkpoint.payload FROM read_model_checkpoint WHERE read_model_checkpoint.checkpoint_key ",
+        "statement_sha256": "938db27ef1994aa6a592e2b87e0f7f5e560f4ea4b94ea35e6b9fbaccea8e0cbc",
+        "tables": [
+          "read_model_checkpoint"
+        ],
+        "wall_seconds": 0.011962
+      },
+      {
+        "calls": 8,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": true,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "afd8d95fe4a9bf22f6191fde2cb773cd7416cd8d1bb2fa4508aa95b4235de98a",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.011906
+      },
+      {
+        "calls": 7,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_fixture_identities.fixture_id, matchday_fixture_identities.provider, matchday_fixture_identities.provider_fixture_id, matchday_fixture_identities.competition_id, matchday_fixture_identities.provider_league_id, matchday_fixtu",
+        "statement_sha256": "00306d0ae7beb41f226e5db445d74e0111a679c8b86576444453f6cde2e7e8fb",
+        "tables": [
+          "matchday_fixture_identities"
+        ],
+        "wall_seconds": 0.011855
+      },
+      {
+        "calls": 8,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": true,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "afd8d95fe4a9bf22f6191fde2cb773cd7416cd8d1bb2fa4508aa95b4235de98a",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.01102
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT outcome_ledger.business_key, outcome_ledger.record_type, outcome_ledger.fixture_id, outcome_ledger.occurred_at, outcome_ledger.captured_at, outcome_ledger.settled_at, outcome_ledger.schema_version, outcome_ledger.recommendation_scope",
+        "statement_sha256": "3beaac2399a8a50b5baa8547c563194ffa69fb12fc4706b3b68296c412610833",
+        "tables": [
+          "outcome_ledger"
+        ],
+        "wall_seconds": 0.010629
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT outcome_ledger.business_key, outcome_ledger.record_type, outcome_ledger.fixture_id, outcome_ledger.occurred_at, outcome_ledger.captured_at, outcome_ledger.settled_at, outcome_ledger.schema_version, outcome_ledger.recommendation_scope",
+        "statement_sha256": "3beaac2399a8a50b5baa8547c563194ffa69fb12fc4706b3b68296c412610833",
+        "tables": [
+          "outcome_ledger"
+        ],
+        "wall_seconds": 0.010581
+      },
+      {
+        "calls": 8,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": true,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "afd8d95fe4a9bf22f6191fde2cb773cd7416cd8d1bb2fa4508aa95b4235de98a",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.01056
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT dynamic_prematch_evaluations.evaluation_id, dynamic_prematch_evaluations.identity_hash, dynamic_prematch_evaluations.fixture_id, dynamic_prematch_evaluations.market, dynamic_prematch_evaluations.selection, dynamic_prematch_evaluation",
+        "statement_sha256": "bedae25f6ddcf302343f47f182f3d5693f30a53c095aa9c8c61bbc32217ad6b6",
+        "tables": [
+          "dynamic_prematch_evaluations"
+        ],
+        "wall_seconds": 0.010479
+      },
+      {
+        "calls": 8,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 6,
+        "n_plus_one_candidate": true,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "afd8d95fe4a9bf22f6191fde2cb773cd7416cd8d1bb2fa4508aa95b4235de98a",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.010407
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT outcome_ledger.business_key, outcome_ledger.record_type, outcome_ledger.fixture_id, outcome_ledger.occurred_at, outcome_ledger.captured_at, outcome_ledger.settled_at, outcome_ledger.schema_version, outcome_ledger.recommendation_scope",
+        "statement_sha256": "3beaac2399a8a50b5baa8547c563194ffa69fb12fc4706b3b68296c412610833",
+        "tables": [
+          "outcome_ledger"
+        ],
+        "wall_seconds": 0.010207
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 3,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_match.id, team_xg_match.fixture_id, team_xg_match.team_id, team_xg_match.opponent_team_id, team_xg_match.kickoff_at, team_xg_match.captured_at, team_xg_match.xg_for, team_xg_match.xg_against, team_xg_match.goals_for, team_xg_",
+        "statement_sha256": "40719dad22d5c02b768d5c0cc959978425f6a685c6700931217dab437b87f627",
+        "tables": [
+          "team_xg_match"
+        ],
+        "wall_seconds": 0.009986
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT outcome_ledger.business_key, outcome_ledger.record_type, outcome_ledger.fixture_id, outcome_ledger.occurred_at, outcome_ledger.captured_at, outcome_ledger.settled_at, outcome_ledger.schema_version, outcome_ledger.recommendation_scope",
+        "statement_sha256": "3beaac2399a8a50b5baa8547c563194ffa69fb12fc4706b3b68296c412610833",
+        "tables": [
+          "outcome_ledger"
+        ],
+        "wall_seconds": 0.009744
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_rolling_snapshot.snapshot_id, team_xg_rolling_snapshot.team_id, team_xg_rolling_snapshot.as_of_fixture_id, team_xg_rolling_snapshot.as_of_time, team_xg_rolling_snapshot.match_count, team_xg_rolling_snapshot.rolling_xg_for, te",
+        "statement_sha256": "d5752ff342e0c07e6da8ce33495ba5025ee62a7ba26a06ad1b5a9520507d0537",
+        "tables": [
+          "team_xg_rolling_snapshot"
+        ],
+        "wall_seconds": 0.009197
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT canonical_team_match_history.history_id, canonical_team_match_history.fixture_id, canonical_team_match_history.provider, canonical_team_match_history.provider_fixture_id, canonical_team_match_history.competition_id, canonical_team_ma",
+        "statement_sha256": "c56d8dcc1f8bf3bcfac32b9cd552013491d10a22d5709ececa66c03ab3dbdce5",
+        "tables": [
+          "canonical_team_match_history"
+        ],
+        "wall_seconds": 0.009196
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT outcome_ledger.business_key, outcome_ledger.record_type, outcome_ledger.fixture_id, outcome_ledger.occurred_at, outcome_ledger.captured_at, outcome_ledger.settled_at, outcome_ledger.schema_version, outcome_ledger.recommendation_scope",
+        "statement_sha256": "3beaac2399a8a50b5baa8547c563194ffa69fb12fc4706b3b68296c412610833",
+        "tables": [
+          "outcome_ledger"
+        ],
+        "wall_seconds": 0.009005
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT dynamic_prematch_evaluations.evaluation_id, dynamic_prematch_evaluations.identity_hash, dynamic_prematch_evaluations.fixture_id, dynamic_prematch_evaluations.market, dynamic_prematch_evaluations.selection, dynamic_prematch_evaluation",
+        "statement_sha256": "bedae25f6ddcf302343f47f182f3d5693f30a53c095aa9c8c61bbc32217ad6b6",
+        "tables": [
+          "dynamic_prematch_evaluations"
+        ],
+        "wall_seconds": 0.008759
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": true,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT raw_payload.sha256, raw_payload.endpoint, raw_payload.captured_at, raw_payload.inserted_at, raw_payload.storage_uri, raw_payload.payload FROM raw_payload WHERE raw_payload.endpoint = %(endpoint_1)s::VARCHAR ORDER BY raw_payload.captu",
+        "statement_sha256": "d819f2263f4ecc91fc8cf17e327eedb7b8dfe4de63e7e623939d8c285d3b6a05",
+        "tables": [
+          "raw_payload"
+        ],
+        "wall_seconds": 0.008477
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT canonical_team_match_history.history_id, canonical_team_match_history.fixture_id, canonical_team_match_history.provider, canonical_team_match_history.provider_fixture_id, canonical_team_match_history.competition_id, canonical_team_ma",
+        "statement_sha256": "c56d8dcc1f8bf3bcfac32b9cd552013491d10a22d5709ececa66c03ab3dbdce5",
+        "tables": [
+          "canonical_team_match_history"
+        ],
+        "wall_seconds": 0.008362
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": true,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT raw_payload.sha256, raw_payload.endpoint, raw_payload.captured_at, raw_payload.inserted_at, raw_payload.storage_uri, raw_payload.payload FROM raw_payload WHERE raw_payload.endpoint = %(endpoint_1)s::VARCHAR ORDER BY raw_payload.captu",
+        "statement_sha256": "d819f2263f4ecc91fc8cf17e327eedb7b8dfe4de63e7e623939d8c285d3b6a05",
+        "tables": [
+          "raw_payload"
+        ],
+        "wall_seconds": 0.008338
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT dynamic_prematch_evaluations.evaluation_id, dynamic_prematch_evaluations.identity_hash, dynamic_prematch_evaluations.fixture_id, dynamic_prematch_evaluations.market, dynamic_prematch_evaluations.selection, dynamic_prematch_evaluation",
+        "statement_sha256": "bedae25f6ddcf302343f47f182f3d5693f30a53c095aa9c8c61bbc32217ad6b6",
+        "tables": [
+          "dynamic_prematch_evaluations"
+        ],
+        "wall_seconds": 0.008255
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "ed24f6386c02b9e46a4102a80498d61663ec33624578ca90664fe43da8036d15",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.008137
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": true,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT raw_payload.sha256, raw_payload.endpoint, raw_payload.captured_at, raw_payload.inserted_at, raw_payload.storage_uri, raw_payload.payload FROM raw_payload WHERE raw_payload.endpoint = %(endpoint_1)s::VARCHAR ORDER BY raw_payload.captu",
+        "statement_sha256": "d819f2263f4ecc91fc8cf17e327eedb7b8dfe4de63e7e623939d8c285d3b6a05",
+        "tables": [
+          "raw_payload"
+        ],
+        "wall_seconds": 0.00791
+      },
+      {
+        "calls": 3,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_fixture_identities.fixture_id, matchday_fixture_identities.provider, matchday_fixture_identities.provider_fixture_id, matchday_fixture_identities.competition_id, matchday_fixture_identities.provider_league_id, matchday_fixtu",
+        "statement_sha256": "f1b744676b9b0a3456d8dbcb2af720014543c03652a22723de0af7ccdf5e6f50",
+        "tables": [
+          "matchday_fixture_identities"
+        ],
+        "wall_seconds": 0.007568
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": true,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT raw_payload.sha256, raw_payload.endpoint, raw_payload.captured_at, raw_payload.inserted_at, raw_payload.storage_uri, raw_payload.payload FROM raw_payload WHERE raw_payload.endpoint = %(endpoint_1)s::VARCHAR ORDER BY raw_payload.captu",
+        "statement_sha256": "d819f2263f4ecc91fc8cf17e327eedb7b8dfe4de63e7e623939d8c285d3b6a05",
+        "tables": [
+          "raw_payload"
+        ],
+        "wall_seconds": 0.007448
+      },
+      {
+        "calls": 3,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_fixture_identities.fixture_id, matchday_fixture_identities.provider, matchday_fixture_identities.provider_fixture_id, matchday_fixture_identities.competition_id, matchday_fixture_identities.provider_league_id, matchday_fixtu",
+        "statement_sha256": "f1b744676b9b0a3456d8dbcb2af720014543c03652a22723de0af7ccdf5e6f50",
+        "tables": [
+          "matchday_fixture_identities"
+        ],
+        "wall_seconds": 0.006726
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": true,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT raw_payload.sha256, raw_payload.endpoint, raw_payload.captured_at, raw_payload.inserted_at, raw_payload.storage_uri, raw_payload.payload FROM raw_payload WHERE raw_payload.endpoint = %(endpoint_1)s::VARCHAR ORDER BY raw_payload.captu",
+        "statement_sha256": "d819f2263f4ecc91fc8cf17e327eedb7b8dfe4de63e7e623939d8c285d3b6a05",
+        "tables": [
+          "raw_payload"
+        ],
+        "wall_seconds": 0.006601
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 3,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "ee751c637ae8b352c0f49649b861f748323166b5d7aa5fad97e5ef2d0416c152",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.006426
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 3,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT player_valuation_observations.id, player_valuation_observations.transfermarkt_player_id, player_valuation_observations.observed_at, player_valuation_observations.market_value_eur, player_valuation_observations.source, player_valuatio",
+        "statement_sha256": "747e578d677135665b376675217772aad378c97757e539b847397048a6f60b90",
+        "tables": [
+          "player_valuation_observations"
+        ],
+        "wall_seconds": 0.006216
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT team_rating_snapshots.rating_id, team_rating_snapshots.w2_team_id, team_rating_snapshots.observed_at, team_rating_snapshots.model_version, team_rating_snapshots.elo, team_rating_snapshots.attack_strength, team_rating_snapshots.defenc",
+        "statement_sha256": "02be77a06b249d1a69f47be1dcc9533ad4477c4c811c7e2e282c31b2b3d5fe3b",
+        "tables": [
+          "team_rating_snapshots"
+        ],
+        "wall_seconds": 0.006112
+      },
+      {
+        "calls": 3,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_fixture_identities.fixture_id, matchday_fixture_identities.provider, matchday_fixture_identities.provider_fixture_id, matchday_fixture_identities.competition_id, matchday_fixture_identities.provider_league_id, matchday_fixtu",
+        "statement_sha256": "f1b744676b9b0a3456d8dbcb2af720014543c03652a22723de0af7ccdf5e6f50",
+        "tables": [
+          "matchday_fixture_identities"
+        ],
+        "wall_seconds": 0.006024
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 3,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "ee751c637ae8b352c0f49649b861f748323166b5d7aa5fad97e5ef2d0416c152",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.005988
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:targeted_lifecycle_read",
+        "statement_prefix": "SELECT dynamic_prematch_evaluations.evaluation_id, dynamic_prematch_evaluations.identity_hash, dynamic_prematch_evaluations.fixture_id, dynamic_prematch_evaluations.market, dynamic_prematch_evaluations.selection, dynamic_prematch_evaluation",
+        "statement_sha256": "bedae25f6ddcf302343f47f182f3d5693f30a53c095aa9c8c61bbc32217ad6b6",
+        "tables": [
+          "dynamic_prematch_evaluations"
+        ],
+        "wall_seconds": 0.005498
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": true,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "ec75b311728d760a661cc2ff3c145335e57a57580843c6f31a762a563d685895",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.005482
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_rolling_snapshot.snapshot_id, team_xg_rolling_snapshot.team_id, team_xg_rolling_snapshot.as_of_fixture_id, team_xg_rolling_snapshot.as_of_time, team_xg_rolling_snapshot.match_count, team_xg_rolling_snapshot.rolling_xg_for, te",
+        "statement_sha256": "d5752ff342e0c07e6da8ce33495ba5025ee62a7ba26a06ad1b5a9520507d0537",
+        "tables": [
+          "team_xg_rolling_snapshot"
+        ],
+        "wall_seconds": 0.005459
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 3,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "ee751c637ae8b352c0f49649b861f748323166b5d7aa5fad97e5ef2d0416c152",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.00542
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 3,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "ee751c637ae8b352c0f49649b861f748323166b5d7aa5fad97e5ef2d0416c152",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.005192
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT canonical_team_match_history.history_id, canonical_team_match_history.fixture_id, canonical_team_match_history.provider, canonical_team_match_history.provider_fixture_id, canonical_team_match_history.competition_id, canonical_team_ma",
+        "statement_sha256": "c56d8dcc1f8bf3bcfac32b9cd552013491d10a22d5709ececa66c03ab3dbdce5",
+        "tables": [
+          "canonical_team_match_history"
+        ],
+        "wall_seconds": 0.005125
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_rolling_snapshot.snapshot_id, team_xg_rolling_snapshot.team_id, team_xg_rolling_snapshot.as_of_fixture_id, team_xg_rolling_snapshot.as_of_time, team_xg_rolling_snapshot.match_count, team_xg_rolling_snapshot.rolling_xg_for, te",
+        "statement_sha256": "d5752ff342e0c07e6da8ce33495ba5025ee62a7ba26a06ad1b5a9520507d0537",
+        "tables": [
+          "team_xg_rolling_snapshot"
+        ],
+        "wall_seconds": 0.005072
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_rolling_snapshot.snapshot_id, team_xg_rolling_snapshot.team_id, team_xg_rolling_snapshot.as_of_fixture_id, team_xg_rolling_snapshot.as_of_time, team_xg_rolling_snapshot.match_count, team_xg_rolling_snapshot.rolling_xg_for, te",
+        "statement_sha256": "d5752ff342e0c07e6da8ce33495ba5025ee62a7ba26a06ad1b5a9520507d0537",
+        "tables": [
+          "team_xg_rolling_snapshot"
+        ],
+        "wall_seconds": 0.005045
+      },
+      {
+        "calls": 3,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_fixture_identities.fixture_id, matchday_fixture_identities.provider, matchday_fixture_identities.provider_fixture_id, matchday_fixture_identities.competition_id, matchday_fixture_identities.provider_league_id, matchday_fixtu",
+        "statement_sha256": "f1b744676b9b0a3456d8dbcb2af720014543c03652a22723de0af7ccdf5e6f50",
+        "tables": [
+          "matchday_fixture_identities"
+        ],
+        "wall_seconds": 0.004722
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": true,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT team_lineup_baselines.id, team_lineup_baselines.team_external_id, team_lineup_baselines.competition_external_id, team_lineup_baselines.season, team_lineup_baselines.as_of_time, team_lineup_baselines.match_count, team_lineup_baselines",
+        "statement_sha256": "676f05ea342ae185d4360ab6df44c87d425c317826367adb4f42c228cffad3de",
+        "tables": [
+          "team_lineup_baselines"
+        ],
+        "wall_seconds": 0.004612
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 3,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "ee751c637ae8b352c0f49649b861f748323166b5d7aa5fad97e5ef2d0416c152",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.004583
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT team_rating_snapshots.rating_id, team_rating_snapshots.w2_team_id, team_rating_snapshots.observed_at, team_rating_snapshots.model_version, team_rating_snapshots.elo, team_rating_snapshots.attack_strength, team_rating_snapshots.defenc",
+        "statement_sha256": "02be77a06b249d1a69f47be1dcc9533ad4477c4c811c7e2e282c31b2b3d5fe3b",
+        "tables": [
+          "team_rating_snapshots"
+        ],
+        "wall_seconds": 0.004495
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": true,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT raw_payload.sha256, raw_payload.endpoint, raw_payload.captured_at, raw_payload.inserted_at, raw_payload.storage_uri, raw_payload.payload FROM raw_payload WHERE raw_payload.endpoint = %(endpoint_1)s::VARCHAR ORDER BY raw_payload.captu",
+        "statement_sha256": "d819f2263f4ecc91fc8cf17e327eedb7b8dfe4de63e7e623939d8c285d3b6a05",
+        "tables": [
+          "raw_payload"
+        ],
+        "wall_seconds": 0.004373
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT recommendation_locks.id, recommendation_locks.recommendation_id, recommendation_locks.status, recommendation_locks.locked_at, recommendation_locks.reason, recommendation_locks.fixture_id, recommendation_locks.as_of, recommendation_lo",
+        "statement_sha256": "1f2fffa75099f8ec0c187e6d1acc5111860f55016a90f4f8f471e9430ad9aefc",
+        "tables": [
+          "recommendation_locks"
+        ],
+        "wall_seconds": 0.004364
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_rolling_snapshot.snapshot_id, team_xg_rolling_snapshot.team_id, team_xg_rolling_snapshot.as_of_fixture_id, team_xg_rolling_snapshot.as_of_time, team_xg_rolling_snapshot.match_count, team_xg_rolling_snapshot.rolling_xg_for, te",
+        "statement_sha256": "d5752ff342e0c07e6da8ce33495ba5025ee62a7ba26a06ad1b5a9520507d0537",
+        "tables": [
+          "team_xg_rolling_snapshot"
+        ],
+        "wall_seconds": 0.004316
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 3,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "ee751c637ae8b352c0f49649b861f748323166b5d7aa5fad97e5ef2d0416c152",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.004271
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "batch_round3_prefetch",
+        "statement_prefix": "SELECT league_profile.competition_id, league_profile.payload FROM league_profile",
+        "statement_sha256": "5e7860c977336880ed0b79e8bd7c57a92960833fbc6fd06c39940750fb8b725f",
+        "tables": [
+          "league_profile"
+        ],
+        "wall_seconds": 0.004264
+      },
+      {
+        "calls": 3,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_fixture_identities.fixture_id, matchday_fixture_identities.provider, matchday_fixture_identities.provider_fixture_id, matchday_fixture_identities.competition_id, matchday_fixture_identities.provider_league_id, matchday_fixtu",
+        "statement_sha256": "f1b744676b9b0a3456d8dbcb2af720014543c03652a22723de0af7ccdf5e6f50",
+        "tables": [
+          "matchday_fixture_identities"
+        ],
+        "wall_seconds": 0.004154
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_snapshots.id, structured_lineup_snapshots.fixture_id, structured_lineup_snapshots.team_external_id, structured_lineup_snapshots.team_name, structured_lineup_snapshots.formation, structured_lineup_snapshots.captured_",
+        "statement_sha256": "cd12b55e58fba5d35c7b10cf2833c06d4611be8f44949ab6f579a85994154f89",
+        "tables": [
+          "structured_lineup_snapshots"
+        ],
+        "wall_seconds": 0.004051
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT dynamic_prematch_evaluations.evaluation_id, dynamic_prematch_evaluations.identity_hash, dynamic_prematch_evaluations.fixture_id, dynamic_prematch_evaluations.market, dynamic_prematch_evaluations.selection, dynamic_prematch_evaluation",
+        "statement_sha256": "bedae25f6ddcf302343f47f182f3d5693f30a53c095aa9c8c61bbc32217ad6b6",
+        "tables": [
+          "dynamic_prematch_evaluations"
+        ],
+        "wall_seconds": 0.00399
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT canonical_team_match_history.history_id, canonical_team_match_history.fixture_id, canonical_team_match_history.provider, canonical_team_match_history.provider_fixture_id, canonical_team_match_history.competition_id, canonical_team_ma",
+        "statement_sha256": "c56d8dcc1f8bf3bcfac32b9cd552013491d10a22d5709ececa66c03ab3dbdce5",
+        "tables": [
+          "canonical_team_match_history"
+        ],
+        "wall_seconds": 0.003977
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT canonical_team_match_history.history_id, canonical_team_match_history.fixture_id, canonical_team_match_history.provider, canonical_team_match_history.provider_fixture_id, canonical_team_match_history.competition_id, canonical_team_ma",
+        "statement_sha256": "c56d8dcc1f8bf3bcfac32b9cd552013491d10a22d5709ececa66c03ab3dbdce5",
+        "tables": [
+          "canonical_team_match_history"
+        ],
+        "wall_seconds": 0.003976
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:targeted_lifecycle_read",
+        "statement_prefix": "SELECT dynamic_prematch_evaluations.evaluation_id, dynamic_prematch_evaluations.identity_hash, dynamic_prematch_evaluations.fixture_id, dynamic_prematch_evaluations.market, dynamic_prematch_evaluations.selection, dynamic_prematch_evaluation",
+        "statement_sha256": "bedae25f6ddcf302343f47f182f3d5693f30a53c095aa9c8c61bbc32217ad6b6",
+        "tables": [
+          "dynamic_prematch_evaluations"
+        ],
+        "wall_seconds": 0.003908
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_snapshots.id, structured_lineup_snapshots.fixture_id, structured_lineup_snapshots.team_external_id, structured_lineup_snapshots.team_name, structured_lineup_snapshots.formation, structured_lineup_snapshots.captured_",
+        "statement_sha256": "c368e9b21f115c8f057d6753cadb782cafa9d395ea647e0b71a33dfcf9213a09",
+        "tables": [
+          "structured_lineup_snapshots"
+        ],
+        "wall_seconds": 0.003799
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT team_xg_rolling_snapshot.snapshot_id, team_xg_rolling_snapshot.team_id, team_xg_rolling_snapshot.as_of_fixture_id, team_xg_rolling_snapshot.as_of_time, team_xg_rolling_snapshot.match_count, team_xg_rolling_snapshot.rolling_xg_for, te",
+        "statement_sha256": "d5752ff342e0c07e6da8ce33495ba5025ee62a7ba26a06ad1b5a9520507d0537",
+        "tables": [
+          "team_xg_rolling_snapshot"
+        ],
+        "wall_seconds": 0.003735
+      },
+      {
+        "calls": 4,
+        "distinct_parameter_sets": 2,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": true,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_players.id, structured_lineup_players.lineup_snapshot_id, structured_lineup_players.api_football_player_id, structured_lineup_players.player_name, structured_lineup_players.starter, structured_lineup_players.shirt_n",
+        "statement_sha256": "1eac1b35b160dd439f2a3e86e15f7084469f0fe88b72cb027f3febf5d243564b",
+        "tables": [
+          "structured_lineup_players"
+        ],
+        "wall_seconds": 0.00364
+      },
+      {
+        "calls": 3,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 2,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_fixture_identities.fixture_id, matchday_fixture_identities.provider, matchday_fixture_identities.provider_fixture_id, matchday_fixture_identities.competition_id, matchday_fixture_identities.provider_league_id, matchday_fixtu",
+        "statement_sha256": "f1b744676b9b0a3456d8dbcb2af720014543c03652a22723de0af7ccdf5e6f50",
+        "tables": [
+          "matchday_fixture_identities"
+        ],
+        "wall_seconds": 0.003607
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT team_rating_snapshots.rating_id, team_rating_snapshots.w2_team_id, team_rating_snapshots.observed_at, team_rating_snapshots.model_version, team_rating_snapshots.elo, team_rating_snapshots.attack_strength, team_rating_snapshots.defenc",
+        "statement_sha256": "02be77a06b249d1a69f47be1dcc9533ad4477c4c811c7e2e282c31b2b3d5fe3b",
+        "tables": [
+          "team_rating_snapshots"
+        ],
+        "wall_seconds": 0.003568
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT team_rating_snapshots.rating_id, team_rating_snapshots.w2_team_id, team_rating_snapshots.observed_at, team_rating_snapshots.model_version, team_rating_snapshots.elo, team_rating_snapshots.attack_strength, team_rating_snapshots.defenc",
+        "statement_sha256": "02be77a06b249d1a69f47be1dcc9533ad4477c4c811c7e2e282c31b2b3d5fe3b",
+        "tables": [
+          "team_rating_snapshots"
+        ],
+        "wall_seconds": 0.003467
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:targeted_lifecycle_read",
+        "statement_prefix": "SELECT dynamic_prematch_evaluations.evaluation_id, dynamic_prematch_evaluations.identity_hash, dynamic_prematch_evaluations.fixture_id, dynamic_prematch_evaluations.market, dynamic_prematch_evaluations.selection, dynamic_prematch_evaluation",
+        "statement_sha256": "bedae25f6ddcf302343f47f182f3d5693f30a53c095aa9c8c61bbc32217ad6b6",
+        "tables": [
+          "dynamic_prematch_evaluations"
+        ],
+        "wall_seconds": 0.003453
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT team_rating_snapshots.rating_id, team_rating_snapshots.w2_team_id, team_rating_snapshots.observed_at, team_rating_snapshots.model_version, team_rating_snapshots.elo, team_rating_snapshots.attack_strength, team_rating_snapshots.defenc",
+        "statement_sha256": "02be77a06b249d1a69f47be1dcc9533ad4477c4c811c7e2e282c31b2b3d5fe3b",
+        "tables": [
+          "team_rating_snapshots"
+        ],
+        "wall_seconds": 0.003439
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT canonical_team_match_history.history_id, canonical_team_match_history.fixture_id, canonical_team_match_history.provider, canonical_team_match_history.provider_fixture_id, canonical_team_match_history.competition_id, canonical_team_ma",
+        "statement_sha256": "c56d8dcc1f8bf3bcfac32b9cd552013491d10a22d5709ececa66c03ab3dbdce5",
+        "tables": [
+          "canonical_team_match_history"
+        ],
+        "wall_seconds": 0.003412
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:targeted_lifecycle_read",
+        "statement_prefix": "SELECT dynamic_prematch_evaluations.evaluation_id, dynamic_prematch_evaluations.identity_hash, dynamic_prematch_evaluations.fixture_id, dynamic_prematch_evaluations.market, dynamic_prematch_evaluations.selection, dynamic_prematch_evaluation",
+        "statement_sha256": "bedae25f6ddcf302343f47f182f3d5693f30a53c095aa9c8c61bbc32217ad6b6",
+        "tables": [
+          "dynamic_prematch_evaluations"
+        ],
+        "wall_seconds": 0.00334
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:targeted_lifecycle_read",
+        "statement_prefix": "SELECT dynamic_prematch_evaluations.evaluation_id, dynamic_prematch_evaluations.identity_hash, dynamic_prematch_evaluations.fixture_id, dynamic_prematch_evaluations.market, dynamic_prematch_evaluations.selection, dynamic_prematch_evaluation",
+        "statement_sha256": "bedae25f6ddcf302343f47f182f3d5693f30a53c095aa9c8c61bbc32217ad6b6",
+        "tables": [
+          "dynamic_prematch_evaluations"
+        ],
+        "wall_seconds": 0.003289
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_players.id, structured_lineup_players.lineup_snapshot_id, structured_lineup_players.api_football_player_id, structured_lineup_players.player_name, structured_lineup_players.starter, structured_lineup_players.shirt_n",
+        "statement_sha256": "fb48940c7b121426109e533ba2b0acc81c975a3a1242791b7bcca80ebca40fe4",
+        "tables": [
+          "structured_lineup_players"
+        ],
+        "wall_seconds": 0.003281
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:targeted_lifecycle_read",
+        "statement_prefix": "SELECT dynamic_prematch_evaluations.evaluation_id, dynamic_prematch_evaluations.identity_hash, dynamic_prematch_evaluations.fixture_id, dynamic_prematch_evaluations.market, dynamic_prematch_evaluations.selection, dynamic_prematch_evaluation",
+        "statement_sha256": "bedae25f6ddcf302343f47f182f3d5693f30a53c095aa9c8c61bbc32217ad6b6",
+        "tables": [
+          "dynamic_prematch_evaluations"
+        ],
+        "wall_seconds": 0.003264
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "ed24f6386c02b9e46a4102a80498d61663ec33624578ca90664fe43da8036d15",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.003179
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_snapshots.id, structured_lineup_snapshots.fixture_id, structured_lineup_snapshots.team_external_id, structured_lineup_snapshots.team_name, structured_lineup_snapshots.formation, structured_lineup_snapshots.captured_",
+        "statement_sha256": "cd12b55e58fba5d35c7b10cf2833c06d4611be8f44949ab6f579a85994154f89",
+        "tables": [
+          "structured_lineup_snapshots"
+        ],
+        "wall_seconds": 0.003109
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT recommendation_locks.id, recommendation_locks.recommendation_id, recommendation_locks.status, recommendation_locks.locked_at, recommendation_locks.reason, recommendation_locks.fixture_id, recommendation_locks.as_of, recommendation_lo",
+        "statement_sha256": "1f2fffa75099f8ec0c187e6d1acc5111860f55016a90f4f8f471e9430ad9aefc",
+        "tables": [
+          "recommendation_locks"
+        ],
+        "wall_seconds": 0.002987
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_snapshots.id, structured_lineup_snapshots.fixture_id, structured_lineup_snapshots.team_external_id, structured_lineup_snapshots.team_name, structured_lineup_snapshots.formation, structured_lineup_snapshots.captured_",
+        "statement_sha256": "76bf2159139bae867239ee263d3b98a69c45295734be654f3d81dbf37c46bed0",
+        "tables": [
+          "structured_lineup_snapshots"
+        ],
+        "wall_seconds": 0.002906
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "ed24f6386c02b9e46a4102a80498d61663ec33624578ca90664fe43da8036d15",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.002881
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT dynamic_prematch_supersessions.superseded_evaluation_id, dynamic_prematch_supersessions.superseded_by_evaluation_id, dynamic_prematch_supersessions.fixture_id, dynamic_prematch_supersessions.market, dynamic_prematch_supersessions.rea",
+        "statement_sha256": "acfb9a54ff3e5a9d24449ad0d450ae166d0ed541a927622f8a2f39317aaaa8f9",
+        "tables": [
+          "dynamic_prematch_supersessions"
+        ],
+        "wall_seconds": 0.002834
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "ed24f6386c02b9e46a4102a80498d61663ec33624578ca90664fe43da8036d15",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.00279
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "ed24f6386c02b9e46a4102a80498d61663ec33624578ca90664fe43da8036d15",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.00271
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT dynamic_prematch_evaluations.evaluation_id, dynamic_prematch_evaluations.identity_hash, dynamic_prematch_evaluations.fixture_id, dynamic_prematch_evaluations.market, dynamic_prematch_evaluations.selection, dynamic_prematch_evaluation",
+        "statement_sha256": "bedae25f6ddcf302343f47f182f3d5693f30a53c095aa9c8c61bbc32217ad6b6",
+        "tables": [
+          "dynamic_prematch_evaluations"
+        ],
+        "wall_seconds": 0.002561
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT team_rating_snapshots.rating_id, team_rating_snapshots.w2_team_id, team_rating_snapshots.observed_at, team_rating_snapshots.model_version, team_rating_snapshots.elo, team_rating_snapshots.attack_strength, team_rating_snapshots.defenc",
+        "statement_sha256": "02be77a06b249d1a69f47be1dcc9533ad4477c4c811c7e2e282c31b2b3d5fe3b",
+        "tables": [
+          "team_rating_snapshots"
+        ],
+        "wall_seconds": 0.002528
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_snapshots.id, structured_lineup_snapshots.fixture_id, structured_lineup_snapshots.team_external_id, structured_lineup_snapshots.team_name, structured_lineup_snapshots.formation, structured_lineup_snapshots.captured_",
+        "statement_sha256": "cd12b55e58fba5d35c7b10cf2833c06d4611be8f44949ab6f579a85994154f89",
+        "tables": [
+          "structured_lineup_snapshots"
+        ],
+        "wall_seconds": 0.002463
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_snapshots.id, structured_lineup_snapshots.fixture_id, structured_lineup_snapshots.team_external_id, structured_lineup_snapshots.team_name, structured_lineup_snapshots.formation, structured_lineup_snapshots.captured_",
+        "statement_sha256": "cd12b55e58fba5d35c7b10cf2833c06d4611be8f44949ab6f579a85994154f89",
+        "tables": [
+          "structured_lineup_snapshots"
+        ],
+        "wall_seconds": 0.002429
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT provider_team_identity_crosswalks.id, provider_team_identity_crosswalks.provider, provider_team_identity_crosswalks.provider_team_id, provider_team_identity_crosswalks.w2_team_id, provider_team_identity_crosswalks.competition_id, pro",
+        "statement_sha256": "ed24f6386c02b9e46a4102a80498d61663ec33624578ca90664fe43da8036d15",
+        "tables": [
+          "provider_team_identity_crosswalks"
+        ],
+        "wall_seconds": 0.002417
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT model_forecast_capture.capture_identity_hash FROM model_forecast_capture WHERE model_forecast_capture.fixture_id IN (%(fixture_id_1_1)s::VARCHAR, %(fixture_id_1_2)s::VARCHAR) LIMIT %(param_1)s::INTEGER",
+        "statement_sha256": "a6ec2fda3b42cf3e695c45dbefc637d4bdf23e884b2dd78b0b1dfdfb171a3e4f",
+        "tables": [
+          "model_forecast_capture"
+        ],
+        "wall_seconds": 0.002404
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_snapshots.id, structured_lineup_snapshots.fixture_id, structured_lineup_snapshots.team_external_id, structured_lineup_snapshots.team_name, structured_lineup_snapshots.formation, structured_lineup_snapshots.captured_",
+        "statement_sha256": "cd12b55e58fba5d35c7b10cf2833c06d4611be8f44949ab6f579a85994154f89",
+        "tables": [
+          "structured_lineup_snapshots"
+        ],
+        "wall_seconds": 0.00231
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT read_model_checkpoint.id, read_model_checkpoint.checkpoint_key, read_model_checkpoint.source_hash, read_model_checkpoint.created_at, read_model_checkpoint.payload FROM read_model_checkpoint WHERE read_model_checkpoint.checkpoint_key ",
+        "statement_sha256": "a2f9b5f2fa4c4739f6038f3684bc1201905c22ce37b532777db39271e3775021",
+        "tables": [
+          "read_model_checkpoint"
+        ],
+        "wall_seconds": 0.002295
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_endpoint_captures.capture_id, matchday_endpoint_captures.fixture_id, matchday_endpoint_captures.competition_id, matchday_endpoint_captures.checkpoint, matchday_endpoint_captures.endpoint, matchday_endpoint_captures.sanitized",
+        "statement_sha256": "e2ead5a35b8a1f567e6d2521264c1c4ddfe897356136383f99f708be4ba09f2c",
+        "tables": [
+          "matchday_endpoint_captures"
+        ],
+        "wall_seconds": 0.002236
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT dynamic_prematch_evaluations.evaluation_id, dynamic_prematch_evaluations.identity_hash, dynamic_prematch_evaluations.fixture_id, dynamic_prematch_evaluations.market, dynamic_prematch_evaluations.selection, dynamic_prematch_evaluation",
+        "statement_sha256": "bedae25f6ddcf302343f47f182f3d5693f30a53c095aa9c8c61bbc32217ad6b6",
+        "tables": [
+          "dynamic_prematch_evaluations"
+        ],
+        "wall_seconds": 0.002185
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_players.id, structured_lineup_players.lineup_snapshot_id, structured_lineup_players.api_football_player_id, structured_lineup_players.player_name, structured_lineup_players.starter, structured_lineup_players.shirt_n",
+        "statement_sha256": "fb48940c7b121426109e533ba2b0acc81c975a3a1242791b7bcca80ebca40fe4",
+        "tables": [
+          "structured_lineup_players"
+        ],
+        "wall_seconds": 0.002119
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT model_forecast_capture.capture_identity_hash FROM model_forecast_capture WHERE model_forecast_capture.fixture_id IN (%(fixture_id_1_1)s::VARCHAR, %(fixture_id_1_2)s::VARCHAR) LIMIT %(param_1)s::INTEGER",
+        "statement_sha256": "a6ec2fda3b42cf3e695c45dbefc637d4bdf23e884b2dd78b0b1dfdfb171a3e4f",
+        "tables": [
+          "model_forecast_capture"
+        ],
+        "wall_seconds": 0.002083
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT recommendation_locks.id, recommendation_locks.recommendation_id, recommendation_locks.status, recommendation_locks.locked_at, recommendation_locks.reason, recommendation_locks.fixture_id, recommendation_locks.as_of, recommendation_lo",
+        "statement_sha256": "1f2fffa75099f8ec0c187e6d1acc5111860f55016a90f4f8f471e9430ad9aefc",
+        "tables": [
+          "recommendation_locks"
+        ],
+        "wall_seconds": 0.002001
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT recommendation_locks.id, recommendation_locks.recommendation_id, recommendation_locks.status, recommendation_locks.locked_at, recommendation_locks.reason, recommendation_locks.fixture_id, recommendation_locks.as_of, recommendation_lo",
+        "statement_sha256": "1f2fffa75099f8ec0c187e6d1acc5111860f55016a90f4f8f471e9430ad9aefc",
+        "tables": [
+          "recommendation_locks"
+        ],
+        "wall_seconds": 0.001911
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT recommendation_locks.id, recommendation_locks.recommendation_id, recommendation_locks.status, recommendation_locks.locked_at, recommendation_locks.reason, recommendation_locks.fixture_id, recommendation_locks.as_of, recommendation_lo",
+        "statement_sha256": "1f2fffa75099f8ec0c187e6d1acc5111860f55016a90f4f8f471e9430ad9aefc",
+        "tables": [
+          "recommendation_locks"
+        ],
+        "wall_seconds": 0.001808
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT model_forecast_capture.capture_identity_hash FROM model_forecast_capture WHERE model_forecast_capture.fixture_id IN (%(fixture_id_1_1)s::VARCHAR, %(fixture_id_1_2)s::VARCHAR) LIMIT %(param_1)s::INTEGER",
+        "statement_sha256": "a6ec2fda3b42cf3e695c45dbefc637d4bdf23e884b2dd78b0b1dfdfb171a3e4f",
+        "tables": [
+          "model_forecast_capture"
+        ],
+        "wall_seconds": 0.001797
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:targeted_lifecycle_read",
+        "statement_prefix": "SELECT dynamic_prematch_supersessions.superseded_evaluation_id, dynamic_prematch_supersessions.superseded_by_evaluation_id, dynamic_prematch_supersessions.fixture_id, dynamic_prematch_supersessions.market, dynamic_prematch_supersessions.rea",
+        "statement_sha256": "acfb9a54ff3e5a9d24449ad0d450ae166d0ed541a927622f8a2f39317aaaa8f9",
+        "tables": [
+          "dynamic_prematch_supersessions"
+        ],
+        "wall_seconds": 0.001754
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT read_model_checkpoint.id, read_model_checkpoint.checkpoint_key, read_model_checkpoint.source_hash, read_model_checkpoint.created_at, read_model_checkpoint.payload FROM read_model_checkpoint WHERE read_model_checkpoint.checkpoint_key ",
+        "statement_sha256": "a2f9b5f2fa4c4739f6038f3684bc1201905c22ce37b532777db39271e3775021",
+        "tables": [
+          "read_model_checkpoint"
+        ],
+        "wall_seconds": 0.001617
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_snapshots.id, structured_lineup_snapshots.fixture_id, structured_lineup_snapshots.team_external_id, structured_lineup_snapshots.team_name, structured_lineup_snapshots.formation, structured_lineup_snapshots.captured_",
+        "statement_sha256": "cd12b55e58fba5d35c7b10cf2833c06d4611be8f44949ab6f579a85994154f89",
+        "tables": [
+          "structured_lineup_snapshots"
+        ],
+        "wall_seconds": 0.001585
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT dynamic_prematch_supersessions.superseded_evaluation_id, dynamic_prematch_supersessions.superseded_by_evaluation_id, dynamic_prematch_supersessions.fixture_id, dynamic_prematch_supersessions.market, dynamic_prematch_supersessions.rea",
+        "statement_sha256": "acfb9a54ff3e5a9d24449ad0d450ae166d0ed541a927622f8a2f39317aaaa8f9",
+        "tables": [
+          "dynamic_prematch_supersessions"
+        ],
+        "wall_seconds": 0.001572
+      },
+      {
+        "calls": 2,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 1,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT recommendation_locks.id, recommendation_locks.recommendation_id, recommendation_locks.status, recommendation_locks.locked_at, recommendation_locks.reason, recommendation_locks.fixture_id, recommendation_locks.as_of, recommendation_lo",
+        "statement_sha256": "1f2fffa75099f8ec0c187e6d1acc5111860f55016a90f4f8f471e9430ad9aefc",
+        "tables": [
+          "recommendation_locks"
+        ],
+        "wall_seconds": 0.001568
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:targeted_lifecycle_read",
+        "statement_prefix": "SELECT dynamic_prematch_supersessions.superseded_evaluation_id, dynamic_prematch_supersessions.superseded_by_evaluation_id, dynamic_prematch_supersessions.fixture_id, dynamic_prematch_supersessions.market, dynamic_prematch_supersessions.rea",
+        "statement_sha256": "acfb9a54ff3e5a9d24449ad0d450ae166d0ed541a927622f8a2f39317aaaa8f9",
+        "tables": [
+          "dynamic_prematch_supersessions"
+        ],
+        "wall_seconds": 0.001555
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_snapshots.id, structured_lineup_snapshots.fixture_id, structured_lineup_snapshots.team_external_id, structured_lineup_snapshots.team_name, structured_lineup_snapshots.formation, structured_lineup_snapshots.captured_",
+        "statement_sha256": "76bf2159139bae867239ee263d3b98a69c45295734be654f3d81dbf37c46bed0",
+        "tables": [
+          "structured_lineup_snapshots"
+        ],
+        "wall_seconds": 0.001546
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:targeted_lifecycle_read",
+        "statement_prefix": "SELECT dynamic_prematch_supersessions.superseded_evaluation_id, dynamic_prematch_supersessions.superseded_by_evaluation_id, dynamic_prematch_supersessions.fixture_id, dynamic_prematch_supersessions.market, dynamic_prematch_supersessions.rea",
+        "statement_sha256": "acfb9a54ff3e5a9d24449ad0d450ae166d0ed541a927622f8a2f39317aaaa8f9",
+        "tables": [
+          "dynamic_prematch_supersessions"
+        ],
+        "wall_seconds": 0.001533
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT dynamic_prematch_supersessions.superseded_evaluation_id, dynamic_prematch_supersessions.superseded_by_evaluation_id, dynamic_prematch_supersessions.fixture_id, dynamic_prematch_supersessions.market, dynamic_prematch_supersessions.rea",
+        "statement_sha256": "acfb9a54ff3e5a9d24449ad0d450ae166d0ed541a927622f8a2f39317aaaa8f9",
+        "tables": [
+          "dynamic_prematch_supersessions"
+        ],
+        "wall_seconds": 0.001511
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT read_model_checkpoint.id, read_model_checkpoint.checkpoint_key, read_model_checkpoint.source_hash, read_model_checkpoint.created_at, read_model_checkpoint.payload FROM read_model_checkpoint WHERE read_model_checkpoint.checkpoint_key ",
+        "statement_sha256": "938db27ef1994aa6a592e2b87e0f7f5e560f4ea4b94ea35e6b9fbaccea8e0cbc",
+        "tables": [
+          "read_model_checkpoint"
+        ],
+        "wall_seconds": 0.001468
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT dynamic_prematch_supersessions.superseded_evaluation_id, dynamic_prematch_supersessions.superseded_by_evaluation_id, dynamic_prematch_supersessions.fixture_id, dynamic_prematch_supersessions.market, dynamic_prematch_supersessions.rea",
+        "statement_sha256": "acfb9a54ff3e5a9d24449ad0d450ae166d0ed541a927622f8a2f39317aaaa8f9",
+        "tables": [
+          "dynamic_prematch_supersessions"
+        ],
+        "wall_seconds": 0.001397
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT read_model_checkpoint.id, read_model_checkpoint.checkpoint_key, read_model_checkpoint.source_hash, read_model_checkpoint.created_at, read_model_checkpoint.payload FROM read_model_checkpoint WHERE read_model_checkpoint.checkpoint_key ",
+        "statement_sha256": "938db27ef1994aa6a592e2b87e0f7f5e560f4ea4b94ea35e6b9fbaccea8e0cbc",
+        "tables": [
+          "read_model_checkpoint"
+        ],
+        "wall_seconds": 0.001304
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:targeted_lifecycle_read",
+        "statement_prefix": "SELECT dynamic_prematch_supersessions.superseded_evaluation_id, dynamic_prematch_supersessions.superseded_by_evaluation_id, dynamic_prematch_supersessions.fixture_id, dynamic_prematch_supersessions.market, dynamic_prematch_supersessions.rea",
+        "statement_sha256": "acfb9a54ff3e5a9d24449ad0d450ae166d0ed541a927622f8a2f39317aaaa8f9",
+        "tables": [
+          "dynamic_prematch_supersessions"
+        ],
+        "wall_seconds": 0.001258
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_snapshots.id, structured_lineup_snapshots.fixture_id, structured_lineup_snapshots.team_external_id, structured_lineup_snapshots.team_name, structured_lineup_snapshots.formation, structured_lineup_snapshots.captured_",
+        "statement_sha256": "76bf2159139bae867239ee263d3b98a69c45295734be654f3d81dbf37c46bed0",
+        "tables": [
+          "structured_lineup_snapshots"
+        ],
+        "wall_seconds": 0.001232
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT read_model_checkpoint.id, read_model_checkpoint.checkpoint_key, read_model_checkpoint.source_hash, read_model_checkpoint.created_at, read_model_checkpoint.payload FROM read_model_checkpoint WHERE read_model_checkpoint.checkpoint_key ",
+        "statement_sha256": "938db27ef1994aa6a592e2b87e0f7f5e560f4ea4b94ea35e6b9fbaccea8e0cbc",
+        "tables": [
+          "read_model_checkpoint"
+        ],
+        "wall_seconds": 0.00123
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT model_forecast_capture.capture_identity_hash FROM model_forecast_capture WHERE model_forecast_capture.fixture_id IN (%(fixture_id_1_1)s::VARCHAR, %(fixture_id_1_2)s::VARCHAR) LIMIT %(param_1)s::INTEGER",
+        "statement_sha256": "a6ec2fda3b42cf3e695c45dbefc637d4bdf23e884b2dd78b0b1dfdfb171a3e4f",
+        "tables": [
+          "model_forecast_capture"
+        ],
+        "wall_seconds": 0.001209
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:initial_artifact_build",
+        "statement_prefix": "SELECT matchday_endpoint_captures.capture_id, matchday_endpoint_captures.fixture_id, matchday_endpoint_captures.competition_id, matchday_endpoint_captures.checkpoint, matchday_endpoint_captures.endpoint, matchday_endpoint_captures.sanitized",
+        "statement_sha256": "e2ead5a35b8a1f567e6d2521264c1c4ddfe897356136383f99f708be4ba09f2c",
+        "tables": [
+          "matchday_endpoint_captures"
+        ],
+        "wall_seconds": 0.001168
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT read_model_checkpoint.id, read_model_checkpoint.checkpoint_key, read_model_checkpoint.source_hash, read_model_checkpoint.created_at, read_model_checkpoint.payload FROM read_model_checkpoint WHERE read_model_checkpoint.checkpoint_key ",
+        "statement_sha256": "938db27ef1994aa6a592e2b87e0f7f5e560f4ea4b94ea35e6b9fbaccea8e0cbc",
+        "tables": [
+          "read_model_checkpoint"
+        ],
+        "wall_seconds": 0.00113
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT read_model_checkpoint.id, read_model_checkpoint.checkpoint_key, read_model_checkpoint.source_hash, read_model_checkpoint.created_at, read_model_checkpoint.payload FROM read_model_checkpoint WHERE read_model_checkpoint.checkpoint_key ",
+        "statement_sha256": "938db27ef1994aa6a592e2b87e0f7f5e560f4ea4b94ea35e6b9fbaccea8e0cbc",
+        "tables": [
+          "read_model_checkpoint"
+        ],
+        "wall_seconds": 0.001129
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT read_model_checkpoint.id, read_model_checkpoint.checkpoint_key, read_model_checkpoint.source_hash, read_model_checkpoint.created_at, read_model_checkpoint.payload FROM read_model_checkpoint WHERE read_model_checkpoint.checkpoint_key ",
+        "statement_sha256": "a2f9b5f2fa4c4739f6038f3684bc1201905c22ce37b532777db39271e3775021",
+        "tables": [
+          "read_model_checkpoint"
+        ],
+        "wall_seconds": 0.001123
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_5:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_snapshots.id, structured_lineup_snapshots.fixture_id, structured_lineup_snapshots.team_external_id, structured_lineup_snapshots.team_name, structured_lineup_snapshots.formation, structured_lineup_snapshots.captured_",
+        "statement_sha256": "76bf2159139bae867239ee263d3b98a69c45295734be654f3d81dbf37c46bed0",
+        "tables": [
+          "structured_lineup_snapshots"
+        ],
+        "wall_seconds": 0.001043
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_snapshots.id, structured_lineup_snapshots.fixture_id, structured_lineup_snapshots.team_external_id, structured_lineup_snapshots.team_name, structured_lineup_snapshots.formation, structured_lineup_snapshots.captured_",
+        "statement_sha256": "76bf2159139bae867239ee263d3b98a69c45295734be654f3d81dbf37c46bed0",
+        "tables": [
+          "structured_lineup_snapshots"
+        ],
+        "wall_seconds": 0.000979
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT dynamic_prematch_supersessions.superseded_evaluation_id, dynamic_prematch_supersessions.superseded_by_evaluation_id, dynamic_prematch_supersessions.fixture_id, dynamic_prematch_supersessions.market, dynamic_prematch_supersessions.rea",
+        "statement_sha256": "acfb9a54ff3e5a9d24449ad0d450ae166d0ed541a927622f8a2f39317aaaa8f9",
+        "tables": [
+          "dynamic_prematch_supersessions"
+        ],
+        "wall_seconds": 0.000969
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT model_forecast_capture.capture_identity_hash FROM model_forecast_capture WHERE model_forecast_capture.fixture_id IN (%(fixture_id_1_1)s::VARCHAR, %(fixture_id_1_2)s::VARCHAR) LIMIT %(param_1)s::INTEGER",
+        "statement_sha256": "a6ec2fda3b42cf3e695c45dbefc637d4bdf23e884b2dd78b0b1dfdfb171a3e4f",
+        "tables": [
+          "model_forecast_capture"
+        ],
+        "wall_seconds": 0.000967
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_3:initial_artifact_build",
+        "statement_prefix": "SELECT read_model_checkpoint.id, read_model_checkpoint.checkpoint_key, read_model_checkpoint.source_hash, read_model_checkpoint.created_at, read_model_checkpoint.payload FROM read_model_checkpoint WHERE read_model_checkpoint.checkpoint_key ",
+        "statement_sha256": "a2f9b5f2fa4c4739f6038f3684bc1201905c22ce37b532777db39271e3775021",
+        "tables": [
+          "read_model_checkpoint"
+        ],
+        "wall_seconds": 0.000942
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:targeted_lifecycle_read",
+        "statement_prefix": "SELECT dynamic_prematch_supersessions.superseded_evaluation_id, dynamic_prematch_supersessions.superseded_by_evaluation_id, dynamic_prematch_supersessions.fixture_id, dynamic_prematch_supersessions.market, dynamic_prematch_supersessions.rea",
+        "statement_sha256": "acfb9a54ff3e5a9d24449ad0d450ae166d0ed541a927622f8a2f39317aaaa8f9",
+        "tables": [
+          "dynamic_prematch_supersessions"
+        ],
+        "wall_seconds": 0.000893
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_0:targeted_lifecycle_read",
+        "statement_prefix": "SELECT dynamic_prematch_supersessions.superseded_evaluation_id, dynamic_prematch_supersessions.superseded_by_evaluation_id, dynamic_prematch_supersessions.fixture_id, dynamic_prematch_supersessions.market, dynamic_prematch_supersessions.rea",
+        "statement_sha256": "acfb9a54ff3e5a9d24449ad0d450ae166d0ed541a927622f8a2f39317aaaa8f9",
+        "tables": [
+          "dynamic_prematch_supersessions"
+        ],
+        "wall_seconds": 0.000838
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_2:initial_artifact_build",
+        "statement_prefix": "SELECT read_model_checkpoint.id, read_model_checkpoint.checkpoint_key, read_model_checkpoint.source_hash, read_model_checkpoint.created_at, read_model_checkpoint.payload FROM read_model_checkpoint WHERE read_model_checkpoint.checkpoint_key ",
+        "statement_sha256": "a2f9b5f2fa4c4739f6038f3684bc1201905c22ce37b532777db39271e3775021",
+        "tables": [
+          "read_model_checkpoint"
+        ],
+        "wall_seconds": 0.000832
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT structured_lineup_snapshots.id, structured_lineup_snapshots.fixture_id, structured_lineup_snapshots.team_external_id, structured_lineup_snapshots.team_name, structured_lineup_snapshots.formation, structured_lineup_snapshots.captured_",
+        "statement_sha256": "76bf2159139bae867239ee263d3b98a69c45295734be654f3d81dbf37c46bed0",
+        "tables": [
+          "structured_lineup_snapshots"
+        ],
+        "wall_seconds": 0.000825
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT dynamic_prematch_supersessions.superseded_evaluation_id, dynamic_prematch_supersessions.superseded_by_evaluation_id, dynamic_prematch_supersessions.fixture_id, dynamic_prematch_supersessions.market, dynamic_prematch_supersessions.rea",
+        "statement_sha256": "acfb9a54ff3e5a9d24449ad0d450ae166d0ed541a927622f8a2f39317aaaa8f9",
+        "tables": [
+          "dynamic_prematch_supersessions"
+        ],
+        "wall_seconds": 0.000731
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_1:initial_artifact_build",
+        "statement_prefix": "SELECT read_model_checkpoint.id, read_model_checkpoint.checkpoint_key, read_model_checkpoint.source_hash, read_model_checkpoint.created_at, read_model_checkpoint.payload FROM read_model_checkpoint WHERE read_model_checkpoint.checkpoint_key ",
+        "statement_sha256": "a2f9b5f2fa4c4739f6038f3684bc1201905c22ce37b532777db39271e3775021",
+        "tables": [
+          "read_model_checkpoint"
+        ],
+        "wall_seconds": 0.000712
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "event_4:initial_artifact_build",
+        "statement_prefix": "SELECT model_forecast_capture.capture_identity_hash FROM model_forecast_capture WHERE model_forecast_capture.fixture_id IN (%(fixture_id_1_1)s::VARCHAR, %(fixture_id_1_2)s::VARCHAR) LIMIT %(param_1)s::INTEGER",
+        "statement_sha256": "a6ec2fda3b42cf3e695c45dbefc637d4bdf23e884b2dd78b0b1dfdfb171a3e4f",
+        "tables": [
+          "model_forecast_capture"
+        ],
+        "wall_seconds": 0.000663
+      },
+      {
+        "calls": 1,
+        "distinct_parameter_sets": 1,
+        "exact_duplicate_calls": 0,
+        "n_plus_one_candidate": false,
+        "stage": "setup",
+        "statement_prefix": "SHOW transaction_read_only",
+        "statement_sha256": "da69ed32429a7730953ed4d9476d39925e381027a839a8eda4a77edb8389243d",
+        "tables": [],
+        "wall_seconds": 0.000383
+      }
+    ],
+    "n_plus_one_candidate_calls": 111,
+    "statement_family_count": 34,
+    "wall_seconds": 155.928777
+  },
+  "stages": {
+    "batch_round3_prefetch": {
+      "calls": 1,
+      "wall_seconds": 208.122108
+    },
+    "event_0:incremental_artifact_refresh": {
+      "calls": 1,
+      "wall_seconds": 0.157889
+    },
+    "event_0:initial_artifact_build": {
+      "calls": 1,
+      "wall_seconds": 1.817466
+    },
+    "event_0:targeted_lifecycle_read": {
+      "calls": 1,
+      "wall_seconds": 0.011763
+    },
+    "event_1:incremental_artifact_refresh": {
+      "calls": 1,
+      "wall_seconds": 0.207118
+    },
+    "event_1:initial_artifact_build": {
+      "calls": 1,
+      "wall_seconds": 1.711857
+    },
+    "event_1:targeted_lifecycle_read": {
+      "calls": 1,
+      "wall_seconds": 0.011361
+    },
+    "event_2:incremental_artifact_refresh": {
+      "calls": 1,
+      "wall_seconds": 0.150136
+    },
+    "event_2:initial_artifact_build": {
+      "calls": 1,
+      "wall_seconds": 1.633086
+    },
+    "event_2:targeted_lifecycle_read": {
+      "calls": 1,
+      "wall_seconds": 0.020937
+    },
+    "event_3:incremental_artifact_refresh": {
+      "calls": 1,
+      "wall_seconds": 0.116355
+    },
+    "event_3:initial_artifact_build": {
+      "calls": 1,
+      "wall_seconds": 1.461455
+    },
+    "event_3:targeted_lifecycle_read": {
+      "calls": 1,
+      "wall_seconds": 0.012112
+    },
+    "event_4:incremental_artifact_refresh": {
+      "calls": 1,
+      "wall_seconds": 0.109781
+    },
+    "event_4:initial_artifact_build": {
+      "calls": 1,
+      "wall_seconds": 1.611847
+    },
+    "event_4:targeted_lifecycle_read": {
+      "calls": 1,
+      "wall_seconds": 0.014219
+    },
+    "event_5:incremental_artifact_refresh": {
+      "calls": 1,
+      "wall_seconds": 0.160016
+    },
+    "event_5:initial_artifact_build": {
+      "calls": 1,
+      "wall_seconds": 1.4843
+    },
+    "event_5:targeted_lifecycle_read": {
+      "calls": 1,
+      "wall_seconds": 0.018595
+    }
+  },
+  "wall_seconds": 218.899288
+}

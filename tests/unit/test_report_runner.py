@@ -32,7 +32,7 @@ def _payload() -> dict[str, object]:
                 "away_team_name": "Sweden",
                 "status": "NS",
                 "formal_recommendation": False,
-                "recommendation": {"tier": "WATCH"},
+                "recommendation": {"decision_tier": "WATCH"},
                 "pricing_shadow": {
                     "status": "READY",
                     "independent_signal_count": 5,

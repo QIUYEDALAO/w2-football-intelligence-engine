@@ -21,7 +21,7 @@ IntelligenceState = Literal[
     "MARKET_MOVEMENT",
     "MARKET_STABLE",
 ]
-DashboardPriorityReason = Literal["MARKET_MOVEMENT", "MODEL_DIAGNOSTIC", "STALE_MARKET_MEMORY"]
+DashboardPriorityReason = Literal["MARKET_MOVEMENT", "MODEL_DIAGNOSTIC"]
 
 
 class ErrorPayload(BaseModel):
@@ -214,18 +214,36 @@ class WorkspaceReadContract(BaseModel):
     no_call_on_read: Literal[True]
 
 
+class WorkspaceRecommendationCapability(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    implementation: Literal[
+        "NOT_IMPLEMENTED",
+        "CODE_PRESENT",
+        "CONTRACT_VERIFIED",
+        "LOCALLY_VERIFIED",
+        "ISOLATED_RUNTIME_VERIFIED",
+        "STAGING_CANARY_PASSED",
+        "FEATURE_ENABLED",
+        "PUBLICLY_AVAILABLE",
+        "PRODUCTION_ENABLED",
+    ]
+    feature_enabled: bool
+
+
 class WorkspaceRuntime(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     product: Literal["FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS"]
     public_dashboard_authority: Literal["NEW_INTELLIGENCE_WORKSPACE_ONLY"]
-    active_whitelist_count: Literal[13]
+    active_whitelist_count: int = Field(ge=0)
     free_bridge_mode: Literal["SHADOW_ONLY"]
     market_price_attention_threshold_ratio: float = Field(ge=0.02, le=0.02)
     candidate: Literal["OFF", "SHADOW_ONLY"]
     formal: Literal["OFF"]
     lock: Literal["OFF"]
     production: Literal["OFF"]
+    recommendation_capabilities: dict[str, WorkspaceRecommendationCapability]
 
 
 class WorkspaceRiskDimension(BaseModel):
@@ -293,6 +311,7 @@ class WorkspaceTimelinePoint(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     capture_id: str | None
+    checkpoint: str | None
     captured_at: datetime | str | None
     canonical_line: str | None
     bookmaker_count: int = Field(ge=0)
@@ -336,11 +355,11 @@ class WorkspaceMovement(BaseModel):
 class WorkspaceMarketEligibility(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    observation_status: Literal["AVAILABLE", "STALE", "INSUFFICIENT"]
+    observation_status: Literal["AVAILABLE", "INSUFFICIENT"]
     trend_evidence_status: Literal["AVAILABLE", "INSUFFICIENT"]
-    cross_sectional_comparison_status: Literal["AVAILABLE", "INSUFFICIENT", "PAUSED_STALE"]
+    cross_sectional_comparison_status: Literal["AVAILABLE", "INSUFFICIENT"]
     model_diagnostic_status: str
-    candidate_quote_identity_status: Literal["READY", "NOT_READY"]
+    candidate_quote_lock_status: Literal["READY", "NOT_READY"]
     candidate_model_status: Literal["READY", "NOT_READY"]
     candidate_eligibility_status: Literal["READY", "NOT_READY"]
     blockers: list[str]
@@ -350,7 +369,7 @@ class WorkspaceMarket(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     market: Literal["ASIAN_HANDICAP", "TOTALS"]
-    status: Literal["READY", "STALE", "INSUFFICIENT"]
+    status: Literal["READY", "INSUFFICIENT"]
     source_status: str
     snapshot_state: Literal[
         "NO_TIMELINE_EVIDENCE",
@@ -365,23 +384,19 @@ class WorkspaceMarket(BaseModel):
     bookmaker_count: int = Field(ge=0)
     prices: dict[str, Any]
     probabilities: dict[str, Any]
-    freshness: dict[str, Any]
+    quote_age_seconds: int | None = Field(default=None, ge=0)
     timeline_points: list[WorkspaceTimelinePoint]
     movement: WorkspaceMovement
     reason_codes: list[str]
     trend_evidence_status: Literal["AVAILABLE", "INSUFFICIENT"]
-    cross_sectional_comparison_status: Literal["AVAILABLE", "INSUFFICIENT", "PAUSED_STALE"]
+    cross_sectional_comparison_status: Literal["AVAILABLE", "INSUFFICIENT"]
     latest_snapshot_at: datetime | str | None
-    freshness_max_age_seconds: int | None = Field(default=None, ge=0)
     eligibility: WorkspaceMarketEligibility
 
     @model_validator(mode="after")
-    def readiness_matches_freshness(self) -> WorkspaceMarket:
-        freshness = str(self.freshness.get("status") or "NOT_AVAILABLE")
-        if self.status == "READY" and freshness not in {"COMPLETE", "CURRENT", "FRESH"}:
-            raise ValueError("READY market evidence must be current")
-        if self.status == "STALE" and freshness != "STALE":
-            raise ValueError("STALE market evidence must have stale freshness")
+    def preserves_quote_rows(self) -> WorkspaceMarket:
+        if self.status == "READY" and self.latest_snapshot_at is None:
+            raise ValueError("READY market evidence requires a persisted snapshot")
         if self.quote_row_count != self.observation_count:
             raise ValueError("quote_row_count must preserve observation_count")
         if self.quote_row_count != self.bookmaker_pair_count * 2:
@@ -418,6 +433,7 @@ class WorkspacePublicSemantics(BaseModel):
             "INSUFFICIENT",
             "UNAVAILABLE",
             "UNASSESSED",
+            "LABEL_PENDING_OWNER_REVIEW",
             "LABEL_MISSING",
             "IDENTITY_UNRESOLVED",
             "AMBIGUOUS",
@@ -432,6 +448,7 @@ class WorkspacePublicTeamLabel(BaseModel):
     display_name: str = Field(min_length=1)
     state: Literal[
         "CHINESE_LABEL_READY",
+        "CHINESE_LABEL_PENDING_OWNER_REVIEW",
         "CANONICAL_IDENTITY_READY_LABEL_MISSING",
         "IDENTITY_UNRESOLVED",
         "AMBIGUOUS",
@@ -445,6 +462,7 @@ class WorkspacePublicTeamLabel(BaseModel):
     def semantics_match_identity_state(self) -> WorkspacePublicTeamLabel:
         expected = {
             "CHINESE_LABEL_READY": None,
+            "CHINESE_LABEL_PENDING_OWNER_REVIEW": "LABEL_PENDING_OWNER_REVIEW",
             "CANONICAL_IDENTITY_READY_LABEL_MISSING": "LABEL_MISSING",
             "IDENTITY_UNRESOLVED": "IDENTITY_UNRESOLVED",
             "AMBIGUOUS": "AMBIGUOUS",
@@ -457,7 +475,7 @@ class WorkspacePublicTeamLabel(BaseModel):
 class WorkspaceMarketFact(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    status: Literal["READY", "STALE", "INSUFFICIENT"]
+    status: Literal["READY", "INSUFFICIENT"]
     source_status: str
     main_line: str | None
     current_odds: dict[str, Any]
@@ -484,7 +502,7 @@ class WorkspaceModelRelation(BaseModel):
     status: str
     canonical_line: str | None
     bookmaker_count: int = Field(ge=0)
-    freshness_status: str | None
+    market_quote_age_seconds: int | None = Field(default=None, ge=0)
     diagnostics: list[dict[str, Any]]
     blockers: list[str]
 
@@ -569,11 +587,11 @@ class WorkspaceModelSummary(BaseModel):
 class WorkspaceMarketSummary(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    status: Literal["READY", "STALE", "INSUFFICIENT"]
+    status: Literal["READY", "INSUFFICIENT"]
     source_status: str
     main_line: str | None
     bookmaker_count: int = Field(ge=0)
-    freshness: dict[str, Any]
+    quote_age_seconds: int | None = Field(default=None, ge=0)
 
 
 class WorkspaceApiFootballPrediction(BaseModel):
@@ -635,7 +653,7 @@ class WorkspaceEvidence(BaseModel):
     artifact_hash: str | None
     source: str | None
     source_event_at: str | None
-    decision_role: Literal["DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY"]
+    decision_role: Literal["PRODUCT_AUTHORITY"]
 
 
 class WorkspaceMatchOutcome(BaseModel):
@@ -671,6 +689,354 @@ class WorkspaceMatchOutcome(BaseModel):
         return self
 
 
+class WorkspaceMarketCollection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    latest_snapshot_at: datetime | str | None
+    latest_snapshot_checkpoint: str | None
+    target_checkpoint: str | None
+    scheduled_at: datetime | str | None
+    window_end_at: datetime | str | None
+    overdue: bool
+    public_semantics: WorkspacePublicSemantics
+
+    @model_validator(mode="after")
+    def collection_window_is_exact(self) -> WorkspaceMarketCollection:
+        if self.public_semantics.scope != "MATCH":
+            raise ValueError("market collection semantics must describe one match")
+        cause = self.public_semantics.cause
+        if cause not in {None, "NOT_YET_DUE", "AWAITING_COLLECTION", "UNASSESSED"}:
+            raise ValueError("market collection cause is not temporal")
+        if cause in {"NOT_YET_DUE", "AWAITING_COLLECTION"} and any(
+            value is None
+            for value in (self.target_checkpoint, self.scheduled_at, self.window_end_at)
+        ):
+            raise ValueError("scheduled market collection requires checkpoint and window")
+        if self.overdue and cause != "AWAITING_COLLECTION":
+            raise ValueError("only an awaiting collection window can be overdue")
+        return self
+
+
+class WorkspaceLineupCollection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_checkpoint: str | None
+    scheduled_at: datetime | str | None
+    window_end_at: datetime | str | None
+    overdue: bool
+    public_semantics: WorkspacePublicSemantics
+
+    @model_validator(mode="after")
+    def collection_window_is_exact(self) -> WorkspaceLineupCollection:
+        if self.public_semantics.scope != "MATCH":
+            raise ValueError("lineup collection semantics must describe one match")
+        cause = self.public_semantics.cause
+        if cause not in {None, "NOT_YET_DUE", "AWAITING_COLLECTION", "UNASSESSED"}:
+            raise ValueError("lineup collection cause is not temporal")
+        if cause in {"NOT_YET_DUE", "AWAITING_COLLECTION"} and any(
+            value is None
+            for value in (self.target_checkpoint, self.scheduled_at, self.window_end_at)
+        ):
+            raise ValueError("scheduled lineup collection requires checkpoint and window")
+        if self.overdue and cause != "AWAITING_COLLECTION":
+            raise ValueError("only an awaiting lineup window can be overdue")
+        return self
+
+
+class WorkspaceFactorTrackState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    state: Literal["READY", "BLOCKED"]
+    blocking_factor_ids: list[str]
+
+    @model_validator(mode="after")
+    def blockers_follow_state(self) -> WorkspaceFactorTrackState:
+        if (self.state == "READY") != (not self.blocking_factor_ids):
+            raise ValueError("factor track state must follow blockers")
+        return self
+
+
+class WorkspaceShadowFactorTrack(WorkspaceFactorTrackState):
+    per_market: dict[Literal["ASIAN_HANDICAP", "TOTALS"], WorkspaceFactorTrackState]
+
+
+class WorkspaceFixtureFactor(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    factor_id: str
+    display_name_zh: str = Field(min_length=1)
+    market: Literal["ASIAN_HANDICAP", "TOTALS"] | None = None
+    role_model_forecast: Literal["HARD_GATE", "ENHANCEMENT", "NOT_APPLICABLE", "POLICY_DISABLED"]
+    role_shadow_candidate: Literal["HARD_GATE", "ENHANCEMENT", "NOT_APPLICABLE", "POLICY_DISABLED"]
+    factor_lifecycle: str | None
+    numeric_effect_enabled: bool
+    state: Literal["READY", "PARTIAL", "MISSING", "WAITING", "DISABLED"]
+    cause: (
+        Literal[
+            "NOT_YET_DUE",
+            "AWAITING_COLLECTION",
+            "COLLECTION_WINDOW_MISSED",
+            "UNDER_SAMPLED",
+            "PROVIDER_NOT_AVAILABLE",
+            "POLICY_DISABLED",
+            "NOT_MATERIALIZED",
+            "SOURCE_NOT_CONFIGURED",
+            "IDENTITY_UNRESOLVED",
+            "NO_MATERIALIZED_HISTORY",
+        ]
+        | None
+    )
+    permanence: Literal[
+        "TRANSIENT",
+        "SELF_RESOLVING",
+        "STRUCTURAL_PERMANENT",
+        "UNKNOWN",
+        "NOT_APPLICABLE",
+    ]
+    next_window_at: datetime | str | None
+    evidence: dict[str, Any]
+
+    @model_validator(mode="after")
+    def missing_semantics_are_explicit(self) -> WorkspaceFixtureFactor:
+        if (self.state == "READY") != (self.cause is None):
+            raise ValueError("only READY factor rows may omit cause")
+        if self.cause == "PROVIDER_NOT_AVAILABLE" and self.permanence != "STRUCTURAL_PERMANENT":
+            raise ValueError("provider unavailable must be structural permanent")
+        if self.cause == "POLICY_DISABLED" and self.state != "DISABLED":
+            raise ValueError("policy disabled must use disabled state")
+        if (self.state == "WAITING") != (self.cause == "NOT_YET_DUE"):
+            raise ValueError("not-yet-due factors must use waiting state")
+        if self.permanence == "SELF_RESOLVING" and not (
+            self.next_window_at is not None or int(self.evidence.get("shortfall") or 0) > 0
+        ):
+            raise ValueError("self-resolving factors require a concrete recovery condition")
+        return self
+
+
+class WorkspaceModelForecastFourFieldXgFact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["READY"]
+    identity_hash: str = Field(min_length=64, max_length=64)
+    home_snapshot_identity: str = Field(min_length=1)
+    away_snapshot_identity: str = Field(min_length=1)
+    home_match_count: int = Field(ge=3)
+    away_match_count: int = Field(ge=3)
+
+
+class WorkspaceModelForecastLedgerFact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    state: Literal["NOT_CAPTURED", "CAPTURED", "SETTLED"]
+    capture_identity_hash: str | None = None
+    captured_at: datetime | str | None = None
+    lead_time_seconds: int | None = Field(default=None, ge=0)
+    lead_time_bucket: Literal["LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D"] | None = None
+    capture_policy: Literal["FIRST_ELIGIBLE_FREEZE_IMMUTABLE"] | None = None
+    data_version: str | None = None
+    team_xg_match_count: int | None = Field(default=None, ge=0)
+    model_family: str | None = None
+    model_version: str | None = None
+    calibration_version: str | None = None
+    calibration_status: str | None = None
+    four_field_xg: WorkspaceModelForecastFourFieldXgFact | None = None
+    settled_at: datetime | str | None = None
+    brier: float | None = None
+    log_loss: float | None = None
+    rps: float | None = None
+
+    @model_validator(mode="after")
+    def fields_follow_state(self) -> WorkspaceModelForecastLedgerFact:
+        captured = (
+            self.capture_identity_hash,
+            self.captured_at,
+            self.lead_time_seconds,
+            self.lead_time_bucket,
+            self.capture_policy,
+            self.data_version,
+            self.model_family,
+            self.model_version,
+        )
+        settled = (self.settled_at, self.brier, self.log_loss, self.rps)
+        if self.state == "NOT_CAPTURED" and any(
+            value is not None for value in (*captured, *settled)
+        ):
+            raise ValueError("not-captured ledger facts cannot contain capture or outcome fields")
+        if self.state in {"CAPTURED", "SETTLED"} and any(value is None for value in captured):
+            raise ValueError(
+                "captured ledger facts require persisted capture identity and model fields"
+            )
+        if self.state in {"CAPTURED", "SETTLED"} and self.four_field_xg is None:
+            raise ValueError("captured ledger facts require persisted four-field xG identity")
+        if self.state == "NOT_CAPTURED" and self.four_field_xg is not None:
+            raise ValueError("not-captured ledger facts cannot contain four-field xG identity")
+        if self.state == "SETTLED" and any(value is None for value in settled):
+            raise ValueError("settled ledger facts require persisted probability metrics")
+        if self.state == "CAPTURED" and any(value is not None for value in settled):
+            raise ValueError("unsettled capture cannot contain outcome metrics")
+        return self
+
+
+class WorkspaceEnhancementQuality(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    state: Literal["READY", "DEGRADED"]
+    missing_factor_ids: list[str]
+
+
+class WorkspaceFixtureFactorChecklist(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fixture_id: str
+    competition_id: str | None
+    kickoff_utc: datetime | str | None
+    as_of: datetime | str | None
+    conclusion_zh: str = Field(min_length=1)
+    market_identity_note_zh: str = Field(min_length=1)
+    ledger_fact: WorkspaceModelForecastLedgerFact
+    enhancement_quality: WorkspaceEnhancementQuality
+    track_model_forecast: WorkspaceFactorTrackState
+    track_shadow_candidate: WorkspaceShadowFactorTrack
+    factors: list[WorkspaceFixtureFactor]
+
+
+class WorkspaceFactorScoreParticipant(BaseModel):
+    """One factor that actually entered the ASIAN_HANDICAP factor score's
+    weighted home/away totals — see `w2.strategy.factor_score.FactorShare`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    feature_id: str
+    label: str
+    magnitude: float
+    weight: float
+    share: float
+    side: Literal["HOME", "AWAY", "NEUTRAL"]
+
+
+class WorkspaceFactorScoreAbsence(BaseModel):
+    """One factor eligible to score but currently not participating, and
+    why — see `w2.strategy.factor_score.FactorAbsence`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    feature_id: str
+    label: str
+    status: str
+    reason: str
+
+
+class WorkspaceFactorScore(BaseModel):
+    """The score that drives the ASIAN_HANDICAP recommendation's direction
+    and strength — see `w2.strategy.factor_score.FactorScore`. Admission
+    requires F9_TRUE_XG to have participated and at least 3 factors total;
+    no strength threshold is applied yet (W2_UPGRADE_PLAN.md cut 06 step 5).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    home_score: float
+    away_score: float
+    margin: float
+    strength: float
+    direction: Literal["HOME", "AWAY", "NEUTRAL"]
+    weight_sum_used: float
+    participant_count: int
+    admitted: bool
+    admission_blockers: list[str]
+    participants: list[WorkspaceFactorScoreParticipant]
+    absent: list[WorkspaceFactorScoreAbsence]
+
+
+class WorkspaceEvaluationFinalState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    market: Literal["ASIAN_HANDICAP", "TOTALS"]
+    checkpoint: str
+    state: Literal[
+        "EVALUATED_NO_EDGE",
+        "EVALUATED_CANDIDATE",
+        "BLOCKED_BY_GATE",
+        "MISSED_CHECKPOINT",
+        "EVALUATION_ERROR",
+    ]
+    recorded_at: datetime | str | None
+    blocker: str | None
+
+
+class WorkspaceEvaluationCandidate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    market: Literal["ASIAN_HANDICAP", "TOTALS"]
+    selection: Literal["HOME", "AWAY", "OVER", "UNDER"] | None
+    exact_line: str | None
+    decimal_odds: float | None
+    bookmaker_id: str | None
+    captured_at: datetime | str | None
+    evaluated_at: datetime | str | None
+    checkpoint: str
+    final_state: (
+        Literal[
+            "EVALUATED_NO_EDGE",
+            "EVALUATED_CANDIDATE",
+            "BLOCKED_BY_GATE",
+            "MISSED_CHECKPOINT",
+            "EVALUATION_ERROR",
+        ]
+        | None
+    )
+    final_active: bool
+    later_unassessed_checkpoints: list[str]
+
+
+class WorkspaceEvaluationDiagnosis(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal[
+        "CHECKPOINT_NOT_DUE",
+        "XG_INPUT_MISSING",
+        "GATE_BLOCKED",
+        "CHECKPOINT_MISSED",
+        "PROVIDER_EMPTY",
+        "EVALUATION_ERROR",
+        "NO_EDGE",
+        "CANDIDATE_ACTIVE",
+        "UNASSESSED",
+    ]
+    primary_blocker_zh: str = Field(min_length=1)
+    missing_detail_zh: str = Field(min_length=1)
+    next_step_zh: str = Field(min_length=1)
+    next_checkpoint: str | None
+    next_checkpoint_at: datetime | str | None
+    non_blocking_missing_zh: list[str]
+    evidence_codes: list[str]
+
+
+class WorkspaceEvaluationExecution(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal[
+        "UNASSESSED",
+        "NO_EDGE",
+        "CANDIDATE",
+        "TECHNICAL_INVALIDATED",
+        "NO_CANDIDATE_FORMED",
+        "BLOCKED",
+    ]
+    ever_formed_candidate: bool
+    final_states: list[WorkspaceEvaluationFinalState]
+    latest_candidates: list[WorkspaceEvaluationCandidate]
+    checkpoint_count: int = Field(ge=0)
+    market_evaluation_count: int = Field(ge=0)
+    checkpoints: list[str]
+    markets: list[str]
+    summary_zh: str = Field(min_length=1)
+    lifecycle_note_zh: str | None
+    diagnosis: WorkspaceEvaluationDiagnosis
+
+
 class WorkspaceMatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -685,6 +1051,8 @@ class WorkspaceMatch(BaseModel):
     public_semantics: WorkspacePublicSemantics
     status: str | None
     outcome: WorkspaceMatchOutcome
+    market_collection: WorkspaceMarketCollection
+    lineup_collection: WorkspaceLineupCollection
     intelligence_state: IntelligenceState
     intelligence_reason_codes: list[str]
     priority_reason_primary: DashboardPriorityReason | None
@@ -694,7 +1062,10 @@ class WorkspaceMatch(BaseModel):
     readiness: WorkspaceReadiness
     market_fact: WorkspaceMarketFact
     w2_analysis: WorkspaceW2Analysis
+    evaluation_execution: WorkspaceEvaluationExecution
     shadow_candidate: WorkspaceShadowCandidate
+    factor_checklist: WorkspaceFixtureFactorChecklist
+    factor_score: WorkspaceFactorScore | None
     formal_recommendation: WorkspaceFormalRecommendation
     market_radar: WorkspaceMarketRadar
     model_lab: WorkspaceModelLab
@@ -726,11 +1097,18 @@ class WorkspaceMatch(BaseModel):
             if eligibility
             and all(item.candidate_eligibility_status == "READY" for item in eligibility)
             else "PARTIAL"
-            if any(item.observation_status == "AVAILABLE" for item in eligibility)
+            if any(item.candidate_eligibility_status == "READY" for item in eligibility)
             else "NOT_READY"
         )
         if self.readiness.market_aggregate_status != expected:
             raise ValueError("match market aggregate must derive from per-market eligibility")
+        expected_market_evidence = (
+            "AVAILABLE"
+            if any(item.observation_status == "AVAILABLE" for item in eligibility)
+            else "NOT_READY"
+        )
+        if self.readiness.market_evidence_status != expected_market_evidence:
+            raise ValueError("match market evidence must derive from per-market observations")
         expected_candidate_input = (
             "READY"
             if any(item.candidate_eligibility_status == "READY" for item in eligibility)
@@ -738,11 +1116,46 @@ class WorkspaceMatch(BaseModel):
         )
         if self.readiness.candidate_input_status != expected_candidate_input:
             raise ValueError("match candidate input must derive from per-market eligibility")
+        if (
+            "lineups" in self.readiness.missing_fields
+            and self.lineup_collection.public_semantics.cause == "NOT_YET_DUE"
+        ):
+            data_risk = self.risks.data_risk
+            if "待补齐：首发" in data_risk.explanation:
+                raise ValueError("not-yet-due lineups cannot be an anomalous missing input")
+            if set(self.readiness.missing_fields) == {"lineups"} and data_risk.status != "OK":
+                raise ValueError("not-yet-due lineups alone cannot make data risk abnormal")
         if self.shadow_candidate.status == "ACTIVE":
             selected = self.market_radar.markets.get(str(self.shadow_candidate.market))
             if selected is None or selected.eligibility.candidate_eligibility_status != "READY":
                 raise ValueError("active shadow candidate requires selected-market eligibility")
         return self
+
+
+class WorkspaceMatchProjectionErrorDetail(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: Literal["MATCH_PROJECTION_CONTRACT_VIOLATION"]
+    message: str = Field(min_length=1)
+    detail: str = Field(min_length=1)
+
+
+class WorkspaceMatchProjectionError(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    projection_status: Literal["ERROR"]
+    fixture_id: str
+    competition_id: str | None
+    competition_name: str | None
+    kickoff_utc: datetime | str | None
+    home_team_name: str | None
+    away_team_name: str | None
+    home_team_label: WorkspacePublicTeamLabel
+    away_team_label: WorkspacePublicTeamLabel
+    public_semantics: WorkspacePublicSemantics
+    status: str | None
+    outcome: WorkspaceMatchOutcome
+    projection_error: WorkspaceMatchProjectionErrorDetail
 
 
 class WorkspaceTodaySummary(BaseModel):
@@ -753,6 +1166,7 @@ class WorkspaceTodaySummary(BaseModel):
     priority_match_count: int = Field(ge=0)
     priority_group_count: int = Field(ge=0)
     primary_reason_counts: dict[str, int]
+    pending_owner_review_team_count: int = Field(ge=0)
 
     @model_validator(mode="after")
     def primary_counts_do_not_double_count(self) -> WorkspaceTodaySummary:
@@ -1001,6 +1415,150 @@ class WorkspaceHistoryReplay(BaseModel):
         return self
 
 
+class WorkspaceModelForecastBucketProgress(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    capture_count: int = Field(ge=0)
+    settled_count: int = Field(ge=0)
+    pending_count: int = Field(ge=0)
+
+
+class WorkspaceModelForecastDataVersionProgress(WorkspaceModelForecastBucketProgress):
+    team_xg_match_count: int | None = Field(default=None, ge=0)
+    lead_time_buckets: dict[
+        Literal["LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D"],
+        WorkspaceModelForecastBucketProgress,
+    ]
+
+
+class WorkspaceModelForecastMarketEvaluationFunnel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scope: Literal["CHECKPOINT_EVALUATION_OPPORTUNITY_V2"]
+    denominator_unit: Literal["CHECKPOINT_EVALUATION_OPPORTUNITY_SLOT_X_MARKET"]
+    measurement_status: Literal["MEASURABLE", "NOT_MEASURABLE", "INVALID"]
+    invalid_opportunity_row_count: int = Field(ge=0)
+    invalid_opportunity_reasons: dict[str, int]
+    opportunity_count: int = Field(ge=0)
+    fixture_count: int = Field(ge=0)
+    market_unit_count: int = Field(ge=0)
+    persisted_market_unit_count: int = Field(ge=0)
+    recorded_at_count: int = Field(ge=0)
+    capture_count: int = Field(ge=0)
+    gate_counts: dict[str, int]
+    # None while NOT_MEASURABLE: a 0.0 rate would claim the gate was tested.
+    gate_rates: dict[str, float] | None
+    first_failed_gate_counts: dict[str, int]
+
+    @model_validator(mode="after")
+    def _measurement_status_matches_the_payload(
+        self,
+    ) -> WorkspaceModelForecastMarketEvaluationFunnel:
+        """Field types alone would let the two halves contradict each other.
+
+        A NOT_MEASURABLE response carrying rates, or a MEASURABLE one carrying
+        none, is exactly the fabricated funnel this contract exists to prevent.
+        """
+
+        if self.measurement_status == "INVALID":
+            if self.invalid_opportunity_row_count <= 0:
+                raise ValueError("INVALID requires at least one defective row")
+            return self
+        if self.invalid_opportunity_row_count or self.invalid_opportunity_reasons:
+            raise ValueError("defective rows require measurement_status INVALID")
+        if self.measurement_status == "MEASURABLE":
+            if self.opportunity_count <= 0 or self.gate_rates is None:
+                raise ValueError("MEASURABLE requires opportunities and rates")
+            if self.market_unit_count != self.opportunity_count:
+                raise ValueError("market_unit_count must equal opportunity_count")
+            if self.persisted_market_unit_count != self.opportunity_count:
+                raise ValueError("every opportunity must be a persisted row")
+            if not 1 <= self.fixture_count <= self.opportunity_count:
+                raise ValueError("fixture_count must fit inside opportunity_count")
+            if not 0 <= self.recorded_at_count <= self.opportunity_count:
+                raise ValueError("recorded_at_count must fit inside opportunity_count")
+            if set(self.gate_rates) != set(self.gate_counts):
+                raise ValueError("gate_rates and gate_counts must cover the same gates")
+            if any(count > self.opportunity_count for count in self.gate_counts.values()):
+                raise ValueError("gate_count cannot exceed opportunity_count")
+            if sum(self.first_failed_gate_counts.values()) > self.opportunity_count:
+                raise ValueError("more first failures than opportunities")
+            return self
+        if (
+            self.opportunity_count
+            or self.market_unit_count
+            or self.persisted_market_unit_count
+            or self.fixture_count
+            or self.recorded_at_count
+            or self.gate_counts
+            or self.first_failed_gate_counts
+            or self.gate_rates is not None
+        ):
+            raise ValueError("NOT_MEASURABLE must carry no counts and no rates")
+        return self
+
+
+class WorkspaceOfficialRecommendation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    evaluation_id: str = Field(min_length=1)
+    fixture_id: str = Field(min_length=1)
+    evaluated_at: datetime | str | None
+    kickoff_utc: datetime | str | None
+    market: Literal["ASIAN_HANDICAP", "TOTALS"]
+    selection: Literal["HOME", "AWAY", "OVER", "UNDER"]
+    exact_line: str = Field(min_length=1)
+    decimal_odds: float = Field(gt=1)
+    home_team_label: WorkspacePublicTeamLabel
+    away_team_label: WorkspacePublicTeamLabel
+    score: str | None
+    settlement: Literal["PENDING", "WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"]
+    profit_units: float | None
+    confirmed_checkpoint: str
+    later_unassessed_checkpoints: list[str]
+    lifecycle_note_zh: str | None
+
+    @model_validator(mode="after")
+    def settlement_fields_are_consistent(self) -> WorkspaceOfficialRecommendation:
+        if self.settlement == "PENDING" and (
+            self.score is not None or self.profit_units is not None
+        ):
+            raise ValueError("pending settlement must not claim a score or profit")
+        if self.settlement != "PENDING" and (self.score is None or self.profit_units is None):
+            raise ValueError("settled recommendation requires score and profit")
+        return self
+
+
+class WorkspaceModelForecastProgress(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    capture_count: int = Field(ge=0)
+    settled_count: int = Field(ge=0)
+    pending_count: int = Field(ge=0)
+    sample_target: int = Field(ge=1)
+    current_flow_candidate_count: int = Field(ge=0)
+    current_flow_settled_count: int = Field(ge=0)
+    ever_formed_candidate_count: int = Field(ge=0)
+    final_candidate_count: int = Field(ge=0)
+    invalidated_candidate_count: int = Field(ge=0)
+    t30_evaluated_candidate_count: int = Field(ge=0)
+    t30_confirmed_candidate_count: int = Field(ge=0)
+    min_xg_matches: int = Field(ge=1)
+    xg_ready_team_count: int = Field(ge=0)
+    next_7d_xg_ready_fixture_count: int = Field(ge=0)
+    capture_policy: Literal["FIRST_ELIGIBLE_FREEZE_IMMUTABLE"]
+    market_evaluation_funnel: WorkspaceModelForecastMarketEvaluationFunnel
+    official_recommendations: list[WorkspaceOfficialRecommendation] = Field(default_factory=list)
+    lead_time_buckets: dict[
+        Literal["LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D"],
+        WorkspaceModelForecastBucketProgress,
+    ]
+    data_versions: dict[str, WorkspaceModelForecastDataVersionProgress] = Field(
+        default_factory=dict
+    )
+    public_semantics: WorkspacePublicSemantics
+
+
 class WorkspaceValidation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1008,6 +1566,7 @@ class WorkspaceValidation(BaseModel):
     directional: WorkspaceDirectionalValidation
     league_performance: list[WorkspaceLeaguePerformance]
     tournament_performance: list[WorkspaceLeaguePerformance]
+    model_forecast: WorkspaceModelForecastProgress
     forward_validation_records: WorkspaceForwardValidationRecords
     history_replay: WorkspaceHistoryReplay
 
@@ -1073,8 +1632,8 @@ class WorkspaceDateStripEntry(BaseModel):
         "PERSISTED_FIXTURES_AVAILABLE",
         "EMPTY_PERSISTED_DAY",
     ]
-    persisted_competition_coverage_count: int = Field(ge=0, le=13)
-    active_whitelist_count: Literal[13]
+    persisted_competition_coverage_count: int = Field(ge=0)
+    active_whitelist_count: int = Field(ge=0)
     market_collection_window_status: Literal[
         "EMPTY_PERSISTED_DAY",
         "MARKET_EVIDENCE_AVAILABLE",
@@ -1092,8 +1651,7 @@ class WorkspaceDateStripEntry(BaseModel):
         if self.market_evidence_fixture_count > self.fixture_count:
             raise ValueError("date strip market evidence cannot exceed fixtures")
         has_full_evidence = (
-            self.fixture_count > 0
-            and self.market_evidence_fixture_count == self.fixture_count
+            self.fixture_count > 0 and self.market_evidence_fixture_count == self.fixture_count
         )
         if (
             self.market_collection_window_status == "MARKET_EVIDENCE_AVAILABLE"
@@ -1105,6 +1663,8 @@ class WorkspaceDateStripEntry(BaseModel):
             raise ValueError("empty date strip entries cannot claim fixtures or evidence")
         if self.persisted_competition_coverage_count != self.competition_count:
             raise ValueError("date strip coverage must use persisted competition count")
+        if self.competition_count > self.active_whitelist_count:
+            raise ValueError("date strip competition count cannot exceed enabled scope")
         expected_cause = {
             "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW": "NOT_YET_DUE",
             "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY": "AWAITING_COLLECTION",
@@ -1141,7 +1701,7 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
     navigation: dict[str, Any]
     date_strip: list[WorkspaceDateStripEntry] = Field(min_length=15, max_length=15)
     attention: list[WorkspaceAttentionItem]
-    matches: list[WorkspaceMatch]
+    matches: list[WorkspaceMatch | WorkspaceMatchProjectionError]
     validation: WorkspaceValidation
     external_intelligence: WorkspaceExternalIntelligence
     freshness: WorkspaceFreshness
@@ -1150,13 +1710,20 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
     @model_validator(mode="after")
     def focus_and_date_strip_are_exact(self) -> DashboardIntelligenceWorkspaceResponse:
         fixture_ids = {match.fixture_id for match in self.matches}
-        competition_ids = {
-            match.competition_id for match in self.matches if match.competition_id
-        }
+        competition_ids = {match.competition_id for match in self.matches if match.competition_id}
         if self.today_summary.match_count != len(self.matches):
             raise ValueError("selected-day match count must equal projected matches")
         if self.today_summary.competition_count != len(competition_ids):
             raise ValueError("selected-day competition count must equal projected matches")
+        pending_team_ids = {
+            label.canonical_team_id
+            for match in self.matches
+            for label in (match.home_team_label, match.away_team_label)
+            if label.state == "CHINESE_LABEL_PENDING_OWNER_REVIEW"
+            and label.canonical_team_id is not None
+        }
+        if self.today_summary.pending_owner_review_team_count != len(pending_team_ids):
+            raise ValueError("pending owner review team count must equal projected matches")
         if self.selected_fixture_id is not None:
             if self.selected_fixture_id not in fixture_ids:
                 raise ValueError("selected fixture must exist in matches")
@@ -1171,10 +1738,10 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
             raise ValueError("selected football day must be centered in date strip")
         selected_day = self.date_strip[7]
         if (
-            selected_day.fixture_count != self.today_summary.match_count
-            or selected_day.competition_count != self.today_summary.competition_count
+            selected_day.fixture_count < self.today_summary.match_count
+            or selected_day.competition_count < self.today_summary.competition_count
         ):
-            raise ValueError("selected date strip counts must match selected-day summary")
+            raise ValueError("selected date strip inventory cannot omit projected matches")
         for match in self.matches:
             expected_cause = outcome_public_cause(
                 status=match.status,
@@ -1209,16 +1776,9 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
             raise ValueError("matched replay fixtures must match per-match outcome facts")
         if set(outcome_summary.missing_outcome_fixture_ids) != missing_ids:
             raise ValueError("missing replay fixtures must match per-match outcome facts")
-        outcome_causes = [
-            match.outcome.public_semantics.cause for match in self.matches
-        ]
-        expected_record_cause = selected_day_outcome_cause(
-            finished, outcome_causes
-        )
-        if (
-            self.validation.history_replay.public_semantics.cause
-            != expected_record_cause
-        ):
+        outcome_causes = [match.outcome.public_semantics.cause for match in self.matches]
+        expected_record_cause = selected_day_outcome_cause(finished, outcome_causes)
+        if self.validation.history_replay.public_semantics.cause != expected_record_cause:
             raise ValueError("history/replay cause must derive from match outcomes")
         return self
 

@@ -16,6 +16,7 @@ class RecordingDashboardService:
         self.calls: list[dict[str, Any]] = []
         self.outcome_calls: list[list[str]] = []
         self.outcomes: list[dict[str, Any]] = []
+        self.model_forecast_calls: list[list[str]] = []
 
     def dashboard(
         self,
@@ -94,6 +95,37 @@ class RecordingDashboardService:
     ) -> list[dict[str, Any]]:
         self.outcome_calls.append(fixture_ids)
         return deepcopy(self.outcomes)
+
+    def dashboard_model_forecasts_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, dict[str, Any]]:
+        self.model_forecast_calls.append(fixture_ids)
+        return {}
+
+    def dashboard_dynamic_evaluations_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, dict[str, Any]]:
+        return {}
+
+    def dashboard_evaluation_checkpoints_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, list[dict[str, Any]]]:
+        return {}
+
+    def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
+        return {
+            "capture_count": 13,
+            "settled_count": 8,
+            "pending_count": 5,
+            "min_xg_matches": 3,
+            "xg_ready_team_count": 128,
+            "next_7d_xg_ready_fixture_count": 24,
+            "capture_policy": "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
+            "lead_time_buckets": {},
+        }
 
 
 def test_dashboard_day_view_endpoint_reads_requested_window(
@@ -406,8 +438,8 @@ def test_day_view_does_not_rebuild_current_pick_from_historical_v3_evidence(
     assert payload["counts"]["not_ready"] == 1
     assert card["decision_tier"] == "NOT_READY"
     assert card["data_status"] == "BLOCKED"
-    assert card["recommendation_decision_v3"]["outcome"] == "NOT_READY"
-    assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+    assert "recommendation_decision_v3" not in card
+    assert "recommendation_decision_v3_role" not in card
     assert card["scoreline_reference"] == {}
     assert card["lock_eligible"] is False
     assert "decision_projection" not in card

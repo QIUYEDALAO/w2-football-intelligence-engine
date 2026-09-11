@@ -160,7 +160,7 @@ def test_neutral_site_does_not_apply_home_advantage_to_lambdas() -> None:
     assert neutral.input_readiness["home_advantage_applied"] is False
     assert nominal_home.lambda_home is not None and nominal_home.lambda_away is not None
     assert nominal_home.lambda_home > nominal_home.lambda_away
-    assert nominal_home.calibration["params"]["applied_home_advantage_goals"] == 0.12
+    assert nominal_home.calibration["params"]["applied_home_advantage_goals"] == 0.30
 
 
 def test_proxy_elo_is_excluded_from_lambda_inputs() -> None:

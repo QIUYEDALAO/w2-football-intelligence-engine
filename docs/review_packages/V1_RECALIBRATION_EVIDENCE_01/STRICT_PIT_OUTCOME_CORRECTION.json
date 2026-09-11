@@ -1,0 +1,239 @@
+{
+  "all_checks_pass": false,
+  "binding_local_implementation_checks": {
+    "at_least_7_of_10_folds_improve": true,
+    "candidate_abs_intercept_le_0_10": true,
+    "candidate_slope_closer_to_one": true,
+    "oof_fixture_count_7159": true,
+    "paired_oof_nll_mean_lower": true,
+    "paired_oof_nll_upper_95_le_zero": false
+  },
+  "legacy_1_848_claim": {
+    "provenance": "user-supplied reviewer text; no producing script or immutable row artifact",
+    "status": "NOT_REPRODUCIBLE_FROM_COMMITTED_EVIDENCE",
+    "strict_pit_effect_if_used_as_scale": {
+      "mean_nll": 2.993250392,
+      "net_margin_regression": {
+        "intercept": 0.152005,
+        "slope": 0.642919
+      },
+      "scale": 1.848
+    }
+  },
+  "market_diagnostic_only": {
+    "favorite_conditioned_fair_minus_market_mean": {
+      "X": 0.431641,
+      "Y": 0.37207,
+      "Z": 0.349609
+    },
+    "fixture_count": 259,
+    "interpretation": "Signed home-perspective means describe aggregate alignment. Favorite-conditioned means select orientation using the market itself and are diagnostic only, not gates.",
+    "market_delta_on_candidate_model_delta": {
+      "intercept": 0.026199,
+      "slope": 0.869784
+    },
+    "market_delta_on_current_model_delta": {
+      "intercept": -0.000427,
+      "slope": 0.958535
+    },
+    "market_delta_on_raw_delta": {
+      "intercept": 0.287134,
+      "slope": 0.958535
+    },
+    "means": {
+      "candidate_model_delta": 0.275063,
+      "current_model_delta": 0.277372,
+      "market_implied_delta": 0.265444,
+      "raw_delta": -0.022628
+    },
+    "nonzero_market_line_count": 256,
+    "signed_home_fair_minus_market_mean": {
+      "X": 0.176641,
+      "Y": 0.005792,
+      "Z": 0.014479
+    }
+  },
+  "rolling_origin_oof": {
+    "candidate_net_margin_regression": {
+      "intercept": 0.022801,
+      "slope": 1.028712
+    },
+    "current_net_margin_regression": {
+      "intercept": -0.020455,
+      "slope": 1.173055
+    },
+    "fixture_count": 7159,
+    "folds": [
+      {
+        "candidate_improves": true,
+        "candidate_mean_nll": 2.911826455,
+        "candidate_minus_current_mean_nll": -0.002161728,
+        "current_mean_nll": 2.913988183,
+        "fitted_scale": 1.129705,
+        "fold": 1,
+        "train_count": 1500,
+        "validation_count": 716,
+        "validation_kickoff_end": "2024-12-21 14:30:00+00",
+        "validation_kickoff_start": "2024-10-27 14:15:00+00"
+      },
+      {
+        "candidate_improves": true,
+        "candidate_mean_nll": 2.969893146,
+        "candidate_minus_current_mean_nll": -0.001996243,
+        "current_mean_nll": 2.971889389,
+        "fitted_scale": 1.160306,
+        "fold": 2,
+        "train_count": 2216,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-03-09 11:15:00+00",
+        "validation_kickoff_start": "2024-12-21 14:30:00+00"
+      },
+      {
+        "candidate_improves": true,
+        "candidate_mean_nll": 2.928023324,
+        "candidate_minus_current_mean_nll": -0.000341653,
+        "current_mean_nll": 2.928364977,
+        "fitted_scale": 1.166136,
+        "fold": 3,
+        "train_count": 2932,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-05-03 19:00:00+00",
+        "validation_kickoff_start": "2025-03-09 11:30:00+00"
+      },
+      {
+        "candidate_improves": true,
+        "candidate_mean_nll": 2.993419824,
+        "candidate_minus_current_mean_nll": -0.000791524,
+        "current_mean_nll": 2.994211349,
+        "fitted_scale": 1.152288,
+        "fold": 4,
+        "train_count": 3648,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-07-23 22:00:00+00",
+        "validation_kickoff_start": "2025-05-03 19:05:00+00"
+      },
+      {
+        "candidate_improves": true,
+        "candidate_mean_nll": 2.966668887,
+        "candidate_minus_current_mean_nll": -0.000938023,
+        "current_mean_nll": 2.96760691,
+        "fitted_scale": 1.150007,
+        "fold": 5,
+        "train_count": 4364,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-09-24 19:30:00+00",
+        "validation_kickoff_start": "2025-07-23 22:30:00+00"
+      },
+      {
+        "candidate_improves": false,
+        "candidate_mean_nll": 2.968517684,
+        "candidate_minus_current_mean_nll": 0.001853872,
+        "current_mean_nll": 2.966663812,
+        "fitted_scale": 1.14807,
+        "fold": 6,
+        "train_count": 5080,
+        "validation_count": 716,
+        "validation_kickoff_end": "2025-11-08 20:00:00+00",
+        "validation_kickoff_start": "2025-09-24 19:30:00+00"
+      },
+      {
+        "candidate_improves": true,
+        "candidate_mean_nll": 2.977120531,
+        "candidate_minus_current_mean_nll": -0.001018956,
+        "current_mean_nll": 2.978139487,
+        "fitted_scale": 1.124284,
+        "fold": 7,
+        "train_count": 5796,
+        "validation_count": 716,
+        "validation_kickoff_end": "2026-01-21 17:45:00+00",
+        "validation_kickoff_start": "2025-11-08 20:00:00+00"
+      },
+      {
+        "candidate_improves": true,
+        "candidate_mean_nll": 2.942074666,
+        "candidate_minus_current_mean_nll": -0.000872248,
+        "current_mean_nll": 2.942946914,
+        "fitted_scale": 1.125462,
+        "fold": 8,
+        "train_count": 6512,
+        "validation_count": 716,
+        "validation_kickoff_end": "2026-03-22 11:15:00+00",
+        "validation_kickoff_start": "2026-01-23 19:00:00+00"
+      },
+      {
+        "candidate_improves": false,
+        "candidate_mean_nll": 2.984145384,
+        "candidate_minus_current_mean_nll": 0.00107091,
+        "current_mean_nll": 2.983074475,
+        "fitted_scale": 1.125665,
+        "fold": 9,
+        "train_count": 7228,
+        "validation_count": 716,
+        "validation_kickoff_end": "2026-05-11 18:45:00+00",
+        "validation_kickoff_start": "2026-03-22 11:30:00+00"
+      },
+      {
+        "candidate_improves": false,
+        "candidate_mean_nll": 2.970140718,
+        "candidate_minus_current_mean_nll": 0.00104022,
+        "current_mean_nll": 2.969100498,
+        "fitted_scale": 1.113134,
+        "fold": 10,
+        "train_count": 7944,
+        "validation_count": 715,
+        "validation_kickoff_end": "2026-08-30 02:30:00+00",
+        "validation_kickoff_start": "2026-05-11 19:00:00+00"
+      }
+    ],
+    "folds_improved": 7,
+    "individual_clamp_total_changed_count": 0,
+    "paired_nll_difference": {
+      "lower_95": -0.001435234,
+      "mean": -0.000415741,
+      "resamples": 2000,
+      "seed": 20260901,
+      "upper_95": 0.000619995
+    }
+  },
+  "safety": {
+    "ledger_writes": 0,
+    "production_reads": 0,
+    "production_writes": 0,
+    "provider_calls": 0,
+    "result_records_loaded_from_market_artifact": 0,
+    "v2_factors": 0
+  },
+  "schema": "w2.v1.strict_pit_outcome_correction.v1",
+  "sources": {
+    "home_away_sha256": "709050b581b569c874c6a8d1363ba1a6612503489d175da8b644c5df05294a02",
+    "market_audit_sha256": "e4550c7dc4183a0bc1e0bc9b5e1c1c72540c0174b4569c44dc5b085564363f5b",
+    "protocol_sha256": "3237b4cf2b7dd656f8712de31a0097c5c96b0819b6f96ee6e6f4fe4d5f7b7051",
+    "xg_sha256": "16fcaaad812e8007c7e828c964d7029bc223e361cdac87b122c56eba9e8e3522"
+  },
+  "strict_pit_full_development": {
+    "1.0": {
+      "mean_nll": 2.960601796,
+      "net_margin_regression": {
+        "intercept": -0.011194,
+        "slope": 1.184837
+      },
+      "scale": 1.0
+    },
+    "1.102038": {
+      "mean_nll": 2.960077087,
+      "net_margin_regression": {
+        "intercept": 0.021717,
+        "slope": 1.075132
+      },
+      "scale": 1.102038
+    },
+    "1.848": {
+      "mean_nll": 2.993250392,
+      "net_margin_regression": {
+        "intercept": 0.152005,
+        "slope": 0.642919
+      },
+      "scale": 1.848
+    }
+  }
+}

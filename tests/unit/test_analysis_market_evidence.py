@@ -109,6 +109,26 @@ def test_selected_side_requires_ready_model_before_executable_quote_usage() -> N
     assert ready["model_probability"]["ev_se"] > 0
 
 
+def test_model_evidence_reuses_the_simulation_input_identity() -> None:
+    simulation = _ready_simulation()
+    simulation.pop("input_manifest")
+    calibration = simulation["calibration"]
+    assert isinstance(calibration, dict)
+    calibration["simulation_input_hash"] = "a" * 64
+
+    evidence = build_analysis_market_evidence(
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        market="ASIAN_HANDICAP",
+        selection="HOME",
+        line="-0.25",
+        quote_identity_audit=_quote_audit(),
+        simulation=simulation,
+    )
+
+    assert evidence["model_probability"]["model_input_hash"] == "a" * 64
+
+
 def test_selected_side_blocks_when_uncertainty_is_not_validated() -> None:
     simulation = _ready_simulation()
     simulation.pop("lambda_sigma_home")

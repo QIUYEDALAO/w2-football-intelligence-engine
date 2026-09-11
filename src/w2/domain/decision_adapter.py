@@ -666,7 +666,6 @@ def _reason_code(
         _get(market, "decision"),
         _get(card, "analysis_decision"),
         _get(card, "decision"),
-        _get(recommendation, "tier"),
     )
     if decision == "NO_EDGE":
         return DecisionReasonCode.EDGE_INSUFFICIENT
@@ -829,7 +828,6 @@ def _blockers(
         _get(market, "blockers"),
         _get(market, "reason_code"),
         _get(recommendation, "reason_code"),
-        _get(recommendation, "tier"),
     ):
         values.extend(_string_list(source))
     return values

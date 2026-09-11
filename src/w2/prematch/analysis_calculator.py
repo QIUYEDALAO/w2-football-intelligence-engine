@@ -35,10 +35,7 @@ from w2.dashboard.date_window import (
     football_day_window,
 )
 from w2.dashboard.performance import dashboard_performance
-from w2.dashboard.readiness import (
-    build_analysis_readiness,
-    build_watch_recommendation,
-)
+from w2.dashboard.readiness import build_analysis_readiness
 from w2.dashboard.recommendations import build_recommendation
 from w2.dashboard.results import (
     normalize_match_status,
@@ -53,6 +50,7 @@ from w2.dashboard.status_labels import (
 )
 from w2.dashboard.validation import validate_recommendation
 from w2.dashboard.validation_summary import validation_summary
+from w2.domain import calibration_authority
 from w2.domain.canonical_serialization import (
     HashDomain,
     canonical_sha256,
@@ -60,17 +58,13 @@ from w2.domain.canonical_serialization import (
 from w2.domain.decision_adapter import build_decision_contract_fields
 from w2.domain.decision_card import compute_card_hash
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
-from w2.domain.recommendation_decision_v3 import (
-    project_decision_v3,
-    validate_decision_v3_card_parity,
-    validate_decision_v3_identity,
-)
 from w2.domain.recommendation_decision_v4 import (
     RecommendationDecisionV4,
     RecommendationOutcomeV4,
     authoritative_input_from_market_candidate,
     build_recommendation_decision_v4,
     candidate_identity_hash,
+    read_recommendation_decision_v4,
     valid_kickoff_identity,
     validate_decision_v4_identity,
 )
@@ -82,6 +76,10 @@ from w2.features.team_factors import TeamMatchHistory, TeamRatingSnapshot, TeamV
 from w2.formal.readiness import validate_formal_ah_readiness
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureModel,
+    model_forecast_fixture_aliases,
+)
 from w2.ingestion.authoritative_lineup import (
     AuthoritativeLineupError,
     validate_authoritative_lineup,
@@ -126,6 +124,7 @@ from w2.matchday.timezone import (
     BEIJING_TZ,
     BeijingOperationalDayPolicy,
     FixtureOperationalDateResolver,
+    next_7_days_window,
     next_36_hours_window,
 )
 from w2.operations.leagues import run_top_five_audit
@@ -151,6 +150,7 @@ from w2.strategy.analysis_recommendation import (
     build_multi_market_analysis,
 )
 from w2.strategy.bookmaker_intent import infer_bookmaker_intent
+from w2.strategy.factor_score import FactorScore
 from w2.strategy.formal_recommendation import (
     ah_display_contract,
     build_formal_recommendation,
@@ -185,6 +185,7 @@ MAX_PUBLIC_FIXTURES = 512
 WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json"
 BALANCED_MAINLINE_MAX_DISTANCE = 0.06
 BALANCED_MAINLINE_MIN_DELTA = 0.03
+XG_POINT_ESTIMATE_WINDOW = 5
 
 MARKET_LABELS_CN = {
     "ASIAN_HANDICAP": "让球",
@@ -290,20 +291,12 @@ def _optional_truthy_flag(value: Any) -> bool | None:
 
 
 def _fixture_neutral_site(item: dict[str, Any]) -> bool:
-    league = item.get("league", {}) if isinstance(item.get("league"), dict) else {}
-    explicit = _explicit_neutral_site(item)
-    profile = _competition_profile_payload("world_cup_2026")
-    policy = str(profile.get("neutral_site_policy") or "")
-    if _is_world_cup_2026_item(item, profile=profile, league=league) and policy:
-        if "HOST_COUNTRY_MATCHES_ARE_NOT_NEUTRAL_FOR_HOST" in policy:
-            home_name, away_name = _team_names_from_item(item)
-            if _is_host_team(home_name, profile=profile):
-                return False
-            if _is_host_team(away_name, profile=profile):
-                return True
-        if "OTHER_MATCHES_NEUTRAL_BY_VENUE_CONTEXT" in policy:
-            return explicit if explicit is not None else True
-    return explicit if explicit is not None else False
+    """Resolved neutral-site used as the model input (single authority).
+
+    Delegates to ``_resolve_neutral_site`` so the model input and the ledger
+    persistence share one authority and cannot drift apart.
+    """
+    return _resolve_neutral_site(item)[0]
 
 
 def _competition_profile_payload(competition_id: str) -> dict[str, Any]:
@@ -333,6 +326,96 @@ def _explicit_neutral_site(item: dict[str, Any]) -> bool | None:
         if parsed is not None:
             return parsed
     return None
+
+
+def _explicit_neutral_site_with_source(item: dict[str, Any]) -> tuple[bool | None, str]:
+    """Return (explicit neutral_site value, resolution source) or (None, "").
+
+    Mirrors ``_explicit_neutral_site`` but keeps the source field path so the
+    ledger can record where the resolved value came from (one of the four
+    EXPLICIT_*_FIELD sources).
+    """
+    fixture = item.get("fixture", {})
+    dashboard = item.get("_dashboard", {})
+    venue = fixture.get("venue", {}) if isinstance(fixture, dict) else {}
+    candidates: tuple[tuple[Any, str], ...] = (
+        (item.get("neutral_site"), "EXPLICIT_ITEM_FIELD"),
+        (item.get("neutral"), "EXPLICIT_ITEM_FIELD"),
+        (
+            dashboard.get("neutral_site") if isinstance(dashboard, dict) else None,
+            "EXPLICIT_DASHBOARD_FIELD",
+        ),
+        (
+            dashboard.get("neutral") if isinstance(dashboard, dict) else None,
+            "EXPLICIT_DASHBOARD_FIELD",
+        ),
+        (
+            fixture.get("neutral_site") if isinstance(fixture, dict) else None,
+            "EXPLICIT_FIXTURE_FIELD",
+        ),
+        (
+            fixture.get("neutral") if isinstance(fixture, dict) else None,
+            "EXPLICIT_FIXTURE_FIELD",
+        ),
+        (
+            venue.get("neutral_site") if isinstance(venue, dict) else None,
+            "EXPLICIT_VENUE_FIELD",
+        ),
+        (venue.get("neutral") if isinstance(venue, dict) else None, "EXPLICIT_VENUE_FIELD"),
+    )
+    for value, source in candidates:
+        parsed = _optional_truthy_flag(value)
+        if parsed is not None:
+            return parsed, source
+    return None, ""
+
+
+NEUTRAL_SITE_POLICY_VERSION = "w2.neutral_site_policy.v1"
+
+
+def _resolve_neutral_site(item: dict[str, Any]) -> tuple[bool, str]:
+    """Resolve neutral_site to (value, resolution_source).
+
+    Business interpretation is identical to ``_fixture_neutral_site``; only the
+    provenance of the resolved value is additionally returned. Sources:
+    COMPETITION_POLICY / EXPLICIT_*_FIELD / DEFAULT_NON_NEUTRAL_POLICY.
+    """
+    league = item.get("league", {}) if isinstance(item.get("league"), dict) else {}
+    explicit, explicit_source = _explicit_neutral_site_with_source(item)
+    profile = _competition_profile_payload("world_cup_2026")
+    policy = str(profile.get("neutral_site_policy") or "")
+    if _is_world_cup_2026_item(item, profile=profile, league=league) and policy:
+        if "HOST_COUNTRY_MATCHES_ARE_NOT_NEUTRAL_FOR_HOST" in policy:
+            home_name, away_name = _team_names_from_item(item)
+            if _is_host_team(home_name, profile=profile):
+                return False, "COMPETITION_POLICY"
+            if _is_host_team(away_name, profile=profile):
+                return True, "COMPETITION_POLICY"
+        if "OTHER_MATCHES_NEUTRAL_BY_VENUE_CONTEXT" in policy:
+            if explicit is not None:
+                return explicit, explicit_source
+            return True, "COMPETITION_POLICY"
+    if explicit is not None:
+        return explicit, explicit_source
+    return False, "DEFAULT_NON_NEUTRAL_POLICY"
+
+
+def _neutral_site_resolution(item: dict[str, Any], as_of: datetime) -> dict[str, Any]:
+    """Structured resolved neutral-site identity for the capture ledger.
+
+    The resolved value is identical to what ``_fixture_neutral_site`` feeds the
+    model; the ledger persists the same value plus its provenance so the two can
+    be cross-checked (a mismatch must fail closed).
+    """
+    value, source = _resolve_neutral_site(item)
+    as_of_iso = as_of.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    return {
+        "neutral_site": value,
+        "neutral_site_resolution_source": source,
+        "neutral_site_policy_version": NEUTRAL_SITE_POLICY_VERSION,
+        "neutral_site_as_of": as_of_iso,
+        "neutral_site_status": "READY",
+    }
 
 
 def _is_world_cup_2026_item(
@@ -414,6 +497,20 @@ def parse_provider_time(value: Any) -> datetime | None:
         return None
 
 
+def _required_provider_time(value: Any, *, field: str) -> datetime:
+    """Parse a timestamp an upstream filter already proved parseable.
+
+    `_validated_xg_component_rows` drops any row whose kickoff or capture time
+    fails to parse, so callers downstream of it hold that guarantee. Naming the
+    field in the error keeps a broken guarantee legible instead of surfacing as
+    an attribute error on None.
+    """
+    parsed = parse_provider_time(value)
+    if parsed is None:
+        raise ValueError(f"XG_COMPONENT_TIMESTAMP_UNPARSEABLE:{field}")
+    return parsed
+
+
 def release_env(name: str, default: str = "UNKNOWN") -> str:
     value = os.getenv(name)
     return value if value else default
@@ -464,6 +561,9 @@ def _simulation_output_from_mapping(simulation: Any) -> SimulationOutput | None:
         calibration_status=simulation.get("calibration_status")
         if simulation.get("calibration_status") is not None
         else None,
+        calibration_identity=simulation.get("calibration_identity")
+        if simulation.get("calibration_identity") is not None
+        else None,
         lambda_home=_float_or_none(simulation.get("lambda_home")),
         lambda_away=_float_or_none(simulation.get("lambda_away")),
         lambda_sigma_home=_float_or_none(simulation.get("lambda_sigma_home")),
@@ -493,8 +593,8 @@ def _float_or_none(value: Any) -> float | None:
 
 def _valid_formal_recommendation_payload(value: Any) -> bool:
     recommendation = value if isinstance(value, dict) else {}
-    tier = str(recommendation.get("tier") or "").upper()
-    if tier != "FORMAL" and recommendation.get("formal_recommendation") is not True:
+    tier = str(recommendation.get("decision_tier") or "").upper()
+    if tier != "RECOMMEND" and recommendation.get("formal_recommendation") is not True:
         return False
     if str(recommendation.get("market") or "").upper() != "ASIAN_HANDICAP":
         return False
@@ -571,6 +671,28 @@ def _build_public_recommendation_decision_v4(
         kickoff_utc=kickoff_utc,
         capability_status=capability_status,
     )
+    if not selected:
+        quote_audit = _mapping(card.get("quote_identity_audit"))
+        audits = [
+            _mapping(value)
+            for value in quote_audit.values()
+            if isinstance(value, Mapping)
+        ]
+        simulation = _mapping(card.get("simulation"))
+        authoritative_input["readiness"] = {
+            "status": "NOT_READY",
+            "quote_identity_status": (
+                "COMPLETE"
+                if any(value.get("identity_status") == "COMPLETE" for value in audits)
+                else "INCOMPLETE"
+            ),
+            "quote_freshness_status": (
+                "COMPLETE"
+                if any(value.get("freshness_status") == "COMPLETE" for value in audits)
+                else "INCOMPLETE"
+            ),
+            "model_status": simulation.get("status"),
+        }
     authoritative_input["formal_admission"] = _public_formal_admission(
         authoritative_input=authoritative_input,
         formal_recommendation=formal_recommendation,
@@ -693,10 +815,24 @@ def _recommendation_from_v4(
         and _formal_identity_matches(authoritative, formal_recommendation)
     ):
         return {**formal_recommendation, "quote_identity": quote_identity}
+    if decision.outcome is RecommendationOutcomeV4.FORMAL_RECOMMEND:
+        # A saved V4 is already the authoritative admission result.  Rebuilding
+        # formal eligibility on a read would create a second decision path.
+        return {
+            "decision_tier": "RECOMMEND",
+            "market": selected.get("market"),
+            "selection": selected.get("selection"),
+            "line": selected.get("exact_line"),
+            "odds": selected.get("decimal_odds"),
+            "fair_odds": selected.get("fair_odds"),
+            "expected_value": selected.get("expected_value"),
+            "quote_identity": quote_identity,
+            "candidate": True,
+            "formal_recommendation": True,
+        }
     if decision.outcome is not RecommendationOutcomeV4.ANALYSIS_PICK:
         return None
     return {
-        "tier": "ANALYSIS_PICK",
         "decision_tier": "ANALYSIS_PICK",
         "market": selected.get("market"),
         "selection": selected.get("selection"),
@@ -799,6 +935,21 @@ class ReadModelRepository:
             return DynamicPrematchRepository(create_engine()).lifecycle(fixture_id)
         except SQLAlchemyError:
             return {}
+
+    def model_forecast_capture_exists(self, fixture_id: str) -> bool:
+        aliases = model_forecast_fixture_aliases(fixture_id)
+        try:
+            with Session(create_engine()) as session:
+                return (
+                    session.scalar(
+                        select(ModelForecastCaptureModel.capture_identity_hash)
+                        .where(ModelForecastCaptureModel.fixture_id.in_(aliases))
+                        .limit(1)
+                    )
+                    is not None
+                )
+        except SQLAlchemyError:
+            return False
 
     def dashboard_checkpoints(self, prefix: str = "dashboard:") -> list[dict[str, Any]]:
         try:
@@ -1583,6 +1734,7 @@ class ReadModelService:
             requested_date=requested_date,
         )
         future_next36_rows = self._filter_rows_for_next36(future_rows)
+        future_next7_rows = self._filter_rows_for_next7(future_rows)
         future_horizon_rows = self._filter_rows_for_future_horizon(
             future_rows,
             requested_date=requested_date,
@@ -1596,6 +1748,8 @@ class ReadModelService:
         selected_rows: list[dict[str, Any]]
         if window == "next36":
             selected_rows = next36_rows
+        elif window == "next7":
+            selected_rows = future_next7_rows
         elif window == "future":
             selected_rows = future_horizon_rows
         elif window == "results":
@@ -1623,8 +1777,8 @@ class ReadModelService:
             card
             for card in response_cards
             if isinstance(card.get("recommendation"), dict)
-            and str(cast(dict[str, Any], card["recommendation"]).get("tier"))
-            in {"FORMAL", "CANDIDATE", "ANALYSIS_PICK"}
+            and str(cast(dict[str, Any], card["recommendation"]).get("decision_tier"))
+            in {"RECOMMEND", "ANALYSIS_PICK"}
         ]
         upcoming = [
             card for card in response_cards if str(card.get("status", "")).upper() != "FINISHED"
@@ -1738,8 +1892,8 @@ class ReadModelService:
 
     def _dashboard_cache_ttl(self, window: str, include_debug: bool) -> float:
         if include_debug:
-            return 300.0 if window in {"today", "next36", "future"} else 600.0
-        return 900.0 if window in {"today", "next36", "future"} else 1800.0
+            return 300.0 if window in {"today", "next36", "next7", "future"} else 600.0
+        return 900.0 if window in {"today", "next36", "next7", "future"} else 1800.0
 
     def _dashboard_cache_matches_market_refresh(
         self,
@@ -1836,7 +1990,7 @@ class ReadModelService:
                 )
                 or cast(dict[str, Any], recommendation).get("id"),
                 "id": cast(dict[str, Any], recommendation).get("id"),
-                "tier": cast(dict[str, Any], recommendation).get("tier"),
+                "decision_tier": cast(dict[str, Any], recommendation).get("decision_tier"),
                 "market": cast(dict[str, Any], recommendation).get("market"),
                 "selection": cast(dict[str, Any], recommendation).get("selection"),
                 "line": cast(dict[str, Any], recommendation).get("line"),
@@ -1890,9 +2044,6 @@ class ReadModelService:
                 "operational_date_beijing": card.get("operational_date_beijing"),
                 "competition_id": card.get("competition_id"),
                 "competition_name": card.get("competition_name"),
-                "raw_status": card.get("raw_status"),
-                "formal_suppressed": card.get("formal_suppressed"),
-                "formal_suppressed_reason": card.get("formal_suppressed_reason"),
             }
         )
         provenance = card.get("frozen_artifact_provenance")
@@ -1927,7 +2078,7 @@ class ReadModelService:
                 )
                 or cast(dict[str, Any], recommendation).get("id"),
                 "id": cast(dict[str, Any], recommendation).get("id"),
-                "tier": cast(dict[str, Any], recommendation).get("tier"),
+                "decision_tier": cast(dict[str, Any], recommendation).get("decision_tier"),
                 "market": cast(dict[str, Any], recommendation).get("market"),
                 "selection": cast(dict[str, Any], recommendation).get("selection"),
                 "line": cast(dict[str, Any], recommendation).get("line"),
@@ -2473,7 +2624,7 @@ class ReadModelService:
                 "blockers": [effective_blocker],
             },
         }
-        self._attach_fail_closed_public_v3(
+        self._attach_fail_closed_public_decision(
             card,
             blocker=effective_blocker,
         )
@@ -2520,8 +2671,6 @@ class ReadModelService:
                     "next_eval_at",
                     "card_hash",
                     "recommendation_decision_v4",
-                    "recommendation_decision_v3",
-                    "recommendation_decision_v3_role",
                 )
             },
             "decision_contract": contract,
@@ -2543,7 +2692,7 @@ class ReadModelService:
             projected["formal_recommendation"] = False
             self._clear_public_market_picks(projected, watch=tier == "WATCH")
         self._enforce_non_pick_scoreline_invariant(projected)
-        self._retain_valid_history_v3(projected)
+        self._strip_history_v3_from_public_card(projected)
         return projected
 
     @staticmethod
@@ -2617,12 +2766,14 @@ class ReadModelService:
             "candidate": False,
             "formal_recommendation": False,
         }
-        self._attach_fail_closed_public_v3(projected, blocker=blocker)
+        self._attach_fail_closed_public_decision(projected, blocker=blocker)
         self._clear_public_market_picks(projected, watch=False)
         self._enforce_non_pick_scoreline_invariant(projected)
         return projected
 
-    def _attach_fail_closed_public_v3(self, card: dict[str, Any], *, blocker: str) -> None:
+    def _attach_fail_closed_public_decision(
+        self, card: dict[str, Any], *, blocker: str
+    ) -> None:
         contract = self._fail_closed_decision_contract(card, blocker=blocker)
         card["card_hash"] = contract["card_hash"]
         card["decision_contract"] = contract
@@ -2632,17 +2783,7 @@ class ReadModelService:
             candidate=None,
             formal_recommendation=None,
         ).as_dict()
-        card["recommendation_decision_v3_role"] = "HISTORY_ONLY"
-        try:
-            decision = project_decision_v3(
-                contract,
-                manifest=load_recommendation_capability_manifest(),
-            ).as_dict()
-        except (KeyError, TypeError, ValueError):
-            card.pop("recommendation_decision_v3", None)
-        else:
-            decision["authority_role"] = "HISTORY_ONLY"
-            card["recommendation_decision_v3"] = decision
+        card.pop("recommendation_decision_v3", None)
         for key in (
             "lineup_requirement",
             "risk_reason_codes",
@@ -2650,7 +2791,7 @@ class ReadModelService:
             "non_pick",
         ):
             card[key] = contract[key]
-        self._retain_valid_history_v3(card)
+        self._strip_history_v3_from_public_card(card)
 
     def _fail_closed_decision_contract(
         self,
@@ -2705,25 +2846,10 @@ class ReadModelService:
         contract["decision_contract"] = dict(contract)
         return contract
 
-    def _retain_valid_history_v3(self, card: dict[str, Any]) -> None:
-        decision = card.get("recommendation_decision_v3")
-        contract = card.get("decision_contract")
-        if not isinstance(decision, dict) or not isinstance(contract, dict):
-            card.pop("recommendation_decision_v3", None)
-            card["recommendation_decision_v3_role"] = "HISTORY_ONLY"
-            return
-        try:
-            validate_decision_v3_identity(decision)
-            validate_decision_v3_card_parity(
-                decision,
-                card_hash=card.get("card_hash"),
-                decision_contract_card_hash=contract.get("card_hash"),
-            )
-        except (KeyError, TypeError, ValueError):
-            card.pop("recommendation_decision_v3", None)
-        else:
-            decision["authority_role"] = "HISTORY_ONLY"
-        card["recommendation_decision_v3_role"] = "HISTORY_ONLY"
+    @staticmethod
+    def _strip_history_v3_from_public_card(card: dict[str, Any]) -> None:
+        card.pop("recommendation_decision_v3", None)
+        card.pop("recommendation_decision_v3_role", None)
 
     def _enforce_non_pick_scoreline_invariant(self, card: dict[str, Any]) -> None:
         """Do not expose directional scorelines without a canonical public pick."""
@@ -2813,7 +2939,7 @@ class ReadModelService:
         blocked["decision_tier"] = "NOT_READY"
         blocked["data_status"] = "BLOCKED"
         blocked["reason_code"] = blocker
-        self._attach_fail_closed_public_v3(blocked, blocker=blocker)
+        self._attach_fail_closed_public_decision(blocked, blocker=blocker)
         return blocked
 
     def _analysis_card_from_cached_fixture_payload(self, fixture_id: str) -> dict[str, Any] | None:
@@ -3008,6 +3134,37 @@ class ReadModelService:
                 )
             ]
             self._team_xg_snapshots_by_fixture_cache[fixture_id] = snapshots
+        # Use the same validated PIT component window for the point estimate and
+        # uncertainty. Persisted snapshots contain aggregates only, so refresh
+        # their values from the authoritative component rows when available.
+        xg_matches = self._team_xg_matches_for_teams(
+            [home_id, away_id],
+            before=context.as_of,
+        )
+        aligned_snapshots: list[dict[str, Any]] = []
+        for snapshot in snapshots:
+            team_id = str(snapshot.get("team_id") or "")
+            components = self._validated_xg_component_rows(
+                xg_matches,
+                team_id=team_id,
+                before=context.as_of,
+            )
+            aligned = dict(snapshot)
+            if len(components) >= 3:
+                aligned["match_count"] = len(components)
+                aligned["rolling_xg_for"] = round(
+                    sum(float(row["xg_for"]) for row in components) / len(components),
+                    4,
+                )
+                aligned["rolling_xg_against"] = round(
+                    sum(float(row["xg_against"]) for row in components) / len(components),
+                    4,
+                )
+                aligned["component_fixture_ids"] = [
+                    str(row.get("fixture_id") or "") for row in components
+                ]
+            aligned_snapshots.append(aligned)
+        snapshots = aligned_snapshots
         home_xg = [
             self._team_xg_feature_snapshot(row, observed_at_cap=context.as_of)
             for row in snapshots
@@ -3037,48 +3194,14 @@ class ReadModelService:
             )
         if not canonical_ready and not home_history and not away_history:
             home_history, away_history = proxy_home_history, proxy_away_history
-        if canonical_ready:
-            h2h_meetings = self._canonical_h2h_meetings(
-                home_history=home_history,
-                home_team_id=home_id,
-                away_team_id=away_id,
+        h2h_meetings = (
+            self._canonical_h2h_meetings(
+                home_history=home_history, home_team_id=home_id, away_team_id=away_id
             )
-            history_home_ratings: list[TeamRatingSnapshot] = []
-            history_away_ratings: list[TeamRatingSnapshot] = []
-            home_ratings, away_ratings = self._persisted_team_rating_snapshots(
-                context=context,
-                home_team_id=home_id,
-                away_team_id=away_id,
+            if canonical_ready
+            else self._h2h_meetings_from_raw_payloads(
+                context=context, home_team_id=home_id, away_team_id=away_id
             )
-        else:
-            h2h_meetings = self._h2h_meetings_from_raw_payloads(
-                context=context,
-                home_team_id=home_id,
-                away_team_id=away_id,
-            )
-            history_home_ratings, history_away_ratings = self._team_ratings_from_history(
-                context=context,
-                home_team_id=home_id,
-                away_team_id=away_id,
-                home_history=home_history,
-                away_history=away_history,
-            )
-            home_ratings, away_ratings = self._team_ratings_from_static_mapping(
-                context=context,
-                home_team_id=home_id,
-                away_team_id=away_id,
-                history_home_ratings=history_home_ratings,
-                history_away_ratings=history_away_ratings,
-            )
-            if not (home_ratings and away_ratings):
-                home_ratings, away_ratings = history_home_ratings, history_away_ratings
-        if not canonical_ready and not (home_ratings and away_ratings):
-            home_ratings = self._team_ratings_from_existing_xg_snapshots(home_xg)
-            away_ratings = self._team_ratings_from_existing_xg_snapshots(away_xg)
-        home_values, away_values = self._team_values_from_static_mapping(
-            context=context,
-            home_team_id=home_id,
-            away_team_id=away_id,
         )
         mainline_selection = self._mainline_market_selection(observations)
         mainline_observations = [
@@ -3102,10 +3225,6 @@ class ReadModelService:
                 home_history=home_history,
                 away_history=away_history,
                 h2h_meetings=h2h_meetings,
-                home_ratings=home_ratings,
-                away_ratings=away_ratings,
-                home_values=home_values,
-                away_values=away_values,
                 home_xg=home_xg,
                 away_xg=away_xg,
             ),
@@ -3147,16 +3266,14 @@ class ReadModelService:
             as_of=context.as_of,
             home_team_id=home_id,
             away_team_id=away_id,
+            matches=xg_matches,
         )
         half_goals: HalfGoalModelInput | None = None
         score_matrix: dict[tuple[int, int], float] | None = None
         score_direction: Direction | None = None
         scoreline_output: IndependentXgPoissonOutput | None = None
-        latest_home_rating = max(home_ratings, key=lambda row: row.observed_at, default=None)
-        latest_away_rating = max(away_ratings, key=lambda row: row.observed_at, default=None)
-        latest_home_value = max(home_values, key=lambda row: row.observed_at, default=None)
-        latest_away_value = max(away_values, key=lambda row: row.observed_at, default=None)
         neutral_site = _fixture_neutral_site(item)
+        neutral_site_resolution = _neutral_site_resolution(item, context.as_of)
         simulation_output = run_simulation(
             SimulationInputs(
                 fixture_id=fixture_id,
@@ -3166,26 +3283,6 @@ class ReadModelService:
                 home_xg_against=latest_home_xg.xg_against if latest_home_xg is not None else None,
                 away_xg_for=latest_away_xg.xg_for if latest_away_xg is not None else None,
                 away_xg_against=latest_away_xg.xg_against if latest_away_xg is not None else None,
-                home_elo=latest_home_rating.elo if latest_home_rating is not None else None,
-                away_elo=latest_away_rating.elo if latest_away_rating is not None else None,
-                home_elo_source=latest_home_rating.source
-                if latest_home_rating is not None
-                else None,
-                away_elo_source=latest_away_rating.source
-                if latest_away_rating is not None
-                else None,
-                home_elo_collection_status=latest_home_rating.collection_status
-                if latest_home_rating is not None
-                else None,
-                away_elo_collection_status=latest_away_rating.collection_status
-                if latest_away_rating is not None
-                else None,
-                home_squad_value_eur=latest_home_value.squad_value_eur
-                if latest_home_value is not None
-                else None,
-                away_squad_value_eur=latest_away_value.squad_value_eur
-                if latest_away_value is not None
-                else None,
                 lambda_sigma_home=float(lambda_uncertainty["lambda_sigma_home"] or 0.0),
                 lambda_sigma_away=float(lambda_uncertainty["lambda_sigma_away"] or 0.0),
                 lambda_uncertainty_method=cast(
@@ -3205,12 +3302,6 @@ class ReadModelService:
                     "xg_status": xg_readiness["status"],
                     "history_ready": bool(home_history and away_history),
                     "h2h_ready": bool(h2h_meetings),
-                    "ratings_ready": latest_home_rating is not None
-                    and latest_away_rating is not None,
-                    "raw_ratings_ready": latest_home_rating is not None
-                    and latest_away_rating is not None,
-                    "squad_value_ready": latest_home_value is not None
-                    and latest_away_value is not None,
                     "lambda_uncertainty_status": lambda_uncertainty["lambda_uncertainty_status"],
                     "lambda_uncertainty_input_hash": lambda_uncertainty[
                         "lambda_uncertainty_input_hash"
@@ -3267,10 +3358,21 @@ class ReadModelService:
         # The public card, frozen artifact, V2 and V3 must carry the same
         # provider-mapped competition identity as the feature context.
         payload["competition_id"] = competition_id
+        payload["season"] = season
         payload["feature_contributions"] = [
             self._feature_contribution_payload(item) for item in feature_set.contributions
         ]
         payload["simulation"] = simulation_output.as_dict()
+        payload["neutral_site_resolution"] = neutral_site_resolution
+        calibration_audit = (
+            payload["simulation"].get("calibration", {}).get("lambda_uncertainty_audit")
+        )
+        if isinstance(calibration_audit, dict):
+            calibration_audit["point_estimate_component_fixture_ids"] = {
+                str(row.get("team_id") or ""): list(row.get("component_fixture_ids") or [])
+                for row in snapshots
+                if row.get("component_fixture_ids")
+            }
         payload["scoreline_readiness"] = scoreline_readiness
         self._apply_mainline_market_selection(payload, mainline_selection)
         self._apply_lineup_gate(
@@ -3680,9 +3782,21 @@ class ReadModelService:
                 market["balanced_prices"] = resolved.get("side_prices", {})
                 if side_price is not None:
                     market["odds"] = side_price
+                # ASIAN_HANDICAP's signal_strength is now the factor-score
+                # margin (0..1, no defined mapping to the 0.50 cut calibrated
+                # for the old intent-composite scale), and Owner has
+                # explicitly deferred setting any score threshold until
+                # score/outcome data exists (W2_UPGRADE_PLAN.md cut 06 step
+                # 5). Exempt AH from the signal_strength half of this
+                # downgrade so that deferral is not silently reintroduced
+                # here; the low-price guard still applies to AH (it is an
+                # independent, unrelated check).
+                weak_signal = (
+                    market_name != AnalysisMarket.ASIAN_HANDICAP.value
+                    and float(market.get("signal_strength", market.get("confidence")) or 0.0) < 0.50
+                )
                 should_downgrade_to_watch = str(market.get("decision") or "") != "SKIP" and (
-                    (side_price is not None and float(side_price) < 1.40)
-                    or float(market.get("signal_strength", market.get("confidence")) or 0.0) < 0.50
+                    (side_price is not None and float(side_price) < 1.40) or weak_signal
                 )
                 if should_downgrade_to_watch:
                     market["decision"] = "WATCH"
@@ -3869,20 +3983,6 @@ class ReadModelService:
             )
         return rows
 
-    def _poisson_score_matrix(self, home_mu: float, away_mu: float) -> dict[tuple[int, int], float]:
-        matrix: dict[tuple[int, int], float] = {}
-        for home_goals in range(5):
-            for away_goals in range(5):
-                matrix[(home_goals, away_goals)] = (
-                    math.exp(-home_mu)
-                    * home_mu**home_goals
-                    / math.factorial(home_goals)
-                    * math.exp(-away_mu)
-                    * away_mu**away_goals
-                    / math.factorial(away_goals)
-                )
-        return matrix
-
     def _scoreline_readiness(
         self,
         *,
@@ -3895,8 +3995,8 @@ class ReadModelService:
             blocker = (
                 "XG_SAMPLE_INSUFFICIENT_FOR_FIXTURE"
                 if xg_sample_status in {"PARTIAL_HISTORY", "INSUFFICIENT_HISTORY"}
-                else "PROVIDER_XG_FIELD_UNAVAILABLE_OR_EMPTY"
-                if xg_sample_status == "PROVIDER_EMPTY_OR_UNAVAILABLE"
+                else "XG_HISTORY_NOT_MATERIALIZED"
+                if xg_sample_status == "NO_MATERIALIZED_HISTORY"
                 else None
             )
             return {
@@ -3945,11 +4045,52 @@ class ReadModelService:
             "decision": card.decision.value,
             "markets": [self._analysis_market_payload(row) for row in card.markets],
             "bookmaker_intent": card.bookmaker_intent.as_dict(),
+            "factor_score": self._factor_score_payload(card.factor_score),
             "risks": sorted({risk for market in card.markets for risk in market.risks}),
             "source": "db_feature_materialized_analysis",
             "disclaimer": DISCLAIMER,
             "candidate": False,
             "formal_recommendation": False,
+        }
+
+    def _factor_score_payload(self, factor_score: FactorScore | None) -> dict[str, Any] | None:
+        """Export the score that now drives the AH market's direction, so
+        the dashboard can show, per fixture: which factors participated and
+        their weight share, which are absent and why, whether the match is
+        admitted, and which admission rule blocked it if not.
+        """
+        if factor_score is None:
+            return None
+        return {
+            "home_score": factor_score.home_score,
+            "away_score": factor_score.away_score,
+            "margin": factor_score.margin,
+            "strength": factor_score.strength,
+            "direction": factor_score.direction.value,
+            "weight_sum_used": factor_score.weight_sum_used,
+            "participant_count": factor_score.participant_count,
+            "admitted": factor_score.admitted,
+            "admission_blockers": list(factor_score.admission_blockers),
+            "participants": [
+                {
+                    "feature_id": share.feature_id,
+                    "label": share.label,
+                    "magnitude": share.magnitude,
+                    "weight": share.weight,
+                    "share": share.share,
+                    "side": share.side.value,
+                }
+                for share in factor_score.participants
+            ],
+            "absent": [
+                {
+                    "feature_id": item.feature_id,
+                    "label": item.label,
+                    "status": item.status.value,
+                    "reason": item.reason,
+                }
+                for item in factor_score.absent
+            ],
         }
 
     def _team_histories_from_existing_xg_matches(
@@ -4688,6 +4829,7 @@ class ReadModelService:
             "is_independent_signal": bool(getattr(item, "is_independent_signal", False)),
             "proxy_of": getattr(item, "proxy_of", None),
             "collection_status": getattr(item, "collection_status", None),
+            "coverage_profile_status": getattr(item, "coverage_profile_status", None),
             "inputs": getattr(item, "inputs", {}),
         }
 
@@ -4858,8 +5000,8 @@ class ReadModelService:
             status = "INSUFFICIENT_HISTORY"
             blocker = "XG_SAMPLE_INSUFFICIENT_FOR_FIXTURE"
         else:
-            status = "PROVIDER_EMPTY_OR_UNAVAILABLE"
-            blocker = "PROVIDER_XG_FIELD_UNAVAILABLE_OR_EMPTY"
+            status = "NO_MATERIALIZED_HISTORY"
+            blocker = "XG_HISTORY_NOT_MATERIALIZED"
         return {
             "status": status,
             "blocker": blocker,
@@ -4875,12 +5017,14 @@ class ReadModelService:
         as_of: datetime,
         home_team_id: str,
         away_team_id: str,
+        matches: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
-        method_version = "empirical_xg_standard_error.v1"
-        matches = self._team_xg_matches_for_teams(
-            [home_team_id, away_team_id],
-            before=as_of,
-        )
+        method_version = "empirical_xg_standard_error.v2_latest_five"
+        if matches is None:
+            matches = self._team_xg_matches_for_teams(
+                [home_team_id, away_team_id],
+                before=as_of,
+            )
         home_rows = self._xg_uncertainty_rows(matches, team_id=home_team_id, before=as_of)
         away_rows = self._xg_uncertainty_rows(matches, team_id=away_team_id, before=as_of)
         home_attack = self._xg_standard_error(home_rows, field="xg_for")
@@ -4951,49 +5095,58 @@ class ReadModelService:
         team_id: str,
         before: datetime,
     ) -> list[dict[str, Any]]:
+        selected = self._validated_xg_component_rows(rows, team_id=team_id, before=before)
+        return [
+            {
+                "fixture_id": str(row.get("fixture_id") or ""),
+                "kickoff_at": _required_provider_time(row["kickoff_at"], field="kickoff_at")
+                .astimezone(UTC)
+                .isoformat()
+                .replace("+00:00", "Z"),
+                "captured_at": _required_provider_time(row["captured_at"], field="captured_at")
+                .astimezone(UTC)
+                .isoformat()
+                .replace("+00:00", "Z"),
+                "xg_for": float(row["xg_for"]),
+                "xg_against": float(row["xg_against"]),
+                "raw_payload_sha256": str(row["raw_payload_sha256"]),
+                "source_system": str(row["source_system"]),
+            }
+            for row in selected
+        ]
+
+    def _validated_xg_component_rows(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        team_id: str,
+        before: datetime,
+    ) -> list[dict[str, Any]]:
         selected: list[dict[str, Any]] = []
         for row in rows:
             if str(row.get("team_id") or "") != team_id:
                 continue
             kickoff = parse_provider_time(row.get("kickoff_at"))
-            if kickoff is None or kickoff >= before:
-                continue
             captured_at = parse_provider_time(row.get("captured_at"))
-            if captured_at is None or captured_at > before:
+            if kickoff is None or kickoff >= before or captured_at is None or captured_at >= before:
                 continue
-            source_system = self._string_or_none(row.get("source_system"))
-            if source_system != "api_football_statistics":
+            if self._string_or_none(row.get("source_system")) != "api_football_statistics":
                 continue
-            raw_payload_sha256 = self._string_or_none(row.get("raw_payload_sha256"))
-            if not raw_payload_sha256:
+            if not self._string_or_none(row.get("raw_payload_sha256")):
                 continue
-            xg_for = _float_or_none(row.get("xg_for"))
-            xg_against = _float_or_none(row.get("xg_against"))
-            if xg_for is None or xg_against is None:
+            if (
+                _float_or_none(row.get("xg_for")) is None
+                or _float_or_none(row.get("xg_against")) is None
+            ):
                 continue
-            selected.append(
-                {
-                    "fixture_id": str(row.get("fixture_id") or ""),
-                    "kickoff_at": kickoff.astimezone(UTC)
-                    .isoformat()
-                    .replace(
-                        "+00:00",
-                        "Z",
-                    ),
-                    "captured_at": captured_at.astimezone(UTC)
-                    .isoformat()
-                    .replace(
-                        "+00:00",
-                        "Z",
-                    ),
-                    "xg_for": xg_for,
-                    "xg_against": xg_against,
-                    "raw_payload_sha256": raw_payload_sha256,
-                    "source_system": source_system,
-                }
+            selected.append(row)
+        selected.sort(
+            key=lambda row: (
+                _required_provider_time(row["kickoff_at"], field="kickoff_at").astimezone(UTC),
+                str(row.get("fixture_id") or ""),
             )
-        selected.sort(key=lambda row: str(row["kickoff_at"]))
-        return selected
+        )
+        return selected[-XG_POINT_ESTIMATE_WINDOW:]
 
     def _xg_standard_error(
         self,
@@ -5343,6 +5496,7 @@ class ReadModelService:
         ]
         if prices:
             entry["price"] = round(sum(prices) / len(prices), 4)
+        entry["bookmaker_count"] = int(selection.get("bookmaker_count") or 0)
         for key in (
             "selection_policy",
             "selection_warning",
@@ -5748,7 +5902,16 @@ class ReadModelService:
                 if isinstance(candidate, dict):
                     market["market_candidate"] = candidate
                     self._attach_market_candidate_evidence_projection(market, candidate)
-                    if candidate.get("analysis_evidence_status") == "COMPLETE":
+                    veto = self._factor_veto(decorated, market)
+                    if veto is not None:
+                        market["factor_veto"] = veto
+                        if veto["code"] == "FACTOR_EV_DIRECTION_CONFLICT":
+                            # The factor score and the EV comparison point at
+                            # opposite sides. Neither drives: downgrade to WATCH
+                            # rather than silently letting one of them win.
+                            market["decision"] = "WATCH"
+                            market["analysis_decision"] = "WATCH"
+                    if veto is None and candidate.get("analysis_evidence_status") == "COMPLETE":
                         if candidate.get("analysis_direction_allowed"):
                             market["tendency"] = candidate.get("selection")
                             market["analysis_decision"] = "ANALYSIS_PICK"
@@ -5779,6 +5942,51 @@ class ReadModelService:
                 else "SKIP"
             )
         return decorated
+
+    def _factor_veto(
+        self,
+        card: dict[str, Any],
+        market: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Return why the factor score forbids the EV comparison from setting
+        this market's direction, or None if it does not forbid it.
+
+        The market-candidate pipeline derives its direction purely from model
+        probability vs market probability plus an economic admission test; it
+        never consults a factor.  Left unguarded it would overwrite the AH
+        market's decision, tendency and signal_strength, including reviving a
+        SKIP that the factor admission rule had just issued -- which would put
+        the factors back out of the recommendation they are supposed to drive.
+
+        Only ASIAN_HANDICAP is guarded: it is the market the factor score
+        drives.  TOTALS keeps its previous behaviour.
+
+        Fail-closed: a card with no factor score (e.g. the fallback card)
+        counts as not admitted, so EV alone can never create an AH pick.
+        """
+        if str(market.get("market") or "") != AnalysisMarket.ASIAN_HANDICAP.value:
+            return None
+        factor_score = card.get("factor_score")
+        if not isinstance(factor_score, dict):
+            return {"code": "FACTOR_SCORE_UNAVAILABLE", "blockers": []}
+        if not factor_score.get("admitted"):
+            return {
+                "code": "FACTOR_ADMISSION_FAILED",
+                "blockers": [str(item) for item in factor_score.get("admission_blockers") or []],
+            }
+        direction = str(factor_score.get("direction") or "")
+        selection = str(market.get("market_candidate", {}).get("selection") or "")
+        if direction in {"HOME", "AWAY"} and selection in {"HOME", "AWAY"}:
+            if direction != selection:
+                # Two independent evidence sources disagree on the side. That is
+                # not a reason to pick either one, so neither drives -- the
+                # caller downgrades the market to WATCH.
+                return {
+                    "code": "FACTOR_EV_DIRECTION_CONFLICT",
+                    "factor_direction": direction,
+                    "ev_selection": selection,
+                }
+        return None
 
     def _attach_round3_intelligence(self, card: dict[str, Any]) -> None:
         reader = getattr(self.repository, "round3_market_evidence_for_fixtures", None)
@@ -6153,7 +6361,9 @@ class ReadModelService:
                 "as_of_time": datetime.fromisoformat(str(dashboard["captured_at"])),
                 "quality": dashboard.get("decision_status", "SKIP"),
                 "calibration_status": calibration_status,
-                "calibrated": calibration_status in {"PRODUCTION_VALIDATED", "APPROVED_VALIDATED"},
+                "calibrated": calibration_authority.recommendation_admissible(
+                    calibration_status
+                ),
             }
         return {
             "probability_type": "independent_model_probability",
@@ -6446,6 +6656,26 @@ class ReadModelService:
                 filtered.append(row)
         return filtered
 
+    def _filter_rows_for_next7(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        now_utc: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        start, end = next_7_days_window(now_utc)
+        filtered = [
+            row
+            for row in rows
+            if (kickoff := self._row_kickoff_utc(row)) is not None
+            and start <= kickoff < end
+            and not self._is_finished_row(row)
+        ]
+        return sorted(
+            filtered,
+            key=lambda row: self._row_kickoff_utc(row)
+            or datetime.max.replace(tzinfo=UTC),
+        )
+
     def _filter_rows_for_future_horizon(
         self,
         rows: list[dict[str, Any]],
@@ -6619,85 +6849,102 @@ class ReadModelService:
             result=result,
             scoreline_picks=scoreline_picks,
         )
-        formal_result = build_formal_recommendation(
-            fixture_status=normalize_match_status(row.get("status")),
-            simulation=run_simulation_from_card(card),
-            current_odds=card.get("current_odds")
-            if isinstance(card.get("current_odds"), dict)
-            else None,
-            ah_market_candidate=authoritative_candidate,
-            pricing_shadow=card.get("pricing_shadow")
-            if isinstance(card.get("pricing_shadow"), dict)
-            else None,
-            analysis_readiness=analysis_readiness,
-            home_team_name=str(card.get("home_cn") or row.get("home_team_name") or "主队"),
-            away_team_name=str(card.get("away_cn") or row.get("away_team_name") or "客队"),
-        )
-        formal_recommendation = (
-            formal_result.recommendation
-            if _valid_formal_recommendation_payload(formal_result.recommendation)
-            else None
-        )
-        if formal_recommendation is not None and fixture_id:
-            recommendation_id = formal_recommendation_id(
-                fixture_id=fixture_id,
-                recommendation=formal_recommendation,
+        formal_result = None
+        saved_decision = card.get("recommendation_decision_v4")
+        if isinstance(saved_decision, Mapping) and saved_decision:
+            decision_v4 = read_recommendation_decision_v4(saved_decision)
+            stored_recommendation = card.get("recommendation")
+            formal_recommendation = (
+                stored_recommendation
+                if isinstance(stored_recommendation, dict)
+                and _valid_formal_recommendation_payload(stored_recommendation)
+                else None
             )
-            formal_recommendation = {
-                **formal_recommendation,
-                "recommendation_id": recommendation_id,
-                "id": recommendation_id,
+        elif analysis_override is None and self._uses_frozen_public_authority():
+            unavailable = self._fail_closed_public_analysis_card(
+                dict(card), blocker="CURRENT_V4_AUTHORITY_MISSING"
+            )
+            return {
+                **row, **unavailable,
+                "artifact_hash": _mapping(card.get("frozen_artifact_provenance")).get(
+                    "artifact_hash"
+                ),
             }
-        if formal_recommendation is not None:
-            quote_identity = _mapping(_mapping(authoritative_candidate).get("quote_identity"))
-            formal_recommendation = {
-                **formal_recommendation,
-                "quote_identity": {
-                    "provider": quote_identity.get("provider"),
-                    "bookmaker_id": quote_identity.get("bookmaker_id"),
-                    "capture_id": quote_identity.get("capture_id"),
-                    "captured_at": quote_identity.get("captured_at"),
-                    "observation_ids": quote_identity.get("observation_ids"),
-                    "raw_payload_sha256": quote_identity.get("raw_payload_sha256"),
-                    "source_revision": quote_identity.get("source_revision"),
-                    "quote_identity_hash": quote_identity.get("quote_identity_hash"),
-                },
-            }
-        formal_blockers = list(formal_result.blockers)
-        if formal_result.formal_eligible and formal_recommendation is None:
-            blocker = _formal_payload_blocker(formal_result)
-            if blocker not in formal_blockers:
-                formal_blockers.append(blocker)
-        pricing_shadow = card.get("pricing_shadow")
-        if isinstance(pricing_shadow, dict):
-            pricing_shadow["formal_enabled"] = formal_recommendations_enabled()
-            pricing_shadow["formal_eligible"] = formal_recommendation is not None
-            pricing_shadow["formal_blockers"] = formal_blockers
-            canonical_market = formal_result.canonical_ah_market
-            pricing_shadow["canonical_ah_market"] = canonical_market
-            if isinstance(canonical_market, dict):
-                pricing_shadow["canonical_ah_market_source"] = canonical_market.get("source")
-                pricing_shadow["canonical_ah_market_blocker"] = canonical_market.get("blocker")
-                pricing_shadow["canonical_ah_market_validation_status"] = canonical_market.get(
-                    "validation_status",
+        else:
+            formal_result = build_formal_recommendation(
+                fixture_status=normalize_match_status(row.get("status")),
+                simulation=run_simulation_from_card(card),
+                current_odds=card.get("current_odds")
+                if isinstance(card.get("current_odds"), dict)
+                else None,
+                ah_market_candidate=authoritative_candidate,
+                pricing_shadow=card.get("pricing_shadow")
+                if isinstance(card.get("pricing_shadow"), dict)
+                else None,
+                analysis_readiness=analysis_readiness,
+                home_team_name=str(card.get("home_cn") or row.get("home_team_name") or "主队"),
+                away_team_name=str(card.get("away_cn") or row.get("away_team_name") or "客队"),
+            )
+            formal_recommendation = (
+                formal_result.recommendation
+                if _valid_formal_recommendation_payload(formal_result.recommendation)
+                else None
+            )
+            if formal_recommendation is not None and fixture_id:
+                recommendation_id = formal_recommendation_id(
+                    fixture_id=fixture_id,
+                    recommendation=formal_recommendation,
                 )
-        decision_v4 = _build_public_recommendation_decision_v4(
-            card=card,
-            row=row,
-            candidate=authoritative_candidate,
-            formal_recommendation=formal_recommendation,
-            formal_result=formal_result,
-            analysis_readiness=analysis_readiness,
-        )
+                formal_recommendation = {
+                    **formal_recommendation,
+                    "recommendation_id": recommendation_id,
+                    "id": recommendation_id,
+                }
+            if formal_recommendation is not None:
+                quote_identity = _mapping(_mapping(authoritative_candidate).get("quote_identity"))
+                formal_recommendation = {
+                    **formal_recommendation,
+                    "quote_identity": {
+                        "provider": quote_identity.get("provider"),
+                        "bookmaker_id": quote_identity.get("bookmaker_id"),
+                        "capture_id": quote_identity.get("capture_id"),
+                        "captured_at": quote_identity.get("captured_at"),
+                        "observation_ids": quote_identity.get("observation_ids"),
+                        "raw_payload_sha256": quote_identity.get("raw_payload_sha256"),
+                        "source_revision": quote_identity.get("source_revision"),
+                        "quote_identity_hash": quote_identity.get("quote_identity_hash"),
+                    },
+                }
+            formal_blockers = list(formal_result.blockers)
+            if formal_result.formal_eligible and formal_recommendation is None:
+                blocker = _formal_payload_blocker(formal_result)
+                if blocker not in formal_blockers:
+                    formal_blockers.append(blocker)
+            pricing_shadow = card.get("pricing_shadow")
+            if isinstance(pricing_shadow, dict):
+                pricing_shadow["formal_enabled"] = formal_recommendations_enabled()
+                pricing_shadow["formal_eligible"] = formal_recommendation is not None
+                pricing_shadow["formal_blockers"] = formal_blockers
+                canonical_market = formal_result.canonical_ah_market
+                pricing_shadow["canonical_ah_market"] = canonical_market
+                if isinstance(canonical_market, dict):
+                    pricing_shadow["canonical_ah_market_source"] = canonical_market.get("source")
+                    pricing_shadow["canonical_ah_market_blocker"] = canonical_market.get("blocker")
+                    pricing_shadow["canonical_ah_market_validation_status"] = canonical_market.get(
+                        "validation_status",
+                    )
+            decision_v4 = _build_public_recommendation_decision_v4(
+                card=card,
+                row=row,
+                candidate=authoritative_candidate,
+                formal_recommendation=formal_recommendation,
+                formal_result=formal_result,
+                analysis_readiness=analysis_readiness,
+            )
         recommendation = _recommendation_from_v4(
             decision_v4,
             formal_recommendation=formal_recommendation,
         )
-        if recommendation is None:
-            recommendation = build_watch_recommendation(
-                readiness=analysis_readiness,
-                fixture_status=normalize_match_status(row.get("status")),
-            )
         validation = validate_recommendation(
             fixture_id=fixture_id,
             recommendation=recommendation,
@@ -6711,8 +6958,14 @@ class ReadModelService:
             fixture_status=fixture_status,
             result=result,
         )
-        formal_suppressed = formal_result.formal_suppressed
-        formal_suppressed_reason = formal_result.formal_suppressed_reason
+        formal_suppressed = (
+            formal_result.formal_suppressed if formal_result is not None
+            else bool(card.get("formal_suppressed"))
+        )
+        formal_suppressed_reason = (
+            formal_result.formal_suppressed_reason if formal_result is not None
+            else card.get("formal_suppressed_reason")
+        )
         if isinstance(locked_recommendation, dict):
             formal_suppressed = True
             formal_suppressed_reason = (
@@ -6766,25 +7019,12 @@ class ReadModelService:
         scoreline_decision = (
             {
                 **cast(dict[str, Any], decision_pick),
-                "tier": decision_contract.get("decision_tier"),
+                "decision_tier": decision_contract.get("decision_tier"),
             }
             if isinstance(decision_pick, dict)
             and decision_contract.get("decision_tier") in {"ANALYSIS_PICK", "RECOMMEND"}
             else None
         )
-        try:
-            decision_v3 = (
-                project_decision_v3(
-                    decision_contract,
-                    manifest=load_recommendation_capability_manifest(),
-                ).as_dict()
-                if decision_contract
-                else None
-            )
-        except (KeyError, TypeError, ValueError):
-            decision_v3 = None
-        if isinstance(decision_v3, dict):
-            decision_v3["authority_role"] = "HISTORY_ONLY"
         scoreline_reference = (
             scoreline_reference_from_card(
                 card,
@@ -6819,6 +7059,13 @@ class ReadModelService:
             "lifecycle_state": row.get("action") or row.get("lifecycle_state"),
             "watch_level": card.get("watch_level", 0),
             "data_readiness": card.get("data_readiness", {}),
+            "factor_checklist_inputs": {
+                "data_readiness": card.get("data_readiness", {}),
+                "feature_contributions": card.get("feature_contributions", []),
+                "provider_xg_unavailable_confirmed": bool(
+                    card.get("provider_xg_unavailable_confirmed") is True
+                ),
+            },
             "analysis_readiness": analysis_readiness,
             "data_refresh": data_refresh,
             "recommendation": recommendation,
@@ -6874,8 +7121,6 @@ class ReadModelService:
             if recommendation
             else False,
             "recommendation_decision_v4": decision_v4.as_dict(),
-            "recommendation_decision_v3": decision_v3,
-            "recommendation_decision_v3_role": "HISTORY_ONLY",
             **decision_contract,
         }
 

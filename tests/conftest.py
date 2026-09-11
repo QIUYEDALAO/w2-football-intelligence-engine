@@ -17,7 +17,12 @@ def pytest_configure() -> None:
     os.environ.setdefault("W2_ENVIRONMENT", "test")
     os.environ.setdefault(
         "W2_PROVIDER_ENDPOINT_ALLOWLIST",
-        "status,fixtures,odds,lineups",
+        "status,fixtures,odds,lineups,statistics",
+    )
+    os.environ.setdefault("W2_PROVIDER_OBSERVED_DAILY_LIMIT", "7500")
+    os.environ.setdefault(
+        "W2_PROVIDER_OBSERVED_DAILY_LIMIT_AT",
+        "2026-08-16T16:47:41.418098Z",
     )
     root = Path(tempfile.mkdtemp(prefix="w2-pytest-competition-db-"))
     database_url = f"sqlite+pysqlite:///{root / 'authority.db'}"

@@ -1,0 +1,46 @@
+# Per-Dockerfile ignore for Dockerfile.web, which BuildKit prefers over the
+# global .dockerignore when building with `file: Dockerfile.web`.
+#
+# The global .dockerignore excludes apps/web on purpose: the Python release
+# image would otherwise pack node_modules and the vite output into a layer that
+# should be 100kB. That exclusion is correct for Dockerfile.python and stays.
+#
+# But Dockerfile.web builds from the repository root and copies apps/web
+# explicitly, so the same exclusion made its COPY steps fail with
+# "/apps/web": not found. This file keeps apps/web in the context for the web
+# image only, while still dropping everything that image has no use for --
+# including node_modules and dist, which is what the global rule was really
+# protecting against.
+
+**/node_modules
+**/dist
+**/.vite
+
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+
+.git
+.venv
+.env
+.env.*
+
+# The web image needs apps/web and nothing else from the tree.
+src
+config
+scripts
+oracle
+migrations
+tests
+fixtures
+examples
+infra
+ci
+runtime
+reports
+data
+docs
+deliverables
+ops

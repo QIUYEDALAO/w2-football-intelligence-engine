@@ -13,7 +13,10 @@ from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
     validate_decision_v4_identity,
 )
-from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
+from w2.tracking.outcome_ledger_repository import (
+    CURRENT_FORWARD_RECORD_TYPES,
+    OutcomeLedgerRepository,
+)
 
 SCHEMA_VERSION = "w2.forward_outcome_ledger.v3"
 VOID_STATUSES = {"CANC", "ABD", "AWD", "WO"}
@@ -116,7 +119,8 @@ def build_forward_outcome_records(
     rows: list[dict[str, Any]] = []
     for card in _cards(day_view):
         fixture_id = _text(card.get("fixture_id"))
-        if not fixture_id:
+        kickoff = _parse_time(card.get("kickoff_utc"))
+        if not fixture_id or kickoff is None or captured_at >= kickoff:
             continue
         canonical = _validated_v4_projection(card)
         if isinstance(canonical.get("pick"), Mapping):
@@ -220,11 +224,16 @@ def backfill_outcomes(
     dry_run: bool = True,
     write_db: bool = False,
     settled_at: datetime | None = None,
+    fixture_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     repo = repository or OutcomeLedgerRepository()
     resolved_settled_at = (settled_at or datetime.now(UTC)).astimezone(UTC)
-    results = repo.result_payloads()
-    pending_before = _pending_entries(repo.records())
+    pending_before = _pending_entries(
+        repo.records(CURRENT_FORWARD_RECORD_TYPES, fixture_ids=fixture_ids)
+    )
+    results = repo.result_payloads_for_fixtures(
+        _text(entry.get("fixture_id")) for entry, _, _ in pending_before.values()
+    )
     outcome_records: list[dict[str, Any]] = []
     for entry, side, item in pending_before.values():
         result = results.get(_text(entry.get("fixture_id")))
@@ -248,6 +257,13 @@ def backfill_outcomes(
         if fixture_id:
             processed_fixture_counts[fixture_id] = processed_fixture_counts.get(fixture_id, 0) + 1
     unresolved_count = sum(1 for identity in pending_before if identity not in processed_keys)
+    unresolved_fixture_ids = sorted(
+        {
+            _text(entry.get("fixture_id"))
+            for identity, (entry, _, _) in pending_before.items()
+            if identity not in processed_keys and _text(entry.get("fixture_id"))
+        }
+    )
     if not pending_before:
         status = "NO_DUE_WORK"
     elif unresolved_count:
@@ -268,6 +284,7 @@ def backfill_outcomes(
         "result_fixture_count": len(results),
         "pending_count": len(pending_before),
         "unresolved_count": unresolved_count,
+        "unresolved_fixture_ids": unresolved_fixture_ids,
         "record_count": len(outcome_records),
         "processed_fixture_counts": processed_fixture_counts,
         "written": appended["written"],
@@ -536,7 +553,9 @@ def pending_outcome_entries(
     now: datetime | None = None,
 ) -> list[dict[str, Any]]:
     """Return canonical fixture-market captures that still need an outcome."""
-    pending = _pending_entries((repository or OutcomeLedgerRepository()).records())
+    pending = _pending_entries(
+        (repository or OutcomeLedgerRepository()).records(CURRENT_FORWARD_RECORD_TYPES)
+    )
     resolved_now = (now or datetime.now(UTC)).astimezone(UTC)
     output: list[dict[str, Any]] = []
     for identity, (entry, side, item) in pending.items():

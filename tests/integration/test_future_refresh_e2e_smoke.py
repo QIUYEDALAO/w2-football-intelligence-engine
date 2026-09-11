@@ -218,6 +218,8 @@ def test_scheduler_rejects_file_checkpoint_before_provider_call(
             "tick_hard_cap": 100,
             "checkpoints": [
                 {
+                    "competition_id": "allsvenskan",
+                    "season": "2026",
                     "fixture_id": "api_football:1489404",
                     "checkpoint": "T24",
                     "kickoff_utc": "2026-06-24T17:00:00Z",

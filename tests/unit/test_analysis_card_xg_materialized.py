@@ -685,6 +685,37 @@ def test_empirical_xg_uncertainty_requires_three_real_xg_matches(monkeypatch) ->
     assert uncertainty["lambda_uncertainty_input_hash"]
 
 
+def test_xg_uncertainty_uses_same_latest_five_window_as_point_estimate() -> None:
+    service = ReadModelService(repository=cast(Any, FakeReadRepository()))
+    rows = [
+        {
+            "fixture_id": f"history-{index}",
+            "team_id": "10",
+            "kickoff_at": (NOW - timedelta(days=7 - index)).isoformat(),
+            "captured_at": (NOW - timedelta(days=7 - index, hours=1)).isoformat(),
+            "xg_for": 1.0 + index / 10,
+            "xg_against": 0.8 + index / 10,
+            "raw_payload_sha256": f"raw-{index}",
+            "source_system": "api_football_statistics",
+        }
+        for index in range(7)
+    ]
+
+    selected = service._xg_uncertainty_rows(  # noqa: SLF001
+        rows,
+        team_id="10",
+        before=NOW,
+    )
+
+    assert [row["fixture_id"] for row in selected] == [
+        "history-2",
+        "history-3",
+        "history-4",
+        "history-5",
+        "history-6",
+    ]
+
+
 def test_public_bounded_uncertainty_excludes_xg_captured_after_evaluation_time(
     monkeypatch,
 ) -> None:
@@ -817,13 +848,17 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert simulation["lambda_sigma_home"] > 0
     assert simulation["lambda_sigma_away"] > 0
     assert simulation["calibration"]["lambda_uncertainty_method"] == (
-        "empirical_xg_standard_error.v1"
+        "empirical_xg_standard_error.v2_latest_five"
     )
     assert simulation["calibration"]["lambda_uncertainty_status"] == "ANALYSIS_READY"
     uncertainty_audit = simulation["calibration"]["lambda_uncertainty_audit"]
     assert uncertainty_audit["input_hash"]
     assert uncertainty_audit["groups"]["home_attack_xg_for"]["n"] == 5
     assert len(uncertainty_audit["groups"]["away_defence_xg_against"]["fixture_ids"]) == 5
+    assert uncertainty_audit["point_estimate_component_fixture_ids"] == {
+        "10": uncertainty_audit["groups"]["home_attack_xg_for"]["fixture_ids"],
+        "20": uncertainty_audit["groups"]["away_attack_xg_for"]["fixture_ids"],
+    }
     assert {
         key: card["current_odds"]["ah"].get(key)
         for key in ("line", "home_price", "away_price", "home_line", "away_line", "price")
@@ -859,7 +894,14 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert card["line_movement"]["ah_open"] in {"-0.5", "0.5"}
     assert card["line_movement"]["ah_current"] in {"-0.5", "0.5"}
     decisions = {market["market"]: market["decision"] for market in card["markets"]}
-    assert decisions["ASIAN_HANDICAP"] == "WATCH"
+    # The EV comparison on this fixture is favourable and its quote identity is
+    # complete, so the market-candidate pipeline would set ANALYSIS_PICK on its
+    # own. It no longer can: AH direction is owned by the factor score, and this
+    # fixture only supplies two eligible source groups (xg, team_fixture_history)
+    # against a minimum of three, so admission fails and the SKIP stands. This
+    # is the point of the veto -- a good price is not by itself a reason to
+    # recommend a match the factors cannot speak to.
+    assert decisions["ASIAN_HANDICAP"] == "SKIP"
     assert decisions["TOTALS"] in {"PICK", "ANALYSIS_PICK"}
     assert decisions["FIRST_HALF_GOALS"] == "PICK"
     assert decisions["SCORE"] == "NO_EDGE"
@@ -872,6 +914,11 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert ah_market["expected_value"] is not None
     assert ah_market["uncertainty"] is not None
     assert ah_market["analysis_evidence_sides"]
+    assert ah_market["factor_veto"]["code"] == "FACTOR_ADMISSION_FAILED"
+    assert "PARTICIPATING_FACTORS_BELOW_MINIMUM:1/3" in ah_market["factor_veto"]["blockers"]
+    # The EV evidence is still projected in full for inspection -- the veto
+    # blocks the decision, it does not hide the comparison.
+    assert ah_market["market_candidate"]["analysis_evidence_status"] == "COMPLETE"
     assert any(
         "F9_TRUE_XG:AS_OF_ROLLING_XG_DIFF" in reason
         for market in card["markets"]
@@ -881,8 +928,23 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     totals_market = next(market for market in card["markets"] if market["market"] == "TOTALS")
     score_market = next(market for market in card["markets"] if market["market"] == "SCORE")
     assert ah_market["lean"] is None
-    assert "跟随市场 · 无独立优势 · 仅参考" in ah_market["reason"]
-    assert totals_market["reason"].startswith("两队滚动 xG 进攻合计 2.70")
+    # This fixture's fake repository provides only two factor-score-eligible
+    # sources (F9_TRUE_XG and F7_STRENGTH_FORM via team_rating_snapshots),
+    # below the score-driven-recommendation admission rule's minimum of
+    # three participating factors (see w2.strategy.factor_score). AH's
+    # `market["decision"]` above still reads ANALYSIS_PICK because it comes
+    # from the separate, pre-existing market-candidate EV comparison
+    # (w2.markets.market_candidate — explicitly independent of bookmaker
+    # intent and of the factor score); only `reasons`/`reason`, sourced from
+    # analysis_recommendation.py's AH market, reflect the new admission
+    # gate's rejection. The two are intentionally separate signals; the old
+    # "跟随市场 · 无独立优势 · 仅参考" downgrade text this used to assert no
+    # longer applies to AH (see analysis_calculator.py's
+    # `_apply_mainline_market_selection`, which now exempts AH from its
+    # signal_strength-based downgrade).
+    assert ah_market["reason"].startswith("FACTOR_ADMISSION_FAILED:")
+    assert "PARTICIPATING_FACTORS_BELOW_MINIMUM:1/3" in ah_market["reason"]
+    assert totals_market["reason"].startswith("两队滚动 xG 进攻合计 2.58")
     assert score_market["scores"] == []
     assert card["bookmaker_intent"]["intent"] in {"HOME_LEAN", "AWAY_LEAN"}
 
@@ -1073,13 +1135,14 @@ def test_public_bounded_analysis_consumes_canonical_identity_history_and_ratings
 
     assert card is not None
     assert card["source"] == "db_feature_materialized_analysis"
+    assert card["season"] == "2026"
     assert card["data_readiness"]["xg"] is True
     assert card["data_readiness"]["xg_home_match_count"] == 5
     assert card["data_readiness"]["xg_away_match_count"] == 5
-    assert card["simulation"]["input_readiness"]["home_elo_source"] == "team_rating_snapshots"
-    assert card["simulation"]["input_readiness"]["away_elo_source"] == "team_rating_snapshots"
-    assert card["simulation"]["input_readiness"]["home_elo_collection_status"] == "READY"
-    assert card["simulation"]["input_readiness"]["away_elo_collection_status"] == "READY"
+    assert card["simulation"]["input_readiness"]["home_elo_source"] is None
+    assert card["simulation"]["input_readiness"]["away_elo_source"] is None
+    assert card["simulation"]["input_readiness"]["home_elo_collection_status"] is None
+    assert card["simulation"]["input_readiness"]["away_elo_collection_status"] is None
     contributions = card["feature_contributions"]
     assert any(
         item["id"] == "F3_REST_FITNESS"

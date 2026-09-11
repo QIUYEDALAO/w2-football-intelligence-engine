@@ -1,0 +1,10 @@
+[Unit]
+Description=Run W2 xG ingestion guard hourly
+
+[Timer]
+OnCalendar=*-*-* *:10:00 UTC
+Persistent=true
+Unit=w2-xg-ingest-guard.service
+
+[Install]
+WantedBy=timers.target

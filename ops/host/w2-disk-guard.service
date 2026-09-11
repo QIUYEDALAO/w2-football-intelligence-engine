@@ -1,0 +1,6 @@
+[Unit]
+Description=W2 disk and inode guard
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/w2-disk-guard
+SuccessExitStatus=0 1

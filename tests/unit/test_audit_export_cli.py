@@ -15,7 +15,7 @@ def test_export_w2_audit_tables_cli_writes_four_tables(tmp_path: Path) -> None:
                 "fixture_id": "fixture-1",
                 "home_team_name": "Home",
                 "away_team_name": "Away",
-                "recommendation": {"tier": "WATCH"},
+                "recommendation": {"decision_tier": "WATCH"},
                 "pricing_shadow": {"market_ah": 0},
                 "market_timeline": {"status": "INSUFFICIENT"},
             }

@@ -5,11 +5,22 @@ from apps.api.main import app
 from fastapi.testclient import TestClient
 
 from w2.api import routers
+from w2.monitoring import health as health_module
+from w2.monitoring.health import HealthPayload
 from w2.monitoring.readiness import (
     ProviderIntakeOperationalReadinessV1,
     ReadinessCheck,
     ReadinessPayload,
 )
+
+
+def _health_payload(timeout_count: int | None) -> HealthPayload:
+    return HealthPayload(
+        service="w2-football-intelligence-engine",
+        version="0.2.0",
+        environment="test",
+        provider_timeouts_24h=timeout_count,
+    )
 
 
 def _ready_payload(*, ready: bool = True) -> ReadinessPayload:
@@ -48,13 +59,26 @@ def _ready_payload(*, ready: bool = True) -> ReadinessPayload:
     )
 
 
-def test_health_is_pure_liveness_without_dependency_fields() -> None:
+def test_health_exposes_provider_timeouts_without_changing_liveness(monkeypatch) -> None:
+    monkeypatch.setattr(api_main, "build_health_payload", lambda: _health_payload(3))
     response = TestClient(app).get("/health")
     assert response.status_code == 200
     payload = response.json()
-    assert set(payload) == {"service", "version", "environment"}
+    assert set(payload) == {
+        "service",
+        "version",
+        "environment",
+        "provider_timeouts_24h",
+    }
     assert payload["service"] == "w2-football-intelligence-engine"
     assert payload["version"] == "0.2.0"
+    assert payload["provider_timeouts_24h"] == 3
+
+
+def test_health_builds_rolling_provider_timeout_count(monkeypatch) -> None:
+    monkeypatch.setattr(health_module, "provider_timeout_count_since", lambda _: 4)
+
+    assert health_module.build_health_payload().provider_timeouts_24h == 4
 
 
 def test_ready_returns_503_when_a_critical_check_fails(monkeypatch) -> None:
@@ -80,4 +104,9 @@ def test_v1_ready_has_identical_semantics_and_deprecation_headers(monkeypatch) -
 def test_v1_health_is_also_pure_liveness() -> None:
     response = TestClient(app).get("/v1/health")
     assert response.status_code == 200
-    assert set(response.json()) == {"service", "version", "environment"}
+    assert set(response.json()) == {
+        "service",
+        "version",
+        "environment",
+        "provider_timeouts_24h",
+    }

@@ -9,6 +9,8 @@ from collections.abc import Mapping
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
+from w2.domain import calibration_authority
+from w2.domain.admission_contract import economic_admission_pass
 from w2.domain.five_state_pricing import MIN_CASHFLOW_PRICE_EDGE as V4_MIN_CASHFLOW_PRICE_EDGE
 from w2.markets.devig import DevigMethod, devig
 from w2.markets.settlement_probability import effective_settlement_probability
@@ -60,6 +62,13 @@ def build_analysis_market_evidence(
         "market_probability": {},
         "model_probability": {"status": "NOT_READY"},
         "comparison": {"analysis_direction_allowed": False, "status": "NOT_READY"},
+        # Every evidence document declares the calibration behind its probability.
+        # Fixture 1570340's evaluation record carried no calibration field at all,
+        # so a reviewer could not tell whether a delivered recommendation rested on
+        # a validated probability. Consumers read the authority from here.
+        **calibration_authority.evidence_record(
+            _mapping(simulation).get("calibration_status")
+        ),
     }
     decimal_line = _decimal(line)
     if key_and_sides is None or decimal_line is None:
@@ -207,10 +216,10 @@ def _side_evidence(
     current_ev = float(model.get("expected_value", 0.0))
     current_ev_se = float(model.get("ev_se", 0.0))
     current_ev_minus_se = round(current_ev - current_ev_se, 6)
-    allowed = bool(
-        current_ev > 0
-        and price_edge >= MIN_CASHFLOW_PRICE_EDGE
-        and current_ev_minus_se > 0
+    allowed = economic_admission_pass(
+        expected_value=current_ev,
+        ev_minus_se=current_ev_minus_se,
+        cashflow_price_edge=price_edge,
     )
     return {
         "line": _text(line),
@@ -263,6 +272,7 @@ def _model_evidence(
     market: str, selection: str, line: Decimal, price: Decimal, simulation: Mapping[str, Any] | None
 ) -> dict[str, Any]:
     sim = _mapping(simulation)
+    model_input_hash = _model_input_hash(sim)
     home, away = _decimal(sim.get("lambda_home")), _decimal(sim.get("lambda_away"))
     if sim.get("status") != "READY" or home is None or away is None or home <= 0 or away <= 0:
         return {
@@ -270,7 +280,7 @@ def _model_evidence(
             "calibration_status": sim.get("calibration_status") or "UNKNOWN",
             "model_version": sim.get("model_version"),
             "calibration_version": sim.get("calibration_version"),
-            "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
+            "model_input_hash": model_input_hash,
         }
     sigma_home = _decimal(sim.get("lambda_sigma_home"))
     sigma_away = _decimal(sim.get("lambda_sigma_away"))
@@ -288,7 +298,7 @@ def _model_evidence(
             "calibration_status": sim.get("calibration_status") or "UNKNOWN",
             "model_version": sim.get("model_version"),
             "calibration_version": sim.get("calibration_version"),
-            "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
+            "model_input_hash": model_input_hash,
             "lambda_uncertainty_method": method or "none",
             "lambda_sigma_home": float(sigma_home) if sigma_home is not None else None,
             "lambda_sigma_away": float(sigma_away) if sigma_away is not None else None,
@@ -341,7 +351,7 @@ def _model_evidence(
             "calibration_status": sim.get("calibration_status") or "UNKNOWN",
             "model_version": sim.get("model_version"),
             "calibration_version": sim.get("calibration_version"),
-            "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
+            "model_input_hash": model_input_hash,
             "lambda_uncertainty_method": method or "none",
             "lambda_sigma_home": float(sigma_home),
             "lambda_sigma_away": float(sigma_away),
@@ -351,7 +361,7 @@ def _model_evidence(
         "calibration_status": sim.get("calibration_status") or "UNKNOWN",
         "model_version": sim.get("model_version"),
         "calibration_version": sim.get("calibration_version"),
-        "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
+        "model_input_hash": model_input_hash,
         "settlement_distribution": settlement_distribution,
         "fair_decimal_odds": float(fair_price),
         "effective_probability": effective,
@@ -439,6 +449,23 @@ def _hash_mapping(value: object) -> str | None:
         default=str,
     )
     return hashlib.sha256(encoded.encode()).hexdigest()
+
+
+def _model_input_hash(simulation: Mapping[str, Any]) -> str | None:
+    manifest_hash = _hash_mapping(
+        simulation.get("input_manifest") or simulation.get("inputs") or {}
+    )
+    if manifest_hash is not None:
+        return manifest_hash
+    calibration = _mapping(simulation.get("calibration"))
+    value = calibration.get("simulation_input_hash")
+    text = str(value or "")
+    return (
+        text
+        if len(text) == 64
+        and all(character in "0123456789abcdef" for character in text)
+        else None
+    )
 
 
 def _selection(market: str, value: object) -> str | None:

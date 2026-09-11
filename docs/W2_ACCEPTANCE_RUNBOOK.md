@@ -18,8 +18,8 @@ credential material.
   without execution.
 - Dashboard DayView: cards, counts, freshness, navigation, and degradation state
   are read from the Decision Contract surface.
-- L1/L2 Dashboard: boss-view first screen and collapsed diagnostics share the
-  same DayView input.
+- Unified Intelligence Workspace: the current dashboard and collapsed technical
+  evidence share one public read model.
 - Degradation and navigation: empty day, stale data, provider budget, and date
   replay states are explicit.
 - Environment stamp: staging A and production B are visibly separated.
@@ -42,21 +42,20 @@ production action.
 These commands are safe for this offline suite:
 
 ```bash
-uv run --python 3.12 python scripts/check_w2_acceptance.py
-uv run --python 3.12 python scripts/check_w2_acceptance.py --json
-uv run --with pytest --python 3.12 python -m pytest -q tests/unit/test_w2_acceptance_checker.py
+uv run --python 3.12 python scripts/check_dashboard_single_public_authority.py
+uv run --python 3.12 pytest -q tests/unit/test_dashboard_intelligence_workspace.py
+uv run --python 3.12 pytest -q tests/contract/test_dashboard_intelligence_workspace_contract.py
 uv run --python 3.12 python scripts/check_tracked_outputs.py
 uv run --python 3.12 python scripts/check_w2_all.py
 uv run --python 3.12 ruff check .
 uv run --python 3.12 python tests/secret_scan.py
 ```
 
-The acceptance checker reads only local fixtures under
-`tests/fixtures/w2_acceptance/` and calls side-effect-free builders.
+These checks read only repository fixtures and call side-effect-free builders.
 
 ## Approval-Required Actions
 
-These actions require separate user approval and are not part of this PR:
+These actions require separate Owner approval and are not part of this offline suite:
 
 - Provider calls or provider refresh/backfill.
 - Staging DB reads or any DB writes.
@@ -75,7 +74,7 @@ These actions require separate user approval and are not part of this PR:
    side-effect flags.
 2. Run controlled-refresh plan in dry-run mode and confirm endpoint allowlist,
    tick schedule, projected calls, and skipped endpoints.
-3. Inspect DayView and L1 boss-view HTML for counts, readiness, policy stamp,
+3. Inspect the unified workspace for counts, readiness, policy stamp,
    degradation, and navigation.
 4. Run report/audit dry-run checks only when explicitly side-effect-free.
 5. Run replay skeleton with local DayView and local outcomes to verify outcome
@@ -93,4 +92,4 @@ on a quiet day.
 `BLOCKER` means the offline acceptance contract failed. Examples: provider calls
 or DB writes are non-zero, a forbidden endpoint appears in the effective
 allowlist, `ANALYSIS_PICK` lacks `分析参考` or `非稳赢`, raw provider payload leaks
-into the boss first screen, or any Stage 16 checker appears.
+into the public first screen, or any retired product route appears.

@@ -14,7 +14,7 @@ def _match(**overrides: object) -> dict[str, object]:
             "edge_ah": 0.5,
         },
         "recommendation": {
-            "tier": "FORMAL",
+            "decision_tier": "RECOMMEND",
             "market": "ASIAN_HANDICAP",
             "selection": "HOME_AH",
             "line": -0.75,
@@ -75,7 +75,7 @@ def test_decide_match_watch_when_edge_below_threshold() -> None:
     decision = decide_match(
         _match(
             formal_recommendation=False,
-            recommendation={"tier": "WATCH", "market": "ASIAN_HANDICAP"},
+            recommendation={"decision_tier": "WATCH", "market": "ASIAN_HANDICAP"},
             pricing_shadow={
                 "status": "READY",
                 "independent_signal_count": 5,
@@ -102,7 +102,7 @@ def test_decide_match_does_not_apply_report_edge_threshold_to_valid_formal_paylo
                 "edge_ah": 0.1,
             },
             recommendation={
-                "tier": "FORMAL",
+                "decision_tier": "RECOMMEND",
                 "market": "ASIAN_HANDICAP",
                 "selection": "HOME_AH",
                 "line": -0.9,
@@ -127,7 +127,7 @@ def test_decide_match_downgrades_formal_when_recommendation_selection_is_invalid
         _match(
             formal_recommendation=True,
             recommendation={
-                "tier": "FORMAL",
+                "decision_tier": "RECOMMEND",
                 "market": "ASIAN_HANDICAP",
                 "selection": "UNKNOWN",
                 "line": 2.5,
@@ -145,7 +145,7 @@ def test_decide_match_does_not_infer_formal_from_edge_without_formal_payload() -
         _match(
             formal_recommendation=False,
             recommendation={
-                "tier": "ANALYSIS_PICK",
+                "decision_tier": "ANALYSIS_PICK",
                 "market": "TOTALS",
                 "selection": "OVER",
                 "line": 1.5,
@@ -163,7 +163,7 @@ def test_decide_match_downgrades_formal_when_recommendation_line_is_missing() ->
         _match(
             formal_recommendation=True,
             recommendation={
-                "tier": "FORMAL",
+                "decision_tier": "RECOMMEND",
                 "market": "ASIAN_HANDICAP",
                 "selection": "HOME_AH",
                 "odds": 1.87,
@@ -180,7 +180,7 @@ def test_decide_match_downgrades_formal_when_recommendation_market_is_not_ah() -
         _match(
             formal_recommendation=True,
             recommendation={
-                "tier": "FORMAL",
+                "decision_tier": "RECOMMEND",
                 "market": "OVER_UNDER",
                 "selection": "HOME_AH",
                 "line": -0.75,

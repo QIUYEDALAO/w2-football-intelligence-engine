@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from w2.competitions.registry import CompetitionRegistry
+from w2.competitions.registry import CompetitionRegistry, CoverageProfile
 from w2.features import market_factors
 from w2.features.engine import FeatureInputs, build_feature_set, load_importance_config
 from w2.features.framework import FeatureContext, FeatureStatus
@@ -46,6 +46,43 @@ def context() -> FeatureContext:
 
 def coverage():
     return CompetitionRegistry().require_enabled("world_cup_2026").coverage_profile
+
+
+def unaudited_coverage() -> CoverageProfile:
+    return CoverageProfile(
+        xg="NOT_AUDITED_STAGE14_REQUIRED",
+        lineups_injuries="NOT_AUDITED_STAGE14_REQUIRED",
+        squad_value="NOT_AUDITED_STAGE14_REQUIRED",
+        bookmaker_depth="NOT_AUDITED_STAGE14_REQUIRED",
+        h2h="NOT_AUDITED_STAGE14_REQUIRED",
+        settled_ah="NOT_AUDITED_STAGE14_REQUIRED",
+    )
+
+
+def test_unaudited_coverage_is_diagnostic_only_for_six_factors() -> None:
+    profile = unaudited_coverage()
+    factors = (
+        market_movement_factor(context=context(), profile=profile, snapshots=[]),
+        bookmaker_divergence_factor(context=context(), profile=profile, quotes=[]),
+        recent_ah_cover_factor(
+            context=context(), profile=profile, home_history=[], away_history=[]
+        ),
+        h2h_factor(context=context(), profile=profile, meetings=[]),
+        squad_value_factor(
+            context=context(), profile=profile, home_values=[], away_values=[]
+        ),
+        true_xg_factor(context=context(), profile=profile, home_xg=[], away_xg=[]),
+    )
+
+    assert {item.reason for item in factors} == {
+        "INSUFFICIENT_MARKET_SNAPSHOTS",
+        "INSUFFICIENT_BOOKMAKERS",
+        "MISSING_AH_EVIDENCE",
+        "NO_H2H_HISTORY",
+        "VALUE_DATA_UNAVAILABLE",
+        "XG_DATA_UNAVAILABLE",
+    }
+    assert all(item.coverage_profile_status == "NOT_AUDITED_STAGE14_REQUIRED" for item in factors)
 
 
 def test_market_movement_contribution_is_explainable_and_as_of_safe() -> None:

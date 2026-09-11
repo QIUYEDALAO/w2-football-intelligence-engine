@@ -1,0 +1,104 @@
+{
+  "preregistration_id": "V1-HOME-ADVANTAGE-FORWARD-EVALUATION-20260830",
+  "task_id": "V1-RECALIBRATION-EVIDENCE-01-B",
+  "status": "FROZEN_BEFORE_FIRST_ELIGIBLE_SAMPLE",
+  "frozen_at": "2026-08-30T15:40:00Z",
+  "production_decision_start_exclusive": "2026-08-30T14:27:00Z",
+  "calibration_identity": "21960a863fd93dcae01ff8804e73fd0ef9d8360e8f2b8073313f226322e5db71",
+  "identity_rule": {
+    "required_frozen_field": "dynamic_prematch_evaluations.payload.calibration_identity",
+    "required_value": "21960a863fd93dcae01ff8804e73fd0ef9d8360e8f2b8073313f226322e5db71",
+    "on_identity_change": "INVALIDATE_COHORT_AND_FREEZE_A_NEW_NON_MERGED_PREREGISTRATION",
+    "cross_identity_pooling": "FORBIDDEN"
+  },
+  "evidence_authority": {
+    "decision_source": "production dynamic_prematch_evaluations records frozen before kickoff",
+    "recomputation": "FORBIDDEN",
+    "required_frozen_fields": [
+      "fixture_id",
+      "evaluated_at",
+      "recorded_at",
+      "original_state",
+      "market",
+      "selection",
+      "exact_line",
+      "decimal_odds",
+      "calibration_identity",
+      "one_x_two_probabilities.home",
+      "one_x_two_probabilities.draw",
+      "one_x_two_probabilities.away"
+    ],
+    "structural_gap_at_freeze": {
+      "calibration_identity_frozen_in_existing_rows": false,
+      "complete_one_x_two_probability_vector_frozen_in_existing_rows": false,
+      "top_three_scorelines_are_sufficient_to_reconstruct_one_x_two": false,
+      "consequence": "Existing rows are ineligible. B2 must report N=0 and evidence-field blockers without metrics until a separately authorized prospective writer freezes both missing fields before kickoff.",
+      "no_workaround": "Do not infer identity from APPROVED_VALIDATED and do not reconstruct probabilities from model inputs or scoreline top-3. Either action would weaken the evidence contract."
+    }
+  },
+  "sample_unit": {
+    "unit": "distinct provider fixture",
+    "kickoff_rule": "kickoff_utc > 2026-08-30T14:27:00Z",
+    "decision_rule": "For 1X2 use the latest eligible pre-kickoff frozen evaluation by (evaluated_at, recorded_at, evaluation_id). For AH structure use the latest eligible pre-kickoff ASIAN_HANDICAP evaluation by the same ordering.",
+    "duplicate_rule": "A fixture contributes at most once to 1X2 and once to AH structure.",
+    "settled_rule": "Outcome is eligible only after the authoritative fixture status is FT, AET, or PEN and the authoritative full-time score is available.",
+    "identity_and_probability_fields_required_before_counting": true
+  },
+  "metrics": {
+    "one_x_two": {
+      "sides": ["home", "draw", "away"],
+      "relative_bias": "(mean_predicted_probability - observed_rate) / observed_rate",
+      "bootstrap": {
+        "resampling_unit": "fixture",
+        "resamples": 2000,
+        "seed": 20260830,
+        "reported_value": "P(abs(relative_bias) > 0.05)"
+      },
+      "acceptance": "Each side must have P(abs(relative_bias) > 0.05) <= 0.05. All three sides are required."
+    },
+    "asian_handicap_structure": {
+      "reported_counts": ["AWAY", "HOME"],
+      "ratio": "AWAY / HOME",
+      "zero_denominator": "Report counts and ratio=null; never add a smoothing constant."
+    },
+    "calibration_curve": {
+      "bins": "10 fixed equal-width bins [0.0,0.1),...,[0.9,1.0] per side",
+      "ece": "sum(bin_count / N * abs(mean_predicted_probability - observed_rate))",
+      "empty_bins": "Omitted with zero weight"
+    },
+    "profit_and_hit_rate": "NOT_A_FORWARD_ACCEPTANCE_METRIC_AND_NOT_AVAILABLE_BEFORE_THE_TERMINAL_LOOK"
+  },
+  "power_and_sample_size": {
+    "anchor": "At N=2790 the observed 95% relative-bias interval half-width is approximately 0.055; width scales as 1/sqrt(N).",
+    "calculation": "ceil(2790 * (0.055 / 0.05)^2) = ceil(3375.9) = 3376",
+    "required_settled_distinct_fixtures": 3376,
+    "interpretation": "At zero observed bias, the anchored 95% interval is narrow enough to fit inside the +/-0.05 decision boundary. This is not a guarantee of passing and is not adjusted after seeing outcomes.",
+    "expected_coverage_rate_fixtures_per_month": 200,
+    "expected_months": 16.88,
+    "terminal_evaluation_not_before": "2028-02-02T00:05:00Z",
+    "date_rationale": "3376 / 200 = 16.88 months after 2026-08-30. The date is intentionally distinct from and does not modify the frozen V2 evaluation at 2028-02-01T00:05:00Z."
+  },
+  "look_policy": {
+    "terminal": "Look exactly once only when both settled N >= 3376 and UTC time >= 2028-02-02T00:05:00Z.",
+    "interim_safety": {
+      "maximum_looks": 1,
+      "not_before_settled_n": 600,
+      "not_before": "2027-03-01T00:05:00Z",
+      "fault_threshold": "absolute relative bias > 0.15 on any of home, draw, or away",
+      "allowed_action": "Operational stop-loss investigation only.",
+      "forbidden_uses": [
+        "promotion",
+        "parameter selection",
+        "threshold selection",
+        "claiming validation",
+        "resetting or weakening this preregistration"
+      ]
+    },
+    "before_any_allowed_look": "B2 outputs counts and blockers only; it must not compute, return, log, or serialize metric values."
+  },
+  "immutable_boundaries": [
+    "No parameter or threshold may be selected from A-track or B-track outcomes.",
+    "No Provider calls, production writes, deployment, ledger change, allowlist change, or V2 runtime activation.",
+    "The frozen 2028-02-01T00:05:00Z V2 preregistration is untouched."
+  ]
+}

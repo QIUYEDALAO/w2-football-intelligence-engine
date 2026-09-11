@@ -118,7 +118,7 @@ def test_independent_f3_to_f9_contributions_drive_s1_shadow_only() -> None:
     assert shadow["status"] == "RULE_BASED_UNCALIBRATED"
     assert 0 <= shadow["coverage"] <= 1
     assert shadow["coverage"] == 1
-    assert shadow["independent_signal_count"] == 5
+    assert shadow["independent_signal_count"] == 3
     assert shadow["fair_ah"] < 0
     assert shadow["fair_ou"] is None
     assert shadow["edge_ah"] > 0
@@ -128,8 +128,6 @@ def test_independent_f3_to_f9_contributions_drive_s1_shadow_only() -> None:
         "F4_MATCH_IMPORTANCE",
         "F5_RECENT_AH_COVER",
         "F6_H2H",
-        "F7_STRENGTH_FORM",
-        "F8_SQUAD_VALUE",
         "F9_TRUE_XG",
     }
     assert shadow["beats_market"] is False
@@ -185,11 +183,11 @@ def test_weighted_score_normalizes_by_available_ready_factor_weight() -> None:
                 source_group="h2h",
             ),
             contribution(
-                "F7_STRENGTH_FORM",
+                "F9_TRUE_XG",
                 side="AWAY",
                 score=0.2,
                 weight=1.0,
-                source_group="ratings",
+                source_group="xg",
             ),
         ]
     )

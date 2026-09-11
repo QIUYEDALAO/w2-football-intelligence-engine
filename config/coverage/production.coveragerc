@@ -1,0 +1,19 @@
+[run]
+branch = True
+parallel = True
+concurrency = multiprocessing
+sigterm = True
+patch =
+    subprocess
+    fork
+    _exit
+source =
+    /app/src/w2
+    /app/apps
+data_file = /app/runtime/coverage/.coverage
+context = ${W2_COVERAGE_CONTEXT}
+
+[report]
+skip_covered = False
+skip_empty = True
+show_missing = True

@@ -20,24 +20,30 @@ def git_sha() -> str:
         return "UNKNOWN"
 
 
-def get_json(base_url: str, path: str) -> dict[str, Any]:
+def get_json(base_url: str, path: str, *, timeout_seconds: float) -> dict[str, Any]:
     url = f"{base_url.rstrip('/')}{path}"
     scheme = urlparse(url).scheme
     if scheme not in {"http", "https"}:
         raise ValueError(f"unsupported URL scheme: {scheme}")
     request = Request(url, headers={"Accept": "application/json"})  # noqa: S310 - scheme checked above
-    with urlopen(request, timeout=15) as response:  # noqa: S310 - scheme checked above
+    with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310
         payload = json.loads(response.read().decode("utf-8"))
     return cast(dict[str, Any], payload) if isinstance(payload, dict) else {}
 
 
-def get_text(base_url: str, path: str, *, accept: str = "application/json") -> str:
+def get_text(
+    base_url: str,
+    path: str,
+    *,
+    accept: str = "application/json",
+    timeout_seconds: float,
+) -> str:
     url = f"{base_url.rstrip('/')}{path}"
     scheme = urlparse(url).scheme
     if scheme not in {"http", "https"}:
         raise ValueError(f"unsupported URL scheme: {scheme}")
     request = Request(url, headers={"Accept": accept})  # noqa: S310 - scheme checked above
-    with urlopen(request, timeout=15) as response:  # noqa: S310 - scheme checked above
+    with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310
         return str(response.read().decode("utf-8", errors="replace"))
 
 
@@ -61,17 +67,26 @@ def main() -> int:
     parser.add_argument("--allow-empty-data", nargs="?", const="true", default="false")
     parser.add_argument("--require-future-fixtures-visible", action="store_true")
     parser.add_argument("--require-next-available-date-if-empty", action="store_true")
+    parser.add_argument("--request-timeout", type=float, default=15.0)
     args = parser.parse_args()
     if not args.base_url:
         parser.error("--base-url or --public-url is required")
+    if args.request_timeout <= 0:
+        parser.error("--request-timeout must be positive")
     allow_empty_data = str(args.allow_empty_data).lower() in {"1", "true", "yes", "y"}
     try:
-        root = get_text(args.base_url, "/", accept="text/html")
-        health = get_text(args.base_url, "/health")
-        ready = get_text(args.base_url, "/ready")
-        meta = get_json(args.base_url, "/meta.json")
-        version = get_json(args.base_url, "/v1/version")
-        dashboard = get_json(args.base_url, "/v1/dashboard?window=next36&include_debug=true")
+        root = get_text(
+            args.base_url, "/", accept="text/html", timeout_seconds=args.request_timeout
+        )
+        health = get_text(args.base_url, "/health", timeout_seconds=args.request_timeout)
+        ready = get_text(args.base_url, "/ready", timeout_seconds=args.request_timeout)
+        meta = get_json(args.base_url, "/meta.json", timeout_seconds=args.request_timeout)
+        version = get_json(args.base_url, "/v1/version", timeout_seconds=args.request_timeout)
+        dashboard = get_json(
+            args.base_url,
+            "/v1/dashboard?window=next36&include_debug=true",
+            timeout_seconds=args.request_timeout,
+        )
     except (OSError, URLError, TimeoutError, json.JSONDecodeError) as exc:
         print(f"release sync check failed: {exc}", file=sys.stderr)
         return 2

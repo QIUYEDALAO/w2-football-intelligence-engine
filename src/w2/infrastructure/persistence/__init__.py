@@ -2,7 +2,9 @@
 
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.dynamic_prematch_models import (
+    CandidateNotificationOutboxModel,
     DynamicPrematchEvaluationModel,
+    DynamicPrematchOpportunityModel,
     DynamicPrematchSupersessionModel,
     LineupConfirmedEventModel,
     T30ValidationSnapshotModel,
@@ -13,18 +15,24 @@ from w2.infrastructure.persistence.factor_model_models import (
     ProviderTeamIdentityCrosswalkModel,
     TeamRatingSnapshotModel,
 )
+from w2.infrastructure.persistence.forward_factor_models import (
+    FORWARD_AH_FACTOR_OBSERVATION_SCHEMA,
+    ForwardAhFactorObservationModel,
+)
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.future_refresh_models import (
+    FreePlanFixtureScopeObservationModel,
     FutureRefreshCheckpointAuditModel,
-    FutureRefreshCheckpointPlanModel,
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
     RawPayloadModel,
+    RawStatisticsRetentionModel,
     TeamXgMatchModel,
     TeamXgRollingSnapshotModel,
 )
 from w2.infrastructure.persistence.ingestion_models import (
     IngestionRunModel,
+    ProviderQuotaObservationModel,
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
@@ -43,6 +51,11 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEvidenceManifestModel,
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
+)
+from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureDataVersionModel,
+    ModelForecastCaptureModel,
+    ModelForecastOutcomeModel,
 )
 from w2.infrastructure.persistence.models import (
     CanonicalHistoricalAhFactModel,
@@ -64,7 +77,10 @@ from w2.infrastructure.persistence.models import (
     TeamValueAsOfArtifactModel,
     VenueModel,
 )
-from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
+from w2.infrastructure.persistence.outcome_ledger_models import (
+    OutcomeLedgerModel,
+    OutcomeLedgerRunStateModel,
+)
 from w2.infrastructure.persistence.recommendation_lock_models import (
     Gate5RecommendationLockEventModel,
 )
@@ -75,21 +91,25 @@ from w2.infrastructure.persistence.stage7i_lifecycle_models import (
 )
 
 __all__ = [
+    "CandidateNotificationOutboxModel",
     "CanonicalHistoricalAhFactModel",
     "CanonicalTeamMatchHistoryModel",
     "CanonicalTeamModel",
     "CompetitionModel",
     "DynamicPrematchEvaluationModel",
+    "DynamicPrematchOpportunityModel",
     "DynamicPrematchSupersessionModel",
     "FutureRefreshCheckpointAuditModel",
-    "FutureRefreshCheckpointPlanModel",
     "FutureRefreshRunAuditModel",
     "FutureRefreshTaskAuditModel",
+    "FreePlanFixtureScopeObservationModel",
     "Gate5RecommendationLockEventModel",
     "ForwardMarketSnapshotModel",
     "PROJECTION_VIEW_NAME",
     "current_market_projection",
+    "FORWARD_AH_FACTOR_OBSERVATION_SCHEMA",
     "FixtureModel",
+    "ForwardAhFactorObservationModel",
     "HistoricalMarketSourceSnapshotModel",
     "IngestionRunModel",
     "LineupConfirmedEventModel",
@@ -102,14 +122,20 @@ __all__ = [
     "MatchdayFixtureIdentityModel",
     "MatchdayMarketObservationModel",
     "ModelRunModel",
+    "ModelForecastCaptureModel",
+    "ModelForecastCaptureDataVersionModel",
+    "ModelForecastOutcomeModel",
     "OutcomeLedgerModel",
+    "OutcomeLedgerRunStateModel",
     "PlayerClubMembershipObservationModel",
     "PredictionModel",
     "ProviderTeamIdentityCrosswalkModel",
+    "ProviderQuotaObservationModel",
     "ProviderRequestLogModel",
     "QuotaUsageModel",
     "RegisteredRosterSnapshotModel",
     "RawPayloadModel",
+    "RawStatisticsRetentionModel",
     "ReadModelCheckpointModel",
     "RecommendationLockModel",
     "RecommendationModel",

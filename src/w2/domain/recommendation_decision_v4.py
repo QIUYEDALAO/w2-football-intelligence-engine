@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from typing import Any
 
+from w2.domain.admission_contract import economic_admission_pass
 from w2.domain.canonical_serialization import (
     CURRENT_SERIALIZER_VERSION,
     HashDomain,
@@ -15,7 +16,6 @@ from w2.domain.canonical_serialization import (
     canonical_sha256,
 )
 from w2.domain.five_state_pricing import (
-    MIN_CASHFLOW_PRICE_EDGE,
     SettlementDistribution,
     cashflow_price_edge,
     expected_value,
@@ -23,6 +23,8 @@ from w2.domain.five_state_pricing import (
 )
 
 RECOMMENDATION_SCHEMA_VERSION = "w2.recommendation_decision.v4"
+CANDIDATE_QUOTE_FRESHNESS_POLICY_VERSION = "w2.quote_freshness.v1"
+CANDIDATE_QUOTE_MAX_AGE_SECONDS = 1800
 FIXTURE_IDENTITY_VERSION_PREFIX = "w2.fixture_identity.v1:"
 FIVE_STATE_OUTCOMES = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
 FORMAL_ADMISSION_STATUSES = {"DISABLED", "NOT_APPLICABLE", "NOT_READY", "PASSED"}
@@ -40,6 +42,7 @@ IDENTITY_REQUIRED_FIELDS = (
     "exact_line",
     "capture_id",
     "captured_at",
+    "decision_evaluated_at",
     "quote_observation_ids",
     "raw_payload_sha256",
     "source_revision",
@@ -77,6 +80,23 @@ class RecommendationOutcomeV4(StrEnum):
     FORMAL_RECOMMEND = "FORMAL_RECOMMEND"
 
 
+def candidate_quote_freshness_readiness(age_seconds: object) -> dict[str, Any]:
+    age = _decimal(age_seconds)
+    return {
+        "quote_freshness_status": (
+            "COMPLETE"
+            if age is not None
+            and Decimal("0") <= age <= Decimal(CANDIDATE_QUOTE_MAX_AGE_SECONDS)
+            else "STALE"
+            if age is not None and age > Decimal(CANDIDATE_QUOTE_MAX_AGE_SECONDS)
+            else "INCOMPLETE"
+        ),
+        "quote_freshness_policy_version": CANDIDATE_QUOTE_FRESHNESS_POLICY_VERSION,
+        "quote_age_seconds": age_seconds,
+        "quote_max_age_seconds": CANDIDATE_QUOTE_MAX_AGE_SECONDS,
+    }
+
+
 @dataclass(frozen=True, kw_only=True)
 class AuthoritativeRecommendationInput:
     payload: dict[str, Any]
@@ -110,6 +130,25 @@ class RecommendationDecisionV4:
             "blockers": list(self.blockers),
             "decision_hash": self.decision_hash,
         }
+
+
+def read_recommendation_decision_v4(payload: Mapping[str, Any]) -> RecommendationDecisionV4:
+    """Decode a saved decision without re-running admission or pricing."""
+    validate_decision_v4_identity(payload)
+    reason = payload["reason"]
+    return RecommendationDecisionV4(
+        outcome=RecommendationOutcomeV4(payload["outcome"]),
+        reason_code=reason["code"],
+        reason_message=reason["message"],
+        authoritative_input=AuthoritativeRecommendationInput(payload=dict(payload["authoritative_input"])),
+        selected_candidate=(
+            dict(payload["selected_candidate"])
+            if payload.get("selected_candidate") is not None
+            else None
+        ),
+        blockers=tuple(payload["blockers"]),
+        decision_hash=payload["decision_hash"],
+    )
 
 
 def authoritative_input_from_market_candidate(
@@ -148,6 +187,7 @@ def authoritative_input_from_market_candidate(
         "exact_line": executable.get("line") or candidate.get("line"),
         "capture_id": executable.get("capture_id") or quote_identity.get("capture_id"),
         "captured_at": executable.get("captured_at") or quote_identity.get("captured_at"),
+        "decision_evaluated_at": quote_identity.get("evaluated_at") or "",
         "quote_observation_ids": quote_identity.get("observation_ids"),
         "raw_payload_sha256": quote_identity.get("raw_payload_sha256"),
         "source_revision": quote_identity.get("source_revision"),
@@ -172,6 +212,11 @@ def authoritative_input_from_market_candidate(
             else "NOT_READY",
             "quote_identity_status": quote_identity.get("identity_status"),
             "quote_freshness_status": quote_identity.get("freshness_status"),
+            "quote_freshness_policy_version": quote_identity.get(
+                "freshness_schema_version"
+            ),
+            "quote_age_seconds": quote_identity.get("age_seconds"),
+            "quote_max_age_seconds": quote_identity.get("max_age_seconds"),
             "model_status": model.get("status"),
         },
         "capability_status": capability_status,
@@ -298,7 +343,7 @@ def _normalize_input(value: Mapping[str, Any]) -> tuple[dict[str, Any], list[str
     ):
         if payload[field] is not None:
             payload[field] = str(payload[field]).strip()
-    for field in ("kickoff_utc", "captured_at"):
+    for field in ("kickoff_utc", "captured_at", "decision_evaluated_at"):
         normalized_time = _utc_text(payload[field])
         if normalized_time is None:
             blockers.append(f"INVALID_{field.upper()}")
@@ -306,8 +351,13 @@ def _normalize_input(value: Mapping[str, Any]) -> tuple[dict[str, Any], list[str
             payload[field] = normalized_time
     kickoff = _utc_datetime(payload["kickoff_utc"])
     captured = _utc_datetime(payload["captured_at"])
+    evaluated = _utc_datetime(payload["decision_evaluated_at"])
     if kickoff is not None and captured is not None and captured >= kickoff:
         blockers.append("QUOTE_CAPTURE_NOT_BEFORE_KICKOFF")
+    if kickoff is not None and evaluated is not None and evaluated >= kickoff:
+        blockers.append("DECISION_NOT_BEFORE_KICKOFF")
+    if captured is not None and evaluated is not None and captured > evaluated:
+        blockers.append("QUOTE_CAPTURE_AFTER_DECISION_EVALUATION")
     for field in ("exact_line", "decimal_odds", "fair_odds", "expected_value", "uncertainty"):
         number = _decimal(payload[field])
         if number is None:
@@ -376,6 +426,20 @@ def _normalize_input(value: Mapping[str, Any]) -> tuple[dict[str, Any], list[str
         blockers.append("QUOTE_IDENTITY_NOT_READY")
     if readiness.get("quote_freshness_status") != "COMPLETE":
         blockers.append("QUOTE_FRESHNESS_NOT_READY")
+    if (
+        readiness.get("quote_freshness_policy_version")
+        != CANDIDATE_QUOTE_FRESHNESS_POLICY_VERSION
+    ):
+        blockers.append("QUOTE_FRESHNESS_POLICY_NOT_REGISTERED")
+    quote_age = _decimal(readiness.get("quote_age_seconds"))
+    quote_max_age = _decimal(readiness.get("quote_max_age_seconds"))
+    if (
+        quote_age is None
+        or quote_max_age != Decimal(CANDIDATE_QUOTE_MAX_AGE_SECONDS)
+        or quote_age < 0
+        or quote_age > quote_max_age
+    ):
+        blockers.append("QUOTE_FRESHNESS_BOUNDARY_INVALID")
     if readiness.get("model_status") != "READY":
         blockers.append("MODEL_EVIDENCE_NOT_READY")
     if payload["serializer_version"] != CURRENT_SERIALIZER_VERSION.value:
@@ -419,7 +483,28 @@ def _outcome(
     payload: Mapping[str, Any], blockers: Sequence[str]
 ) -> tuple[RecommendationOutcomeV4, str, str]:
     if blockers:
-        return RecommendationOutcomeV4.NOT_READY, "IDENTITY_NOT_READY", "推荐身份尚未完整"
+        fixture_identity_blockers = {
+            "MISSING_FIXTURE_ID",
+            "MISSING_COMPETITION_ID",
+            "MISSING_SEASON",
+            "MISSING_KICKOFF_UTC",
+            "MISSING_KICKOFF_REVISION_OR_FIXTURE_IDENTITY_HASH",
+            "INVALID_KICKOFF_UTC",
+            "INVALID_KICKOFF_REVISION_OR_FIXTURE_IDENTITY_HASH",
+        }
+        if fixture_identity_blockers.intersection(blockers):
+            return RecommendationOutcomeV4.NOT_READY, "IDENTITY_NOT_READY", "比赛身份尚未完整"
+        blocker_readiness = _mapping(payload.get("readiness"))
+        if (
+            blocker_readiness.get("model_status") != "READY"
+            or "MODEL_EVIDENCE_NOT_READY" in blockers
+        ):
+            return RecommendationOutcomeV4.NOT_READY, "EVIDENCE_NOT_READY", "模型证据尚未就绪"
+        if "QUOTE_IDENTITY_NOT_READY" in blockers:
+            return RecommendationOutcomeV4.NOT_READY, "QUOTE_IDENTITY_NOT_READY", "盘口身份尚未完整"
+        if "DECISION_NOT_BEFORE_KICKOFF" in blockers:
+            return RecommendationOutcomeV4.NOT_READY, "FIXTURE_NOT_PREMATCH", "比赛已开始或结束"
+        return RecommendationOutcomeV4.NOT_READY, "EVIDENCE_NOT_READY", "决策证据尚未就绪"
     readiness = payload.get("readiness")
     status = str(readiness.get("status") or "") if isinstance(readiness, Mapping) else ""
     if status not in {"READY", "COMPLETE"}:
@@ -427,13 +512,14 @@ def _outcome(
     expected_value = _decimal(payload.get("expected_value"))
     uncertainty = _decimal(payload.get("uncertainty"))
     cashflow_edge = _decimal(payload.get("cashflow_price_edge"))
-    if (
-        expected_value is None
-        or uncertainty is None
-        or cashflow_edge is None
-        or expected_value <= 0
-        or expected_value - uncertainty <= 0
-        or cashflow_edge < MIN_CASHFLOW_PRICE_EDGE
+    if not economic_admission_pass(
+        expected_value=float(expected_value) if expected_value is not None else None,
+        ev_minus_se=(
+            float(expected_value - uncertainty)
+            if expected_value is not None and uncertainty is not None
+            else None
+        ),
+        cashflow_price_edge=float(cashflow_edge) if cashflow_edge is not None else None,
     ):
         return RecommendationOutcomeV4.NO_EDGE, "CASHFLOW_EDGE_INSUFFICIENT", "五态现金流优势不足"
     formal_admission = _mapping(payload.get("formal_admission"))

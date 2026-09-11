@@ -223,7 +223,7 @@ def _card() -> dict[str, object]:
         "recommendation_decision_v3": {"outcome": "NOT_READY"},
         "recommendation_decision_v4": _decision_v4(),
         "recommendation": {
-            "tier": "FORMAL",
+            "decision_tier": "RECOMMEND",
             "market": "ASIAN_HANDICAP",
             "selection": "AWAY_AH",
             "selection_label_cn": "Away 受让",
@@ -285,6 +285,7 @@ def _decision_v4(*, capability_status: str = "FORMAL_ENABLED") -> dict[str, obje
             "exact_line": "0.5",
             "capture_id": "capture-1",
             "captured_at": "2026-06-22T00:50:00Z",
+            "decision_evaluated_at": "2026-06-22T00:55:00Z",
             "quote_observation_ids": {
                 "home": "observation-home",
                 "away": "observation-away",
@@ -319,6 +320,9 @@ def _decision_v4(*, capability_status: str = "FORMAL_ENABLED") -> dict[str, obje
                 "status": "READY",
                 "quote_identity_status": "COMPLETE",
                 "quote_freshness_status": "COMPLETE",
+                "quote_freshness_policy_version": "w2.quote_freshness.v1",
+                "quote_age_seconds": 300,
+                "quote_max_age_seconds": 1800,
                 "model_status": "READY",
             },
             "capability_status": capability_status,

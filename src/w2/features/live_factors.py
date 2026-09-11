@@ -11,7 +11,6 @@ from w2.features.framework import (
     FeatureContribution,
     FeatureStatus,
     TeamSide,
-    coverage_or_unavailable,
 )
 
 
@@ -86,15 +85,7 @@ def true_xg_factor(
     away_xg: list[TeamXgSnapshot],
     weight: float = 0.10,
 ) -> FeatureContribution:
-    blocked = coverage_or_unavailable(
-        profile=profile,
-        key="xg",
-        feature_id="F9_TRUE_XG",
-        label="真实 xG",
-        weight=weight,
-    )
-    if blocked is not None:
-        return blocked
+    coverage_profile_status = profile.as_dict().get("xg", "UNKNOWN")
     home = latest_as_of(home_xg, context.as_of)
     away = latest_as_of(away_xg, context.as_of)
     if home is None or away is None:
@@ -106,6 +97,7 @@ def true_xg_factor(
             weight=weight,
             reason="XG_DATA_UNAVAILABLE",
             coverage_key="xg",
+            coverage_profile_status=coverage_profile_status,
         )
     home_net = home.xg_for - home.xg_against
     away_net = away.xg_for - away.xg_against
@@ -119,6 +111,7 @@ def true_xg_factor(
         side=TeamSide.HOME if score > 0 else TeamSide.AWAY if score < 0 else TeamSide.NEUTRAL,
         reason="AS_OF_ROLLING_XG_DIFF",
         coverage_key="xg",
+        coverage_profile_status=coverage_profile_status,
         observed_at=max(home.observed_at, away.observed_at),
         inputs={"home_xg_net": home_net, "away_xg_net": away_net},
         source="api_football_statistics",

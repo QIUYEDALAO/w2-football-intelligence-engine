@@ -1,0 +1,56 @@
+{
+  "ah_count": 84,
+  "ah_factor_scope_rows": 84,
+  "ah_profit_units": "-8.655",
+  "ah_settlement_counts": {
+    "HALF_LOSS": 8,
+    "HALF_WIN": 6,
+    "LOSS": 34,
+    "PUSH": 4,
+    "WIN": 32
+  },
+  "auxiliary_label_source_role": "TEAM_DISPLAY_NAME_ONLY_NOT_A_MODEL_INPUT",
+  "auxiliary_label_source_sha256": "7e6bcbdc2baf4d8b255d8dbd79a907aa107d4536a642c13465b7828fd0b37110",
+  "base_commit": "15bc23cb937cbac7843017d442db813639869f16",
+  "current_phase": "F0",
+  "deployment_executed": false,
+  "distinct_fixture_count": 111,
+  "f5_source_status": "NOT_INGESTED_POST_EVENT_SOURCE_NOT_PIT_PROVABLE",
+  "factor_matrix_status": "NOT_RECONSTRUCTIBLE_FROM_FROZEN_148",
+  "final_state": "F0_ACCEPTED_F1_BLOCKED_BY_MATRIX",
+  "github_push": 0,
+  "input_bundle_sha256": "da9edb11be8144991addeb1c6e83724d3cca083ca46b0bd8de2eaa6d45f6e7e4",
+  "mainline_id": "AH-FACTOR-ACCURACY-V1",
+  "matrix_row_status_counts": {
+    "NOT_RECONSTRUCTIBLE": 84
+  },
+  "matrix_rows": 84,
+  "next_phase": "F1",
+  "obsidian_writes": 0,
+  "production_db_reads": 0,
+  "production_db_writes": 0,
+  "provider_calls": 0,
+  "public_http_fetch": 0,
+  "roster_rows": 148,
+  "roster_rows_without_team_label": 0,
+  "row_count": 148,
+  "schema_version": "w2.ah_factor_accuracy_f0_result.v1",
+  "settlement_counts": {
+    "HALF_LOSS": 8,
+    "HALF_WIN": 6,
+    "LOSS": 66,
+    "PUSH": 13,
+    "WIN": 55
+  },
+  "task_id": "W2_AH_FACTOR_ACCURACY_F0_SCOPE_AND_EVIDENCE_FREEZE_20260910",
+  "total_profit_units": "-20.375",
+  "totals_count": 64,
+  "totals_out_of_factor_scope_rows": 64,
+  "totals_profit_units": "-11.72",
+  "totals_settlement_counts": {
+    "LOSS": 32,
+    "PUSH": 9,
+    "WIN": 23
+  },
+  "weight_calibration_status": "BLOCKED_BY_FACTOR_MATRIX"
+}

@@ -10,6 +10,8 @@ from w2.features.xg_materialization import (
     parse_team_xg_matches,
 )
 from w2.ingestion.xg_backfill import (
+    ProStatisticsBackfillConfig,
+    ProStatisticsBackfillService,
     XgBackfillConfig,
     XgBackfillError,
     XgHistoryBackfillService,
@@ -25,6 +27,8 @@ def finished_fixture(
     kickoff: datetime,
     home: str = "10",
     away: str = "20",
+    league_id: int = 113,
+    season: str = "2026",
 ) -> dict[str, Any]:
     return {
         "fixture": {
@@ -32,6 +36,7 @@ def finished_fixture(
             "date": kickoff.isoformat().replace("+00:00", "Z"),
             "status": {"short": "FT"},
         },
+        "league": {"id": league_id, "season": season},
         "teams": {"home": {"id": int(home)}, "away": {"id": int(away)}},
         "goals": {"home": 2, "away": 1},
     }
@@ -101,7 +106,39 @@ def test_rolling_xg_materialization_is_strictly_as_of() -> None:
     assert snapshot is not None
     assert snapshot.match_count == 4
     assert snapshot.rolling_xg_for < 9.9
-    assert snapshot.as_feature_snapshot().observed_at == NOW
+    assert snapshot.as_feature_snapshot().observed_at == NOW - timedelta(hours=1)
+
+
+def test_rolling_xg_visibility_uses_latest_component_availability() -> None:
+    rows = []
+    captured_times = (
+        NOW - timedelta(hours=4),
+        NOW - timedelta(hours=3),
+        NOW - timedelta(hours=2),
+    )
+    for index, captured_at in enumerate(captured_times):
+        rows.extend(
+            parse_team_xg_matches(
+                fixture_payload=finished_fixture(
+                    f"available-{index}", NOW - timedelta(days=3 - index)
+                ),
+                statistics_payload=statistics(),
+                captured_at=captured_at,
+                raw_payload_sha256=f"{index + 1}" * 64,
+            )
+        )
+
+    snapshot = materialize_rolling_xg(
+        team_id="10",
+        as_of_fixture_id="future-target",
+        as_of_time=NOW + timedelta(days=7),
+        matches=rows,
+        min_matches=3,
+    )
+
+    assert snapshot is not None
+    assert snapshot.as_of_time == captured_times[-1]
+    assert snapshot.as_of_time < NOW
 
 
 class FakeClient:
@@ -196,7 +233,7 @@ class FakeRepository:
                     "date": (NOW + timedelta(days=1)).isoformat(),
                     "status": {"short": "NS"},
                 },
-                "league": {"id": 1, "season": "2026"},
+                "league": {"id": 113, "season": "2026"},
                 "teams": {"home": {"id": 10}, "away": {"id": 20}},
             },
             {
@@ -218,6 +255,18 @@ class FakeRepository:
                 "teams": {"home": {"id": 50}, "away": {"id": 60}},
             },
         ]
+
+    def raw_payload_count(self, endpoint: str) -> int:
+        return sum(saved_endpoint == endpoint for saved_endpoint, _digest in self.raw)
+
+    def raw_payload_exists(self, *, sha256: str, endpoint: str) -> bool:
+        return (endpoint, sha256) in self.raw
+
+    def raw_statistics_fixture_ids(self) -> set[str]:
+        return set()
+
+    def provider_live_request_count_since(self, *, endpoint: str, since: datetime) -> int:
+        return int(getattr(self, "statistics_request_count_today", 0))
 
     def save_raw_payload(
         self,
@@ -246,6 +295,19 @@ class FakeRepository:
 
     def request_count_since(self, since: datetime) -> int:
         return self.request_count_today
+
+    def provider_team_mapping(
+        self,
+        *,
+        provider: str,
+        competition_id: str,
+        season: str,
+        as_of: datetime,
+    ) -> dict[str, str]:
+        assert provider == "api_football"
+        assert competition_id == "allsvenskan"
+        assert season == "2026"
+        return {team_id: f"w2:team:api_football:{team_id}" for team_id in ("10", "20")}
 
 
 class ExistingXgRepository(FakeRepository):
@@ -305,13 +367,13 @@ class BrokenUsageRepository(FakeRepository):
 class SavedRawRepository(FakeRepository):
     def fixture_payloads(self) -> list[dict[str, Any]]:
         rows = super().fixture_payloads()
-        rows.extend(
-            finished_fixture(
+        for index in range(4):
+            item = finished_fixture(
                 f"saved-{index}",
                 NOW - timedelta(days=5 - index),
             )
-            for index in range(4)
-        )
+            item["league"] = {"id": 113, "season": "2026"}
+            rows.append(item)
         return rows
 
     def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
@@ -355,6 +417,18 @@ class ConflictingSavedRawRepository(SavedRawRepository):
         return rows
 
 
+class NoCanonicalSavedRawRepository(SavedRawRepository):
+    def provider_team_mapping(
+        self,
+        *,
+        provider: str,
+        competition_id: str,
+        season: str,
+        as_of: datetime,
+    ) -> dict[str, str]:
+        return {}
+
+
 def test_saved_statistics_raw_materializes_xg_and_is_idempotent() -> None:
     repository = SavedRawRepository()
     service = XgHistoryBackfillService(
@@ -372,6 +446,78 @@ def test_saved_statistics_raw_materializes_xg_and_is_idempotent() -> None:
     assert first.rolling_snapshot_rows == 2
     assert second.team_xg_match_rows == 0
     assert second.rolling_snapshot_rows == 2
+
+
+def test_saved_statistics_raw_materializes_registered_historical_season() -> None:
+    repository = SavedRawRepository()
+    for fixture in repository.fixture_payloads():
+        if str(fixture.get("fixture", {}).get("id", "")).startswith("saved-"):
+            fixture["league"] = {"id": 113, "season": "2024"}
+
+    result = XgHistoryBackfillService(
+        client=NoCallClient(),
+        repository=repository,
+        config=XgBackfillConfig(min_rolling_matches=3),
+        now=NOW,
+    ).run_saved_raw()
+
+    assert result.team_xg_match_rows == 8
+
+
+def test_history_fetch_rejects_finished_fixture_outside_registered_leagues() -> None:
+    service = XgHistoryBackfillService(
+        client=NoCallClient(),
+        repository=SavedRawRepository(),
+        config=XgBackfillConfig(min_rolling_matches=3),
+        now=NOW,
+    )
+    payload = {
+        "response": [
+            finished_fixture("target", NOW - timedelta(days=1)),
+            finished_fixture("cup", NOW - timedelta(days=1), league_id=171),
+        ]
+    }
+
+    assert [row["fixture"]["id"] for row in service._finished_fixture_items(payload)] == ["target"]
+
+
+def test_saved_raw_rebuild_uses_snapshot_identities_not_current_mapping() -> None:
+    plan = XgHistoryBackfillService(
+        client=NoCallClient(),
+        repository=NoCanonicalSavedRawRepository(),
+        config=XgBackfillConfig(min_rolling_matches=3),
+        now=NOW,
+    ).build_saved_raw_plan(
+        snapshot_identities=[
+            {
+                "snapshot_id": f"{team_id}:target",
+                "team_id": team_id,
+                "as_of_fixture_id": "target",
+            }
+            for team_id in ("10", "20")
+        ]
+    )
+
+    assert len(plan.team_xg_matches) == 8
+    assert len(plan.rolling_snapshots) == 2
+    assert plan.blockers == ()
+
+
+def test_saved_statistics_raw_dry_run_is_exact13_canonical_and_write_free() -> None:
+    repository = SavedRawRepository()
+    result = XgHistoryBackfillService(
+        client=NoCallClient(),
+        repository=repository,
+        config=XgBackfillConfig(min_rolling_matches=3),
+        now=NOW,
+    ).run_saved_raw(persist=False)
+
+    assert result.dry_run is True
+    assert result.as_dict()["provider_calls"] == 0
+    assert result.team_xg_match_rows == 8
+    assert result.rolling_snapshot_rows == 2
+    assert repository.matches == []
+    assert repository.snapshots == []
 
 
 def test_saved_statistics_raw_with_less_than_three_matches_has_no_snapshot() -> None:
@@ -515,6 +661,26 @@ def test_xg_backfill_daily_hard_cap_blocks_before_provider_call() -> None:
     assert result.requests[0]["error_code"] == "PROVIDER_RESERVE_PROTECTED"
 
 
+def test_xg_backfill_statistics_daily_cap_stops_statistics_calls() -> None:
+    client = FakeClient()
+    repository = FakeRepository()
+    repository.statistics_request_count_today = 5500
+
+    result = XgHistoryBackfillService(
+        client=client,
+        repository=repository,
+        config=XgBackfillConfig(
+            request_budget=120,
+            statistics_daily_hard_cap=5500,
+        ),
+        now=NOW,
+    ).run()
+
+    assert result.blockers == ["STATISTICS_DAILY_HARD_CAP_REACHED"]
+    assert result.statistics_request_count == 0
+    assert all(endpoint != "statistics" for endpoint, _params in client.calls)
+
+
 def test_xg_backfill_fails_closed_when_provider_usage_audit_unavailable() -> None:
     client = FakeClient()
     repository = BrokenUsageRepository()
@@ -538,3 +704,212 @@ def test_xg_backfill_fails_closed_when_provider_usage_audit_unavailable() -> Non
     assert repository.matches == []
     assert repository.snapshots == []
     assert result.requests[0]["error_code"] == "PROVIDER_USAGE_AUDIT_UNAVAILABLE"
+
+
+class ProBackfillRepository(FakeRepository):
+    def __init__(self, fixtures: list[dict[str, Any]]) -> None:
+        super().__init__()
+        self.fixtures = fixtures
+
+    def fixture_payloads(self) -> list[dict[str, Any]]:
+        return self.fixtures
+
+    def save_raw_payload(
+        self,
+        *,
+        sha256: str,
+        endpoint: str,
+        captured_at: datetime,
+        payload: dict[str, Any],
+    ) -> str:
+        self.raw.append((endpoint, sha256))
+        return f"db://raw_payload/{sha256}"
+
+
+class ProBackfillClient:
+    def __init__(self, *, with_xg: bool = True) -> None:
+        self.calls: list[str] = []
+        self.with_xg = with_xg
+
+    def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        fixture_id = params["fixture"]
+        self.calls.append(fixture_id)
+        payload = statistics() if self.with_xg else {"response": []}
+        payload["parameters"] = {"fixture": fixture_id}
+        return LiveApiFootballResponse(
+            endpoint=endpoint,
+            params=params,
+            status_code=200,
+            elapsed_ms=1,
+            payload=payload,
+            headers={"x-ratelimit-requests-remaining": "7000"},
+            captured_at=NOW,
+        )
+
+
+def pro_fixture(fixture_id: str, *, league_id: int) -> dict[str, Any]:
+    fixture = finished_fixture(fixture_id, NOW - timedelta(days=1))
+    fixture["league"] = {"id": league_id, "season": "2024"}
+    return fixture
+
+
+def test_pro_statistics_backfill_persists_missing_fixture_manifests(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    repository = ProBackfillRepository([])
+
+    class ManifestClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, str]]] = []
+
+        def request_live(
+            self,
+            endpoint: str,
+            params: dict[str, str],
+        ) -> LiveApiFootballResponse:
+            self.calls.append((endpoint, params))
+            return LiveApiFootballResponse(
+                endpoint=endpoint,
+                params=params,
+                status_code=200,
+                elapsed_ms=1,
+                payload={"parameters": params, "response": []},
+                headers={"x-ratelimit-requests-remaining": "7000"},
+                captured_at=NOW,
+            )
+
+    client = ManifestClient()
+    result = ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(batch=3, request_budget=10),
+        now=NOW,
+    ).run()
+
+    assert result.fixture_manifest_request_count == 6
+    assert result.raw_fixtures_added == 6
+    assert {endpoint for endpoint, _params in client.calls} == {"fixtures"}
+    assert {params["season"] for _endpoint, params in client.calls} == {
+        "2024",
+        "2025",
+        "2026",
+    }
+
+
+def test_pro_statistics_backfill_persists_each_response_with_count_and_hash_guard(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    repository = ProBackfillRepository(
+        [pro_fixture("br-1", league_id=71), pro_fixture("br-2", league_id=71)]
+    )
+    client = ProBackfillClient()
+
+    result = ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=1,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    assert client.calls == ["br-1", "br-2"]
+    assert result.raw_statistics_added == 2
+    assert result.raw_statistics_before == 0
+    assert result.raw_statistics_after == 2
+    assert len(result.raw_payload_sha256) == 2
+    assert result.remaining_fixture_count == 0
+
+
+def test_pro_statistics_backfill_stops_scope_after_empty_xg_pilot(monkeypatch: Any) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    repository = ProBackfillRepository(
+        [pro_fixture(f"pl-{index}", league_id=39) for index in range(5)]
+    )
+    client = ProBackfillClient(with_xg=False)
+
+    result = ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=2,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    assert client.calls == ["pl-0", "pl-1", "pl-2"]
+    assert result.raw_statistics_added == 3
+    assert result.skipped_competitions == ("premier_league",)
+    assert result.blockers == ("PRO_STATISTICS_XG_PILOT_EMPTY:premier_league",)
+
+
+def test_pro_statistics_backfill_continues_after_one_scope_fails_pilot(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    repository = ProBackfillRepository(
+        [pro_fixture(f"de-{index}", league_id=78) for index in range(3)]
+        + [pro_fixture(f"pl-{index}", league_id=39) for index in range(3)]
+    )
+    client = ProBackfillClient()
+    original_request = client.request_live
+
+    def request_live(endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        response = original_request(endpoint, params)
+        if params["fixture"].startswith("de-"):
+            response.payload["response"] = []
+        return response
+
+    monkeypatch.setattr(client, "request_live", request_live)
+
+    result = ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=2,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    assert client.calls == ["de-0", "de-1", "de-2", "pl-0", "pl-1", "pl-2"]
+    assert result.skipped_competitions == ("bundesliga",)
+    assert "premier_league" in result.pilot_xg_verified_competitions
+
+
+def test_pro_statistics_backfill_verifies_all_pilots_before_bulk(monkeypatch: Any) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    repository = ProBackfillRepository(
+        [pro_fixture(f"de-{index}", league_id=78) for index in range(4)]
+        + [pro_fixture(f"pl-{index}", league_id=39) for index in range(4)]
+    )
+    client = ProBackfillClient()
+
+    ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=2,
+            request_budget=8,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    assert client.calls == [
+        "de-0",
+        "de-1",
+        "de-2",
+        "pl-0",
+        "pl-1",
+        "pl-2",
+        "de-3",
+        "pl-3",
+    ]

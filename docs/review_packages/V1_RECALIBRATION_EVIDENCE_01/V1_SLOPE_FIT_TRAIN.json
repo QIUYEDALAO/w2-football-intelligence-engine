@@ -1,0 +1,111 @@
+{
+  "schema": "w2.v1.raw_delta_scale_fit.v1",
+  "fixture_count": 8659,
+  "parameter": "raw_delta_scale",
+  "bounds": [
+    0.5,
+    3.0
+  ],
+  "home_advantage_goals": 0.3,
+  "optimizer": "golden_section_width_le_1e-6",
+  "fitted_value": 1.102038,
+  "source": {
+    "home_away_sha256": "709050b581b569c874c6a8d1363ba1a6612503489d175da8b644c5df05294a02",
+    "xg_sha256": "16fcaaad812e8007c7e828c964d7029bc223e361cdac87b122c56eba9e8e3522"
+  },
+  "full_train_net_margin_regression": {
+    "slope": 1.075132,
+    "intercept": 0.021717
+  },
+  "rolling_origin": {
+    "warmup_fixtures": 1500,
+    "folds": [
+      {
+        "fold": 1,
+        "train_count": 1500,
+        "validation_count": 716,
+        "validation_kickoff_start": "2024-10-27 14:15:00+00",
+        "validation_kickoff_end": "2024-12-21 14:30:00+00",
+        "fitted_value": 1.129705
+      },
+      {
+        "fold": 2,
+        "train_count": 2216,
+        "validation_count": 716,
+        "validation_kickoff_start": "2024-12-21 14:30:00+00",
+        "validation_kickoff_end": "2025-03-09 11:15:00+00",
+        "fitted_value": 1.160306
+      },
+      {
+        "fold": 3,
+        "train_count": 2932,
+        "validation_count": 716,
+        "validation_kickoff_start": "2025-03-09 11:30:00+00",
+        "validation_kickoff_end": "2025-05-03 19:00:00+00",
+        "fitted_value": 1.166136
+      },
+      {
+        "fold": 4,
+        "train_count": 3648,
+        "validation_count": 716,
+        "validation_kickoff_start": "2025-05-03 19:05:00+00",
+        "validation_kickoff_end": "2025-07-23 22:00:00+00",
+        "fitted_value": 1.152288
+      },
+      {
+        "fold": 5,
+        "train_count": 4364,
+        "validation_count": 716,
+        "validation_kickoff_start": "2025-07-23 22:30:00+00",
+        "validation_kickoff_end": "2025-09-24 19:30:00+00",
+        "fitted_value": 1.150007
+      },
+      {
+        "fold": 6,
+        "train_count": 5080,
+        "validation_count": 716,
+        "validation_kickoff_start": "2025-09-24 19:30:00+00",
+        "validation_kickoff_end": "2025-11-08 20:00:00+00",
+        "fitted_value": 1.14807
+      },
+      {
+        "fold": 7,
+        "train_count": 5796,
+        "validation_count": 716,
+        "validation_kickoff_start": "2025-11-08 20:00:00+00",
+        "validation_kickoff_end": "2026-01-21 17:45:00+00",
+        "fitted_value": 1.124284
+      },
+      {
+        "fold": 8,
+        "train_count": 6512,
+        "validation_count": 716,
+        "validation_kickoff_start": "2026-01-23 19:00:00+00",
+        "validation_kickoff_end": "2026-03-22 11:15:00+00",
+        "fitted_value": 1.125462
+      },
+      {
+        "fold": 9,
+        "train_count": 7228,
+        "validation_count": 716,
+        "validation_kickoff_start": "2026-03-22 11:30:00+00",
+        "validation_kickoff_end": "2026-05-11 18:45:00+00",
+        "fitted_value": 1.125665
+      },
+      {
+        "fold": 10,
+        "train_count": 7944,
+        "validation_count": 715,
+        "validation_kickoff_start": "2026-05-11 19:00:00+00",
+        "validation_kickoff_end": "2026-08-30 02:30:00+00",
+        "fitted_value": 1.113134
+      }
+    ],
+    "oof_fixture_count": 7159,
+    "oof_net_margin_regression": {
+      "slope": 1.028712,
+      "intercept": 0.022801
+    }
+  },
+  "data_role": "TRAIN_DEVELOPMENT_ONLY"
+}

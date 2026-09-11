@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Refuse a release assembled from Python and Web images built from different commits.
+# Usage: w2-release-sync-preflight <python-image> <web-image> [expected-sha]
+set -uo pipefail
+
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+  echo "usage: w2-release-sync-preflight <python-image> <web-image> [expected-sha]" >&2
+  exit 2
+fi
+
+python_image=$1
+web_image=$2
+expected_sha=${3:-}
+
+revision() {
+  docker image inspect "$1" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' 2>/dev/null
+}
+
+python_sha=$(revision "$python_image") || {
+  echo "RELEASE_BLOCKED_PYTHON_IMAGE_NOT_FOUND:$python_image" >&2
+  exit 2
+}
+web_sha=$(revision "$web_image") || {
+  echo "RELEASE_BLOCKED_WEB_IMAGE_NOT_FOUND:$web_image" >&2
+  exit 2
+}
+
+if [ -z "$python_sha" ] || [ -z "$web_sha" ]; then
+  echo "RELEASE_BLOCKED_IMAGE_REVISION_MISSING" >&2
+  exit 2
+fi
+if [ "$python_sha" != "$web_sha" ]; then
+  echo "RELEASE_BLOCKED_WEB_PYTHON_REVISION_MISMATCH:python=$python_sha:web=$web_sha" >&2
+  exit 2
+fi
+if [ -n "$expected_sha" ] && [ "$python_sha" != "$expected_sha" ]; then
+  echo "RELEASE_BLOCKED_EXPECTED_REVISION_MISMATCH:expected=$expected_sha:actual=$python_sha" >&2
+  exit 2
+fi
+
+printf 'RELEASE_SYNC_PREFLIGHT_OK revision=%s\n' "$python_sha"

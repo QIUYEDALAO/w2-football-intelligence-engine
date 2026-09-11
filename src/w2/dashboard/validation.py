@@ -3,13 +3,12 @@ from __future__ import annotations
 from decimal import InvalidOperation
 from typing import Any
 
-from w2.dashboard.recommendations import RecommendationTier
+from w2.domain.enums import DecisionTier
 from w2.settlement.settle import WIN_UNITS, settle_market
 
 VALIDATED_TIERS = {
-    RecommendationTier.FORMAL.value,
-    RecommendationTier.CANDIDATE.value,
-    RecommendationTier.ANALYSIS_PICK.value,
+    DecisionTier.RECOMMEND.value,
+    DecisionTier.ANALYSIS_PICK.value,
 }
 
 
@@ -27,7 +26,7 @@ def validate_recommendation(
             "settlement": "NO_BET",
             "validation_notes": ["无正式/候选/分析倾向，不计入命中率。"],
         }
-    tier = str(recommendation.get("tier") or "")
+    tier = str(recommendation.get("decision_tier") or "")
     if tier not in VALIDATED_TIERS:
         return {
             "settlement": "NO_BET",
@@ -79,10 +78,9 @@ def validate_recommendation(
         "profit_units": profit_units,
         "closing_line_value": None,
         "validation_notes": notes,
-        "tier": tier,
-        "counted_in_official": tier
-        in {RecommendationTier.FORMAL.value, RecommendationTier.CANDIDATE.value},
-        "counted_in_analysis_shadow": tier == RecommendationTier.ANALYSIS_PICK.value,
+        "decision_tier": tier,
+        "counted_in_official": tier == DecisionTier.RECOMMEND.value,
+        "counted_in_analysis_shadow": tier == DecisionTier.ANALYSIS_PICK.value,
         "fixture_id": fixture_id,
     }
 
@@ -174,4 +172,3 @@ def _int_or_none(value: Any) -> int | None:
         except ValueError:
             return None
     return None
-

@@ -1,0 +1,60 @@
+{
+  "byte_invariant": {
+    "canonical_bytes_sha256": [
+      "559b1f14e9732700150c211b300a815f8f2cff1a08d41d8ab2ae27f957caf925",
+      "9afed376b843061cbb5f442047770b95792bc582aa0de116bc2de6831eb2fc62",
+      "36d541ca43a2fca186031d479ad0ecc959d22453ac2408a1a28c5d1862b10b2c",
+      "fcd3853477e91a4d5b0c1e19133a719a6a1398a93da6cddc61305127ca14e0ea",
+      "4831dffacb42655b5066f41604162012b945825a887ae57e22748bbdb1bdc937",
+      "66fad1b2ac6b4f32c8964707aab4a1a7f51ec646d628dbccc9fb4778df4a2c6d"
+    ],
+    "event_count": 6,
+    "status": "EXACT_MATCH"
+  },
+  "comparison": {
+    "analysis_card_calls": {
+      "after": 12,
+      "before": 24
+    },
+    "cpu_seconds": {
+      "after": 65.136922,
+      "before": 123.767577,
+      "change": -58.630655,
+      "reduction_ratio": 0.473716
+    },
+    "sql_calls": {
+      "after": 527,
+      "before": 1097,
+      "change": -570,
+      "reduction_ratio": 0.519599
+    },
+    "wall_seconds": {
+      "after": 218.899288,
+      "before": 483.830291,
+      "change": -264.931003,
+      "reduction_ratio": 0.54757
+    }
+  },
+  "content_sha256": "c6184cf0680f7e3af31a632b5ce98b42b4fbe39c40a021142e11cadd41b49634",
+  "manifest_sha256": "eb574ac19b9f896e32d0aff515d7d3bfe06fc0bae6d1ad7c882cc92e5fd3eed8",
+  "profile_sha256": {
+    "baseline": "d4101227b8514f88a72581e86b6bd4f644ab410df8323e51bddbf1321e719c3b",
+    "optimized": "63434eb4cedeff38d697f9eabe42908f73ddc314183653d903ae759ae5df460c"
+  },
+  "safety": {
+    "deployment": false,
+    "outcome_ledger_sql_reads": {
+      "after": 12,
+      "before": 24
+    },
+    "production_database_writes": 0,
+    "provider_calls": 0
+  },
+  "schema_version": "w2.sched_dedup_01.evidence.v1",
+  "sql_classification": {
+    "after_exact_duplicate_calls": 343,
+    "after_n_plus_one_candidate_calls": 111,
+    "before_exact_duplicate_calls": 734,
+    "before_n_plus_one_candidate_calls": 222
+  }
+}

@@ -11,8 +11,7 @@ class PublicTeamLabelAuthorityError(RuntimeError):
     pass
 
 
-@lru_cache(maxsize=1)
-def reviewed_public_team_labels() -> dict[str, str]:
+def _public_team_labels_by_status(review_status: str) -> dict[str, str]:
     path = (
         get_settings().readiness_config_path
         / "identity"
@@ -27,16 +26,32 @@ def reviewed_public_team_labels() -> dict[str, str]:
     if not isinstance(entries, list):
         raise PublicTeamLabelAuthorityError("PUBLIC_TEAM_LABEL_ENTRIES_INVALID")
     labels: dict[str, str] = {}
+    seen_team_ids: set[str] = set()
     for entry in entries:
-        if not isinstance(entry, dict) or entry.get("review_status") != "APPROVED":
+        if not isinstance(entry, dict) or entry.get("review_status") not in {
+            "APPROVED",
+            "PENDING_OWNER_REVIEW",
+        }:
             raise PublicTeamLabelAuthorityError("PUBLIC_TEAM_LABEL_REVIEW_INVALID")
         team_id = str(entry.get("w2_team_id") or "").strip()
         label = str(entry.get("public_name") or "").strip()
         if (
             team_id.split(":")[:2] != ["w2", "team"]
             or not any("\u4e00" <= character <= "\u9fff" for character in label)
-            or team_id in labels
+            or team_id in seen_team_ids
         ):
             raise PublicTeamLabelAuthorityError("PUBLIC_TEAM_LABEL_ENTRY_INVALID")
-        labels[team_id] = label
+        seen_team_ids.add(team_id)
+        if entry["review_status"] == review_status:
+            labels[team_id] = label
     return labels
+
+
+@lru_cache(maxsize=1)
+def reviewed_public_team_labels() -> dict[str, str]:
+    return _public_team_labels_by_status("APPROVED")
+
+
+@lru_cache(maxsize=1)
+def pending_public_team_labels() -> dict[str, str]:
+    return _public_team_labels_by_status("PENDING_OWNER_REVIEW")

@@ -1,0 +1,151 @@
+{
+  "caller_version_disagrees_refused_with": "FACTOR_VERSION_DISAGREES_WITH_BUILDER_AUTHORITY",
+  "capture_contract": "w2.f1r_b_source_capture.v1",
+  "complete_batch": {
+    "appended": 4,
+    "applied_weight_sum": "0.25",
+    "applied_weights": {
+      "F3_REST_FITNESS": "0.1",
+      "F5_RECENT_AH_COVER": "0",
+      "F6_H2H": "0.05",
+      "F9_TRUE_XG": "0.1"
+    },
+    "batch_size": 4,
+    "declared_weights": {
+      "F3_REST_FITNESS": "0.1",
+      "F5_RECENT_AH_COVER": "0.05",
+      "F6_H2H": "0.05",
+      "F9_TRUE_XG": "0.1"
+    },
+    "every_evidence_time_strictly_before_evaluated_at": true,
+    "evidence_time_semantics": {
+      "F3_REST_FITNESS": "FIXTURE_EVENT_TIME",
+      "F5_RECENT_AH_COVER": "SOURCE_QUERIED_AT_AS_OF",
+      "F6_H2H": "RESULT_DERIVED_REQUIRES_EXPLICIT_SOURCE_OBSERVED_TIME",
+      "F9_TRUE_XG": "SOURCE_SNAPSHOT_OBSERVED_AT"
+    },
+    "evidence_time_utc": {
+      "F3_REST_FITNESS": "2026-09-28T19:30:00+00:00",
+      "F5_RECENT_AH_COVER": "2026-10-01T18:30:00+00:00",
+      "F6_H2H": "2026-03-15T22:30:00+00:00",
+      "F9_TRUE_XG": "2026-09-30T18:30:00+00:00"
+    },
+    "factor_ids": [
+      "F3_REST_FITNESS",
+      "F5_RECENT_AH_COVER",
+      "F6_H2H",
+      "F9_TRUE_XG"
+    ],
+    "factor_versions": {
+      "F3_REST_FITNESS": "w2.factor.f3_rest_fitness.rest_days_diff.v1",
+      "F5_RECENT_AH_COVER": "w2.factor.f5_recent_ah_cover.settled_cover_rate_diff.v1",
+      "F6_H2H": "w2.factor.f6_h2h.mean_goal_diff.v1",
+      "F9_TRUE_XG": "w2.factor.f9_true_xg.rolling_net_xg_diff.v1"
+    },
+    "signed_scores": {
+      "F3_REST_FITNESS": "-0.25",
+      "F5_RECENT_AH_COVER": null,
+      "F6_H2H": "1.0",
+      "F9_TRUE_XG": "0.47"
+    },
+    "source_capture_ids": {
+      "F3_REST_FITNESS": "w2.consumed_source_set.v1:21265bc71258aa72f5ad1d8dfeaba6f2b2155f9478aac8dd6c236827d713a2bf",
+      "F5_RECENT_AH_COVER": "w2.consumed_source_set.v1:c798d1bf0cf540bac5b091cbe6996affe80f532b9bf841d481ab3b3629055c4c",
+      "F6_H2H": "w2.consumed_source_set.v1:92f2b372546ec16afc8c3b107dbb01de354d90fd4623d44b7c8d2d321dbb5736",
+      "F9_TRUE_XG": "w2.consumed_source_set.v1:f63dedb9f7ff6d398580003e09db3a3a6cc54d55014ece8f1fc4ce7ffeaff0be"
+    },
+    "source_capture_sha256": {
+      "F3_REST_FITNESS": "5ab4779f67fc9b59c81f17f7c6530f77638265722b6089b0378fd737419b4e5a",
+      "F5_RECENT_AH_COVER": "88930f3e1e328bf8ea9ae1c1d27f532aea95d2043cb03d6b4650102e5a33cdd0",
+      "F6_H2H": "bd12f3a83373af6b5c0620262399d9dde8a0f6f23f9382fee7ba7cd3f11a6b0c",
+      "F9_TRUE_XG": "318f7e3f85d48f7adfa74bbe63b8316506a25f7cbd385d326483fa1e61b43df3"
+    },
+    "source_observed_times": {
+      "F3_REST_FITNESS": "2026-09-27T19:30:00+00:00,2026-09-28T19:30:00+00:00",
+      "F5_RECENT_AH_COVER": "2026-10-01T18:30:00+00:00",
+      "F6_H2H": "2025-08-27T22:30:00+00:00,2026-03-15T22:30:00+00:00",
+      "F9_TRUE_XG": "2026-09-29T18:30:00+00:00,2026-09-30T18:30:00+00:00"
+    },
+    "source_record_ids": {
+      "F3_REST_FITNESS": "api_football:8000003:w2-team-home-1,api_football:8000004:w2-team-away-1",
+      "F5_RECENT_AH_COVER": "absence:F5_RECENT_AH_COVER:canonical_historical_ah_fact:none",
+      "F6_H2H": "api_football:8000200:w2-team-home-1,api_football:8000400:w2-team-home-1",
+      "F9_TRUE_XG": "w2-team-away-1:9000001,w2-team-home-1:9000001"
+    },
+    "statuses": {
+      "F3_REST_FITNESS": "PARTICIPATED",
+      "F5_RECENT_AH_COVER": "INSUFFICIENT_DATA",
+      "F6_H2H": "PARTICIPATED",
+      "F9_TRUE_XG": "PARTICIPATED"
+    }
+  },
+  "contract_id": "w2.forward_ah_factor_observation.v1",
+  "dashboard_modified": false,
+  "deployment_executed": false,
+  "f3_result_field_leak_refused_with": "F3_RESULT_FIELD_IN_EVENT_TIME_INPUT",
+  "f5_blocking_evidence": [
+    "NO_PRODUCTION_WRITER_EMITS_CANONICAL_AH_FACT_ROWS_INTO_THE_FACTOR_PATH",
+    "CANONICAL_HISTORICAL_AH_FACTS_TABLE_HAS_NO_READER_IN_SRC",
+    "CANONICAL_HISTORICAL_AH_FACT_CARRIES_NO_SETTLEMENT_OBSERVATION_TIME",
+    "RESULTS_CONFIRMED_AT_HAS_TWO_WRITER_SEMANTICS_AND_NO_DISCRIMINATOR"
+  ],
+  "f5_source_port_refused_with": "F5_AH_FACT_SOURCE_TIME_UNPROVABLE",
+  "f5_source_time_proven": false,
+  "f6_kickoff_as_source_time_refused_with": "F6_SOURCE_TIME_NOT_AFTER_KICKOFF",
+  "f6_row_without_capture_refused_with": "F6_HISTORY_ROW_HAS_NO_ENDPOINT_CAPTURE",
+  "f6_source_time_authority": "canonical_team_match_history.endpoint_capture_id -> matchday_endpoint_captures.provider_captured_at",
+  "f6_source_time_proven": true,
+  "f9_source_time_authority": "team_xg_rolling_snapshot.as_of_time, set by materialize_rolling_xg to max(max(component.kickoff_at, component.captured_at))",
+  "f9_source_time_proven": true,
+  "final_state": "BLOCKED_BY_UNPROVABLE_FACTOR_SOURCE",
+  "fixture_kind": "OFFLINE_FIXTURE_ROWS_SHAPED_AS_PRODUCTION_PROJECTIONS",
+  "fixture_note": "Offline rows shaped as the production projections. Not production data and not evidence about any match. The capture identities are computed from this content by the production ports, not fabricated.",
+  "historical_148_backfilled": false,
+  "idempotent_replay": {
+    "appended": 0,
+    "idempotent_no_ops": 4
+  },
+  "incomplete_batch_refused_with": "BATCH_FACTOR_SET_INVALID",
+  "integration_id": "w2.f1r_b_production_recording_integration.v1",
+  "isolated_replay": {
+    "database_kind": "SQLITE_FILE_ISOLATED_TEMPORARY",
+    "database_note": "PostgreSQL is not installed in this environment; the isolated database is a file-backed SQLite created and destroyed by this run. Real DDL, real constraints, real transactions, and not the production database.",
+    "empty_rollback_returncode": 0,
+    "other_tables_after_rollback": 70,
+    "other_tables_after_upgrade": 70,
+    "populated_rollback_reason": "FORWARD_AH_FACTOR_OBSERVATION_DOWNGRADE_WOULD_DESTROY_FACTS",
+    "populated_rollback_refused": true,
+    "populated_rollback_returncode": 1,
+    "pre_migration_tables": 70,
+    "readback_payload_matches_contract": true,
+    "readback_rows": 4,
+    "repeat_rollback_returncode": 0,
+    "repeat_upgrade_returncode": 0,
+    "replay_appended": 0,
+    "replay_idempotent_no_ops": 4,
+    "rows_after_blocked_rollback": 4,
+    "rows_appended": 4,
+    "schema_version": "w2.f1r_b_isolated_replay.v1",
+    "stamp_returncode": 0,
+    "table_present_after_rollback": false,
+    "table_present_after_upgrade": true,
+    "unrelated_tables_untouched": true,
+    "upgrade_returncode": 0
+  },
+  "ledger_rows": 4,
+  "ledger_unchanged_after_refusal": true,
+  "live_capture_enabled": false,
+  "obsidian_writes": 0,
+  "parent_commit": "71daa3f5ec17ac3c5484e75a87d6bcac990d4bae",
+  "production_db_reads": 0,
+  "production_db_writes": 0,
+  "provider_calls": 0,
+  "public_http_fetch": 0,
+  "readback_verified_rows": 4,
+  "recorder_id": "w2.f1r_a0_offline_factor_recorder.v3",
+  "scheduler_modified": false,
+  "schema_version": "w2.f1r_b_production_recording_result.v1",
+  "synthetic_source_in_production_refused_with": "SYNTHETIC_SOURCE_IN_PRODUCTION_BRANCH",
+  "task_id": "W2_AH_FACTOR_ACCURACY_F1R_B_PRODUCTION_RECORDING_INTEGRATION_20260911",
+  "v4_decision_behavior_changed": false
+}

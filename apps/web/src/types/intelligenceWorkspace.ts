@@ -32,6 +32,7 @@ export type PublicStatusCause =
   | "INSUFFICIENT"
   | "UNAVAILABLE"
   | "UNASSESSED"
+  | "LABEL_PENDING_OWNER_REVIEW"
   | "LABEL_MISSING"
   | "IDENTITY_UNRESOLVED"
   | "AMBIGUOUS"
@@ -62,6 +63,7 @@ export interface WorkspaceAttentionItem {
 
 export interface WorkspaceTimelinePoint {
   capture_id: string | null;
+  checkpoint: string | null;
   captured_at: string | null;
   canonical_line: string | null;
   bookmaker_count: number;
@@ -71,7 +73,7 @@ export interface WorkspaceTimelinePoint {
 
 export interface WorkspaceMarket {
   market: "ASIAN_HANDICAP" | "TOTALS";
-  status: "READY" | "STALE" | "INSUFFICIENT";
+  status: "READY" | "INSUFFICIENT";
   source_status: string;
   snapshot_state:
     | "NO_TIMELINE_EVIDENCE"
@@ -85,7 +87,7 @@ export interface WorkspaceMarket {
   bookmaker_count: number;
   prices: Record<string, unknown>;
   probabilities: Record<string, unknown>;
-  freshness: Record<string, unknown>;
+  quote_age_seconds: number | null;
   timeline_points: WorkspaceTimelinePoint[];
   movement: {
     status?: string;
@@ -98,15 +100,14 @@ export interface WorkspaceMarket {
   };
   reason_codes: string[];
   trend_evidence_status: "AVAILABLE" | "INSUFFICIENT";
-  cross_sectional_comparison_status: "AVAILABLE" | "INSUFFICIENT" | "PAUSED_STALE";
+  cross_sectional_comparison_status: "AVAILABLE" | "INSUFFICIENT";
   latest_snapshot_at: string | null;
-  freshness_max_age_seconds: number | null;
   eligibility: {
-    observation_status: "AVAILABLE" | "STALE" | "INSUFFICIENT";
+    observation_status: "AVAILABLE" | "INSUFFICIENT";
     trend_evidence_status: "AVAILABLE" | "INSUFFICIENT";
-    cross_sectional_comparison_status: "AVAILABLE" | "INSUFFICIENT" | "PAUSED_STALE";
+    cross_sectional_comparison_status: "AVAILABLE" | "INSUFFICIENT";
     model_diagnostic_status: string;
-    candidate_quote_identity_status: "READY" | "NOT_READY";
+    candidate_quote_lock_status: "READY" | "NOT_READY";
     candidate_model_status: "READY" | "NOT_READY";
     candidate_eligibility_status: "READY" | "NOT_READY";
     blockers: string[];
@@ -117,6 +118,7 @@ export interface WorkspacePublicTeamLabel {
   display_name: string;
   state:
     | "CHINESE_LABEL_READY"
+    | "CHINESE_LABEL_PENDING_OWNER_REVIEW"
     | "CANONICAL_IDENTITY_READY_LABEL_MISSING"
     | "IDENTITY_UNRESOLVED"
     | "AMBIGUOUS";
@@ -134,7 +136,7 @@ export interface WorkspaceDateStripEntry {
   upcoming_fixture_count: number;
   persisted_inventory_status: "PERSISTED_FIXTURES_AVAILABLE" | "EMPTY_PERSISTED_DAY";
   persisted_competition_coverage_count: number;
-  active_whitelist_count: 13;
+  active_whitelist_count: number;
   market_collection_window_status:
     | "EMPTY_PERSISTED_DAY"
     | "MARKET_EVIDENCE_AVAILABLE"
@@ -150,9 +152,107 @@ export interface WorkspaceModelRelation {
   status: string;
   canonical_line: string | null;
   bookmaker_count: number;
-  freshness_status: string | null;
+  market_quote_age_seconds: number | null;
   diagnostics: Record<string, unknown>[];
   blockers: string[];
+}
+
+export type FactorRole = "HARD_GATE" | "ENHANCEMENT" | "NOT_APPLICABLE" | "POLICY_DISABLED";
+export type FactorCause = "NOT_YET_DUE" | "AWAITING_COLLECTION" | "COLLECTION_WINDOW_MISSED" | "UNDER_SAMPLED" | "PROVIDER_NOT_AVAILABLE" | "POLICY_DISABLED" | "NOT_MATERIALIZED" | "SOURCE_NOT_CONFIGURED" | "IDENTITY_UNRESOLVED" | "NO_MATERIALIZED_HISTORY" | null;
+
+export interface FixtureFactorTrackState {
+  state: "READY" | "BLOCKED";
+  blocking_factor_ids: string[];
+}
+
+export interface FixtureFactor {
+  factor_id: string;
+  display_name_zh: string;
+  market: "ASIAN_HANDICAP" | "TOTALS" | null;
+  role_model_forecast: FactorRole;
+  role_shadow_candidate: FactorRole;
+  factor_lifecycle: string | null;
+  numeric_effect_enabled: boolean;
+  state: "READY" | "PARTIAL" | "MISSING" | "WAITING" | "DISABLED";
+  cause: FactorCause;
+  permanence: "TRANSIENT" | "SELF_RESOLVING" | "STRUCTURAL_PERMANENT" | "UNKNOWN" | "NOT_APPLICABLE";
+  next_window_at: string | null;
+  evidence: Record<string, unknown>;
+}
+
+// The factor score that drives the ASIAN_HANDICAP recommendation's
+// direction and strength (see src/w2/strategy/factor_score.py). Admission
+// requires F9_TRUE_XG to have participated and at least 3 factors total to
+// have participated; no strength threshold is applied on top of that yet.
+export interface FactorScoreParticipant {
+  feature_id: string;
+  label: string;
+  magnitude: number;
+  weight: number;
+  share: number;
+  side: "HOME" | "AWAY" | "NEUTRAL";
+}
+
+export interface FactorScoreAbsence {
+  feature_id: string;
+  label: string;
+  status: string;
+  reason: string;
+}
+
+export interface FactorScore {
+  home_score: number;
+  away_score: number;
+  margin: number;
+  strength: number;
+  direction: "HOME" | "AWAY" | "NEUTRAL";
+  weight_sum_used: number;
+  participant_count: number;
+  admitted: boolean;
+  admission_blockers: string[];
+  participants: FactorScoreParticipant[];
+  absent: FactorScoreAbsence[];
+}
+
+export interface FixtureFactorChecklist {
+  fixture_id: string;
+  competition_id: string | null;
+  kickoff_utc: string | null;
+  as_of: string | null;
+  conclusion_zh: string;
+  market_identity_note_zh: string;
+  ledger_fact: {
+    state: "NOT_CAPTURED" | "CAPTURED" | "SETTLED";
+    capture_identity_hash?: string | null;
+    captured_at?: string | null;
+    lead_time_seconds?: number | null;
+    lead_time_bucket?: "LT_6H" | "H6_TO_LT_24H" | "D1_TO_D3" | "GT_3D" | null;
+    capture_policy?: "FIRST_ELIGIBLE_FREEZE_IMMUTABLE" | null;
+    data_version?: string | null;
+    team_xg_match_count?: number | null;
+    model_family?: string | null;
+    model_version?: string | null;
+    calibration_version?: string | null;
+    calibration_status?: string | null;
+    four_field_xg?: {
+      status: "READY";
+      identity_hash: string;
+      home_snapshot_identity: string;
+      away_snapshot_identity: string;
+      home_match_count: number;
+      away_match_count: number;
+    } | null;
+    settled_at?: string | null;
+    brier?: number | null;
+    log_loss?: number | null;
+    rps?: number | null;
+  };
+  enhancement_quality: { state: "READY" | "DEGRADED"; missing_factor_ids: string[] };
+  track_model_forecast: FixtureFactorTrackState;
+  track_shadow_candidate: FixtureFactorTrackState & {
+    per_market: Record<"ASIAN_HANDICAP" | "TOTALS", FixtureFactorTrackState>;
+  };
+  factors: FixtureFactor[];
 }
 
 export interface WorkspaceMatch {
@@ -170,6 +270,22 @@ export interface WorkspaceMatch {
     is_finished: boolean;
     is_tracked: boolean;
     is_recorded: boolean;
+    public_semantics: PublicStatusSemantics;
+  };
+  market_collection: {
+    latest_snapshot_at: string | null;
+    latest_snapshot_checkpoint: string | null;
+    target_checkpoint: string | null;
+    scheduled_at: string | null;
+    window_end_at: string | null;
+    overdue: boolean;
+    public_semantics: PublicStatusSemantics;
+  };
+  lineup_collection: {
+    target_checkpoint: string | null;
+    scheduled_at: string | null;
+    window_end_at: string | null;
+    overdue: boolean;
     public_semantics: PublicStatusSemantics;
   };
   intelligence_state: IntelligenceState;
@@ -194,7 +310,7 @@ export interface WorkspaceMatch {
     candidate_input_status: "READY" | "NOT_READY";
   };
   market_fact: {
-    status: "READY" | "STALE" | "INSUFFICIENT";
+    status: "READY" | "INSUFFICIENT";
     source_status: string;
     main_line: string | null;
     current_odds: Record<string, unknown>;
@@ -218,6 +334,46 @@ export interface WorkspaceMatch {
     };
     model_market_relation: Record<string, WorkspaceModelRelation>;
   };
+  evaluation_execution: {
+    status: "UNASSESSED" | "NO_EDGE" | "CANDIDATE" | "TECHNICAL_INVALIDATED" | "NO_CANDIDATE_FORMED" | "BLOCKED";
+    ever_formed_candidate: boolean;
+    final_states: Array<{
+      market: "ASIAN_HANDICAP" | "TOTALS";
+      checkpoint: string;
+      state: "EVALUATED_NO_EDGE" | "EVALUATED_CANDIDATE" | "BLOCKED_BY_GATE" | "MISSED_CHECKPOINT" | "EVALUATION_ERROR";
+      recorded_at: string | null;
+      blocker: string | null;
+    }>;
+    latest_candidates: Array<{
+      market: "ASIAN_HANDICAP" | "TOTALS";
+      selection: string | null;
+      exact_line: string | null;
+      decimal_odds: number | null;
+      bookmaker_id: string | null;
+      captured_at: string | null;
+      evaluated_at: string | null;
+      checkpoint: string;
+      final_state: "EVALUATED_NO_EDGE" | "EVALUATED_CANDIDATE" | "BLOCKED_BY_GATE" | "MISSED_CHECKPOINT" | "EVALUATION_ERROR" | null;
+      final_active: boolean;
+      later_unassessed_checkpoints: string[];
+    }>;
+    checkpoint_count: number;
+    market_evaluation_count: number;
+    checkpoints: string[];
+    markets: string[];
+    summary_zh: string;
+    lifecycle_note_zh: string | null;
+    diagnosis: {
+      status: "CHECKPOINT_NOT_DUE" | "XG_INPUT_MISSING" | "GATE_BLOCKED" | "CHECKPOINT_MISSED" | "PROVIDER_EMPTY" | "EVALUATION_ERROR" | "NO_EDGE" | "CANDIDATE_ACTIVE" | "UNASSESSED";
+      primary_blocker_zh: string;
+      missing_detail_zh: string;
+      next_step_zh: string;
+      next_checkpoint: string | null;
+      next_checkpoint_at: string | null;
+      non_blocking_missing_zh: string[];
+      evidence_codes: string[];
+    };
+  };
   shadow_candidate: {
     status: "ACTIVE" | "NOT_READY" | "OFF";
     mode: "SHADOW_ONLY";
@@ -238,6 +394,8 @@ export interface WorkspaceMatch {
     production_action_allowed: false;
     real_money_allowed: false;
   };
+  factor_checklist: FixtureFactorChecklist;
+  factor_score: FactorScore | null;
   formal_recommendation: {
     status: "OFF";
     reason: "PRODUCT_AUTHORITY_DISABLED";
@@ -255,11 +413,11 @@ export interface WorkspaceMatch {
       calibration_status: string | null;
     };
     market: Record<string, {
-      status: "READY" | "STALE" | "INSUFFICIENT";
+      status: "READY" | "INSUFFICIENT";
       source_status: string;
       main_line: string | null;
       bookmaker_count: number;
-      freshness: Record<string, unknown>;
+      quote_age_seconds: number | null;
     }>;
     api_football_prediction: {
       status: "NOT_AVAILABLE";
@@ -288,6 +446,28 @@ export interface WorkspaceMatch {
     decision_role: "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY";
   };
 }
+
+export interface WorkspaceMatchProjectionError {
+  projection_status: "ERROR";
+  fixture_id: string;
+  competition_id: string | null;
+  competition_name: string | null;
+  kickoff_utc: string | null;
+  home_team_name: string | null;
+  away_team_name: string | null;
+  home_team_label: WorkspacePublicTeamLabel;
+  away_team_label: WorkspacePublicTeamLabel;
+  public_semantics: PublicStatusSemantics;
+  status: string | null;
+  outcome: WorkspaceMatch["outcome"];
+  projection_error: {
+    code: "MATCH_PROJECTION_CONTRACT_VIOLATION";
+    message: string;
+    detail: string;
+  };
+}
+
+export type WorkspaceMatchItem = WorkspaceMatch | WorkspaceMatchProjectionError;
 
 export interface WorkspaceCompetitionPerformance {
   league: string;
@@ -350,6 +530,75 @@ export interface WorkspaceValidation {
   };
   league_performance: WorkspaceCompetitionPerformance[];
   tournament_performance: WorkspaceCompetitionPerformance[];
+  model_forecast: {
+    capture_count: number;
+    settled_count: number;
+    pending_count: number;
+    sample_target: number;
+    current_flow_candidate_count: number;
+    current_flow_settled_count: number;
+    ever_formed_candidate_count: number;
+    final_candidate_count: number;
+    invalidated_candidate_count: number;
+    t30_evaluated_candidate_count: number;
+    t30_confirmed_candidate_count: number;
+    min_xg_matches: number;
+    xg_ready_team_count: number;
+    next_7d_xg_ready_fixture_count: number;
+    capture_policy: "FIRST_ELIGIBLE_FREEZE_IMMUTABLE";
+    market_evaluation_funnel: {
+      scope: "CHECKPOINT_EVALUATION_OPPORTUNITY_V2";
+      denominator_unit: "CHECKPOINT_EVALUATION_OPPORTUNITY_SLOT_X_MARKET";
+      measurement_status: "MEASURABLE" | "NOT_MEASURABLE" | "INVALID";
+      invalid_opportunity_row_count: number;
+      invalid_opportunity_reasons: Record<string, number>;
+      opportunity_count: number;
+      capture_count: number;
+      fixture_count: number;
+      market_unit_count: number;
+      persisted_market_unit_count: number;
+      recorded_at_count: number;
+      gate_counts: Record<string, number>;
+      // null while NOT_MEASURABLE -- a 0 rate would claim the gate was tested.
+      gate_rates: Record<string, number> | null;
+      first_failed_gate_counts: Record<string, number>;
+    };
+    official_recommendations: Array<{
+      evaluation_id: string;
+      fixture_id: string;
+      evaluated_at: string | null;
+      kickoff_utc: string | null;
+      market: "ASIAN_HANDICAP" | "TOTALS";
+      selection: "HOME" | "AWAY" | "OVER" | "UNDER";
+      exact_line: string;
+      decimal_odds: number;
+      home_team_label: WorkspacePublicTeamLabel;
+      away_team_label: WorkspacePublicTeamLabel;
+      score: string | null;
+      settlement: "PENDING" | "WIN" | "HALF_WIN" | "PUSH" | "HALF_LOSS" | "LOSS";
+      profit_units: number | null;
+      confirmed_checkpoint: string;
+      later_unassessed_checkpoints: string[];
+      lifecycle_note_zh: string | null;
+    }>;
+    lead_time_buckets: Record<"LT_6H" | "H6_TO_LT_24H" | "D1_TO_D3" | "GT_3D", {
+      capture_count: number;
+      settled_count: number;
+      pending_count: number;
+    }>;
+    data_versions: Record<string, {
+      team_xg_match_count: number | null;
+      capture_count: number;
+      settled_count: number;
+      pending_count: number;
+      lead_time_buckets: Record<"LT_6H" | "H6_TO_LT_24H" | "D1_TO_D3" | "GT_3D", {
+        capture_count: number;
+        settled_count: number;
+        pending_count: number;
+      }>;
+    }>;
+    public_semantics: PublicStatusSemantics;
+  };
   forward_validation_records: {
     status: "AVAILABLE" | "INSUFFICIENT";
     validation_count: number;
@@ -406,6 +655,7 @@ export interface IntelligenceWorkspace {
     priority_match_count: number;
     priority_group_count: number;
     primary_reason_counts: Record<string, number>;
+    pending_owner_review_team_count: number;
   };
   global_focus: {
     reason_code: string;
@@ -438,18 +688,22 @@ export interface IntelligenceWorkspace {
   runtime: {
     product: string;
     public_dashboard_authority: "NEW_INTELLIGENCE_WORKSPACE_ONLY";
-    active_whitelist_count: 13;
+    active_whitelist_count: number;
     free_bridge_mode: "SHADOW_ONLY";
     market_price_attention_threshold_ratio: 0.02;
     candidate: "OFF" | "SHADOW_ONLY";
     formal: "OFF";
     lock: "OFF";
     production: "OFF";
+    recommendation_capabilities: Record<string, {
+      implementation: "NOT_IMPLEMENTED" | "CODE_PRESENT" | "CONTRACT_VERIFIED" | "LOCALLY_VERIFIED" | "ISOLATED_RUNTIME_VERIFIED" | "STAGING_CANARY_PASSED" | "FEATURE_ENABLED" | "PUBLICLY_AVAILABLE" | "PRODUCTION_ENABLED";
+      feature_enabled: boolean;
+    }>;
   };
   navigation: Record<string, unknown>;
   date_strip: WorkspaceDateStripEntry[];
   attention: WorkspaceAttentionItem[];
-  matches: WorkspaceMatch[];
+  matches: WorkspaceMatchItem[];
   validation: WorkspaceValidation;
   external_intelligence: Record<string, {
     status: "NOT_CONNECTED";

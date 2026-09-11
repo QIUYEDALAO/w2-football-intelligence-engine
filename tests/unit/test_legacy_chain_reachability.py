@@ -21,6 +21,13 @@ _ROW = {
 }
 
 _LEGACY_GUARD_SURFACES = ("src", "apps", "scripts", "infra")
+_RETIRED_RUNTIME_SYMBOLS = {
+    "RecommendationTier",
+    "build_watch_recommendation",
+    "derive_recommendation_tier",
+    "free_fixture_bridge",
+    "free_fixture_runtime",
+}
 _LEGACY_ADAPTER_FIELDS = {
     "pricing_shadow",
     "formal_blockers",
@@ -182,6 +189,23 @@ def test_legacy_decision_contract_code_is_zero() -> None:
     code_count = _legacy_decision_contract_code_count()
     assert code_count == 0, f"LEGACY_DECISION_CONTRACT_CODE = {code_count}"
     assert "pricing_shadow" not in inspect.getsource(canonical_public_simulation)
+
+
+def test_retired_runtime_authorities_cannot_reenter_current_code() -> None:
+    repository = Path(__file__).resolve().parents[2]
+    for surface in _LEGACY_GUARD_SURFACES:
+        for path in (repository / surface).rglob("*"):
+            if not path.is_file() or "__pycache__" in path.parts:
+                continue
+            source = path.read_text(encoding="utf-8", errors="ignore")
+            assert not (_RETIRED_RUNTIME_SYMBOLS & set(re.findall(r"[A-Za-z0-9_]+", source)))
+
+    api_repository = (repository / "src/w2/api/repository.py").read_text(encoding="utf-8")
+    decision_adapter = (repository / "src/w2/domain/decision_adapter.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"tier": merged.get("decision_tier")' not in api_repository
+    assert '_get(recommendation, "tier")' not in decision_adapter
 
 
 @pytest.mark.parametrize(

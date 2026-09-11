@@ -43,20 +43,15 @@ The script reports `provider_calls=0` for the current artifact-first path. Any
 future provider fallback must remain behind quota guard and must not take reserve
 from prematch odds or lineups.
 
-## Automation
+## Execution boundary
 
-Staging enables the scheduler flag `W2_MARKET_TIMELINE_REFRESH_ENABLED=true`.
-The scheduler queues `w2.market_timeline_refresh` every 10 minutes with:
+This is an explicit offline research tool only. It is not registered as a worker task and is
+not scheduled automatically. Live prematch collection is owned exclusively by persisted
+`matchday_checkpoint_plans` and the canonical future-refresh worker.
 
-- `window=next36`
-- `checkpoint=auto`
-- `write_artifacts=true`
-- `max_fixtures=10`
-
-The worker writes only due checkpoints. `opening` may be written early, T-* checkpoints
-are written only inside their short due window, and `lock` is written only inside the
-pre-kickoff lock window. Missed checkpoints remain missing; the job must not use
-current odds to backfill a past checkpoint.
+The CLI may materialize an artifact only from observations that already exist at the requested
+as-of boundary. Missed checkpoints remain missing; it must not use current odds to backfill a
+past checkpoint.
 
 ## Check
 

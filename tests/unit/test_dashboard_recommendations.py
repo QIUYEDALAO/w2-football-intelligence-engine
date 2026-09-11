@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-from w2.dashboard.recommendations import (
-    RecommendationTier,
-    build_recommendation,
-    derive_recommendation_tier,
-)
+from w2.dashboard.recommendations import build_recommendation
 
 
 def test_dashboard_reads_decision_tier_before_legacy_fields() -> None:
@@ -15,11 +11,10 @@ def test_dashboard_reads_decision_tier_before_legacy_fields() -> None:
     }
     market = {"decision": "PICK", "analysis_decision": "ANALYSIS_PICK"}
 
-    assert derive_recommendation_tier(card, market) is RecommendationTier.WATCH
     assert build_recommendation(card, market) is None
 
 
-def test_dashboard_maps_recommend_decision_tier_to_legacy_formal_view() -> None:
+def test_dashboard_emits_recommend_decision_tier_without_legacy_tier() -> None:
     card = {
         "decision_tier": "RECOMMEND",
         "generated_at": "2026-07-05T00:00:00Z",
@@ -37,8 +32,8 @@ def test_dashboard_maps_recommend_decision_tier_to_legacy_formal_view() -> None:
     recommendation = build_recommendation(card, market)
 
     assert recommendation is not None
-    assert recommendation["tier"] == "FORMAL"
     assert recommendation["decision_tier"] == "RECOMMEND"
+    assert "tier" not in recommendation
     assert recommendation["outcome_tracked"] is True
     assert recommendation["lock_eligible"] is True
     assert recommendation["selection"] == "HOME"
@@ -50,27 +45,14 @@ def test_dashboard_fails_closed_when_decision_tier_is_missing() -> None:
     legacy_formal = {"formal_recommendation": True, "recommendation_id": "rec-1"}
     before = dict(legacy_formal)
 
-    assert (
-        derive_recommendation_tier(legacy_formal, None)
-        is RecommendationTier.NO_RECOMMENDATION
-    )
+    assert build_recommendation(legacy_formal, None) is None
     assert legacy_formal == before
     assert (
-        derive_recommendation_tier(
-            {"decision_tier": "RECOMMEND", "recommendation_id": "rec-new"},
-            {"market": "ASIAN_HANDICAP"},
-        )
-        is RecommendationTier.FORMAL
-    )
-    assert (
-        derive_recommendation_tier(
+        build_recommendation(
             {},
             {"analysis_decision": "ANALYSIS_PICK", "formal_recommendation": False},
         )
-        is RecommendationTier.NO_RECOMMENDATION
-    )
-    assert derive_recommendation_tier({"decision": "NO_RECOMMENDATION"}, None) is (
-        RecommendationTier.NO_RECOMMENDATION
+        is None
     )
 
 
@@ -87,7 +69,6 @@ def test_new_card_does_not_infer_from_formal_candidate_or_analysis_decision() ->
         "analysis_decision": "ANALYSIS_PICK",
     }
 
-    assert derive_recommendation_tier(card, market) is RecommendationTier.NO_RECOMMENDATION
     assert build_recommendation(card, market) is None
 
 
@@ -105,8 +86,8 @@ def test_analysis_pick_recommendation_shell_is_not_production_actionable() -> No
     )
 
     assert recommendation is not None
-    assert recommendation["tier"] == "ANALYSIS_PICK"
     assert recommendation["decision_tier"] == "ANALYSIS_PICK"
+    assert "tier" not in recommendation
     assert recommendation["outcome_tracked"] is True
     assert "selection" not in recommendation
     assert "line" not in recommendation

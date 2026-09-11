@@ -43,10 +43,14 @@ def _candidate() -> dict[str, object]:
             "schema_version": "w2.quote_identity.v1",
             "identity_status": "COMPLETE",
             "freshness_status": "COMPLETE",
+            "freshness_schema_version": "w2.quote_freshness.v1",
+            "age_seconds": 600,
+            "max_age_seconds": 1800,
             "provider": "api-football",
             "bookmaker_id": "unibet",
             "capture_id": "capture-1",
             "captured_at": "2026-08-08T15:00:00Z",
+            "evaluated_at": "2026-08-08T15:10:00Z",
             "observation_ids": {
                 "home": "observation-home",
                 "away": "observation-away",
@@ -143,6 +147,9 @@ def test_public_v4_input_reuses_exact_candidate_identity_and_manifest_gate() -> 
         "status": "READY",
         "quote_identity_status": "COMPLETE",
         "quote_freshness_status": "COMPLETE",
+        "quote_freshness_policy_version": "w2.quote_freshness.v1",
+        "quote_age_seconds": 600,
+        "quote_max_age_seconds": 1800,
         "model_status": "READY",
     }
     assert authoritative["canonical_mainline_identity"] == {
@@ -210,7 +217,7 @@ def _formal_payload(authoritative: dict[str, object]) -> dict[str, object]:
     mainline = authoritative["canonical_mainline_identity"]
     assert isinstance(mainline, dict)
     return {
-        "tier": "FORMAL",
+        "decision_tier": "RECOMMEND",
         "market": "ASIAN_HANDICAP",
         "selection": "AWAY_AH",
         "line": authoritative["exact_line"],
@@ -341,7 +348,8 @@ def test_repository_current_projection_uses_v4_not_historical_v3_direction() -> 
     projected = _apply_repository_v4_authority(card)
 
     assert projected["pick"]["selection"] == "AWAY"
-    assert projected["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+    assert "recommendation_decision_v3" not in projected
+    assert "recommendation_decision_v3_role" not in projected
     assert projected["decision_contract"]["recommendation_authority"] == (
         "RECOMMENDATION_DECISION_V4"
     )
@@ -364,7 +372,8 @@ def test_repository_legacy_direction_cannot_create_current_pick_without_v4() -> 
     assert projected["decision_tier"] == "NOT_READY"
     assert projected["pick"] is None
     assert projected["reason_code"] == "CURRENT_V4_AUTHORITY_MISSING"
-    assert projected["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+    assert "recommendation_decision_v3" not in projected
+    assert "recommendation_decision_v3_role" not in projected
 
 
 def test_invalid_history_v3_cannot_block_or_mutate_current_v4() -> None:
@@ -381,19 +390,19 @@ def test_invalid_history_v3_cannot_block_or_mutate_current_v4() -> None:
     }
 
     service = object.__new__(ReadModelService)
-    service._retain_valid_history_v3(card)
+    service._strip_history_v3_from_public_card(card)
 
     assert card["recommendation_decision_v4"] == decision_v4
     assert "recommendation_decision_v3" not in card
-    assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+    assert "recommendation_decision_v3_role" not in card
 
 
-def test_day_view_passes_valid_v4_current_pick_without_rebuilding_it() -> None:
+def test_day_view_preserves_prematch_v4_pick_after_kickoff_without_rebuilding() -> None:
     decision = _decision()
     contract = _contract(decision)
     view = build_dashboard_day_view(
         {
-            "generated_at": "2026-08-08T10:00:00Z",
+            "generated_at": "2026-08-08T18:00:00Z",
             "date": "2026-08-08",
             "selected_football_day": "2026-08-08",
             "all": [
@@ -414,4 +423,95 @@ def test_day_view_passes_valid_v4_current_pick_without_rebuilding_it() -> None:
     assert card["decision_tier"] == "ANALYSIS_PICK"
     assert card["pick"]["selection"] == "AWAY"
     assert card["recommendation_decision_v4"] == decision
-    assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+    assert "recommendation_decision_v3_role" not in card
+
+
+def test_public_v4_rejects_candidate_first_evaluated_at_kickoff() -> None:
+    candidate = _candidate()
+    quote_identity = candidate["quote_identity"]
+    assert isinstance(quote_identity, dict)
+    quote_identity["evaluated_at"] = "2026-08-08T15:30:00Z"
+
+    decision = _build_public_recommendation_decision_v4(
+        card={
+            "fixture_id": "fixture-1",
+            "competition_id": "allsvenskan",
+            "season": "2026",
+            "kickoff_utc": "2026-08-08T15:30:00Z",
+        },
+        row={
+            "fixture_id": "fixture-1",
+            "competition_id": "allsvenskan",
+            "kickoff_utc": "2026-08-08T15:30:00Z",
+        },
+        candidate=candidate,
+        formal_recommendation=None,
+    )
+
+    assert decision.outcome is RecommendationOutcomeV4.NOT_READY
+    assert decision.reason_code == "FIXTURE_NOT_PREMATCH"
+
+
+def test_public_v4_does_not_invent_identity_failure_when_model_is_unready() -> None:
+    decision = _build_public_recommendation_decision_v4(
+        card={
+            "fixture_id": "fixture-1",
+            "competition_id": "allsvenskan",
+            "season": "2026",
+            "kickoff_utc": "2026-08-08T15:30:00Z",
+            "simulation": {"status": "INSUFFICIENT_INPUTS"},
+            "quote_identity_audit": {
+                "ah": {
+                    "identity_status": "COMPLETE",
+                    "freshness_status": "COMPLETE",
+                }
+            },
+        },
+        row={
+            "fixture_id": "fixture-1",
+            "competition_id": "allsvenskan",
+            "kickoff_utc": "2026-08-08T15:30:00Z",
+        },
+        candidate=None,
+        formal_recommendation=None,
+    )
+
+    assert decision.outcome is RecommendationOutcomeV4.NOT_READY
+    assert decision.reason_code == "EVIDENCE_NOT_READY"
+    assert "MODEL_EVIDENCE_NOT_READY" in decision.blockers
+
+
+def test_dashboard_preserves_saved_v4_without_repricing(monkeypatch) -> None:
+    import w2.prematch.analysis_calculator as calculator
+
+    saved = _decision()
+    source = {
+        "fixture_id": "fixture-1",
+        "recommendation_decision_v4": deepcopy(saved),
+        "decision_contract": _contract(saved),
+        "markets": [],
+        "market_candidates": {},
+    }
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("read-side recommendation recomputation")
+
+    monkeypatch.setattr(calculator, "_build_public_recommendation_decision_v4", forbidden)
+    monkeypatch.setattr(calculator, "build_formal_recommendation", forbidden)
+    service = ReadModelService(repository=SimpleNamespace())
+    result = service._dashboard_card_from_matchday(
+        {"fixture_id": "fixture-1", "status": "NS", "kickoff_utc": "2026-08-08T16:00:00Z"},
+        analysis_override=source,
+    )
+    assert result["recommendation_decision_v4"] == saved
+    assert result["pick"]["selection"] == saved["selected_candidate"]["selection"]
+
+
+def test_missing_v4_projects_not_ready_without_fabricating_snapshot() -> None:
+    from w2.dashboard.day_view import _apply_v4_authority
+
+    for project in (_apply_v4_authority, _apply_repository_v4_authority):
+        card = project({"fixture_id": "fixture-1", "pick": {"selection": "HOME"}})
+        assert card["decision_tier"] == "NOT_READY"
+        assert card["pick"] is None
+        assert not card.get("recommendation_decision_v4")

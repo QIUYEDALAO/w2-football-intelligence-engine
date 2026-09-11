@@ -17,6 +17,7 @@ from w2.providers.control import (
     ProviderCallsDisabledError,
     provider_calls_disabled,
     provider_endpoint_allowlist,
+    provider_request_timeout_seconds,
 )
 from w2.providers.ledger import ProviderRequestLedger, provider_request_ledger_from_env
 
@@ -136,7 +137,10 @@ class ApiFootballClient:
             labels={"endpoint": endpoint, "provider": self.provider},
         )
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310
+            with urllib.request.urlopen(  # noqa: S310
+                request,
+                timeout=provider_request_timeout_seconds(),
+            ) as response:
                 raw = response.read()
                 status_code = response.status
                 headers = self._sanitize_headers(response.headers)

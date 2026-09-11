@@ -16,6 +16,8 @@ LEGACY_RECOVERY = ROOT / "config/policies/forward_ledger_legacy_recovery.staging
 READINESS_FAULT = ROOT / "scripts/run_readiness_fault_injection.sh"
 WATCHDOG_SERVICE = ROOT / "infra/systemd/w2-staging-watchdog.service"
 WATCHDOG_TIMER = ROOT / "infra/systemd/w2-staging-watchdog.timer"
+LOCAL_PYTHON_OVERLAY = ROOT / "infra/local-release/Dockerfile.python-overlay"
+LOCAL_WEB_OVERLAY = ROOT / "infra/local-release/Dockerfile.web-overlay"
 
 
 def read(path: Path) -> str:
@@ -63,6 +65,29 @@ def test_staging_services_use_published_images_without_builds() -> None:
     assert "build" not in services["web"]
 
 
+def test_local_release_overlays_are_offline_and_source_scoped() -> None:
+    python_overlay = read(LOCAL_PYTHON_OVERLAY)
+    web_overlay = read(LOCAL_WEB_OVERLAY)
+    for overlay in (python_overlay, web_overlay):
+        assert "FROM ${W2_LOCAL_BASE_IMAGE}" in overlay
+        after_from = overlay.split("FROM ${W2_LOCAL_BASE_IMAGE}", 1)[1]
+        assert "ARG LOCAL_RELEASE_SHA" in after_from
+        assert "ARG LOCAL_RELEASE_TIME" in after_from
+        assert "https://" not in overlay
+        assert "ghcr.io" not in overlay
+        assert "apt-get" not in overlay
+        assert "pip install" not in overlay
+    assert "src/w2 /app/.venv/lib/python3.12/site-packages/w2" in python_overlay
+    assert (
+        "SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json "
+        "/app/docs/review_packages/SC21_FACTOR_INPUT_CHAIN/"
+        "SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json"
+    ) in python_overlay
+    for runtime_root in ("alembic.ini", "apps", "config", "migrations"):
+        assert f"{runtime_root} /app/{runtime_root}" in python_overlay
+    assert '"web_git_sha"' in web_overlay
+
+
 def test_staging_hardening_scripts_do_not_print_env_or_delete_volumes() -> None:
     for path in (DEPLOY, DIAGNOSE, RECOVER, WATCH):
         text = read(path)
@@ -85,6 +110,8 @@ def test_recovery_script_is_staging_only_and_uses_safe_prunes() -> None:
 
 def test_deploy_is_pull_only_and_health_checked() -> None:
     text = read(DEPLOY)
+    assert r"127\.0\.0\.1:5000/w2/" in text
+    assert "VPS-loopback registry digest reference" in text
     assert '"${COMPOSE[@]}" pull migration api worker scheduler web' in text
     assert '"${COMPOSE[@]}" run --rm migration' in text
     assert '"${COMPOSE[@]}" up -d --remove-orphans api worker scheduler web' in text
@@ -99,6 +126,7 @@ def test_deploy_is_pull_only_and_health_checked() -> None:
     assert "http://127.0.0.1:18000/ready" in text
     assert "http://127.0.0.1:18000/v1/version" in text
     assert "http://127.0.0.1:18080/meta.json" in text
+    assert "http://127.0.0.1:18080/v1/dashboard/intelligence-workspace" in text
     assert "org.opencontainers.image.revision" in text
     assert "org.opencontainers.image.created" in text
     assert "w2.release.id" in text
@@ -110,12 +138,24 @@ def test_deploy_is_pull_only_and_health_checked() -> None:
     assert "W2_API_OCI_DIGEST" in text
     assert "W2_API_REGISTRY_DIGEST" in text
     assert "w2.release_record.v1" in text
+    assert "W2_PUBLIC_RESPONSE_SCHEMA_TOUCHED must be YES or NO" in text
+    assert '"public_response_schema_touched"' in text
+    assert '"workspace_http_status": "PASS"' in text
     assert "<<'PY' | sudo tee \\" in text
     assert "release.previous.env" in text
     assert "target_seconds=120" in text
     assert "rollback=FAIL health_or_digest_mismatch" in text
     assert "WARM_SWITCH" in text
     assert "COLD_PULL_END_TO_END" in text
+
+
+def test_deploy_rollback_does_not_run_an_older_migration_image() -> None:
+    text = read(DEPLOY)
+    rollback = text.split("rollback() {", 1)[1].split("trap rollback ERR", 1)[0]
+
+    assert '"${COMPOSE[@]}" pull api worker scheduler web' in rollback
+    assert '"${COMPOSE[@]}" run --rm migration' not in rollback
+    assert "--max-time 30 http://127.0.0.1:18000/v1/version" in text
 
 
 def test_deploy_uploads_to_revision_scoped_remote_directory() -> None:
@@ -151,15 +191,39 @@ def test_controlled_future_refresh_is_source_controlled_and_deployed_with_schedu
     scheduler = override["services"]["scheduler"]["environment"]
     for environment in (worker, scheduler):
         assert environment["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
-        assert environment["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
+        assert environment["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == (
+            "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures,odds,lineups,statistics}"
+        )
         assert environment["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
         assert environment["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
-        assert environment["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
-        assert environment["W2_FREE_BRIDGE_MODE"] == "${W2_FREE_BRIDGE_MODE:-OFF}"
+        assert environment["W2_PROVIDER_DAILY_HARD_CAP"] == "7500"
+        assert environment["W2_POSTMATCH_RESULT_DAILY_HARD_CAP"] == "200"
+        assert environment["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "0"
+        assert environment["W2_PROVIDER_QUOTA_AUTHORITY_MAX_AGE_SECONDS"] == "7200"
+        assert environment["W2_PROVIDER_PREFLIGHT_MIN_REMAINING"] == "1500"
         assert environment["W2_CANDIDATE_ENABLED"] == "true"
         assert environment["W2_FORMAL_RECOMMENDATION_ENABLED"] == "false"
         assert environment["W2_PRODUCTION_RELEASE"] == "false"
+    common = yaml.safe_load(
+        (ROOT / "infra/compose/compose.staging.yml").read_text(encoding="utf-8")
+    )["x-common-env"]
+    assert common["W2_PROVIDER_REQUEST_TIMEOUT_SECONDS"] == (
+        "${W2_PROVIDER_REQUEST_TIMEOUT_SECONDS:-45}"
+    )
+    assert common["W2_PROVIDER_TIMEOUT_MAX_ATTEMPTS"] == (
+        "${W2_PROVIDER_TIMEOUT_MAX_ATTEMPTS:-2}"
+    )
+    assert common["W2_PROVIDER_TIMEOUT_RETRY_BACKOFF_SECONDS"] == (
+        "${W2_PROVIDER_TIMEOUT_RETRY_BACKOFF_SECONDS:-2}"
+    )
     assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
+    assert scheduler["W2_POSTMATCH_ONLY_ENABLED"] == (
+        "${W2_POSTMATCH_ONLY_ENABLED:-false}"
+    )
+    assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == (
+        "${W2_FIXTURE_DISCOVERY_ENABLED:-false}"
+    )
+    assert scheduler["W2_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS"] == "7"
     assert "W2_FUTURE_REFRESH_COMPETITION_ALLOWLIST" not in scheduler
     deploy = read(DEPLOY)
     unit = read(ROOT / "infra/systemd/w2-staging.service")
@@ -210,6 +274,11 @@ def test_deploy_writes_release_metadata_with_root_owned_install() -> None:
     assert (
         'sudo install -o root -g root -m 0644 "${REMOTE_TMP_DIR}/release.env"'
     ) in text
+    pull_end = text.index('sudo docker pull "${WEB_IMAGE}"')
+    identity_verified = text.index('[[ "${WEB_REGISTRY_DIGEST}" =~')
+    activation = text.index("ACTIVATED=true")
+    assert pull_end < identity_verified < activation
+    assert "activation=SKIPPED preactivation_verification_failed" in text
 
 
 def test_deploy_installs_documented_health_checker_without_source_upload() -> None:
