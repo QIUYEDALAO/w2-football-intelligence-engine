@@ -593,7 +593,7 @@ test("AH market radar uses the owner main-handicap sign convention", async ({ pa
   await expect(market.locator(".v41-snapshots li").last()).toContainText("1.5");
 });
 
-test("AH recommendation rows share the owner main-handicap sign convention with market radar", async ({ page }) => {
+test("AH recommendation rows carry the selected-team frame, the market radar's main handicap inverted", async ({ page }) => {
   const payload = workspace();
   const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
   focused.fixture_id = "1490405";
@@ -633,9 +633,21 @@ test("AH recommendation rows share the owner main-handicap sign convention with 
   for (const [fixtureId, , , expected] of recommendations) {
     await expect(page.locator(`.v41-official-recommendations li[data-fixture-id='${fixtureId}'] > span`).first()).toHaveText(expected);
   }
+  // The radar and the recommendation describe the same handicap in opposite
+  // frames, and this is the assertion that keeps them tied to each other.
+  // formatAhMarketHandicap negates the home-frame main_line, so main_line -0.5
+  // renders as "0.5" -- the handicap the home team gives. e90c0abe made
+  // exact_line belong to the selected team and formatAhRecommendationHandicap
+  // states outright that it must not be inverted, so the same handicap renders
+  // as "-0.5" next to 推荐主队. Asserting the two strings matched was asserting
+  // that e90c0abe had not happened; asserting they negate each other is what
+  // catches either side drifting.
   const radarLine = await page.locator("[data-focus-type='MATCH'] [data-market='ASIAN_HANDICAP'] [data-market-line]").textContent();
   const recommendationText = await page.locator(".v41-official-recommendations li[data-fixture-id='1490405'] > span").first().textContent();
-  expect(recommendationText).toContain(`让球 ${radarLine}`);
+  const recommendationLine = recommendationText?.match(/让球\s*(-?\+?[\d.]+)/)?.[1];
+  expect(radarLine).toBe("0.5");
+  expect(recommendationLine).toBe("-0.5");
+  expect(Number(recommendationLine)).toBe(-Number(radarLine));
 });
 
 test("quote age gate mark reads each market's projected maximum", async ({ page }) => {

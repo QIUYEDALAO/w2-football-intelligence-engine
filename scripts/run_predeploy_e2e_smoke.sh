@@ -73,6 +73,8 @@ services:
       W2_PROVIDER_ENDPOINT_ALLOWLIST: status,fixtures,odds,lineups
       W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
       W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
+      W2_PROVIDER_OBSERVED_DAILY_LIMIT: "7500"
+      W2_PROVIDER_OBSERVED_DAILY_LIMIT_AT: "2026-08-16T16:47:41.418098Z"
     volumes: !override
       - ${W2_PREDEPLOY_RUNTIME}:/app/runtime
       - ${W2_PREDEPLOY_RUNTIME}/market_timeline_snapshots:/app/market_timeline_snapshots
@@ -84,6 +86,8 @@ services:
       W2_PROVIDER_ENDPOINT_ALLOWLIST: status,fixtures,odds,lineups
       W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
       W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
+      W2_PROVIDER_OBSERVED_DAILY_LIMIT: "7500"
+      W2_PROVIDER_OBSERVED_DAILY_LIMIT_AT: "2026-08-16T16:47:41.418098Z"
     volumes: !override
       - ${W2_PREDEPLOY_RUNTIME}:/app/runtime
       - ${W2_PREDEPLOY_RUNTIME}/market_timeline_snapshots:/app/market_timeline_snapshots
@@ -97,6 +101,8 @@ services:
       W2_PROVIDER_ENDPOINT_ALLOWLIST: status,fixtures,odds,lineups
       W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
       W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
+      W2_PROVIDER_OBSERVED_DAILY_LIMIT: "7500"
+      W2_PROVIDER_OBSERVED_DAILY_LIMIT_AT: "2026-08-16T16:47:41.418098Z"
     volumes: !override
       - ${W2_PREDEPLOY_RUNTIME}:/app/runtime
       - ${W2_PREDEPLOY_RUNTIME}/market_timeline_snapshots:/app/market_timeline_snapshots
