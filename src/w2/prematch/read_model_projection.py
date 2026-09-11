@@ -158,6 +158,29 @@ class _FrozenScopedInputs:
         return [dict(row) for row in self.round3_evidence]
 
 
+#: Which identity preimage a stored checkpoint was written under. ``current`` is
+#: the only profile new writes ever use; ``legacy`` exists because checkpoints
+#: already on disk were written before the AH factor verdict was joined into the
+#: candidate chain, so their evaluation identities have no verdict in them.
+#:
+#: A profile selects a preimage, never a weaker check. Whichever profile is tried,
+#: the recomputed identities must equal the stored ones exactly, and the artifact,
+#: projection, event and evaluation hashes are all re-verified regardless. A
+#: payload that matches no profile is rejected, not admitted.
+CURRENT_IDENTITY_PROFILE = "current"
+LEGACY_IDENTITY_PROFILE = "legacy"
+
+#: Tried in order after ``current`` fails, each as (profile, identity version,
+#: whether the factor verdict is part of the preimage). Both identity versions are
+#: paired with a verdict-less preimage because the two generations overlap: a
+#: checkpoint may predate the factor verdict, the v2 identity, or both.
+_LEGACY_IDENTITY_PROFILES: tuple[tuple[str, str, bool], ...] = (
+    (LEGACY_IDENTITY_PROFILE, LEGACY_EVALUATION_IDENTITY_VERSION, True),
+    (LEGACY_IDENTITY_PROFILE, EVALUATION_IDENTITY_VERSION, False),
+    (LEGACY_IDENTITY_PROFILE, LEGACY_EVALUATION_IDENTITY_VERSION, False),
+)
+
+
 @dataclass(frozen=True)
 class FrozenAnalysisArtifact:
     checkpoint_key: str
@@ -165,6 +188,9 @@ class FrozenAnalysisArtifact:
     artifact_hash: str
     payload: dict[str, Any]
     canonical_bytes: bytes
+    #: Which identity preimage reproduced this checkpoint's evaluation hashes.
+    #: Readers surface it so a legacy row is never mistaken for a current one.
+    identity_profile: str = CURRENT_IDENTITY_PROFILE
     evaluations: tuple[DynamicEvaluationVersion, ...] = ()
     lineup_event: LineupConfirmedEvent | None = None
     read_time_reference: dict[str, Any] | None = None
@@ -880,6 +906,7 @@ def validate_frozen_analysis_payload(
     ):
         raise FrozenAnalysisError("checkpoint artifact hash mismatch")
     evaluations: tuple[DynamicEvaluationVersion, ...] = ()
+    identity_profile = CURRENT_IDENTITY_PROFILE
     if has_projection_metadata:
         fixture_identity = manifest.get("dynamic_fixture_identity")
         lineup_identity = manifest.get("dynamic_lineup_identity")
@@ -887,7 +914,9 @@ def validate_frozen_analysis_payload(
             raise FrozenAnalysisError("dynamic evaluation fixture identity missing")
         if lineup_identity is not None and not isinstance(lineup_identity, dict):
             raise FrozenAnalysisError("dynamic evaluation lineup identity invalid")
-        def rebuild_evaluations(identity_version: str) -> tuple[DynamicEvaluationVersion, ...]:
+        def rebuild_evaluations(
+            identity_version: str, *, include_factor_verdict: bool
+        ) -> tuple[DynamicEvaluationVersion, ...]:
             return tuple(
                 _dynamic_evaluations(
                     card,
@@ -897,17 +926,32 @@ def validate_frozen_analysis_payload(
                     },
                     lineup_identity=cast(dict[str, str] | None, lineup_identity),
                     evaluation_identity_version=identity_version,
+                    include_factor_verdict=include_factor_verdict,
                 )
             )
 
-        evaluations = rebuild_evaluations(EVALUATION_IDENTITY_VERSION)
+        evaluations = rebuild_evaluations(
+            EVALUATION_IDENTITY_VERSION, include_factor_verdict=True
+        )
         stored_hashes = payload.get("source_evaluation_hashes")
         if isinstance(stored_hashes, list) and sorted(
             item.identity_hash for item in evaluations
         ) != stored_hashes:
-            legacy_evaluations = rebuild_evaluations(LEGACY_EVALUATION_IDENTITY_VERSION)
-            if sorted(item.identity_hash for item in legacy_evaluations) == stored_hashes:
-                evaluations = legacy_evaluations
+            # A stored checkpoint is rebuilt under the profile that wrote it, and
+            # accepted only when every recomputed identity is bit-identical to the
+            # one on record. A profile is a different preimage, never a relaxed
+            # check: nothing here trusts a hash it did not recompute, and a payload
+            # matching no profile still fails closed below.
+            for profile, identity_version, with_verdict in _LEGACY_IDENTITY_PROFILES:
+                candidate_evaluations = rebuild_evaluations(
+                    identity_version, include_factor_verdict=with_verdict
+                )
+                if sorted(
+                    item.identity_hash for item in candidate_evaluations
+                ) == stored_hashes:
+                    evaluations = candidate_evaluations
+                    identity_profile = profile
+                    break
         scoreline_references = payload.get("source_evaluation_scoreline_references", {})
         if not isinstance(scoreline_references, dict) or any(
             not isinstance(identity_hash, str) or not isinstance(reference, dict)
@@ -952,6 +996,7 @@ def validate_frozen_analysis_payload(
     return FrozenAnalysisArtifact(
         checkpoint_key=_checkpoint_key_for_payload(fixture_id, payload),
         source_hash=source_hash,
+        identity_profile=identity_profile,
         artifact_hash=artifact_hash,
         payload=payload,
         canonical_bytes=canonical_json_bytes(
@@ -1364,6 +1409,7 @@ def _dynamic_evaluations(
     build_scoreline_reference: ScorelineReferenceBuilder | None = None,
     opportunity_contexts: tuple[EvaluationOpportunityContext, ...] = (),
     evaluation_identity_version: str = EVALUATION_IDENTITY_VERSION,
+    include_factor_verdict: bool = True,
 ) -> list[DynamicEvaluationVersion]:
     if not opportunity_contexts:
         raw_contexts = manifest.get("opportunity_contexts")
@@ -1558,7 +1604,11 @@ def _dynamic_evaluations(
         )
         market_name = str(candidate.get("market") or default_market)
         value = DynamicEvaluationInput(
-            **_factor_verdict(card, market_name),
+            # Checkpoints written before the factor verdict was joined into the
+            # candidate chain have no verdict in their identity preimage. Reading
+            # one back has to rebuild it the way it was built, or the recomputed
+            # identity is a different evaluation than the one on record.
+            **(_factor_verdict(card, market_name) if include_factor_verdict else {}),
             fixture_id=fixture_id,
             market=market_name,
             selection=selection,
