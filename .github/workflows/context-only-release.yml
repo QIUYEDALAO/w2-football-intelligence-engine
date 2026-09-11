@@ -155,7 +155,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          git diff --check "$BASE_SHA...HEAD"
+          uv run python scripts/check_historical_diff.py --base "$BASE_SHA" --head HEAD
           uv run python scripts/check_tracked_outputs.py
           uv run pytest -q \
             tests/contract/test_quant_research_context.py \

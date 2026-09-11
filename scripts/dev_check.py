@@ -71,7 +71,18 @@ def main() -> int:
         print(plan.change_class)
         return 0
 
-    run(["git", "diff", "--check", f"{args.base}...{args.head}"])
+    run(
+        [
+            "uv",
+            "run",
+            "python",
+            "scripts/check_historical_diff.py",
+            "--base",
+            args.base,
+            "--head",
+            args.head,
+        ]
+    )
     run(["uv", "run", "python", "scripts/check_dashboard_single_public_authority.py"])
     for path in paths:
         if path.endswith((".yaml", ".yml")) and (ROOT / path).is_file():
