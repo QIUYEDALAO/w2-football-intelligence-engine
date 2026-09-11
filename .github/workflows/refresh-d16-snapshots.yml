@@ -1,0 +1,46 @@
+# TEMPORARY. Regenerates only the two D16 target images on a Linux runner and
+# uploads them for review; it never commits. The baselines under
+# docs/ui/dashboard-v4.1/targets/ were last taken at 414b8d1c, nine apps/web
+# commits ago, and macOS renders text differently from the CI runner, so a
+# locally regenerated baseline would be wrong for CI by construction.
+# Delete this workflow once the reviewed images are committed.
+name: Refresh D16 snapshots
+
+on:
+  push:
+    branches: [codex/w2-official-candidate-accuracy-20260909]
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('apps/web/package-lock.json') }}
+      - run: npm --prefix apps/web ci
+      - working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Regenerate only the two D16 target images
+        working-directory: apps/web
+        run: npx playwright test -g "D16 real-shape target image diff" --update-snapshots
+      - name: Report what changed
+        if: always()
+        run: git status --porcelain docs/ui/dashboard-v4.1/targets/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: d16-targets
+          path: |
+            docs/ui/dashboard-v4.1/targets/d16-postdeploy-*.png
+            apps/web/test-results/**
+          retention-days: 3
