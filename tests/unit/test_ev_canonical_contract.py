@@ -25,7 +25,9 @@ def contract_ev(odds: object, probabilities: dict[str, object]) -> Decimal:
         context.prec = 28
         if abs(sum(values, Decimal(0)) - 1) > TOLERANCE:
             raise ValueError("INVALID_PROBABILITY_SUM")
-        return expected_value(odds, SettlementDistribution(**dict(zip(FIELDS, values, strict=True))))
+        return expected_value(
+            odds, SettlementDistribution(**dict(zip(FIELDS, values, strict=True)))
+        )
 
 
 def probabilities(*values: str) -> dict[str, Decimal]:
@@ -95,7 +97,9 @@ def test_missing_state_fails(key: str) -> None:
 def test_known_float_difference_not_hidden_by_rounding() -> None:
     p = probabilities("0", "0.001", "0", "0", "0.999")
     old = -0.998903  # Frozen 2A legacy output, not runtime authority.
-    assert ah_expected_value({k: float(v) for k, v in p.items()}, decimal_price=1.193) == contract_ev(Decimal("1.193"), p)
+    assert ah_expected_value(
+        {k: float(v) for k, v in p.items()}, decimal_price=1.193
+    ) == contract_ev(Decimal("1.193"), p)
     new = contract_ev(Decimal("1.193"), p)
     assert old == -0.998903
     assert new == Decimal("-0.9989035")
@@ -105,7 +109,9 @@ def test_known_float_difference_not_hidden_by_rounding() -> None:
 def test_existing_positive_ev_gate_changes_on_synthetic_boundary() -> None:
     p = probabilities("0.5000002", "0", "0", "0", "0.4999998")
     old = 0.0  # Frozen 2A legacy output.
-    assert ah_expected_value({k: float(v) for k, v in p.items()}, decimal_price=2.0) == contract_ev(Decimal("2"), p)
+    assert ah_expected_value(
+        {k: float(v) for k, v in p.items()}, decimal_price=2.0
+    ) == contract_ev(Decimal("2"), p)
     new = contract_ev(Decimal("2"), p)
     assert old == 0.0 and new == Decimal("0.0000004")
     assert (old > 0) is False and (new > 0) is True
@@ -115,7 +121,9 @@ def test_formal_recompute_guard_changes_without_patching_production() -> None:
     # SYNTHETIC_EV_2A_GUARD / ASIAN_HANDICAP / HOME. Exact existing guard predicate.
     p = probabilities("0", "0.001", "0", "0", "0.999")
     old = -0.998903  # Frozen 2A legacy output, not runtime authority.
-    assert ah_expected_value({k: float(v) for k, v in p.items()}, decimal_price=1.193) == contract_ev(Decimal("1.193"), p)
+    assert ah_expected_value(
+        {k: float(v) for k, v in p.items()}, decimal_price=1.193
+    ) == contract_ev(Decimal("1.193"), p)
     new = contract_ev(Decimal("1.193"), p)
     declared = Decimal("-0.9989043")
     assert abs(old - float(declared)) > 0.000001
