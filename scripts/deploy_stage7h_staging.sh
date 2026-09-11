@@ -88,6 +88,16 @@ release_value() {
   sed -n "s/^$1=//p" "$2"
 }
 
+current_database_revision() {
+  "${COMPOSE[@]}" run --rm --entrypoint /app/.venv/bin/alembic migration current </dev/null 2>/dev/null |
+    awk 'NF {revision=$1} END {print revision}'
+}
+
+image_migration_head() {
+  sudo docker run --rm --entrypoint /app/.venv/bin/alembic "$1" heads 2>/dev/null |
+    awk 'NF {revision=$1} END {print revision}'
+}
+
 image_label() {
   sudo docker image inspect --format "{{index .Config.Labels \"$2\"}}" "$1"
 }
@@ -168,16 +178,51 @@ rollback() {
   fi
 
   rollback_started="$(date +%s)"
+
+  # Schema first, digest second. The previous image treats a database revision
+  # that is not equal to its own code head as a critical readiness failure, so
+  # rolling services back while the schema stays forward leaves the API
+  # permanently unhealthy and the web container never starts at all -- the
+  # rollback reports failure and the site is down. "Backward compatible" holds
+  # for the data and not for the readiness assertion.
+  #
+  # The downgrade has to run from the CANDIDATE image: the previous one cannot
+  # interpret a revision it does not carry, so it cannot run that revision's own
+  # downgrade either.
+  previous_python_ref="$(release_value W2_PYTHON_IMAGE /opt/w2/shared/release.previous.env)"
+  database_revision="$(current_database_revision)"
+  previous_head="$(image_migration_head "${previous_python_ref}")"
+  if [ -z "${database_revision}" ] || [ -z "${previous_head}" ]; then
+    echo "rollback=BLOCKED reason=REVISION_UNREADABLE" \
+      "database_revision=${database_revision:-UNKNOWN}" \
+      "previous_head=${previous_head:-UNKNOWN}" >&2
+    exit "${original_status}"
+  fi
+  if [ "${database_revision}" != "${previous_head}" ]; then
+    if ! "${COMPOSE[@]}" run --rm --entrypoint /app/.venv/bin/alembic migration </dev/null downgrade "${previous_head}"; then
+      # A downgrade that refuses because it would destroy rows is the migration
+      # doing its job. Stay on the candidate rather than stepping down into a
+      # release whose readiness check the schema cannot satisfy.
+      echo "rollback=BLOCKED reason=DOWNGRADE_REFUSED" \
+        "database_revision=${database_revision} target_revision=${previous_head}" >&2
+      exit "${original_status}"
+    fi
+    database_revision="$(current_database_revision)"
+    if [ "${database_revision}" != "${previous_head}" ]; then
+      echo "rollback=BLOCKED reason=DOWNGRADE_NOT_APPLIED" \
+        "database_revision=${database_revision:-UNKNOWN} target_revision=${previous_head}" >&2
+      exit "${original_status}"
+    fi
+  fi
+
   sudo install -o root -g root -m 0644 \
     /opt/w2/shared/release.previous.env /opt/w2/shared/release.env
-  # The database may already be at a newer, backward-compatible revision that
-  # the previous image cannot name. Roll back services by digest without asking
-  # the old migration image to interpret the newer Alembic head.
   if "${COMPOSE[@]}" pull api worker scheduler web </dev/null &&
     "${COMPOSE[@]}" up -d --remove-orphans api worker scheduler web </dev/null &&
     wait_for_runtime; then
     rollback_seconds="$(( $(date +%s) - rollback_started ))"
-    echo "rollback=PASS duration_seconds=${rollback_seconds} target_seconds=120"
+    echo "rollback=PASS duration_seconds=${rollback_seconds} target_seconds=120" \
+      "database_revision=${database_revision}"
   else
     echo "rollback=FAIL health_or_digest_mismatch" >&2
     exit 1

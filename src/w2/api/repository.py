@@ -2149,6 +2149,11 @@ class ReadModelRepository:
             "source_event_hash": payload["source_event_hash"],
             "source_event_at": payload["source_event_at"],
             "last_projected_at": payload["last_projected_at"],
+            # Which identity preimage reproduced this checkpoint's evaluation
+            # hashes. A checkpoint written before the AH factor verdict joined the
+            # candidate chain reads back under "legacy"; it is still fully
+            # re-verified, and it is never relabelled as a current-profile row.
+            "identity_profile": artifact.identity_profile,
         }
         return card
 
