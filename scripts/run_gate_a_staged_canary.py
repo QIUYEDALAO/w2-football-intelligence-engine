@@ -41,6 +41,62 @@ from w2.operations.gate_a_evidence import (  # noqa: E402
     validate_gate_a_evidence,
 )
 from w2.operations.gate_a_evidence_producer import produce_gate_a_evidence  # noqa: E402
+from w2.prematch.repository import project_exact_eval_02b_pairs  # noqa: E402
+
+
+def _pair_evaluation_diagnostic(engine: object) -> list[dict[str, object]]:
+    """Pre/Post inputs as the pairing sees them, for a rejected canary run."""
+    from sqlalchemy.orm import Session  # noqa: PLC0415
+
+    from w2.infrastructure.persistence.dynamic_prematch_models import (  # noqa: PLC0415
+        DynamicPrematchEvaluationModel,
+        LineupConfirmedEventModel,
+    )
+
+    rows: list[dict[str, object]] = []
+    with Session(engine) as session:  # type: ignore[arg-type]
+        for event in session.query(LineupConfirmedEventModel).all():
+            rows.append(
+                {
+                    "kind": "lineup_event",
+                    "fixture_id": event.fixture_id,
+                    "captured_at": str(event.captured_at),
+                    "lineup_input_hash": event.lineup_input_hash,
+                }
+            )
+        from w2.infrastructure.persistence.matchday_intake_models import (  # noqa: PLC0415
+            MatchdayFixtureIdentityModel,
+        )
+        from w2.prematch.repository import (  # noqa: PLC0415
+            _eligible_pair_evaluation,
+            _fixture_alias_index,
+        )
+
+        fixtures = session.query(MatchdayFixtureIdentityModel).all()
+        alias_index = _fixture_alias_index(fixtures)
+        for row in session.query(DynamicPrematchEvaluationModel).all():
+            eligible = None
+            for fixture in fixtures:
+                eligible = _eligible_pair_evaluation(row, fixture, alias_index)
+                if eligible is not None:
+                    break
+            rows.append(
+                {
+                    "kind": "evaluation",
+                    "fixture_id": row.fixture_id,
+                    "market": row.market,
+                    "original_state": row.original_state,
+                    "evaluated_at": str(row.evaluated_at),
+                    "lineup_input_hash": getattr(row, "lineup_input_hash", None),
+                    "pair_eligible": eligible is not None,
+                    "blockers": (row.payload or {}).get("blockers"),
+                    "quote_scope": (
+                        list(eligible.quote_scope) if eligible is not None else None
+                    ),
+                    "capture_at": str(eligible.capture_at) if eligible is not None else None,
+                }
+            )
+    return rows
 from w2.providers.api_football import ApiFootballClient  # noqa: E402
 
 
@@ -177,6 +233,39 @@ def main() -> int:
         _write_atomic(args.evidence_output, evidence)
     except (GateAError, GateAEvidenceError, OSError, RuntimeError) as exc:
         print(str(exc), file=sys.stderr)
+        # Evidence is only written after validation passes, so a rejected run
+        # left nothing to inspect and the bare error code was all the operator
+        # got. Emit why the exact Pre/Post projection produced what it did --
+        # that is the one input to the counts that is derived rather than
+        # persisted, so it cannot be recovered from the database afterwards.
+        try:
+            projection = project_exact_eval_02b_pairs(create_engine())
+            print(
+                json.dumps(
+                    {
+                        "pair_projection_diagnostic": {
+                            "pairs": len(projection.pairs),
+                            "evaluations": _pair_evaluation_diagnostic(create_engine()),
+                            "exclusions": [
+                                {
+                                    "fixture_id": exclusion.fixture_id,
+                                    "market": exclusion.market,
+                                    "reason": exclusion.reason,
+                                }
+                                for exclusion in projection.exclusions
+                            ],
+                        }
+                    },
+                    default=str,
+                ),
+                file=sys.stderr,
+            )
+        except Exception as diagnostic_error:  # noqa: BLE001
+            # Diagnostics must never mask the real failure above.
+            print(
+                f"pair_projection_diagnostic_unavailable: {diagnostic_error}",
+                file=sys.stderr,
+            )
         return 1
     print(
         json.dumps(

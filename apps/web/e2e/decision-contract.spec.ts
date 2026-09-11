@@ -458,7 +458,10 @@ test("shadow candidate is explicit, tracked and non-production", async ({ page }
   await expect(page.getByText("影子候选已启用", { exact: true })).toBeVisible();
   await expect(page.locator(".v41-candidate")).toHaveAttribute("data-candidate-status", "ACTIVE");
   await expect(page.locator(".v41-candidate")).toContainText("让球主盘 · 推荐主队");
-  await expect(page.locator(".v41-candidate")).toContainText("推荐主队盘口 0.75 · 赔率 1.95");
+  // shadow_candidate is selection HOME with exact_line -0.75. Since e90c0abe the
+  // selected-team line is rendered as-is instead of being re-framed, so the sign
+  // stays negative here.
+  await expect(page.locator(".v41-candidate")).toContainText("推荐主队盘口 -0.75 · 赔率 1.95");
   await expect(page.locator(".v41-candidate")).toContainText("Formal、Lock、Production 与实盘保持关闭");
   await expect(page.locator("#secondary-validation .v41-validation-t30")).toContainText("T-30 候选评估0");
 });
@@ -596,13 +599,18 @@ test("AH recommendation rows share the owner main-handicap sign convention with 
   focused.fixture_id = "1490405";
   focused.market_radar.markets.ASIAN_HANDICAP.main_line = "-0.5";
   payload.selected_fixture_id = focused.fixture_id;
+  // e90c0abe made exactLine belong to the selected team rather than always
+  // being a home-frame line, so formatAhRecommendationHandicap no longer
+  // inverts it for AWAY. These expectations are the selected-team line put
+  // through formatSignedLine: positive keeps a "+", negative keeps its "-",
+  // and trailing zeros are trimmed, so +1.0 renders as "+1".
   const recommendations = [
     ["1490398", "AWAY", "-0.5", "让球 -0.5 · 推荐客队"],
-    ["1490400", "HOME", "+0.25", "让球 -0.25 · 推荐主队"],
-    ["1490401", "AWAY", "+0.75", "让球 0.75 · 推荐客队"],
-    ["1490402", "AWAY", "+0.5", "让球 0.5 · 推荐客队"],
-    ["1490404", "AWAY", "+1.0", "让球 1.0 · 推荐客队"],
-    ["1490405", "HOME", "-0.5", "让球 0.5 · 推荐主队"],
+    ["1490400", "HOME", "+0.25", "让球 +0.25 · 推荐主队"],
+    ["1490401", "AWAY", "+0.75", "让球 +0.75 · 推荐客队"],
+    ["1490402", "AWAY", "+0.5", "让球 +0.5 · 推荐客队"],
+    ["1490404", "AWAY", "+1.0", "让球 +1 · 推荐客队"],
+    ["1490405", "HOME", "-0.5", "让球 -0.5 · 推荐主队"],
   ] as const;
   payload.validation.model_forecast.official_recommendations = recommendations.map(([fixtureId, selection, exactLine], index) => ({
     evaluation_id: `eval-${fixtureId}`,
