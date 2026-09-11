@@ -25,7 +25,10 @@ from w2.prematch.lifecycle import (
     DynamicEvaluationInput,
     DynamicEvaluationLedger,
     DynamicEvaluationState,
+    EvaluationOpportunityContext,
     LineupConfirmedEvent,
+    OpportunityState,
+    bind_evaluation_opportunity,
     classify_evaluation,
     select_t30_validation_snapshot,
 )
@@ -1016,3 +1019,217 @@ def test_exact_pair_projector_orders_pre_by_capture_before_processing_time() -> 
     pair = project_exact_eval_02b_pairs(engine).pairs[0]
 
     assert pair.identity.pre_evaluation_id == "pre-newer-capture"
+
+
+def _persist_factor_blocked_pair(engine) -> None:  # type: ignore[no-untyped-def]
+    """A Pre/Post pair whose two halves the AH factor gate refused.
+
+    Everything the pairing needs is present and agrees across the two rows: one
+    fixture, one authoritative lineup event, the same provider, bookmaker, market,
+    selection and exact line, a well-formed quote identity and five-state
+    distribution on each, the Pre captured before the lineup event and the Post not
+    before it, and the Post carrying exactly the event's lineup hash. The only
+    thing that differs from the admissible pair above is the verdict: the factor
+    gate refused, which is a conclusion about the pick, not a gap in the evidence.
+    """
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _pair_fixture(),
+                _pair_event(),
+                _pair_evaluation(
+                    "factor-pre",
+                    capture_at=PAIR_EVENT_AT - timedelta(minutes=1),
+                    lineup_hash=None,
+                    state=DynamicEvaluationState.BLOCKED_BY_FACTOR.value,
+                ),
+                _pair_evaluation(
+                    "factor-post",
+                    capture_at=PAIR_EVENT_AT,
+                    lineup_hash="lineup-hash",
+                    state=DynamicEvaluationState.BLOCKED_BY_FACTOR.value,
+                ),
+            ]
+        )
+        session.commit()
+
+
+def test_exact_pair_projector_measures_a_factor_blocked_pre_post_pair() -> None:
+    """A refused pick is still a measured one.
+
+    The pair set used to hold only the two recommendation outcomes, so every
+    fixture the factor gate ruled on fell out of the Pre/Post measurement
+    entirely -- the staged Gate A canary produced two complete evaluations and
+    projected zero pairs. Completeness, not admissibility, is what the
+    measurement needs.
+    """
+    engine = _pair_engine()
+    _persist_factor_blocked_pair(engine)
+
+    projection = project_exact_eval_02b_pairs(engine)
+
+    assert len(projection.pairs) == 1
+    pair = projection.pairs[0]
+    assert pair.identity.pre_evaluation_id == "factor-pre"
+    assert pair.identity.post_evaluation_id == "factor-post"
+    assert pair.identity.canonical_fixture_id == "pair-fixture-1"
+    assert pair.identity.market == "ASIAN_HANDICAP"
+    assert pair.identity.selection == "HOME"
+    assert pair.identity.exact_line == -0.25
+    assert pair.identity.bookmaker_id == "book-1"
+    assert pair.identity.provider_id == "api_football"
+    assert pair.lineup_input_hash == "lineup-hash"
+    assert pair.pre_capture_at < pair.lineup_confirmed_at <= pair.post_capture_at
+    assert pair.baseline_distribution == PAIR_STATES
+    assert pair.candidate_distribution == PAIR_STATES
+    assert pair.identity_hash == canonical_sha256(
+        pair.identity.as_dict(), domain=HashDomain.EVAL_02B_PAIR_IDENTITY
+    )
+
+
+def test_exact_pair_projection_leaves_the_factor_refusal_on_both_source_rows() -> None:
+    """Measuring the pair must not promote either half out of its refusal.
+
+    A projector that rewrote the source state would turn "the factor gate said no"
+    into "this was an active pick" for anything reading the rows afterwards.
+    """
+    engine = _pair_engine()
+    _persist_factor_blocked_pair(engine)
+
+    pair = project_exact_eval_02b_pairs(engine).pairs[0]
+
+    with Session(engine) as session:
+        states = {
+            row.evaluation_id: row.original_state
+            for row in session.query(DynamicPrematchEvaluationModel).all()
+        }
+    assert states == {
+        "factor-pre": DynamicEvaluationState.BLOCKED_BY_FACTOR.value,
+        "factor-post": DynamicEvaluationState.BLOCKED_BY_FACTOR.value,
+    }
+    assert states[pair.identity.pre_evaluation_id] == "BLOCKED_BY_FACTOR"
+    assert states[pair.identity.post_evaluation_id] == "BLOCKED_BY_FACTOR"
+
+
+def test_factor_blocked_evaluation_is_measurable_but_never_recommendable() -> None:
+    """Pairable and recommendable are different questions with different answers.
+
+    This is the invariant that makes widening the pair set safe: the same
+    evaluation that the projector will now measure still cannot be a candidate,
+    still is not one of the two recommendation states, still binds downstream to
+    BLOCKED_BY_GATE, and still carries the blocker code the factor gate produced.
+    """
+    version = classify_evaluation(
+        _evaluation(
+            capture_id="factor-1",
+            ev=0.08,
+            delta=0.07,
+            ev_se=0.01,
+            market="ASIAN_HANDICAP",
+            selection="HOME",
+            exact_line=-0.25,
+        )
+    )
+
+    assert version.state == DynamicEvaluationState.BLOCKED_BY_FACTOR
+    assert version.blockers == ("FACTOR_SCORE_UNAVAILABLE",)
+    assert version.state not in {
+        DynamicEvaluationState.ANALYSIS_PICK_ACTIVE,
+        DynamicEvaluationState.NO_EDGE_CURRENT,
+    }
+    assert (version.gate_results or {}).get("candidate") is not True
+
+    bound = bind_evaluation_opportunity(
+        version,
+        EvaluationOpportunityContext(
+            model_forecast_capture_identity_hash="m" * 64,
+            model_input_hash="model-1",
+            evaluation_policy_version="candidate-eval.v1",
+            evaluation_slot_id="T3_ODDS",
+            scheduled_checkpoint_at=NOW,
+            checkpoint_plan_identity="plan-1",
+            source_event_identity="event-1",
+        ),
+    )
+
+    assert bound.opportunity_state == OpportunityState.BLOCKED_BY_GATE
+    assert bound.state == DynamicEvaluationState.BLOCKED_BY_FACTOR
+    assert bound.blockers == ("FACTOR_SCORE_UNAVAILABLE",)
+    assert (bound.gate_results or {}).get("candidate") is not True
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        DynamicEvaluationState.NOT_READY_SOURCE_ABSENT.value,
+        DynamicEvaluationState.NOT_READY_QUOTE_INCOMPLETE.value,
+        DynamicEvaluationState.NOT_READY_MODEL_INPUT.value,
+        DynamicEvaluationState.LINEUP_READY_MARKET_REFRESH_PENDING.value,
+        DynamicEvaluationState.STALE_PENDING_REFRESH.value,
+        DynamicEvaluationState.SUPERSEDED.value,
+    ],
+)
+def test_exact_pair_projector_still_refuses_incomplete_states(state: str) -> None:
+    """Only complete evaluations pair. Everything else is missing an input.
+
+    BLOCKED_BY_FACTOR joined the set because it is a verdict on a complete
+    evaluation; these are evaluations that never finished, or were replaced, and
+    admitting one would let the measurement count something never evaluated.
+    """
+    engine = _pair_engine()
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _pair_fixture(),
+                _pair_event(),
+                _pair_evaluation(
+                    "incomplete-pre",
+                    capture_at=PAIR_EVENT_AT - timedelta(minutes=1),
+                    lineup_hash=None,
+                    state=state,
+                ),
+                _pair_evaluation(
+                    "incomplete-post",
+                    capture_at=PAIR_EVENT_AT,
+                    lineup_hash="lineup-hash",
+                    state=state,
+                ),
+            ]
+        )
+        session.commit()
+
+    assert not project_exact_eval_02b_pairs(engine).pairs
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "model_settlement_distribution",
+        "quote_identity_hash",
+        "capture_id",
+        "bookmaker_id",
+        "selection",
+        "exact_line",
+        "capture_at",
+        "evaluated_at",
+        "lineup_input_hash",
+    ],
+)
+def test_factor_blocked_pair_fails_closed_on_any_missing_field(field: str) -> None:
+    """Widening the state set widened nothing else.
+
+    A factor-refused evaluation has to clear exactly the same evidence bar as an
+    admissible one: drop any single field the pairing reads and the pair must
+    disappear rather than be assembled from what is left.
+    """
+    engine = _pair_engine()
+    _persist_factor_blocked_pair(engine)
+    with Session(engine) as session:
+        row = session.get(DynamicPrematchEvaluationModel, "factor-post")
+        assert row is not None
+        payload = dict(row.payload)
+        payload[field] = None
+        row.payload = payload
+        session.commit()
+
+    assert not project_exact_eval_02b_pairs(engine).pairs

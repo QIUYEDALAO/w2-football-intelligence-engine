@@ -274,6 +274,27 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
             "exact_pair": 1,
             "bootstrap_seed_evidence": 1,
         }
+        # The pair exists because both evaluations are complete, not because
+        # either became recommendable. The factor gate refused both, and that
+        # refusal has to survive into the persisted rows: a pair projected off
+        # rows that had been rewritten to an active or no-edge state would be
+        # measuring something the gate never allowed.
+        with create_engine(database_url_text).connect() as connection:
+            persisted = connection.execute(
+                text(
+                    "SELECT original_state, payload FROM dynamic_prematch_evaluations "
+                    "ORDER BY evaluated_at"
+                )
+            ).all()
+        assert [row[0] for row in persisted] == ["BLOCKED_BY_FACTOR", "BLOCKED_BY_FACTOR"]
+        for _, persisted_payload in persisted:
+            assert persisted_payload["blockers"] == ["FACTOR_SCORE_UNAVAILABLE"]
+            assert persisted_payload["state"] == "BLOCKED_BY_FACTOR"
+            assert persisted_payload.get("opportunity_state") in {None, "BLOCKED_BY_GATE"}
+            # gate_results is None outside the denominator scope, which the
+            # staged bootstrap is; either way it must not claim a candidate.
+            assert (persisted_payload.get("gate_results") or {}).get("candidate") is not True
+
         assert evidence["lineage"]["fixture_selection"]["selected_fixture_id"] == FIXTURE_ID
         assert evidence["lineage"]["fixture_selection"]["eligible_candidate_count"] == 2
         assert [path.split("?", 1)[0] for path in _FakeProviderHandler.requests] == [

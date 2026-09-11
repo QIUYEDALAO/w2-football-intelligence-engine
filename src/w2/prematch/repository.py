@@ -54,9 +54,30 @@ from w2.prematch.lifecycle import (
 
 PAIR_PROJECTOR_SCHEMA = "w2.eval_02b_exact_pair_projection.v2"
 _PAIR_MARKETS = {MarketType.ASIAN_HANDICAP.value, MarketType.TOTALS.value}
-_PAIR_ELIGIBLE_STATES = {
+#: States in which an evaluation is *complete* -- quote identity, model
+#: distribution, EV and the time lineage were all computed -- and may therefore be
+#: measured as one half of an exact Pre/Post pair. This is not a statement about
+#: whether the pick may be recommended.
+#:
+#: The set was named ``_PAIR_ELIGIBLE_STATES`` and held only the two recommendation
+#: outcomes, which quietly made "can be measured" mean "was recommendable".
+#: ``BLOCKED_BY_FACTOR`` is a complete evaluation that the factor gate refused: the
+#: market, the distribution, the EV and the identity are all there, and the refusal
+#: is the verdict, not a gap. Excluding it made the Pre/Post measurement blind to
+#: every fixture the factor gate had ruled on.
+#:
+#: Only complete states belong here. NOT_READY_*, STALE_PENDING_REFRESH,
+#: LINEUP_READY_MARKET_REFRESH_PENDING and SUPERSEDED are evaluations that are
+#: missing an input or have been replaced, and admitting one would let the pair
+#: projection measure something that was never evaluated.
+#:
+#: Membership grants no recommendation authority whatsoever: whether something may
+#: become a candidate is decided in ``lifecycle.classify_evaluation``, and
+#: ``BLOCKED_BY_FACTOR`` can never become ANALYSIS_PICK_ACTIVE or NO_EDGE_CURRENT.
+_PAIR_COMPLETE_EVALUATION_STATES = {
     DynamicEvaluationState.ANALYSIS_PICK_ACTIVE.value,
     DynamicEvaluationState.NO_EDGE_CURRENT.value,
+    DynamicEvaluationState.BLOCKED_BY_FACTOR.value,
 }
 
 
@@ -1114,7 +1135,7 @@ def _eligible_pair_evaluation(
     )
     if (
         payload.get("schema_version") != DYNAMIC_EVALUATION_V2_SCHEMA
-        or row.original_state not in _PAIR_ELIGIBLE_STATES
+        or row.original_state not in _PAIR_COMPLETE_EVALUATION_STATES
         or row.market not in _PAIR_MARKETS
         or row_fixture_id != fixture.fixture_id
         or payload_fixture_id != fixture.fixture_id

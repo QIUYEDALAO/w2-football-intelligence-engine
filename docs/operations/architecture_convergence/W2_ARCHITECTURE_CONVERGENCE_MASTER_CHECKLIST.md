@@ -667,7 +667,7 @@ Dockerfile、Compose、workflow、Runbook 和历史/恢复入口，避免把离�
 TOP_LEVEL_PACKAGE_COUNT = 40
 MAPPED_PACKAGE_COUNT = 40
 UNMAPPED_PACKAGE_COUNT = 0
-DEPENDENCY_EDGE_COUNT = 147
+DEPENDENCY_EDGE_COUNT = 148
 CYCLE_COUNT = 1
 RUNTIME_REACHABLE_PACKAGE_COUNT = 27
 OFFLINE_ONLY_PACKAGE_COUNT = 13
@@ -701,7 +701,7 @@ DELETED_PACKAGE_COUNT = 0
 | `monitoring` | 5 | apps:1;scripts:5;migrations:0;tests:4 | api | competitions,domain,infrastructure,providers | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `normalization` | 2 | apps:0;scripts:2;migrations:0;tests:1 | ingestion | domain | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `observability` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | - | - | w2-stage7i-observer | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT |
-| `operations` | 15 | apps:1;scripts:10;migrations:0;tests:15 | api,ingestion,prematch,providers,security | competitions,domain,infrastructure,models,prematch | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `operations` | 15 | apps:1;scripts:10;migrations:0;tests:15 | api,ingestion,prematch,providers,security | competitions,domain,infrastructure,models,prematch,strategy | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `prematch` | 10 | apps:2;scripts:13;migrations:0;tests:39 | api,dashboard,ingestion,matchday,operations,replay,tracking | analysis,competitions,dashboard,domain,features,formal,identity,infrastructure,ingestion,lineups,markets,matchday,operations,pricing,providers,ratings,settlement,strategy,tracking | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `pricing` | 6 | apps:0;scripts:1;migrations:0;tests:4 | prematch,strategy | domain,strategy | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `providers` | 5 | apps:2;scripts:7;migrations:0;tests:13 | api,backtest,competitions,factor_model,ingestion,monitoring,prematch,replay | infrastructure,ingestion,operations | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
@@ -715,7 +715,7 @@ DELETED_PACKAGE_COUNT = 0
 | `security` | 2 | apps:0;scripts:1;migrations:0;tests:1 | - | operations | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;BACKUP_SECURITY_BASELINE |
 | `settlement` | 3 | apps:0;scripts:2;migrations:0;tests:2 | api,dashboard,prematch,tracking | domain,infrastructure | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `shadow` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | strategy | - | w2-shadow-comparison-import | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT;COMPARISON_IMPORT |
-| `strategy` | 14 | apps:0;scripts:4;migrations:0;tests:25 | dashboard,gates,markets,matchday,prematch,pricing,shadow | competitions,domain,features,formal,infrastructure,markets,models,pricing | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `strategy` | 14 | apps:0;scripts:4;migrations:0;tests:25 | dashboard,gates,markets,matchday,operations,prematch,pricing,shadow | competitions,domain,features,formal,infrastructure,markets,models,pricing | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `tracking` | 15 | apps:2;scripts:6;migrations:0;tests:24 | api,audit_export,domain,prematch,replay | domain,infrastructure,ingestion,markets,prematch,settlement | SCC-1 | w2-finished-match-scoring | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 
 ```text

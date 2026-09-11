@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from w2.domain.canonical_serialization import HashDomain, canonical_sha256
+from w2.domain.five_state_pricing import cashflow_price_edge
 from w2.prematch.lifecycle import (
     DYNAMIC_EVALUATION_V2_SCHEMA,
     DynamicEvaluationInput,
@@ -11,6 +13,33 @@ from w2.prematch.lifecycle import (
     classify_evaluation,
 )
 from w2.prematch.repository import DynamicPrematchRepository
+
+
+def _staged_calibration_status() -> str:
+    """The calibration verdict the registry actually holds for these parameters.
+
+    Read through the real registry rather than asserted here, so the staged run
+    carries the same verdict production would and a ledger that stops recording
+    one fails closed on its own. The imports are deferred: pulling w2.strategy in
+    at module scope drags the provider budget contract into this import graph and
+    the staged run then blocks on PROVIDER_DAILY_BUDGET_EXCEEDS_OBSERVED_PLAN_LIMIT.
+    """
+    from w2.domain.calibration_validation_registry import (  # noqa: PLC0415
+        lookup_calibration_verdict,
+    )
+    from w2.strategy.calibration import (  # noqa: PLC0415
+        BASELINE_CALIBRATION_STATUS,
+        CALIBRATION_VERSION,
+        LambdaCalibrationParams,
+    )
+
+    return (
+        lookup_calibration_verdict(
+            calibration_version=CALIBRATION_VERSION,
+            params=LambdaCalibrationParams(),
+        )
+        or BASELINE_CALIBRATION_STATUS
+    )
 
 
 def persist_staged_lineup_event(event: LineupConfirmedEvent) -> None:
@@ -94,6 +123,17 @@ def materialize_staged_dynamic_v2(
         market_probability=probability,
         expected_value=probability * float(str(preferred["decimal_odds"])) - 1.0,
         ev_se=0.0,
+        calibration_status=_staged_calibration_status(),
+        # The executable price advantage over the five-state break-even price,
+        # from the production helper. Without it the evaluation carries no price
+        # edge at all and stops at EV_EVIDENCE_INCOMPLETE, so the factor gate --
+        # the verdict this canary exists to exercise -- never got to rule.
+        cashflow_price_edge=float(
+            cashflow_price_edge(
+                Decimal(str(preferred["decimal_odds"])),
+                Decimal(1) / Decimal(str(probability)),
+            )
+        ),
         decimal_odds=float(str(preferred["decimal_odds"])),
         lineup_input_hash=lineup_input_hash,
         lineup_confirmed_at=lineup_confirmed_at,
