@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import urllib.error
 from base64 import b64encode
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -48,6 +50,24 @@ from w2.providers.control import (
 )
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_settings_cache() -> Iterator[None]:
+    """Recompute settings on both sides of every test in this module.
+
+    ``get_settings`` is ``lru_cache``d. Tests below point ``W2_DATABASE_URL`` or
+    the provider allowlist at a value of their own and then ``cache_clear()`` so
+    their value is the one read. ``monkeypatch`` puts the environment back at
+    teardown but cannot put the cache back, so the value computed under the patched
+    environment outlived the test that patched it: whichever test ran next read
+    this module's settings, and for ``W2_DATABASE_URL`` that is a path inside a
+    ``tmp_path`` pytest has already deleted. Clearing on the way out is what makes
+    the order the suite happens to run in stop mattering.
+    """
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def _refresh_result(**overrides: Any) -> FutureRefreshResult:
@@ -2170,3 +2190,21 @@ def test_checkpoint_refresh_fails_before_completion_when_materialization_fails(
 
 def test_future_refresh_error_type_is_runtime_error() -> None:
     assert issubclass(FutureRefreshError, RuntimeError)
+
+
+def test_settings_cache_does_not_outlive_the_test_that_patched_the_environment() -> None:
+    """Cached settings must match the ambient environment, not an earlier test's.
+
+    Two tests in this module point ``W2_DATABASE_URL`` and the provider allowlist at
+    values of their own and clear the ``lru_cache`` so their value is read.
+    ``monkeypatch`` restores the environment at teardown; it cannot restore the
+    cache. Without ``_isolate_settings_cache`` the value computed under the patched
+    environment is still cached here -- and for ``W2_DATABASE_URL`` it names a file
+    inside a ``tmp_path`` pytest has already removed, so the failure surfaces in
+    whichever test ran next rather than in the one that caused it.
+
+    This assertion only means something in file order, which is the point: it is
+    the ordering leak itself that is under test.
+    """
+    ambient = os.environ["W2_DATABASE_URL"]
+    assert get_settings().database_url.get_secret_value() == ambient

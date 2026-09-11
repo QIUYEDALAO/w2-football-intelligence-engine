@@ -44,18 +44,57 @@ from w2.operations.gate_a_evidence_producer import produce_gate_a_evidence  # no
 from w2.prematch.repository import project_exact_eval_02b_pairs  # noqa: E402
 
 
-def _pair_evaluation_diagnostic(engine: object) -> list[dict[str, object]]:
-    """Pre/Post inputs as the pairing sees them, for a rejected canary run."""
+def _diagnostic_fixture_aliases(fixture_id: object) -> frozenset[str]:
+    """Every spelling of one fixture id, so the diagnostic can scope onto it.
+
+    The evaluation rows carry the ``api_football:`` prefixed spelling while the
+    lineup events and the reservation carry the bare provider id, so scoping on a
+    single literal would silently match nothing.
+    """
+    text = str(fixture_id or "").strip()
+    if not text:
+        return frozenset()
+    bare = text.removeprefix("api_football:")
+    return frozenset({text, bare, f"api_football:{bare}"})
+
+
+def _pair_evaluation_diagnostic(
+    engine: object, *, fixture_aliases: frozenset[str]
+) -> list[dict[str, object]]:
+    """Pre/Post inputs as the pairing sees them, for this run's fixture only.
+
+    This used to read every lineup event, fixture identity and evaluation in the
+    database. Against a shared instance that put other runs' rows into this run's
+    failure output, so an operator could not tell which rows belonged to the
+    failure being diagnosed. With no fixture resolved it returns nothing rather
+    than falling back to an unscoped dump.
+    """
+    if not fixture_aliases:
+        return []
+
+    from sqlalchemy import or_  # noqa: PLC0415
     from sqlalchemy.orm import Session  # noqa: PLC0415
 
     from w2.infrastructure.persistence.dynamic_prematch_models import (  # noqa: PLC0415
         DynamicPrematchEvaluationModel,
         LineupConfirmedEventModel,
     )
+    from w2.infrastructure.persistence.matchday_intake_models import (  # noqa: PLC0415
+        MatchdayFixtureIdentityModel,
+    )
+    from w2.prematch.repository import (  # noqa: PLC0415
+        _eligible_pair_evaluation,
+        _fixture_alias_index,
+    )
 
+    scope = sorted(fixture_aliases)
     rows: list[dict[str, object]] = []
     with Session(engine) as session:  # type: ignore[arg-type]
-        for event in session.query(LineupConfirmedEventModel).all():
+        for event in (
+            session.query(LineupConfirmedEventModel)
+            .filter(LineupConfirmedEventModel.fixture_id.in_(scope))
+            .all()
+        ):
             rows.append(
                 {
                     "kind": "lineup_event",
@@ -64,17 +103,22 @@ def _pair_evaluation_diagnostic(engine: object) -> list[dict[str, object]]:
                     "lineup_input_hash": event.lineup_input_hash,
                 }
             )
-        from w2.infrastructure.persistence.matchday_intake_models import (  # noqa: PLC0415
-            MatchdayFixtureIdentityModel,
+        fixtures = (
+            session.query(MatchdayFixtureIdentityModel)
+            .filter(
+                or_(
+                    MatchdayFixtureIdentityModel.fixture_id.in_(scope),
+                    MatchdayFixtureIdentityModel.provider_fixture_id.in_(scope),
+                )
+            )
+            .all()
         )
-        from w2.prematch.repository import (  # noqa: PLC0415
-            _eligible_pair_evaluation,
-            _fixture_alias_index,
-        )
-
-        fixtures = session.query(MatchdayFixtureIdentityModel).all()
         alias_index = _fixture_alias_index(fixtures)
-        for row in session.query(DynamicPrematchEvaluationModel).all():
+        for row in (
+            session.query(DynamicPrematchEvaluationModel)
+            .filter(DynamicPrematchEvaluationModel.fixture_id.in_(scope))
+            .all()
+        ):
             eligible = None
             for fixture in fixtures:
                 eligible = _eligible_pair_evaluation(row, fixture, alias_index)
@@ -90,13 +134,13 @@ def _pair_evaluation_diagnostic(engine: object) -> list[dict[str, object]]:
                     "lineup_input_hash": getattr(row, "lineup_input_hash", None),
                     "pair_eligible": eligible is not None,
                     "blockers": (row.payload or {}).get("blockers"),
-                    "quote_scope": (
-                        list(eligible.quote_scope) if eligible is not None else None
-                    ),
+                    "quote_scope": (list(eligible.quote_scope) if eligible is not None else None),
                     "capture_at": str(eligible.capture_at) if eligible is not None else None,
                 }
             )
     return rows
+
+
 from w2.providers.api_football import ApiFootballClient  # noqa: E402
 
 
@@ -174,6 +218,9 @@ def main() -> int:
         if args.offline_trust_store is not None
         else {}
     )
+    # Bound before the try so the failure diagnostic below can scope onto the
+    # fixture this run actually selected even when the failure happened later.
+    audit = None
     try:
         authorization = GateARuntimeAuthorization.load(args.authorization_file, **trust_kwargs)
         identity = _runtime_identity(authorization)
@@ -239,13 +286,27 @@ def main() -> int:
         # that is the one input to the counts that is derived rather than
         # persisted, so it cannot be recovered from the database afterwards.
         try:
+            selected = args.fixture_id
+            if not selected and audit is not None:
+                chosen = (audit.result or {}).get("selected_market_fixture_ids") or []
+                selected = chosen[0] if chosen else None
+            aliases = _diagnostic_fixture_aliases(selected)
             projection = project_exact_eval_02b_pairs(create_engine())
             print(
                 json.dumps(
                     {
                         "pair_projection_diagnostic": {
-                            "pairs": len(projection.pairs),
-                            "evaluations": _pair_evaluation_diagnostic(create_engine()),
+                            # Which run this describes. Without it a scoped
+                            # diagnostic is indistinguishable from an empty one.
+                            "task_key": key,
+                            "fixture_scope": sorted(aliases),
+                            "pairs": sum(
+                                pair.identity.canonical_fixture_id in aliases
+                                for pair in projection.pairs
+                            ),
+                            "evaluations": _pair_evaluation_diagnostic(
+                                create_engine(), fixture_aliases=aliases
+                            ),
                             "exclusions": [
                                 {
                                     "fixture_id": exclusion.fixture_id,
@@ -253,6 +314,7 @@ def main() -> int:
                                     "reason": exclusion.reason,
                                 }
                                 for exclusion in projection.exclusions
+                                if exclusion.fixture_id in aliases
                             ],
                         }
                     },
