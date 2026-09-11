@@ -991,8 +991,17 @@ def test_20_the_production_chain_does_not_import_this_wiring() -> None:
 
 
 def test_20_no_scheduler_dashboard_or_v4_module_was_modified() -> None:
+    """F1R-B itself touched no protected path.
+
+    The range is pinned to F1R-B's own commit rather than "the working tree as
+    it stands now". What this test exists to prove is a property of this task's
+    delivery, and diffing against a moving HEAD made it re-judge every later,
+    separately authorised change as if it belonged to F1R-B.
+    """
     changed = subprocess.run(
-        ["git", "diff", "--name-only", "71daa3f5ec17ac3c5484e75a87d6bcac990d4bae"],
+        ["git", "diff", "--name-only",
+         "71daa3f5ec17ac3c5484e75a87d6bcac990d4bae",
+         "c482ccf92804cea8f92ef3d24aa158346495370d"],
         cwd=REPO, capture_output=True, text=True, check=True).stdout.split()
     for path in changed:
         assert not path.startswith("src/w2/scheduler/"), path

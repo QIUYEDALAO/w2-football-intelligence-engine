@@ -497,6 +497,20 @@ def parse_provider_time(value: Any) -> datetime | None:
         return None
 
 
+def _required_provider_time(value: Any, *, field: str) -> datetime:
+    """Parse a timestamp an upstream filter already proved parseable.
+
+    `_validated_xg_component_rows` drops any row whose kickoff or capture time
+    fails to parse, so callers downstream of it hold that guarantee. Naming the
+    field in the error keeps a broken guarantee legible instead of surfacing as
+    an attribute error on None.
+    """
+    parsed = parse_provider_time(value)
+    if parsed is None:
+        raise ValueError(f"XG_COMPONENT_TIMESTAMP_UNPARSEABLE:{field}")
+    return parsed
+
+
 def release_env(name: str, default: str = "UNKNOWN") -> str:
     value = os.getenv(name)
     return value if value else default
@@ -5085,11 +5099,11 @@ class ReadModelService:
         return [
             {
                 "fixture_id": str(row.get("fixture_id") or ""),
-                "kickoff_at": parse_provider_time(row["kickoff_at"])
+                "kickoff_at": _required_provider_time(row["kickoff_at"], field="kickoff_at")
                 .astimezone(UTC)
                 .isoformat()
                 .replace("+00:00", "Z"),
-                "captured_at": parse_provider_time(row["captured_at"])
+                "captured_at": _required_provider_time(row["captured_at"], field="captured_at")
                 .astimezone(UTC)
                 .isoformat()
                 .replace("+00:00", "Z"),
@@ -5128,7 +5142,7 @@ class ReadModelService:
             selected.append(row)
         selected.sort(
             key=lambda row: (
-                parse_provider_time(row["kickoff_at"]).astimezone(UTC),
+                _required_provider_time(row["kickoff_at"], field="kickoff_at").astimezone(UTC),
                 str(row.get("fixture_id") or ""),
             )
         )

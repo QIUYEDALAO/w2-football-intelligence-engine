@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from w2.dashboard.date_navigation import build_date_navigation
 from w2.dashboard.date_strip import build_persisted_date_strip
@@ -160,9 +160,16 @@ def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
 
 def _apply_v4_authority(projected: dict[str, Any]) -> dict[str, Any]:
     """Project the frozen V4 decision as the dashboard product authority."""
-    decision = projected.get("recommendation_decision_v4")
-    authority_missing = not isinstance(decision, Mapping) or not decision
-    decision = {} if authority_missing else decision
+    raw_decision = projected.get("recommendation_decision_v4")
+    authority_missing = not isinstance(raw_decision, Mapping) or not raw_decision
+    # Kept as two names on purpose: rebinding the original widened the type and
+    # cost every later narrowing, which is what the type errors here were.
+    # cast, not a runtime check: authority_missing is exactly "raw_decision is
+    # not a non-empty Mapping", but mypy cannot read that back off the bool.
+    # cast() returns its argument untouched, so nothing changes at runtime.
+    decision: Mapping[str, Any] = (
+        {} if authority_missing else cast(Mapping[str, Any], raw_decision)
+    )
     try:
         if not authority_missing:
             validate_decision_v4_identity(decision)

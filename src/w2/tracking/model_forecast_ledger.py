@@ -305,13 +305,17 @@ class ModelForecastLedgerRepository:
                     or _lambda_sigma_blocker(simulation)
                     or _t30_market_reference_blocker(market_snapshot, kickoff)
                 )
-                if blocker is None and (
+                # `market_snapshot is not None` is redundant at runtime --
+                # _t30_market_reference_blocker already returned a blocker for a
+                # missing snapshot, so this branch is unreachable with None --
+                # but it states that short-circuit for the type checker.
+                if blocker is None and market_snapshot is not None and (
                     str(market_snapshot.get("fixture_id")) not in _fixture_aliases(fixture_id)
-                    or _parse_time(market_snapshot.get("as_of")) > now
-                    or _parse_time(card["neutral_site_resolution"]["neutral_site_as_of"]) > now
+                    or _parsed_after(market_snapshot.get("as_of"), now)
+                    or _parsed_after(card["neutral_site_resolution"]["neutral_site_as_of"], now)
                     or any(
-                        _parse_time(xg_identity[side]["as_of"]) > now
-                        or any(_parse_time(row["captured_at"]) > now
+                        _parsed_after(xg_identity[side]["as_of"], now)
+                        or any(_parsed_after(row["captured_at"], now)
                                for row in xg_identity[side]["component_team_xg_matches"])
                         for side in ("home", "away")
                     )
@@ -1632,6 +1636,20 @@ def _iso(value: datetime) -> str:
 
 def _fixture_aliases(value: str) -> tuple[str, ...]:
     return model_forecast_fixture_aliases(value)
+
+
+def _parsed_after(value: Any, moment: datetime) -> bool:
+    """True when ``value`` parses to an instant strictly after ``moment``.
+
+    Every call site is already guarded by a blocker that rejects a missing or
+    unparseable timestamp, so None does not occur on any reachable path. It is
+    still treated as "after" rather than allowed to raise: an identity
+    timestamp that cannot be read is exactly the not-estimable case the caller
+    is testing for, so it fails closed into the existing blocker instead of
+    crashing the run.
+    """
+    parsed = _parse_time(value)
+    return parsed is None or parsed > moment
 
 
 def _lookup_market_snapshot(

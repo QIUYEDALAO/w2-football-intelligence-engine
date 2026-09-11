@@ -493,9 +493,18 @@ def ah_expected_value_uncertainty_from_lambdas(
     mixed_ev = ah_expected_value(rounded_distribution, decimal_price=decimal_price)
     if mixed_ev is None:
         return rounded_distribution, None, None
+    if not normalized_rows:
+        # Unreachable today: an empty scenario set gives total_weight == 0 and
+        # returns above. Asserted rather than absorbed, so that if the upstream
+        # guard is ever relaxed this surfaces instead of yielding a zero
+        # uncertainty that would read as "certain".
+        raise RuntimeError("EMPTY_NORMALIZED_SCENARIO_ROWS")
     variance = sum(
-        Decimal(str(weight)) * ((scenario_ev - mixed_ev) ** 2)
-        for weight, _, scenario_ev in normalized_rows
+        (
+            Decimal(str(weight)) * ((scenario_ev - mixed_ev) ** 2)
+            for weight, _, scenario_ev in normalized_rows
+        ),
+        Decimal(0),
     )
     return rounded_distribution, mixed_ev, max(variance, Decimal(0)).sqrt()
 
