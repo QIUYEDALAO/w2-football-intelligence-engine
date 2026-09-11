@@ -570,7 +570,10 @@ def _validate_producer_counts(
         ):
             raise GateAEvidenceError("CALLER_ASSERTED_ARTIFACT_COUNT_REJECTED")
         if expected_delta <= 0:
-            raise GateAEvidenceError("ANY_REQUIRED_ARTIFACT_DELTA_ZERO")
+            # Name the artifact. The code alone cannot be acted on: a canary
+            # that produced five of six artifacts fails identically to one that
+            # produced none.
+            raise GateAEvidenceError(f"ANY_REQUIRED_ARTIFACT_DELTA_ZERO:{name}")
 
 
 def _independent_recompute(

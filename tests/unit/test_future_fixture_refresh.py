@@ -1522,7 +1522,21 @@ def test_gate_a_abnormal_empty_fails_closed(tmp_path: Path) -> None:
 
 def test_future_refresh_controlled_feature_enrichment_uses_budget_and_audit(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # This test is about STATISTICS_NOT_POSTMATCH: statistics has to be an
+    # authorised endpoint, so that skipping it is attributed to the fixture not
+    # being finished rather than to the endpoint being unauthorised. conftest
+    # only setdefault()s the allowlist, so a caller that already exports a
+    # narrower one -- the release workflow exports it without statistics --
+    # silently turned this into ENDPOINT_NOT_AUTHORIZED and the assertion below
+    # stopped testing what it names. State the precondition here instead of
+    # depending on whatever the environment happens to hold.
+    monkeypatch.setenv(
+        "W2_PROVIDER_ENDPOINT_ALLOWLIST",
+        "status,fixtures,odds,lineups,statistics",
+    )
+    get_settings.cache_clear()
     client = FakeApiFootballClient()
     config = FutureRefreshConfig(
         runtime_root=tmp_path,

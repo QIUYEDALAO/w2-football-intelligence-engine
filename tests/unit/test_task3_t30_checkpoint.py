@@ -15,7 +15,7 @@ def test_checkpoint_adapter_binds_evaluation_time(monkeypatch):
     now = KICKOFF - timedelta(minutes=30)
     class ReadRepository(FakeReadRepository):
         def fixture_payloads(self):
-            return [{**item, 'league': {'id': 39, 'name': 'Premier League', 'season': 2026}}
+            return [{**item, 'league': {'id': 39, 'name': 'Synthetic League 39', 'season': 2026}}
                     for item in super().fixture_payloads()]
         def future_market_observations(self):
             return [{**r, 'captured_at': now.isoformat(),
@@ -66,7 +66,7 @@ def test_real_checkpoint_to_sqlite_ledger(monkeypatch, tmp_path):
     store = _repository(tmp_path)
     _seed_xg(store)
     now = KICKOFF - timedelta(minutes=30)
-    # Only the temporary pytest authority DB: the seed disables Premier League.
+    # Only the temporary pytest authority DB: the seed disables league id 39.
     authority = CompetitionRegistry().engine
     with Session(authority) as session:
         season = session.scalars(select(LeagueSeasonModel).where(
@@ -120,7 +120,7 @@ def test_real_checkpoint_to_sqlite_ledger(monkeypatch, tmp_path):
 
     class ReadRepository(FakeReadRepository):
         def fixture_payloads(self):
-            return [{**item, 'league': {'id': 39, 'name': 'Premier League', 'season': 2026}}
+            return [{**item, 'league': {'id': 39, 'name': 'Synthetic League 39', 'season': 2026}}
                     for item in super().fixture_payloads()]
 
         def future_market_observations(self):

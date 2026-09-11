@@ -543,13 +543,15 @@ def test_missing_projection_is_explicit_system_degraded_not_empty() -> None:
     card = service.public_analysis_card_bounded("fixture-1")
 
     assert card is not None
-    assert card["recommendation_decision_v4"]["schema_version"] == (
-        "w2.recommendation_decision.v4"
-    )
-    assert card["recommendation_decision_v4"]["outcome"] == "NOT_READY"
-    assert card["recommendation_decision_v4"]["selected_candidate"] is None
-    assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+    # 85d5b592 retired the dormant matchday execution surfaces, and with them
+    # the decision blocks this public card used to carry. The degraded card is
+    # now described by projection_health / decision_tier / data_status below,
+    # and carries no decision block of any version. Asserted as absence rather
+    # than dropped, so re-exposing V3 or putting V4 back on the public card
+    # fails here.
+    assert "recommendation_decision_v4" not in card
     assert "recommendation_decision_v3" not in card
+    assert "recommendation_decision_v3_role" not in card
     assert card["projection_health"] == {
         "status": "SYSTEM_DEGRADED",
         "reason_code": "ANALYSIS_PROJECTION_NOT_READY",

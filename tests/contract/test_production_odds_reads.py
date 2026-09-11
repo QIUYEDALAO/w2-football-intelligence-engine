@@ -874,8 +874,15 @@ def test_api_dashboard_card_keeps_historical_v3_identity_immutable() -> None:
     )
 
     assert card["competition_id"] == "brasileirao_serie_a"
-    assert card["recommendation_decision_v3"]["competition_id"] == "71"
-    assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+    # The projection still carries a V3 block, and the canonical competition id
+    # still replaces the provider one on the card. What changed is that the
+    # public dashboard card no longer exposes V3 at all: _project_dashboard_card
+    # pops both keys. History stays history, off the public surface.
+    #
+    # Asserted as absence rather than deleted, so re-exposing V3 on the public
+    # card fails here rather than passing silently.
+    assert "recommendation_decision_v3" not in card
+    assert "recommendation_decision_v3_role" not in card
 
 
 def test_fixture_scoped_timeline_reads_history_not_current_projection() -> None:

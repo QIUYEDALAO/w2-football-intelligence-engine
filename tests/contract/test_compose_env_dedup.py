@@ -114,6 +114,46 @@ def test_service_only_environment_variables_do_not_leak(path: Path) -> None:
         assert environment - common == EXPECTED_UNIQUE[path][service]
 
 
+# The authorised runtime delta between BASE_SHA's compose and today's. Each
+# entry is a value infra/compose now sets; the test asserts the expansion
+# matches this exactly, so an unrecorded change to any of them still fails.
+#
+# Provider and statistics quota, and the endpoint allowlist, apply to every
+# service in both compose files.
+AUTHORIZED_PROVIDER_ENV = {
+    "W2_PROVIDER_DAILY_HARD_CAP": "7500",
+    "W2_PROVIDER_DAILY_RESERVE": "1500",
+    "W2_PROVIDER_DAILY_UNALLOCATED_BUFFER": "0",
+    "W2_PROVIDER_ENDPOINT_ALLOWLIST": "status,fixtures,odds,lineups,statistics",
+    "W2_STATISTICS_DAILY_HARD_CAP": "5500",
+}
+
+# Provider timeout policy and the xG backfill budget are set by the formal
+# staging compose only; the lite override inherits docker-compose.yml, which
+# does not carry them.
+AUTHORIZED_FORMAL_ONLY_ENV = {
+    "W2_PROVIDER_REQUEST_TIMEOUT_SECONDS": "45",
+    "W2_PROVIDER_TIMEOUT_MAX_ATTEMPTS": "2",
+    "W2_PROVIDER_TIMEOUT_RETRY_BACKOFF_SECONDS": "2",
+    "W2_XG_BACKFILL_RECENT_MATCHES": "5",
+    "W2_XG_BACKFILL_REQUEST_BUDGET": "120",
+}
+
+# The scheduler's forward-outcome ledger window narrowed from the open-ended
+# "future" to "next7".
+AUTHORIZED_SCHEDULER_ENV = {"W2_FORWARD_OUTCOME_LEDGER_WINDOW": "next7"}
+
+# Market-timeline refresh was retired; the scheduler no longer carries its
+# settings or the ledger ordering flag that depended on it.
+RETIRED_MARKET_TIMELINE_ENV = {
+    "W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE",
+    "W2_MARKET_TIMELINE_MAX_FIXTURES",
+    "W2_MARKET_TIMELINE_REFRESH_ENABLED",
+    "W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS",
+    "W2_MARKET_TIMELINE_WINDOW",
+}
+
+
 @pytest.mark.parametrize("path", [FORMAL, LITE])
 def test_safety_switches_keep_their_values_and_ownership(path: Path) -> None:
     compose = load_compose(path)
@@ -247,4 +287,11 @@ def test_compose_expansion_matches_authorized_runtime_delta(
                     "W2_DASHBOARD_PUBLIC_BASE_URL": "",
                 }
             )
+        expected.update(AUTHORIZED_PROVIDER_ENV)
+        if path == FORMAL:
+            expected.update(AUTHORIZED_FORMAL_ONLY_ENV)
+        if service == "scheduler":
+            expected.update(AUTHORIZED_SCHEDULER_ENV)
+            for name in RETIRED_MARKET_TIMELINE_ENV:
+                expected.pop(name, None)
         assert current_services[service]["environment"] == expected
