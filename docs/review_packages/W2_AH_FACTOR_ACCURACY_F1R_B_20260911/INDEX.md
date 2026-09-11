@@ -67,7 +67,7 @@ not — are listed in `TEST_RESULTS.md` against the 22-item matrix.
 | `F1R_B_RESULT.json` | machine-readable result of the whole run, including every refusal code |
 | `F1R_B_REFERENCE_LEDGER.jsonl` | the four recorded observations |
 | `F1R_B_SOURCE_MANIFESTS.json` | the manifests the capture hashes were taken over |
-| `TEST_RESULTS.md` | the 22-item matrix, the full-suite delta and the Ruff status |
+| `TEST_RESULTS.md` | the 22-item matrix; the full suite under **both** test-path invocations at both commits, reconciled; the Ruff status |
 | `HASHES.sha256` | this package's own hashes |
 | `OBSIDIAN_UPDATE_PROPOSAL.md` | proposal only; the Vault was not written |
 
@@ -112,6 +112,29 @@ The only two pre-existing files changed at all are
 `src/w2/infrastructure/persistence/__init__.py` (six lines of exports) and the
 architecture checklist's package matrix (six fields recomputed mechanically
 from the source graph by the sanctioned regenerator).
+
+## Full-suite headline
+
+Reported under both test-path invocations, because reporting only one caused a
+reconciliation dispute during acceptance. Same interpreter throughout; both
+commits run against a clean worktree.
+
+| commit | `pytest tests -q` | `pytest tests scripts/quant/tests -q` |
+|---|---|---|
+| `71daa3f5` baseline | 9 failed / 3072 passed / 9 skipped | 9 failed / 3452 passed / 10 skipped |
+| `c482ccf9` delivered | 9 failed / 3084 passed / 9 skipped | 9 failed / 3588 passed / 10 skipped |
+
+```text
+NEW_FAILURES = 0 under both invocations; the same nine nodes fail in all four runs
+NET_NEW_PASSING = 12 (tests only) / 136 (both paths) = the tests this task adds
+RUFF = 10 errors, EXIT=1, in both trees, node lists identical
+```
+
+Ruff is not clean and this package does not claim it is. It exits 1 in both
+trees on the same ten pre-existing `E501` nodes; what the commit adds is zero.
+
+Targeted: 136 passed. Full detail, including the skip nodes and the
+environment- and worktree-affected causes, is in `TEST_RESULTS.md`.
 
 ## Boundaries held
 

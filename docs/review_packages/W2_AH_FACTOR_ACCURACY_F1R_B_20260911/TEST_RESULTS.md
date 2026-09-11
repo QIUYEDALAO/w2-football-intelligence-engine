@@ -4,17 +4,39 @@
 Parent commit `71daa3f5ec17ac3c5484e75a87d6bcac990d4bae`.
 
 ```text
-PYTHON   ./.venv/bin/python 3.12
-PYTEST   ./.venv/bin/python -m pytest tests scripts/quant/tests -q
-RUFF     ./.venv/bin/ruff 0.15.18
+PYTHON   /Users/liudehua/Documents/Projects/W2-workspaces/w2-official-candidate-accuracy-20260909/.venv/bin/python
+         Python 3.12.13
+PYTEST   8.4.2
+RUFF     0.15.18
 ```
 
-Both the baseline and the working tree were run with the **same interpreter and
-the same invocation**. The baseline is a detached worktree at `71daa3f5`
+Two test-path invocations are reported, because they are the source of an
+earlier reporting discrepancy and both are legitimate:
+
+```bash
+./.venv/bin/python -m pytest tests -q                        # A
+./.venv/bin/python -m pytest tests scripts/quant/tests -q    # B
+```
+
+Every figure below was produced at the delivered commit `c482ccf9` with a clean
+worktree, and at the baseline `71daa3f5`, with the **same interpreter** in both.
+The baseline is a detached worktree
 (`/Users/liudehua/Documents/Projects/W2-workspaces/w2-r1b-baseline-71daa3f5`);
-under pytest its own `src` wins over the editable install, verified by
-importing `w2` inside a pytest run and confirming both the path and the absence
-of `w2.domain.factor_versions`.
+under pytest its own `src` wins over the editable install, verified by importing
+`w2` inside a pytest run there and confirming both the path and the absence of
+`w2.domain.factor_versions`.
+
+Full stdout/stderr for all four runs, both collect-only runs and both Ruff runs:
+
+```text
+/Users/liudehua/Desktop/W2文档/W2_R1B_TEST_RECONCILIATION_20260911/
+  COMMANDS.md                exact commands, interpreter, and the results table
+  collect_<sha>_tests.txt     collect-only, path set A
+  collect_<sha>_both.txt      collect-only, path set B
+  run_<sha>_tests.txt         full run, path set A   (ends with EXIT=<code>)
+  run_<sha>_both.txt          full run, path set B   (ends with EXIT=<code>)
+  ruff_<sha>.txt              ruff concise output    (ends with EXIT=<code>)
+```
 
 ## The mandatory matrix
 
@@ -82,29 +104,49 @@ its source, whose `observed_at` is the as-of. That is exactly the substitution
 this task exists to prevent. The integration now refuses with
 `PARTICIPATED_FACTOR_BOUND_TO_ABSENCE_LOOKUP`.
 
-## Full suite, against the same-invocation baseline
+## Full suite — both test-path invocations, both commits
+
+An earlier version of this page reported only path set B, and reported it from
+the *uncommitted* tree. An independent re-run used path set A on the committed
+tree and got different numbers. Neither was wrong; they were different scopes.
+Both are now reported, and they reconcile exactly.
+
+### Collection
+
+| commit | `tests` (A) | `tests scripts/quant/tests` (B) |
+|---|---|---|
+| `71daa3f5` baseline | 3090 collected | 3471 collected |
+| `c482ccf9` delivered | 3102 collected | 3607 collected |
 
 ```text
-BASELINE  71daa3f5   9 failed,  3452 passed, 10 skipped, 5 warnings   405s
-WORKING   this tree  10 failed, 3587 passed, 10 skipped, 5 warnings   375s
-
-NEW_FAILURES_IN_THE_UNCOMMITTED_TREE = 1
-  scripts/quant/tests/test_ah_factor_accuracy_f0.py::test_f0_touches_no_production_path
-NEW_FAILURES_AFTER_COMMIT            = 0
-FIXED_OR_NEWLY_PASSING               = 0
-NET_NEW_PASSING                      = 135
+3102 - 3090 = 12    tests/contract/test_f1r_b_independent_oracle.py
+3607 - 3102 = 505   scripts/quant/tests at c482ccf9
+3471 - 3090 = 381   scripts/quant/tests at 71daa3f5
+ 505 -  381 = 124   scripts/quant/tests/test_f1r_b_production_recording_integration.py
+  12 +  124 = 136   the tests this task adds
 ```
 
-The count reconciles exactly: `3452 + 136 new tests - 1 = 3587`.
+### Results
 
-The one delta is the F0 guard, and it is an artefact of running against an
-uncommitted worktree rather than a defect: it reads `git status --porcelain=v1`
-and refuses any uncommitted path under `migrations/`. Proven, not assumed — the
-staged tree was written to a commit object (`eae73f40`, unreferenced and since
-pruned), checked out into a clean detached worktree, and the whole F0 file ran
-there: **26 passed**. The row in the table below records the same thing.
+| commit | paths | collected | failed | passed | skipped | pytest exit |
+|---|---|---|---|---|---|---|
+| `71daa3f5` | A | 3090 | 9 | 3072 | 9 | 1 |
+| `71daa3f5` | B | 3471 | 9 | 3452 | 10 | 1 |
+| `c482ccf9` | A | 3102 | 9 | 3084 | 9 | 1 |
+| `c482ccf9` | B | 3607 | 9 | 3588 | 10 | 1 |
 
-The other nine failures are identical, node for node, in both runs:
+Each row closes: `3072+9+9 = 3090`, `3452+9+10 = 3471`, `3084+9+9 = 3102`,
+`3588+9+10 = 3607`.
+
+```text
+NEW_FAILURES              = 0   (path set A and path set B)
+FIXED_OR_NEWLY_PASSING    = 0
+NET_NEW_PASSING  path A   = 12    3084 - 3072
+NET_NEW_PASSING  path B   = 136   3588 - 3452
+```
+
+The failure set is **the same nine nodes in all four runs**, and all nine live
+under `tests/`, which is why path set A sees every one of them:
 
 ```text
 tests/contract/test_api_projection_read_authority.py::test_missing_projection_is_explicit_system_degraded_not_empty
@@ -118,17 +160,46 @@ tests/regression/test_stage3_contracts.py::test_no_hardcoded_real_teams_leagues_
 tests/unit/test_ev_migration_2b.py::test_frozen_29601_rows_match_exactly
 ```
 
-None of them touches anything this task changed:
-`test_sc18_input_authority` fails with `FileNotFoundError: 'python'` because it
-shells out to a bare `python`; `test_stage3_contracts` flags `Premier League`
-in `tests/unit/test_task3_t30_checkpoint.py`, a file this task did not touch;
-the staging-parity and compose failures are host-environment checks. They fail
-identically at `71daa3f5`.
+The skip set is nine nodes under `tests/` in all four runs, plus one more when
+`scripts/quant/tests` is included — which is the whole of the 9-versus-10
+skipped difference:
 
-### Four failures I introduced and fixed
+```text
+[2] tests/integration/test_gate_a_staged_canary.py:145   W2_TEST_POSTGRES_URL is required for staged CLI E2E
+[1] tests/integration/test_migrations.py:727             W2_TEST_POSTGRES_URL is required for PostgreSQL staging-state migration
+[3] tests/integration/test_migrations.py:1291            W2_TEST_POSTGRES_URL is required for PostgreSQL dependency mutation
+[1] tests/unit/test_gate_a_offline.py:485                W2_TEST_POSTGRES_URL is required for PostgreSQL task-key fencing
+[1] tests/unit/test_gate_a_offline.py:521                W2_TEST_POSTGRES_URL is required for fixture binding fencing
+[1] tests/unit/test_stage7i_successor_tooling.py:397     SKIPPED_REQUIRES_PRIVILEGE
+[1] scripts/quant/tests/test_f1p_forward_factor_contract.py:255   market is pinned to ASIAN_HANDICAP   <- path set B only
+```
 
-The first working-tree run had 14 failures. Five were mine. They are listed
-because "fixed before delivery" is still something the acceptor should see.
+### What is environment- or worktree-affected, and why
+
+Named by cause rather than labelled, because "pre-existing" is not by itself an
+explanation. All of these fail or skip identically at `71daa3f5`, so none
+contributes to the delta.
+
+| Node | Cause | Kind |
+|---|---|---|
+| `test_sc18_input_authority` | shells out to a bare `python`; fails with `FileNotFoundError: [Errno 2] No such file or directory: 'python'` | PATH |
+| `test_ev_migration_2b::test_frozen_29601_rows_match_exactly` | needs `docs/review_packages/EV_CONTRACT_2A_20260906/differences.json`, which is untracked in git and absent from **both** worktrees | worktree state |
+| `test_future_refresh_staging_parity` ×2 | host uid/gid/mode preflight against a runtime directory | host permissions |
+| `test_compose_env_dedup` ×2, `test_api_projection_read_authority`, `test_production_odds_reads`, `test_stage3_contracts` | pre-existing at the baseline; `test_stage3_contracts` flags `Premier League` in `tests/unit/test_task3_t30_checkpoint.py`, a file this task did not touch | pre-existing |
+| the five `W2_TEST_POSTGRES_URL` skips | that variable is unset here | environment |
+
+That last row is also the concrete way to close the residual PostgreSQL gap
+recorded in `MIGRATION_AND_ROLLBACK.md`: this repository already has
+PostgreSQL-only migration tests that skip without `W2_TEST_POSTGRES_URL`, so a
+reviewer with a PostgreSQL instance can exercise migration 0071 on that dialect
+by setting it. This package does not do so — reaching a PostgreSQL instance was
+out of scope for this task.
+
+### Five failures I introduced, all fixed before delivery
+
+The first working-tree run had 14 failures under path set B. Five were mine.
+They are listed because "fixed before delivery" is still something the acceptor
+should be able to see and re-check.
 
 | Failure | Cause | Fix |
 |---|---|---|
@@ -136,7 +207,7 @@ because "fixed before delivery" is still something the acceptor should see.
 | `test_src_w2_package_matrix::test_matrix_rows_match_the_current_dependency_graph` | two new modules changed the package graph | regenerated the six mechanical fields with `scripts/quant/regenerate_src_w2_package_matrix.py`; judgement columns untouched |
 | `test_src_w2_package_matrix::test_matrix_callers_entrypoints_and_classifications_are_complete` | same | same |
 | `test_infrastructure_literal_guard::test_active_scripts_and_runbooks_have_no_public_ipv4_literals` | my own test spelled out the VPS address in order to forbid it, and that literal is itself the violation | the test now asserts no address-shaped literal by pattern |
-| `scripts/quant/tests/test_ah_factor_accuracy_f0.py::test_f0_touches_no_production_path` | reads `git status --porcelain=v1` and refuses uncommitted paths under `migrations/`; this task adds a migration | clears on commit, proven rather than assumed: the staged tree was written to a commit object (`eae73f40`, unreferenced and since pruned), checked out into a clean detached worktree, and `test_ah_factor_accuracy_f0.py` ran there — 26 passed |
+| `test_ah_factor_accuracy_f0.py::test_f0_touches_no_production_path` | reads `git status --porcelain=v1` and refuses uncommitted paths under `migrations/`; this task adds a migration | resolved by committing. It is absent from the failure list in every run above, all of which ran against the clean committed tree |
 
 The package matrix change is the only edit to an existing artifact, and it is
 mechanical: six fields recomputed from the source graph, `DRIFT_ROWS=6` before,
@@ -145,11 +216,14 @@ mechanical: six fields recomputed from the source graph, `DRIFT_ROWS=6` before,
 ## Ruff
 
 ```text
-./.venv/bin/ruff check .
-BASELINE 71daa3f5   Found 10 errors
-WORKING  this tree  Found 10 errors
-NEW = 0   FIXED = 0
+./.venv/bin/ruff check . --output-format=concise
+BASELINE 71daa3f5   Found 10 errors   EXIT=1
+DELIVERED c482ccf9  Found 10 errors   EXIT=1
+NEW = 0   FIXED = 0   node diff = empty
 ```
+
+**Ruff exits 1 in both trees.** It is not clean and this package does not claim
+it is; what it claims is that the delivered commit adds nothing to it.
 
 The ten are node-for-node identical in both trees — all `E501` in
 `tests/unit/test_ev_canonical_contract.py` and `tests/unit/test_ev_migration_2b.py`:
