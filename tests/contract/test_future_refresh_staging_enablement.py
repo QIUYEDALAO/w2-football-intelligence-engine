@@ -1,21 +1,51 @@
 from __future__ import annotations
 
+import os
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 from apps.scheduler.main import (
     future_fixture_refresh_contract_ready,
     future_fixture_refresh_tick,
 )
 from apps.worker.celery_app import celery_app
+from sqlalchemy.orm import Session
 
 from w2.competitions.seed import set_competition_enabled
 from w2.infrastructure.database import create_engine
+from w2.infrastructure.persistence.league_models import LeagueSeasonModel
 from w2.refresh.matchday_schedule import MatchdayRefreshPolicy, build_matchday_refresh_plan
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture(autouse=True)
+def _restore_shared_competition_environment_stamp() -> Iterator[None]:
+    """Put the shared competition database's environment stamp back.
+
+    Tests here set ``W2_ENVIRONMENT=staging`` and then reach the shared database.
+    conftest's registry adapter re-stamps every league season row to whatever
+    environment is current when an engine is created, so the rows are left saying
+    "staging" -- ``monkeypatch`` restores the variable at teardown but cannot
+    restore the rows. Any later test that reads the registry then fails with
+    ``COMPETITION_DB_ENVIRONMENT_MISMATCH:db=staging:runtime=test``, and which
+    test that is depends purely on shard composition: adding an unrelated file to
+    tests/ moves the failure somewhere new.
+    """
+    yield
+    environment = os.environ.get("W2_ENVIRONMENT", "test").strip().lower()
+    engine = create_engine()
+    with Session(engine) as session:
+        for row in session.query(LeagueSeasonModel).all():
+            payload = dict(row.payload or {})
+            if payload.get("environment") != environment:
+                payload["environment"] = environment
+                row.payload = payload
+        session.commit()
 CONTROLLED_OVERRIDE = ROOT / "infra/compose/controlled-future-refresh.override.yml"
 COMPOSE_PATHS = [
     ROOT / "infra/compose/compose.staging.yml",
