@@ -297,6 +297,78 @@
       "review_status": "APPROVED"
     },
     {
+      "w2_team_id": "w2:team:api_football:160",
+      "public_name": "弗赖堡",
+      "review_status": "APPROVED",
+      "source_ref": "owner-request-2026-09-13"
+    },
+    {
+      "w2_team_id": "w2:team:api_football:162",
+      "public_name": "云达不莱梅",
+      "review_status": "APPROVED",
+      "source_ref": "owner-request-2026-09-13"
+    },
+    {
+      "w2_team_id": "w2:team:api_football:163",
+      "public_name": "门兴格拉德巴赫",
+      "review_status": "APPROVED",
+      "source_ref": "owner-request-2026-09-13"
+    },
+    {
+      "w2_team_id": "w2:team:api_football:164",
+      "public_name": "美因茨",
+      "review_status": "APPROVED",
+      "source_ref": "owner-request-2026-09-13"
+    },
+    {
+      "w2_team_id": "w2:team:api_football:165",
+      "public_name": "多特蒙德",
+      "review_status": "APPROVED",
+      "source_ref": "owner-request-2026-09-13"
+    },
+    {
+      "w2_team_id": "w2:team:api_football:167",
+      "public_name": "霍芬海姆",
+      "review_status": "APPROVED",
+      "source_ref": "owner-request-2026-09-13"
+    },
+    {
+      "w2_team_id": "w2:team:api_football:168",
+      "public_name": "勒沃库森",
+      "review_status": "APPROVED",
+      "source_ref": "owner-request-2026-09-13"
+    },
+    {
+      "w2_team_id": "w2:team:api_football:169",
+      "public_name": "法兰克福",
+      "review_status": "APPROVED",
+      "source_ref": "owner-request-2026-09-13"
+    },
+    {
+      "w2_team_id": "w2:team:api_football:170",
+      "public_name": "奥格斯堡",
+      "review_status": "APPROVED",
+      "source_ref": "owner-request-2026-09-13"
+    },
+    {
+      "w2_team_id": "w2:team:api_football:172",
+      "public_name": "斯图加特",
+      "review_status": "APPROVED",
+      "source_ref": "owner-request-2026-09-13"
+    },
+    {
+      "w2_team_id": "w2:team:api_football:185",
+      "public_name": "帕德博恩",
+      "review_status": "APPROVED",
+      "source_ref": "owner-request-2026-09-13"
+    },
+    {
+      "w2_team_id": "w2:team:api_football:192",
+      "public_name": "科隆",
+      "review_status": "APPROVED",
+      "source_ref": "owner-request-2026-09-13"
+    },
+    {
       "w2_team_id": "w2:team:api_football:193",
       "public_name": "兹沃勒",
       "review_status": "APPROVED",
@@ -589,6 +661,12 @@
       "public_name": "鹿特丹斯巴达",
       "review_status": "APPROVED",
       "source_ref": "owner-delegated-review-2026-08-18"
+    },
+    {
+      "w2_team_id": "w2:team:api_football:427",
+      "public_name": "特尔斯达",
+      "review_status": "APPROVED",
+      "source_ref": "owner-request-2026-09-13"
     },
     {
       "w2_team_id": "w2:team:api_football:434",
