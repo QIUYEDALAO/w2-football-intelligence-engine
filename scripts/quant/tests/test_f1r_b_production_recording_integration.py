@@ -982,12 +982,28 @@ def test_20_enabling_the_port_is_still_not_authorised() -> None:
 
 
 def test_20_the_production_chain_does_not_import_this_wiring() -> None:
-    hits = [
+    """Nothing imports the wiring statically, and only one module names it.
+
+    F1R-B asserted that `src/` never mentioned these modules at all, because no
+    production path reached them. The successor commit that persists the four
+    factors necessarily changes that, so the invariant is narrowed to the one
+    that still has to hold: the modules are reached by *file path*, from exactly
+    one module, and are never pulled into another module's import graph. A
+    static import would drag the F1R-B sources into every read-only caller.
+    """
+    allowed = {"src/w2/quant_research/forward_factor_modules.py"}
+    hits = {
         path.relative_to(REPO).as_posix()
         for path in (REPO / "src").rglob("*.py")
         if "f1r_b_" in path.read_text(encoding="utf-8")
-    ]
-    assert hits == []
+    }
+    assert hits == allowed, sorted(hits)
+    text = (REPO / "src/w2/quant_research/forward_factor_modules.py").read_text(
+        encoding="utf-8")
+    assert "import f1r_b_" not in text
+    assert "from f1r_b_" not in text
+    assert "from w2.quant_research._f1r_b" not in text
+    assert "spec_from_file_location" in text
 
 
 def test_20_no_scheduler_dashboard_or_v4_module_was_modified() -> None:

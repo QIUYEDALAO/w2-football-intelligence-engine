@@ -317,13 +317,39 @@ def test_f0_does_not_write_anywhere_but_its_own_output_directory() -> None:
         assert forbidden not in source, forbidden
 
 
-def test_f0_touches_no_production_path() -> None:
-    changed = subprocess.run(  # noqa: S603
-        ["/usr/bin/git", "status", "--porcelain=v1"],
-        cwd=REPO, capture_output=True, text=True, check=False).stdout
+#: The commit that delivered F0. The boundary below is checked against this
+#: commit rather than against the working tree: a dirty tree is not a property
+#: of F0, it is a property of every task sharing the checkout, and a guard that
+#: fails when an unrelated task legitimately edits a production file protects
+#: nothing -- it just gets weakened or deleted. The commit is the delivery, so
+#: the claim is made about the delivery.
+F0_DELIVERY_COMMIT = "f5dd9c23cf90cd836139bacbde559421f6dd59a2"
 
-    for line in changed.splitlines():
-        path = line[3:].strip().strip('"')
-        assert not path.startswith("src/w2/prematch/"), path
-        assert not path.startswith("src/w2/strategy/"), path
-        assert not path.startswith("migrations/"), path
+
+def _paths_changed_by(commit: str) -> list[str]:
+    parents = subprocess.run(  # noqa: S603
+        ["/usr/bin/git", "rev-list", "--parents", "-n", "1", commit],
+        cwd=REPO, capture_output=True, text=True, check=False).stdout.split()
+    # A merge commit shows no paths by default, which would make this check
+    # vacuous. The delivery commit is a plain commit; insist on it.
+    assert len(parents) == 2, f"{commit} has {len(parents) - 1} parents"
+    result = subprocess.run(  # noqa: S603
+        ["/usr/bin/git", "show", "--pretty=format:", "--name-only", "--no-renames", commit],
+        cwd=REPO, capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def test_f0_touches_no_production_path() -> None:
+    """F0's own delivery, checked at the commit that made it."""
+    changed = _paths_changed_by(F0_DELIVERY_COMMIT)
+    assert changed, "the F0 delivery commit is not in this history"
+    assert "scripts/quant/run_ah_factor_accuracy_f0.py" in changed
+    for path in changed:
+        assert not path.startswith(("src/", "migrations/", "apps/", "config/")), path
+    # And production cannot reach the runner: nothing under src/w2 names it.
+    hits = subprocess.run(  # noqa: S603
+        ["/usr/bin/grep", "-rl", RUNNER_PATH.stem, str(REPO / "src/w2")],
+        capture_output=True, text=True, check=False)
+
+    assert not hits.stdout.strip(), hits.stdout

@@ -952,7 +952,7 @@ def test_model_forecast_projection_refresh_targets_only_not_ready(
 ) -> None:
     events: list[Any] = []
 
-    def materialize(value: list[Any]) -> list[str]:
+    def materialize(value: list[Any], **_kwargs: Any) -> list[str]:
         events.extend(value)
         return [event.fixture_id for event in value]
 
@@ -964,6 +964,9 @@ def test_model_forecast_projection_refresh_targets_only_not_ready(
         "apps.worker.celery_app._materialize_shadow_projection_events",
         materialize,
     )
+    # The factor recording is switched off for this test, so its report is
+    # deterministic here and the status below is the evaluation's own.
+    monkeypatch.setenv("W2_FORWARD_FACTOR_RECORDING", "off")
     monkeypatch.setattr(
         "w2.tracking.model_forecast_ledger.ModelForecastLedgerRepository",
         XgReadyRepository,
@@ -981,6 +984,14 @@ def test_model_forecast_projection_refresh_targets_only_not_ready(
         evaluated_at=evaluated_at,
     )
 
+    # The per-factor recording report rides along with the projection result.
+    # This stub never reaches the recorder, so it reports zero evaluations and
+    # the targeting contract below is unchanged.
+    recording = result.pop("forward_factor_recording")
+    assert recording["evaluations"] == 0  # type: ignore[index]
+    assert recording["recording_status"] == "DISABLED"  # type: ignore[index]
+    assert recording["rows_appended"] == 0  # type: ignore[index]
+
     assert result == {
         "status": "PASS",
         "provider_calls": 0,
@@ -994,6 +1005,50 @@ def test_model_forecast_projection_refresh_targets_only_not_ready(
         ("blocked", "XG_CHANGED"),
         ("missing", "XG_CHANGED"),
     ]
+
+
+def test_worker_result_does_not_claim_a_clean_pass_when_recording_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A returned card must not hide a recording that did not happen.
+
+    The per-factor recording is deliberately non-fatal: the evaluation is
+    computed and returned either way. That makes the task result the only place
+    the failure can surface, so it has to surface there.
+    """
+    import w2.quant_research.forward_factor_recording as recording
+
+    monkeypatch.setattr(
+        "apps.worker.celery_app._materialize_shadow_projection_events",
+        lambda value, **_kwargs: [event.fixture_id for event in value],
+    )
+    monkeypatch.setattr(
+        "w2.tracking.model_forecast_ledger.ModelForecastLedgerRepository",
+        lambda: type(
+            "Repo",
+            (),
+            {"xg_ready_fixture_ids": lambda self, _cards: ("blocked",)},
+        )(),
+    )
+    monkeypatch.setattr(
+        recording,
+        "build_recorder",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("NO_DATABASE")),
+    )
+
+    result = _refresh_model_forecast_analysis_cards(
+        {"all": [{"fixture_id": "blocked", "simulation": {"status": "UNAVAILABLE"}}]},
+        evaluated_at=datetime(2026, 8, 17, 6, 0, tzinfo=UTC),
+    )
+
+    assert result["status"] == "PASS_WITH_RECORDING_INCOMPLETE"
+    report = result["forward_factor_recording"]
+    assert report["recording_status"] == "UNAVAILABLE"  # type: ignore[index]
+    assert report["rows_appended"] == 0  # type: ignore[index]
+    assert report["note"] == "RECORDER_UNAVAILABLE"  # type: ignore[index]
+    assert report["refusal_codes"] == {}  # type: ignore[index]
+    # The evaluation itself still ran.
+    assert result["db_writes"] == 1
 
 
 def test_worker_result_materialize_task_reports_safety_flags(monkeypatch) -> None:
