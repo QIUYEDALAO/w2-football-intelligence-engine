@@ -40,10 +40,15 @@ from sqlalchemy.orm import Session
 
 from w2.historical.runtime_ah_settlement import RuntimeAhSettlementRepository
 from w2.historical.runtime_ah_settlement_materializer import (
+    REFUSAL_CAPTURE_FIXTURE_MISMATCH,
     REFUSAL_CAPTURE_IDENTITY_MISSING,
+    REFUSAL_CAPTURE_OWNERSHIP_UNPROVEN,
+    REFUSAL_FACT_REVISION_CONFLICT,
     REFUSAL_QUOTE_BUCKET_MISSING,
+    REFUSAL_RESULT_PAYLOAD_HASH_MISMATCH,
     REFUSAL_TERMINAL_EVIDENCE_MISSING,
     STATUS_FAILED,
+    STATUS_INCOMPLETE,
     STATUS_NO_DUE_WORK,
     STATUS_SKIPPED,
     empty_report,
@@ -55,6 +60,7 @@ from w2.historical.runtime_ah_settlement_materializer import (
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamMatchHistoryModel,
 )
+from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEndpointCaptureModel,
     MatchdayFixtureIdentityModel,
@@ -121,10 +127,17 @@ def _odds_capture_row() -> MatchdayEndpointCaptureModel:
 
 
 def _settlement_capture_row() -> MatchdayEndpointCaptureModel:
+    """The terminal capture exactly as production stores it.
+
+    A `fixtures`-endpoint capture is a *bulk* response: it names no fixture --
+    every one of them in production has a null `fixture_id` -- so its payload is
+    the only thing that says what it covered. That is the shape the ownership
+    check has to handle, so it is the shape this harness builds.
+    """
     kickoff = _utc(SAMPLE_FIXTURE["kickoff_utc"])
     return MatchdayEndpointCaptureModel(
         capture_id=str(SAMPLE_CAPTURE["capture_id"]),
-        fixture_id=FACT_FIXTURE_ID,
+        fixture_id=None,
         competition_id=str(SAMPLE_FIXTURE["competition_id"]),
         checkpoint="POSTMATCH_RESULT",
         endpoint=str(SAMPLE_CAPTURE["endpoint"]),
@@ -142,6 +155,43 @@ def _settlement_capture_row() -> MatchdayEndpointCaptureModel:
         provider_event_time=None,
         capture_status=str(SAMPLE_CAPTURE["capture_status"]),
         error_code=None,
+    )
+
+
+def _settlement_payload_row(*, with_fixture: bool = True) -> RawPayloadModel:
+    """The capture's stored payload -- the proof of which fixtures it covered."""
+    fixture_item = {
+        "fixture": {
+            "id": int(FACT_PROVIDER_FIXTURE_ID),
+            "date": SAMPLE_FIXTURE["kickoff_utc"],
+            "status": {"short": str(SAMPLE_FIXTURE["fixture_status"])},
+        },
+        "goals": {
+            "home": int(SAMPLE_FIXTURE["home_goals"]),
+            "away": int(SAMPLE_FIXTURE["away_goals"]),
+        },
+        # What the result materialiser actually reads. A payload that is terminal
+        # but carries no fulltime score is *invalid* evidence to it, not absent
+        # evidence, and it blocks the round -- so the fixture here is the real
+        # Provider shape, score included.
+        "score": {
+            "fulltime": {
+                "home": int(SAMPLE_FIXTURE["home_goals"]),
+                "away": int(SAMPLE_FIXTURE["away_goals"]),
+            }
+        },
+    }
+    other_item = {
+        "fixture": {"id": 999999999, "status": {"short": "FT"}},
+        "goals": {"home": 0, "away": 0},
+    }
+    return RawPayloadModel(
+        sha256=str(SAMPLE_CAPTURE["raw_payload_sha256"]),
+        endpoint="fixtures",
+        captured_at=_utc(SAMPLE_CAPTURE["provider_captured_at"]),
+        inserted_at=_utc(SAMPLE_CAPTURE["provider_captured_at"]),
+        storage_uri="w2-test://fixtures",
+        payload={"response": [fixture_item] if with_fixture else [other_item]},
     )
 
 
@@ -189,6 +239,7 @@ def _seed_fact_chain(engine: Engine) -> None:
         session.add(_odds_capture_row())
         session.add(_settlement_capture_row())
         session.flush()
+        session.add(_settlement_payload_row())
         session.add_all([_observation_row(quote) for quote in SAMPLE["observations"]])
         session.add(
             MatchdayFixtureIdentityModel(
@@ -517,6 +568,226 @@ def test_a_fact_with_no_w2_team_mapping_is_not_written(natural: Engine) -> None:
     assert report["appended"] == 0
     assert report["refusal_codes"] == {"AH_SETTLEMENT_TEAM_MAPPING_MISSING": 1}
     assert _fact_count(natural) == 0
+
+
+# --- 3b: a broken evidence chain is fail-closed, and it is not a quiet pass --
+def _assert_integrity_refusal(engine: Engine, report: dict[str, Any], code: str) -> None:
+    """Every integrity refusal: no fact, a named refusal, and no clean pass.
+
+    The last part is the point. "No pre-kickoff quote bucket" is a statement
+    about Tuesday; "the result cites a capture it did not read from" is a defect.
+    Only the second kind may degrade the run, and it must.
+    """
+    assert report["appended"] == 0, report
+    assert report["idempotent_no_ops"] == 0, report
+    assert report["refusal_codes"] == {code: 1}, report
+    assert report["fixtures"][0]["status"] == "REFUSED"
+    assert report["fixtures"][0]["refusal_code"] == code
+    assert _fact_count(engine) == 0
+    assert report["status"] == STATUS_INCOMPLETE, report
+    assert runtime_ah_fact_writer_status(report) == "PARTIAL"
+    assert not writer_status_is_clean(report)
+
+
+def test_a_result_whose_payload_hash_disagrees_with_its_capture_is_refused(
+    natural: Engine,
+) -> None:
+    """The result and the capture must be the same payload, byte for byte."""
+    with Session(natural) as session, session.begin():
+        session.execute(
+            update(ResultModel)
+            .where(ResultModel.fixture_id == FACT_FIXTURE_ID)
+            .values(source_payload_sha256=_hex("a-different-payload"))
+        )
+
+    report = materialize_runtime_ah_settlement_facts(
+        engine=natural, fixture_ids=[FACT_FIXTURE_ID]
+    )
+
+    _assert_integrity_refusal(natural, report, REFUSAL_RESULT_PAYLOAD_HASH_MISMATCH)
+
+
+def test_a_capture_that_names_another_fixture_is_refused(natural: Engine) -> None:
+    """A capture that does name a fixture must name *this* one."""
+    with Session(natural) as session, session.begin():
+        session.execute(
+            update(MatchdayEndpointCaptureModel)
+            .where(
+                MatchdayEndpointCaptureModel.capture_id
+                == str(SAMPLE_CAPTURE["capture_id"])
+            )
+            .values(fixture_id="api_football:999999999")
+        )
+
+    report = materialize_runtime_ah_settlement_facts(
+        engine=natural, fixture_ids=[FACT_FIXTURE_ID]
+    )
+
+    _assert_integrity_refusal(natural, report, REFUSAL_CAPTURE_FIXTURE_MISMATCH)
+
+
+def test_a_capture_with_no_fixture_attribution_at_all_is_refused(
+    natural: Engine,
+) -> None:
+    """No fixture named and no payload to prove it: nothing owns this evidence.
+
+    This is the production shape with the payload missing -- a bulk capture whose
+    stored payload has gone. Ownership is then unprovable, and unprovable means
+    no fact.
+    """
+    with Session(natural) as session, session.begin():
+        session.execute(
+            sa_delete(RawPayloadModel).where(
+                RawPayloadModel.sha256 == str(SAMPLE_CAPTURE["raw_payload_sha256"])
+            )
+        )
+
+    report = materialize_runtime_ah_settlement_facts(
+        engine=natural, fixture_ids=[FACT_FIXTURE_ID]
+    )
+
+    _assert_integrity_refusal(natural, report, REFUSAL_CAPTURE_OWNERSHIP_UNPROVEN)
+
+
+def test_a_capture_whose_payload_omits_the_fixture_is_refused(
+    natural: Engine,
+) -> None:
+    """A payload that exists but does not carry this fixture proves nothing."""
+    with Session(natural) as session, session.begin():
+        session.execute(
+            update(RawPayloadModel)
+            .where(RawPayloadModel.sha256 == str(SAMPLE_CAPTURE["raw_payload_sha256"]))
+            .values(payload={"response": [{"fixture": {"id": 999999999}}]})
+        )
+
+    report = materialize_runtime_ah_settlement_facts(
+        engine=natural, fixture_ids=[FACT_FIXTURE_ID]
+    )
+
+    _assert_integrity_refusal(natural, report, REFUSAL_CAPTURE_OWNERSHIP_UNPROVEN)
+
+
+# --- 3c: one fixture, one fact -------------------------------------------
+def _alternative_settlement_capture() -> tuple[str, str]:
+    return _hex("alternative-settlement-capture")[:64], _hex("alternative-payload")
+
+
+def _seed_alternative_terminal_evidence(engine: Engine) -> str:
+    """A second, legitimate terminal capture for the same fixture.
+
+    Nothing about it is invalid -- successful `fixtures` capture, after kickoff,
+    payload proves the fixture. It is simply *different* evidence for a match
+    that already has a fact, which is exactly the case that must not be counted
+    twice.
+    """
+    capture_id, payload_sha = _alternative_settlement_capture()
+    with Session(engine) as session, session.begin():
+        session.add(
+            MatchdayEndpointCaptureModel(
+                capture_id=capture_id,
+                fixture_id=None,
+                competition_id=str(SAMPLE_FIXTURE["competition_id"]),
+                checkpoint="POSTMATCH_RESULT",
+                endpoint="fixtures",
+                sanitized_params={"fixture": FACT_PROVIDER_FIXTURE_ID},
+                params_hash=_hex("alternative-settlement-params"),
+                request_task_key="f1r-c-natural-writer",
+                attempt=1,
+                requested_at=_utc(SAMPLE_FIXTURE["kickoff_utc"]),
+                provider_captured_at=_utc(SAMPLE_CAPTURE["provider_captured_at"]),
+                status_code=200,
+                elapsed_ms=1,
+                response_count=1,
+                quota_values={},
+                raw_payload_sha256=payload_sha,
+                provider_event_time=None,
+                capture_status="CAPTURED",
+                error_code=None,
+            )
+        )
+        session.add(
+            RawPayloadModel(
+                sha256=payload_sha,
+                endpoint="fixtures",
+                captured_at=_utc(SAMPLE_CAPTURE["provider_captured_at"]),
+                inserted_at=_utc(SAMPLE_CAPTURE["provider_captured_at"]),
+                storage_uri="w2-test://fixtures",
+                payload={
+                    "response": [
+                        {"fixture": {"id": int(FACT_PROVIDER_FIXTURE_ID)}},
+                    ]
+                },
+            )
+        )
+        session.execute(
+            update(ResultModel)
+            .where(ResultModel.fixture_id == FACT_FIXTURE_ID)
+            .values(
+                source_capture_id=capture_id,
+                source_payload_sha256=payload_sha,
+            )
+        )
+    return capture_id
+
+
+def test_the_same_evidence_replays_as_an_idempotent_no_op(natural: Engine) -> None:
+    first = materialize_runtime_ah_settlement_facts(
+        engine=natural, fixture_ids=[FACT_FIXTURE_ID]
+    )
+    assert first["appended"] == 1
+    assert first["status"] == "COMPLETE"
+
+    replay = materialize_runtime_ah_settlement_facts(
+        engine=natural, fixture_ids=[FACT_FIXTURE_ID]
+    )
+
+    assert replay["appended"] == 0
+    assert replay["idempotent_no_ops"] == 1
+    assert replay["refusal_codes"] == {}
+    assert writer_status_is_clean(replay)
+    assert _fact_count(natural) == 1
+
+
+def test_a_different_terminal_capture_for_one_fixture_is_refused_not_counted(
+    natural: Engine,
+) -> None:
+    """The match must not be counted twice because the evidence was re-observed.
+
+    The fact identity binds the settlement capture, so a second capture for the
+    same fixture is a *new* row to the store -- both would be kept and F5 would
+    read the match twice. The revision rule refuses it here, where the fixture is
+    still known, and says which fact already holds the fixture.
+    """
+    first = materialize_runtime_ah_settlement_facts(
+        engine=natural, fixture_ids=[FACT_FIXTURE_ID]
+    )
+    assert first["appended"] == 1
+    original_fact_id = first["fixtures"][0]["fact_id"]
+
+    _seed_alternative_terminal_evidence(natural)
+
+    second = materialize_runtime_ah_settlement_facts(
+        engine=natural, fixture_ids=[FACT_FIXTURE_ID]
+    )
+
+    assert second["appended"] == 0, second
+    assert second["idempotent_no_ops"] == 0, second
+    assert second["refusal_codes"] == {REFUSAL_FACT_REVISION_CONFLICT: 1}, second
+    assert second["fixtures"][0]["status"] == "REFUSED"
+    assert original_fact_id in str(second["fixtures"][0]["refusal_detail"])
+    assert second["status"] == STATUS_INCOMPLETE
+    assert runtime_ah_fact_writer_status(second) == "PARTIAL"
+    assert _fact_count(natural) == 1
+
+    from apps.worker.celery_app import _task_status
+
+    from w2.quant_research.forward_factor_recording import empty_report as rec_report
+
+    recording = rec_report(enabled=True, note="")
+    recording["recording_status"] = "COMPLETE"
+    assert _task_status(recording, ah_fact_report=second) == (
+        "PASS_WITH_AH_FACT_INCOMPLETE"
+    )
 
 
 # --- 4: no Provider call is made, or possible ----------------------------

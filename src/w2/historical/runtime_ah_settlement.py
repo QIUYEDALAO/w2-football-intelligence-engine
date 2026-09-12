@@ -158,6 +158,10 @@ class RuntimeAhSettlementRepository:
             return None
         return {
             "capture_id": row.capture_id,
+            #: A capture that observed one fixture names it; a bulk capture does
+            #: not, and its payload is the only proof of what it covered. Both
+            #: are returned so the caller can decide, rather than guess here.
+            "fixture_id": row.fixture_id,
             "provider_captured_at": row.provider_captured_at,
             "raw_payload_sha256": row.raw_payload_sha256,
             "endpoint": row.endpoint,

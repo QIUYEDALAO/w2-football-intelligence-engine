@@ -169,3 +169,78 @@ The six F1R-B quant modules are unchanged by this successor. Nothing in this
 change touches a frozen module: the writer is a new module, the worker and the
 recovery service are production callers, and the review package is this
 directory. See `PORT_REVISIONS.md`.
+
+## Successor: evidence integrity, and one fixture one fact
+
+The writer trusted the terminal chain it read. It now proves it, and it refuses
+to let one fixture be counted twice.
+
+### What is checked before a fact exists
+
+| Guard | Refusal |
+|---|---|
+| `results.source_payload_sha256 == capture.raw_payload_sha256` | `AH_SETTLEMENT_RESULT_PAYLOAD_HASH_MISMATCH` |
+| a capture that names a fixture names *this* one | `AH_SETTLEMENT_CAPTURE_FIXTURE_MISMATCH` |
+| a capture that names none proves coverage from its stored payload | `AH_SETTLEMENT_CAPTURE_OWNERSHIP_UNPROVEN` |
+| the fixture has no fact from different terminal evidence | `AH_SETTLEMENT_FACT_REVISION_CONFLICT` |
+
+Every one of them is fail-closed: no fact is built, and the refusal is reported
+per fixture with the code and a detail.
+
+**Why ownership is not a `fixture_id` equality check.** The natural instruction
+was "the capture's `fixture_id` must match the target fixture". Measured on the
+deployed database: `matchday_endpoint_captures` holds **2371 `fixtures`-endpoint
+captures and not one of them carries a `fixture_id`** — they are bulk responses.
+Applied literally, that check refuses all 15 facts that already exist and every
+fact a future round could write. So the guard proves the same thing the
+requirement asks for, by the route the data actually supports: a capture that
+*does* name a fixture must name this one, and a bulk capture must carry this
+fixture in its own stored payload. `raw_payload` has the payload for 15/15 of the
+settlement captures, and the membership question is asked in SQL so the payload
+never crosses into Python.
+
+`status`-endpoint captures also carry no `fixture_id`, and the history branch is
+held to the same ownership rule.
+
+### The revision rule
+
+A fact's identity binds its settlement capture, so a *second*, legitimate
+terminal capture for the same fixture produces a **different** fact id — and the
+append-only store would keep both. F5 would then read the same match twice. The
+rule therefore lives in the writer, where the fixture is still known: existing
+fact with the same id is an idempotent no-op; existing fact with a different id
+is a refusal naming the fact that already holds the fixture. Nothing is
+overwritten and nothing is appended.
+
+### Two kinds of refusal, two verdicts
+
+A refusal is not automatically a defect. "No pre-kickoff quote bucket" is a
+statement about the data; "the result cites a capture it did not read from" is a
+broken chain. So the four integrity codes above raise the writer report to
+`INCOMPLETE`, which makes `runtime_ah_fact_writer_status` return `PARTIAL` and a
+task result carry `_WITH_AH_FACT_INCOMPLETE`. The data-availability refusals stay
+non-degrading, which is what keeps `RUNTIME_AH_FACT_NATURAL_WRITER = PASS`
+reachable on an ordinary day.
+
+### Tests
+
+Six new end-to-end tests on the same isolated PostgreSQL harness, which now
+builds the **production** capture shape (bulk `fixtures` capture with a null
+`fixture_id` plus its stored payload) instead of a convenient one:
+
+* a result whose payload hash disagrees with its capture — refused;
+* a capture that names another fixture — refused;
+* a capture with no fixture attribution and no payload — refused;
+* a payload that exists but omits the fixture — refused;
+* the same evidence replayed — idempotent no-op;
+* a second terminal capture for one fixture — refused, not counted, and the
+  refusal names the fact that already holds it.
+
+Each integrity refusal asserts four things together: zero new facts, the exact
+refusal code visible in the report, a non-clean writer verdict, and a task result
+that ends `_WITH_AH_FACT_INCOMPLETE` rather than a clean `PASS`.
+
+### Production data
+
+Untouched. The 15 facts already stored were not backfilled, rewritten or
+re-derived; the guards apply to what is written from now on.

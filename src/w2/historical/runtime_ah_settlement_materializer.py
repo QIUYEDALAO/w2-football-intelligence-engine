@@ -97,8 +97,44 @@ REFUSAL_QUOTE_BUCKET_MISSING = "AH_SETTLEMENT_QUOTE_BUCKET_MISSING"
 REFUSAL_CAPTURE_IDENTITY_MISSING = "AH_SETTLEMENT_CAPTURE_IDENTITY_MISSING"
 REFUSAL_UNEXPECTED_ERROR = "AH_SETTLEMENT_MATERIALIZER_ERROR"
 
+#: The terminal evidence did not survive its own integrity checks. Each names the
+#: link that failed, and each is fail-closed: no fact is built.
+REFUSAL_RESULT_PAYLOAD_HASH_MISMATCH = "AH_SETTLEMENT_RESULT_PAYLOAD_HASH_MISMATCH"
+REFUSAL_CAPTURE_FIXTURE_MISMATCH = "AH_SETTLEMENT_CAPTURE_FIXTURE_MISMATCH"
+REFUSAL_CAPTURE_OWNERSHIP_UNPROVEN = "AH_SETTLEMENT_CAPTURE_OWNERSHIP_UNPROVEN"
+REFUSAL_FACT_REVISION_CONFLICT = "AH_SETTLEMENT_FACT_REVISION_CONFLICT"
+
 #: Statuses a natural caller treats as a clean writer verdict.
 CLEAN_STATUSES = frozenset({STATUS_COMPLETE, STATUS_NO_DUE_WORK})
+
+#: Refusals that mean the evidence chain is *broken*, as opposed to a statement
+#: that the data for one fixture is simply not there yet. A run that produced one
+#: of these must not report itself as a clean writer: an unprovable chain is a
+#: defect to look at, whereas "no pre-kickoff quote bucket" is Tuesday.
+INTEGRITY_REFUSAL_CODES = frozenset(
+    {
+        REFUSAL_RESULT_PAYLOAD_HASH_MISMATCH,
+        REFUSAL_CAPTURE_FIXTURE_MISMATCH,
+        REFUSAL_CAPTURE_OWNERSHIP_UNPROVEN,
+        REFUSAL_FACT_REVISION_CONFLICT,
+    }
+)
+
+#: Fixture ownership, asked of the stored payload rather than of the capture row.
+#: `raw_payload.payload` is `json`, so the cast is what makes it queryable.
+_PAYLOAD_CONTAINS_FIXTURE_SQL = """
+SELECT EXISTS (
+    SELECT 1
+      FROM raw_payload rp
+     WHERE rp.sha256 = :sha
+       AND jsonb_typeof(rp.payload::jsonb -> 'response') = 'array'
+       AND EXISTS (
+           SELECT 1
+             FROM jsonb_array_elements(rp.payload::jsonb -> 'response') AS item
+            WHERE item -> 'fixture' ->> 'id' = :provider_fixture_id
+       )
+)
+"""
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -186,7 +222,11 @@ class RuntimeAhFactMaterializer:
                 refusal_codes[str(code)] = refusal_codes.get(str(code), 0) + 1
 
         report = empty_report(
-            _status(unexpected_errors=unexpected_errors, failure_detail=failure_detail),
+            _status(
+                unexpected_errors=unexpected_errors,
+                failure_detail=failure_detail,
+                refusal_codes=refusal_codes,
+            ),
             requested_count=len(requested),
         )
         report.update(
@@ -302,6 +342,27 @@ class RuntimeAhFactMaterializer:
                 ),
                 None,
             )
+
+        # One fixture, one fact. Replaying the same evidence is an idempotent
+        # no-op; arriving at a *different* fact means the terminal evidence moved
+        # under a row that already exists, and silently appending it would count
+        # the same match twice. The store would keep both -- the fact identity
+        # includes the capture, so both are "new" -- so the revision rule has to
+        # live here, where the fixture is still known.
+        existing = self._existing_fact_ids_for_fixture(identity.fixture_id)
+        if existing and fact.fact_id not in existing:
+            return (
+                _refused(
+                    identity.fixture_id,
+                    REFUSAL_FACT_REVISION_CONFLICT,
+                    provider_fixture_id=identity.provider_fixture_id,
+                    identity_source=identity.source,
+                    evidence_source=source,
+                    detail=f"existing={','.join(sorted(existing))}",
+                ),
+                None,
+            )
+
         return (
             {
                 "fixture_id": identity.fixture_id,
@@ -345,6 +406,18 @@ class RuntimeAhFactMaterializer:
         if result is not None and result["source_capture_id"]:
             capture = self.repository.terminal_capture(result["source_capture_id"])
             if capture is not None and capture["provider_captured_at"]:
+                # The result row and the capture it names must be the same payload:
+                # a result that cites a capture it did not read from is not
+                # terminal evidence for anything, and a hash disagreement is an
+                # integrity failure rather than an absence -- so it fails closed
+                # instead of falling through to the other chain.
+                if str(result["source_payload_sha256"] or "") != str(
+                    capture["raw_payload_sha256"] or ""
+                ):
+                    return REFUSAL_RESULT_PAYLOAD_HASH_MISMATCH
+                refusal = self._ownership_refusal(identity=identity, capture=capture)
+                if refusal:
+                    return refusal
                 return (
                     EVIDENCE_RESULT_ROW,
                     str(result["result_status"]),
@@ -356,6 +429,9 @@ class RuntimeAhFactMaterializer:
         if history is not None and history["endpoint_capture_id"]:
             capture = self.repository.terminal_capture(history["endpoint_capture_id"])
             if capture is not None and capture["provider_captured_at"]:
+                refusal = self._ownership_refusal(identity=identity, capture=capture)
+                if refusal:
+                    return refusal
                 return (
                     EVIDENCE_HISTORY_ROW,
                     history["fixture_status"],
@@ -366,6 +442,47 @@ class RuntimeAhFactMaterializer:
         # A result exists, but nothing identifies the capture that observed it,
         # so there is no source-observed time a fact could honestly carry.
         return REFUSAL_CAPTURE_IDENTITY_MISSING
+
+    # --- evidence integrity ----------------------------------------------
+    def _ownership_refusal(
+        self, *, identity: FixtureIdentityFacts, capture: dict[str, Any]
+    ) -> str | None:
+        """Prove the capture observed *this* fixture, or name why it cannot.
+
+        A capture that names a fixture must name this one. A bulk capture names
+        none -- every `fixtures`-endpoint capture in production is one -- so its
+        stored payload is the proof instead: it has to contain this fixture. No
+        ownership, no fact.
+        """
+        named = str(capture.get("fixture_id") or "")
+        if named:
+            if named in {identity.fixture_id, identity.provider_fixture_id}:
+                return None
+            return REFUSAL_CAPTURE_FIXTURE_MISMATCH
+        if self._payload_contains_fixture(
+            capture=capture, provider_fixture_id=identity.provider_fixture_id
+        ):
+            return None
+        return REFUSAL_CAPTURE_OWNERSHIP_UNPROVEN
+
+    def _payload_contains_fixture(
+        self, *, capture: dict[str, Any], provider_fixture_id: str
+    ) -> bool:
+        """Whether the capture's own stored payload carries this fixture.
+
+        Asked in SQL so the payload itself never crosses into Python: a bulk
+        `fixtures` response is large and only its membership matters here.
+        """
+        sha = str(capture.get("raw_payload_sha256") or "")
+        if not sha or not provider_fixture_id:
+            return False
+        with Session(self.engine) as session:
+            return bool(
+                session.scalar(
+                    sa.text(_PAYLOAD_CONTAINS_FIXTURE_SQL),
+                    {"sha": sha, "provider_fixture_id": provider_fixture_id},
+                )
+            )
 
     def _result_row(self, fixture_id: str) -> dict[str, Any] | None:
         table = ResultModel
@@ -436,6 +553,17 @@ class RuntimeAhFactMaterializer:
                 )
             }
 
+    def _existing_fact_ids_for_fixture(self, fixture_id: str) -> set[str]:
+        """Every fact already stored for one fixture, whatever its evidence was."""
+        table = RuntimeAhSettlementFactModel
+        with Session(self.engine) as session:
+            return {
+                str(item)
+                for item in session.scalars(
+                    sa.select(table.fact_id).where(table.fixture_id == fixture_id)
+                )
+            }
+
 
 def materialize_runtime_ah_settlement_facts(
     *,
@@ -489,6 +617,10 @@ def merge_runtime_ah_fact_reports(reports: Iterable[dict[str, Any]]) -> dict[str
         ):
             merged["status"] = STATUS_INCOMPLETE
     merged["refusal_codes"] = refusal_codes
+    if merged["status"] == STATUS_COMPLETE and merged["requested_fixture_count"] == 0:
+        # No branch had anything to do, so neither did the run. Reporting that as
+        # COMPLETE would turn "nothing was due" into "the writer succeeded".
+        merged["status"] = STATUS_NO_DUE_WORK
     merged["db_writes"] = merged["appended"]
     return merged
 
@@ -647,10 +779,15 @@ def empty_report(status: str, *, requested_count: int = 0, error: str = "") -> d
     return report
 
 
-def _status(*, unexpected_errors: int, failure_detail: str) -> str:
+def _status(
+    *,
+    unexpected_errors: int,
+    failure_detail: str,
+    refusal_codes: Mapping[str, int],
+) -> str:
     if failure_detail:
         return STATUS_FAILED
-    if unexpected_errors:
+    if unexpected_errors or INTEGRITY_REFUSAL_CODES & set(refusal_codes):
         return STATUS_INCOMPLETE
     return STATUS_COMPLETE
 
