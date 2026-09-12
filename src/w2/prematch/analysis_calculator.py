@@ -74,6 +74,7 @@ from w2.features.live_factors import TeamXgSnapshot
 from w2.features.market_factors import BookmakerQuote
 from w2.features.team_factors import TeamMatchHistory, TeamRatingSnapshot, TeamValueSnapshot
 from w2.formal.readiness import validate_formal_ah_readiness
+from w2.historical.runtime_ah_settlement import RuntimeAhSettlementRepository
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.model_forecast_models import (
@@ -3229,6 +3230,9 @@ class ReadModelService:
             coverage = registry.require_enabled(competition_id).coverage_profile
         except CompetitionRegistryError:
             return None
+        home_ah_history, away_ah_history = self._runtime_ah_settlement_histories(
+            context=context, home_team_id=home_id, away_team_id=away_id
+        )
         feature_set = build_feature_set(
             context=context,
             inputs=FeatureInputs(
@@ -3236,6 +3240,8 @@ class ReadModelService:
                 bookmaker_quotes=bookmaker_quotes,
                 home_history=home_history,
                 away_history=away_history,
+                home_ah_history=home_ah_history,
+                away_ah_history=away_ah_history,
                 h2h_meetings=h2h_meetings,
                 home_xg=home_xg,
                 away_xg=away_xg,
@@ -4315,6 +4321,80 @@ class ReadModelService:
         history.sort(key=lambda item: item.kickoff_at)
         return history
 
+    def _runtime_ah_settlement_histories(
+        self,
+        *,
+        context: FeatureContext,
+        home_team_id: str,
+        away_team_id: str,
+    ) -> tuple[list[TeamMatchHistory], list[TeamMatchHistory]]:
+        """Canonical AH settlement facts, for F5 only.
+
+        These rows are a different population from the result history F3 and F6
+        consume: they carry the `canonical_historical_ah_fact` markers and the
+        capture identity of the settlement they rest on. They are handed to F5 as
+        a separate list so that admitting them cannot change F3's latest-match
+        selection or its source metadata.
+        """
+        repository = self._future_refresh_repository()
+        engine = getattr(repository, "engine", None) if repository is not None else None
+        if engine is None:
+            return [], []
+        try:
+            rows = RuntimeAhSettlementRepository(engine=engine).facts_for_teams(
+                [home_team_id, away_team_id],
+                before=context.as_of,
+                limit_per_team=20,
+            )
+        except SQLAlchemyError:
+            return [], []
+        home: list[TeamMatchHistory] = []
+        away: list[TeamMatchHistory] = []
+        for row in rows:
+            kickoff = parse_provider_time(row.get("kickoff_at"))
+            if kickoff is None:
+                continue
+            goals_for = self._int_or_none(row.get("goals_for"))
+            goals_against = self._int_or_none(row.get("goals_against"))
+            if goals_for is None or goals_against is None:
+                continue
+            history = TeamMatchHistory(
+                team_id=str(row.get("team_id") or ""),
+                opponent_id=str(row.get("opponent_id") or ""),
+                kickoff_at=kickoff,
+                goals_for=goals_for,
+                goals_against=goals_against,
+                ah_line=row.get("ah_line"),
+                ah_result=None,
+                source=str(row.get("source") or ""),
+                source_group=str(row.get("source_group") or ""),
+                is_independent_signal=True,
+                collection_status=str(row.get("collection_status") or ""),
+                ah_fact_id=self._string_or_none(row.get("ah_fact_id")),
+                ah_fact_hash=self._string_or_none(row.get("ah_fact_hash")),
+                quote_identity_hash=self._string_or_none(row.get("quote_identity_hash")),
+                result_identity_hash=self._string_or_none(row.get("result_identity_hash")),
+                settlement_outcome=self._string_or_none(row.get("settlement_outcome")),
+                settlement_observed_at=row.get("settlement_observed_at"),
+                ah_source_observed_at=row.get("ah_source_observed_at"),
+                ah_source_set_hash=self._string_or_none(row.get("ah_source_set_hash")),
+                ah_source_capture_id=self._string_or_none(row.get("ah_source_capture_id")),
+                ah_source_capture_sha256=self._string_or_none(
+                    row.get("ah_source_capture_sha256")
+                ),
+                ah_quote_capture_ids=tuple(row.get("ah_quote_capture_ids") or ()),
+                ah_quote_payload_sha256s=tuple(row.get("ah_quote_payload_sha256s") or ()),
+                ah_selected_bookmakers=tuple(row.get("ah_selected_bookmakers") or ()),
+                ah_policy=self._string_or_none(row.get("ah_policy")),
+            )
+            if history.team_id == home_team_id:
+                home.append(history)
+            elif history.team_id == away_team_id:
+                away.append(history)
+        home.sort(key=lambda item: item.kickoff_at)
+        away.sort(key=lambda item: item.kickoff_at)
+        return home, away
+
     def _canonical_h2h_meetings(
         self,
         *,
@@ -4814,6 +4894,22 @@ class ReadModelService:
             quote_identity_hash=self._string_or_none(item.get("quote_identity_hash")),
             result_identity_hash=self._string_or_none(item.get("result_identity_hash")),
             settlement_outcome=self._string_or_none(item.get("settlement_outcome")),
+            # F1R-C: a canonical AH fact is admissible only when the instant its
+            # terminal result was observed is present, so the projection carries
+            # it (and the capture identities behind it) through.
+            settlement_observed_at=parse_provider_time(
+                item.get("settlement_observed_at")
+            ),
+            ah_source_observed_at=parse_provider_time(item.get("ah_source_observed_at")),
+            ah_source_set_hash=self._string_or_none(item.get("ah_source_set_hash")),
+            ah_source_capture_id=self._string_or_none(item.get("ah_source_capture_id")),
+            ah_source_capture_sha256=self._string_or_none(
+                item.get("ah_source_capture_sha256")
+            ),
+            ah_quote_capture_ids=tuple(item.get("ah_quote_capture_ids") or ()),
+            ah_quote_payload_sha256s=tuple(item.get("ah_quote_payload_sha256s") or ()),
+            ah_selected_bookmakers=tuple(item.get("ah_selected_bookmakers") or ()),
+            ah_policy=self._string_or_none(item.get("ah_policy")),
             source=str(item.get("source") or source),
             source_group=source_group,
             is_independent_signal=True,

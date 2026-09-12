@@ -246,6 +246,22 @@ def _run(output: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+#: The F1R-B delivery commit. Frozen F1 evidence is verified against these
+#: bytes, not against a working tree a successor was authorised to change.
+F1R_B_DELIVERY_COMMIT = "b4285660b091b1270172cfd3b7c226ff8c7fcc62"
+
+
+def _inventory_source_hashes(path: Path) -> dict[str, str]:
+    hashes: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        if row.get("source_type") == "SOURCE_CODE_DEFAULT":
+            hashes[str(row["source_path"])] = str(row["source_sha256"])
+    return hashes
+
+
 def test_12_two_runs_are_byte_identical(tmp_path) -> None:
     first, second = tmp_path / "a", tmp_path / "b"
     for target in (first, second):
@@ -259,7 +275,30 @@ def test_12_two_runs_are_byte_identical(tmp_path) -> None:
     for name in ("AH_84_FACTOR_MATRIX_F1.jsonl", "F1_SOURCE_INVENTORY.jsonl",
                  "F1_RESULT.json"):
         assert (first / name).read_bytes() == (second / name).read_bytes(), name
+
+    # The frozen F1 outputs are evidence and have not drifted.
+    for name in ("AH_84_FACTOR_MATRIX_F1.jsonl", "F1_RESULT.json"):
         assert (first / name).read_bytes() == (OUTPUT / name).read_bytes(), name
+
+    # The inventory records the *live* hash of every source file it covers, so
+    # F1R-C necessarily moves one entry by revising the F5 builder. The frozen
+    # file itself is proven unmodified against the delivery commit, and the moved
+    # entry is named rather than the comparison being dropped.
+    frozen = subprocess.run(  # noqa: S603
+        ["/usr/bin/git", "show",
+         f"{F1R_B_DELIVERY_COMMIT}:docs/review_packages/"
+         "W2_AH_FACTOR_ACCURACY_F1_20260910/F1_SOURCE_INVENTORY.jsonl"],
+        cwd=REPO, capture_output=True, check=True).stdout
+    assert (OUTPUT / "F1_SOURCE_INVENTORY.jsonl").read_bytes() == frozen, (
+        "the frozen F1 evidence package was modified")
+
+    delivered = _inventory_source_hashes(OUTPUT / "F1_SOURCE_INVENTORY.jsonl")
+    regenerated = _inventory_source_hashes(first / "F1_SOURCE_INVENTORY.jsonl")
+    moved = {
+        path for path, digest in delivered.items()
+        if regenerated.get(path) != digest
+    }
+    assert moved == {"src/w2/features/team_factors.py"}, sorted(moved)
 
 
 def test_13_the_input_package_is_byte_identical_after_a_run(tmp_path) -> None:

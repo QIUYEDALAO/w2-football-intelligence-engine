@@ -128,8 +128,11 @@ def _check_version(factor_id: str, declared: str) -> str:
 
 
 #: Factors whose latest consumed source time is exactly the instant the builder
-#: reports. F6 is excluded on purpose: its observed_at is the meeting kickoff,
-#: which is precisely what its source time may not be.
+#: reports as `observed_at`. F6 is excluded on purpose: its observed_at is the
+#: meeting kickoff, which is precisely what its source time may not be. F5 is
+#: also excluded (F1R-C): it deliberately reports the *event* time -- the latest
+#: consumed kickoff -- while its source-observed time is the later settlement
+#: instant, and the two must differ.
 LATEST_SOURCE_IS_OBSERVED_AT = frozenset({"F3_REST_FITNESS", "F9_TRUE_XG"})
 
 
@@ -155,6 +158,23 @@ def _check_consumed_set(factor_id: str, contribution: Any, records: list[Any]) -
             raise IntegrationError(
                 "CONSUMED_SOURCE_COUNT_DISAGREES_WITH_BUILDER",
                 f"{factor_id}:{len(records)}!={declared}")
+    if factor_id == "F5_RECENT_AH_COVER":
+        # F1R-C. F5's consumed set is the settlement facts it read, and the
+        # builder publishes exactly those fact ids. Comparing the identities --
+        # not just the count -- is what stops a right-sized but wrong set.
+        declared_ids = (contribution.inputs or {}).get("ah_fact_ids")
+        if declared_ids is None:
+            raise IntegrationError("F5_CONSUMED_FACT_IDS_MISSING", factor_id)
+        if sorted(str(item) for item in declared_ids) != sorted(
+            record.record_id for record in records
+        ):
+            raise IntegrationError(
+                "CONSUMED_SOURCE_SET_DISAGREES_WITH_BUILDER",
+                f"{factor_id}:{sorted(record.record_id for record in records)}"
+                f"!={sorted(str(item) for item in declared_ids)}")
+        declared_observed = (contribution.inputs or {}).get("settlement_observed_at")
+        if declared_observed is None:
+            raise IntegrationError("F5_SETTLEMENT_OBSERVED_AT_MISSING", factor_id)
     if factor_id not in LATEST_SOURCE_IS_OBSERVED_AT:
         return
     observed_at = getattr(contribution, "observed_at", None)

@@ -585,9 +585,13 @@ def test_f5_is_recorded_as_an_absence_with_zero_weight(e2e: Engine) -> None:
     assert _utc(f5["evidence_time_utc"]) != identity_kickoff
     assert _utc(f5["evidence_time_utc"]) == _utc(f5["factor_inputs"]["information_cutoff"])
     assert f5["factor_inputs"]["source_observed_time_semantics"] == "SOURCE_QUERIED_AT_AS_OF"
-    # F5's own port refuses to serve a source time at all; that refusal is the
-    # recorded reason, in the port's own words.
-    assert "F5_AH_FACT_SOURCE_TIME_UNPROVABLE" in f5["factor_inputs"]["source_record_ids"]
+    # This fixture has no runtime AH settlement fact, so F5 is an absence rather
+    # than a participation. F1R-C changed what the identity says -- it now names
+    # the source family F5 looked in and found empty -- but not the discipline.
+    assert (
+        "absence:F5_RECENT_AH_COVER:runtime_ah_settlement_fact:none"
+        in f5["factor_inputs"]["source_record_ids"]
+    )
 
 
 # --- 4: failure visibility ------------------------------------------------

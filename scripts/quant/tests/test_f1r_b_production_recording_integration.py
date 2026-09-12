@@ -21,6 +21,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import pytest
 import sqlalchemy as sa
@@ -241,31 +242,159 @@ def test_05_tampering_with_consumed_content_changes_the_capture_hash() -> None:
     assert tampered.source_capture_id == original.source_capture_id
 
 
-# --- 6: F5 has no provable source time ------------------------------------
-def test_06_the_f5_ah_fact_port_refuses_every_call() -> None:
-    with pytest.raises(ports.SourcePortError) as excinfo:
-        ports.ah_fact_records([{"anything": "at all"}])
-    assert excinfo.value.code == "F5_AH_FACT_SOURCE_TIME_UNPROVABLE"
+# --- 6: F5 has a provable source time (F1R-C) ------------------------------
+AH_SAMPLE = REPO / "tests/fixtures/ah_settlement/real_production_capture_sample.jsonl"
+
+
+def _real_fact_row(index: int = 1) -> dict[str, Any]:
+    """A real runtime AH settlement fact, built from the committed real sample.
+
+    Nothing is synthesised: the sample rows were extracted read-only from
+    production and carry the real quotes, captures and terminal scores.
+    """
+    from w2.markets.ah_settlement_fact import (
+        TerminalSettlementEvidence,
+        build_ah_settlement_fact,
+    )
+
+    item = json.loads(AH_SAMPLE.read_text(encoding="utf-8").splitlines()[index])
+    fixture = item["fixture"]
+    cap = item["settlement_capture"]
+    fact = build_ah_settlement_fact(
+        fixture_id=fixture["fixture_id"],
+        provider_fixture_id=str(fixture["provider_fixture_id"]),
+        competition_id=fixture["competition_id"],
+        season=fixture["season"],
+        kickoff=fixture["kickoff_utc"],
+        market_observations=item["observations"] or [],
+        settlement=TerminalSettlementEvidence(
+            provider_fixture_id=str(fixture["provider_fixture_id"]),
+            status=fixture["fixture_status"],
+            home_goals=fixture["home_goals"],
+            away_goals=fixture["away_goals"],
+            endpoint_capture_id=cap["capture_id"],
+            raw_payload_sha256=cap["raw_payload_sha256"],
+            observed_at=cap["provider_captured_at"],
+            capture_endpoint=cap["endpoint"],
+            capture_status=cap["capture_status"],
+        ),
+        home_team_provider_id=fixture["home_team_provider_id"],
+        away_team_provider_id=fixture["away_team_provider_id"],
+    )
+    assert fact.status == "READY", fact.refusal_code
+    return {
+        "fact_id": fact.fact_id,
+        "fact_hash": fact.fact_hash,
+        "source_set_hash": fact.source_set_hash,
+        "policy": fact.policy,
+        "fixture_id": fact.fixture_id,
+        "provider_fixture_id": fact.provider_fixture_id,
+        "competition_id": fact.competition_id,
+        "season": fact.season,
+        "kickoff_utc": fact.kickoff_utc,
+        "selected_line": str(fact.line),
+        "selected_bookmakers": list(fact.selected_bookmakers),
+        "quote_capture_ids": list(fact.quote_capture_ids),
+        "quote_payload_sha256s": list(fact.quote_payload_sha256s),
+        "quote_captured_at": fact.quote_captured_at,
+        "settlement_capture_id": fact.settlement_capture_id,
+        "settlement_payload_sha256": fact.settlement_payload_sha256,
+        "settlement_observed_at": fact.settlement_observed_at,
+        "settlement_observed_at_semantics": fact.settlement_observed_at_semantics,
+        "terminal_status": fact.fixture_status,
+        "home_goals": fact.home_goals,
+        "away_goals": fact.away_goals,
+        "home_settlement": fact.home_settlement,
+        "away_settlement": fact.away_settlement,
+    }
+
+
+def test_06_a_real_ah_fact_yields_a_record_carrying_the_capture_instant() -> None:
+    """F1R-C: the port serves F5, bound to the settlement capture's own instant."""
+    row = _real_fact_row()
+    records = ports.ah_fact_records([row])
+
+    assert len(records) == 1
+    record = records[0]
+    assert record.record_id == row["fact_id"]
+    assert record.observed_time_semantics == ports.PROVIDER_CAPTURE_OF_TERMINAL_RESULT
+    assert record.observed_at_utc == row["settlement_observed_at"].isoformat()
+    # Not the kickoff, not the quote time.
+    assert record.observed_at_utc != row["kickoff_utc"].isoformat()
+    assert record.observed_at_utc != row["quote_captured_at"].isoformat()
+    assert record.source_version == ports.AH_SETTLEMENT_FACT_SCHEMA
+    assert len(record.content_sha256) == 64
+
+
+def test_06_the_record_content_binds_both_captures_and_both_payload_hashes() -> None:
+    """The content hash must move when either side of the evidence moves."""
+    row = _real_fact_row()
+    base = ports.ah_fact_records([row])[0].content_sha256
+    for field, tampered in (
+        ("settlement_payload_sha256", "0" * 64),
+        ("settlement_capture_id", "some-other-capture"),
+        ("selected_line", "9.25"),
+    ):
+        moved = ports.ah_fact_records([{**row, field: tampered}])[0].content_sha256
+        assert moved != base, field
+    # And the quote side, which is a list of real capture ids.
+    moved = ports.ah_fact_records(
+        [{**row, "quote_payload_sha256s": ["1" * 64]}]
+    )[0].content_sha256
+    assert moved != base
+
+
+def test_06_the_port_still_fails_closed_on_every_unprovable_fact() -> None:
+    """Removing the refusal did not remove the proof requirements."""
+    row = _real_fact_row()
+    cases = {
+        "no settlement observed time": {**row, "settlement_observed_at": None},
+        "settlement not after kickoff": {
+            **row, "settlement_observed_at": row["kickoff_utc"]},
+        "koffoff pretending to be the source time": {
+            **row,
+            "settlement_observed_at": row["kickoff_utc"],
+            "settlement_observed_at_semantics": "KICKOFF",
+        },
+        "query time semantics": {
+            **row, "settlement_observed_at_semantics": "SOURCE_QUERIED_AT_AS_OF"},
+        "wrong policy": {**row, "policy": "some_other_policy_v1"},
+        "no settlement capture": {**row, "settlement_capture_id": ""},
+        "no settlement payload hash": {**row, "settlement_payload_sha256": ""},
+        "no quote capture": {**row, "quote_capture_ids": []},
+        "no quote payload hash": {**row, "quote_payload_sha256s": []},
+        "unproven fact id": {**row, "fact_id": "not-a-digest"},
+    }
+    for label, tampered in cases.items():
+        with pytest.raises(REFUSALS):
+            ports.ah_fact_records([tampered])
+        del label
+
+
+def test_06_an_empty_row_set_yields_no_records_rather_than_a_fake_one() -> None:
+    """No facts consumed means no records -- and the caller then binds absence."""
+    assert ports.ah_fact_records([]) == []
 
 
 def test_06_f5_blocking_evidence_names_all_four_findings() -> None:
+    """The F1R-B findings are kept: the successor package answers them."""
     assert len(ports.F5_BLOCKING_EVIDENCE) == 4
     assert any("NO_PRODUCTION_WRITER" in reason for reason in ports.F5_BLOCKING_EVIDENCE)
     assert any("CONFIRMED_AT" in reason for reason in ports.F5_BLOCKING_EVIDENCE)
 
 
-def test_06_no_production_writer_emits_a_canonical_ah_fact_row() -> None:
-    """The finding, re-derived from the tree rather than quoted from a note."""
-    hits = [
+def test_06_the_marker_now_has_a_production_writer() -> None:
+    """F1R-B's finding, re-derived: nothing produced the marker. Now one does.
+
+    The two readers and the new writer are the whole population, so the marker
+    still cannot be produced anywhere else.
+    """
+    hits = sorted(
         path.relative_to(REPO).as_posix()
         for path in (REPO / "src").rglob("*.py")
-        if "CANONICAL_AH_FACT" in path.read_text(encoding="utf-8")
-    ]
-    # Only the two readers that filter on the marker; no writer produces it.
-    assert sorted(hits) == [
-        "src/w2/features/team_factors.py",
-        "src/w2/prematch/analysis_calculator.py",
-    ]
+        if "CANONICAL_AH_FACT_COLLECTION_STATUS = " in path.read_text(encoding="utf-8")
+    )
+    assert hits == ["src/w2/historical/runtime_ah_settlement.py"], hits
 
 
 def test_06_f5_participating_without_a_source_time_refuses_the_batch() -> None:
@@ -827,6 +956,8 @@ def test_17_the_isolated_replay_upgrades_writes_reads_back_and_rolls_back() -> N
     assert replay["upgrade_returncode"] == 0
     assert replay["repeat_upgrade_returncode"] == 0
     assert replay["table_present_after_upgrade"] is True
+    # F1R-C's additive table arrives with the same upgrade, unchanged otherwise.
+    assert replay["ah_fact_table_present_after_upgrade"] is True
     assert replay["rows_appended"] == 4
     assert replay["replay_appended"] == 0
     assert replay["replay_idempotent_no_ops"] == 4
@@ -934,9 +1065,30 @@ def test_19_frozen_package_hashes_are_unchanged(package) -> None:
     assert checked
 
 
+#: The F1R-B delivery commit. Historical pins are verified against these bytes,
+#: not against a working tree a successor was authorised to change.
+F1R_B_DELIVERY_COMMIT = "b4285660b091b1270172cfd3b7c226ff8c7fcc62"
+
+#: F1 froze two source files' hashes. F1R-C revised one of them, because the F5
+#: builder lives in it. That revision is named here rather than hidden by
+#: relaxing the check.
+F1R_C_REVISED_F1_PINNED_SOURCES = {
+    "src/w2/features/team_factors.py":
+        "8d4afae21ced6b4cdc02673a88057899475b0884a4e0787ce3d6f240c57acdfc",
+}
+
+
 def test_19_the_pinned_builder_sources_are_still_the_frozen_f1_evidence() -> None:
-    """F1 froze these two files' hashes; F1R-B must not have changed them."""
+    """The F1 freeze is historical evidence, and stays verifiable.
+
+    F1R-B did not change either pinned file, so the pin is verified against the
+    F1R-B delivery commit -- where it genuinely held. The working tree is then
+    checked separately, with the one F1R-C revision named explicitly. Deleting
+    the check would lose the history; asserting the working tree still matches
+    F1 byte-for-byte would simply be false.
+    """
     import hashlib
+    import subprocess
 
     inventory = (REPO / "docs/review_packages/W2_AH_FACTOR_ACCURACY_F1_20260910"
                  / "F1_SOURCE_INVENTORY.jsonl")
@@ -946,8 +1098,22 @@ def test_19_the_pinned_builder_sources_are_still_the_frozen_f1_evidence() -> Non
         if row["source_type"] == "SOURCE_CODE_DEFAULT":
             pinned[row["source_path"]] = row["source_sha256"]
     assert pinned
+
     for path, digest in pinned.items():
-        assert hashlib.sha256((REPO / path).read_bytes()).hexdigest() == digest, path
+        delivered = subprocess.run(  # noqa: S603
+            ["/usr/bin/git", "show", f"{F1R_B_DELIVERY_COMMIT}:{path}"],
+            cwd=REPO, capture_output=True, check=True).stdout
+        assert hashlib.sha256(delivered).hexdigest() == digest, path
+
+    for path, digest in pinned.items():
+        expected = F1R_C_REVISED_F1_PINNED_SOURCES.get(path, digest)
+        assert hashlib.sha256((REPO / path).read_bytes()).hexdigest() == expected, path
+
+    revised = {
+        path for path, digest in pinned.items()
+        if digest != F1R_C_REVISED_F1_PINNED_SOURCES.get(path, digest)
+    }
+    assert revised == set(F1R_C_REVISED_F1_PINNED_SOURCES), sorted(revised)
 
 
 # --- 20: no side effects ---------------------------------------------------

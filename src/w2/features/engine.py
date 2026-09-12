@@ -35,6 +35,12 @@ class FeatureInputs:
     bookmaker_quotes: list[BookmakerQuote] = field(default_factory=list)
     home_history: list[TeamMatchHistory] = field(default_factory=list)
     away_history: list[TeamMatchHistory] = field(default_factory=list)
+    # F1R-C: F5 consumes canonical AH settlement facts, which are a different
+    # population from the result history F3/F6 use. Keeping them separate means
+    # adding AH facts cannot disturb F3's latest-match selection or its source
+    # metadata.
+    home_ah_history: list[TeamMatchHistory] = field(default_factory=list)
+    away_ah_history: list[TeamMatchHistory] = field(default_factory=list)
     h2h_meetings: list[TeamMatchHistory] = field(default_factory=list)
     home_ratings: list[TeamRatingSnapshot] = field(default_factory=list)
     away_ratings: list[TeamRatingSnapshot] = field(default_factory=list)
@@ -81,8 +87,12 @@ def build_feature_set(
         recent_ah_cover_factor(
             context=context,
             profile=coverage,
-            home_history=inputs.home_history,
-            away_history=inputs.away_history,
+            # F1R-C: the canonical AH settlement facts are supplied separately so
+            # that admitting them cannot move F3's latest-match selection. F5
+            # still reads anything a caller put in the result history too, so no
+            # existing caller changes behaviour.
+            home_history=[*inputs.home_history, *inputs.home_ah_history],
+            away_history=[*inputs.away_history, *inputs.away_ah_history],
         ),
         h2h_factor(context=context, profile=coverage, meetings=inputs.h2h_meetings),
         true_xg_factor(

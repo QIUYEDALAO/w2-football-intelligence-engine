@@ -87,16 +87,30 @@ def _context(fixture_id: str = "9000001") -> FeatureContext:
 
 
 def _fact(team_id: str, *, days_ago: int, settlement: str) -> TeamMatchHistory:
+    kickoff = KICKOFF - timedelta(days=days_ago)
     return TeamMatchHistory(
         team_id=team_id, opponent_id=f"opp-{days_ago}",
-        kickoff_at=KICKOFF - timedelta(days=days_ago),
+        kickoff_at=kickoff,
         goals_for=1, goals_against=1, ah_line=-0.25,
         source="canonical_historical_ah_fact",
         source_group="canonical_historical_ah_fact",
         collection_status="CANONICAL_AH_FACT",
         ah_fact_id=f"fact-{team_id}-{days_ago}",
         ah_fact_hash=f"hash-{team_id}-{days_ago}",
-        settlement_outcome=settlement)
+        settlement_outcome=settlement,
+        # F1R-C: F5 admits a canonical AH fact only when the instant its
+        # terminal result was observed is present, so the fixture carries it.
+        # It is deliberately *not* the kickoff.
+        settlement_observed_at=kickoff + timedelta(hours=3),
+        ah_source_observed_at=kickoff + timedelta(hours=3),
+        ah_source_set_hash=f"set-{team_id}-{days_ago}",
+        ah_source_capture_id=f"capture-{team_id}-{days_ago}",
+        ah_source_capture_sha256=f"capture-sha-{team_id}-{days_ago}",
+        ah_quote_capture_ids=(f"quote-{team_id}-{days_ago}",),
+        ah_quote_payload_sha256s=(f"quote-sha-{team_id}-{days_ago}",),
+        ah_selected_bookmakers=("7",),
+        ah_policy="canonical_bookmaker_mainline_majority_v1",
+    )
 
 
 def _complete_contributions(context: FeatureContext) -> tuple:
@@ -197,7 +211,13 @@ def test_p0_a_result_derived_factor_needs_an_explicit_source_time(
     assert _bytes(ledger) == b""
 
 
-@pytest.mark.parametrize("factor_id", sorted(recorder.RESULT_DERIVED_FACTORS))
+#: F1R-C changed F5's builder: its observed_at is now the settlement instant it
+#: consumed, not the kickoff, so echoing it is no longer the bug. F6 is the
+#: factor for which `TeamMatchHistory.observed_at` still *is* kickoff_at.
+ECHOES_KICKOFF_AS_SOURCE_TIME = ("F6_H2H",)
+
+
+@pytest.mark.parametrize("factor_id", ECHOES_KICKOFF_AS_SOURCE_TIME)
 def test_p0_a_kickoff_derived_timestamp_is_refused_as_a_source_time(
     tmp_path, factor_id
 ) -> None:
@@ -215,6 +235,39 @@ def test_p0_a_kickoff_derived_timestamp_is_refused_as_a_source_time(
 
     assert excinfo.value.code == "SOURCE_OBSERVED_TIME_IS_KICKOFF_DERIVED"
     assert _bytes(ledger) == b""
+
+
+def test_the_f1r_c_source_observed_time_differs_from_the_event_time() -> None:
+    """F1R-C: F5 separates the event time from the source-observed time.
+
+    `observed_at` is the latest consumed kickoff -- the factor's event time --
+    while `factor_inputs.settlement_observed_at` is the later instant at which
+    the consumed terminal results were observed by their Provider captures. The
+    frozen kickoff-echo guard stays meaningful precisely because the two differ,
+    and the recorded evidence time is the settlement instant, not the kickoff.
+    """
+    context = _context()
+    contribution = next(c for c in _complete_contributions(context)
+                        if c.feature_id == "F5_RECENT_AH_COVER")
+    consumed = [_fact("home-1", days_ago=n, settlement="WIN") for n in (3, 10, 17, 24, 31)]
+
+    assert contribution.observed_at is not None
+    assert contribution.observed_at == max(row.kickoff_at for row in consumed)
+
+    source_time = contribution.inputs["settlement_observed_at"]
+    assert source_time is not None
+    assert source_time != contribution.observed_at.isoformat()
+    assert contribution.inputs["source_observed_time_semantics"] == (
+        "PROVIDER_CAPTURE_OF_TERMINAL_RESULT"
+    )
+    # The reported source time is the window's maximum, and the window is well
+    # formed.
+    assert datetime.fromisoformat(
+        contribution.inputs["settlement_observed_at_min"]
+    ) <= datetime.fromisoformat(source_time)
+    assert datetime.fromisoformat(
+        contribution.inputs["settlement_observed_at_max"]
+    ) == datetime.fromisoformat(source_time)
 
 
 def test_p0_the_underlying_history_row_really_does_return_kickoff(tmp_path) -> None:
