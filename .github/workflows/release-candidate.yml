@@ -453,7 +453,9 @@ jobs:
           docker run --rm --workdir / --entrypoint python "$python_ref" -c "from importlib import resources; assert resources.files('w2.dashboard').joinpath('data', 'SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json').is_file()"
           docker run --rm --workdir / --entrypoint python "$python_ref" -c "from w2.dashboard.factor_checklist import _role_authority; assert _role_authority()['schema_version'] == 'w2.sc21-factor-coverage.v2'"
           # Shipping the file is not the same as reading it: build a real checklist.
-          docker run --rm --workdir / --entrypoint python "$python_ref" -c "from datetime import UTC, datetime; from w2.dashboard.factor_checklist import build_fixture_factor_checklist; assert build_fixture_factor_checklist({}, markets={}, market_collection={}, lineup_collection={}, home_identity_ready=False, away_identity_ready=False, shadow_candidate={}, market_aggregate_status='UNAVAILABLE', ledger_fact=None, generated_at=datetime(2026, 1, 1, tzinfo=UTC))['factors']"
+          # This one runs in the image's own workdir -- the factor registry is read
+          # relative to it and is not what this change touches.
+          docker run --rm --workdir /app --entrypoint python "$python_ref" -c "from datetime import UTC, datetime; from w2.dashboard.factor_checklist import build_fixture_factor_checklist; assert build_fixture_factor_checklist({}, markets={}, market_collection={}, lineup_collection={}, home_identity_ready=False, away_identity_ready=False, shadow_candidate={}, market_aggregate_status='UNAVAILABLE', ledger_fact=None, generated_at=datetime(2026, 1, 1, tzinfo=UTC))['factors']"
           smoke_network="w2-image-smoke-${GITHUB_RUN_ID}"
           docker network create "$smoke_network" >/dev/null
           api_id="$(docker run -d --network "$smoke_network" --network-alias api --entrypoint python "$python_ref" -m http.server 8000)"
