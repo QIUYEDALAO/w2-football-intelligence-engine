@@ -51,6 +51,22 @@ def _prematch_projection_graph() -> dict[Path, set[str]]:
     return graph
 
 
+def _called_names(node: ast.AST) -> set[str]:
+    return {
+        child.func.id
+        for child in ast.walk(node)
+        if isinstance(child, ast.Call) and isinstance(child.func, ast.Name)
+    }
+
+
+def _function_def(tree: ast.Module, name: str) -> ast.FunctionDef:
+    return next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == name
+    )
+
+
 def test_future_refresh_write_path_has_no_api_import() -> None:
     assert not {module for module in _imports(WRITE_ENTRYPOINT) if module.startswith("w2.api")}
 
@@ -111,8 +127,31 @@ def test_worker_composition_root_injects_current_reader_explicitly() -> None:
     )
     assert keyword_defaults["repository"] is None
     assert keyword_defaults["calculate_analysis_card"] is None
-    worker_source = WORKER_COMPOSITION_ROOT.read_text(encoding="utf-8")
-    assert "materialize_public_artifacts=_materialize_shadow_projection_events" in worker_source
+    # The worker still injects the write-side materializer and it still runs the
+    # write-side projector -- the claim is now made through the callable chain
+    # rather than by naming the injected function literally, because the injected
+    # materializer is wrapped so the recording report the projector produces can
+    # reach the task result instead of being dropped by the `list[str]` callback
+    # contract.
+    worker_tree = ast.parse(WORKER_COMPOSITION_ROOT.read_text(encoding="utf-8"))
+    injections = [
+        keyword
+        for node in ast.walk(worker_tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "run_future_refresh_task"
+        for keyword in node.keywords
+        if keyword.arg == "materialize_public_artifacts"
+    ]
+    assert len(injections) == 1, "the refresh task injects exactly one materializer"
+    injected = injections[0].value
+    assert isinstance(injected, ast.Call) and isinstance(injected.func, ast.Name)
+    assert "_project_and_record_factors" in _called_names(
+        _function_def(worker_tree, injected.func.id)
+    )
+    assert "_materialize_shadow_projection_events" in _called_names(
+        _function_def(worker_tree, "_project_and_record_factors")
+    )
 
 
 def test_legacy_posthoc_denominator_producer_is_absent_from_worker_runtime() -> None:

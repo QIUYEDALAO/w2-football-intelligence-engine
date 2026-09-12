@@ -773,6 +773,187 @@ def test_the_recording_only_adds_rows_to_the_factor_table(e2e: Engine) -> None:
         assert after[name] == before[name], name
 
 
+# --- 5: the refresh task result carries what the run actually recorded -----
+def _projection_event(*, tag: str) -> ProjectionSourceEvent:
+    return ProjectionSourceEvent.create(
+        fixture_id=FIXTURE_ID,
+        event_type="ODDS_CHANGED",
+        event_id=f"f1r-b-refresh:{tag}",
+        event_at=NOW,
+        payload={"fixture_id": FIXTURE_ID, "source": "f1r-b-refresh"},
+    )
+
+
+def _run_refresh_task(
+    monkeypatch: Any, *, tag: str
+) -> tuple[dict[str, Any], list[list[str]]]:
+    """Run the real celery task, stubbing only the provider-facing entrypoint.
+
+    `run_future_refresh_task` is the one collaborator that would call the
+    provider, so it is replaced by a stub that invokes whatever the task passed
+    as `materialize_public_artifacts`. That is the point of the test: the
+    materializer under test is the task's own, running the real recorder against
+    the real database with the real feature builders.
+    """
+    from apps.worker import celery_app as worker
+
+    materialized: list[list[str]] = []
+
+    class Audit:
+        task_id = "f1r-b-refresh-task"
+        key = "checkpoint-refresh:f1r-b-e2e"
+        status = "COMPLETED"
+        result: dict[str, Any] = {}
+
+    def fake_run_future_refresh_task(**kwargs: Any) -> Audit:
+        materializer = kwargs["materialize_public_artifacts"]
+        materialized.append(materializer([_projection_event(tag=tag)]))
+        return Audit()
+
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setattr(worker, "run_future_refresh_task", fake_run_future_refresh_task)
+    return worker.future_fixture_refresh.run(competition_id="allsvenskan"), materialized
+
+
+def test_the_refresh_task_result_carries_the_recording_it_wrote(
+    e2e: Engine, monkeypatch: Any
+) -> None:
+    """A task that wrote rows must not report that it wrote none.
+
+    The callback contract is `list[str]`, so the report the write-side projector
+    produced was built and dropped: the task that wrote four factor rows still
+    reported `rows_appended=0`. This drives the real task and holds its own
+    report against the table.
+    """
+    result, materialized = _run_refresh_task(monkeypatch, tag="carries")
+
+    rows = _rows(e2e)
+    report = result["forward_factor_recording"]
+    assert materialized == [[FIXTURE_ID]]
+    assert len(rows) == 4
+    # The result and the database are one claim, not two.
+    assert report["rows_appended"] == len(rows) == 4
+    # One dynamic evaluation reaches the recorder twice -- once for the artifact
+    # and once for the read-time reference -- so one pass records and the second
+    # is the in-run replay.
+    assert report["evaluations"] == 2
+    assert report["status_counts"] == {"RECORDED": 1, "IDEMPOTENT_NO_OP": 1}
+    assert report["rows_idempotent_no_ops"] == 4
+    assert report["enabled"] is True
+    assert report["refusal_codes"] == {}
+    assert report["recording_status"] == "COMPLETE"
+    assert report["recording_incomplete"] is False
+    assert result["status"] == "PASS"
+    # The refresh audit's own verdict is still reported, under its own name.
+    assert result["audit_status"] == "COMPLETED"
+
+
+def test_the_refresh_task_result_keeps_every_field_it_had_before(
+    e2e: Engine, monkeypatch: Any
+) -> None:
+    """The recording verdict is added; nothing that was already there moved."""
+    result, _ = _run_refresh_task(monkeypatch, tag="shape")
+
+    assert set(result) == {
+        "task_id",
+        "task_key",
+        "status",
+        "audit_status",
+        "requested_interval_seconds",
+        "effective_interval_seconds",
+        "provider_refresh_min_interval_seconds",
+        "checkpoint_fixture_ids",
+        "refresh_checkpoints",
+        "discovery_date",
+        "result",
+        "opportunity_write",
+        "t30_capture",
+        "forward_factor_recording",
+        "candidate",
+        "formal_recommendation",
+    }
+    assert result["task_id"] == "f1r-b-refresh-task"
+    assert result["task_key"] == "checkpoint-refresh:f1r-b-e2e"
+    assert result["result"] == {}
+    assert result["checkpoint_fixture_ids"] == []
+    assert result["refresh_checkpoints"] == []
+    assert result["discovery_date"] is None
+    assert result["candidate"] is False
+    assert result["formal_recommendation"] is False
+    # The opportunity branch keeps its own report, and both branches appear in
+    # the merged one the task result carries.
+    assert result["opportunity_write"]["forward_factor_recording"]["rows_appended"] == 0
+    assert result["t30_capture"]["provider_calls"] == 0
+
+
+def test_the_refresh_task_does_not_report_a_clean_pass_when_recording_fails(
+    e2e: Engine, monkeypatch: Any
+) -> None:
+    """A missing module set is invisible unless the task result says so."""
+    import w2.quant_research.forward_factor_modules as modules
+    import w2.quant_research.forward_factor_recording as recording
+
+    def unavailable(*_args: Any, **_kwargs: Any) -> Any:
+        raise modules.ForwardFactorModulesNotFound(
+            "FORWARD_FACTOR_MODULES_NOT_FOUND:package=/:checkout=/"
+        )
+
+    monkeypatch.setattr(recording, "load_modules", unavailable)
+
+    result, materialized = _run_refresh_task(monkeypatch, tag="unavailable")
+
+    report = result["forward_factor_recording"]
+    # The evaluation still ran -- a recording failure is not an outage -- but the
+    # table stayed empty and the task result says the recording did not finish.
+    assert materialized == [[FIXTURE_ID]]
+    assert _rows(e2e) == []
+    assert report["rows_appended"] == 0
+    assert report["recording_status"] == "INCOMPLETE"
+    assert report["recording_incomplete"] is True
+    assert report["refusal_codes"]
+    assert result["status"] == "PASS_WITH_RECORDING_INCOMPLETE"
+    assert result["audit_status"] == "COMPLETED"
+
+
+def test_the_refresh_task_reports_a_refused_batch_as_incomplete(
+    e2e: Engine, monkeypatch: Any
+) -> None:
+    """A whole-batch refusal reaches the task result and writes nothing."""
+    with Session(e2e) as session, session.begin():
+        session.execute(
+            update(MatchdayEndpointCaptureModel)
+            .where(
+                MatchdayEndpointCaptureModel.capture_id
+                == _capture_id(provider_fixture_id="9000200")
+            )
+            .values(capture_status="FAILED")
+        )
+
+    result, _ = _run_refresh_task(monkeypatch, tag="refused")
+
+    report = result["forward_factor_recording"]
+    assert _rows(e2e) == []
+    assert report["rows_appended"] == 0
+    assert "F6_ENDPOINT_CAPTURE_NOT_SUCCESSFUL" in report["refusal_codes"]
+    assert report["recording_status"] == "INCOMPLETE"
+    assert result["status"] == "PASS_WITH_RECORDING_INCOMPLETE"
+
+
+def test_the_read_only_projection_path_writes_no_factor_rows(e2e: Engine) -> None:
+    """The read path shares the database and must not move the factor table.
+
+    The API router and the dashboard build their cards through the read model
+    without a recorder. This is that composition: the projection still runs and
+    still returns the fixture, and no factor row appears.
+    """
+    materialized = _materialize_shadow_projection_events(
+        [_projection_event(tag="read-only")], forward_factor_recorder=None
+    )
+
+    assert materialized == [FIXTURE_ID]
+    assert _rows(e2e) == []
+
+
 def _table_counts(engine: Engine) -> dict[str, int]:
     names = sorted(Base.metadata.tables)
     counts: dict[str, int] = {}
