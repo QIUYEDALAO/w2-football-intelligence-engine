@@ -511,17 +511,47 @@ def test_17_this_task_does_not_import_or_touch_the_production_chain() -> None:
                         path, alias.name)
 
 
+#: The commit that delivered the candidate. The boundary below is checked
+#: against this commit rather than against the presence of any directory: what
+#: was being protected is "this candidate added nothing to the production tree",
+#: and that is a property of the delivery commit, not of whatever else happens
+#: to exist in `src/w2` later.
+CANDIDATE_DELIVERY_COMMIT = "15bc23cb937cbac7843017d442db813639869f16"
+
+
+def _paths_changed_by(commit: str):  # type: ignore[no-untyped-def]
+    parents = subprocess.run(  # noqa: S603
+        ["/usr/bin/git", "rev-list", "--parents", "-n", "1", commit],
+        cwd=REPO, capture_output=True, text=True, check=False).stdout.split()
+    # A merge commit shows no paths by default, which would make this check
+    # vacuous. The delivery commit is a plain commit; insist on it.
+    assert len(parents) == 2, f"{commit} has {len(parents) - 1} parents"
+    result = subprocess.run(  # noqa: S603
+        ["/usr/bin/git", "show", "--pretty=format:", "--name-only", "--no-renames", commit],
+        cwd=REPO, capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
 def test_17_the_production_chain_never_imports_this_candidate() -> None:
     """One direction is not enough: production must not reach in either.
 
-    The candidate lives outside src/w2 entirely and is loaded by path, so there
-    is no module path production could import even if someone tried. That is the
-    claim, and it is made here directly. The check used to be
-    `not src/w2/quant_research.exists()` -- a proxy for "this task added no
-    package under src/w2", which is not a property of the candidate and stopped
-    being true once a later, separately authorised task was *required* by
-    AGENTS.md to put its code under exactly that directory.
+    Three claims, all about the candidate: its delivery commit added nothing to
+    the production tree; nothing under `src/w2` mentions it; and it lives
+    outside `src/w2`, loaded by path, so there is no module path production
+    could import even by accident.
+
+    The middle claim used to be `not src/w2/quant_research.exists()` -- a proxy
+    for "this task added no package under src/w2". That proxy stops being true
+    the moment a later, separately authorised task is *required* by AGENTS.md to
+    put its code under exactly that directory, so the claim is made about the
+    delivery commit instead.
     """
+    changed = _paths_changed_by(CANDIDATE_DELIVERY_COMMIT)
+    assert changed, "the candidate delivery commit is not in this history"
+    assert "scripts/quant/official_candidate_confidence_shrinkage.py" in changed
+    for path in changed:
+        assert not path.startswith(("src/", "migrations/", "apps/")), path
     hits = subprocess.run(  # noqa: S603
         ["/usr/bin/grep", "-rl", "confidence_shrinkage", str(REPO / "src/w2")],
         capture_output=True, text=True, check=False)

@@ -76,10 +76,14 @@ def _project_and_record_factors(
     """Project events, then record each evaluation's four AH factors.
 
     Returns the materialized fixture ids and this run's recording report, so a
-    task result can carry what was written without changing the projection's
-    own return contract.
+    task result can carry what was written -- and, just as importantly, what was
+    not. A run whose recording was refused or unavailable must not be able to
+    report itself as a clean pass.
     """
-    from w2.quant_research.forward_factor_recording import recording_enabled
+    from w2.quant_research.forward_factor_recording import (
+        empty_report,
+        recording_enabled,
+    )
 
     recorder = _forward_factor_recorder()
     materialized = _materialize_shadow_projection_events(
@@ -89,46 +93,42 @@ def _project_and_record_factors(
     )
     if recorder is None:
         enabled = recording_enabled()
-        return materialized, {
-            "schema_version": "w2.forward_factor_production_recording.v1",
-            "enabled": enabled,
-            "evaluations": 0,
-            "status_counts": {},
-            "refusal_codes": {},
-            "rows_appended": 0,
-            "rows_idempotent_no_ops": 0,
-            "note": "RECORDER_UNAVAILABLE" if enabled else "DISABLED",
-        }
-    return materialized, {"schema_version": "w2.forward_factor_production_recording.v1",
-                          **recorder.summary()}
+        return materialized, empty_report(
+            enabled=enabled,
+            note="RECORDER_UNAVAILABLE" if enabled else "DISABLED",
+        )
+    return materialized, recorder.summary()
+
+
+def _recording_status(report: dict[str, Any]) -> str:
+    """The recording's own verdict, for a task result to repeat verbatim."""
+    return str(report.get("recording_status") or "UNAVAILABLE")
+
+
+def _task_status(report: dict[str, Any], *, default: str = "PASS") -> str:
+    """`default` only when the factor recording did not fail.
+
+    A task whose evaluation succeeded but whose per-factor recording did not is
+    reported as such: the card is still returned, but the result says the F1R-B
+    record is incomplete instead of claiming a clean PASS. A recording that was
+    switched off is not a failure -- it is a stated decision -- and is reported
+    through `forward_factor_recording.recording_status` instead.
+    """
+    from w2.quant_research.forward_factor_recording import (
+        RECORDING_COMPLETE,
+        RECORDING_DISABLED,
+    )
+
+    if _recording_status(report) in {RECORDING_COMPLETE, RECORDING_DISABLED}:
+        return default
+    return f"{default}_WITH_RECORDING_INCOMPLETE"
 
 
 def _merge_recording_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
     """One recording report for a task that ran several projection calls."""
-    merged: dict[str, Any] = {
-        "schema_version": "w2.forward_factor_production_recording.v1",
-        "enabled": any(bool(report.get("enabled")) for report in reports),
-        "evaluations": 0,
-        "status_counts": {},
-        "refusal_codes": {},
-        "rows_appended": 0,
-        "rows_idempotent_no_ops": 0,
-    }
-    for report in reports:
-        merged["evaluations"] += int(report.get("evaluations") or 0)
-        merged["rows_appended"] += int(report.get("rows_appended") or 0)
-        merged["rows_idempotent_no_ops"] += int(report.get("rows_idempotent_no_ops") or 0)
-        for key in ("status_counts", "refusal_codes"):
-            target = merged[key]
-            assert isinstance(target, dict)
-            for name, count in (report.get(key) or {}).items():
-                target[str(name)] = target.get(str(name), 0) + int(count)
-    notes = sorted({str(report["note"]) for report in reports if report.get("note")})
-    if len(notes) == 1:
-        merged["note"] = notes[0]
-    elif notes:
-        merged["note"] = "MIXED"
-    return merged
+    from w2.quant_research.forward_factor_recording import merge_reports
+
+    return merge_reports(reports)
 
 
 def _materialize_shadow_projection_events(
@@ -332,13 +332,14 @@ def _write_checkpoint_opportunities(
                         blocker=f"EVALUATION_ERROR:{exc.__class__.__name__}",
                     )
             raise
+    recording_report = _merge_recording_reports(recording_reports)
     return {
-        "status": "PASS",
+        "status": _task_status(recording_report),
         "event_count": len(events),
         "fixture_count": len(set(materialized)),
         "opportunity_count": opportunity_count,
         "terminal_without_attempt_count": terminal_without_attempt_count,
-        "forward_factor_recording": _merge_recording_reports(recording_reports),
+        "forward_factor_recording": recording_report,
     }
 
 
@@ -486,7 +487,7 @@ def _refresh_model_forecast_analysis_cards(
     ]
     materialized, recording_report = _project_and_record_factors(events)
     return {
-        "status": "PASS",
+        "status": _task_status(recording_report),
         "provider_calls": 0,
         "db_writes": len(materialized),
         "scanned_fixture_count": len(fixture_ids),

@@ -317,31 +317,37 @@ def test_f0_does_not_write_anywhere_but_its_own_output_directory() -> None:
         assert forbidden not in source, forbidden
 
 
-def test_f0_touches_no_production_path() -> None:
-    """F0 reaches no production path -- by where its files are and by import.
+#: The commit that delivered F0. The boundary below is checked against this
+#: commit rather than against the working tree: a dirty tree is not a property
+#: of F0, it is a property of every task sharing the checkout, and a guard that
+#: fails when an unrelated task legitimately edits a production file protects
+#: nothing -- it just gets weakened or deleted. The commit is the delivery, so
+#: the claim is made about the delivery.
+F0_DELIVERY_COMMIT = "f5dd9c23cf90cd836139bacbde559421f6dd59a2"
 
-    This used to read the whole working tree's `git status`, which made it a
-    claim about *every* task sharing the checkout rather than about F0: any
-    later task that legitimately has to edit a production file would fail a
-    guard named after F0. The claim it was making is narrower, and is made
-    directly here -- none of F0's deliverables sits under a production path, and
-    nothing in production imports the F0 runner.
-    """
-    deliverables = (
-        RUNNER_PATH,
-        OUTPUT / "F0_RESULT.json",
-        Path(__file__).resolve(),
-    )
-    for path in deliverables:
-        relative = path.relative_to(REPO).as_posix()
-        for prefix in (
-            "src/w2/prematch/",
-            "src/w2/strategy/",
-            "src/w2/domain/",
-            "src/w2/pricing/",
-            "migrations/",
-        ):
-            assert not relative.startswith(prefix), relative
+
+def _paths_changed_by(commit: str) -> list[str]:
+    parents = subprocess.run(  # noqa: S603
+        ["/usr/bin/git", "rev-list", "--parents", "-n", "1", commit],
+        cwd=REPO, capture_output=True, text=True, check=False).stdout.split()
+    # A merge commit shows no paths by default, which would make this check
+    # vacuous. The delivery commit is a plain commit; insist on it.
+    assert len(parents) == 2, f"{commit} has {len(parents) - 1} parents"
+    result = subprocess.run(  # noqa: S603
+        ["/usr/bin/git", "show", "--pretty=format:", "--name-only", "--no-renames", commit],
+        cwd=REPO, capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def test_f0_touches_no_production_path() -> None:
+    """F0's own delivery, checked at the commit that made it."""
+    changed = _paths_changed_by(F0_DELIVERY_COMMIT)
+    assert changed, "the F0 delivery commit is not in this history"
+    assert "scripts/quant/run_ah_factor_accuracy_f0.py" in changed
+    for path in changed:
+        assert not path.startswith(("src/", "migrations/", "apps/", "config/")), path
+    # And production cannot reach the runner: nothing under src/w2 names it.
     hits = subprocess.run(  # noqa: S603
         ["/usr/bin/grep", "-rl", RUNNER_PATH.stem, str(REPO / "src/w2")],
         capture_output=True, text=True, check=False)

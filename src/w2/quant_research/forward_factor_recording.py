@@ -165,6 +165,101 @@ def recording_enabled() -> bool:
     return str(raw).strip().lower() not in FALSY
 
 
+#: The four things a recording run can be, as one field a task result can carry
+#: without a reader having to reconstruct it from counts.
+#:
+#: DISABLED    the switch is off, so nothing was recorded and nothing was meant
+#:             to be
+#: UNAVAILABLE no recorder could be built (missing modules, no database), so
+#:             every evaluation in this run went unrecorded
+#: INCOMPLETE  a recorder ran and at least one evaluation was refused, so the
+#:             run wrote fewer rows than it evaluated
+#: COMPLETE    every evaluation either wrote its rows or was already recorded
+RECORDING_COMPLETE = "COMPLETE"
+RECORDING_INCOMPLETE = "INCOMPLETE"
+RECORDING_DISABLED = "DISABLED"
+RECORDING_UNAVAILABLE = "UNAVAILABLE"
+RECORDING_STATUSES = (
+    RECORDING_COMPLETE,
+    RECORDING_INCOMPLETE,
+    RECORDING_DISABLED,
+    RECORDING_UNAVAILABLE,
+)
+#: Worst first. A run that could not record at all is reported as such even if
+#: another part of the run simply had the switch off.
+RECORDING_STATUS_PRECEDENCE = (
+    RECORDING_UNAVAILABLE,
+    RECORDING_INCOMPLETE,
+    RECORDING_DISABLED,
+    RECORDING_COMPLETE,
+)
+
+
+def empty_report(
+    *,
+    enabled: bool,
+    note: str | None = None,
+    recording_status: str | None = None,
+) -> dict[str, Any]:
+    """A report for a run that recorded nothing, with the reason stated."""
+    status = recording_status or (
+        RECORDING_DISABLED if not enabled else RECORDING_UNAVAILABLE
+    )
+    if status not in RECORDING_STATUSES:
+        raise RecordingRefusal("RECORDING_STATUS_UNKNOWN", str(status))
+    report: dict[str, Any] = {
+        "schema_version": RECORDING_SCHEMA,
+        "enabled": enabled,
+        "recording_status": status,
+        "recording_incomplete": status == RECORDING_INCOMPLETE,
+        "evaluations": 0,
+        "status_counts": {},
+        "refusal_codes": {},
+        "rows_appended": 0,
+        "rows_idempotent_no_ops": 0,
+    }
+    if note:
+        report["note"] = note
+    return report
+
+
+def merge_reports(reports: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """One report for a call that ran several projection passes."""
+    merged = empty_report(
+        enabled=any(bool(report.get("enabled")) for report in reports),
+        recording_status=RECORDING_COMPLETE,
+    )
+    merged["recording_status"] = _worst_status(
+        str(report.get("recording_status") or RECORDING_COMPLETE) for report in reports
+    )
+    merged["recording_incomplete"] = merged["recording_status"] == RECORDING_INCOMPLETE
+    for report in reports:
+        merged["evaluations"] += int(report.get("evaluations") or 0)
+        merged["rows_appended"] += int(report.get("rows_appended") or 0)
+        merged["rows_idempotent_no_ops"] += int(
+            report.get("rows_idempotent_no_ops") or 0
+        )
+        for key in ("status_counts", "refusal_codes"):
+            target = merged[key]
+            assert isinstance(target, dict)
+            for name, count in (report.get(key) or {}).items():
+                target[str(name)] = target.get(str(name), 0) + int(count)
+    notes = sorted({str(report["note"]) for report in reports if report.get("note")})
+    if len(notes) == 1:
+        merged["note"] = notes[0]
+    elif notes:
+        merged["note"] = "MIXED"
+    return merged
+
+
+def _worst_status(statuses: Iterable[str]) -> str:
+    seen = {status for status in statuses if status}
+    for status in RECORDING_STATUS_PRECEDENCE:
+        if status in seen:
+            return status
+    return RECORDING_COMPLETE
+
+
 def _parse_utc(value: object) -> datetime | None:
     if not value:
         return None
@@ -704,9 +799,17 @@ class ForwardFactorRecorder:
                 codes[code] = codes.get(code, 0) + 1
             appended += int(outcome.get("appended") or 0)
             idempotent += int(outcome.get("idempotent_no_ops") or 0)
+        if not self.enabled:
+            status = RECORDING_DISABLED
+        elif codes:
+            status = RECORDING_INCOMPLETE
+        else:
+            status = RECORDING_COMPLETE
         return {
             "schema_version": RECORDING_SCHEMA,
             "enabled": self.enabled,
+            "recording_status": status,
+            "recording_incomplete": status == RECORDING_INCOMPLETE,
             "evaluations": len(self.outcomes),
             "status_counts": counts,
             "refusal_codes": codes,
