@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -129,6 +129,34 @@ def _merge_recording_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
     from w2.quant_research.forward_factor_recording import merge_reports
 
     return merge_reports(reports)
+
+
+def _recording_report_of(source: Mapping[str, object]) -> list[dict[str, Any]]:
+    """The recording report a write-side branch returned, when it returned one."""
+    nested = source.get("forward_factor_recording")
+    return [dict(nested)] if isinstance(nested, Mapping) else []
+
+
+def _materialize_public_artifacts_with_recording(
+    reports: list[dict[str, Any]],
+) -> Callable[[list[ProjectionSourceEvent]], list[str]]:
+    """`materialize_public_artifacts`, keeping the recording report it produces.
+
+    The refresh entrypoint's callback contract is `list[str]` -- fixture ids and
+    nothing else -- so a recorder built inside the callback cannot reach the task
+    result, and a run that wrote four factor rows could still report
+    `rows_appended=0`. This wrapper runs the same write-side projection through
+    `_project_and_record_factors`, which hands the report back next to the ids,
+    keeps it in the run's own container, and returns exactly what the contract
+    promises. The projection itself is unchanged.
+    """
+
+    def materialize(events: list[ProjectionSourceEvent]) -> list[str]:
+        materialized, report = _project_and_record_factors(events)
+        reports.append(report)
+        return materialized
+
+    return materialize
 
 
 def _materialize_shadow_projection_events(
@@ -532,6 +560,10 @@ def future_fixture_refresh(
                 "checkpoint_fixture_ids": checkpoint_fixture_ids or [],
                 "refresh_checkpoints": refresh_checkpoints or [],
             },
+            # Nothing was evaluated, so nothing was recorded and nothing failed.
+            # `status` stays the provider-scheduler verdict: this run is not a
+            # pass and the recording report must not turn it into one.
+            "forward_factor_recording": _merge_recording_reports([]),
             "candidate": False,
             "formal_recommendation": False,
         }
@@ -549,6 +581,10 @@ def future_fixture_refresh(
     )
     request = getattr(self, "request", None)
     task_id = str(getattr(request, "id", None) or key)
+    #: This run's own container. The projection callback below is where factor
+    #: rows are written on this path, so the report it produces is the one the
+    #: task result has to carry -- before this, it was built and dropped.
+    recording_reports: list[dict[str, Any]] = []
     audit = run_future_refresh_task(
         task_id=task_id,
         key=key,
@@ -561,7 +597,9 @@ def future_fixture_refresh(
         checkpoint_fixture_ids=tuple(checkpoint_fixture_ids or ()),
         refresh_checkpoints=tuple(refresh_checkpoints or ()),
         discovery_date=discovery_date,
-        materialize_public_artifacts=_materialize_shadow_projection_events,
+        materialize_public_artifacts=_materialize_public_artifacts_with_recording(
+            recording_reports
+        ),
         materialize_results=_materialize_outcome_results,
         client=ApiFootballClient(
             allow_live=True,
@@ -591,10 +629,19 @@ def future_fixture_refresh(
         ],
         evaluated_at=datetime.now(UTC),
     )
+    # Every write-side branch that actually ran a recorder reports here: the
+    # projection callback above and the opportunity writer below. Merging is the
+    # recording module's own, so a single worst-status rule applies everywhere.
+    recording_report = _merge_recording_reports(
+        [*recording_reports, *_recording_report_of(opportunity_write)]
+    )
     return {
         "task_id": audit.task_id,
         "task_key": audit.key,
-        "status": audit.status,
+        "status": _task_status(recording_report),
+        # The refresh audit's own verdict, kept under its own name: `status` above
+        # now answers "did this run pass, including its factor recording?".
+        "audit_status": audit.status,
         "requested_interval_seconds": requested_interval_seconds,
         "effective_interval_seconds": effective_interval_seconds,
         "provider_refresh_min_interval_seconds": provider_refresh_min_interval_seconds,
@@ -604,6 +651,7 @@ def future_fixture_refresh(
         "result": audit.result,
         "opportunity_write": opportunity_write,
         "t30_capture": t30_capture,
+        "forward_factor_recording": recording_report,
         "candidate": False,
         "formal_recommendation": False,
     }
