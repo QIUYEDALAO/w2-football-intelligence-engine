@@ -15,7 +15,7 @@ Read side serves two callers:
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import sqlalchemy as sa
@@ -247,7 +247,14 @@ def _f5_row(row: RuntimeAhSettlementFactModel, *, team_id: str) -> dict[str, Any
 
 def _quote_row(row: MatchdayMarketObservationModel) -> dict[str, Any]:
     """The observation shape the canonical mainline selector and quote identity
-    authority both already consume. Nothing is recomputed here."""
+    authority both already consume. Nothing is recomputed here.
+
+    `captured_at` is emitted as the stored text form rather than as the driver's
+    `datetime`. The quote identity authority puts this field into the digest
+    preimage, and the persisted observation carries it as ISO text -- so the
+    projection has to hand back what the row actually holds, not a driver type
+    that the serializer cannot represent.
+    """
     return {
         "observation_id": row.observation_id,
         "fixture_id": row.fixture_id,
@@ -264,10 +271,18 @@ def _quote_row(row: MatchdayMarketObservationModel) -> dict[str, Any]:
         "suspended": row.suspended,
         "live": row.live,
         "provider_last_update": row.provider_updated_at,
-        "captured_at": row.captured_at,
+        "captured_at": _captured_at_text(row.captured_at),
         "raw_payload_sha256": row.raw_payload_sha256,
         "source_revision": row.source_revision,
     }
+
+
+def _captured_at_text(value: Any) -> str:
+    """The stored instant as text, in the form the row itself would carry."""
+    if isinstance(value, datetime):
+        return value.astimezone(UTC).isoformat()
+    return str(value or "")
+
 
 
 def _negate_line(value: str) -> str:

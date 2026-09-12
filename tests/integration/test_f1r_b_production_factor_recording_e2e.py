@@ -873,6 +873,7 @@ def test_the_refresh_task_result_keeps_every_field_it_had_before(
         "opportunity_write",
         "t30_capture",
         "forward_factor_recording",
+        "runtime_ah_settlement_facts",
         "candidate",
         "formal_recommendation",
     }
@@ -888,6 +889,11 @@ def test_the_refresh_task_result_keeps_every_field_it_had_before(
     # the merged one the task result carries.
     assert result["opportunity_write"]["forward_factor_recording"]["rows_appended"] == 0
     assert result["t30_capture"]["provider_calls"] == 0
+    # No result materialisation ran here, so the AH fact writer had no work --
+    # which is a stated verdict, not a failure, and it changes no status.
+    assert result["runtime_ah_settlement_facts"]["status"] == "NO_DUE_WORK"
+    assert result["runtime_ah_settlement_facts"]["provider_calls"] == 0
+    assert result["runtime_ah_settlement_facts"]["appended"] == 0
 
 
 def test_the_refresh_task_does_not_report_a_clean_pass_when_recording_fails(

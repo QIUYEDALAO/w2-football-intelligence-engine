@@ -26,10 +26,17 @@ commit rather than against a working tree this task was authorised to change.
 * `src/w2/markets/ah_settlement_fact.py` — the only constructor of a runtime AH
   settlement fact. It chooses no line and settles nothing itself: it composes
   the three authorities above and refuses when any cannot answer.
+* `src/w2/historical/runtime_ah_settlement_materializer.py` — the one reusable,
+  Provider-free writer. Reads persisted captures, market observations and
+  terminal evidence; calls the constructor above; appends immutable facts.
 * `runtime_ah_settlement_facts` + additive migration `0072` — immutable facts,
   no backfill, populated downgrade refused.
-* The natural writer, wired into the Provider capture path
-  (`FactorModelRemediationService.materialize_runtime_ah_settlement_facts`).
+* **The natural writer, wired into the worker's result materialisation**
+  (`apps/worker/celery_app.py`), and the same writer on the other natural
+  result-materialisation path. `FactorModelRemediationService` now delegates to
+  it instead of holding a private copy of the fact. **See `NATURAL_WRITER.md`:
+  the delivery claim that the writer was "wired into the Provider capture path"
+  was wrong — at that point nothing on the natural path could write a fact.**
 * `TeamMatchHistory` gained an independent `settlement_observed_at` and source
   identity. `observed_at` still returns `kickoff_at`, so F3 is unchanged.
 * F5 consumes the maximum `settlement_observed_at` among the facts it read, and
@@ -85,6 +92,15 @@ that the set of revised modules is exactly the two authorised ones.
 
 See `MIGRATION_AND_ROLLBACK.md`.
 
+## Natural writer
+
+The successor commit corrected the only claim in this package that was false, and
+replaced it with a writer production actually reaches. `NATURAL_WRITER.md`
+records the defect, the single shared materializer, the fixed precedence for
+identity and terminal evidence, both natural triggers, the refusal vocabulary,
+the read-projection fix that only appears off a capture sample, and the
+regression suite that holds all of it.
+
 ## Files
 
 | File | Contents |
@@ -92,6 +108,7 @@ See `MIGRATION_AND_ROLLBACK.md`.
 | `F1R_C_AH_SETTLEMENT_REPLAY_SUMMARY.json` | the distribution report above |
 | `F1R_C_AH_SETTLEMENT_REPLAY_DETAIL.jsonl` | one line per fixture, full provenance |
 | `F1R_C_SMALL_REGRESSION_SAMPLE.jsonl` | three real fixtures used as the unit regression fixture |
+| `NATURAL_WRITER.md` | the corrected writer: defect, precedence, triggers, refusals, tests |
 | `PORT_REVISIONS.md` | the two revised modules, their digests, and why |
 | `MIGRATION_AND_ROLLBACK.md` | migration 0072, its constraints and its rollback discipline |
 | `HASHES.sha256` | digests of this package's files |
