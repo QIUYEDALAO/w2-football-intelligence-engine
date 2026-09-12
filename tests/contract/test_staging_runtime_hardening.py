@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import yaml
@@ -78,11 +79,19 @@ def test_local_release_overlays_are_offline_and_source_scoped() -> None:
         assert "apt-get" not in overlay
         assert "pip install" not in overlay
     assert "src/w2 /app/.venv/lib/python3.12/site-packages/w2" in python_overlay
-    assert (
-        "SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json "
-        "/app/docs/review_packages/SC21_FACTOR_INPUT_CHAIN/"
-        "SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json"
-    ) in python_overlay
+    # The matrix goes where an installed package reads it. The overlay used to
+    # write it under /app/docs, which the released image does not carry -- the
+    # dashboard 500'd on every request there while this test passed.
+    for destination in (
+        "/app/src/w2/dashboard/data/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json",
+        "/app/.venv/lib/python3.12/site-packages/w2/dashboard/data/"
+        "SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json",
+    ):
+        assert (
+            "docs/review_packages/SC21_FACTOR_INPUT_CHAIN/"
+            f"SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json {destination}"
+        ) in python_overlay
+    assert "/app/docs/review_packages" not in python_overlay
     for runtime_root in ("alembic.ini", "apps", "config", "migrations"):
         assert f"{runtime_root} /app/{runtime_root}" in python_overlay
     assert '"web_git_sha"' in web_overlay
@@ -346,3 +355,132 @@ def test_diagnostic_script_is_read_only() -> None:
     assert "systemctl restart" not in text
     assert "docker builder prune" not in text
     assert "docker image prune" not in text
+
+
+def test_deploy_preserve_remote_refresh_disabled_defaults_off_and_rejects_junk() -> None:
+    text = read(DEPLOY)
+    # Off unless asked for, so an ordinary deploy keeps its historical behaviour.
+    assert 'PRESERVE_REMOTE_REFRESH_DISABLED="${W2_PRESERVE_REMOTE_REFRESH_DISABLED:-NO}"' in text
+    # A value that is neither YES nor NO stops the deploy instead of being ignored.
+    assert "W2_PRESERVE_REMOTE_REFRESH_DISABLED must be YES or NO" in text
+    assert text.count("W2_PRESERVE_REMOTE_REFRESH_DISABLED must be YES or NO") == 2
+    assert 'PRESERVE_REMOTE_REFRESH_DISABLED="$7"' in text
+
+
+def test_deploy_preserve_mode_never_installs_the_enabled_override() -> None:
+    """Protection mode must not be able to switch collection back on.
+
+    The repository override enables provider calls and the scheduler. When
+    preservation is requested the deployment has to leave the remote override
+    alone and fail closed unless that remote file already disables both, so a
+    hotfix cannot silently restart collection.
+    """
+    text = read(DEPLOY)
+    guarded = text.split('if [ "${PRESERVE_REMOTE_REFRESH_DISABLED}" = "YES" ]; then', 1)[1]
+    preserve_branch, remainder = guarded.split("\nelse\n", 1)
+    assert "verify_remote_refresh_disabled" in preserve_branch
+    assert "sudo install" not in preserve_branch
+    assert (
+        'sudo install -o root -g root -m 0644 \\\n'
+        '    "${REMOTE_TMP_DIR}/controlled-future-refresh.override.yml"'
+    ) in remainder
+
+    helper = text.split("verify_remote_refresh_disabled() {", 1)[1].split("\n}\n", 1)[0]
+    # It reads the remote gate that actually governs the containers ...
+    assert '[ -f "${REMOTE_REFRESH_OVERRIDE}" ]' in helper
+    assert "W2_PROVIDER_CALLS_DISABLED" in helper
+    assert "W2_PROVIDER_SCHEDULER_ENABLED" in helper
+    assert "W2_FUTURE_FIXTURE_REFRESH_ENABLED" in helper
+    # ... and refuses anything that is not the disabled variant.
+    assert helper.count("return 1") == 4
+    # The staged override is installed exactly once, from the enabled branch only.
+    assert text.count('"${REMOTE_TMP_DIR}/controlled-future-refresh.override.yml"') == 1
+
+
+# The shape the live host actually carries while collection is paused: provider
+# calls are off, the scheduler service stays up, and the scheduled future
+# refresh is what is switched off.
+_DISABLED_OVERRIDE = """\
+services:
+  worker:
+    environment:
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "true"
+  scheduler:
+    environment:
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "true"
+      W2_FUTURE_FIXTURE_REFRESH_ENABLED: "false"
+"""
+
+_ENABLED_OVERRIDE = _DISABLED_OVERRIDE.replace(
+    'W2_PROVIDER_CALLS_DISABLED: "true"', 'W2_PROVIDER_CALLS_DISABLED: "false"'
+).replace('W2_FUTURE_FIXTURE_REFRESH_ENABLED: "false"', 'W2_FUTURE_FIXTURE_REFRESH_ENABLED: "true"')
+
+
+def _run_preserve_guard(tmp_path: Path, override: str | None) -> subprocess.CompletedProcess[str]:
+    """Run the deploy script's own guard against a candidate remote override."""
+    script = read(DEPLOY)
+    body = script.split("verify_remote_refresh_disabled() {", 1)[1].split("\n}\n", 1)[0]
+    path = tmp_path / "controlled-future-refresh.override.yml"
+    if override is not None:
+        path.write_text(override, encoding="utf-8")
+    harness = (
+        "set -uo pipefail\n"
+        f'REMOTE_REFRESH_OVERRIDE="{path}"\n'
+        "verify_remote_refresh_disabled() {" + body + "\n}\n"
+        "verify_remote_refresh_disabled && echo GUARD_PASS\n"
+    )
+    return subprocess.run(["bash", "-c", harness], capture_output=True, text=True, check=False)
+
+
+def test_preserve_guard_accepts_the_live_disabled_override(tmp_path: Path) -> None:
+    result = _run_preserve_guard(tmp_path, _DISABLED_OVERRIDE)
+    assert result.returncode == 0, result.stderr
+    assert "GUARD_PASS" in result.stdout
+
+
+def test_preserve_guard_accepts_the_scheduler_disabled_form(tmp_path: Path) -> None:
+    override = _DISABLED_OVERRIDE.replace(
+        'W2_PROVIDER_SCHEDULER_ENABLED: "true"', 'W2_PROVIDER_SCHEDULER_ENABLED: "false"'
+    )
+    result = _run_preserve_guard(tmp_path, override)
+    assert result.returncode == 0, result.stderr
+
+
+def test_preserve_guard_rejects_an_override_that_enables_collection(tmp_path: Path) -> None:
+    result = _run_preserve_guard(tmp_path, _ENABLED_OVERRIDE)
+    assert result.returncode != 0
+    assert "enables W2_PROVIDER_CALLS_DISABLED" in result.stderr
+
+
+def test_preserve_guard_rejects_a_missing_override(tmp_path: Path) -> None:
+    result = _run_preserve_guard(tmp_path, None)
+    assert result.returncode != 0
+    assert "preserve mode requires" in result.stderr
+
+
+def test_preserve_guard_rejects_an_override_without_the_disabled_gate(tmp_path: Path) -> None:
+    override = (
+        "services:\n"
+        "  scheduler:\n"
+        "    environment:\n"
+        '      W2_PROVIDER_SCHEDULER_ENABLED: "true"\n'
+    )
+    result = _run_preserve_guard(tmp_path, override)
+    assert result.returncode != 0
+    assert "W2_PROVIDER_CALLS_DISABLED=true" in result.stderr
+
+
+def test_preserve_guard_rejects_scheduled_refresh_left_on(tmp_path: Path) -> None:
+    override = (
+        "services:\n"
+        "  scheduler:\n"
+        "    environment:\n"
+        '      W2_PROVIDER_CALLS_DISABLED: "true"\n'
+        '      W2_PROVIDER_SCHEDULER_ENABLED: "true"\n'
+        '      W2_FUTURE_FIXTURE_REFRESH_ENABLED: "true"\n'
+    )
+    result = _run_preserve_guard(tmp_path, override)
+    assert result.returncode != 0
+    assert "scheduled future refresh" in result.stderr

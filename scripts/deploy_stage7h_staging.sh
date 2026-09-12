@@ -12,6 +12,10 @@ WEB_IMAGE="$3"
 DEPLOY_MODE="${4:-all}"
 REVISION="${W2_GIT_SHA:-$(git rev-parse HEAD)}"
 PUBLIC_RESPONSE_SCHEMA_TOUCHED="${W2_PUBLIC_RESPONSE_SCHEMA_TOUCHED:-}"
+# YES keeps the remote provider gate exactly as it already is: this deployment
+# must not switch collection back on behind an operator who deliberately turned
+# it off. NO is the historical behaviour and installs the repository override.
+PRESERVE_REMOTE_REFRESH_DISABLED="${W2_PRESERVE_REMOTE_REFRESH_DISABLED:-NO}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [[ ! "${REVISION}" =~ ^[0-9a-f]{40}$ ]]; then
@@ -25,6 +29,11 @@ fi
 if [ "${PUBLIC_RESPONSE_SCHEMA_TOUCHED}" != "YES" ] && \
   [ "${PUBLIC_RESPONSE_SCHEMA_TOUCHED}" != "NO" ]; then
   echo "W2_PUBLIC_RESPONSE_SCHEMA_TOUCHED must be YES or NO" >&2
+  exit 2
+fi
+if [ "${PRESERVE_REMOTE_REFRESH_DISABLED}" != "YES" ] && \
+  [ "${PRESERVE_REMOTE_REFRESH_DISABLED}" != "NO" ]; then
+  echo "W2_PRESERVE_REMOTE_REFRESH_DISABLED must be YES or NO" >&2
   exit 2
 fi
 IMAGE_REF_RE='^(ghcr\.io/[a-z0-9._/-]+|127\.0\.0\.1:5000/w2/[a-z0-9._/-]+)@sha256:[0-9a-f]{64}$'
@@ -65,7 +74,8 @@ scp "${TMP_DIR}/compose.staging.yml" "${TMP_DIR}/controlled-future-refresh.overr
 
 ssh "${SSH_HOST}" bash -s -- \
   "${REVISION}" "${DEPLOY_MODE}" "${PYTHON_IMAGE}" "${WEB_IMAGE}" \
-  "${REMOTE_TMP_DIR}" "${PUBLIC_RESPONSE_SCHEMA_TOUCHED}" <<'REMOTE'
+  "${REMOTE_TMP_DIR}" "${PUBLIC_RESPONSE_SCHEMA_TOUCHED}" \
+  "${PRESERVE_REMOTE_REFRESH_DISABLED}" <<'REMOTE'
 set -Eeuo pipefail
 REVISION="$1"
 DEPLOY_MODE="$2"
@@ -73,6 +83,12 @@ PYTHON_IMAGE="$3"
 WEB_IMAGE="$4"
 REMOTE_TMP_DIR="$5"
 PUBLIC_RESPONSE_SCHEMA_TOUCHED="$6"
+PRESERVE_REMOTE_REFRESH_DISABLED="$7"
+if [ "${PRESERVE_REMOTE_REFRESH_DISABLED}" != "YES" ] && \
+  [ "${PRESERVE_REMOTE_REFRESH_DISABLED}" != "NO" ]; then
+  echo "W2_PRESERVE_REMOTE_REFRESH_DISABLED must be YES or NO" >&2
+  exit 2
+fi
 if [ "${REMOTE_TMP_DIR}" != "/tmp/w2-deploy-${REVISION}" ] || \
   [ ! -d "${REMOTE_TMP_DIR}" ] || [ -L "${REMOTE_TMP_DIR}" ]; then
   echo "invalid remote deployment staging directory" >&2
@@ -165,6 +181,44 @@ wait_for_runtime() {
   return 1
 }
 
+REMOTE_REFRESH_OVERRIDE="/opt/w2/deploy/controlled-future-refresh.override.yml"
+
+verify_remote_refresh_disabled() {
+  # Protection mode is a contract about the remote provider gate, so it is read
+  # from the remote file that actually governs the containers rather than from
+  # anything this deployment brought with it. It fails closed: a missing file, a
+  # value that turns collection on, or anything unreadable aborts the deployment
+  # before any service is recreated, and because the enabled override is never
+  # installed either way, a failed run leaves collection exactly as it found it.
+  #
+  # The gate that disables collection is W2_PROVIDER_CALLS_DISABLED. The live
+  # disabled override keeps the scheduler service up (W2_PROVIDER_SCHEDULER_ENABLED
+  # "true") and stops scheduled refresh through W2_FUTURE_FIXTURE_REFRESH_ENABLED
+  # "false", so the scheduler flag alone is not the authority; scheduled refresh
+  # has to be off in one of the two documented forms.
+  [ -f "${REMOTE_REFRESH_OVERRIDE}" ] || {
+    echo "preserve mode requires ${REMOTE_REFRESH_OVERRIDE}" >&2
+    return 1
+  }
+  if grep -Eq '^[[:space:]]*W2_PROVIDER_CALLS_DISABLED:[[:space:]]*"?false"?[[:space:]]*$' \
+    "${REMOTE_REFRESH_OVERRIDE}"; then
+    echo "preserve mode refuses an override that enables W2_PROVIDER_CALLS_DISABLED" >&2
+    return 1
+  fi
+  grep -Eq '^[[:space:]]*W2_PROVIDER_CALLS_DISABLED:[[:space:]]*"?true"?[[:space:]]*$' \
+    "${REMOTE_REFRESH_OVERRIDE}" || {
+    echo "preserve mode requires W2_PROVIDER_CALLS_DISABLED=true in ${REMOTE_REFRESH_OVERRIDE}" >&2
+    return 1
+  }
+  if ! grep -Eq '^[[:space:]]*W2_PROVIDER_SCHEDULER_ENABLED:[[:space:]]*"?false"?[[:space:]]*$' \
+    "${REMOTE_REFRESH_OVERRIDE}" &&
+    ! grep -Eq '^[[:space:]]*W2_FUTURE_FIXTURE_REFRESH_ENABLED:[[:space:]]*"?false"?[[:space:]]*$' \
+      "${REMOTE_REFRESH_OVERRIDE}"; then
+    echo "preserve mode requires scheduled future refresh to be off in ${REMOTE_REFRESH_OVERRIDE}" >&2
+    return 1
+  fi
+}
+
 rollback() {
   original_status=$?
   trap - ERR
@@ -240,9 +294,13 @@ sudo install -d -o 10001 -g 10001 -m 0775 \
   /opt/w2/shared/runtime/independent_signal_backfill/raw_payloads
 sudo install -o root -g root -m 0644 "${REMOTE_TMP_DIR}/compose.staging.yml" \
   /opt/w2/deploy/compose.staging.yml
-sudo install -o root -g root -m 0644 \
-  "${REMOTE_TMP_DIR}/controlled-future-refresh.override.yml" \
-  /opt/w2/deploy/controlled-future-refresh.override.yml
+if [ "${PRESERVE_REMOTE_REFRESH_DISABLED}" = "YES" ]; then
+  verify_remote_refresh_disabled
+else
+  sudo install -o root -g root -m 0644 \
+    "${REMOTE_TMP_DIR}/controlled-future-refresh.override.yml" \
+    /opt/w2/deploy/controlled-future-refresh.override.yml
+fi
 sudo install -o root -g root -m 0755 \
   "${REMOTE_TMP_DIR}/watch_staging_runtime.sh" /opt/w2/deploy/watch_staging_runtime.sh
 sudo install -o root -g root -m 0444 \

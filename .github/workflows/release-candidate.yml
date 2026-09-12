@@ -445,6 +445,17 @@ jobs:
           docker run --rm --entrypoint python "$python_ref" -c "from apps.worker.celery_app import ping; assert ping.run() == 'pong'"
           docker run --rm --entrypoint python "$python_ref" -c "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"
           docker run --rm --entrypoint alembic "$python_ref" --help >/dev/null
+          # The SC21 matrix lives under docs/ in the repository and is shipped into
+          # the wheel as package data. docs/ is not copied into the image, so when
+          # that packaging breaks every dashboard request 500s at runtime while
+          # every test still passes from a checkout -- which is what shipped once.
+          # --workdir / so no path relative to the project root can answer instead.
+          docker run --rm --workdir / --entrypoint python "$python_ref" -c "from importlib import resources; assert resources.files('w2.dashboard').joinpath('data', 'SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json').is_file()"
+          docker run --rm --workdir / --entrypoint python "$python_ref" -c "from w2.dashboard.factor_checklist import _role_authority; assert _role_authority()['schema_version'] == 'w2.sc21-factor-coverage.v2'"
+          # Shipping the file is not the same as reading it: build a real checklist.
+          # This one runs in the image's own workdir -- the factor registry is read
+          # relative to it and is not what this change touches.
+          docker run --rm --workdir /app --entrypoint python "$python_ref" -c "from datetime import UTC, datetime; from w2.dashboard.factor_checklist import build_fixture_factor_checklist; assert build_fixture_factor_checklist({}, markets={}, market_collection={}, lineup_collection={}, home_identity_ready=False, away_identity_ready=False, shadow_candidate={}, market_aggregate_status='UNAVAILABLE', ledger_fact=None, generated_at=datetime(2026, 1, 1, tzinfo=UTC))['factors']"
           smoke_network="w2-image-smoke-${GITHUB_RUN_ID}"
           docker network create "$smoke_network" >/dev/null
           api_id="$(docker run -d --network "$smoke_network" --network-alias api --entrypoint python "$python_ref" -m http.server 8000)"
