@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -105,7 +105,12 @@ def _recording_status(report: dict[str, Any]) -> str:
     return str(report.get("recording_status") or "UNAVAILABLE")
 
 
-def _task_status(report: dict[str, Any], *, default: str = "PASS") -> str:
+def _task_status(
+    report: dict[str, Any],
+    *,
+    default: str = "PASS",
+    ah_fact_report: dict[str, Any] | None = None,
+) -> str:
     """`default` only when the factor recording did not fail.
 
     A task whose evaluation succeeded but whose per-factor recording did not is
@@ -113,15 +118,26 @@ def _task_status(report: dict[str, Any], *, default: str = "PASS") -> str:
     record is incomplete instead of claiming a clean PASS. A recording that was
     switched off is not a failure -- it is a stated decision -- and is reported
     through `forward_factor_recording.recording_status` instead.
+
+    The runtime AH fact writer is the second thing a run can get wrong on its
+    way to a clean pass, so it is folded in here too: a round whose facts could
+    not be written, or could not be built because the results it depends on were
+    not materialised, is reported as incomplete rather than as a pass.
     """
+    from w2.historical.runtime_ah_settlement_materializer import (
+        writer_status_is_clean,
+    )
     from w2.quant_research.forward_factor_recording import (
         RECORDING_COMPLETE,
         RECORDING_DISABLED,
     )
 
-    if _recording_status(report) in {RECORDING_COMPLETE, RECORDING_DISABLED}:
-        return default
-    return f"{default}_WITH_RECORDING_INCOMPLETE"
+    status = default
+    if _recording_status(report) not in {RECORDING_COMPLETE, RECORDING_DISABLED}:
+        status = f"{status}_WITH_RECORDING_INCOMPLETE"
+    if ah_fact_report is not None and not writer_status_is_clean(ah_fact_report):
+        status = f"{status}_WITH_AH_FACT_INCOMPLETE"
+    return status
 
 
 def _merge_recording_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
@@ -135,6 +151,88 @@ def _recording_report_of(source: Mapping[str, object]) -> list[dict[str, Any]]:
     """The recording report a write-side branch returned, when it returned one."""
     nested = source.get("forward_factor_recording")
     return [dict(nested)] if isinstance(nested, Mapping) else []
+
+
+def _materialize_ah_facts_after_results(
+    confirmed_fixture_ids: Sequence[str],
+    *,
+    result_status: str,
+) -> dict[str, Any]:
+    """Build the runtime AH settlement facts this round's results enable.
+
+    F1R-C. Runs after the result materialisation that produced the fixtures, and
+    only when that materialisation succeeded: the results written by that step
+    are the terminal evidence a fact rests on, so a round whose results were
+    refused has nothing a fact could legitimately be built from.
+
+    Reads persisted captures, market observations and terminal evidence only.
+    No Provider call is made here, and none is possible: the writer takes no
+    client and has no request path.
+    """
+    from w2.historical.runtime_ah_settlement_materializer import (
+        STATUS_FAILED,
+        STATUS_NO_DUE_WORK,
+        STATUS_SKIPPED,
+        empty_report,
+        materialize_runtime_ah_settlement_facts,
+    )
+    from w2.infrastructure.database import create_engine
+
+    fixture_ids = sorted({str(item) for item in confirmed_fixture_ids if str(item)})
+    if str(result_status or "") == "BLOCKED":
+        return empty_report(
+            STATUS_SKIPPED, error="RESULT_MATERIALIZATION_BLOCKED"
+        )
+    if not fixture_ids:
+        return empty_report(STATUS_NO_DUE_WORK)
+    try:
+        return materialize_runtime_ah_settlement_facts(
+            engine=create_engine(),
+            fixture_ids=fixture_ids,
+        )
+    except Exception as exc:  # noqa: BLE001 - the writer reports, never takes the tick down
+        logger.exception("runtime AH settlement fact materializer failed")
+        return empty_report(
+            STATUS_FAILED,
+            requested_count=len(fixture_ids),
+            error=f"{type(exc).__name__}:{exc}",
+        )
+
+
+def _ah_fact_report_of(source: Mapping[str, object]) -> list[dict[str, Any]]:
+    """The AH fact report a branch returned, when it returned one."""
+    nested = source.get("runtime_ah_settlement_facts")
+    return [dict(nested)] if isinstance(nested, Mapping) else []
+
+
+def _materialize_results_with_ah_facts(
+    reports: list[dict[str, Any]],
+) -> Callable[[tuple[str, ...], datetime], dict[str, object]]:
+    """`materialize_results`, keeping the AH fact report it produces.
+
+    The callback contract is the result-refresh dict, and the fact report is
+    built inside it. This wrapper keeps that report in the run's own container so
+    the task result can state what the natural writer wrote -- and what it
+    refused -- instead of the write being invisible to the run that caused it.
+    """
+
+    def materialize(
+        fixture_ids: tuple[str, ...], now: datetime
+    ) -> dict[str, object]:
+        result = _materialize_outcome_results(fixture_ids, now)
+        reports.extend(_ah_fact_report_of(result))
+        return result
+
+    return materialize
+
+
+def _merge_ah_fact_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
+    """One writer report for a task that materialised facts on several branches."""
+    from w2.historical.runtime_ah_settlement_materializer import (
+        merge_runtime_ah_fact_reports,
+    )
+
+    return merge_runtime_ah_fact_reports(reports)
 
 
 def _materialize_public_artifacts_with_recording(
@@ -564,6 +662,7 @@ def future_fixture_refresh(
             # `status` stays the provider-scheduler verdict: this run is not a
             # pass and the recording report must not turn it into one.
             "forward_factor_recording": _merge_recording_reports([]),
+            "runtime_ah_settlement_facts": _merge_ah_fact_reports([]),
             "candidate": False,
             "formal_recommendation": False,
         }
@@ -585,6 +684,9 @@ def future_fixture_refresh(
     #: rows are written on this path, so the report it produces is the one the
     #: task result has to carry -- before this, it was built and dropped.
     recording_reports: list[dict[str, Any]] = []
+    #: The result materialisation writes runtime AH settlement facts, and those
+    #: writes belong to this run too. Same container rule, different writer.
+    ah_fact_reports: list[dict[str, Any]] = []
     audit = run_future_refresh_task(
         task_id=task_id,
         key=key,
@@ -600,7 +702,7 @@ def future_fixture_refresh(
         materialize_public_artifacts=_materialize_public_artifacts_with_recording(
             recording_reports
         ),
-        materialize_results=_materialize_outcome_results,
+        materialize_results=_materialize_results_with_ah_facts(ah_fact_reports),
         client=ApiFootballClient(
             allow_live=True,
             allowed_live_endpoints=provider_endpoint_allowlist(),
@@ -635,10 +737,11 @@ def future_fixture_refresh(
     recording_report = _merge_recording_reports(
         [*recording_reports, *_recording_report_of(opportunity_write)]
     )
+    ah_fact_report = _merge_ah_fact_reports(ah_fact_reports)
     return {
         "task_id": audit.task_id,
         "task_key": audit.key,
-        "status": _task_status(recording_report),
+        "status": _task_status(recording_report, ah_fact_report=ah_fact_report),
         # The refresh audit's own verdict, kept under its own name: `status` above
         # now answers "did this run pass, including its factor recording?".
         "audit_status": audit.status,
@@ -652,6 +755,7 @@ def future_fixture_refresh(
         "opportunity_write": opportunity_write,
         "t30_capture": t30_capture,
         "forward_factor_recording": recording_report,
+        "runtime_ah_settlement_facts": ah_fact_report,
         "candidate": False,
         "formal_recommendation": False,
     }
@@ -852,6 +956,15 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
             "unresolved_fixture_ids": [],
         }
     )
+    # F1R-C: the same natural writer, on the other natural result-materialisation
+    # path. Materialsing results without materialising the facts they prove would
+    # leave this branch with fewer facts than the refresh branch, for no reason a
+    # reader could see.
+    confirmed = materialization.get("confirmed_fixture_ids")
+    ah_fact_report = _materialize_ah_facts_after_results(
+        [str(item) for item in confirmed] if isinstance(confirmed, list) else [],
+        result_status=str(materialization.get("status") or ""),
+    )
     pending_count = settlement["unresolved_count"]
     if not isinstance(pending_count, int) or isinstance(pending_count, bool):
         raise RuntimeError("OUTCOME_LEDGER_PENDING_COUNT_INVALID")
@@ -863,13 +976,26 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         "pending_result_fixture_ids": [str(item) for item in unresolved_fixture_ids],
     }
     db_writes = 0
-    for item in (model_forecast_capture, capture, materialization, settlement):
+    for item in (
+        model_forecast_capture,
+        capture,
+        materialization,
+        settlement,
+        ah_fact_report,
+    ):
         value = item.get("db_writes", 0)
         if isinstance(value, int) and not isinstance(value, bool):
             db_writes += value
+    from w2.historical.runtime_ah_settlement_materializer import (
+        writer_status_is_clean,
+    )
+
+    status = "BLOCKED" if materialization["status"] == "BLOCKED" else capture["status"]
+    if not writer_status_is_clean(ah_fact_report):
+        status = f"{status}_WITH_AH_FACT_INCOMPLETE"
     return {
         **capture,
-        "status": ("BLOCKED" if materialization["status"] == "BLOCKED" else capture["status"]),
+        "status": status,
         "candidate": os.environ.get("W2_CANDIDATE_ENABLED", "false").lower() == "true",
         "formal_recommendation": False,
         "lock": False,
@@ -891,6 +1017,7 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         },
         "result_materialization": materialization,
         "outcome_settlement": settlement,
+        "runtime_ah_settlement_facts": ah_fact_report,
     }
 
 
@@ -898,7 +1025,21 @@ def _materialize_outcome_results(
     fixture_ids: tuple[str, ...],
     now: datetime,
 ) -> dict[str, object]:
-    return _run_result_materialize(fixture_ids=list(fixture_ids), now=now)
+    """Materialise this round's results, then the AH facts they enable.
+
+    F1R-C. The fact writer lives here -- after the result materialisation and
+    inside the branch that produced it -- because a runtime AH fact's only
+    legitimate terminal evidence is a result this step has just persisted. The
+    report travels back with the result so the task that caused the write can
+    state it.
+    """
+    result = _run_result_materialize(fixture_ids=list(fixture_ids), now=now)
+    confirmed = result.get("confirmed_fixture_ids")
+    ah_fact_report = _materialize_ah_facts_after_results(
+        [str(item) for item in confirmed] if isinstance(confirmed, list) else [],
+        result_status=str(result.get("status") or ""),
+    )
+    return {**result, "runtime_ah_settlement_facts": ah_fact_report}
 
 
 def _run_result_materialize(

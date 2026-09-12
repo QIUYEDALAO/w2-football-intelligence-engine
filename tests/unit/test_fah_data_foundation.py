@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import gzip
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import create_engine, select
@@ -904,4 +904,15 @@ def _history(
         quote_identity_hash=f"{fact_id}-quote",
         result_identity_hash=f"{fact_id}-result",
         settlement_outcome=settlement,
+        # F1R-C: the instant the terminal result was observed, and the capture
+        # identity behind it. F5 admits no canonical fact without both.
+        settlement_observed_at=kickoff + timedelta(hours=3),
+        ah_source_observed_at=kickoff + timedelta(hours=3),
+        ah_source_capture_id=f"{fact_id}-capture",
+        ah_source_capture_sha256=f"{fact_id}-capture-sha",
+        ah_source_set_hash=f"{fact_id}-set",
+        ah_quote_capture_ids=(f"{fact_id}-quote-capture",),
+        ah_quote_payload_sha256s=(f"{fact_id}-quote-sha",),
+        ah_selected_bookmakers=("7",),
+        ah_policy="canonical_bookmaker_mainline_majority_v1",
     )

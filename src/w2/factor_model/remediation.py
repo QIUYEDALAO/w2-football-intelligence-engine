@@ -105,6 +105,9 @@ class RemediationResult:
     blockers: list[str] = field(default_factory=list)
     provider_audit: list[ProviderAuditEntry] = field(default_factory=list)
     smoke_fixture_readiness: list[dict[str, Any]] = field(default_factory=list)
+    #: F1R-C. What the runtime AH settlement fact writer did this run. A side
+    #: effect that never reaches the result is how F1R-B lost its visibility.
+    ah_settlement_fact_report: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -125,6 +128,7 @@ class RemediationResult:
             "blockers": self.blockers,
             "provider_audit": [entry.as_dict() for entry in self.provider_audit],
             "smoke_fixture_readiness": self.smoke_fixture_readiness,
+            "ah_settlement_fact_report": self.ah_settlement_fact_report,
             "formal_ah": False,
             "formal_ou": False,
             "recommendation_lock": False,
@@ -168,6 +172,7 @@ class FactorModelRemediationService:
         blockers: list[str] = []
         xg_rows = 0
         h2h_rows = 0
+        ah_fact_report: dict[str, Any] = {}
         if live:
             team_ids = self._provider_team_ids()
             historical_fixtures: dict[str, dict[str, Any]] = {}
@@ -201,6 +206,13 @@ class FactorModelRemediationService:
                     historical_fixtures,
                     fixture_capture_ids=fixture_capture_ids,
                 )
+                # F1R-C: build runtime AH settlement facts from the captures just
+                # taken. Runs after the history rows exist so the w2 team mapping
+                # is available; writes only new facts.
+                ah_fact_report = self.materialize_runtime_ah_settlement_facts(
+                    historical_fixtures,
+                    fixture_capture_ids=fixture_capture_ids,
+                )
                 xg_rows, xg_blockers = self._probe_xg(historical_fixtures)
                 blockers.extend(xg_blockers)
             else:
@@ -216,8 +228,39 @@ class FactorModelRemediationService:
             xg_rows=xg_rows,
             h2h_rows=h2h_rows,
             rating_rows=rating_rows,
+            ah_fact_report=ah_fact_report,
         )
         return snapshot
+
+    def materialize_runtime_ah_settlement_facts(
+        self,
+        fixtures: dict[str, dict[str, Any]],
+        *,
+        fixture_capture_ids: dict[str, str],
+    ) -> dict[str, Any]:
+        """Delegate to the one runtime AH fact materializer.
+
+        F1R-C. This method used to be the *only* writer, and it built the fact
+        from the raw payload it had just fetched. It is now a caller of the
+        shared materializer, which reads the history rows this method has just
+        written -- or the result-materialisation artefact, when the natural path
+        got there first -- and never re-derives a fact from a payload. The
+        controlled recovery capability stays; being the only way a fact could
+        exist does not.
+
+        The captures taken by this run are already persisted and already
+        referenced by the history rows above, so the materializer resolves them
+        from the store rather than being handed them.
+        """
+        del fixture_capture_ids
+        from w2.historical.runtime_ah_settlement_materializer import (
+            materialize_runtime_ah_settlement_facts,
+        )
+
+        return materialize_runtime_ah_settlement_facts(
+            engine=self.engine,
+            fixture_ids=sorted(str(item) for item in fixtures),
+        )
 
     def materialize_ratings(self) -> int:
         count = 0
@@ -632,6 +675,7 @@ class FactorModelRemediationService:
         xg_rows: int,
         h2h_rows: int,
         rating_rows: int,
+        ah_fact_report: dict[str, Any] | None = None,
     ) -> RemediationResult:
         with Session(self.engine) as session:
             history_rows = (
@@ -670,6 +714,7 @@ class FactorModelRemediationService:
             blockers=sorted(set(blockers)),
             provider_audit=self._provider_audit,
             smoke_fixture_readiness=readiness,
+            ah_settlement_fact_report=dict(ah_fact_report or {}),
         )
 
     def _target_fixtures(self, session: Session) -> list[MatchdayFixtureIdentityModel]:

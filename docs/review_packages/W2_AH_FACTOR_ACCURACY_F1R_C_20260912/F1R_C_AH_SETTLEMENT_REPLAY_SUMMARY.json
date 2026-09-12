@@ -1,0 +1,71 @@
+{
+  "bookmaker_count_counts": {
+    "3": 4,
+    "4": 12,
+    "5": 41,
+    "6": 75,
+    "7": 160,
+    "8": 31,
+    "9": 3,
+    "10": 7,
+    "11": 7
+  },
+  "canonical_line_counts": {
+    "-0.25": 63,
+    "-0.5": 54,
+    "-0.75": 45,
+    "-1": 16,
+    "-1.25": 11,
+    "-1.5": 11,
+    "-1.75": 6,
+    "-2": 6,
+    "-2.25": 2,
+    "-2.5": 2,
+    "-2.75": 2,
+    "0": 3,
+    "0.25": 66,
+    "0.5": 22,
+    "0.75": 5,
+    "1": 8,
+    "1.25": 8,
+    "1.5": 7,
+    "1.75": 3
+  },
+  "competition_counts": {
+    "argentina_primera": 47,
+    "brasileirao_serie_a": 39,
+    "bundesliga": 9,
+    "chinese_super_league": 25,
+    "eliteserien": 31,
+    "eredivisie": 24,
+    "la_liga": 30,
+    "ligue_1": 18,
+    "mls": 52,
+    "premier_league": 20,
+    "primeira_liga": 25,
+    "serie_a": 20
+  },
+  "hash_shape_violations": [],
+  "input_fixtures": 340,
+  "line_shape_counts": {
+    "quarter": 211,
+    "whole": 129
+  },
+  "non_deterministic": [],
+  "pit_violations": [],
+  "refusal_counts": {},
+  "schema_version": "w2.f1r_c.ah_settlement_replay.v1",
+  "settlement_outcome_counts": {
+    "HALF_LOSS/HALF_WIN": 19,
+    "HALF_WIN/HALF_LOSS": 44,
+    "LOSS/WIN": 143,
+    "PUSH/PUSH": 8,
+    "WIN/LOSS": 126
+  },
+  "status_counts": {
+    "READY": 340
+  },
+  "terminal_status_counts": {
+    "FT": 340
+  }
+}
