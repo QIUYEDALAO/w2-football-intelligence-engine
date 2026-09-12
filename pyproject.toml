@@ -53,6 +53,17 @@ packages = ["src/w2"]
 [tool.hatch.build.targets.wheel.force-include]
 "docs/review_packages/SC21_FACTOR_INPUT_CHAIN/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json" = "w2/dashboard/data/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json"
 
+# The accepted F1R-B modules are the production recording sink's implementation.
+# They load their siblings by file path, so the whole set ships together as one
+# package directory. The image installs with --no-editable and does not carry
+# scripts/, which is exactly the failure mode the SC21 entry above records.
+"scripts/quant/f1p_forward_factor_contract.py" = "w2/quant_research/_f1r_b/f1p_forward_factor_contract.py"
+"scripts/quant/f1r_a0_offline_factor_recorder.py" = "w2/quant_research/_f1r_b/f1r_a0_offline_factor_recorder.py"
+"scripts/quant/f1r_b_source_capture.py" = "w2/quant_research/_f1r_b/f1r_b_source_capture.py"
+"scripts/quant/f1r_b_production_ports.py" = "w2/quant_research/_f1r_b/f1r_b_production_ports.py"
+"scripts/quant/f1r_b_production_recording_integration.py" = "w2/quant_research/_f1r_b/f1r_b_production_recording_integration.py"
+"scripts/quant/f1r_b_observation_store.py" = "w2/quant_research/_f1r_b/f1r_b_observation_store.py"
+
 [tool.ruff]
 target-version = "py312"
 line-length = 100

@@ -318,12 +318,32 @@ def test_f0_does_not_write_anywhere_but_its_own_output_directory() -> None:
 
 
 def test_f0_touches_no_production_path() -> None:
-    changed = subprocess.run(  # noqa: S603
-        ["/usr/bin/git", "status", "--porcelain=v1"],
-        cwd=REPO, capture_output=True, text=True, check=False).stdout
+    """F0 reaches no production path -- by where its files are and by import.
 
-    for line in changed.splitlines():
-        path = line[3:].strip().strip('"')
-        assert not path.startswith("src/w2/prematch/"), path
-        assert not path.startswith("src/w2/strategy/"), path
-        assert not path.startswith("migrations/"), path
+    This used to read the whole working tree's `git status`, which made it a
+    claim about *every* task sharing the checkout rather than about F0: any
+    later task that legitimately has to edit a production file would fail a
+    guard named after F0. The claim it was making is narrower, and is made
+    directly here -- none of F0's deliverables sits under a production path, and
+    nothing in production imports the F0 runner.
+    """
+    deliverables = (
+        RUNNER_PATH,
+        OUTPUT / "F0_RESULT.json",
+        Path(__file__).resolve(),
+    )
+    for path in deliverables:
+        relative = path.relative_to(REPO).as_posix()
+        for prefix in (
+            "src/w2/prematch/",
+            "src/w2/strategy/",
+            "src/w2/domain/",
+            "src/w2/pricing/",
+            "migrations/",
+        ):
+            assert not relative.startswith(prefix), relative
+    hits = subprocess.run(  # noqa: S603
+        ["/usr/bin/grep", "-rl", RUNNER_PATH.stem, str(REPO / "src/w2")],
+        capture_output=True, text=True, check=False)
+
+    assert not hits.stdout.strip(), hits.stdout

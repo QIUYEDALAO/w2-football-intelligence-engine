@@ -514,15 +514,21 @@ def test_17_this_task_does_not_import_or_touch_the_production_chain() -> None:
 def test_17_the_production_chain_never_imports_this_candidate() -> None:
     """One direction is not enough: production must not reach in either.
 
-    The candidate lives outside src/w2 entirely, so there is no module path
-    production could import even if someone tried.
+    The candidate lives outside src/w2 entirely and is loaded by path, so there
+    is no module path production could import even if someone tried. That is the
+    claim, and it is made here directly. The check used to be
+    `not src/w2/quant_research.exists()` -- a proxy for "this task added no
+    package under src/w2", which is not a property of the candidate and stopped
+    being true once a later, separately authorised task was *required* by
+    AGENTS.md to put its code under exactly that directory.
     """
     hits = subprocess.run(  # noqa: S603
         ["/usr/bin/grep", "-rl", "confidence_shrinkage", str(REPO / "src/w2")],
         capture_output=True, text=True, check=False)
 
     assert not hits.stdout.strip(), hits.stdout
-    assert not (REPO / "src/w2/quant_research").exists()
+    for path in (CANDIDATE_PATH, RUNNER_PATH):
+        assert REPO / "src/w2" not in path.parents, path
 
 
 def test_18_no_obsidian_or_desktop_path_is_referenced() -> None:

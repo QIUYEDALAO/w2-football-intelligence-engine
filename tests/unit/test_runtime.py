@@ -952,7 +952,7 @@ def test_model_forecast_projection_refresh_targets_only_not_ready(
 ) -> None:
     events: list[Any] = []
 
-    def materialize(value: list[Any]) -> list[str]:
+    def materialize(value: list[Any], **_kwargs: Any) -> list[str]:
         events.extend(value)
         return [event.fixture_id for event in value]
 
@@ -980,6 +980,12 @@ def test_model_forecast_projection_refresh_targets_only_not_ready(
         },
         evaluated_at=evaluated_at,
     )
+
+    # The per-factor recording report rides along with the projection result.
+    # This stub never reaches the recorder, so it reports zero evaluations and
+    # the targeting contract below is unchanged.
+    recording = result.pop("forward_factor_recording")
+    assert recording["evaluations"] == 0  # type: ignore[index]
 
     assert result == {
         "status": "PASS",

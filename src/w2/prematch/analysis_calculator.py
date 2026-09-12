@@ -69,7 +69,7 @@ from w2.domain.recommendation_decision_v4 import (
     validate_decision_v4_identity,
 )
 from w2.features.engine import FeatureInputs, build_feature_set
-from w2.features.framework import FeatureContext
+from w2.features.framework import FeatureContext, FeatureSet
 from w2.features.live_factors import TeamXgSnapshot
 from w2.features.market_factors import BookmakerQuote
 from w2.features.team_factors import TeamMatchHistory, TeamRatingSnapshot, TeamValueSnapshot
@@ -1394,8 +1394,17 @@ class ReadModelRepository:
 
 
 class ReadModelService:
-    def __init__(self, repository: ReadModelRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: ReadModelRepository | None = None,
+        *,
+        forward_factor_recorder: Any | None = None,
+    ) -> None:
         self.repository = repository or ReadModelRepository()
+        # Injected by the write-side composition root only. Every read-only
+        # caller -- the API router, the dashboard, the replay harness, the
+        # scripts -- leaves it None and therefore writes no factor rows.
+        self._forward_factor_recorder = forward_factor_recorder
         self.day_policy = BeijingOperationalDayPolicy()
         self.date_resolver = FixtureOperationalDateResolver()
         self._fixture_payloads_cache: list[dict[str, Any]] | None = None
@@ -2387,7 +2396,10 @@ class ReadModelService:
         # runtime/frozen files are never consulted here.
         if use_frozen_canary and self._uses_frozen_public_authority():
             return self._public_frozen_analysis_card(fixture_id)
-        request_service = ReadModelService(repository=self.repository)
+        request_service = ReadModelService(
+            repository=self.repository,
+            forward_factor_recorder=self._forward_factor_recorder,
+        )
         request_service._bounded_public_request = True
         if evaluation_time is not None:
             if evaluation_time.tzinfo is None:
@@ -3406,7 +3418,51 @@ class ReadModelService:
             home_xg=latest_home_xg,
             away_xg=latest_away_xg,
         )
+        self._record_forward_factor_observations(
+            fixture_id=fixture_id,
+            feature_set=feature_set,
+            context=context,
+            snapshots=snapshots,
+        )
         return payload
+
+    def _record_forward_factor_observations(
+        self,
+        *,
+        fixture_id: str,
+        feature_set: FeatureSet,
+        context: FeatureContext,
+        snapshots: list[dict[str, Any]],
+    ) -> None:
+        """Hand one completed evaluation's four AH factors to the recorder.
+
+        This is the wiring F1R-B left unconnected. The final
+        `FeatureContribution` objects and the authoritative weighted score
+        already exist above, so nothing is recomputed, re-weighted, re-scored
+        or admitted here: the recorder reads what this method just evaluated
+        and writes per-factor rows to `forward_ah_factor_observations`.
+
+        The recorder is injected by the write-side composition root, so a
+        read-only caller has none and this is a no-op. A refusal is reported by
+        the recorder and never raised here -- the evaluation is already
+        computed and aborting it would turn a recording problem into an outage.
+
+        No evaluation instant is passed. The information cutoff is
+        `context.as_of`, which the feature builders above read up to; the
+        instant the factor evaluation was performed is the instant it ran, and
+        the recorder is the only thing that knows it. Passing `context.as_of`
+        as both would hand the contract `evidence == evaluated`, which it
+        refuses by design.
+        """
+        recorder = self._forward_factor_recorder
+        if recorder is None:
+            return
+        recorder.record(
+            fixture_id=fixture_id,
+            feature_set=feature_set,
+            context=context,
+            xg_snapshots=snapshots,
+        )
 
     def _apply_lineup_gate(
         self,

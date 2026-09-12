@@ -28,10 +28,34 @@ COPY config/policies/lineup_market_policy.v1.json /app/image_config/policies/lin
 # removed again below so nothing can fall back to reading docs/ out of the image.
 COPY docs/review_packages/SC21_FACTOR_INPUT_CHAIN/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json \
      ./docs/review_packages/SC21_FACTOR_INPUT_CHAIN/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json
+# Build input only, same reason: the accepted F1R-B modules live under scripts/
+# in the checkout, the wheel's force-include ships them as
+# w2/quant_research/_f1r_b/, and the tree is removed again below so the image
+# carries no scripts/ directory to fall back to.
+COPY scripts/quant/f1p_forward_factor_contract.py \
+     scripts/quant/f1r_a0_offline_factor_recorder.py \
+     scripts/quant/f1r_b_source_capture.py \
+     scripts/quant/f1r_b_production_ports.py \
+     scripts/quant/f1r_b_production_recording_integration.py \
+     scripts/quant/f1r_b_observation_store.py \
+     ./scripts/quant/
 RUN uv sync --no-dev --frozen --no-editable \
  && test -f /app/.venv/lib/python3.12/site-packages/w2/dashboard/data/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json \
+ && test -f /app/.venv/lib/python3.12/site-packages/w2/quant_research/_f1r_b/f1r_b_production_recording_integration.py \
+ && test -f /app/.venv/lib/python3.12/site-packages/w2/quant_research/_f1r_b/f1r_b_observation_store.py \
+ && python -c "import w2.quant_research.forward_factor_recording as m; print(m.RECORDING_SCHEMA)" \
  && rm -rf /app/docs \
+ && rm -f /app/scripts/quant/f1p_forward_factor_contract.py \
+          /app/scripts/quant/f1r_a0_offline_factor_recorder.py \
+          /app/scripts/quant/f1r_b_source_capture.py \
+          /app/scripts/quant/f1r_b_production_ports.py \
+          /app/scripts/quant/f1r_b_production_recording_integration.py \
+          /app/scripts/quant/f1r_b_observation_store.py \
+ && rmdir /app/scripts/quant \
  && test ! -e /app/docs \
+ && test ! -e /app/scripts/quant \
+ && test -f /app/scripts/run_w2_free_mode_model_validation_canary.py \
+ && test -f /app/scripts/repair_w2_xg_retention_lineage.py \
  && test -x /app/.venv/bin/alembic \
  && test -x /app/.venv/bin/w2-gate5-preflight \
  && test -x /app/.venv/bin/w2-shadow-comparison-import \

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
-from typing import cast
+from typing import Any, cast
 
 from celery import Celery
 
@@ -18,6 +19,13 @@ from w2.providers.control import (
     provider_endpoint_allowlist,
     provider_scheduler_enabled,
 )
+
+logger = logging.getLogger(__name__)
+
+#: Distinguishes "the caller did not choose a recorder" from "the caller chose
+#: no recorder". The former builds the production one, the latter suppresses
+#: recording for that call.
+_UNSET: Any = object()
 
 settings = get_settings()
 
@@ -36,12 +44,106 @@ celery_app = Celery("w2", broker=broker_url, backend=result_backend)
 celery_app.conf.update(task_always_eager=False, task_ignore_result=False)
 
 
+def _forward_factor_recorder() -> Any | None:
+    """The write-side F1R-B recorder, or None when recording is off or unavailable.
+
+    One per projection call, so that call's per-evaluation outcomes belong to
+    that call instead of accumulating in a long-lived worker process. Never
+    fatal: a worker that cannot build a recorder still evaluates, it just
+    records nothing and reports that it could not.
+    """
+    from w2.quant_research.forward_factor_recording import (
+        build_recorder,
+        recording_enabled,
+    )
+
+    if not recording_enabled():
+        return None
+    try:
+        return build_recorder()
+    except Exception:  # noqa: BLE001 - recording must never take the worker down
+        logger.exception(
+            "forward factor recorder unavailable; this run writes no factor rows"
+        )
+        return None
+
+
+def _project_and_record_factors(
+    events: list[ProjectionSourceEvent],
+    *,
+    evaluations_only: bool = False,
+) -> tuple[list[str], dict[str, Any]]:
+    """Project events, then record each evaluation's four AH factors.
+
+    Returns the materialized fixture ids and this run's recording report, so a
+    task result can carry what was written without changing the projection's
+    own return contract.
+    """
+    from w2.quant_research.forward_factor_recording import recording_enabled
+
+    recorder = _forward_factor_recorder()
+    materialized = _materialize_shadow_projection_events(
+        events,
+        evaluations_only=evaluations_only,
+        forward_factor_recorder=recorder,
+    )
+    if recorder is None:
+        enabled = recording_enabled()
+        return materialized, {
+            "schema_version": "w2.forward_factor_production_recording.v1",
+            "enabled": enabled,
+            "evaluations": 0,
+            "status_counts": {},
+            "refusal_codes": {},
+            "rows_appended": 0,
+            "rows_idempotent_no_ops": 0,
+            "note": "RECORDER_UNAVAILABLE" if enabled else "DISABLED",
+        }
+    return materialized, {"schema_version": "w2.forward_factor_production_recording.v1",
+                          **recorder.summary()}
+
+
+def _merge_recording_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
+    """One recording report for a task that ran several projection calls."""
+    merged: dict[str, Any] = {
+        "schema_version": "w2.forward_factor_production_recording.v1",
+        "enabled": any(bool(report.get("enabled")) for report in reports),
+        "evaluations": 0,
+        "status_counts": {},
+        "refusal_codes": {},
+        "rows_appended": 0,
+        "rows_idempotent_no_ops": 0,
+    }
+    for report in reports:
+        merged["evaluations"] += int(report.get("evaluations") or 0)
+        merged["rows_appended"] += int(report.get("rows_appended") or 0)
+        merged["rows_idempotent_no_ops"] += int(report.get("rows_idempotent_no_ops") or 0)
+        for key in ("status_counts", "refusal_codes"):
+            target = merged[key]
+            assert isinstance(target, dict)
+            for name, count in (report.get(key) or {}).items():
+                target[str(name)] = target.get(str(name), 0) + int(count)
+    notes = sorted({str(report["note"]) for report in reports if report.get("note")})
+    if len(notes) == 1:
+        merged["note"] = notes[0]
+    elif notes:
+        merged["note"] = "MIXED"
+    return merged
+
+
 def _materialize_shadow_projection_events(
     events: list[ProjectionSourceEvent],
     *,
     evaluations_only: bool = False,
+    forward_factor_recorder: Any = _UNSET,
 ) -> list[str]:
-    """Composition-root adapter for write-side projection calculation."""
+    """Composition-root adapter for write-side projection calculation.
+
+    `forward_factor_recorder` is the F1R-B per-factor sink. Only this write-side
+    path takes one -- the read-only API and dashboard build their cards through
+    `public_analysis_card_bounded` directly, never through here, so reading a
+    card writes no factor rows. Passing None disables recording for the call.
+    """
     from w2.dashboard.scorelines import scoreline_reference_from_card
     from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
     from w2.prematch.read_model_projection import (
@@ -49,6 +151,9 @@ def _materialize_shadow_projection_events(
         materialize_projection_events,
     )
     repository = ReadModelRepository()
+    recorder = _forward_factor_recorder() if forward_factor_recorder is _UNSET else (
+        forward_factor_recorder
+    )
 
     def calculate(
         scoped_repository: ScopedAnalysisRepository,
@@ -56,7 +161,8 @@ def _materialize_shadow_projection_events(
         evaluated_at: datetime,
     ) -> dict[str, object] | None:
         return ReadModelService(
-            repository=cast(ReadModelRepository, scoped_repository)
+            repository=cast(ReadModelRepository, scoped_repository),
+            forward_factor_recorder=recorder,
         ).public_analysis_card_bounded(
             fixture_id,
             evaluation_time=evaluated_at,
@@ -205,11 +311,14 @@ def _write_checkpoint_opportunities(
         events.append(replace(event, opportunity_contexts=contexts))
         opportunity_count += len(contexts) * 2
     materialized: list[str] = []
+    recording_reports: list[dict[str, Any]] = []
     for event in events:
         try:
-            materialized.extend(
-                _materialize_shadow_projection_events([event], evaluations_only=True)
+            event_materialized, recording_report = _project_and_record_factors(
+                [event], evaluations_only=True
             )
+            materialized.extend(event_materialized)
+            recording_reports.append(recording_report)
         except Exception as exc:
             repository = DynamicPrematchRepository(ledger.engine)
             for context in event.opportunity_contexts:
@@ -229,6 +338,7 @@ def _write_checkpoint_opportunities(
         "fixture_count": len(set(materialized)),
         "opportunity_count": opportunity_count,
         "terminal_without_attempt_count": terminal_without_attempt_count,
+        "forward_factor_recording": _merge_recording_reports(recording_reports),
     }
 
 
@@ -374,7 +484,7 @@ def _refresh_model_forecast_analysis_cards(
         )
         for fixture_id in targets
     ]
-    materialized = _materialize_shadow_projection_events(events)
+    materialized, recording_report = _project_and_record_factors(events)
     return {
         "status": "PASS",
         "provider_calls": 0,
@@ -383,6 +493,7 @@ def _refresh_model_forecast_analysis_cards(
         "xg_ready_fixture_count": len(xg_ready),
         "targeted_fixture_count": len(targets),
         "materialized_fixture_count": len(materialized),
+        "forward_factor_recording": recording_report,
     }
 
 
