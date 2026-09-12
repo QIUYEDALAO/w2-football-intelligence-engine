@@ -119,6 +119,18 @@ def _text(row: dict[str, Any], key: str) -> str:
     return str(value)
 
 
+def _text_list(row: dict[str, Any], key: str) -> list[str]:
+    value = row.get(key)
+    if value is None or not value:
+        raise SourcePortError("SOURCE_FIELD_MISSING", key)
+    if isinstance(value, str):
+        raise SourcePortError("SOURCE_FIELD_NOT_A_LIST", key)
+    items = [str(item) for item in value if str(item).strip()]
+    if not items:
+        raise SourcePortError("SOURCE_FIELD_EMPTY", key)
+    return items
+
+
 @dataclass(frozen=True, kw_only=True)
 class EndpointCapture:
     """The projection of `matchday_endpoint_captures` these ports need."""
@@ -277,9 +289,12 @@ def true_xg_records(rows: list[dict[str, Any]]) -> list[ConsumedSourceRecord]:
     return records
 
 
-# --- F5: refused ----------------------------------------------------------
-#: Why F5 cannot be served from current production data and code. Each entry is
-#: a fact about this repository at the F1R-B baseline, not a judgement.
+# --- F5: runtime AH settlement facts --------------------------------------
+#: F1R-C. The F1R-B baseline refused F5 outright because no production writer
+#: emitted canonical AH fact rows and the Football-Data fact table carried no
+#: settlement observation time. F1R-C builds that writer and that time, so F5 is
+#: now served from `runtime_ah_settlement_facts`. The historical reasons are
+#: kept here because they are what the successor review package answers.
 F5_BLOCKING_EVIDENCE = (
     "NO_PRODUCTION_WRITER_EMITS_CANONICAL_AH_FACT_ROWS_INTO_THE_FACTOR_PATH",
     "CANONICAL_HISTORICAL_AH_FACTS_TABLE_HAS_NO_READER_IN_SRC",
@@ -287,38 +302,102 @@ F5_BLOCKING_EVIDENCE = (
     "RESULTS_CONFIRMED_AT_HAS_TWO_WRITER_SEMANTICS_AND_NO_DISCRIMINATOR",
 )
 
+AH_SETTLEMENT_FACT_SCHEMA = "w2.runtime_ah_settlement_fact.v1"
+AH_SETTLEMENT_FACT_HASH_CONTRACT = "w2.runtime_ah_settlement_fact_hash.v1"
+AH_SETTLEMENT_FACT_RECORD_KIND = "runtime_ah_settlement_fact"
+AH_SETTLEMENT_FACT_POLICY = "canonical_bookmaker_mainline_majority_v1"
+PROVIDER_CAPTURE_OF_TERMINAL_RESULT = "PROVIDER_CAPTURE_OF_TERMINAL_RESULT"
+
 
 def ah_fact_records(rows: list[dict[str, Any]]) -> list[ConsumedSourceRecord]:
-    """F5 is refused. It is not deferred, defaulted or approximated.
+    """F5's consumed set: the runtime AH settlement facts the factor read.
 
-    F5 needs two source times per consumed history fact: when the result became
-    available, and when the canonical AH quote/settlement fact became
-    available. Neither can be proven at this baseline:
+    One record per immutable settlement fact. Its `observed_at_utc` is the
+    instant the **Provider capture** observed the terminal result. It is not the
+    kickoff, not the quote time, not a query time and not
+    `results.confirmed_at` -- and a row that does not carry that instant, both
+    capture identities, both payload hashes and the point-in-time ordering is
+    refused here.
 
-    * `_canonical_ah_rows` admits a row only when its source, source_group and
-      collection_status all say `canonical_historical_ah_fact` /
-      `CANONICAL_AH_FACT`. No writer in this repository emits those markers
-      into `runtime/independent_signal_backfill/raw_payloads/`;
-      `write_raw_artifact` stores `{endpoint, captured_at, payload}` with the
-      provider payload unchanged.
-    * The `canonical_historical_ah_facts` table has no reader anywhere in
-      `src/`, so its `quote_captured_at` never reaches a factor. That column is
-      the odds capture time in any case: `formal_ah` admits a source only when
-      `snapshot_semantics == "CAPTURED_AT"`, which is a pre-match quote
-      observation and says nothing about when the settlement was knowable.
-    * `results.confirmed_at` has two writers with different meanings -- the
-      earliest terminal-status provider capture in `materialize_results`, and
-      `datetime.now(UTC)` in the second writer -- and no column distinguishes
-      them, so the column alone proves no observation semantic.
-
-    Fail closed is the whole point: substituting a kickoff, an inferred
-    full-time, a query time or an unproven `confirmed_at` would manufacture the
-    very evidence F1 established does not exist.
+    The refusal is not softened anywhere downstream: a refused row makes the
+    batch fail, so F5 simply does not participate on a weaker fact.
     """
-    raise SourcePortError(
-        "F5_AH_FACT_SOURCE_TIME_UNPROVABLE",
-        ",".join(F5_BLOCKING_EVIDENCE) + f"|rows={len(rows)}",
-    )
+    records: list[ConsumedSourceRecord] = []
+    for row in rows:
+        fact_id = capture.require_hex64(_text(row, "fact_id"), field_name="fact_id")
+        fact_hash = capture.require_hex64(_text(row, "fact_hash"), field_name="fact_hash")
+        source_set_hash = capture.require_hex64(
+            _text(row, "source_set_hash"), field_name="source_set_hash"
+        )
+        policy = _text(row, "policy")
+        if policy != AH_SETTLEMENT_FACT_POLICY:
+            raise SourcePortError(
+                "F5_AH_FACT_SOURCE_TIME_UNPROVABLE", f"policy:{policy}"
+            )
+        kickoff = _aware_utc(row.get("kickoff_utc"), field_name="kickoff_utc")
+        quote_at = _aware_utc(row.get("quote_captured_at"), field_name="quote_captured_at")
+        observed = _aware_utc(
+            row.get("settlement_observed_at"), field_name="settlement_observed_at"
+        )
+        if not (quote_at < kickoff < observed):
+            raise SourcePortError(
+                "F5_AH_FACT_SOURCE_TIME_UNPROVABLE",
+                f"point_in_time:{fact_id}",
+            )
+        semantics = _text(row, "settlement_observed_at_semantics")
+        if semantics != PROVIDER_CAPTURE_OF_TERMINAL_RESULT:
+            raise SourcePortError(
+                "F5_AH_FACT_SOURCE_TIME_UNPROVABLE", f"semantics:{semantics}"
+            )
+        settlement_capture_id = _text(row, "settlement_capture_id")
+        settlement_payload_sha256 = capture.require_hex64(
+            _text(row, "settlement_payload_sha256"),
+            field_name="settlement_payload_sha256",
+        )
+        quote_capture_ids = sorted(_text_list(row, "quote_capture_ids"))
+        quote_payload_sha256s = sorted(
+            capture.require_hex64(value, field_name="quote_payload_sha256")
+            for value in _text_list(row, "quote_payload_sha256s")
+        )
+        selected_bookmakers = sorted(_text_list(row, "selected_bookmakers"))
+        content = {
+            "schema_version": AH_SETTLEMENT_FACT_SCHEMA,
+            "hash_contract": AH_SETTLEMENT_FACT_HASH_CONTRACT,
+            "record_kind": AH_SETTLEMENT_FACT_RECORD_KIND,
+            "fact_id": fact_id,
+            "fact_hash": fact_hash,
+            "source_set_hash": source_set_hash,
+            "policy": policy,
+            "fixture_id": _text(row, "fixture_id"),
+            "provider_fixture_id": _text(row, "provider_fixture_id"),
+            "competition_id": _text(row, "competition_id"),
+            "season": _text(row, "season"),
+            "kickoff_utc": kickoff.isoformat(),
+            "selected_line": _text(row, "selected_line"),
+            "selected_bookmakers": selected_bookmakers,
+            "quote_capture_ids": quote_capture_ids,
+            "quote_payload_sha256s": quote_payload_sha256s,
+            "quote_captured_at": quote_at.isoformat(),
+            "settlement_capture_id": settlement_capture_id,
+            "settlement_payload_sha256": settlement_payload_sha256,
+            "settlement_observed_at": observed.isoformat(),
+            "settlement_observed_at_semantics": semantics,
+            "terminal_status": _text(row, "terminal_status"),
+            "home_goals": int(row["home_goals"]),
+            "away_goals": int(row["away_goals"]),
+            "home_settlement": _text(row, "home_settlement"),
+            "away_settlement": _text(row, "away_settlement"),
+        }
+        records.append(
+            ConsumedSourceRecord(
+                record_id=fact_id,
+                content_sha256=capture.content_sha256(content),
+                source_version=AH_SETTLEMENT_FACT_SCHEMA,
+                observed_at_utc=observed.isoformat(),
+                observed_time_semantics=PROVIDER_CAPTURE_OF_TERMINAL_RESULT,
+            )
+        )
+    return records
 
 
 event_time_projection = _event_time_projection

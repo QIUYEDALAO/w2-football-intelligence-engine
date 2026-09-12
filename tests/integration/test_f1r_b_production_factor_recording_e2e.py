@@ -585,9 +585,13 @@ def test_f5_is_recorded_as_an_absence_with_zero_weight(e2e: Engine) -> None:
     assert _utc(f5["evidence_time_utc"]) != identity_kickoff
     assert _utc(f5["evidence_time_utc"]) == _utc(f5["factor_inputs"]["information_cutoff"])
     assert f5["factor_inputs"]["source_observed_time_semantics"] == "SOURCE_QUERIED_AT_AS_OF"
-    # F5's own port refuses to serve a source time at all; that refusal is the
-    # recorded reason, in the port's own words.
-    assert "F5_AH_FACT_SOURCE_TIME_UNPROVABLE" in f5["factor_inputs"]["source_record_ids"]
+    # This fixture has no runtime AH settlement fact, so F5 is an absence rather
+    # than a participation. F1R-C changed what the identity says -- it now names
+    # the source family F5 looked in and found empty -- but not the discipline.
+    assert (
+        "absence:F5_RECENT_AH_COVER:runtime_ah_settlement_fact:none"
+        in f5["factor_inputs"]["source_record_ids"]
+    )
 
 
 # --- 4: failure visibility ------------------------------------------------
@@ -869,6 +873,7 @@ def test_the_refresh_task_result_keeps_every_field_it_had_before(
         "opportunity_write",
         "t30_capture",
         "forward_factor_recording",
+        "runtime_ah_settlement_facts",
         "candidate",
         "formal_recommendation",
     }
@@ -884,6 +889,11 @@ def test_the_refresh_task_result_keeps_every_field_it_had_before(
     # the merged one the task result carries.
     assert result["opportunity_write"]["forward_factor_recording"]["rows_appended"] == 0
     assert result["t30_capture"]["provider_calls"] == 0
+    # No result materialisation ran here, so the AH fact writer had no work --
+    # which is a stated verdict, not a failure, and it changes no status.
+    assert result["runtime_ah_settlement_facts"]["status"] == "NO_DUE_WORK"
+    assert result["runtime_ah_settlement_facts"]["provider_calls"] == 0
+    assert result["runtime_ah_settlement_facts"]["appended"] == 0
 
 
 def test_the_refresh_task_does_not_report_a_clean_pass_when_recording_fails(

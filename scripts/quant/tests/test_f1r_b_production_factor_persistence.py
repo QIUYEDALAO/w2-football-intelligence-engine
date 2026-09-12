@@ -203,6 +203,9 @@ TABLE_NAMES = (
     "canonical_team_match_history",
     "matchday_endpoint_captures",
     "forward_ah_factor_observations",
+    # F1R-C. The recorder now re-reads the AH settlement facts F5 reports having
+    # consumed, so the table it reads has to exist here.
+    "runtime_ah_settlement_facts",
 )
 
 
@@ -335,6 +338,18 @@ def _feature_set_with_ah_cover() -> FeatureSet:
             ah_fact_id=f"ah-fact:{row['history_id']}",
             ah_fact_hash=row["result_identity_hash"],
             settlement_outcome="WIN",
+            # F1R-C: a canonical AH fact is only admissible when the instant its
+            # terminal result was observed is present, so the shape that reaches
+            # F5 now carries it (and the capture identities behind it).
+            settlement_observed_at=_utc(row["kickoff_utc"]) + timedelta(hours=3),
+            ah_source_observed_at=_utc(row["kickoff_utc"]) + timedelta(hours=3),
+            ah_source_set_hash=row["source_raw_hash"],
+            ah_source_capture_id=f"capture-{row['history_id']}",
+            ah_source_capture_sha256=row["source_raw_hash"],
+            ah_quote_capture_ids=(f"quote-{row['history_id']}",),
+            ah_quote_payload_sha256s=(row["source_raw_hash"],),
+            ah_selected_bookmakers=("7",),
+            ah_policy="canonical_bookmaker_mainline_majority_v1",
         )
 
     home = [ah_row(row) for row in rows if row["team_w2_id"] == fixtures.HOME_TEAM]
@@ -589,20 +604,26 @@ def test_03_f5_is_an_absence_with_zero_weight(tmp_path) -> None:
     assert f5["factor_inputs"]["weight_entered_weight_sum_used"] == "false"
 
 
-def test_03_f5s_recorded_query_identity_carries_the_ports_refusal(tmp_path) -> None:
+def test_03_f5s_recorded_identity_says_no_fact_could_be_bound(tmp_path) -> None:
+    """F5 with nothing to bind is an absence, and its identity says so.
+
+    F1R-B recorded the port's refusal code here, because the port refused
+    unconditionally. F1R-C's port serves a real fact instead, so the recorded
+    identity names the source family F5 looked in and found empty -- which is
+    the honest description of an absent factor.
+    """
     engine = _engine(tmp_path)
     _seed(engine)
     _record(engine)
 
     f5 = _by_factor(_stored(engine))["F5_RECENT_AH_COVER"]
-    with pytest.raises(ports.SourcePortError) as excinfo:
-        ports.ah_fact_records([])
-    assert excinfo.value.code == "F5_AH_FACT_SOURCE_TIME_UNPROVABLE"
-    # The recorded reason is the port's own code, not a string this codebase
-    # made up and not the kickoff.
-    assert excinfo.value.code in f5["factor_inputs"]["source_record_ids"]
-    assert excinfo.value.code in f5["source_capture_id"] or excinfo.value.code in (
-        f5["factor_inputs"]["source_record_ids"])
+    assert f5["participated"] is False
+    assert (
+        "absence:F5_RECENT_AH_COVER:runtime_ah_settlement_fact:none"
+        in f5["factor_inputs"]["source_record_ids"]
+    )
+    # An empty row set serves nothing rather than a placeholder record.
+    assert ports.ah_fact_records([]) == []
 
 
 def test_03_a_participating_f5_refuses_the_batch(tmp_path) -> None:
@@ -665,11 +686,23 @@ def test_03_no_factor_uses_the_kickoff_as_its_evidence_time(tmp_path) -> None:
         assert _utc(row["evidence_time_utc"]) != fixtures.KICKOFF, row["factor_id"]
 
 
-def test_03_f5_cannot_be_handed_a_source_time_at_all(tmp_path) -> None:
-    """The refusal is structural: there is no argument that would satisfy it."""
-    with pytest.raises(ports.SourcePortError) as excinfo:
-        ports.ah_fact_records([{"kickoff_at": fixtures.KICKOFF.isoformat()}])
-    assert excinfo.value.code == "F5_AH_FACT_SOURCE_TIME_UNPROVABLE"
+def test_03_an_f5_fact_cannot_name_its_own_source_time(tmp_path) -> None:
+    """The source time is derived from the capture row, never supplied.
+
+    A row that offers a bare timestamp -- a kickoff, an instant, anything --
+    but no settlement capture identity and no payload hash proves nothing, so
+    it is refused. There is no argument that would let a caller assert the
+    observation instant itself; F1R-C made the port serve facts, not claims.
+    """
+    for bare in (
+        {"kickoff_at": fixtures.KICKOFF.isoformat()},
+        {"settlement_observed_at": fixtures.KICKOFF.isoformat()},
+        {"kickoff_at": fixtures.KICKOFF.isoformat(),
+         "settlement_observed_at": fixtures.KICKOFF.isoformat()},
+        {},
+    ):
+        with pytest.raises(ports.SourcePortError):
+            ports.ah_fact_records([bare])
 
 
 # --- 4: tampering is refused ----------------------------------------------
@@ -818,7 +851,11 @@ def test_04_a_tampered_source_capture_leaves_zero_rows(tmp_path) -> None:
     assert result["outcome"]["status"] == "RECORDED"
     after = _row_counts(engine)
     assert after["forward_ah_factor_observations"] == 4
-    for name in TABLE_NAMES[:-1]:
+    # Named explicitly rather than by position: the recorder writes to exactly
+    # one table, and every other table it can see must be untouched.
+    for name in TABLE_NAMES:
+        if name == "forward_ah_factor_observations":
+            continue
         assert after[name] == before[name], name
 
 
@@ -1045,7 +1082,22 @@ def test_07_the_wiring_did_not_touch_a_forbidden_path() -> None:
         "src/w2/api/", "src/w2/replay/", "migrations/", "config/",
         "docs/review_packages/", "scripts/quant/f1r_",
     )
+    # F1R-C was authorised to revise exactly these, and only these. The
+    # exemptions are enumerated rather than expressed as a relaxed prefix, so
+    # the guard keeps refusing everything else it always refused.
+    authorised_paths = {
+        "scripts/quant/f1r_b_production_ports.py",
+        "scripts/quant/f1r_b_production_recording_integration.py",
+        "migrations/versions/0072_runtime_ah_settlement_fact.py",
+    }
+    # The successor package is new. Every frozen package stays untouchable: the
+    # exemption is the successor's own directory, not the whole tree.
+    authorised_review_package_prefix = (
+        "docs/review_packages/W2_AH_FACTOR_ACCURACY_F1R_C_"
+    )
     for path in paths:
+        if path in authorised_paths or path.startswith(authorised_review_package_prefix):
+            continue
         for prefix in forbidden_prefixes:
             assert not path.startswith(prefix), path
         assert path != "src/w2/prematch/read_model_projection.py", path
@@ -1053,10 +1105,14 @@ def test_07_the_wiring_did_not_touch_a_forbidden_path() -> None:
         assert path != "scripts/quant/f1p_forward_factor_contract.py", path
 
 
-#: The six modules exactly as F1R-B delivered them. The successor commit reuses
-#: this code, so it must not have edited it; recording the delivery digests is
-#: the same discipline `factor_versions.builder_source_sha256` uses for the
-#: factor builders.
+#: The six modules exactly as F1R-B delivered them.
+#:
+#: F1R-C is a *successor*, not an edit of history, so these digests are verified
+#: against the delivery commit rather than against the working tree. Recording
+#: the delivery digests is the same discipline
+#: `factor_versions.builder_source_sha256` uses for the factor builders.
+F1R_B_DELIVERY_COMMIT = "b4285660b091b1270172cfd3b7c226ff8c7fcc62"
+
 F1R_B_MODULE_SHA256 = {
     "f1p_forward_factor_contract.py":
         "b43adcbb42c3642c1fad4f29a5b1568c1077c175450fd2cc4544160ebc1bb329",
@@ -1071,6 +1127,79 @@ F1R_B_MODULE_SHA256 = {
     "f1r_b_observation_store.py":
         "4ab1ae874942eabfc2e721ec5c1cc3beefc27dcf541f61ed5314caef2cfb8499",
 }
+
+#: F1R-C was authorised to revise exactly these two modules, and only these two:
+#: the F5 absence port and the integration that binds F5's consumed set.
+F1R_C_AUTHORISED_REVISIONS = frozenset({
+    "f1r_b_production_ports.py",
+    "f1r_b_production_recording_integration.py",
+})
+
+#: The six modules as F1R-C delivers them.
+F1R_C_MODULE_SHA256 = {
+    "f1p_forward_factor_contract.py":
+        "b43adcbb42c3642c1fad4f29a5b1568c1077c175450fd2cc4544160ebc1bb329",
+    "f1r_a0_offline_factor_recorder.py":
+        "3a057699f933f5f0d1a80debafbc4569f056a40743749d1afaacee743287f360",
+    "f1r_b_source_capture.py":
+        "f2451a14da5d442b6fc09fcf79e2ce2141aec6a0b5a19707ba3277a7f95ffea1",
+    "f1r_b_production_ports.py":
+        "c799efc659fb972fa18ee5aa3e32b04111ae82a57723d8fbfdf58f7bc54a6218",
+    "f1r_b_production_recording_integration.py":
+        "fda5734a7d83ec05b309d2b8ebe401a254ee147453da60ebf3f5909a649a3ce2",
+    "f1r_b_observation_store.py":
+        "4ab1ae874942eabfc2e721ec5c1cc3beefc27dcf541f61ed5314caef2cfb8499",
+}
+
+
+def _delivered_bytes_sha256(commit: str, name: str) -> str:
+    import hashlib
+    import subprocess
+
+    result = subprocess.run(  # noqa: S603
+        ["/usr/bin/git", "show", f"{commit}:scripts/quant/{name}"],
+        cwd=REPO, capture_output=True, check=True)
+    return hashlib.sha256(result.stdout).hexdigest()
+
+
+def test_07_the_f1r_b_delivery_still_verifies_at_its_own_commit() -> None:
+    """The original F1R-B bytes are historical evidence, and stay verifiable.
+
+    This is deliberately *not* a working-tree assertion any more: a successor
+    that was authorised to revise a module cannot keep claiming the module is
+    byte-identical, and deleting the check would lose the history. Asserting
+    against the delivery commit keeps both.
+    """
+    for name, expected in F1R_B_MODULE_SHA256.items():
+        assert _delivered_bytes_sha256(F1R_B_DELIVERY_COMMIT, name) == expected, name
+
+
+def test_07_the_current_modules_match_the_f1r_c_delivery() -> None:
+    import hashlib
+
+    for name, expected in F1R_C_MODULE_SHA256.items():
+        actual = hashlib.sha256((QUANT / name).read_bytes()).hexdigest()
+        assert actual == expected, f"{name} differs from the F1R-C delivery"
+    # The wheel carries a copy of the same bytes, never a second version of them.
+    installed = (REPO / "src/w2/quant_research/_f1r_b")
+    if installed.is_dir():
+        for name, expected in F1R_C_MODULE_SHA256.items():
+            assert hashlib.sha256((installed / name).read_bytes()).hexdigest() == expected
+
+
+def test_07_only_the_authorised_modules_were_revised() -> None:
+    """A successor revises what it was granted, and nothing else.
+
+    Four modules must still be byte-identical to the F1R-B delivery; exactly the
+    two authorised ports may differ. Anything else is an unauthorised edit of a
+    frozen artifact.
+    """
+    revised = {
+        name
+        for name in F1R_B_MODULE_SHA256
+        if F1R_B_MODULE_SHA256[name] != F1R_C_MODULE_SHA256.get(name)
+    }
+    assert revised == set(F1R_C_AUTHORISED_REVISIONS), sorted(revised)
 
 
 def test_07_the_accepted_store_is_still_reached_and_still_no_ops(tmp_path) -> None:
@@ -1099,19 +1228,6 @@ def test_07_the_accepted_store_is_still_reached_and_still_no_ops(tmp_path) -> No
     assert second["appended"] == 0
     assert second["idempotent_no_ops"] == 4
     assert len(_stored(engine)) == 4
-
-
-def test_07_the_frozen_f1r_b_modules_are_byte_identical() -> None:
-    import hashlib
-
-    for name, expected in F1R_B_MODULE_SHA256.items():
-        actual = hashlib.sha256((QUANT / name).read_bytes()).hexdigest()
-        assert actual == expected, f"{name} was modified"
-    # The wheel carries a copy of the same bytes, never a second version of them.
-    installed = (REPO / "src/w2/quant_research/_f1r_b")
-    if installed.is_dir():
-        for name, expected in F1R_B_MODULE_SHA256.items():
-            assert hashlib.sha256((installed / name).read_bytes()).hexdigest() == expected
 
 
 # --- 8: the released image can reach the modules --------------------------

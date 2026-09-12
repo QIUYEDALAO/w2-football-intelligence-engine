@@ -28,9 +28,13 @@ It reads `canonical_team_match_history`, `matchday_endpoint_captures` and the
 snapshot rows the factor already consumed, and writes only to
 `forward_ah_factor_observations`.
 
-F5 has no provable production source-observed time, so F5 is recorded as an
-absence with `applied_weight = 0` and never as a participation. The F1R-B port
-refuses to serve it and its refusal code becomes the recorded reason.
+F5 is served from the runtime AH settlement facts it actually consumed (F1R-C):
+the fact ids come from the factor's own report of what it read, the rows are
+re-read from `runtime_ah_settlement_facts`, and every row's capture identity,
+payload hashes and point-in-time ordering are re-validated by the port. A fact
+whose source-observed time cannot be proven still refuses the whole batch, and
+F5 is then recorded as an absence with `applied_weight = 0` rather than as a
+participation.
 
 The two instants
 ----------------
@@ -91,10 +95,14 @@ from sqlalchemy.orm import Session
 
 from w2.domain.canonical_serialization import HashDomain, canonical_sha256
 from w2.domain.factor_versions import factor_computation_version
+from w2.historical.runtime_ah_settlement import (
+    CANONICAL_AH_FACT_SOURCE,
+)
 from w2.infrastructure.persistence import ForwardAhFactorObservationModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEndpointCaptureModel,
 )
+from w2.infrastructure.persistence.models import RuntimeAhSettlementFactModel
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.quant_research.forward_factor_modules import (
     ForwardFactorModules,
@@ -366,6 +374,67 @@ class ForwardFactorRecorder:
             )
         )
 
+    def _ah_fact_rows(self, fact_ids: Sequence[str]) -> list[dict[str, Any]]:
+        """Load the runtime AH settlement fact rows F5 reports having consumed.
+
+        The rows are re-read from the database rather than taken from the
+        caller, so the content the port hashes is the content that was written.
+        """
+        ids = sorted({str(item) for item in fact_ids if str(item).strip()})
+        if not ids:
+            return []
+        table = RuntimeAhSettlementFactModel
+        with Session(self.engine) as session:
+            rows = list(session.scalars(select(table).where(table.fact_id.in_(ids))))
+        return [
+            {
+                "fact_id": row.fact_id,
+                "fact_hash": row.fact_hash,
+                "source_set_hash": row.source_set_hash,
+                "policy": row.policy,
+                "fixture_id": row.fixture_id,
+                "provider_fixture_id": row.provider_fixture_id,
+                "competition_id": row.competition_id,
+                "season": row.season,
+                "kickoff_utc": self._aware_utc(row.kickoff_utc),
+                "selected_line": row.selected_line,
+                "selected_bookmakers": list(row.selected_bookmakers or []),
+                "quote_capture_ids": list(row.quote_capture_ids or []),
+                "quote_payload_sha256s": list(row.quote_payload_sha256s or []),
+                "quote_captured_at": self._aware_utc(row.quote_captured_at),
+                "quote_identity_hash": row.quote_identity_hash,
+                "settlement_capture_id": row.settlement_capture_id,
+                "settlement_payload_sha256": row.settlement_payload_sha256,
+                "settlement_observed_at": self._aware_utc(row.settlement_observed_at),
+                "settlement_observed_at_semantics": row.settlement_observed_at_semantics,
+                "terminal_status": row.terminal_status,
+                "home_goals": row.home_goals,
+                "away_goals": row.away_goals,
+                "home_settlement": row.home_settlement,
+                "away_settlement": row.away_settlement,
+            }
+            for row in rows
+        ]
+
+    @staticmethod
+    def _canonical_ah_source(contribution: Any) -> bool:
+        """Whether the factor declares it read canonical AH settlement facts.
+
+        The builder sets `source` to `canonical_historical_ah_fact` when the
+        rows it consumed carried that marker, and to `mixed_history` otherwise,
+        so `source` is a real declaration rather than a constant. The factor's
+        `source_group` is its scoring group (`team_fixture_history`) and says
+        nothing about which source it read, so it is deliberately not checked
+        here.
+        """
+        if contribution is None:
+            return False
+        status = getattr(getattr(contribution, "status", None), "value", None)
+        return (
+            getattr(contribution, "source", None) == CANONICAL_AH_FACT_SOURCE
+            and status == "READY"
+        )
+
     def _capture_rows(self, capture_ids: Iterable[str]) -> dict[str, dict[str, Any]]:
         ids = sorted({str(item) for item in capture_ids if str(item).strip()})
         if not ids:
@@ -551,18 +620,30 @@ class ForwardFactorRecorder:
             else absence("F3_REST_FITNESS", "canonical_team_match_history:none")
         )
 
-        # F5 is refused by its port: no production writer emits a canonical AH
-        # fact row into the factor path, the table has no reader in src/, its
-        # quote time is a pre-match odds capture and `results.confirmed_at` has
-        # two writer semantics. The refusal code is the recorded reason.
-        try:
-            ports.ah_fact_records([])
-        except Exception as exc:  # noqa: BLE001 - the port's refusal carries the code
-            f5_reason = str(getattr(exc, "code", None) or "F5_AH_FACT_SOURCE_TIME_UNPROVABLE")
-        else:  # pragma: no cover - defensive: the port must refuse
-            raise RecordingRefusal("F5_SOURCE_PORT_DID_NOT_REFUSE")
-        bindings["F5_RECENT_AH_COVER"] = absence(
-            "F5_RECENT_AH_COVER", f"canonical_historical_ah_fact:{f5_reason}"
+        # F1R-C: F5 is served from the runtime AH settlement facts it actually
+        # consumed. The ids come from the contribution's own report of what it
+        # read; the rows are then loaded from the database, so a caller can
+        # neither declare a fact that does not exist nor supply one that was
+        # never written. Every row's provenance is re-validated by the port,
+        # and a fact whose source-observed time cannot be proven still refuses
+        # the whole batch.
+        f5_contribution = contributions.get("F5_RECENT_AH_COVER")
+        declared_fact_ids = list(
+            (getattr(f5_contribution, "inputs", None) or {}).get("ah_fact_ids") or []
+        )
+        f5_rows = self._ah_fact_rows(declared_fact_ids)
+        f5_bound = (
+            bool(declared_fact_ids)
+            and len(f5_rows) == len(declared_fact_ids)
+            and self._canonical_ah_source(f5_contribution)
+        )
+        bindings["F5_RECENT_AH_COVER"] = (
+            integration.FactorSourceBinding(
+                factor_version=factor_computation_version("F5_RECENT_AH_COVER"),
+                records=ports.ah_fact_records(f5_rows),
+            )
+            if f5_bound
+            else absence("F5_RECENT_AH_COVER", "runtime_ah_settlement_fact:none")
         )
 
         f6_bound = bool(f6_rows) and self._canonical_source(

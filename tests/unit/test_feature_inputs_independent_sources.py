@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
@@ -40,6 +41,23 @@ def api_fixture(
         row["source"] = "canonical_historical_ah_fact"
         row["source_group"] = "canonical_historical_ah_fact"
         row["collection_status"] = "CANONICAL_AH_FACT"
+        # F1R-C: a canonical AH fact carries when its terminal result was
+        # observed, and the capture identity behind it. F5 admits nothing less,
+        # so the fixture states both rather than relying on a default.
+        observed = datetime.fromisoformat(date.replace("Z", "+00:00")) + timedelta(hours=3)
+        row["settlement_observed_at"] = observed.isoformat()
+        row["ah_source_observed_at"] = observed.isoformat()
+        row["ah_source_capture_id"] = f"capture-{fixture_id}"
+        row["ah_source_set_hash"] = f"set-{fixture_id}".encode().hex().ljust(64, "0")[:64]
+        row["ah_source_capture_sha256"] = (
+            f"capture-sha-{fixture_id}".encode().hex().ljust(64, "0")[:64]
+        )
+        row["ah_quote_capture_ids"] = [f"quote-{fixture_id}"]
+        row["ah_quote_payload_sha256s"] = [
+            f"quote-sha-{fixture_id}".encode().hex().ljust(64, "0")[:64]
+        ]
+        row["ah_selected_bookmakers"] = ["7"]
+        row["ah_policy"] = "canonical_bookmaker_mainline_majority_v1"
     return row
 
 

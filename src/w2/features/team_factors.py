@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from w2.competitions.registry import CoverageProfile
 from w2.features.asof import latest_as_of
@@ -33,6 +34,18 @@ class TeamMatchHistory:
     quote_identity_hash: str | None = None
     result_identity_hash: str | None = None
     settlement_outcome: str | None = None
+    # F1R-C: when the terminal result this row rests on was observed by the
+    # Provider capture. This is an *independent* field and deliberately does not
+    # move `observed_at`, which stays the kickoff so F3 keeps its semantics.
+    settlement_observed_at: datetime | None = None
+    ah_source_observed_at: datetime | None = None
+    ah_source_set_hash: str | None = None
+    ah_source_capture_id: str | None = None
+    ah_source_capture_sha256: str | None = None
+    ah_quote_capture_ids: tuple[str, ...] = ()
+    ah_quote_payload_sha256s: tuple[str, ...] = ()
+    ah_selected_bookmakers: tuple[str, ...] = ()
+    ah_policy: str | None = None
 
     @property
     def observed_at(self) -> datetime:
@@ -187,6 +200,16 @@ def recent_ah_cover_factor(
         if row.ah_fact_hash
     )
     score = max(min(home_rate - away_rate, 1.0), -1.0)
+    # F1R-C separates two instants that used to be conflated.
+    #
+    # `observed_at` is the factor's *event* time: the latest kickoff among the
+    # facts it consumed. `source_observed_at` -- published in `factor_inputs` and
+    # used as the recorded evidence time -- is the latest instant at which the
+    # consumed terminal results were observed by their Provider captures. They
+    # are deliberately different, which is exactly why the recorded source time
+    # is not the kickoff.
+    consumed = [*home_rows, *away_rows]
+    provenance = _ah_consumed_provenance(consumed)
     return FeatureContribution(
         feature_id="F5_RECENT_AH_COVER",
         label="近期赢盘率",
@@ -198,7 +221,7 @@ def recent_ah_cover_factor(
         risk="赢盘率是弱信号，低权重，仅作解释因子。",
         coverage_key="settled_ah",
         coverage_profile_status=coverage_profile_status,
-        observed_at=max([row.kickoff_at for row in home + away]),
+        observed_at=max(row.kickoff_at for row in consumed),
         inputs={
             "home_decisive_count": len(home),
             "away_decisive_count": len(away),
@@ -206,15 +229,61 @@ def recent_ah_cover_factor(
             "away_push_count": away_push,
             "home_cover_rate": home_rate,
             "away_cover_rate": away_rate,
-            "latest_historical_kickoff": max(row.kickoff_at for row in home + away).isoformat(),
+            "latest_historical_kickoff": max(row.kickoff_at for row in consumed).isoformat(),
             "source_manifest_hash": _hash_strings(fact_hashes),
             "fact_hashes": fact_hashes[:32],
+            **provenance,
         },
         source=home[0].source if home[0].source == away[0].source else "mixed_history",
         source_group="team_fixture_history",
         is_independent_signal=True,
         collection_status="READY",
     )
+
+
+def _ah_consumed_provenance(consumed: list[TeamMatchHistory]) -> dict[str, Any]:
+    """Everything a reader needs to re-derive what F5 consumed.
+
+    The evidence is the consumed settlement facts: which quote capture and which
+    terminal capture each one rests on, the payload hashes binding them, the
+    bookmakers that voted the line, and the instants involved.
+    """
+    observed = [
+        row.settlement_observed_at for row in consumed if row.settlement_observed_at is not None
+    ]
+    # Every collection here is a *set* of distinct consumed facts. One fixture is
+    # consumed by both sides, so a list would name the same fact twice and stop
+    # matching the records the recorder loads back.
+    return {
+        "canonical_ah_policy": next(
+            (row.ah_policy for row in consumed if row.ah_policy), None
+        ),
+        "source_observed_time_semantics": "PROVIDER_CAPTURE_OF_TERMINAL_RESULT",
+        "settlement_observed_at_min": min(observed).isoformat() if observed else None,
+        "settlement_observed_at_max": max(observed).isoformat() if observed else None,
+        "settlement_observed_at": max(observed).isoformat() if observed else None,
+        "ah_fact_ids": sorted({row.ah_fact_id for row in consumed if row.ah_fact_id}),
+        "ah_fact_hashes": sorted({row.ah_fact_hash for row in consumed if row.ah_fact_hash}),
+        "ah_source_set_hashes": sorted(
+            {row.ah_source_set_hash for row in consumed if row.ah_source_set_hash}
+        ),
+        "quote_capture_ids": sorted(
+            {value for row in consumed for value in row.ah_quote_capture_ids}
+        ),
+        "quote_payload_sha256s": sorted(
+            {value for row in consumed for value in row.ah_quote_payload_sha256s}
+        ),
+        "settlement_capture_ids": sorted(
+            {row.ah_source_capture_id for row in consumed if row.ah_source_capture_id}
+        ),
+        "settlement_payload_sha256s": sorted(
+            {row.ah_source_capture_sha256 for row in consumed if row.ah_source_capture_sha256}
+        ),
+        "selected_bookmakers": sorted(
+            {value for row in consumed for value in row.ah_selected_bookmakers}
+        ),
+        "settled_lines": sorted({str(row.ah_line) for row in consumed if row.ah_line is not None}),
+    }
 
 
 def _canonical_ah_rows(
@@ -235,6 +304,11 @@ def _canonical_ah_rows(
         if row.proxy_of or row.collection_status in {"XG_PROXY", "SCORE_ONLY", "MANUAL_STRING"}:
             continue
         if not row.ah_fact_id or not row.ah_fact_hash or not row.settlement_outcome:
+            continue
+        # F1R-C: a canonical AH fact is only admissible when the instant its
+        # terminal result was observed by the Provider capture is present. A row
+        # without it is the pre-F1R-C shape and keeps F5 absent.
+        if row.settlement_observed_at is None or row.ah_source_capture_id is None:
             continue
         mapped = _settlement_to_cover(row.settlement_outcome)
         if mapped is None:
@@ -268,6 +342,15 @@ def _canonical_ah_rows(
                 quote_identity_hash=row.quote_identity_hash,
                 result_identity_hash=row.result_identity_hash,
                 settlement_outcome=row.settlement_outcome,
+                settlement_observed_at=row.settlement_observed_at,
+                ah_source_observed_at=row.ah_source_observed_at,
+                ah_source_set_hash=row.ah_source_set_hash,
+                ah_source_capture_id=row.ah_source_capture_id,
+                ah_source_capture_sha256=row.ah_source_capture_sha256,
+                ah_quote_capture_ids=row.ah_quote_capture_ids,
+                ah_quote_payload_sha256s=row.ah_quote_payload_sha256s,
+                ah_selected_bookmakers=row.ah_selected_bookmakers,
+                ah_policy=row.ah_policy,
             ),
         )
     return sorted(by_fixture.values(), key=lambda item: (item.kickoff_at, item.ah_fact_id or ""))

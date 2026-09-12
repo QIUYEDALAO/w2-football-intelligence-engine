@@ -8,7 +8,9 @@ from uuid import uuid4
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -352,6 +354,100 @@ class CanonicalHistoricalAhFactModel(Base):
     home_settlement: Mapped[str] = mapped_column(String(32), nullable=False)
     away_settlement: Mapped[str] = mapped_column(String(32), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class RuntimeAhSettlementFactModel(Base):
+    """One immutable runtime Asian-Handicap settlement fact.
+
+    Built from Provider captures only: a pre-kickoff odds quote (the canonical
+    mainline selected by `canonical_bookmaker_mainline_majority_v1`) paired with
+    the terminal-result capture that observed the fixture finish. It is a
+    separate table from `canonical_historical_ah_facts` on purpose -- that table
+    carries Football-Data object-snapshot semantics and has no capture identity
+    or source-observed time, so it cannot carry an api-football runtime capture.
+
+    `settlement_observed_at` is the terminal capture's `provider_captured_at`.
+    It is never the kickoff, never a query time and never `results.confirmed_at`.
+    """
+
+    __tablename__ = "runtime_ah_settlement_facts"
+    __table_args__ = (
+        UniqueConstraint("fact_hash", name="uq_runtime_ah_settlement_fact_hash"),
+        UniqueConstraint(
+            "fixture_id",
+            "policy",
+            "selected_line",
+            "quote_identity_hash",
+            "settlement_capture_id",
+            name="uq_runtime_ah_settlement_fact_natural",
+        ),
+        CheckConstraint(
+            "terminal_status in ('FT', 'AET', 'PEN')",
+            name="ck_runtime_ah_settlement_terminal_status",
+        ),
+        CheckConstraint(
+            "quote_captured_at < kickoff_utc and kickoff_utc < settlement_observed_at",
+            name="ck_runtime_ah_settlement_point_in_time",
+        ),
+        CheckConstraint(
+            "settlement_observed_at_semantics = 'PROVIDER_CAPTURE_OF_TERMINAL_RESULT'",
+            name="ck_runtime_ah_settlement_observed_semantics",
+        ),
+        CheckConstraint(
+            "policy = 'canonical_bookmaker_mainline_majority_v1'",
+            name="ck_runtime_ah_settlement_policy",
+        ),
+        CheckConstraint(
+            "quote_identity_hash <> '' and source_set_hash <> '' and "
+            "settlement_capture_id <> '' and settlement_payload_sha256 <> ''",
+            name="ck_runtime_ah_settlement_identities_present",
+        ),
+    )
+
+    fact_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    fact_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_set_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    hash_contract: Mapped[str] = mapped_column(String(64), nullable=False)
+    record_kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    fixture_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_fixture_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    competition_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    season: Mapped[str] = mapped_column(String(32), nullable=False)
+    kickoff_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    home_team_provider_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    away_team_provider_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    home_w2_team_id: Mapped[str | None] = mapped_column(String(128))
+    away_w2_team_id: Mapped[str | None] = mapped_column(String(128))
+
+    selected_line: Mapped[str] = mapped_column(String(32), nullable=False)
+    home_price: Mapped[float | None] = mapped_column(Float())
+    away_price: Mapped[float | None] = mapped_column(Float())
+    selected_bookmakers: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+
+    quote_capture_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    quote_payload_sha256s: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    quote_captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    quote_identity_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    settlement_capture_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    settlement_payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    settlement_observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    settlement_observed_at_semantics: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    terminal_status: Mapped[str] = mapped_column(String(8), nullable=False)
+    home_goals: Mapped[int] = mapped_column(Integer, nullable=False)
+    away_goals: Mapped[int] = mapped_column(Integer, nullable=False)
+    home_settlement: Mapped[str] = mapped_column(String(16), nullable=False)
+    away_settlement: Mapped[str] = mapped_column(String(16), nullable=False)
+    result_identity_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class RegisteredRosterSnapshotModel(Base):

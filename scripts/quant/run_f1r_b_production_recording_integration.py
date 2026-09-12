@@ -62,6 +62,14 @@ PARENT_COMMIT = "71daa3f5ec17ac3c5484e75a87d6bcac990d4bae"
 LEDGER_NAME = "F1R_B_REFERENCE_LEDGER.jsonl"
 PRE_MIGRATION_REVISION = "0070_notification_delivery_routing"
 MIGRATION_REVISION = "0071_forward_ah_factor_observation"
+F1R_C_MIGRATION_REVISION = "0072_runtime_ah_settlement_fact"
+#: Every table the migrations under test add over PRE_MIGRATION_REVISION. F1R-C
+#: added the second one; the replay must start without either, or `create_all`
+#: would build it and the upgrade would collide with its own CREATE TABLE.
+MIGRATION_ADDED_TABLES = (
+    "forward_ah_factor_observations",
+    "runtime_ah_settlement_facts",
+)
 
 EVALUATION_ID = "dqe-" + "1" * 64
 ATTEMPT_ID = "att-" + "2" * 60
@@ -167,7 +175,15 @@ def feature_set() -> FeatureSet:
 
 
 # --- bindings --------------------------------------------------------------
-def bindings(*, f5_absence_reason: str) -> dict[str, Any]:
+#: The F1R-B baseline recorded F5 as an absence because no provable source
+#: existed. F1R-C builds that source; this remains the reason recorded when a
+#: fixture supplies no runtime AH settlement fact to bind.
+F5_NO_FACT_REASON = "F5_AH_FACT_SOURCE_TIME_UNPROVABLE"
+
+
+def bindings(
+    *, f5_absence_reason: str, f5_records: list[Any] | None = None
+) -> dict[str, Any]:
     from w2.domain.factor_versions import factor_computation_version
 
     home_rows, away_rows = history_rows()
@@ -179,11 +195,14 @@ def bindings(*, f5_absence_reason: str) -> dict[str, Any]:
             records=ports.rest_fitness_records(fixtures.event_time_rows(latest))),
         "F5_RECENT_AH_COVER": integration.FactorSourceBinding(
             factor_version=factor_computation_version("F5_RECENT_AH_COVER"),
-            records=integration.absence_records(
-                "F5_RECENT_AH_COVER",
-                query_identity="canonical_historical_ah_fact:none",
-                as_of_utc=fixtures.AS_OF.isoformat(),
-                reason=f5_absence_reason)),
+            records=(
+                list(f5_records)
+                if f5_records
+                else integration.absence_records(
+                    "F5_RECENT_AH_COVER",
+                    query_identity="runtime_ah_settlement_fact:none",
+                    as_of_utc=fixtures.AS_OF.isoformat(),
+                    reason=f5_absence_reason))),
         "F6_H2H": integration.FactorSourceBinding(
             factor_version=factor_computation_version("F6_H2H"),
             records=ports.h2h_records(meetings, captures=captures_for(meetings))),
@@ -194,11 +213,13 @@ def bindings(*, f5_absence_reason: str) -> dict[str, Any]:
 
 
 def f5_refusal() -> str:
-    try:
-        ports.ah_fact_records([])
-    except ports.SourcePortError as exc:
-        return exc.code
-    raise SystemExit("F5_PORT_DID_NOT_REFUSE")
+    """The absence reason for a fixture with no runtime AH settlement fact.
+
+    F1R-B probed the port here because it refused unconditionally. F1R-C's port
+    serves a real fact, so probing it would prove nothing; the code is returned
+    directly, and it is still what a fact-less fixture records.
+    """
+    return F5_NO_FACT_REASON
 
 
 def build(**overrides: Any) -> list[Any]:
@@ -243,14 +264,18 @@ def isolated_replay(batch: list[Any]) -> dict[str, Any]:
         url = f"sqlite+pysqlite:///{database}"
         environment = dict(os.environ, W2_DATABASE_URL=url)
 
-        # The pre-migration state: every table except the one 0071 adds.
+        # The pre-migration state: every table the migrations under test add is
+        # absent. F1R-C added a second one, so this is a list rather than a
+        # single name -- otherwise `create_all` would build it and the upgrade
+        # would collide with its own CREATE TABLE.
         prepare = subprocess.run(
             [sys.executable, "-c",
              "from w2.infrastructure.database import Base, create_engine\n"
              "import w2.infrastructure.persistence  # noqa: F401\n"
              "engine = create_engine()\n"
+             f"added = {MIGRATION_ADDED_TABLES!r}\n"
              "tables = [table for name, table in Base.metadata.tables.items()\n"
-             "          if name != 'forward_ah_factor_observations']\n"
+             "          if name not in added]\n"
              "Base.metadata.create_all(engine, tables=tables)\n"
              "print(len(tables))\n"],
             cwd=_ROOT, env=environment, capture_output=True, text=True, check=True)
@@ -262,10 +287,11 @@ def isolated_replay(batch: list[Any]) -> dict[str, Any]:
 
         engine = sa.create_engine(url)
         inspector = sa.inspect(engine)
-        table_after_upgrade = "forward_ah_factor_observations" in inspector.get_table_names()
+        names_after_upgrade = set(inspector.get_table_names())
+        table_after_upgrade = "forward_ah_factor_observations" in names_after_upgrade
+        ah_fact_table_after_upgrade = "runtime_ah_settlement_facts" in names_after_upgrade
         other_tables_after_upgrade = len(
-            [name for name in inspector.get_table_names()
-             if name not in {"forward_ah_factor_observations", "alembic_version"}])
+            names_after_upgrade - set(MIGRATION_ADDED_TABLES) - {"alembic_version"})
 
         store = store_module.ForwardFactorObservationStore(engine)
         appended = store.append_batch(batch)
@@ -292,10 +318,11 @@ def isolated_replay(batch: list[Any]) -> dict[str, Any]:
         rolled_back = _alembic(url, "downgrade", PRE_MIGRATION_REVISION)
         repeat_rollback = _alembic(url, "downgrade", PRE_MIGRATION_REVISION)
         inspector = sa.inspect(engine)
-        table_after_rollback = "forward_ah_factor_observations" in inspector.get_table_names()
+        names_after_rollback = set(inspector.get_table_names())
+        table_after_rollback = "forward_ah_factor_observations" in names_after_rollback
+        ah_fact_table_after_rollback = "runtime_ah_settlement_facts" in names_after_rollback
         other_tables_after_rollback = len(
-            [name for name in inspector.get_table_names()
-             if name not in {"forward_ah_factor_observations", "alembic_version"}])
+            names_after_rollback - set(MIGRATION_ADDED_TABLES) - {"alembic_version"})
         engine.dispose()
 
         return {
@@ -311,6 +338,7 @@ def isolated_replay(batch: list[Any]) -> dict[str, Any]:
             "upgrade_returncode": upgraded.returncode,
             "repeat_upgrade_returncode": repeat_upgrade.returncode,
             "table_present_after_upgrade": table_after_upgrade,
+            "ah_fact_table_present_after_upgrade": ah_fact_table_after_upgrade,
             "other_tables_after_upgrade": other_tables_after_upgrade,
             "rows_appended": appended["appended"],
             "replay_appended": replayed["appended"],
@@ -326,6 +354,7 @@ def isolated_replay(batch: list[Any]) -> dict[str, Any]:
             "empty_rollback_returncode": rolled_back.returncode,
             "repeat_rollback_returncode": repeat_rollback.returncode,
             "table_present_after_rollback": table_after_rollback,
+            "ah_fact_table_present_after_rollback": ah_fact_table_after_rollback,
             "other_tables_after_rollback": other_tables_after_rollback,
             "unrelated_tables_untouched": (
                 other_tables_after_upgrade == other_tables_after_rollback

@@ -73,10 +73,11 @@ SYNTHETIC_PROVENANCE = {
 # The canonical AH path only accepts rows that carry a settled AH fact identity,
 # so the fixture supplies one rather than a looser shape the builder would drop.
 def _history(team_id: str, *, days_ago: int, settlement: str) -> TeamMatchHistory:
+    kickoff = KICKOFF - timedelta(days=days_ago)
     return TeamMatchHistory(
         team_id=team_id,
         opponent_id=f"opp-{days_ago}",
-        kickoff_at=KICKOFF - timedelta(days=days_ago),
+        kickoff_at=kickoff,
         goals_for=1,
         goals_against=1,
         ah_line=-0.25,
@@ -86,6 +87,18 @@ def _history(team_id: str, *, days_ago: int, settlement: str) -> TeamMatchHistor
         ah_fact_id=f"fact-{team_id}-{days_ago}",
         ah_fact_hash=f"hash-{team_id}-{days_ago}",
         settlement_outcome=settlement,
+        # F1R-C: F5 admits a canonical AH fact only when the instant its
+        # terminal result was observed is present. The fixture supplies one that
+        # is deliberately not the kickoff, which is what the P0 rule is about.
+        settlement_observed_at=kickoff + timedelta(hours=3),
+        ah_source_observed_at=kickoff + timedelta(hours=3),
+        ah_source_set_hash=f"set-{team_id}-{days_ago}",
+        ah_source_capture_id=f"capture-{team_id}-{days_ago}",
+        ah_source_capture_sha256=f"capture-sha-{team_id}-{days_ago}",
+        ah_quote_capture_ids=(f"quote-{team_id}-{days_ago}",),
+        ah_quote_payload_sha256s=(f"quote-sha-{team_id}-{days_ago}",),
+        ah_selected_bookmakers=("7",),
+        ah_policy="canonical_bookmaker_mainline_majority_v1",
     )
 
 

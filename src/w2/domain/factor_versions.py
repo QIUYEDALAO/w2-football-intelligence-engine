@@ -61,12 +61,16 @@ _BINDINGS: Final = MappingProxyType(
             ),
         ),
         "F5_RECENT_AH_COVER": FactorBuilderBinding(
-            version="w2.factor.f5_recent_ah_cover.settled_cover_rate_diff.v1",
+            # F1R-C revised this builder: it now consumes canonical AH settlement
+            # facts and reports the latest settlement instant it read as its
+            # observed_at, instead of a kickoff-derived placeholder. The
+            # computation changed, so the version moves with it.
+            version="w2.factor.f5_recent_ah_cover.settled_cover_rate_diff.v2",
             module="w2.features.team_factors",
             builder="recent_ah_cover_factor",
             ready_reason="SETTLED_AH_COVER_RATE_DIFF",
             builder_source_sha256=(
-                "5401ae40553db5bdc356bbbe1c068c87e08f656fb457d88ff472d3bb8664da4a"
+                "9964ac324fac77fc976d4b5d1b7e897b22cf819d5b8f4ead2bedf9acd71613a8"
             ),
         ),
         "F6_H2H": FactorBuilderBinding(
