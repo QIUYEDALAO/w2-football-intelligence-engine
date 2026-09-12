@@ -187,23 +187,36 @@ verify_remote_refresh_disabled() {
   # Protection mode is a contract about the remote provider gate, so it is read
   # from the remote file that actually governs the containers rather than from
   # anything this deployment brought with it. It fails closed: a missing file, a
-  # non-disabled value or anything unreadable aborts the deployment before any
-  # service is recreated, and because the enabled override is never installed
-  # either way, a failed run leaves collection exactly as it found it.
+  # value that turns collection on, or anything unreadable aborts the deployment
+  # before any service is recreated, and because the enabled override is never
+  # installed either way, a failed run leaves collection exactly as it found it.
+  #
+  # The gate that disables collection is W2_PROVIDER_CALLS_DISABLED. The live
+  # disabled override keeps the scheduler service up (W2_PROVIDER_SCHEDULER_ENABLED
+  # "true") and stops scheduled refresh through W2_FUTURE_FIXTURE_REFRESH_ENABLED
+  # "false", so the scheduler flag alone is not the authority; scheduled refresh
+  # has to be off in one of the two documented forms.
   [ -f "${REMOTE_REFRESH_OVERRIDE}" ] || {
     echo "preserve mode requires ${REMOTE_REFRESH_OVERRIDE}" >&2
     return 1
   }
+  if grep -Eq '^[[:space:]]*W2_PROVIDER_CALLS_DISABLED:[[:space:]]*"?false"?[[:space:]]*$' \
+    "${REMOTE_REFRESH_OVERRIDE}"; then
+    echo "preserve mode refuses an override that enables W2_PROVIDER_CALLS_DISABLED" >&2
+    return 1
+  fi
   grep -Eq '^[[:space:]]*W2_PROVIDER_CALLS_DISABLED:[[:space:]]*"?true"?[[:space:]]*$' \
     "${REMOTE_REFRESH_OVERRIDE}" || {
     echo "preserve mode requires W2_PROVIDER_CALLS_DISABLED=true in ${REMOTE_REFRESH_OVERRIDE}" >&2
     return 1
   }
-  grep -Eq '^[[:space:]]*W2_PROVIDER_SCHEDULER_ENABLED:[[:space:]]*"?false"?[[:space:]]*$' \
-    "${REMOTE_REFRESH_OVERRIDE}" || {
-    echo "preserve mode requires W2_PROVIDER_SCHEDULER_ENABLED=false in ${REMOTE_REFRESH_OVERRIDE}" >&2
+  if ! grep -Eq '^[[:space:]]*W2_PROVIDER_SCHEDULER_ENABLED:[[:space:]]*"?false"?[[:space:]]*$' \
+    "${REMOTE_REFRESH_OVERRIDE}" &&
+    ! grep -Eq '^[[:space:]]*W2_FUTURE_FIXTURE_REFRESH_ENABLED:[[:space:]]*"?false"?[[:space:]]*$' \
+      "${REMOTE_REFRESH_OVERRIDE}"; then
+    echo "preserve mode requires scheduled future refresh to be off in ${REMOTE_REFRESH_OVERRIDE}" >&2
     return 1
-  }
+  fi
 }
 
 rollback() {

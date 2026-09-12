@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import yaml
@@ -389,7 +390,97 @@ def test_deploy_preserve_mode_never_installs_the_enabled_override() -> None:
     assert '[ -f "${REMOTE_REFRESH_OVERRIDE}" ]' in helper
     assert "W2_PROVIDER_CALLS_DISABLED" in helper
     assert "W2_PROVIDER_SCHEDULER_ENABLED" in helper
+    assert "W2_FUTURE_FIXTURE_REFRESH_ENABLED" in helper
     # ... and refuses anything that is not the disabled variant.
-    assert helper.count("return 1") == 3
+    assert helper.count("return 1") == 4
     # The staged override is installed exactly once, from the enabled branch only.
     assert text.count('"${REMOTE_TMP_DIR}/controlled-future-refresh.override.yml"') == 1
+
+
+# The shape the live host actually carries while collection is paused: provider
+# calls are off, the scheduler service stays up, and the scheduled future
+# refresh is what is switched off.
+_DISABLED_OVERRIDE = """\
+services:
+  worker:
+    environment:
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "true"
+  scheduler:
+    environment:
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "true"
+      W2_FUTURE_FIXTURE_REFRESH_ENABLED: "false"
+"""
+
+_ENABLED_OVERRIDE = _DISABLED_OVERRIDE.replace(
+    'W2_PROVIDER_CALLS_DISABLED: "true"', 'W2_PROVIDER_CALLS_DISABLED: "false"'
+).replace('W2_FUTURE_FIXTURE_REFRESH_ENABLED: "false"', 'W2_FUTURE_FIXTURE_REFRESH_ENABLED: "true"')
+
+
+def _run_preserve_guard(tmp_path: Path, override: str | None) -> subprocess.CompletedProcess[str]:
+    """Run the deploy script's own guard against a candidate remote override."""
+    script = read(DEPLOY)
+    body = script.split("verify_remote_refresh_disabled() {", 1)[1].split("\n}\n", 1)[0]
+    path = tmp_path / "controlled-future-refresh.override.yml"
+    if override is not None:
+        path.write_text(override, encoding="utf-8")
+    harness = (
+        "set -uo pipefail\n"
+        f'REMOTE_REFRESH_OVERRIDE="{path}"\n'
+        "verify_remote_refresh_disabled() {" + body + "\n}\n"
+        "verify_remote_refresh_disabled && echo GUARD_PASS\n"
+    )
+    return subprocess.run(["bash", "-c", harness], capture_output=True, text=True, check=False)
+
+
+def test_preserve_guard_accepts_the_live_disabled_override(tmp_path: Path) -> None:
+    result = _run_preserve_guard(tmp_path, _DISABLED_OVERRIDE)
+    assert result.returncode == 0, result.stderr
+    assert "GUARD_PASS" in result.stdout
+
+
+def test_preserve_guard_accepts_the_scheduler_disabled_form(tmp_path: Path) -> None:
+    override = _DISABLED_OVERRIDE.replace(
+        'W2_PROVIDER_SCHEDULER_ENABLED: "true"', 'W2_PROVIDER_SCHEDULER_ENABLED: "false"'
+    )
+    result = _run_preserve_guard(tmp_path, override)
+    assert result.returncode == 0, result.stderr
+
+
+def test_preserve_guard_rejects_an_override_that_enables_collection(tmp_path: Path) -> None:
+    result = _run_preserve_guard(tmp_path, _ENABLED_OVERRIDE)
+    assert result.returncode != 0
+    assert "enables W2_PROVIDER_CALLS_DISABLED" in result.stderr
+
+
+def test_preserve_guard_rejects_a_missing_override(tmp_path: Path) -> None:
+    result = _run_preserve_guard(tmp_path, None)
+    assert result.returncode != 0
+    assert "preserve mode requires" in result.stderr
+
+
+def test_preserve_guard_rejects_an_override_without_the_disabled_gate(tmp_path: Path) -> None:
+    override = (
+        "services:\n"
+        "  scheduler:\n"
+        "    environment:\n"
+        '      W2_PROVIDER_SCHEDULER_ENABLED: "true"\n'
+    )
+    result = _run_preserve_guard(tmp_path, override)
+    assert result.returncode != 0
+    assert "W2_PROVIDER_CALLS_DISABLED=true" in result.stderr
+
+
+def test_preserve_guard_rejects_scheduled_refresh_left_on(tmp_path: Path) -> None:
+    override = (
+        "services:\n"
+        "  scheduler:\n"
+        "    environment:\n"
+        '      W2_PROVIDER_CALLS_DISABLED: "true"\n'
+        '      W2_PROVIDER_SCHEDULER_ENABLED: "true"\n'
+        '      W2_FUTURE_FIXTURE_REFRESH_ENABLED: "true"\n'
+    )
+    result = _run_preserve_guard(tmp_path, override)
+    assert result.returncode != 0
+    assert "scheduled future refresh" in result.stderr
