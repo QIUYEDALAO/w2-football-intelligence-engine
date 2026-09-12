@@ -78,11 +78,19 @@ def test_local_release_overlays_are_offline_and_source_scoped() -> None:
         assert "apt-get" not in overlay
         assert "pip install" not in overlay
     assert "src/w2 /app/.venv/lib/python3.12/site-packages/w2" in python_overlay
-    assert (
-        "SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json "
-        "/app/docs/review_packages/SC21_FACTOR_INPUT_CHAIN/"
-        "SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json"
-    ) in python_overlay
+    # The matrix goes where an installed package reads it. The overlay used to
+    # write it under /app/docs, which the released image does not carry -- the
+    # dashboard 500'd on every request there while this test passed.
+    for destination in (
+        "/app/src/w2/dashboard/data/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json",
+        "/app/.venv/lib/python3.12/site-packages/w2/dashboard/data/"
+        "SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json",
+    ):
+        assert (
+            "docs/review_packages/SC21_FACTOR_INPUT_CHAIN/"
+            f"SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json {destination}"
+        ) in python_overlay
+    assert "/app/docs/review_packages" not in python_overlay
     for runtime_root in ("alembic.ini", "apps", "config", "migrations"):
         assert f"{runtime_root} /app/{runtime_root}" in python_overlay
     assert '"web_git_sha"' in web_overlay
@@ -346,3 +354,42 @@ def test_diagnostic_script_is_read_only() -> None:
     assert "systemctl restart" not in text
     assert "docker builder prune" not in text
     assert "docker image prune" not in text
+
+
+def test_deploy_preserve_remote_refresh_disabled_defaults_off_and_rejects_junk() -> None:
+    text = read(DEPLOY)
+    # Off unless asked for, so an ordinary deploy keeps its historical behaviour.
+    assert 'PRESERVE_REMOTE_REFRESH_DISABLED="${W2_PRESERVE_REMOTE_REFRESH_DISABLED:-NO}"' in text
+    # A value that is neither YES nor NO stops the deploy instead of being ignored.
+    assert "W2_PRESERVE_REMOTE_REFRESH_DISABLED must be YES or NO" in text
+    assert text.count("W2_PRESERVE_REMOTE_REFRESH_DISABLED must be YES or NO") == 2
+    assert 'PRESERVE_REMOTE_REFRESH_DISABLED="$7"' in text
+
+
+def test_deploy_preserve_mode_never_installs_the_enabled_override() -> None:
+    """Protection mode must not be able to switch collection back on.
+
+    The repository override enables provider calls and the scheduler. When
+    preservation is requested the deployment has to leave the remote override
+    alone and fail closed unless that remote file already disables both, so a
+    hotfix cannot silently restart collection.
+    """
+    text = read(DEPLOY)
+    guarded = text.split('if [ "${PRESERVE_REMOTE_REFRESH_DISABLED}" = "YES" ]; then', 1)[1]
+    preserve_branch, remainder = guarded.split("\nelse\n", 1)
+    assert "verify_remote_refresh_disabled" in preserve_branch
+    assert "sudo install" not in preserve_branch
+    assert (
+        'sudo install -o root -g root -m 0644 \\\n'
+        '    "${REMOTE_TMP_DIR}/controlled-future-refresh.override.yml"'
+    ) in remainder
+
+    helper = text.split("verify_remote_refresh_disabled() {", 1)[1].split("\n}\n", 1)[0]
+    # It reads the remote gate that actually governs the containers ...
+    assert '[ -f "${REMOTE_REFRESH_OVERRIDE}" ]' in helper
+    assert "W2_PROVIDER_CALLS_DISABLED" in helper
+    assert "W2_PROVIDER_SCHEDULER_ENABLED" in helper
+    # ... and refuses anything that is not the disabled variant.
+    assert helper.count("return 1") == 3
+    # The staged override is installed exactly once, from the enabled branch only.
+    assert text.count('"${REMOTE_TMP_DIR}/controlled-future-refresh.override.yml"') == 1

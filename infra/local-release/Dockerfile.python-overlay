@@ -7,11 +7,18 @@ USER root
 COPY --chown=10001:10001 alembic.ini /app/alembic.ini
 COPY --chown=10001:10001 apps /app/apps
 COPY --chown=10001:10001 config /app/config
-COPY --chown=10001:10001 docs/review_packages/SC21_FACTOR_INPUT_CHAIN/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json /app/docs/review_packages/SC21_FACTOR_INPUT_CHAIN/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json
 COPY --chown=10001:10001 migrations /app/migrations
 COPY --chown=10001:10001 src/w2 /app/src/w2
 COPY --chown=10001:10001 src/w2 /app/.venv/lib/python3.12/site-packages/w2
-RUN find /app -type f -name '._*' -delete
+# The overlay replaces the package tree wholesale, so it has to place the SC21
+# matrix where the wheel's force-include would have put it. It used to land under
+# /app/docs instead, which only worked because the lookup guessed at paths -- the
+# released image has no docs/ and the dashboard failed on every request there.
+# Same single source file, copied to the package data path, no second authority.
+COPY --chown=10001:10001 docs/review_packages/SC21_FACTOR_INPUT_CHAIN/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json /app/src/w2/dashboard/data/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json
+COPY --chown=10001:10001 docs/review_packages/SC21_FACTOR_INPUT_CHAIN/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json /app/.venv/lib/python3.12/site-packages/w2/dashboard/data/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json
+RUN find /app -type f -name '._*' -delete \
+ && test -f /app/.venv/lib/python3.12/site-packages/w2/dashboard/data/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json
 
 ENV W2_GIT_SHA=${LOCAL_RELEASE_SHA} \
     W2_BUILD_TIME=${LOCAL_RELEASE_TIME} \

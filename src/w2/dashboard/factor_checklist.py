@@ -4,6 +4,7 @@ import json
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from functools import lru_cache
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -714,16 +715,52 @@ def _contributions(value: Any) -> dict[str, list[Mapping[str, Any]]]:
     return result
 
 
+#: The single source document. It is shipped into the wheel as package data by the
+#: force-include in pyproject.toml; this path is only ever read from a source
+#: checkout, never from an installed package.
+_ROLE_AUTHORITY_SOURCE_RELATIVE = Path(
+    "docs/review_packages/SC21_FACTOR_INPUT_CHAIN/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json"
+)
+_ROLE_AUTHORITY_RESOURCE = "SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json"
+
+
+def _role_authority_text() -> str:
+    """Read the SC21 matrix, from package data first and a checkout second.
+
+    The previous lookup tried ``Path.cwd()/docs/...`` and
+    ``Path(__file__).parents[3]/docs/...``. Both are true only in a source
+    checkout: the released image installs with ``--no-editable``, so ``__file__``
+    sits in ``site-packages`` and ``parents[3]`` resolves to the virtualenv's lib
+    directory, while ``docs/`` is not copied into the image at all. The dashboard
+    therefore raised SC21_FACTOR_ROLE_AUTHORITY_MATRIX_NOT_FOUND on every request
+    in the released image while passing everywhere a checkout existed.
+
+    The package resource is the authority now. The checkout fallback is kept for
+    running from the repository, and it is deliberately narrow -- the module must
+    actually sit at ``src/w2/dashboard/`` inside a directory carrying
+    ``pyproject.toml`` -- so it can never quietly stand in for a wheel that failed
+    to ship the resource. Nothing here searches.
+    """
+    try:
+        return (
+            resources.files("w2.dashboard")
+            .joinpath("data", _ROLE_AUTHORITY_RESOURCE)
+            .read_text(encoding="utf-8")
+        )
+    except (FileNotFoundError, ModuleNotFoundError, NotADirectoryError):
+        pass
+    module_path = Path(__file__).resolve()
+    if module_path.parents[2].name == "src":
+        checkout = module_path.parents[3]
+        source = checkout / _ROLE_AUTHORITY_SOURCE_RELATIVE
+        if (checkout / "pyproject.toml").is_file() and source.is_file():
+            return source.read_text(encoding="utf-8")
+    raise FileNotFoundError("SC21_FACTOR_ROLE_AUTHORITY_MATRIX_NOT_FOUND")
+
+
 @lru_cache(maxsize=1)
 def _role_authority() -> dict[str, Any]:
-    relative = Path(
-        "docs/review_packages/SC21_FACTOR_INPUT_CHAIN/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json"
-    )
-    candidates = (Path.cwd() / relative, Path(__file__).resolve().parents[3] / relative)
-    path = next((candidate for candidate in candidates if candidate.is_file()), None)
-    if path is None:
-        raise FileNotFoundError("SC21_FACTOR_ROLE_AUTHORITY_MATRIX_NOT_FOUND")
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw = json.loads(_role_authority_text())
     if not isinstance(raw, dict):
         raise ValueError("SC21_FACTOR_ROLE_AUTHORITY_INVALID")
     payload: dict[str, Any] = raw
