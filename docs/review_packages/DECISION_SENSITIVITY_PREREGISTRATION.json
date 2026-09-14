@@ -1,0 +1,70 @@
+{
+  "schema": "DECISION_BOUNDARY_SENSITIVITY_PREREGISTRATION_V1",
+  "id": "DSA_01",
+  "status": "FROZEN_BEFORE_ANY_COMPUTATION",
+  "frozen_at": "2026-08-30",
+  "origin": "External expert answer to plan V2.0 Q4: a given delta-NLL carries very different economic weight depending on where in probability space the improvement sits, so delta-NLL alone cannot set a promotion threshold. This analysis supplies the missing half.",
+
+  "purpose": "Measure where the comparator and challenger disagree relative to the production admission boundary, so that delta_promote can be set on evidence rather than by analogy to a 1X2 study.",
+
+  "explicitly_not": [
+    "not a model comparison; it does not rank comparator against challenger",
+    "not an EV realisation study; no realised returns are used",
+    "not a market-relative study; no odds, no de-vig, no market probability",
+    "does not modify, reopen or reinterpret U2 or OOF_VAR_01"
+  ],
+
+  "data_boundary": {
+    "uses": "TRAIN prefix only, kickoff_at < 2025-11-11 00:15:00+00",
+    "validation": "SEALED",
+    "penaltyblog": "NOT INVOLVED",
+    "odds": "NONE USED. The analysis is quote-free by construction; see metric definition."
+  },
+
+  "models": {
+    "comparator": "PRODUCTION_FORMULA_XG_WITH_PROXY_ELO, unchanged from U2",
+    "challenger": "the U2 out-of-fold challenger from OOF_VAR_01, so every fixture is scored by a model that did not fit on it",
+    "note": "using OOF predictions avoids attributing in-sample overfit to decision impact"
+  },
+
+  "metric_definition": {
+    "rationale": "Production admits when cashflow_price_edge = d/F - 1 >= 0.05, i.e. when the quote d reaches 1.05 * F, where F is the model's fair decimal odds. Two models therefore give different admission decisions exactly for quotes in the band between 1.05*F_A and 1.05*F_B. The width of that band, relative to price, is the decision-relevant disagreement and needs no quote at all.",
+    "primary": "relative fair-odds disagreement r = |F_challenger / F_comparator - 1| per fixture-line",
+    "threshold_reference": "0.05, the frozen MIN_CASHFLOW_PRICE_EDGE",
+    "interpretation": "r >= 0.05 means the two models disagree by at least the whole width of the admission margin, so there exist realistic quotes at which one model admits and the other does not"
+  },
+
+  "stratification": {
+    "by_market": ["OU", "AH"],
+    "by_line_type": ["EXACT_HALF_LINE", "INTEGER_LINE", "QUARTER_LINE"],
+    "by_probability_region": "comparator WIN probability bucketed [0,0.1) [0.1,0.2) ... [0.9,1.0]",
+    "purpose_of_region_split": "directly tests the expert's point that a 90%->91% improvement and a 49%->52% improvement can carry the same NLL weight but very different decision weight"
+  },
+
+  "outputs": {
+    "required": [
+      "distribution of r overall and by stratum",
+      "share of fixture-lines with r >= 0.05",
+      "share of fixture-lines with r >= 0.025 and r >= 0.10 as sensitivity",
+      "r by comparator-probability bucket",
+      "correlation between per-fixture-line NLL difference magnitude and r",
+      "share of total absolute NLL difference contributed by fixture-lines with r >= 0.05"
+    ],
+    "forbidden": [
+      "any claim that one model is better",
+      "any promotion recommendation",
+      "any use of these numbers to alter MME, split, min_history, line grid or cohort",
+      "any statement about betting profitability"
+    ]
+  },
+
+  "interpretation_rule": {
+    "if_disagreement_concentrates_near_decision_boundary": "a given delta-NLL carries high decision weight; delta_promote may reasonably be set lower",
+    "if_disagreement_concentrates_in_extreme_probability_regions": "a given delta-NLL carries low decision weight; delta_promote must be set higher",
+    "in_all_cases": "this analysis informs how delta_promote should be argued; it does not itself set delta_promote, which remains an economic judgement outside this document"
+  },
+
+  "known_limitation": {
+    "no_executable_quotes": "The expert's EV-sensitivity and economic-realisation layers need executable quotes bound to these fixtures. Gate 0B found zero overlap between team_xg_match fixtures and matchday_market_observations, so those layers cannot be run on this cohort. That gap is recorded, not worked around."
+  }
+}

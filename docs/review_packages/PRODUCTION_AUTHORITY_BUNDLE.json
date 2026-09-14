@@ -1,0 +1,98 @@
+{
+  "schema": "PRODUCTION_AUTHORITY_BUNDLE_V1",
+  "generated_at": "2026-08-30",
+  "purpose": "Give an external reviewer everything needed to reproduce the production authority claim without trusting our receipts.",
+  "production": {
+    "revision": "ea557bb8ff64e06add91bbe32814fe073ec64642",
+    "schema_head": "0070_notification_delivery_routing",
+    "github_ref": "refs/heads/production/ea557bb8",
+    "verified_by": "read-only SSH to root@45.207.194.97; docker inspect on all four services returned this revision; docker exec psql returned this schema head",
+    "service_revision_parity": "web / api / worker / scheduler all report the same image revision, all healthy"
+  },
+  "agent_visible_snapshot": {
+    "revision": "3b7f87db2f0cb49d75582313ca593d30262c0d3d",
+    "schema_head": "0051_apply_seven_day_collection_policy",
+    "github_ref": "refs/heads/main",
+    "relation_to_production": "0\t182 (behind/ahead)",
+    "note": "main is a selectively pushed snapshot for agent visibility, not the production authority"
+  },
+  "file_blob_sha1": {
+    "src/w2/strategy/calibration.py": {
+      "at_snapshot": "8e43af770d581b492d63d7259c434df30950c56d",
+      "at_production": "8e43af770d581b492d63d7259c434df30950c56d",
+      "identical": true
+    },
+    "src/w2/domain/five_state_pricing.py": {
+      "at_snapshot": "44de3f92b12457982ac0188e2435999fc1658b9e",
+      "at_production": "44de3f92b12457982ac0188e2435999fc1658b9e",
+      "identical": true
+    },
+    "src/w2/models/independent.py": {
+      "at_snapshot": "ec23c2f282425914b164d21a8de0686e327c59a0",
+      "at_production": "ec23c2f282425914b164d21a8de0686e327c59a0",
+      "identical": true
+    },
+    "src/w2/backtest/free_tier_2024.py": {
+      "at_snapshot": "9ce2c5dd3628baad27cac7fe895a8e7292803ccc",
+      "at_production": "9ce2c5dd3628baad27cac7fe895a8e7292803ccc",
+      "identical": true
+    },
+    "src/w2/markets/analysis_evidence.py": {
+      "at_snapshot": "129e89d0750ad12350dc0b73bcc34f7d085f857b",
+      "at_production": "f6bcea06d3af4fbb60876a8c448d1736fc043aa4",
+      "identical": false
+    },
+    "src/w2/prematch/lifecycle.py": {
+      "at_snapshot": "0469558c3750b8f6e5c9f177578f0ae323065991",
+      "at_production": "44ed2169c82619bc700111a4159447a82cd706dd",
+      "identical": false
+    },
+    "src/w2/domain/recommendation_decision_v4.py": {
+      "at_snapshot": "fb80a19eb3641884d44a12a283737c5a50557d88",
+      "at_production": "37763e009cee963f306afa94c8b2e7d4863a94aa",
+      "identical": false
+    },
+    "src/w2/markets/devig.py": {
+      "at_snapshot": "6daf592270f8fda8fdf17fcbc34a52bfa2aaf1ce",
+      "at_production": "6daf592270f8fda8fdf17fcbc34a52bfa2aaf1ce",
+      "identical": true
+    },
+    "src/w2/prematch/analysis_calculator.py": {
+      "at_snapshot": "b1f2ebc4a04b16b4e4327b6344cbef67b701cf48",
+      "at_production": "e29e5c2e8d7ed813aebcec56ae47ab7e82941d61",
+      "identical": false
+    },
+    "src/w2/markets/value_engine.py": {
+      "at_snapshot": "570cd41a097d377d89582806b46d8f335817a807",
+      "at_production": "570cd41a097d377d89582806b46d8f335817a807",
+      "identical": true
+    }
+  },
+  "byte_identical": [
+    "src/w2/strategy/calibration.py",
+    "src/w2/domain/five_state_pricing.py",
+    "src/w2/models/independent.py",
+    "src/w2/backtest/free_tier_2024.py",
+    "src/w2/markets/devig.py",
+    "src/w2/markets/value_engine.py"
+  ],
+  "changed": [
+    "src/w2/markets/analysis_evidence.py",
+    "src/w2/prematch/lifecycle.py",
+    "src/w2/domain/recommendation_decision_v4.py",
+    "src/w2/prematch/analysis_calculator.py"
+  ],
+  "reviewer_reproduction": {
+    "step_1": "git fetch origin production/ea557bb8",
+    "step_2": "git rev-parse ea557bb8ff64e06add91bbe32814fe073ec64642 && git rev-parse 3b7f87db2f0cb49d75582313ca593d30262c0d3d",
+    "step_3": "for f in <files above>: git rev-parse <rev>:$f  and compare the blob sha1",
+    "step_4": "the four files the static conclusions rest on are listed under byte_identical",
+    "note": "blob sha1 is git's own content hash; identical blob sha1 means byte-identical file content"
+  },
+  "what_this_does_not_prove": [
+    "does not prove the absence of a second writer or read path in production runtime",
+    "does not prove which devig method produced any historical persisted row",
+    "does not prove production probability quality",
+    "does not replace the caller/consumer graph audit required by Phase 1 and Phase 2"
+  ]
+}

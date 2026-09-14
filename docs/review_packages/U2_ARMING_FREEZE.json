@@ -1,0 +1,185 @@
+{
+  "schema": "U2_ARMING_FREEZE_V1",
+  "status": "FROZEN_BEFORE_ANY_FITTING_OR_SCORING",
+  "frozen_at": "2026-08-30",
+  "frozen_by": "Claude Code",
+  "preregistration": "docs/review_packages/U2_PREREGISTRATION.md V2",
+  "production_authority": {
+    "release": "ea557bb8ff64e06add91bbe32814fe073ec64642",
+    "schema": "0070_notification_delivery_routing"
+  },
+  "cohort": {
+    "source": "production team_xg_match joined to raw_payload fixtures-endpoint league map",
+    "export_note": "team_xg_match is live and grew during the session; this digest freezes the exported snapshot",
+    "sha256": "40802614114c06ebc7bf4a3eb93578a313631fd50c6440803c1ff1622f86469c",
+    "team_rows": 19102,
+    "fixtures": 9551,
+    "rows_per_fixture": 2,
+    "incomplete_fixtures": 0,
+    "league_map_coverage": "19102/19102 = 100%",
+    "kickoff_interval": "2024-02-22 through 2026-08-30",
+    "competition_count": 14,
+    "per_competition_fixtures": {
+      "253": 1186,
+      "71": 891,
+      "140": 759,
+      "135": 757,
+      "39": 755,
+      "UNLABELLED": 706,
+      "128": 632,
+      "88": 613,
+      "94": 612,
+      "61": 609,
+      "78": 609,
+      "103": 535,
+      "169": 492,
+      "113": 395
+    },
+    "unlabelled_league_handling": "706 fixtures carry an empty parameters.league in the source payload. They are RETAINED in the pooled primary and EXCLUDED from per-league stability reporting. This rule is frozen here, before any result access.",
+    "sha256_superseded_note": "see cohort_label_correction; the corrected digest is authoritative for per-competition reporting"
+  },
+  "split": {
+    "type": "chronological_prefix_train_suffix_validation",
+    "ratio": "70/30 by fixture count",
+    "split_kickoff_utc": "2025-11-11 00:15:00+00",
+    "rule": "kickoff_at < split => train; kickoff_at >= split => validation",
+    "train_fixtures": 6685,
+    "validation_fixtures": 2866
+  },
+  "min_history": {
+    "threshold_matches": 5,
+    "rule": "both teams must have >= 5 prior completed matches in the cohort strictly before kickoff; otherwise fixture is INELIGIBLE and recorded, never silently dropped"
+  },
+  "pit_rule": "rolling xg_for / xg_against per team are built strictly from matches with kickoff_at < target kickoff_at; the target fixture never contributes to its own features",
+  "comparator": {
+    "identity": "PRODUCTION_FORMULA_XG_WITH_PROXY_ELO",
+    "function": "reimplementation of strategy/calibration.py::calibrate_lambdas at ea557bb8 with LambdaCalibrationParams defaults",
+    "params": {
+      "home_advantage_goals": 0.12,
+      "elo_gap_weight": 0.28,
+      "squad_value_log_weight": 0.18,
+      "lineup_adjustment_weight": 0.08,
+      "minimum_lambda": 0.15,
+      "maximum_lambda": 4.25,
+      "minimum_total_goals": 1.35,
+      "maximum_total_goals": 4.4,
+      "dixon_coles_rho": 0.0
+    },
+    "proxy_elo": "elo = 1500.0 + (rolling_xg_for - rolling_xg_against) * 100.0",
+    "squad_value": null,
+    "lineup": "all adjustments 0.0, both evidence gates false",
+    "apply_home_advantage": "true for all cohort fixtures; neutral-site flag is not available in the export and no fixture is treated as neutral",
+    "assertion": "for every fixture with raw_delta != 0, elo_delta / raw_delta == 0.14 within 1e-9; when raw_delta == 0, elo_delta must be 0; any violation fails closed before scoring"
+  },
+  "challenger": {
+    "identity": "OFFLINE_REFIT_POISSON_PLUS_TEMPERATURE_V2COHORT",
+    "reuse_of_july_coefficients": "FORBIDDEN",
+    "features": [
+      "intercept",
+      "home_field",
+      "attack_xg_for",
+      "opponent_xg_against",
+      "elo_gap"
+    ],
+    "target": "side-level goals (two rows per fixture)",
+    "link": "log",
+    "fit": "L2-regularised Poisson regression by IRLS, lambda_l2 = 1.0, max_iter = 100, tol = 1e-10, deterministic, no random seed used",
+    "temperature": "fitted on the training prefix only, on 1X2 probabilities, by scalar grid search over [0.50, 1.50] step 0.01 minimising training multiclass log loss",
+    "temperature_scope": "1X2 only; it must NOT be silently extended to the five-state primary",
+    "refit_data": "training prefix only; validation outcomes are never read during fitting",
+    "no_result_based_retry": "the fit runs once; no retry, fallback, or hyperparameter change based on any observed metric"
+  },
+  "line_grid": {
+    "OU": [
+      1.5,
+      2.0,
+      2.5,
+      3.0,
+      3.5
+    ],
+    "AH": [
+      -1.5,
+      -1.0,
+      -0.75,
+      -0.5,
+      -0.25,
+      0.0,
+      0.25,
+      0.5,
+      0.75,
+      1.0,
+      1.5
+    ],
+    "strata": [
+      "EXACT_HALF_LINE",
+      "INTEGER_LINE",
+      "QUARTER_LINE"
+    ]
+  },
+  "primary_estimand": {
+    "statistic": "per-fixture paired five-state NLL difference d_i = NLL_comparator_i - NLL_challenger_i",
+    "sign": "positive favours the challenger",
+    "cluster": "matchday (kickoff date) and league",
+    "reporting": "stratified by market and line type; pooled primary retains UNLABELLED league fixtures"
+  },
+  "futility_rule": {
+    "order": "MUST be computed and reported BEFORE any validation five-state score is read",
+    "method": "from the training prefix only, estimate the per-fixture SD of d_i at the frozen models, then compute the detectable effect at the validation N with clustered SE",
+    "stop_condition": "if the detectable effect exceeds MME, return INSUFFICIENT_POWER_DO_NOT_SCORE and do not read validation scores"
+  },
+  "mme": {
+    "value_nats": 0.0025,
+    "note": "carried over from the Penaltyblog programme as the minimum meaningful five-state NLL improvement; frozen here before any result access"
+  },
+  "permitted_conclusions": [
+    "CHALLENGER_FIVE_STATE_BETTER",
+    "NO_FIVE_STATE_IMPROVEMENT",
+    "NOT_IDENTIFIABLE",
+    "INSUFFICIENT_POWER_DO_NOT_SCORE"
+  ],
+  "authorisation_boundary": "No conclusion authorises production replacement, champion promotion, or writing any fitted artefact into the production path.",
+  "cohort_label_correction": {
+    "status": "DISCLOSED_CORRECTION_CONCLUSION_UNAFFECTED",
+    "discovered_by": "independent server-side join completing in background after the local join was used",
+    "defect": "fixture->league was resolved by last-wins over payloads; some payloads carry an empty parameters.league, so 706 fixtures were labelled UNLABELLED although a real league id existed in another payload",
+    "corrected_rule": "prefer the non-empty league id when a fixture appears under both",
+    "original_sha256": "40802614114c06ebc7bf4a3eb93578a313631fd50c6440803c1ff1622f86469c",
+    "corrected_sha256": "c74eaf0fc3b780f6b04c20353e55e5e83ffdebd213a4c1bbb83b0dcc903ce44e",
+    "original_per_competition": {
+      "253": 1186,
+      "71": 891,
+      "140": 759,
+      "135": 757,
+      "39": 755,
+      "UNLABELLED": 706,
+      "128": 632,
+      "88": 613,
+      "94": 612,
+      "61": 609,
+      "78": 609,
+      "103": 535,
+      "169": 492,
+      "113": 395
+    },
+    "corrected_per_competition": {
+      "253": 1386,
+      "71": 995,
+      "140": 785,
+      "39": 775,
+      "135": 774,
+      "128": 742,
+      "88": 641,
+      "94": 640,
+      "61": 626,
+      "78": 619,
+      "103": 569,
+      "169": 551,
+      "113": 448
+    },
+    "unlabelled_after_correction": 0,
+    "competition_count": "14 (incl. UNLABELLED) -> 13",
+    "substantive_rows_unchanged": "all 19,102 rows of fixture_id / kickoff_at / team ids / xg / goals are byte-identical to an independent server-side extraction; only the league_id column changed",
+    "conclusion_impact": "NONE. league_id never entered feature construction, the comparator, the challenger fit, or the futility computation. Rerunning the full chain on the corrected cohort reproduces train_mean, train_sd, clustered_se, N_val and mde to the last digit, and 0 of 8,659 fixtures differ in lambda, raw_delta, elo_delta, goals or split.",
+    "why_this_is_not_a_design_change": "this corrects a data-labelling defect found by cross-check; it does not alter the split, min_history, line grid, cluster definition, MME, or any decision rule, and it was verified to leave the conclusion identical rather than being adopted to change it"
+  }
+}
