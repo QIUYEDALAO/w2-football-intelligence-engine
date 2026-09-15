@@ -32,13 +32,20 @@ def _write(tmp_path: Path, payload: dict[str, Any]) -> Path:
     return path
 
 
-def test_default_manifest_is_complete_and_keeps_restricted_capabilities_closed() -> None:
+def test_default_manifest_keeps_the_restricted_capabilities_closed() -> None:
     manifest = load_recommendation_capability_manifest()
 
     assert set(manifest.capabilities) == REQUIRED_CAPABILITIES
     assert manifest.capability("shadow_candidate").feature_enabled is True
     assert manifest.capability("shadow_candidate").production_enabled is False
-    assert manifest.capability("formal_ah").feature_enabled is False
+    # 2026-09-15 Owner instruction: formal_ah is admitted internally, but it is
+    # still neither public nor production, and its evidence status stays
+    # POLICY_THRESHOLD_UNVALIDATED. Admission remains gated by the readiness
+    # contract in w2.formal.readiness, not by this flag alone.
+    assert manifest.capability("formal_ah").feature_enabled is True
+    assert manifest.capability("formal_ah").publicly_available is False
+    assert manifest.capability("formal_ah").production_enabled is False
+    assert manifest.capability("formal_ah").evidence_status == "POLICY_THRESHOLD_UNVALIDATED"
     assert manifest.capability("formal_ou").publicly_available is False
     assert manifest.capability("lineup_numeric_adjustment_ah").feature_enabled is False
     assert manifest.capability("lineup_numeric_adjustment_ou").feature_enabled is False
@@ -81,8 +88,22 @@ def test_manifest_fails_closed_for_production_without_public(tmp_path: Path) -> 
 
 def test_legacy_environment_switch_is_admission_only(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("W2_FORMAL_RECOMMENDATION_ENABLED", "true")
+    monkeypatch.setattr(
+        "w2.strategy.formal_recommendation.load_recommendation_capability_manifest",
+        lambda: SimpleNamespace(
+            capability=lambda _name: SimpleNamespace(feature_enabled=False)
+        ),
+    )
 
     assert formal_recommendations_enabled() is False
+
+
+def test_formal_is_enabled_only_when_manifest_and_environment_both_admit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("W2_FORMAL_RECOMMENDATION_ENABLED", "true")
+
+    assert formal_recommendations_enabled() is True
 
 
 def test_manifest_enabled_but_environment_disabled_is_not_formal(

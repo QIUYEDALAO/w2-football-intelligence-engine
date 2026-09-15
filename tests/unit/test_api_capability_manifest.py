@@ -10,6 +10,8 @@ def test_version_exposes_manifest_as_the_public_capability_authority() -> None:
     assert response.status_code == 200
     manifest = response.json()["capability_manifest"]
     assert manifest["schema_version"] == "w2.recommendation_capabilities.v1"
-    assert manifest["capabilities"]["formal_ah"]["feature_enabled"] is False
+    assert manifest["capabilities"]["formal_ah"]["feature_enabled"] is True
+    assert manifest["capabilities"]["formal_ah"]["publicly_available"] is False
+    assert manifest["capabilities"]["formal_ah"]["production_enabled"] is False
     assert manifest["capabilities"]["formal_ou"]["publicly_available"] is False
     assert manifest["capabilities"]["lineup_numeric_adjustment_ah"]["feature_enabled"] is False
