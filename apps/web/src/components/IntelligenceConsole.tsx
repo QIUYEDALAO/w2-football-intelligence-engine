@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { footballDayShanghai, translateCompetition, translateReason } from "../lib/formatters";
 import { PUBLIC_ENUM_LABELS, PUBLIC_REASON_LABELS } from "../lib/labels";
-import { formatAhMarketHandicap, formatAhRecommendationHandicap } from "../lib/pricingDisplay";
+import { ahRecommendationTeamLabel, formatAhMarketHandicap, formatAhRecommendationHandicap } from "../lib/pricingDisplay";
 import { publicPresentation } from "../lib/publicPresentation";
 import type {
   FixtureFactor,
@@ -882,7 +882,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
         <div className="v41-focus-meaning">
           {candidate.status === "ACTIVE" ? <section className="v41-candidate" data-candidate-status={candidate.status}>
             <header><span>影子候选 · 非正式推荐</span><b>验证中</b></header>
-            <div><strong>{candidate.market ? MARKET_LABELS[candidate.market] : "市场待确认"} · 推荐{SELECTION_LABELS[candidate.selection || ""] || candidate.selection}</strong><span>盘口 {candidateLine} · 赔率 {price(candidate.decimal_odds)}</span><small>已按 V4 身份进入统一前向账本；赛后自动结算并累计验证。</small></div>
+            <div><strong>{candidate.market ? MARKET_LABELS[candidate.market] : "市场待确认"} · 推荐{SELECTION_LABELS[candidate.selection || ""] || candidate.selection}</strong><span>盘口 {candidate.market === "ASIAN_HANDICAP" ? `${ahRecommendationTeamLabel(candidate.selection, match.home_team_label?.display_name, match.away_team_label?.display_name)}${candidateLine}` : candidateLine} · 赔率 {price(candidate.decimal_odds)}</span><small>已按 V4 身份进入统一前向账本；赛后自动结算并累计验证。</small></div>
             <footer>Formal、Lock、Production 与实盘保持关闭；达到既有证据门槛后另行提交 Owner 审批。</footer>
           </section> : null}
           {match.evaluation_execution.latest_candidates.length ? <section className="v41-candidate v41-candidate--official" data-final-active={String(match.evaluation_execution.status === "CANDIDATE")}>
@@ -892,7 +892,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
                 ? formatAhRecommendationHandicap(item.selection, item.exact_line) || item.exact_line
                 : item.exact_line;
               return <div key={item.market}>
-                <strong>{MARKET_LABELS[item.market]} · 盘口 {itemLine ?? "待确认"} · 推荐{item.selection ? SELECTION_LABELS[item.selection] || item.selection : "方向待确认"} {item.decimal_odds === null ? "" : `@${item.decimal_odds.toFixed(2)}`}</strong>
+                <strong>{MARKET_LABELS[item.market]} · 盘口 {item.market === "ASIAN_HANDICAP" ? `${ahRecommendationTeamLabel(item.selection, match.home_team_label?.display_name, match.away_team_label?.display_name)}${itemLine ?? "待确认"}` : itemLine ?? "待确认"} · 推荐{item.selection ? SELECTION_LABELS[item.selection] || item.selection : "方向待确认"} {item.decimal_odds === null ? "" : `@${item.decimal_odds.toFixed(2)}`}</strong>
                 <span>{item.checkpoint} 形成 · {opportunityStateLabel(item.final_state)}{item.later_unassessed_checkpoints.length ? ` · 此后 ${item.later_unassessed_checkpoints.join(" / ")} 未产出评估，不影响确认` : ""}</span>
               </div>;
             })}
@@ -1023,7 +1023,7 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
           <div className="v41-official-recommendations__head" aria-hidden="true"><span>开球时间</span><span>比赛</span><span>系统推荐</span><span>进场赔率</span><span>比分</span><span>结算结果</span><span>盈亏</span></div>
           <ol>{officialRecommendations.map((row) => {
             const recommendation = row.market === "ASIAN_HANDICAP"
-              ? `让球 ${formatAhRecommendationHandicap(row.selection, row.exact_line) || row.exact_line} · 推荐${SELECTION_LABELS[row.selection]}`
+              ? `让球 ${ahRecommendationTeamLabel(row.selection, row.home_team_label?.display_name, row.away_team_label?.display_name)}${formatAhRecommendationHandicap(row.selection, row.exact_line) || row.exact_line} · 推荐${SELECTION_LABELS[row.selection]}`
               : `${SELECTION_LABELS[row.selection]} ${row.exact_line}`;
             return <li key={`${row.fixture_id}-${row.market}`} data-fixture-id={row.fixture_id} data-market={row.market} data-settlement={row.settlement}>
               <time>{localDateTime(row.kickoff_utc)}</time>

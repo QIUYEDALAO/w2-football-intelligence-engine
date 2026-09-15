@@ -52,6 +52,26 @@ export function formatAhRecommendationHandicap(selection: unknown, exactLine: un
   return selection === "HOME" || selection === "AWAY" ? formatSignedLine(numeric) : null;
 }
 
+/**
+ * Name the team a recommendation's handicap line belongs to.
+ *
+ * `exactLine` is always expressed from the selected side, so a bare "+1.25"
+ * left the reader free to attach the sign to whichever team was printed
+ * first.  Returns the team name with a trailing space, or "主队 "/"客队 "
+ * when the label is missing, so it can be concatenated directly.
+ */
+export function ahRecommendationTeamLabel(
+  selection: unknown,
+  homeName: unknown,
+  awayName: unknown,
+): string {
+  if (selection !== "HOME" && selection !== "AWAY") return "";
+  const source = selection === "HOME" ? homeName : awayName;
+  const text = typeof source === "string" ? source.trim() : "";
+  if (text) return `${text} `;
+  return selection === "HOME" ? "主队 " : "客队 ";
+}
+
 export function ahDisplayContract(homeLine: unknown): {
   display_line_cn: string;
   home_display_line_cn: string;

@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { formatAhMarketHandicap, formatAhRecommendationHandicap } from "../src/lib/pricingDisplay";
+import {
+  ahRecommendationTeamLabel,
+  formatAhMarketHandicap,
+  formatAhRecommendationHandicap,
+} from "../src/lib/pricingDisplay";
 
 test("recommendations preserve the selected team's handicap sign", () => {
   for (const side of ["HOME", "AWAY"]) {
@@ -13,3 +17,26 @@ test("recommendations preserve the selected team's handicap sign", () => {
   expect(formatAhRecommendationHandicap("HOME", "invalid")).toBeNull();
   expect(formatAhMarketHandicap("0.75")).toBe("-0.75");
 });
+
+test("the handicap line names the team the line belongs to", () => {
+  const home = "毕尔巴鄂竞技";
+  const away = "埃尔切";
+
+  // 2026-09-13 Athletic Club vs Elche: the away side received the 1.25 the
+  // recommendation was settled on, so the line must read "埃尔切 +1.25" and
+  // never be attachable to the home team.
+  expect(`${ahRecommendationTeamLabel("AWAY", home, away)}${formatAhRecommendationHandicap("AWAY", "1.25")}`).toBe(
+    "埃尔切 +1.25",
+  );
+  expect(`${ahRecommendationTeamLabel("HOME", home, away)}${formatAhRecommendationHandicap("HOME", "-1.25")}`).toBe(
+    "毕尔巴鄂竞技 -1.25",
+  );
+
+  // Missing Chinese label falls back to the side, never to a bare sign.
+  expect(ahRecommendationTeamLabel("AWAY", home, "")).toBe("客队 ");
+  expect(ahRecommendationTeamLabel("HOME", null, away)).toBe("主队 ");
+
+  // Non-AH markets keep their own wording.
+  expect(ahRecommendationTeamLabel("OVER", home, away)).toBe("");
+});
+
