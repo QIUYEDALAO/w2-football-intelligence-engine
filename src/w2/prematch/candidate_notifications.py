@@ -835,7 +835,13 @@ def enqueue_operational_summaries_in_session(
             )
             for row in evaluation_plans
         )
-        if plan_summary_due_at <= now < plan_summary_due_at + timedelta(minutes=5) and _insert(
+        # Same reasoning as the closeout below: `window` is the current
+        # operational day only, and the event id is
+        # (operational_day_key, PLAN_SUMMARY), so this cannot backfill history
+        # and cannot fire twice. The old five-minute forward-only window meant a
+        # scheduler that did not tick inside it lost the day's plan summary
+        # entirely, which is indistinguishable from "no fixtures today".
+        if plan_summary_due_at <= now and _insert(
             session,
             event_id=event_id,
             opportunity_identity_hash=None,
