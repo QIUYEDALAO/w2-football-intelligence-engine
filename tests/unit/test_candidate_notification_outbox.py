@@ -214,13 +214,17 @@ def _append(repository: DynamicPrematchRepository, version):  # type: ignore[no-
     )
 
 
-def test_candidate_event_requires_valid_matching_v4_decision() -> None:
+def test_candidate_event_uses_the_frozen_attempt_and_fails_closed_on_a_bad_v4() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
     attempt = _attempt("T3_ODDS", "v4-gate")
 
+    # The attempt carries its own frozen market, line and price, so it is enough
+    # on its own. Production cards never carry a usable V4 candidate (measured
+    # 2026-09-15: 1219/1219 are NOT_READY with selected_candidate null), and
+    # requiring one silenced every candidate push from 2026-09-04 to 2026-09-15.
     repository.append_evaluation(attempt)
-    assert _events(engine) == []
+    assert [event.event_type for event in _events(engine)] == [CANDIDATE_FORMED]
     api_card = _apply_repository_v4_authority(
         {
             "fixture_id": attempt.fixture_id,
@@ -365,7 +369,7 @@ def test_same_frozen_v4_pick_reaches_api_dashboard_and_notification() -> None:
         notification["decimal_odds"],
     )
     assert notification["recommendation_decision_v4_hash"] == decision["decision_hash"]
-    assert notification["recommendation_authority"] == "RECOMMENDATION_DECISION_V4"
+    assert notification["recommendation_authority"] == "IMMUTABLE_EVALUATION_ATTEMPT"
 
 
 def test_attempt_events_are_transactional_idempotent_and_capture_transient_candidate() -> None:
@@ -1062,7 +1066,7 @@ def test_successful_lock_unlocks_a_later_change_in_the_same_batch(monkeypatch) -
     ]
 
 
-def test_brewing_digest_waits_for_its_window_to_close() -> None:
+def test_daily_brewing_digest_waits_for_its_day_to_close() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     formed_at = datetime(2026, 8, 22, 16, 30, tzinfo=UTC)
@@ -1095,8 +1099,9 @@ def test_brewing_digest_waits_for_its_window_to_close() -> None:
             )
         session.commit()
 
-        # Still inside the window the candidates formed in: nothing is emitted,
-        # so an early candidate waits for the rest of its window.
+        # Still inside the Beijing day the candidates formed in: nothing is
+        # emitted, so the Owner gets one "candidates formed" push per day rather
+        # than one per candidate.
         assert (
             candidate_notifications.enqueue_brewing_digest_in_session(
                 session, now=formed_at + timedelta(minutes=30)
@@ -1105,7 +1110,7 @@ def test_brewing_digest_waits_for_its_window_to_close() -> None:
         )
 
         emitted = candidate_notifications.enqueue_brewing_digest_in_session(
-            session, now=formed_at + timedelta(hours=2)
+            session, now=formed_at + timedelta(hours=24)
         )
         session.commit()
         assert len(emitted) == 1

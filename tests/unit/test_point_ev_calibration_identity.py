@@ -43,6 +43,7 @@ from w2.prematch.lifecycle import (
     classify_evaluation,
     opportunity_identity_hash,
 )
+from w2.prematch.candidate_notifications import CANDIDATE_FORMED, CANDIDATE_WITHDRAWN
 from w2.prematch.read_model_projection import _dynamic_evaluations
 from w2.prematch.repository import DynamicPrematchRepository
 from w2.strategy.calibration import CALIBRATION_VERSION, LambdaCalibrationParams
@@ -448,8 +449,13 @@ def test_e_downgrade_updates_opportunity_without_unfrozen_notification() -> None
     assert opportunities[0].state == OpportunityState.BLOCKED_BY_GATE.value
     assert opportunities[0].opportunity_identity_hash == formed.opportunity_identity_hash
 
-    # A lifecycle attempt without frozen V4 authority cannot create a public event.
-    assert outbox == []
+    # The downgrade must not leave a candidate standing quietly: the Owner is
+    # told the candidate formed and then told it was withdrawn. The card-level
+    # V4 gate silenced both until 2026-09-15.
+    assert [event.event_type for event in outbox] == [
+        CANDIDATE_FORMED,
+        CANDIDATE_WITHDRAWN,
+    ]
 
 
 def test_e_upgrade_on_the_same_opportunity_is_its_own_attempt() -> None:
@@ -559,11 +565,17 @@ def test_f_market_candidate_stamps_the_evidence_with_the_authority() -> None:
         assert evidence["calibration_recommendation_admissible"] is False
 
 
-def test_f_notification_requires_frozen_v4_authority() -> None:
+def test_f_notification_comes_from_the_frozen_attempt_not_the_card() -> None:
+    """A candidate attempt with no card-level V4 still reaches the outbox.
+
+    Production cards never carry a usable V4 candidate (measured 2026-09-15:
+    1219/1219 NOT_READY with selected_candidate null), so conditioning the push
+    on one silenced every candidate push from 2026-09-04 onward.
+    """
     engine = _engine()
     DynamicPrematchRepository(engine).append_evaluation(_attempt("PRODUCTION_VALIDATED"))
     events = _outbox(engine)
-    assert events == []
+    assert [event.event_type for event in events] == [CANDIDATE_FORMED]
 
 
 # --- (h) EV_SE and EV minus SE are different numbers -------------------------

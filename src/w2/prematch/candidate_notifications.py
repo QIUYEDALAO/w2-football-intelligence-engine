@@ -70,7 +70,7 @@ DIGESTED = "DIGESTED"
 SUPPRESSED = "SUPPRESSED"
 
 CANDIDATE_BREWING_DIGEST = "CANDIDATE_BREWING_DIGEST"
-BREWING_DIGEST_PERIOD_SECONDS = 2 * 60 * 60
+BREWING_DIGEST_PERIOD_SECONDS = 24 * 60 * 60
 
 BARK_CHANNEL = "bark"
 AT_LEAST_ONCE = "AT_LEAST_ONCE"
@@ -101,9 +101,16 @@ def enqueue_attempt_notification_in_session(
 
     if not _official(version) or version.attempt_identity_hash is None:
         return []
-    if recommendation_decision_v4 is None:
-        return []
+    # The card-level V4 is a cross-check, not the source of the recommendation:
+    # this version already carries the frozen market, selection, line, odds,
+    # bookmaker and capture the attempt was made on. Production cards never carry
+    # a usable V4 candidate (measured 2026-09-15: 1219/1219 are NOT_READY with
+    # selected_candidate null, because the card lacks the decision inputs), so
+    # requiring one silenced every candidate push from 2026-09-04 onward. Use the
+    # cross-check when it is available, and fall back to the attempt when not.
     selected = _v4_candidate_for_attempt(version, recommendation_decision_v4)
+    if selected is None:
+        selected = _attempt_selection(version)
     previous_rows = list(
         session.scalars(
             select(DynamicPrematchEvaluationModel)
@@ -870,13 +877,17 @@ def enqueue_operational_summaries_in_session(
         for identity in identities
     ]
     closeout_due_at = max((value for value in closed_evidence if value), default=None)
-    # Do not turn deployment into a historical summary backfill. The scheduler
-    # checks every 30 seconds, so a five-minute forward-only window tolerates a
-    # restart without rewriting an already closed football day.
+    # `window` is the current operational day only, so `closeout_due_at` always
+    # belongs to today; this can never backfill history. The outbox identity is
+    # (operational_day_key, DAY_CLOSEOUT_SUMMARY), so at most one closeout is
+    # written per football day however often this runs. That makes the old
+    # five-minute forward-only window unnecessary and harmful: it tolerated a
+    # restart only inside those five minutes, and a scheduler that came back a
+    # minute later silently lost the whole day (2026-09-13 was lost that way).
     if (
         closeout_due_at is not None
         and all(value is not None for value in closed_evidence)
-        and closeout_due_at <= now <= closeout_due_at + timedelta(minutes=5)
+        and closeout_due_at <= now
     ):
         opportunities = list(
             session.scalars(
@@ -1209,7 +1220,10 @@ def _attempt_payload(
         created_at=outbox_created_at,
     )
     payload["source_kind"] = "IMMUTABLE_EVALUATION_ATTEMPT"
-    payload["recommendation_authority"] = "RECOMMENDATION_DECISION_V4"
+    # The attempt is the authority for the market, line and price it recommends.
+    # The card-level V4 hash is retained when present as evidence, not as the
+    # source of the selection.
+    payload["recommendation_authority"] = "IMMUTABLE_EVALUATION_ATTEMPT"
     payload["recommendation_decision_v4_hash"] = decision_hash
     payload["evaluation_recorded_at"] = _iso(recorded_at)
     payload["outbox_created_at"] = _iso(outbox_created_at)
@@ -1220,6 +1234,27 @@ def _attempt_payload(
     if comparison is not None:
         payload["change"] = _change_details(comparison, version.as_dict())
     return payload
+
+
+def _attempt_selection(version: DynamicEvaluationVersion) -> dict[str, Any] | None:
+    """The recommendation as the frozen attempt recorded it.
+
+    This is the same evidence the card-level V4 was only ever cross-checking
+    against, so it is available exactly when the attempt is.
+    """
+
+    if not version.market or not version.selection or version.decimal_odds is None:
+        return None
+    return {
+        "market": version.market,
+        "selection": version.selection,
+        "exact_line": version.exact_line,
+        "decimal_odds": version.decimal_odds,
+        "bookmaker_id": version.bookmaker_id,
+        "capture_id": version.capture_id,
+        "captured_at": _iso(version.capture_at) if version.capture_at is not None else None,
+        "expected_value": version.current_ev,
+    }
 
 
 def _v4_candidate_for_attempt(
