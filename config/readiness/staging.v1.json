@@ -3,12 +3,12 @@
   "required_artifacts": [
     {
       "path": "config/policies/future_fixture_refresh.v1.json",
-      "sha256": "77b7e999b80e09e6a23aff62d955f604d9617f208653d7a34d0c3574aa08fd56",
+      "sha256": "cfed81ae8c0857c75b16a2faed9c689fd5e3b4c3ae9cd1a56ca0f89558a3b21d",
       "required": true
     },
     {
       "path": "config/policies/matchday_intake.v2.json",
-      "sha256": "dae843842f979e600c2285803bb8ced0bd9a8b2d4cfbb0f28a93861750cd55ea",
+      "sha256": "f7633dd38eba767cb98e25db3a7d55e526801f60faa566603ad6f677598f9e1b",
       "required": true
     },
     {
