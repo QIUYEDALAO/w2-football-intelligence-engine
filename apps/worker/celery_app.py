@@ -914,8 +914,28 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
     }
     day_view = build_dashboard_day_view(dashboard, environment=get_settings().environment.value)
     model_forecast_repository = ModelForecastLedgerRepository(repository.engine)
+    # Model forecast capture requires the card's ``neutral_site_resolution``.
+    # ``build_dashboard_day_view`` projects the public card through an explicit
+    # whitelist that strips that internal field, so feeding ``day_view`` to the
+    # capture path made ``_neutral_site_blocker`` fail closed with
+    # NOT_ESTIMABLE_NEUTRAL_SITE_RESOLUTION on every card since a1bae660.
+    # Mirror the T-30 freeze track: capture consumes the raw cards directly
+    # (simulation wrapped in its envelope), while the outcome ledger keeps
+    # consuming ``day_view``.  No fail-closed predicate is relaxed.
+    model_forecast_cards: list[dict[str, object]] = []
+    for card in cards:
+        simulation = card.get("simulation") or {}
+        model_forecast_cards.append(
+            {
+                **card,
+                "simulation": {
+                    "status": simulation.get("status"),
+                    "simulation": simulation,
+                },
+            }
+        )
     model_forecast_capture = run_model_forecast_capture(
-        day_view,
+        {"cards": model_forecast_cards},
         repository=model_forecast_repository,
         dry_run=False,
         write_db=True,
