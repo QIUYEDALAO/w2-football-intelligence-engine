@@ -471,11 +471,15 @@ def test_resume_from_out_dir_skips_completed_report(tmp_path: Path, monkeypatch)
     _write_resume_report(tmp_path, "brasileirao_serie_a", "FAIL")
     requesters: dict[str, FakeRequester] = {}
 
+    # daily_hard_cap 用大值：本测试聚焦「resume 跳过已完成 report」逻辑，而非 hard-cap
+    # （hard-cap 有专门测试 test_hard_cap_exceeded_returns_zero_provider_calls）。LEAGUE-01R
+    # 新增联赛使 in-season planned_calls 变大，若用 90 会提前落入 enablement 的 hard-cap
+    # 分支，绕过 resume 逻辑。
     payload = build_cli_payload(
         group="national_leagues_in_season",
         real_provider_audit=True,
         approved_provider_calls=True,
-        daily_hard_cap=90,
+        daily_hard_cap=10000,
         out_dir=tmp_path / "next",
         resume_from_out_dir=tmp_path,
         requester_factory=lambda competition_id: requesters.setdefault(
@@ -499,11 +503,12 @@ def test_resume_from_out_dir_restarts_provider_stop_report(
     _write_resume_report(tmp_path, "brasileirao_serie_a", "PROVIDER_HTTP_429")
     requesters: dict[str, FakeRequester] = {}
 
+    # daily_hard_cap 用大值：同上，聚焦 resume 重启逻辑，不触发 enablement hard-cap 分支。
     payload = build_cli_payload(
         group="national_leagues_in_season",
         real_provider_audit=True,
         approved_provider_calls=True,
-        daily_hard_cap=90,
+        daily_hard_cap=10000,
         out_dir=tmp_path / "next",
         resume_from_out_dir=tmp_path,
         requester_factory=lambda competition_id: requesters.setdefault(

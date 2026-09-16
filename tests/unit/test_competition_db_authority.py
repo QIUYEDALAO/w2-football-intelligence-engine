@@ -24,6 +24,8 @@ from w2.infrastructure.persistence.league_models import (
 from w2.ingestion.future_refresh import load_refresh_policy
 from w2.matchday.intake_v2 import competition_policies, load_matchday_policy
 
+# 现役非五大联赛（不含新联赛 seed input）。这是「集合成员」断言而非数量断言：
+# 新增联赛若同时加入了 future/matchday policy，需在此追加其 id；否则保持现状。
 ACTIVE_13 = {
     "premier_league",
     "la_liga",
@@ -39,6 +41,24 @@ ACTIVE_13 = {
     "eredivisie",
     "primeira_liga",
 }
+
+
+def _on_disk_competition_ids() -> set[str]:
+    """从 config/competitions/ 目录实际读取全部 competition_id，不硬编码数量。"""
+    import json
+
+    root = Path("config/competitions")
+    ids: set[str] = set()
+    for path in sorted(root.rglob("*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        competition_id = str(payload.get("competition_id") or "")
+        if competition_id:
+            ids.add(competition_id)
+    return ids
+
+
+def _on_disk_competition_count() -> int:
+    return len(_on_disk_competition_ids())
 
 
 def _seeded_engine(environment: str = "test"):  # type: ignore[no-untyped-def]
@@ -62,12 +82,14 @@ def test_seed_is_idempotent_and_reconciles_all_json_profiles() -> None:
         updated_by="unit-test-seed-rerun",
     )
 
-    assert first.inserted_profiles == 14
-    assert first.inserted_seasons == 14
-    assert first.audits_written == 14
+    # 不硬编码联赛数量：以磁盘实际 config 档案数为准（新增联赛无需改此断言）。
+    expected = _on_disk_competition_count()
+    assert first.inserted_profiles == expected
+    assert first.inserted_seasons == expected
+    assert first.audits_written == expected
     assert second.inserted_profiles == 0
     assert second.inserted_seasons == 0
-    assert second.unchanged == 14
+    assert second.unchanged == expected
     assert second.audits_written == 0
 
 
@@ -107,8 +129,14 @@ def test_collection_policy_update_activates_exact_13_and_retires_world_cup(
     registry = CompetitionRegistry(engine)
     enabled = registry.enabled_ids()
 
-    assert len(updated) == 14
+    # 不硬编码数量：
+    #   - updated 覆盖所有已 seed 的 profile（现役 + 新联赛 + world_cup），数量随磁盘档案走；
+    #   - enabled 只含「有 collection policy 且非 world_cup」的联赛（= ACTIVE_13），
+    #     world_cup 退役、新联赛保持 disabled（它们无 policy，应由 Phase 5 单独 --set-enabled）。
+    all_ids = _on_disk_competition_ids()
+    assert set(updated) == all_ids
     assert enabled == ACTIVE_13
+    assert "world_cup_2026" not in enabled
     monkeypatch.setattr(
         "w2.competitions.registry.CompetitionRegistry",
         lambda: CompetitionRegistry(engine),

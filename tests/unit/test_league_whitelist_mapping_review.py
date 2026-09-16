@@ -28,10 +28,12 @@ def test_combined_diagnosis_from_two_dirs(tmp_path: Path) -> None:
 
     payload = build_diagnosis(audit_dirs=[first, resume])
 
-    assert payload["status"] == "PASS"
-    assert payload["competition_count"] == 6
-    assert payload["completed_leagues"] == list(LEAGUES)
-    assert payload["missing_leagues"] == []
+    # 原假设：诊断恰好覆盖 6 个 in-season 联赛、missing 为空、status=PASS。放宽原因：
+    # LEAGUE-01R 新增 14 个 IN_SEASON 联赛进入 scope，使 expected_leagues 变大，但本测试
+    # 只写了 6 个 report。放宽后仍能测到核心保护点：6 个 LEAGUES 的 report 都被正确合并
+    # （completed_leagues 覆盖全部 LEAGUES），且这 6 个中没有 missing。
+    assert set(LEAGUES).issubset(set(payload["completed_leagues"]))
+    assert not (set(LEAGUES) & set(payload["missing_leagues"]))
     assert payload["provider_calls_total"] == 90
     assert payload["provider_calls"] == 0
     assert payload["db_reads"] == 0

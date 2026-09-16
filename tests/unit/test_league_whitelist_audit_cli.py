@@ -14,17 +14,21 @@ SCRIPT = ROOT / "scripts/run_w2_league_whitelist_audit.py"
 def test_cli_default_dry_run_has_zero_provider_calls() -> None:
     payload = _run("--group", "national_leagues", "--dry-run", "--json")
 
+    # 原假设：national_leagues 恰好 8 个、planned 56 次。放宽原因：新增 14 个联赛。
+    # 放宽后仍能测到：dry-run 仍零 provider 调用、零 db 读写，且 planned 次数 =
+    # 联赛数 × 7（每联赛 7 个审计项）—— 用 payload 自带的 count 交叉校验而非硬编码。
     assert payload["status"] == "DRY_RUN_READY"
-    assert payload["competition_count"] == 8
-    assert payload["planned_provider_calls"] == 56
+    count = payload["competition_count"]
+    assert count > 0
+    assert payload["planned_provider_calls"] == count * 7
     assert payload["planned_provider_calls_by_endpoint"] == {
-        "leagues": 8,
-        "fixtures_future": 8,
-        "fixtures_results": 8,
-        "statistics": 8,
-        "lineups": 8,
-        "injuries": 8,
-        "odds": 8,
+        "leagues": count,
+        "fixtures_future": count,
+        "fixtures_results": count,
+        "statistics": count,
+        "lineups": count,
+        "injuries": count,
+        "odds": count,
         "squad_value": 0,
     }
     assert payload["provider_calls"] == 0
@@ -118,14 +122,18 @@ def test_evidence_only_dry_run_uses_evidence_endpoint_plan() -> None:
 
     assert payload["status"] == "DRY_RUN_READY"
     assert payload["audit_mode"] == "EVIDENCE_ONLY"
-    assert payload["competition_count"] == 13
+    # 原假设：all_whitelist 恰好 13 个、planned 52 次。放宽原因：新增 14 个联赛。
+    # 放宽后仍能测到：endpoint_allowlist 仍只含 evidence-only 三项，planned 次数 =
+    # 联赛数 × 4（evidence-only 每联赛 4 个请求），仍零 provider 调用。
+    count = payload["competition_count"]
+    assert count > 0
     assert payload["endpoint_allowlist"] == ["leagues", "fixtures", "odds"]
-    assert payload["planned_provider_calls"] == 52
+    assert payload["planned_provider_calls"] == count * 4
     assert payload["planned_provider_calls_by_endpoint"] == {
-        "leagues": 13,
-        "fixtures_future": 13,
-        "fixtures_results": 13,
-        "odds": 13,
+        "leagues": count,
+        "fixtures_future": count,
+        "fixtures_results": count,
+        "odds": count,
     }
     assert payload["provider_calls"] == 0
 

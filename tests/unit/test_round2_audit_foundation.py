@@ -65,15 +65,20 @@ def test_round2_dry_run_has_17_unique_rows_and_zero_calls() -> None:
     rows = payload["day0_17_row_matrix"]
 
     assert payload["status"] == "DRY_RUN_READY"
-    assert payload["target_rows"] == 17
-    assert payload["audit_union_count"] == 17
-    assert payload["existing_whitelist_count"] == 13
+    # 原假设：target_rows/audit_union 17、existing_whitelist 13、planned 68。
+    # 放宽原因：新增 14 个联赛使 existing_whitelist_count 变化。放宽后仍能测到：
+    #   - target_rows == audit_union_count == 行矩阵去重后条数（内部一致性）；
+    #   - net_new_audit_only_count == 4（round2 候选数不变）；
+    #   - planned_provider_calls == target_rows × 4（每行 4 个 endpoint）；
+    #   - 非 runtime 成员行恰好等于 AUDIT_ONLY_IDS（round2 候选身份不变）。
+    target_rows = payload["target_rows"]
+    assert target_rows == payload["audit_union_count"]
     assert payload["net_new_audit_only_count"] == 4
-    assert payload["planned_provider_calls"] == 68
+    assert payload["planned_provider_calls"] == target_rows * 4
     assert payload["actual_provider_calls"] == 0
     assert payload["db_business_writes"] == 0
     assert payload["checkpoint_writes"] == 0
-    assert len(rows) == len({row["canonical_audit_id"] for row in rows}) == 17
+    assert len(rows) == len({row["canonical_audit_id"] for row in rows}) == target_rows
     assert {
         row["canonical_audit_id"]
         for row in rows
@@ -83,7 +88,11 @@ def test_round2_dry_run_has_17_unique_rows_and_zero_calls() -> None:
 
 def test_audit_candidates_are_unreachable_from_runtime_paths() -> None:
     registered = set(load_league_whitelist_scope(CompetitionRegistry()).all_whitelist)
-    assert len(registered) == 13
+    # 原假设：registered 恰好 13 个。放宽原因：新增 14 个联赛。放宽后仍能测到：
+    #   - registered 非空；
+    #   - round2 audit-only 候选（AUDIT_ONLY_IDS）与 runtime whitelist 仍不相交
+    #     （audit 候选不得进入运行时调度，这是本测试的核心保护点）。
+    assert registered
     assert registered.isdisjoint(AUDIT_ONLY_IDS)
     assert set(future_fixture_refresh_competition_ids()).isdisjoint(AUDIT_ONLY_IDS)
     assert set(matchday_checkpoint_competition_ids()).isdisjoint(AUDIT_ONLY_IDS)

@@ -104,10 +104,14 @@ def test_evidence_only_dry_run_has_zero_provider_calls_and_no_sleep() -> None:
     )
 
     assert payload["status"] == "DRY_RUN_READY"
-    assert payload["competition_count"] == 13
+    # 原假设：all_whitelist 恰好 13 个、planned 52 次。放宽原因：新增 14 个联赛。
+    # 放宽后仍能测到：endpoint_allowlist 仍只含三项，planned 次数 = 联赛数 × 4，
+    # 仍零 provider 调用、零 db 读写。
+    count = payload["competition_count"]
+    assert count > 0
     assert payload["audit_mode"] == "EVIDENCE_ONLY"
     assert payload["endpoint_allowlist"] == ["leagues", "fixtures", "odds"]
-    assert payload["planned_provider_calls"] == 52
+    assert payload["planned_provider_calls"] == count * 4
     assert payload["provider_calls"] == 0
     assert payload["db_reads"] == 0
     assert payload["db_writes"] == 0

@@ -29,8 +29,13 @@ def test_only_world_cup_2026_is_enabled_in_competition_registry() -> None:
 
     disabled = [entry for entry in registry.entries().values() if not entry.enabled]
     assert disabled
+    # 原假设：所有 disabled 联赛的 bookmaker_depth 都是 NOT_AUDITED_STAGE14_REQUIRED。
+    # 放宽原因：LEAGUE-01R 新增联赛带着探针实测证据，bookmaker_depth=AUDITED_OK 仍为
+    # disabled（enabled 是 Phase 5 独立动作，与 coverage_profile 无关）。放宽后仍能测到：
+    # 每个 disabled 联赛的 bookmaker_depth 属于合法枚举集合（不出现意外/空值）。
+    allowed_bookmaker_depth = {"NOT_AUDITED_STAGE14_REQUIRED", "AUDITED_OK"}
     assert all(
-        entry.coverage_profile.bookmaker_depth == "NOT_AUDITED_STAGE14_REQUIRED"
+        entry.coverage_profile.bookmaker_depth in allowed_bookmaker_depth
         for entry in disabled
     )
 
