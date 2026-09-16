@@ -459,7 +459,2332 @@
       "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
+    },
+    {
+      "competition_id": "england_championship",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "40",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": [
+        "NS",
+        "TBD"
+      ],
+      "checkpoints": [
+        {
+          "name": "T168_OPEN_ODDS",
+          "offset_seconds_before_kickoff": 604800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 604800,
+          "enabled": true
+        },
+        {
+          "name": "T72_ODDS",
+          "offset_seconds_before_kickoff": 259200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T48_ODDS",
+          "offset_seconds_before_kickoff": 172800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T24_ODDS",
+          "offset_seconds_before_kickoff": 86400,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T12_ODDS",
+          "offset_seconds_before_kickoff": 43200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T6_ODDS",
+          "offset_seconds_before_kickoff": 21600,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T3_ODDS",
+          "offset_seconds_before_kickoff": 10800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T60_ODDS_LINEUPS",
+          "offset_seconds_before_kickoff": 3600,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 1200,
+          "enabled": true
+        },
+        {
+          "name": "T45_ODDS",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T45_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T30_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T-30m_VALIDATION_LOCK",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T15_ODDS",
+          "offset_seconds_before_kickoff": 900,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        }
+      ],
+      "endpoint_matrix": {
+        "competition_tick": [
+          "status",
+          "fixtures"
+        ],
+        "fixture_tick": [
+          "odds"
+        ],
+        "lineup_window": [
+          "lineups"
+        ],
+        "audit_extensions_disabled": [
+          "injuries",
+          "statistics"
+        ]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {
+        "tick_hard_cap": 10,
+        "daily_hard_cap": 70,
+        "quota_reserve": 20
+      },
+      "provider_allowlist": [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups"
+      ],
+      "feature_enrichment_policy": {
+        "injuries": "DISABLED_BY_POLICY",
+        "statistics": "DISABLED_BY_POLICY"
+      }
+    },
+    {
+      "competition_id": "italy_serie_b",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "136",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": [
+        "NS",
+        "TBD"
+      ],
+      "checkpoints": [
+        {
+          "name": "T168_OPEN_ODDS",
+          "offset_seconds_before_kickoff": 604800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 604800,
+          "enabled": true
+        },
+        {
+          "name": "T72_ODDS",
+          "offset_seconds_before_kickoff": 259200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T48_ODDS",
+          "offset_seconds_before_kickoff": 172800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T24_ODDS",
+          "offset_seconds_before_kickoff": 86400,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T12_ODDS",
+          "offset_seconds_before_kickoff": 43200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T6_ODDS",
+          "offset_seconds_before_kickoff": 21600,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T3_ODDS",
+          "offset_seconds_before_kickoff": 10800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T60_ODDS_LINEUPS",
+          "offset_seconds_before_kickoff": 3600,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 1200,
+          "enabled": true
+        },
+        {
+          "name": "T45_ODDS",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T45_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T30_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T-30m_VALIDATION_LOCK",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T15_ODDS",
+          "offset_seconds_before_kickoff": 900,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        }
+      ],
+      "endpoint_matrix": {
+        "competition_tick": [
+          "status",
+          "fixtures"
+        ],
+        "fixture_tick": [
+          "odds"
+        ],
+        "lineup_window": [
+          "lineups"
+        ],
+        "audit_extensions_disabled": [
+          "injuries",
+          "statistics"
+        ]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {
+        "tick_hard_cap": 10,
+        "daily_hard_cap": 70,
+        "quota_reserve": 20
+      },
+      "provider_allowlist": [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups"
+      ],
+      "feature_enrichment_policy": {
+        "injuries": "DISABLED_BY_POLICY",
+        "statistics": "DISABLED_BY_POLICY"
+      }
+    },
+    {
+      "competition_id": "spain_segunda_division",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "141",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": [
+        "NS",
+        "TBD"
+      ],
+      "checkpoints": [
+        {
+          "name": "T168_OPEN_ODDS",
+          "offset_seconds_before_kickoff": 604800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 604800,
+          "enabled": true
+        },
+        {
+          "name": "T72_ODDS",
+          "offset_seconds_before_kickoff": 259200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T48_ODDS",
+          "offset_seconds_before_kickoff": 172800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T24_ODDS",
+          "offset_seconds_before_kickoff": 86400,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T12_ODDS",
+          "offset_seconds_before_kickoff": 43200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T6_ODDS",
+          "offset_seconds_before_kickoff": 21600,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T3_ODDS",
+          "offset_seconds_before_kickoff": 10800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T60_ODDS_LINEUPS",
+          "offset_seconds_before_kickoff": 3600,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 1200,
+          "enabled": true
+        },
+        {
+          "name": "T45_ODDS",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T45_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T30_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T-30m_VALIDATION_LOCK",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T15_ODDS",
+          "offset_seconds_before_kickoff": 900,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        }
+      ],
+      "endpoint_matrix": {
+        "competition_tick": [
+          "status",
+          "fixtures"
+        ],
+        "fixture_tick": [
+          "odds"
+        ],
+        "lineup_window": [
+          "lineups"
+        ],
+        "audit_extensions_disabled": [
+          "injuries",
+          "statistics"
+        ]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {
+        "tick_hard_cap": 10,
+        "daily_hard_cap": 70,
+        "quota_reserve": 20
+      },
+      "provider_allowlist": [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups"
+      ],
+      "feature_enrichment_policy": {
+        "injuries": "DISABLED_BY_POLICY",
+        "statistics": "DISABLED_BY_POLICY"
+      }
+    },
+    {
+      "competition_id": "germany_2_bundesliga",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "79",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": [
+        "NS",
+        "TBD"
+      ],
+      "checkpoints": [
+        {
+          "name": "T168_OPEN_ODDS",
+          "offset_seconds_before_kickoff": 604800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 604800,
+          "enabled": true
+        },
+        {
+          "name": "T72_ODDS",
+          "offset_seconds_before_kickoff": 259200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T48_ODDS",
+          "offset_seconds_before_kickoff": 172800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T24_ODDS",
+          "offset_seconds_before_kickoff": 86400,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T12_ODDS",
+          "offset_seconds_before_kickoff": 43200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T6_ODDS",
+          "offset_seconds_before_kickoff": 21600,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T3_ODDS",
+          "offset_seconds_before_kickoff": 10800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T60_ODDS_LINEUPS",
+          "offset_seconds_before_kickoff": 3600,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 1200,
+          "enabled": true
+        },
+        {
+          "name": "T45_ODDS",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T45_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T30_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T-30m_VALIDATION_LOCK",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T15_ODDS",
+          "offset_seconds_before_kickoff": 900,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        }
+      ],
+      "endpoint_matrix": {
+        "competition_tick": [
+          "status",
+          "fixtures"
+        ],
+        "fixture_tick": [
+          "odds"
+        ],
+        "lineup_window": [
+          "lineups"
+        ],
+        "audit_extensions_disabled": [
+          "injuries",
+          "statistics"
+        ]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {
+        "tick_hard_cap": 10,
+        "daily_hard_cap": 70,
+        "quota_reserve": 20
+      },
+      "provider_allowlist": [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups"
+      ],
+      "feature_enrichment_policy": {
+        "injuries": "DISABLED_BY_POLICY",
+        "statistics": "DISABLED_BY_POLICY"
+      }
+    },
+    {
+      "competition_id": "netherlands_eerste_divisie",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "89",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": [
+        "NS",
+        "TBD"
+      ],
+      "checkpoints": [
+        {
+          "name": "T168_OPEN_ODDS",
+          "offset_seconds_before_kickoff": 604800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 604800,
+          "enabled": true
+        },
+        {
+          "name": "T72_ODDS",
+          "offset_seconds_before_kickoff": 259200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T48_ODDS",
+          "offset_seconds_before_kickoff": 172800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T24_ODDS",
+          "offset_seconds_before_kickoff": 86400,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T12_ODDS",
+          "offset_seconds_before_kickoff": 43200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T6_ODDS",
+          "offset_seconds_before_kickoff": 21600,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T3_ODDS",
+          "offset_seconds_before_kickoff": 10800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T60_ODDS_LINEUPS",
+          "offset_seconds_before_kickoff": 3600,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 1200,
+          "enabled": true
+        },
+        {
+          "name": "T45_ODDS",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T45_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T30_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T-30m_VALIDATION_LOCK",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T15_ODDS",
+          "offset_seconds_before_kickoff": 900,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        }
+      ],
+      "endpoint_matrix": {
+        "competition_tick": [
+          "status",
+          "fixtures"
+        ],
+        "fixture_tick": [
+          "odds"
+        ],
+        "lineup_window": [
+          "lineups"
+        ],
+        "audit_extensions_disabled": [
+          "injuries",
+          "statistics"
+        ]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {
+        "tick_hard_cap": 10,
+        "daily_hard_cap": 70,
+        "quota_reserve": 20
+      },
+      "provider_allowlist": [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups"
+      ],
+      "feature_enrichment_policy": {
+        "injuries": "DISABLED_BY_POLICY",
+        "statistics": "DISABLED_BY_POLICY"
+      }
+    },
+    {
+      "competition_id": "belgium_jupiler_pro_league",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "144",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": [
+        "NS",
+        "TBD"
+      ],
+      "checkpoints": [
+        {
+          "name": "T168_OPEN_ODDS",
+          "offset_seconds_before_kickoff": 604800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 604800,
+          "enabled": true
+        },
+        {
+          "name": "T72_ODDS",
+          "offset_seconds_before_kickoff": 259200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T48_ODDS",
+          "offset_seconds_before_kickoff": 172800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T24_ODDS",
+          "offset_seconds_before_kickoff": 86400,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T12_ODDS",
+          "offset_seconds_before_kickoff": 43200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T6_ODDS",
+          "offset_seconds_before_kickoff": 21600,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T3_ODDS",
+          "offset_seconds_before_kickoff": 10800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T60_ODDS_LINEUPS",
+          "offset_seconds_before_kickoff": 3600,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 1200,
+          "enabled": true
+        },
+        {
+          "name": "T45_ODDS",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T45_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T30_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T-30m_VALIDATION_LOCK",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T15_ODDS",
+          "offset_seconds_before_kickoff": 900,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        }
+      ],
+      "endpoint_matrix": {
+        "competition_tick": [
+          "status",
+          "fixtures"
+        ],
+        "fixture_tick": [
+          "odds"
+        ],
+        "lineup_window": [
+          "lineups"
+        ],
+        "audit_extensions_disabled": [
+          "injuries",
+          "statistics"
+        ]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {
+        "tick_hard_cap": 10,
+        "daily_hard_cap": 70,
+        "quota_reserve": 20
+      },
+      "provider_allowlist": [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups"
+      ],
+      "feature_enrichment_policy": {
+        "injuries": "DISABLED_BY_POLICY",
+        "statistics": "DISABLED_BY_POLICY"
+      }
+    },
+    {
+      "competition_id": "scotland_premiership",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "179",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": [
+        "NS",
+        "TBD"
+      ],
+      "checkpoints": [
+        {
+          "name": "T168_OPEN_ODDS",
+          "offset_seconds_before_kickoff": 604800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 604800,
+          "enabled": true
+        },
+        {
+          "name": "T72_ODDS",
+          "offset_seconds_before_kickoff": 259200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T48_ODDS",
+          "offset_seconds_before_kickoff": 172800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T24_ODDS",
+          "offset_seconds_before_kickoff": 86400,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T12_ODDS",
+          "offset_seconds_before_kickoff": 43200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T6_ODDS",
+          "offset_seconds_before_kickoff": 21600,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T3_ODDS",
+          "offset_seconds_before_kickoff": 10800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T60_ODDS_LINEUPS",
+          "offset_seconds_before_kickoff": 3600,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 1200,
+          "enabled": true
+        },
+        {
+          "name": "T45_ODDS",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T45_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T30_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T-30m_VALIDATION_LOCK",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T15_ODDS",
+          "offset_seconds_before_kickoff": 900,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        }
+      ],
+      "endpoint_matrix": {
+        "competition_tick": [
+          "status",
+          "fixtures"
+        ],
+        "fixture_tick": [
+          "odds"
+        ],
+        "lineup_window": [
+          "lineups"
+        ],
+        "audit_extensions_disabled": [
+          "injuries",
+          "statistics"
+        ]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {
+        "tick_hard_cap": 10,
+        "daily_hard_cap": 70,
+        "quota_reserve": 20
+      },
+      "provider_allowlist": [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups"
+      ],
+      "feature_enrichment_policy": {
+        "injuries": "DISABLED_BY_POLICY",
+        "statistics": "DISABLED_BY_POLICY"
+      }
+    },
+    {
+      "competition_id": "denmark_superliga",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "119",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": [
+        "NS",
+        "TBD"
+      ],
+      "checkpoints": [
+        {
+          "name": "T168_OPEN_ODDS",
+          "offset_seconds_before_kickoff": 604800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 604800,
+          "enabled": true
+        },
+        {
+          "name": "T72_ODDS",
+          "offset_seconds_before_kickoff": 259200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T48_ODDS",
+          "offset_seconds_before_kickoff": 172800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T24_ODDS",
+          "offset_seconds_before_kickoff": 86400,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T12_ODDS",
+          "offset_seconds_before_kickoff": 43200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T6_ODDS",
+          "offset_seconds_before_kickoff": 21600,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T3_ODDS",
+          "offset_seconds_before_kickoff": 10800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T60_ODDS_LINEUPS",
+          "offset_seconds_before_kickoff": 3600,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 1200,
+          "enabled": true
+        },
+        {
+          "name": "T45_ODDS",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T45_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T30_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T-30m_VALIDATION_LOCK",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T15_ODDS",
+          "offset_seconds_before_kickoff": 900,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        }
+      ],
+      "endpoint_matrix": {
+        "competition_tick": [
+          "status",
+          "fixtures"
+        ],
+        "fixture_tick": [
+          "odds"
+        ],
+        "lineup_window": [
+          "lineups"
+        ],
+        "audit_extensions_disabled": [
+          "injuries",
+          "statistics"
+        ]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {
+        "tick_hard_cap": 10,
+        "daily_hard_cap": 70,
+        "quota_reserve": 20
+      },
+      "provider_allowlist": [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups"
+      ],
+      "feature_enrichment_policy": {
+        "injuries": "DISABLED_BY_POLICY",
+        "statistics": "DISABLED_BY_POLICY"
+      }
+    },
+    {
+      "competition_id": "austria_bundesliga",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "218",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": [
+        "NS",
+        "TBD"
+      ],
+      "checkpoints": [
+        {
+          "name": "T168_OPEN_ODDS",
+          "offset_seconds_before_kickoff": 604800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 604800,
+          "enabled": true
+        },
+        {
+          "name": "T72_ODDS",
+          "offset_seconds_before_kickoff": 259200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T48_ODDS",
+          "offset_seconds_before_kickoff": 172800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T24_ODDS",
+          "offset_seconds_before_kickoff": 86400,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T12_ODDS",
+          "offset_seconds_before_kickoff": 43200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T6_ODDS",
+          "offset_seconds_before_kickoff": 21600,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T3_ODDS",
+          "offset_seconds_before_kickoff": 10800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T60_ODDS_LINEUPS",
+          "offset_seconds_before_kickoff": 3600,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 1200,
+          "enabled": true
+        },
+        {
+          "name": "T45_ODDS",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T45_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T30_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T-30m_VALIDATION_LOCK",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T15_ODDS",
+          "offset_seconds_before_kickoff": 900,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        }
+      ],
+      "endpoint_matrix": {
+        "competition_tick": [
+          "status",
+          "fixtures"
+        ],
+        "fixture_tick": [
+          "odds"
+        ],
+        "lineup_window": [
+          "lineups"
+        ],
+        "audit_extensions_disabled": [
+          "injuries",
+          "statistics"
+        ]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {
+        "tick_hard_cap": 10,
+        "daily_hard_cap": 70,
+        "quota_reserve": 20
+      },
+      "provider_allowlist": [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups"
+      ],
+      "feature_enrichment_policy": {
+        "injuries": "DISABLED_BY_POLICY",
+        "statistics": "DISABLED_BY_POLICY"
+      }
+    },
+    {
+      "competition_id": "switzerland_super_league",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "207",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": [
+        "NS",
+        "TBD"
+      ],
+      "checkpoints": [
+        {
+          "name": "T168_OPEN_ODDS",
+          "offset_seconds_before_kickoff": 604800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 604800,
+          "enabled": true
+        },
+        {
+          "name": "T72_ODDS",
+          "offset_seconds_before_kickoff": 259200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T48_ODDS",
+          "offset_seconds_before_kickoff": 172800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T24_ODDS",
+          "offset_seconds_before_kickoff": 86400,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T12_ODDS",
+          "offset_seconds_before_kickoff": 43200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T6_ODDS",
+          "offset_seconds_before_kickoff": 21600,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T3_ODDS",
+          "offset_seconds_before_kickoff": 10800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T60_ODDS_LINEUPS",
+          "offset_seconds_before_kickoff": 3600,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 1200,
+          "enabled": true
+        },
+        {
+          "name": "T45_ODDS",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T45_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T30_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T-30m_VALIDATION_LOCK",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T15_ODDS",
+          "offset_seconds_before_kickoff": 900,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        }
+      ],
+      "endpoint_matrix": {
+        "competition_tick": [
+          "status",
+          "fixtures"
+        ],
+        "fixture_tick": [
+          "odds"
+        ],
+        "lineup_window": [
+          "lineups"
+        ],
+        "audit_extensions_disabled": [
+          "injuries",
+          "statistics"
+        ]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {
+        "tick_hard_cap": 10,
+        "daily_hard_cap": 70,
+        "quota_reserve": 20
+      },
+      "provider_allowlist": [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups"
+      ],
+      "feature_enrichment_policy": {
+        "injuries": "DISABLED_BY_POLICY",
+        "statistics": "DISABLED_BY_POLICY"
+      }
+    },
+    {
+      "competition_id": "czech_republic_liga",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "345",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": [
+        "NS",
+        "TBD"
+      ],
+      "checkpoints": [
+        {
+          "name": "T168_OPEN_ODDS",
+          "offset_seconds_before_kickoff": 604800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 604800,
+          "enabled": true
+        },
+        {
+          "name": "T72_ODDS",
+          "offset_seconds_before_kickoff": 259200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T48_ODDS",
+          "offset_seconds_before_kickoff": 172800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T24_ODDS",
+          "offset_seconds_before_kickoff": 86400,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T12_ODDS",
+          "offset_seconds_before_kickoff": 43200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T6_ODDS",
+          "offset_seconds_before_kickoff": 21600,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T3_ODDS",
+          "offset_seconds_before_kickoff": 10800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T60_ODDS_LINEUPS",
+          "offset_seconds_before_kickoff": 3600,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 1200,
+          "enabled": true
+        },
+        {
+          "name": "T45_ODDS",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T45_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T30_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T-30m_VALIDATION_LOCK",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T15_ODDS",
+          "offset_seconds_before_kickoff": 900,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        }
+      ],
+      "endpoint_matrix": {
+        "competition_tick": [
+          "status",
+          "fixtures"
+        ],
+        "fixture_tick": [
+          "odds"
+        ],
+        "lineup_window": [
+          "lineups"
+        ],
+        "audit_extensions_disabled": [
+          "injuries",
+          "statistics"
+        ]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {
+        "tick_hard_cap": 10,
+        "daily_hard_cap": 70,
+        "quota_reserve": 20
+      },
+      "provider_allowlist": [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups"
+      ],
+      "feature_enrichment_policy": {
+        "injuries": "DISABLED_BY_POLICY",
+        "statistics": "DISABLED_BY_POLICY"
+      }
+    },
+    {
+      "competition_id": "turkey_super_lig",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "203",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": [
+        "NS",
+        "TBD"
+      ],
+      "checkpoints": [
+        {
+          "name": "T168_OPEN_ODDS",
+          "offset_seconds_before_kickoff": 604800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 604800,
+          "enabled": true
+        },
+        {
+          "name": "T72_ODDS",
+          "offset_seconds_before_kickoff": 259200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T48_ODDS",
+          "offset_seconds_before_kickoff": 172800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T24_ODDS",
+          "offset_seconds_before_kickoff": 86400,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T12_ODDS",
+          "offset_seconds_before_kickoff": 43200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T6_ODDS",
+          "offset_seconds_before_kickoff": 21600,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T3_ODDS",
+          "offset_seconds_before_kickoff": 10800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T60_ODDS_LINEUPS",
+          "offset_seconds_before_kickoff": 3600,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 1200,
+          "enabled": true
+        },
+        {
+          "name": "T45_ODDS",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T45_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T30_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T-30m_VALIDATION_LOCK",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T15_ODDS",
+          "offset_seconds_before_kickoff": 900,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        }
+      ],
+      "endpoint_matrix": {
+        "competition_tick": [
+          "status",
+          "fixtures"
+        ],
+        "fixture_tick": [
+          "odds"
+        ],
+        "lineup_window": [
+          "lineups"
+        ],
+        "audit_extensions_disabled": [
+          "injuries",
+          "statistics"
+        ]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {
+        "tick_hard_cap": 10,
+        "daily_hard_cap": 70,
+        "quota_reserve": 20
+      },
+      "provider_allowlist": [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups"
+      ],
+      "feature_enrichment_policy": {
+        "injuries": "DISABLED_BY_POLICY",
+        "statistics": "DISABLED_BY_POLICY"
+      }
+    },
+    {
+      "competition_id": "greece_super_league_1",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "197",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": [
+        "NS",
+        "TBD"
+      ],
+      "checkpoints": [
+        {
+          "name": "T168_OPEN_ODDS",
+          "offset_seconds_before_kickoff": 604800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 604800,
+          "enabled": true
+        },
+        {
+          "name": "T72_ODDS",
+          "offset_seconds_before_kickoff": 259200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T48_ODDS",
+          "offset_seconds_before_kickoff": 172800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T24_ODDS",
+          "offset_seconds_before_kickoff": 86400,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T12_ODDS",
+          "offset_seconds_before_kickoff": 43200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T6_ODDS",
+          "offset_seconds_before_kickoff": 21600,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T3_ODDS",
+          "offset_seconds_before_kickoff": 10800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T60_ODDS_LINEUPS",
+          "offset_seconds_before_kickoff": 3600,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 1200,
+          "enabled": true
+        },
+        {
+          "name": "T45_ODDS",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T45_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T30_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T-30m_VALIDATION_LOCK",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T15_ODDS",
+          "offset_seconds_before_kickoff": 900,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        }
+      ],
+      "endpoint_matrix": {
+        "competition_tick": [
+          "status",
+          "fixtures"
+        ],
+        "fixture_tick": [
+          "odds"
+        ],
+        "lineup_window": [
+          "lineups"
+        ],
+        "audit_extensions_disabled": [
+          "injuries",
+          "statistics"
+        ]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {
+        "tick_hard_cap": 10,
+        "daily_hard_cap": 70,
+        "quota_reserve": 20
+      },
+      "provider_allowlist": [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups"
+      ],
+      "feature_enrichment_policy": {
+        "injuries": "DISABLED_BY_POLICY",
+        "statistics": "DISABLED_BY_POLICY"
+      }
+    },
+    {
+      "competition_id": "croatia_hnl",
+      "enabled": true,
+      "provider": "api_football",
+      "provider_league_id": "210",
+      "season": "2026",
+      "discovery_horizon_hours": 336,
+      "fixture_status_allowlist": [
+        "NS",
+        "TBD"
+      ],
+      "checkpoints": [
+        {
+          "name": "T168_OPEN_ODDS",
+          "offset_seconds_before_kickoff": 604800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 604800,
+          "enabled": true
+        },
+        {
+          "name": "T72_ODDS",
+          "offset_seconds_before_kickoff": 259200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T48_ODDS",
+          "offset_seconds_before_kickoff": 172800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T24_ODDS",
+          "offset_seconds_before_kickoff": 86400,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 1800,
+          "enabled": true
+        },
+        {
+          "name": "T12_ODDS",
+          "offset_seconds_before_kickoff": 43200,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T6_ODDS",
+          "offset_seconds_before_kickoff": 21600,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T3_ODDS",
+          "offset_seconds_before_kickoff": 10800,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 2700,
+          "enabled": true
+        },
+        {
+          "name": "T60_ODDS_LINEUPS",
+          "offset_seconds_before_kickoff": 3600,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 1200,
+          "enabled": true
+        },
+        {
+          "name": "T45_ODDS",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T45_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 2700,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T30_LINEUPS_RETRY",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T-30m_VALIDATION_LOCK",
+          "offset_seconds_before_kickoff": 1800,
+          "endpoints": [
+            "odds",
+            "lineups"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        },
+        {
+          "name": "T15_ODDS",
+          "offset_seconds_before_kickoff": 900,
+          "endpoints": [
+            "odds"
+          ],
+          "grace_seconds": 900,
+          "enabled": true
+        }
+      ],
+      "endpoint_matrix": {
+        "competition_tick": [
+          "status",
+          "fixtures"
+        ],
+        "fixture_tick": [
+          "odds"
+        ],
+        "lineup_window": [
+          "lineups"
+        ],
+        "audit_extensions_disabled": [
+          "injuries",
+          "statistics"
+        ]
+      },
+      "odds_max_age_seconds": 3600,
+      "lineup_requirement": "ADVISORY",
+      "request_caps": {
+        "tick_hard_cap": 10,
+        "daily_hard_cap": 70,
+        "quota_reserve": 20
+      },
+      "provider_allowlist": [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups"
+      ],
+      "feature_enrichment_policy": {
+        "injuries": "DISABLED_BY_POLICY",
+        "statistics": "DISABLED_BY_POLICY"
+      }
     }
+
   ],
   "runtime_safety": {
     "formal_ah": false,
