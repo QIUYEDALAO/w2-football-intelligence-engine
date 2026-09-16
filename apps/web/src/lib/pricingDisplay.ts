@@ -37,12 +37,13 @@ export function formatAhSideLines(homeLine: unknown): { home: string; away: stri
 }
 
 export function formatAhMarketHandicap(homeLine: unknown): string | null {
+  // The canonical home-perspective line already carries the real handicap
+  // direction (negative = home gives the handicap, positive = home receives).
+  // Render it verbatim with an explicit sign, matching the recommendation
+  // handicap convention, instead of inverting it.
   const numeric = numericValue(homeLine);
   if (numeric == null) return null;
-  if (Math.abs(numeric) < 0.005) return "0";
-  const handicap = -numeric;
-  const absolute = Math.abs(handicap);
-  return `${handicap < 0 ? "-" : ""}${Number.isInteger(absolute) ? absolute.toFixed(1) : formatLine(absolute)}`;
+  return formatSignedLine(numeric);
 }
 
 export function formatAhRecommendationHandicap(selection: unknown, exactLine: unknown): string | null {

@@ -581,19 +581,19 @@ test("AH market radar uses the owner main-handicap sign convention", async ({ pa
   await page.goto("/");
 
   const market = page.locator("[data-market='ASIAN_HANDICAP']");
-  await expect(market.locator("[data-market-line]")).toHaveText("-0.5");
-  await expect(market.locator(".v41-snapshots li").last()).toContainText("-0.5");
+  await expect(market.locator("[data-market-line]")).toHaveText("+0.5");
+  await expect(market.locator(".v41-snapshots li").last()).toContainText("+0.5");
   await expect(market.locator(".v41-snapshots li").last()).toContainText("主 1.94 / 客 1.80");
-  await expect(page.locator(".v41-three-layer > div").first()).toContainText("-0.5");
+  await expect(page.locator(".v41-three-layer > div").first()).toContainText("+0.5");
 
   handicap.main_line = "-1.5";
   handicap.timeline_points = handicap.timeline_points.map((point) => ({ ...point, canonical_line: "-1.5" }));
   await page.reload();
-  await expect(market.locator("[data-market-line]")).toHaveText("1.5");
-  await expect(market.locator(".v41-snapshots li").last()).toContainText("1.5");
+  await expect(market.locator("[data-market-line]")).toHaveText("-1.5");
+  await expect(market.locator(".v41-snapshots li").last()).toContainText("-1.5");
 });
 
-test("AH recommendation rows carry the selected-team frame, the market radar's main handicap inverted", async ({ page }) => {
+test("AH recommendation rows share the owner main-handicap sign convention with market radar", async ({ page }) => {
   const payload = workspace();
   const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
   focused.fixture_id = "1490405";
@@ -633,21 +633,12 @@ test("AH recommendation rows carry the selected-team frame, the market radar's m
   for (const [fixtureId, , , expected] of recommendations) {
     await expect(page.locator(`.v41-official-recommendations li[data-fixture-id='${fixtureId}'] > span`).first()).toHaveText(expected);
   }
-  // The radar and the recommendation describe the same handicap in opposite
-  // frames, and this is the assertion that keeps them tied to each other.
-  // formatAhMarketHandicap negates the home-frame main_line, so main_line -0.5
-  // renders as "0.5" -- the handicap the home team gives. e90c0abe made
-  // exact_line belong to the selected team and formatAhRecommendationHandicap
-  // states outright that it must not be inverted, so the same handicap renders
-  // as "-0.5" next to 推荐主队. Asserting the two strings matched was asserting
-  // that e90c0abe had not happened; asserting they negate each other is what
-  // catches either side drifting.
+  // formatAhMarketHandicap renders the home-frame main_line with its sign
+  // preserved, so the market radar and the recommendation rows now share one
+  // sign convention: main_line -0.5 reads as "-0.5" in both places.
   const radarLine = await page.locator("[data-focus-type='MATCH'] [data-market='ASIAN_HANDICAP'] [data-market-line]").textContent();
   const recommendationText = await page.locator(".v41-official-recommendations li[data-fixture-id='1490405'] > span").first().textContent();
-  const recommendationLine = recommendationText?.match(/让球\s*(-?\+?[\d.]+)/)?.[1];
-  expect(radarLine).toBe("0.5");
-  expect(recommendationLine).toBe("-0.5");
-  expect(Number(recommendationLine)).toBe(-Number(radarLine));
+  expect(recommendationText).toContain(`让球 ${radarLine}`);
 });
 
 test("quote age gate mark reads each market's projected maximum", async ({ page }) => {
@@ -738,7 +729,7 @@ test("V41 uses diagnosis as the only unassessed conclusion and explains stale ma
   const row = page.locator(`.v41-shortlist-list [data-fixture-id='${focused.fixture_id}']`);
   await expect(row.locator(".v41-shortlist-title")).toContainText("本菲卡 vs 波尔图");
   await expect(row.locator(".v41-shortlist-title time")).toHaveText("22:30");
-  await expect(row).toContainText("让球 -0.25 未变");
+  await expect(row).toContainText("让球 +0.25 未变");
   await expect(row).toContainText("客赔 1.51 → 2.02（+33.8%）");
   await expect(row).toContainText("历史变化 · 当前不可执行");
   await expect(row).toContainText("当前报价已过期，等待 T3 更新");

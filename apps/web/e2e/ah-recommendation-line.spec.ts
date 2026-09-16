@@ -15,7 +15,13 @@ test("recommendations preserve the selected team's handicap sign", () => {
   }
   expect(formatAhRecommendationHandicap("UNKNOWN", "0.75")).toBeNull();
   expect(formatAhRecommendationHandicap("HOME", "invalid")).toBeNull();
-  expect(formatAhMarketHandicap("0.75")).toBe("-0.75");
+  // Market handicap preserves the home-perspective sign: negative = home gives,
+  // positive = home receives. No inversion.
+  expect(formatAhMarketHandicap("0.75")).toBe("+0.75");
+  expect(formatAhMarketHandicap("-0.75")).toBe("-0.75");
+  expect(formatAhMarketHandicap("0")).toBe("0");
+  expect(formatAhMarketHandicap("2")).toBe("+2");
+  expect(formatAhMarketHandicap(null)).toBeNull();
 });
 
 test("the handicap line names the team the line belongs to", () => {
