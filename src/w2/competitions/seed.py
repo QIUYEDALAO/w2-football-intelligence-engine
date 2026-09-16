@@ -249,25 +249,26 @@ def apply_collection_policy_update(
     updated: list[str] = []
     with Session(bind=bind) as session:
         profiles = list(session.scalars(select(LeagueProfileModel)))
-        # active_ids = 已注册（非 world_cup）且有 policy 的联赛。原实现用
-        # ``len(active_ids) != 13`` 断言数量，但联赛数量已非固定（LEAGUE-01R 新增
-        # 14 个 seed-only 联赛，它们无 policy、也不应在此被 enable）。改为动态判据：
-        #   - active_ids 非空 → 否则 COLLECTION_POLICY_SCOPE_EMPTY（避免空跑写成基线）；
-        #   - active_ids ⊆ policy_scope → 否则 COLLECTION_POLICY_MISSING（某个有
-        #     policy 意图的联赛缺 future 或 matchday 条目，fail-closed）。
-        # 放宽后本函数仍保护：不存在「有 collection policy 意图却缺 policy 文件」的
-        # 半启用状态；仍会在 scope 为空或 policy 缺失时 raise。
-        active_ids = {
+        registered_non_world_cup = {
             row.competition_id
             for row in profiles
             if str(dict(row.payload or {}).get("scope_group") or "") != "world_cup"
-            and row.competition_id in policy_scope
         }
+        # active_ids = 已注册（非 world_cup）且有完整 policy（future 与 matchday 都有）
+        # 的联赛。原实现用 ``len(active_ids) != 13`` 断言数量，但联赛数量已非固定
+        # （LEAGUE-01R 新增 14 个 seed-only 联赛，两个 policy 文件都没有它们，不应被
+        # enable）。改为动态判据，并保留两层 fail-closed：
+        #   - active_ids 为空 → COLLECTION_POLICY_SCOPE_EMPTY（避免空跑写成基线）；
+        #   - 存在「只在一个 policy 文件出现」的已注册联赛 → COLLECTION_POLICY_ASYMMETRIC
+        #     （防止手滑只改 future 或只改 matchday 造成的半配置状态被静默吞掉）。
+        active_ids = registered_non_world_cup & policy_scope
         if not active_ids:
             raise ValueError("COLLECTION_POLICY_SCOPE_EMPTY")
-        missing = active_ids - policy_scope
-        if missing:
-            raise ValueError("COLLECTION_POLICY_MISSING:" + ",".join(sorted(missing)))
+        asymmetric = (set(future_by_id) ^ set(matchday_by_id)) & registered_non_world_cup
+        if asymmetric:
+            raise ValueError(
+                "COLLECTION_POLICY_ASYMMETRIC:" + ",".join(sorted(asymmetric))
+            )
 
         for profile in profiles:
             competition_id = profile.competition_id

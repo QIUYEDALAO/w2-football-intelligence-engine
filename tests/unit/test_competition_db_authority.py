@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from apps.scheduler.main import (
     future_fixture_refresh_competition_ids,
     matchday_checkpoint_competition_ids,
@@ -152,6 +153,80 @@ def test_collection_policy_update_activates_exact_13_and_retires_world_cup(
         assert entry.refresh_switches == {"fixtures": True, "odds": True, "lineups": True}
         assert entry.future_refresh_policy is not None
         assert entry.matchday_policy is not None
+
+
+def test_collection_policy_raises_on_single_sided_policy(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """一个已注册联赛只在 future 或只在 matchday 出现 → COLLECTION_POLICY_ASYMMETRIC。
+
+    覆盖「手滑只改一个 policy 文件」造成的半配置状态，防止其被交集过滤静默吞掉。
+    """
+    import json
+
+    monkeypatch.setenv("W2_ENVIRONMENT", "production")
+    engine, _report = _seeded_engine("production")
+
+    # 构造不对称 policy：brasileirao_serie_a 两边都有（对称，进入 active_ids），
+    # argentina_primera 只在 future 里（不对称，应触发 ASYMMETRIC）。
+    future = {"competitions": [
+        {"competition_id": "brasileirao_serie_a"},
+        {"competition_id": "argentina_primera"},
+    ]}
+    matchday = {"competitions": [
+        {"competition_id": "brasileirao_serie_a"},
+    ]}
+    config_root = tmp_path / "config"
+    (config_root / "policies").mkdir(parents=True)
+    (config_root / "policies" / "future_fixture_refresh.v1.json").write_text(
+        json.dumps(future), encoding="utf-8"
+    )
+    (config_root / "policies" / "matchday_intake.v2.json").write_text(
+        json.dumps(matchday), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="COLLECTION_POLICY_ASYMMETRIC:argentina_primera"):
+        apply_collection_policy_update(
+            engine,
+            config_root=config_root,
+            updated_by="unit-test-owner-authorization",
+            now=datetime(2026, 8, 12, tzinfo=UTC),
+        )
+
+
+def test_collection_policy_ignores_leagues_absent_from_both_policies(
+    monkeypatch, tmp_path,
+) -> None:  # type: ignore[no-untyped-def]
+    """两个 policy 文件都没有的联赛（新联赛 seed-only）不触发任何 raise。"""
+    import json
+
+    monkeypatch.setenv("W2_ENVIRONMENT", "production")
+    engine, _report = _seeded_engine("production")
+
+    # 只保留 brasileirao_serie_a（对称），新联赛（如 england_championship）两个文件都没有，
+    # 且已注册，但不应触发 ASYMMETRIC 或 MISSING。
+    future = {"competitions": [{"competition_id": "brasileirao_serie_a"}]}
+    matchday = {"competitions": [{"competition_id": "brasileirao_serie_a"}]}
+    config_root = tmp_path / "config"
+    (config_root / "policies").mkdir(parents=True)
+    (config_root / "policies" / "future_fixture_refresh.v1.json").write_text(
+        json.dumps(future), encoding="utf-8"
+    )
+    (config_root / "policies" / "matchday_intake.v2.json").write_text(
+        json.dumps(matchday), encoding="utf-8"
+    )
+
+    updated = apply_collection_policy_update(
+        engine,
+        config_root=config_root,
+        updated_by="unit-test-owner-authorization",
+        now=datetime(2026, 8, 12, tzinfo=UTC),
+    )
+    # 只 enable 了有对称 policy 的联赛；新联赛（两个文件都没有）保持 disabled。
+    # 注意：updated 覆盖所有被处理的 profile（含 disabled 的），enable 与否要看
+    # registry.enabled_ids()（= active_ids = 对称 policy 联赛）。
+    enabled = CompetitionRegistry(engine).enabled_ids()
+    assert "brasileirao_serie_a" in enabled
+    assert "england_championship" not in enabled
+    assert "world_cup_2026" not in enabled
 
 
 def test_enabled_change_is_visible_to_same_registry_without_deploy() -> None:
