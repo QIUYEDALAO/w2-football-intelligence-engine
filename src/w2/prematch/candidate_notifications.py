@@ -475,6 +475,7 @@ def _withdrawals_already_pushed(session: Session) -> set[tuple[str, str]]:
 
 _ALWAYS_PUSH = frozenset(
     {
+        CANDIDATE_FORMED,
         CANDIDATE_T30_CONFIRMED,
         CANDIDATE_BREWING_DIGEST,
         PLAN_SUMMARY,
@@ -493,18 +494,15 @@ def delivery_route(
     """Decide whether an outbox row reaches the phone.
 
     Every event stays in the outbox for audit; this only governs delivery.
-    A push is warranted when the Owner can act on it: the T-30m lock is the
-    recommendation itself and carries a 15 minute validity window, and a
-    change or withdrawal matters once a lock has already been pushed. A
-    candidate still forming hours before kickoff is information, not an
-    interruption, so it goes to the periodic digest instead.
+    A push is warranted when the Owner can act on it. Entering
+    ``EVALUATED_CANDIDATE`` is itself the requested validation-sample event,
+    so ``CANDIDATE_FORMED`` is delivered immediately; the T-30m lock, changes,
+    and withdrawals retain their existing delivery semantics.
     """
 
     event_type = str(row.event_type)
     if event_type in _ALWAYS_PUSH:
         return "SEND", "ACTIONABLE"
-    if event_type == CANDIDATE_FORMED:
-        return "DIGEST", "BREWING_NOT_TIME_CRITICAL"
     key = _fixture_market_key(row.payload)
     if key is None:
         return "SEND", "UNKEYED_EVENT"

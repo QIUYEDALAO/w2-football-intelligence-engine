@@ -978,10 +978,11 @@ def test_only_actionable_events_reach_the_phone() -> None:
 
     # The lock is the recommendation and carries a 15 minute validity window.
     assert route(CANDIDATE_T30_CONFIRMED, offset_minutes=0)[0] == "SEND"
-    # A candidate still forming hours out is information, not an interruption.
+    # Entering EVALUATED_CANDIDATE is the requested validation-sample event and
+    # must reach the phone immediately.
     assert route(CANDIDATE_FORMED, offset_minutes=-120) == (
-        "DIGEST",
-        "BREWING_NOT_TIME_CRITICAL",
+        "SEND",
+        "ACTIONABLE",
     )
     # Nothing to act on yet, so a pre-lock change stays out of the push channel.
     assert route(CANDIDATE_MATERIAL_CHANGE, offset_minutes=-30) == (
@@ -991,6 +992,46 @@ def test_only_actionable_events_reach_the_phone() -> None:
     # After the lock the Owner is holding a position, so both matter.
     assert route(CANDIDATE_MATERIAL_CHANGE, offset_minutes=5)[0] == "SEND"
     assert route(CANDIDATE_WITHDRAWN, offset_minutes=5)[0] == "SEND"
+
+
+def test_candidate_formed_is_delivered_immediately(monkeypatch) -> None:
+    engine = _engine()
+    monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app")
+    monkeypatch.setenv("W2_BARK_DEVICE_KEY", "owner-device-test-key")
+    with Session(engine) as session:
+        session.add(
+            CandidateNotificationOutboxModel(
+                notification_event_id="formed-immediate",
+                opportunity_identity_hash="a" * 64,
+                attempt_identity_hash="b" * 64,
+                event_type=CANDIDATE_FORMED,
+                previous_state=None,
+                current_state="EVALUATED_CANDIDATE",
+                payload={
+                    "event_type": CANDIDATE_FORMED,
+                    "fixture_id": "1550092",
+                    "market": "ASIAN_HANDICAP",
+                    "match": {"home": "国际米兰", "away": "蒙扎"},
+                    "kickoff_local": "2026-08-23T00:30:00+08:00",
+                    "line": 0.25,
+                    "direction": "HOME",
+                    "decimal_odds": 1.92,
+                },
+                created_at=NOW,
+                delivered_at=None,
+                delivery_status=candidate_notifications.PENDING,
+                delivery_attempt_count=0,
+                last_error=None,
+            )
+        )
+        session.commit()
+
+    sent: list[dict[str, object]] = []
+    result = deliver_pending_notifications(now=NOW, engine=engine, sender=sent.append)
+
+    assert result["delivered"] == 1
+    assert [payload["event_type"] for payload in sent] == [CANDIDATE_FORMED]
+    assert _events(engine)[0].delivery_status == DELIVERED
 
 
 def test_a_withdrawal_is_pushed_at_most_once_per_market() -> None:
@@ -1039,7 +1080,7 @@ def test_change_is_suppressed_when_the_lock_push_failed(monkeypatch) -> None:
 
     deliver_pending_notifications(now=NOW + timedelta(minutes=10), engine=engine, sender=fail_lock)
 
-    assert sent == [CANDIDATE_T30_CONFIRMED]
+    assert sent == [CANDIDATE_FORMED, CANDIDATE_T30_CONFIRMED]
     events = _events(engine)
     lock = next(row for row in events if row.event_type == CANDIDATE_T30_CONFIRMED)
     changes = [row for row in events if row.event_type == CANDIDATE_MATERIAL_CHANGE]
@@ -1061,6 +1102,7 @@ def test_successful_lock_unlocks_a_later_change_in_the_same_batch(monkeypatch) -
     )
 
     assert [payload["event_type"] for payload in sent] == [
+        CANDIDATE_FORMED,
         CANDIDATE_T30_CONFIRMED,
         CANDIDATE_MATERIAL_CHANGE,
     ]
