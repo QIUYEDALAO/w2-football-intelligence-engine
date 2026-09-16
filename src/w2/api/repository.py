@@ -21,7 +21,7 @@ from pydantic import ValidationError
 from sqlalchemy import func, literal, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer, load_only
 
 from w2.api.schemas import (
     PerformanceCohortProjection,
@@ -1307,7 +1307,26 @@ class ReadModelRepository:
         )
 
     def analysis_checkpoint_count(self) -> int:
-        return self.release_counts()["read_model_fixture_count"]
+        competition_ids = self._dashboard_competition_ids()
+        try:
+            with Session(self._database_engine()) as session:
+                count = session.scalar(
+                    select(func.count())
+                    .select_from(MatchdayFixtureIdentityModel)
+                    .join(
+                        ReadModelCheckpointModel,
+                        ReadModelCheckpointModel.checkpoint_key
+                        == literal(ANALYSIS_CARD_SHADOW_PREFIX)
+                        + MatchdayFixtureIdentityModel.provider_fixture_id,
+                    )
+                    .where(
+                        MatchdayFixtureIdentityModel.provider == "api_football",
+                        MatchdayFixtureIdentityModel.competition_id.in_(competition_ids),
+                    )
+                ) or 0
+                return int(count)
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("READ_MODEL_CHECKPOINT_QUERY_FAILED") from exc
 
     def dashboard_fixtures_for_window(
         self,
@@ -1794,17 +1813,83 @@ class ReadModelRepository:
 
         try:
             with Session(self._database_engine()) as session:
-                captures = list(session.scalars(select(ModelForecastCaptureModel)))
-                versions = list(session.scalars(select(ModelForecastCaptureDataVersionModel)))
-                outcomes = list(session.scalars(select(ModelForecastOutcomeModel)))
-                dynamic_evaluations = list(session.scalars(select(DynamicPrematchEvaluationModel)))
+                # Only the columns consumed downstream are materialised; the
+                # append-only ledgers carry large JSON payloads that the
+                # projection never reads.  Projecting columns keeps the query
+                # semantics identical while avoiding full-payload JSON decode.
+                captures = list(
+                    session.scalars(
+                        select(ModelForecastCaptureModel).options(
+                            load_only(
+                                ModelForecastCaptureModel.capture_identity_hash,
+                                ModelForecastCaptureModel.fixture_id,
+                                ModelForecastCaptureModel.lead_time_bucket,
+                            )
+                        )
+                    )
+                )
+                versions = list(
+                    session.scalars(
+                        select(ModelForecastCaptureDataVersionModel).options(
+                            load_only(
+                                ModelForecastCaptureDataVersionModel.capture_identity_hash,
+                                ModelForecastCaptureDataVersionModel.data_version,
+                                ModelForecastCaptureDataVersionModel.team_xg_match_count,
+                            )
+                        )
+                    )
+                )
+                outcomes = list(
+                    session.scalars(
+                        select(ModelForecastOutcomeModel).options(
+                            load_only(
+                                ModelForecastOutcomeModel.capture_identity_hash,
+                                ModelForecastOutcomeModel.lead_time_bucket,
+                            )
+                        )
+                    )
+                )
+                # Every consumer skips rows where official_funnel_eligible is not
+                # True, so the filter can be pushed into SQL without changing the
+                # result (NULL and False rows were never read downstream).
+                dynamic_evaluations = list(
+                    session.scalars(
+                        select(DynamicPrematchEvaluationModel)
+                        .where(DynamicPrematchEvaluationModel.official_funnel_eligible.is_(True))
+                        .options(
+                            defer(DynamicPrematchEvaluationModel.all_failed_gates),
+                            defer(DynamicPrematchEvaluationModel.identity_hash),
+                            defer(DynamicPrematchEvaluationModel.checkpoint),
+                            defer(DynamicPrematchEvaluationModel.capture_id),
+                            defer(DynamicPrematchEvaluationModel.quote_identity_hash),
+                            defer(DynamicPrematchEvaluationModel.model_input_hash),
+                            defer(DynamicPrematchEvaluationModel.lineup_input_hash),
+                            defer(DynamicPrematchEvaluationModel.capture_at),
+                            defer(DynamicPrematchEvaluationModel.exclusion_reason),
+                            defer(DynamicPrematchEvaluationModel.scheduled_checkpoint_at),
+                            defer(DynamicPrematchEvaluationModel.checkpoint_plan_identity),
+                            defer(DynamicPrematchEvaluationModel.source_event_identity),
+                            defer(DynamicPrematchEvaluationModel.bookmaker_count),
+                        )
+                    )
+                )
                 dynamic_opportunities = list(
-                    session.scalars(select(DynamicPrematchOpportunityModel))
+                    session.scalars(
+                        select(DynamicPrematchOpportunityModel).options(
+                            defer(DynamicPrematchOpportunityModel.payload),
+                            defer(
+                                DynamicPrematchOpportunityModel.model_forecast_capture_identity_hash
+                            ),
+                            defer(DynamicPrematchOpportunityModel.evaluation_policy_version),
+                            defer(DynamicPrematchOpportunityModel.evaluated_at),
+                        )
+                    )
                 )
                 t30_plans = list(
                     session.scalars(
-                        select(MatchdayCheckpointPlanModel).where(
-                            MatchdayCheckpointPlanModel.checkpoint == "T-30m_VALIDATION_LOCK"
+                        select(MatchdayCheckpointPlanModel.plan_id).where(
+                            MatchdayCheckpointPlanModel.checkpoint == "T-30m_VALIDATION_LOCK",
+                            MatchdayCheckpointPlanModel.status == "CAPTURED",
                         )
                     )
                 )
@@ -1924,7 +2009,9 @@ class ReadModelRepository:
             if row.evaluation_slot_id == "T-30m_VALIDATION_LOCK"
             and row.state == "EVALUATED_CANDIDATE"
         ]
-        captured_t30_plan_ids = {row.plan_id for row in t30_plans if row.status == "CAPTURED"}
+        # The CAPTURED filter is now applied in SQL; t30_plans is already the
+        # set of captured plan ids.
+        captured_t30_plan_ids = set(t30_plans)
         t30_evaluated_candidate_count = len(
             {
                 (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
