@@ -232,23 +232,40 @@ def apply_collection_policy_update(
     updated_by: str,
     now: datetime | None = None,
 ) -> tuple[str, ...]:
-    """Apply the Owner-authorized collection policy to the exact 13-league scope."""
+    """Apply the Owner-authorized collection policy to the current league scope.
+
+    This applies collection policy only to leagues that are both registered
+    (non-world-cup) and present in the future/matchday policy files. Leagues
+    registered via config seed but not yet granted a collection policy are
+    intentionally left ``enabled=False``; enabling them is a separate Phase 5
+    ``--set-enabled`` action, not part of this routine.
+    """
     current = now or datetime.now(UTC)
     future_payload = _read_json(config_root / "policies/future_fixture_refresh.v1.json")
     matchday_payload = _read_json(config_root / "policies/matchday_intake.v2.json")
     future_by_id = _policy_by_competition(future_payload)
     matchday_by_id = _policy_by_competition(matchday_payload)
+    policy_scope = set(future_by_id) & set(matchday_by_id)
     updated: list[str] = []
     with Session(bind=bind) as session:
         profiles = list(session.scalars(select(LeagueProfileModel)))
+        # active_ids = 已注册（非 world_cup）且有 policy 的联赛。原实现用
+        # ``len(active_ids) != 13`` 断言数量，但联赛数量已非固定（LEAGUE-01R 新增
+        # 14 个 seed-only 联赛，它们无 policy、也不应在此被 enable）。改为动态判据：
+        #   - active_ids 非空 → 否则 COLLECTION_POLICY_SCOPE_EMPTY（避免空跑写成基线）；
+        #   - active_ids ⊆ policy_scope → 否则 COLLECTION_POLICY_MISSING（某个有
+        #     policy 意图的联赛缺 future 或 matchday 条目，fail-closed）。
+        # 放宽后本函数仍保护：不存在「有 collection policy 意图却缺 policy 文件」的
+        # 半启用状态；仍会在 scope 为空或 policy 缺失时 raise。
         active_ids = {
             row.competition_id
             for row in profiles
             if str(dict(row.payload or {}).get("scope_group") or "") != "world_cup"
+            and row.competition_id in policy_scope
         }
-        if len(active_ids) != 13:
-            raise ValueError(f"COLLECTION_POLICY_SCOPE_NOT_EXACT_13:{len(active_ids)}")
-        missing = active_ids - (set(future_by_id) & set(matchday_by_id))
+        if not active_ids:
+            raise ValueError("COLLECTION_POLICY_SCOPE_EMPTY")
+        missing = active_ids - policy_scope
         if missing:
             raise ValueError("COLLECTION_POLICY_MISSING:" + ",".join(sorted(missing)))
 
