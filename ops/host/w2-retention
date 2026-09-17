@@ -95,10 +95,13 @@ done
 
 # ---- 4. 本地镜像（仅 python / web） ----
 log "== images ($REGISTRY_PREFIX/{python,web}) =="
-"$DOCKER_BIN" images --format '{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Digest}}\t{{.Size}}' \
-  "$REGISTRY_PREFIX/python" "$REGISTRY_PREFIX/web" 2>/dev/null \
+"$DOCKER_BIN" images --format '{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Digest}}\t{{.Size}}' 2>/dev/null \
 | while IFS=$'\t' read -r repo tag id digest size; do
   short_repo=$(basename "$repo")
+  case "$repo" in
+    "$REGISTRY_PREFIX/python"|"$REGISTRY_PREFIX/web") ;;
+    *) continue ;;
+  esac
   # 判断是否保留：具名 tag 且 (完整 sha 在保留集 或 repo|tag 在永久名单)
   keep=0
   if [ "$tag" != "<none>" ]; then
