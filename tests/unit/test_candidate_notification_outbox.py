@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from copy import deepcopy
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -19,6 +19,7 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchEvaluationModel,
     DynamicPrematchOpportunityModel,
 )
+from w2.infrastructure.persistence.league_models import LeagueSeasonModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayFixtureIdentityModel,
@@ -83,12 +84,13 @@ def _attempt(
     ev: float = 0.06,
     market: str = "ASIAN_HANDICAP",
     depth: int = 7,
+    selection: str = "HOME_AH",
 ):  # type: ignore[no-untyped-def]
     version = classify_evaluation(
         DynamicEvaluationInput(
             fixture_id="1523202",
             market=market,
-            selection="HOME_AH",
+            selection=selection,
             exact_line=line,
             bookmaker_id="book-1",
             capture_id=f"capture-{suffix}",
@@ -452,6 +454,7 @@ def test_candidate_reformed_after_missed_closeout_is_not_silenced() -> None:
             CANDIDATE_FORMED,
             CANDIDATE_WITHDRAWN,
             CANDIDATE_MATERIAL_CHANGE,
+            candidate_notifications.VALIDATION_SAMPLE_CONFIRMED,
         ]
     )
     reformed = next(event for event in events if event.event_type == CANDIDATE_MATERIAL_CHANGE)
@@ -964,37 +967,39 @@ def _routing_row(
     )
 
 
-def test_only_actionable_events_reach_the_phone() -> None:
+def test_owner_stopped_types_are_suppressed_but_new_types_reach_the_phone() -> None:
     lock_at = datetime(2026, 8, 22, 16, 7, tzinfo=UTC)
     confirmed = {("1550092", "ASIAN_HANDICAP"): lock_at}
-    pushed: set[tuple[str, str]] = set()
 
     def route(event_type: str, *, offset_minutes: int) -> tuple[str, str]:
         return candidate_notifications.delivery_route(
             _routing_row(event_type, created_at=lock_at + timedelta(minutes=offset_minutes)),
             confirmed_at=confirmed,
-            withdrawals_pushed=pushed,
+            withdrawals_pushed=set(),
         )
 
-    # The lock is the recommendation and carries a 15 minute validity window.
-    assert route(CANDIDATE_T30_CONFIRMED, offset_minutes=0)[0] == "SEND"
-    # Entering EVALUATED_CANDIDATE is the requested validation-sample event and
-    # must reach the phone immediately.
-    assert route(CANDIDATE_FORMED, offset_minutes=-120) == (
-        "SEND",
-        "ACTIONABLE",
-    )
-    # Nothing to act on yet, so a pre-lock change stays out of the push channel.
-    assert route(CANDIDATE_MATERIAL_CHANGE, offset_minutes=-30) == (
-        "SUPPRESS",
-        "NO_LOCK_PUSHED_FOR_THIS_MARKET",
-    )
-    # After the lock the Owner is holding a position, so both matter.
-    assert route(CANDIDATE_MATERIAL_CHANGE, offset_minutes=5)[0] == "SEND"
-    assert route(CANDIDATE_WITHDRAWN, offset_minutes=5)[0] == "SEND"
+    # NOTIF-04: every legacy candidate/summary type is written for audit but
+    # never delivered.
+    for event_type in (
+        CANDIDATE_FORMED,
+        CANDIDATE_MATERIAL_CHANGE,
+        CANDIDATE_WITHDRAWN,
+        CANDIDATE_T30_CONFIRMED,
+        PLAN_SUMMARY,
+        DAY_CLOSEOUT_SUMMARY,
+        candidate_notifications.CANDIDATE_BREWING_DIGEST,
+    ):
+        assert route(event_type, offset_minutes=0) == ("SUPPRESS", "OWNER_DECISION_STOP")
+    # The three NOTIF-04 types still reach the phone.
+    for event_type in (
+        candidate_notifications.DAILY_CANDIDATE_LIST,
+        candidate_notifications.VALIDATION_SAMPLE_CONFIRMED,
+        candidate_notifications.DAILY_SETTLEMENT,
+    ):
+        assert route(event_type, offset_minutes=0) == ("SEND", "ACTIONABLE")
 
 
-def test_candidate_formed_is_delivered_immediately(monkeypatch) -> None:
+def test_owner_stopped_type_is_written_for_audit_but_not_delivered(monkeypatch) -> None:
     engine = _engine()
     monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app")
     monkeypatch.setenv("W2_BARK_DEVICE_KEY", "owner-device-test-key")
@@ -1029,33 +1034,29 @@ def test_candidate_formed_is_delivered_immediately(monkeypatch) -> None:
     sent: list[dict[str, object]] = []
     result = deliver_pending_notifications(now=NOW, engine=engine, sender=sent.append)
 
-    assert result["delivered"] == 1
-    assert [payload["event_type"] for payload in sent] == [CANDIDATE_FORMED]
-    assert _events(engine)[0].delivery_status == DELIVERED
+    assert result["delivered"] == 0
+    assert result["suppressed"] == 1
+    assert sent == []
+    assert _events(engine)[0].delivery_status == candidate_notifications.SUPPRESSED
+    assert _events(engine)[0].last_error == "OWNER_DECISION_STOP"
 
 
-def test_a_withdrawal_is_pushed_at_most_once_per_market() -> None:
+def test_withdrawals_are_owner_stopped_regardless_of_lock_state() -> None:
     lock_at = datetime(2026, 8, 22, 16, 7, tzinfo=UTC)
     confirmed = {("1550092", "ASIAN_HANDICAP"): lock_at}
-    pushed = {("1550092", "ASIAN_HANDICAP")}
     assert candidate_notifications.delivery_route(
         _routing_row(CANDIDATE_WITHDRAWN, created_at=lock_at + timedelta(minutes=20)),
         confirmed_at=confirmed,
-        withdrawals_pushed=pushed,
-    ) == ("SUPPRESS", "WITHDRAWAL_ALREADY_PUSHED")
-
-
-def test_an_unrelated_market_on_a_locked_fixture_is_not_pushed() -> None:
-    lock_at = datetime(2026, 8, 22, 16, 7, tzinfo=UTC)
-    confirmed = {("1550092", "ASIAN_HANDICAP"): lock_at}
-    route, reason = candidate_notifications.delivery_route(
+        withdrawals_pushed={("1550092", "ASIAN_HANDICAP")},
+    ) == ("SUPPRESS", "OWNER_DECISION_STOP")
+    # Even a different market on the same fixture is stopped the same way.
+    assert candidate_notifications.delivery_route(
         _routing_row(
             CANDIDATE_WITHDRAWN, market="TOTALS", created_at=lock_at + timedelta(minutes=5)
         ),
         confirmed_at=confirmed,
         withdrawals_pushed=set(),
-    )
-    assert (route, reason) == ("SUPPRESS", "NO_LOCK_PUSHED_FOR_THIS_MARKET")
+    ) == ("SUPPRESS", "OWNER_DECISION_STOP")
 
 
 def _lock_then_change(engine) -> None:  # type: ignore[no-untyped-def]
@@ -1066,46 +1067,39 @@ def _lock_then_change(engine) -> None:  # type: ignore[no-untyped-def]
     _append(repository, _attempt("T15_ODDS", "eeee", line=-0.75))
 
 
-def test_change_is_suppressed_when_the_lock_push_failed(monkeypatch) -> None:
+def test_legacy_candidate_events_are_suppressed_and_only_validation_sample_delivered(
+    monkeypatch,
+) -> None:
     engine = _engine()
     _lock_then_change(engine)
     monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app")
     monkeypatch.setenv("W2_BARK_DEVICE_KEY", "owner-device-test-key")
     sent: list[str] = []
 
-    def fail_lock(payload) -> None:  # type: ignore[no-untyped-def]
-        sent.append(str(payload["event_type"]))
-        if payload["event_type"] == CANDIDATE_T30_CONFIRMED:
-            raise TimeoutError
-
-    deliver_pending_notifications(now=NOW + timedelta(minutes=10), engine=engine, sender=fail_lock)
-
-    assert sent == [CANDIDATE_FORMED, CANDIDATE_T30_CONFIRMED]
-    events = _events(engine)
-    lock = next(row for row in events if row.event_type == CANDIDATE_T30_CONFIRMED)
-    changes = [row for row in events if row.event_type == CANDIDATE_MATERIAL_CHANGE]
-    assert lock.delivery_status == RETRY_PENDING
-    assert changes[-1].delivery_status == candidate_notifications.SUPPRESSED
-
-
-def test_successful_lock_unlocks_a_later_change_in_the_same_batch(monkeypatch) -> None:
-    engine = _engine()
-    _lock_then_change(engine)
-    monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app")
-    monkeypatch.setenv("W2_BARK_DEVICE_KEY", "owner-device-test-key")
-    sent: list[dict[str, object]] = []
-
     deliver_pending_notifications(
         now=NOW + timedelta(minutes=10),
         engine=engine,
-        sender=sent.append,
+        sender=lambda payload: sent.append(str(payload["event_type"])),
     )
 
-    assert [payload["event_type"] for payload in sent] == [
-        CANDIDATE_FORMED,
-        CANDIDATE_T30_CONFIRMED,
-        CANDIDATE_MATERIAL_CHANGE,
+    # NOTIF-04: only ② reaches the phone; every legacy candidate event stays in
+    # the outbox for audit and is never delivered.
+    assert sent == [candidate_notifications.VALIDATION_SAMPLE_CONFIRMED]
+    events = _events(engine)
+    legacy = [
+        row
+        for row in events
+        if row.event_type != candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
     ]
+    assert legacy and all(
+        row.delivery_status == candidate_notifications.SUPPRESSED for row in legacy
+    )
+    confirmation = next(
+        row
+        for row in events
+        if row.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
+    )
+    assert confirmation.delivery_status == DELIVERED
 
 
 def test_daily_brewing_digest_waits_for_its_day_to_close() -> None:
@@ -1179,3 +1173,386 @@ def test_daily_brewing_digest_waits_for_its_day_to_close() -> None:
             )
             == []
         )
+
+
+def _insert_enabled_competition(session: Session, competition_id: str = "chinese_super_league") -> None:
+    session.add(
+        LeagueSeasonModel(
+            competition_id=competition_id,
+            season="2026",
+            lifecycle="ACTIVE",
+            payload={"enabled": True},
+        )
+    )
+
+
+def _insert_fixture_identity(
+    session: Session, *, fixture_id: str = "1523202", kickoff_utc: datetime
+) -> None:
+    session.add(
+        MatchdayFixtureIdentityModel(
+            fixture_id=f"api_football:{fixture_id}",
+            provider="api_football",
+            provider_fixture_id=fixture_id,
+            competition_id="chinese_super_league",
+            provider_league_id="169",
+            season="2026",
+            kickoff_utc=kickoff_utc,
+            fixture_status="NS",
+            home_provider_team_id="1",
+            away_provider_team_id="2",
+            home_w2_team_id=None,
+            away_w2_team_id=None,
+            team_identity_status="PROVIDER_ONLY",
+            raw_payload_sha256="3" * 64,
+            endpoint_capture_id=None,
+            captured_at=kickoff_utc - timedelta(days=1),
+            identity_hash="4" * 64,
+            payload={"home_team_name": "上海海港", "away_team_name": "大连英博"},
+        )
+    )
+
+
+def _insert_model_track(
+    session: Session, *, fixture_id: str = "1523202", kickoff_utc: datetime
+) -> None:
+    session.add(
+        ModelForecastCaptureModel(
+            capture_identity_hash="7" * 64,
+            fixture_id=f"api_football:{fixture_id}",
+            competition_id="chinese_super_league",
+            kickoff_utc=kickoff_utc,
+            captured_at=kickoff_utc - timedelta(hours=4),
+            lead_time_seconds=4 * 60 * 60,
+            lead_time_bucket="T3_PLUS",
+            model_family="test",
+            model_version="test.v1",
+            capture_policy="FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
+            horizon_id="NONE",
+            model_input_manifest_hash="8" * 64,
+            four_field_xg_identity_hash="9" * 64,
+            score_matrix_hash="a" * 64,
+            payload={},
+            payload_sha256="b" * 64,
+            inserted_at=kickoff_utc - timedelta(hours=4),
+        )
+    )
+
+
+def _insert_t3_plan(
+    session: Session, *, fixture_id: str = "1523202", scheduled_at: datetime
+) -> None:
+    session.add(
+        MatchdayCheckpointPlanModel(
+            plan_id="plan-T3",
+            fixture_id=f"api_football:{fixture_id}",
+            competition_id="chinese_super_league",
+            season="2026",
+            policy_version="w2.matchday_intake_policy.v2",
+            checkpoint="T3_ODDS",
+            kickoff_utc=scheduled_at + timedelta(hours=3),
+            scheduled_at=scheduled_at,
+            window_start=scheduled_at,
+            window_end=scheduled_at + timedelta(minutes=5),
+            endpoints=["odds"],
+            status="PLANNED",
+            attempt_count=0,
+            test_only=False,
+            blockers=[],
+            plan_hash="5" * 64,
+        )
+    )
+
+
+def _due_at_for_kickoff(kickoff_utc: datetime, day: date) -> datetime:
+    engine = _engine()
+    with Session(engine) as session:
+        _insert_fixture_identity(session, kickoff_utc=kickoff_utc)
+        _insert_model_track(session, kickoff_utc=kickoff_utc)
+        # SQLite stores datetimes naive; persist the T3 plan time in UTC so the
+        # timezone-aware logic reads back the wall clock it meant to schedule.
+        _insert_t3_plan(
+            session, scheduled_at=kickoff_utc.astimezone(UTC) - timedelta(hours=3)
+        )
+        session.commit()
+        return candidate_notifications._daily_candidate_list_due_at(
+            session, day=day, candidate_fixture_ids={"1523202"}
+        )
+
+
+def test_daily_candidate_list_due_time_rules() -> None:
+    beijing = candidate_notifications.BEIJING
+    day = date(2026, 8, 20)
+    default_due = datetime.combine(day, time(14, 0), tzinfo=beijing).astimezone(UTC)
+
+    # 首场北京 01:00（次日凌晨）→ T3 当日 22:00，不早于 14:30 → 14:00
+    assert _due_at_for_kickoff(datetime(2026, 8, 21, 1, 0, tzinfo=beijing), day) == default_due
+    # 首场北京 16:30 → T3 13:30，早于 14:30 → 提前到 13:00
+    assert _due_at_for_kickoff(datetime(2026, 8, 20, 16, 30, tzinfo=beijing), day) == (
+        datetime(2026, 8, 20, 13, 30, tzinfo=beijing) - timedelta(minutes=30)
+    ).astimezone(UTC)
+
+
+def test_daily_candidate_list_no_fixtures_defaults_to_14() -> None:
+    engine = _engine()
+    day = date(2026, 8, 20)
+    with Session(engine) as session:
+        due = candidate_notifications._daily_candidate_list_due_at(
+            session, day=day, candidate_fixture_ids=set()
+        )
+    assert due == datetime.combine(
+        day, time(14, 0), tzinfo=candidate_notifications.BEIJING
+    ).astimezone(UTC)
+
+
+def test_daily_candidate_list_enqueues_and_renders_n0() -> None:
+    engine = _engine()
+    day = date(2026, 8, 20)
+    # 14:00 on the football day: no candidate fixtures → N=0 message.
+    now = datetime.combine(day, time(14, 0), tzinfo=candidate_notifications.BEIJING)
+    with Session(engine) as session:
+        event_id = candidate_notifications.enqueue_daily_candidate_list_in_session(
+            session, now=now
+        )
+        assert event_id is not None
+        event = session.get(CandidateNotificationOutboxModel, event_id)
+        assert event.payload["match_count"] == 0
+        rendered = render_bark_message(event.payload)
+        assert rendered["title"] == "[今日评估] 08-20 今天没有可评估的比赛"
+        session.commit()
+
+    # Idempotent: a second call in the same day does not re-enqueue.
+    with Session(engine) as session:
+        assert (
+            candidate_notifications.enqueue_daily_candidate_list_in_session(session, now=now)
+            is None
+        )
+
+
+def test_validation_sample_confirmed_only_when_final_state_is_candidate() -> None:
+    # T3 candidate, T15 no-edge → final is NO_EDGE → 不推
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    _append(repository, _attempt("T3_ODDS", "a"))
+    _append(repository, _attempt("T15_ODDS", "b", ev=-0.01))
+    assert not any(
+        event.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
+        for event in _events(engine)
+    )
+
+    # T3 no-edge, T15 candidate → final is CANDIDATE → 推
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    _append(repository, _attempt("T3_ODDS", "a", ev=-0.01))
+    _append(repository, _attempt("T15_ODDS", "b"))
+    confirmed = [
+        event
+        for event in _events(engine)
+        if event.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
+    ]
+    assert len(confirmed) == 1
+    assert confirmed[0].payload["decimal_odds"] == 1.91
+    assert confirmed[0].payload["market"] == "ASIAN_HANDICAP"
+
+
+def test_validation_sample_confirmed_is_idempotent() -> None:
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    _append(repository, _attempt("T3_ODDS", "a", ev=-0.01))
+    _append(repository, _attempt("T15_ODDS", "b"))  # triggers ②
+    confirmed = [
+        event
+        for event in _events(engine)
+        if event.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
+    ]
+    assert len(confirmed) == 1
+
+    # A manual re-enqueue is a no-op (per fixture x market).
+    with Session(engine) as session:
+        assert (
+            candidate_notifications.enqueue_validation_sample_confirmed_in_session(
+                session, fixture_id="1523202", market="ASIAN_HANDICAP", now=NOW
+            )
+            is None
+        )
+        session.commit()
+    assert (
+        len(
+            [
+                event
+                for event in _events(engine)
+                if event.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
+            ]
+        )
+        == 1
+    )
+
+
+def test_validation_sample_fallback_uses_last_real_evaluation_at_kickoff_minus_5() -> None:
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    kickoff = NOW + timedelta(hours=2)
+    with Session(engine) as session:
+        _insert_enabled_competition(session)
+        _insert_fixture_identity(session, kickoff_utc=kickoff)
+        session.commit()
+    _append(repository, _attempt("T3_ODDS", "a"))  # last real evaluation is a candidate
+    repository.record_opportunity_without_attempt(
+        fixture_id="1523202",
+        market="ASIAN_HANDICAP",
+        context=_context("T15_ODDS", "missed"),
+        state=OpportunityState.MISSED_CHECKPOINT,
+        recorded_at=kickoff - timedelta(minutes=10),
+        blocker="CHECKPOINT_WINDOW_MISSED",
+    )
+
+    # Before kickoff-5min, nothing is emitted.
+    with Session(engine) as session:
+        assert (
+            candidate_notifications.enqueue_validation_sample_fallbacks_in_session(
+                session, now=kickoff - timedelta(minutes=10)
+            )
+            == []
+        )
+    # At kickoff-5min the last real evaluation confirms the sample.
+    with Session(engine) as session:
+        inserted = candidate_notifications.enqueue_validation_sample_fallbacks_in_session(
+            session, now=kickoff - timedelta(minutes=5)
+        )
+        assert len(inserted) == 1
+        session.commit()
+    confirmed = next(
+        event
+        for event in _events(engine)
+        if event.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
+    )
+    assert confirmed.payload["decimal_odds"] == 1.91
+
+
+def test_daily_settlement_settles_and_marks_pending() -> None:
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    # kickoff in football day 8/19 window: [8/19 12:00, 8/20 12:00) Beijing
+    kickoff = datetime(2026, 8, 19, 20, 0, tzinfo=candidate_notifications.BEIJING)
+    with Session(engine) as session:
+        _insert_enabled_competition(session)
+        _insert_fixture_identity(session, kickoff_utc=kickoff)
+        session.commit()
+    _append(repository, _attempt("T3_ODDS", "a", selection="HOME"))
+
+    # Before Beijing 12:00, nothing is emitted.
+    before = datetime(2026, 8, 20, 11, 0, tzinfo=candidate_notifications.BEIJING)
+    with Session(engine) as session:
+        assert candidate_notifications.enqueue_daily_settlement_in_session(session, now=before) is None
+
+    # No result yet → 待结算.
+    now = datetime(2026, 8, 20, 12, 0, tzinfo=candidate_notifications.BEIJING)
+    with Session(engine) as session:
+        event_id = candidate_notifications.enqueue_daily_settlement_in_session(session, now=now)
+        assert event_id is not None
+        event = session.get(CandidateNotificationOutboxModel, event_id)
+        assert event.payload["item_count"] == 1
+        assert event.payload["items"][0]["profit_units"] is None
+        assert event.payload["pending"] == [
+            {"fixture_id": "1523202", "market": "ASIAN_HANDICAP"}
+        ]
+        assert event.payload["total_profit_units"] == 0.0
+        session.commit()
+
+    # Add the result, then the next day's settlement carries it as 补结算.
+    with Session(engine) as session:
+        session.add(
+            ResultModel(
+                id="result-1523202",
+                fixture_id="api_football:1523202",
+                home_goals=2,
+                away_goals=1,
+                result_status="FT",
+                confirmed_at=kickoff + timedelta(hours=2),
+                source_payload_sha256="c" * 64,
+                source_capture_id=None,
+                result_hash="d" * 64,
+            )
+        )
+        session.commit()
+
+    next_day = datetime(2026, 8, 21, 12, 0, tzinfo=candidate_notifications.BEIJING)
+    with Session(engine) as session:
+        event_id = candidate_notifications.enqueue_daily_settlement_in_session(session, now=next_day)
+        assert event_id is not None
+        event = session.get(CandidateNotificationOutboxModel, event_id)
+        assert event.payload["item_count"] == 1
+        item = event.payload["items"][0]
+        assert item["supplementary"] is True
+        assert item["settlement"] == "WIN"
+        assert item["profit_units"] == 0.91
+        assert event.payload["win_count"] == 1
+        assert event.payload["total_profit_units"] == 0.91
+        session.commit()
+
+
+def test_notif04_titles_and_bodies_render() -> None:
+    beijing = candidate_notifications.BEIJING
+    candidate_list = render_bark_message(
+        {
+            "event_type": candidate_notifications.DAILY_CANDIDATE_LIST,
+            "football_day": "2026-08-20",
+            "match_count": 1,
+            "matches": [
+                {
+                    "kickoff_local_hm": "20:30",
+                    "competition": "中超",
+                    "home": "上海海港",
+                    "away": "大连英博",
+                }
+            ],
+        }
+    )
+    assert candidate_list["title"] == "[今日评估] 08-20 共 1 场"
+    assert "开球前 3 小时" in candidate_list["body"]
+
+    confirmed = render_bark_message(
+        {
+            "event_type": candidate_notifications.VALIDATION_SAMPLE_CONFIRMED,
+            "match": {"home": "上海海港", "away": "大连英博"},
+            "kickoff_local": "2026-08-20T20:30:00+08:00",
+            "market": "ASIAN_HANDICAP",
+            "direction": "HOME_AH",
+            "line": -0.5,
+            "decimal_odds": 1.92,
+            "bookmaker": {"name": "Bet365"},
+            "quote_captured_at": "2026-08-20T12:20:00Z",
+            "current_ev": 0.069,
+        }
+    )
+    assert confirmed["title"] == "[验证样本] 上海海港 vs 大连英博 20:30 让球-0.5 主 @1.92"
+    assert "机构：Bet365" in confirmed["body"]
+    assert "EV：+6.9%" in confirmed["body"]
+
+    settlement = render_bark_message(
+        {
+            "event_type": candidate_notifications.DAILY_SETTLEMENT,
+            "football_day": "2026-08-19",
+            "item_count": 1,
+            "win_count": 1,
+            "push_count": 0,
+            "loss_count": 0,
+            "total_profit_units": 0.91,
+            "items": [
+                {
+                    "home": "上海海港",
+                    "away": "大连英博",
+                    "market": "ASIAN_HANDICAP",
+                    "direction": "HOME_AH",
+                    "line": -0.25,
+                    "decimal_odds": 1.91,
+                    "score": "2-1",
+                    "settlement": "WIN",
+                    "profit_units": 0.91,
+                    "supplementary": False,
+                }
+            ],
+        }
+    )
+    assert settlement["title"] == "[结算] 08-19 共 1 条 合计 +0.910 单位"
+    assert "赢 1 / 走水 0 / 输 0" in settlement["body"]

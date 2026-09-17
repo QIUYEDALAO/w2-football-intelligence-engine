@@ -91,10 +91,9 @@ from w2.matchday.timezone import (
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.release_evidence import build_release_identity
 from w2.prematch.evaluation_slots import EvaluationSlotError, is_evaluation_slot
-from w2.prematch.lifecycle import (
-    EVALUATED_OPPORTUNITY_STATES,
-    evaluated_attempt_identities,
-    final_official_opportunities,
+from w2.prematch.official_funnel import (
+    official_funnel_recommendations,
+    public_team_labels_for_fixtures as shared_public_team_labels_for_fixtures,
 )
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_SHADOW_PREFIX,
@@ -121,13 +120,6 @@ MODEL_FORECAST_MARKETS = ("ASIAN_HANDICAP", "TOTALS")
 
 CHECKPOINT_OPPORTUNITY_SCOPE = "CHECKPOINT_EVALUATION_OPPORTUNITY_V2"
 CHECKPOINT_OPPORTUNITY_SEMANTICS = "CHECKPOINT_EVALUATION_OPPORTUNITY"
-_CHECKPOINT_LABELS = {
-    "T3_ODDS": "T-3h",
-    "T60_ODDS_LINEUPS": "T-60m",
-    "T45_ODDS": "T-45m",
-    "T-30m_VALIDATION_LOCK": "T-30m",
-    "T15_ODDS": "T-15m",
-}
 
 
 def _opportunity_contract_defect(row: DynamicPrematchEvaluationModel) -> str | None:
@@ -481,198 +473,18 @@ def _official_funnel_recommendations(
 ) -> list[dict[str, Any]]:
     """Project picks whose last opportunity with a real evaluation is a candidate.
 
-    A competition withdrawn from the whitelist keeps its rows -- the ledgers are
-    append-only and the corpus is frozen against them -- but its picks stop
-    counting towards the record, because the record is meant to describe the
-    system as it currently stands. Chinese Super League and Allsvenskan were
-    withdrawn on 2026-08-23: the Provider returns their fixture statistics with
-    expected_goals null, so the four-field xG gate was being satisfied by
-    evidence that could never be refreshed.
+    Delegates to the shared ``w2.prematch.official_funnel`` projection so the
+    Dashboard recommendation table and the NOTIF-04 notification flows share a
+    single authority.
     """
 
-    evaluated_attempts = evaluated_attempt_identities(evaluations)
-    final_opportunities = final_official_opportunities(
-        opportunities, evaluated_attempts=evaluated_attempts
-    )
-
-    latest: dict[tuple[str, str], DynamicPrematchEvaluationModel] = {}
-    for row in evaluations:
-        payload = row.payload if isinstance(row.payload, dict) else {}
-        if (
-            row.official_funnel_eligible is not True
-            or payload.get("state") != "ANALYSIS_PICK_ACTIVE"
-        ):
-            continue
-        fixture_id = str(row.fixture_id).removeprefix("api_football:")
-        key = (fixture_id, str(row.market))
-        final = final_opportunities.get(key)
-        if (
-            final is None
-            or final.state != "EVALUATED_CANDIDATE"
-            or row.opportunity_identity_hash != final.opportunity_identity_hash
-            or row.attempt_identity_hash != final.latest_attempt_identity_hash
-        ):
-            continue
-        previous = latest.get(key)
-        if previous is None or (row.evaluated_at, row.evaluation_id) > (
-            previous.evaluated_at,
-            previous.evaluation_id,
-        ):
-            latest[key] = row
-
-    projected: list[dict[str, Any]] = []
-    for (fixture_id, market), row in latest.items():
-        final = final_opportunities[(fixture_id, market)]
-        payload = row.payload
-        fixture = fixtures.get(fixture_id)
-        if (
-            active_competitions is not None
-            and fixture is not None
-            and str(fixture.competition_id) not in active_competitions
-        ):
-            continue
-        canonical_fixture_id = (
-            str(fixture.fixture_id) if fixture is not None else f"api_football:{fixture_id}"
-        )
-        result = results.get(canonical_fixture_id)
-        line = str(payload["exact_line"])
-        decimal_odds = Decimal(str(payload["decimal_odds"]))
-        outcome = None
-        profit_units = None
-        if result is not None:
-            if market == "ASIAN_HANDICAP":
-                outcome = settle_asian_handicap(
-                    result.home_goals,
-                    result.away_goals,
-                    str(row.selection),
-                    Decimal(line),
-                ).value
-            elif market == "TOTALS":
-                outcome = settle_total_goals(
-                    result.home_goals + result.away_goals,
-                    str(row.selection),
-                    Decimal(line),
-                ).value
-            else:
-                raise ValueError(f"unsupported official recommendation market {market}")
-            units = WIN_UNITS[outcome]
-            profit_units = units * (decimal_odds - 1) if units > 0 else units
-
-        labels: dict[str, dict[str, Any]] = {}
-        for side in ("home", "away"):
-            team_label = dict(public_team_labels.get(fixture_id, {}).get(side, {}))
-            if not team_label:
-                team_label = {
-                    "display_name": None,
-                    "state": "IDENTITY_UNRESOLVED",
-                    "canonical_team_id": None,
-                    "provider_team_id": None,
-                    "raw_provider_name": None,
-                }
-            teams = (
-                fixture.payload.get("teams")
-                if fixture is not None and isinstance(fixture.payload, dict)
-                else None
-            )
-            team = teams.get(side) if isinstance(teams, dict) else None
-            if not team_label.get("raw_provider_name") and isinstance(team, dict):
-                team_label["raw_provider_name"] = str(team.get("name") or "").strip() or None
-            labels[side] = team_label
-
-        projected.append(
-            {
-                "evaluation_id": row.evaluation_id,
-                "fixture_id": fixture_id,
-                "evaluated_at": _iso_or_none(row.evaluated_at),
-                "kickoff_utc": _iso_or_none(fixture.kickoff_utc) if fixture else None,
-                "market": market,
-                "selection": str(row.selection),
-                "exact_line": line,
-                "decimal_odds": float(decimal_odds),
-                "home_team_label": labels["home"],
-                "away_team_label": labels["away"],
-                "score": (
-                    f"{result.home_goals}-{result.away_goals}" if result is not None else None
-                ),
-                "settlement": outcome or "PENDING",
-                "profit_units": float(profit_units) if profit_units is not None else None,
-                "confirmed_checkpoint": _CHECKPOINT_LABELS.get(
-                    str(getattr(final, "evaluation_slot_id", "UNKNOWN_CHECKPOINT")),
-                    str(getattr(final, "evaluation_slot_id", "UNKNOWN_CHECKPOINT")),
-                ),
-                "later_unassessed_checkpoints": _later_unassessed_checkpoints(
-                    opportunities,
-                    fixture_id=fixture_id,
-                    market=market,
-                    after=final,
-                    evaluated_attempts=evaluated_attempts,
-                ),
-            }
-        )
-        later = projected[-1]["later_unassessed_checkpoints"]
-        projected[-1]["lifecycle_note_zh"] = (
-            f"最终确认于 {projected[-1]['confirmed_checkpoint']}；"
-            f"此后 {' / '.join(later)} 未产出评估，不影响该确认"
-            if later
-            else None
-        )
-    return sorted(
-        projected,
-        key=lambda item: (
-            str(item.get("kickoff_utc") or ""),
-            str(item["fixture_id"]),
-            str(item["market"]),
-        ),
-    )
-
-
-def _later_unassessed_checkpoints(
-    opportunities: Sequence[DynamicPrematchOpportunityModel],
-    *,
-    fixture_id: str,
-    market: str,
-    after: DynamicPrematchOpportunityModel,
-    evaluated_attempts: set[tuple[str, str]],
-) -> list[str]:
-    after_order = (
-        after.scheduled_checkpoint_at,
-        after.recorded_at,
-        after.opportunity_identity_hash,
-    )
-    rows = sorted(
-        (
-            row
-            for row in opportunities
-            if str(row.fixture_id).removeprefix("api_football:") == fixture_id
-            and str(row.market) == market
-            and (
-                str(row.state) not in EVALUATED_OPPORTUNITY_STATES
-                or (
-                    str(row.opportunity_identity_hash),
-                    str(row.latest_attempt_identity_hash),
-                )
-                not in evaluated_attempts
-            )
-            and (
-                row.scheduled_checkpoint_at,
-                row.recorded_at,
-                row.opportunity_identity_hash,
-            )
-            > after_order
-        ),
-        key=lambda row: (
-            row.scheduled_checkpoint_at,
-            row.recorded_at,
-            row.opportunity_identity_hash,
-        ),
-    )
-    return list(
-        dict.fromkeys(
-            _CHECKPOINT_LABELS.get(str(row.evaluation_slot_id), str(row.evaluation_slot_id))
-            if getattr(row, "evaluation_slot_id", None)
-            else "UNKNOWN_CHECKPOINT"
-            for row in rows
-        )
+    return official_funnel_recommendations(
+        evaluations,
+        opportunities,
+        fixtures,
+        results,
+        public_team_labels,
+        active_competitions=active_competitions,
     )
 
 
@@ -2550,46 +2362,14 @@ class ReadModelRepository:
         provider_ids = {value.removeprefix("api_football:") for value in normalized}
         canonical_ids = {f"api_football:{value}" for value in provider_ids}
         with Session(self._database_engine()) as session:
-            fixtures = session.scalars(
-                select(MatchdayFixtureIdentityModel).where(
-                    MatchdayFixtureIdentityModel.fixture_id.in_(canonical_ids)
-                )
-            ).all()
-            w2_ids = {
-                value
-                for fixture in fixtures
-                for value in (fixture.home_w2_team_id, fixture.away_w2_team_id)
-                if value
-            }
-            canonical = {
-                row.w2_team_id: row
-                for row in session.scalars(
-                    select(CanonicalTeamModel).where(CanonicalTeamModel.w2_team_id.in_(w2_ids))
+            fixtures = list(
+                session.scalars(
+                    select(MatchdayFixtureIdentityModel).where(
+                        MatchdayFixtureIdentityModel.fixture_id.in_(canonical_ids)
+                    )
                 ).all()
-            }
-        reviewed_labels = reviewed_public_team_labels()
-        pending_labels = pending_public_team_labels()
-        output: dict[str, dict[str, dict[str, Any]]] = {}
-        for fixture in fixtures:
-            labels = {
-                "home": _public_team_label_from_identity(
-                    fixture=fixture,
-                    side="home",
-                    canonical=canonical,
-                    reviewed_labels=reviewed_labels,
-                    pending_labels=pending_labels,
-                ),
-                "away": _public_team_label_from_identity(
-                    fixture=fixture,
-                    side="away",
-                    canonical=canonical,
-                    reviewed_labels=reviewed_labels,
-                    pending_labels=pending_labels,
-                ),
-            }
-            output[str(fixture.fixture_id)] = labels
-            output[str(fixture.provider_fixture_id)] = labels
-        return output
+            )
+            return shared_public_team_labels_for_fixtures(session, fixtures)
 
     def persisted_date_strip(
         self,

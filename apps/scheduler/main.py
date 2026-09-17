@@ -83,17 +83,20 @@ def candidate_notification_summary_tick() -> dict[str, object]:
     from w2.prematch.candidate_notifications import (
         enqueue_brewing_digest,
         enqueue_operational_summaries,
+        enqueue_scheduled_notifications,
     )
 
     inserted = enqueue_operational_summaries()
     # Brewing candidates are batched into one push per closed window; the
     # T-30m lock stays on the immediate path and is never routed here.
     digest = enqueue_brewing_digest()
+    scheduled = enqueue_scheduled_notifications()
     return {
-        "status": "ENQUEUED" if inserted or digest else "NO_SUMMARY_DUE",
-        "outbox_event_ids": inserted + digest,
+        "status": "ENQUEUED" if inserted or digest or scheduled else "NO_SUMMARY_DUE",
+        "outbox_event_ids": inserted + digest + scheduled,
         "brewing_digest_ids": digest,
-        "db_writes": len(inserted) + len(digest),
+        "scheduled_notification_ids": scheduled,
+        "db_writes": len(inserted) + len(digest) + len(scheduled),
         "provider_calls": 0,
     }
 

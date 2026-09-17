@@ -4,7 +4,7 @@ import hashlib
 import json
 import os
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -16,7 +16,10 @@ from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from w2.dashboard.date_window import football_day_for_kickoff
+from w2.dashboard.date_window import (
+    football_day_for_kickoff,
+    football_day_window,
+)
 from w2.dashboard.results import normalize_match_status
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.domain.recommendation_decision_v4 import (
@@ -35,10 +38,15 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
+from w2.infrastructure.persistence.league_models import LeagueSeasonModel
 from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
 from w2.infrastructure.persistence.models import ResultModel
 from w2.matchday.timezone import BeijingOperationalDayPolicy
 from w2.prematch.evaluation_slots import evaluation_slots
+from w2.prematch.official_funnel import (
+    official_funnel_recommendations,
+    public_team_labels_for_fixtures,
+)
 from w2.prematch.lifecycle import (
     CHECKPOINT_OPPORTUNITY_SCOPE,
     CHECKPOINT_OPPORTUNITY_SEMANTICS,
@@ -57,6 +65,10 @@ CANDIDATE_T30_CONFIRMED = "CANDIDATE_T30_CONFIRMED"
 PLAN_SUMMARY = "PREMATCH_PLAN_SUMMARY"
 DAY_CLOSEOUT_SUMMARY = "FOOTBALL_DAY_CLOSEOUT_SUMMARY"
 TEST_MESSAGE = "TEST_MESSAGE"
+# NOTIF-04: the only three notification types that reach the phone.
+DAILY_CANDIDATE_LIST = "DAILY_CANDIDATE_LIST"
+VALIDATION_SAMPLE_CONFIRMED = "VALIDATION_SAMPLE_CONFIRMED"
+DAILY_SETTLEMENT = "DAILY_SETTLEMENT"
 
 PENDING = "PENDING"
 RETRY_PENDING = "RETRY_PENDING"
@@ -85,6 +97,48 @@ PRICE_CHANGE_THRESHOLD_RATIO = 0.02
 EV_CHANGE_THRESHOLD = 0.01
 T30_SLOT = "T-30m_VALIDATION_LOCK"
 BEIJING = ZoneInfo("Asia/Shanghai")
+
+# NOTIF-04 timing anchors (all Beijing time).
+DAILY_CANDIDATE_LIST_DEFAULT_HOUR = 14
+DAILY_CANDIDATE_LIST_DEFAULT_MINUTE = 0
+DAILY_CANDIDATE_LIST_ADVANCE_THRESHOLD = time(14, 30)
+DAILY_CANDIDATE_LIST_ADVANCE_MINUTES = 30
+DAILY_SETTLEMENT_HOUR = 12
+VALIDATION_SAMPLE_FALLBACK_MINUTES_BEFORE_KICKOFF = 5
+T15_SLOT = "T15_ODDS"
+
+# Owner-ordered notification types that stay in the outbox for audit but are
+# never delivered.  Only ① ② ③ (and TEST_MESSAGE) reach the phone.
+OWNER_STOPPED_EVENT_TYPES = frozenset(
+    {
+        CANDIDATE_FORMED,
+        CANDIDATE_MATERIAL_CHANGE,
+        CANDIDATE_WITHDRAWN,
+        CANDIDATE_T30_CONFIRMED,
+        CANDIDATE_BREWING_DIGEST,
+        PLAN_SUMMARY,
+        DAY_CLOSEOUT_SUMMARY,
+    }
+)
+
+COMPETITION_ZH_NAMES = {
+    "premier_league": "英超",
+    "la_liga": "西甲",
+    "bundesliga": "德甲",
+    "serie_a": "意甲",
+    "ligue_1": "法甲",
+    "brasileirao_serie_a": "巴甲",
+    "argentina_primera": "阿甲",
+    "mls": "美职联",
+    "chinese_super_league": "中超",
+    "allsvenskan": "瑞典超",
+    "eliteserien": "挪威超",
+    "eredivisie": "荷甲",
+    "primeira_liga": "葡超",
+    "england_championship": "英冠",
+    "spain_segunda_division": "西乙",
+    "turkey_super_lig": "土超",
+}
 
 
 def enqueue_attempt_notification_in_session(
@@ -231,6 +285,17 @@ def enqueue_attempt_notification_in_session(
             created_at=outbox_created_at,
         ):
             inserted.append(event_id)
+    # ②: a completed T15_ODDS evaluation finalises the validation sample for
+    # this fixture x market when it is still a candidate.
+    if version.evaluation_slot_id == T15_SLOT:
+        confirmation = enqueue_validation_sample_confirmed_in_session(
+            session,
+            fixture_id=version.fixture_id,
+            market=version.market,
+            now=datetime.now(UTC),
+        )
+        if confirmation:
+            inserted.append(confirmation)
     return inserted
 
 
@@ -475,11 +540,9 @@ def _withdrawals_already_pushed(session: Session) -> set[tuple[str, str]]:
 
 _ALWAYS_PUSH = frozenset(
     {
-        CANDIDATE_FORMED,
-        CANDIDATE_T30_CONFIRMED,
-        CANDIDATE_BREWING_DIGEST,
-        PLAN_SUMMARY,
-        DAY_CLOSEOUT_SUMMARY,
+        DAILY_CANDIDATE_LIST,
+        VALIDATION_SAMPLE_CONFIRMED,
+        DAILY_SETTLEMENT,
         TEST_MESSAGE,
     }
 )
@@ -494,13 +557,14 @@ def delivery_route(
     """Decide whether an outbox row reaches the phone.
 
     Every event stays in the outbox for audit; this only governs delivery.
-    A push is warranted when the Owner can act on it. Entering
-    ``EVALUATED_CANDIDATE`` is itself the requested validation-sample event,
-    so ``CANDIDATE_FORMED`` is delivered immediately; the T-30m lock, changes,
-    and withdrawals retain their existing delivery semantics.
+    NOTIF-04 keeps exactly three push types -- ① 每日候选名单, ② 验证样本最终确认,
+    ③ 每日结算 -- plus the test message.  Every legacy candidate/summary type
+    stays in the outbox but is never delivered (``OWNER_DECISION_STOP``).
     """
 
     event_type = str(row.event_type)
+    if event_type in OWNER_STOPPED_EVENT_TYPES:
+        return "SUPPRESS", "OWNER_DECISION_STOP"
     if event_type in _ALWAYS_PUSH:
         return "SEND", "ACTIONABLE"
     key = _fixture_market_key(row.payload)
@@ -1168,6 +1232,478 @@ def _closeout_recommendations(
     return recommendations
 
 
+# === NOTIF-04: ① 每日候选名单 / ② 验证样本最终确认 / ③ 每日结算 ===
+
+
+def _active_competitions(session: Session) -> frozenset[str]:
+    return frozenset(
+        str(row.competition_id)
+        for row in session.scalars(select(LeagueSeasonModel))
+        if isinstance(row.payload, dict) and row.payload.get("enabled") is True
+    )
+
+
+def _official_recommendations(
+    session: Session,
+    *,
+    active_competitions: frozenset[str] | None = None,
+) -> list[dict[str, Any]]:
+    """The single validation-sample authority shared by ② and ③.
+
+    Loads the same inputs the Dashboard recommendation table reads and projects
+    them through ``official_funnel_recommendations``, so the notification rows
+    and the Dashboard rows can never disagree.  Withdrawn competitions are
+    filtered exactly as the Dashboard filters them.
+    """
+
+    if active_competitions is None:
+        active_competitions = _active_competitions(session)
+    evaluations = list(
+        session.scalars(
+            select(DynamicPrematchEvaluationModel).where(
+                DynamicPrematchEvaluationModel.official_funnel_eligible.is_(True),
+                DynamicPrematchEvaluationModel.measurement_semantics
+                == CHECKPOINT_OPPORTUNITY_SEMANTICS,
+            )
+        )
+    )
+    opportunities = list(session.scalars(select(DynamicPrematchOpportunityModel)))
+    candidate_fixture_ids = {
+        str(row.fixture_id).removeprefix("api_football:")
+        for row in evaluations
+        if isinstance(row.payload, dict)
+        and row.payload.get("state") == "ANALYSIS_PICK_ACTIVE"
+    }
+    fixtures = {
+        row.provider_fixture_id: row
+        for row in session.scalars(
+            select(MatchdayFixtureIdentityModel).where(
+                MatchdayFixtureIdentityModel.provider == "api_football",
+                MatchdayFixtureIdentityModel.provider_fixture_id.in_(candidate_fixture_ids),
+            )
+        )
+    }
+    canonical_ids = {str(row.fixture_id) for row in fixtures.values()}
+    results = {
+        str(row.fixture_id): row
+        for row in session.scalars(
+            select(ResultModel).where(ResultModel.fixture_id.in_(canonical_ids))
+        )
+    }
+    team_labels = public_team_labels_for_fixtures(session, list(fixtures.values()))
+    return official_funnel_recommendations(
+        evaluations,
+        opportunities,
+        fixtures,
+        results,
+        team_labels,
+        active_competitions=active_competitions,
+    )
+
+
+def _candidate_track_fixture_ids(
+    session: Session,
+    window: tuple[datetime, datetime],
+) -> tuple[set[str], list[MatchdayFixtureIdentityModel]]:
+    """Candidate-track fixtures for a football-day window.
+
+    Same 口径 as the retired ``PREMATCH_PLAN_SUMMARY``: a fixture is on the
+    candidate track when it has both a model-forecast capture and at least one
+    registered odds evaluation plan.
+    """
+
+    identities = list(
+        session.scalars(
+            select(MatchdayFixtureIdentityModel)
+            .where(
+                MatchdayFixtureIdentityModel.kickoff_utc >= window[0],
+                MatchdayFixtureIdentityModel.kickoff_utc < window[1],
+            )
+            .order_by(MatchdayFixtureIdentityModel.kickoff_utc)
+        )
+    )
+    if not identities:
+        return set(), []
+    canonical_ids = {row.fixture_id for row in identities}
+    bare_ids = {row.provider_fixture_id for row in identities}
+    aliases = canonical_ids | bare_ids
+    plans = list(
+        session.scalars(
+            select(MatchdayCheckpointPlanModel).where(
+                MatchdayCheckpointPlanModel.fixture_id.in_(aliases)
+            )
+        )
+    )
+    registered = set(evaluation_slots())
+    plan_fixture_ids = {
+        row.fixture_id.removeprefix("api_football:")
+        for row in plans
+        if row.checkpoint in registered and "odds" in list(row.endpoints or [])
+    }
+    tracks = list(
+        session.scalars(
+            select(ModelForecastCaptureModel).where(
+                ModelForecastCaptureModel.fixture_id.in_(aliases)
+            )
+        )
+    )
+    track_fixture_ids = {row.fixture_id.removeprefix("api_football:") for row in tracks}
+    return track_fixture_ids & plan_fixture_ids, identities
+
+
+def _competition_zh_name(competition_id: str | None) -> str:
+    return COMPETITION_ZH_NAMES.get(str(competition_id or ""), str(competition_id or "未知联赛"))
+
+
+def _daily_candidate_list_due_at(
+    session: Session,
+    *,
+    day: date,
+    candidate_fixture_ids: set[str],
+) -> datetime:
+    """Beijing 14:00, advanced to 30min before the earliest T3_ODDS plan if that
+    plan lands before 14:30."""
+
+    default_due = datetime.combine(
+        day,
+        time(DAILY_CANDIDATE_LIST_DEFAULT_HOUR, DAILY_CANDIDATE_LIST_DEFAULT_MINUTE),
+        tzinfo=BEIJING,
+    ).astimezone(UTC)
+    if not candidate_fixture_ids:
+        return default_due
+    aliases = candidate_fixture_ids | {f"api_football:{item}" for item in candidate_fixture_ids}
+    earliest_t3 = min(
+        (
+            _utc(row.scheduled_at)
+            for row in session.scalars(
+                select(MatchdayCheckpointPlanModel).where(
+                    MatchdayCheckpointPlanModel.fixture_id.in_(aliases),
+                    MatchdayCheckpointPlanModel.checkpoint == "T3_ODDS",
+                )
+            )
+        ),
+        default=None,
+    )
+    if earliest_t3 is None:
+        return default_due
+    threshold = datetime.combine(day, DAILY_CANDIDATE_LIST_ADVANCE_THRESHOLD, tzinfo=BEIJING)
+    if earliest_t3.astimezone(BEIJING) < threshold:
+        return earliest_t3 - timedelta(minutes=DAILY_CANDIDATE_LIST_ADVANCE_MINUTES)
+    return default_due
+
+
+def enqueue_daily_candidate_list_in_session(session: Session, *, now: datetime) -> str | None:
+    """① 每日候选名单.  Once per football day, idempotent, N=0 still emits."""
+
+    day = football_day_for_kickoff(now)
+    window = football_day_window(day)
+    candidate_ids, identities = _candidate_track_fixture_ids(session, window)
+    due_at = _daily_candidate_list_due_at(
+        session, day=day, candidate_fixture_ids=candidate_ids
+    )
+    if now < due_at:
+        return None
+    event_id = _event_id(day.isoformat(), DAILY_CANDIDATE_LIST)
+    if session.get(CandidateNotificationOutboxModel, event_id) is not None:
+        return None
+    matches = [
+        {
+            "fixture_id": str(identity.provider_fixture_id),
+            "kickoff_local_hm": _utc(identity.kickoff_utc).astimezone(BEIJING).strftime("%H:%M"),
+            "competition": _competition_zh_name(identity.competition_id),
+            "home": _team_name(identity, "home"),
+            "away": _team_name(identity, "away"),
+        }
+        for identity in identities
+        if str(identity.provider_fixture_id) in candidate_ids
+    ]
+    payload = {
+        "schema_version": "w2.candidate_notification.v1",
+        "event_type": DAILY_CANDIDATE_LIST,
+        "football_day": day.isoformat(),
+        "match_count": len(matches),
+        "matches": matches,
+        "dashboard_url": _dashboard_day_url(day.isoformat()),
+        "created_at": _iso(now),
+    }
+    if _insert(
+        session,
+        event_id=event_id,
+        opportunity_identity_hash=None,
+        attempt_identity_hash=None,
+        event_type=DAILY_CANDIDATE_LIST,
+        previous_state=None,
+        current_state="PLANNED",
+        payload=payload,
+        created_at=now,
+    ):
+        return event_id
+    return None
+
+
+def enqueue_daily_candidate_list(
+    *, now: datetime | None = None, engine: Engine | None = None
+) -> list[str]:
+    resolved_now = now or datetime.now(UTC)
+    with Session(engine or create_engine()) as session:
+        inserted = enqueue_daily_candidate_list_in_session(session, now=resolved_now)
+        session.commit()
+    return [inserted] if inserted else []
+
+
+def _team_display_name(label: Mapping[str, Any], fallback: str) -> str:
+    name = str(label.get("display_name") or label.get("raw_provider_name") or "").strip()
+    return name or fallback
+
+
+def enqueue_validation_sample_confirmed_in_session(
+    session: Session,
+    *,
+    fixture_id: str,
+    market: str,
+    now: datetime,
+) -> str | None:
+    """② 验证样本最终确认.  Idempotent per fixture x market."""
+
+    bare_fixture = str(fixture_id).removeprefix("api_football:")
+    event_id = _event_id(f"{bare_fixture}|{market}", VALIDATION_SAMPLE_CONFIRMED)
+    if session.get(CandidateNotificationOutboxModel, event_id) is not None:
+        return None
+    recommendations = _official_recommendations(session)
+    row = next(
+        (
+            item
+            for item in recommendations
+            if item["fixture_id"] == bare_fixture and item["market"] == market
+        ),
+        None,
+    )
+    if row is None:
+        return None
+    identity = _fixture_identity(session, bare_fixture)
+    kickoff = _utc(identity.kickoff_utc) if identity is not None else None
+    bookmaker_id = row.get("bookmaker_id")
+    payload = {
+        "schema_version": "w2.candidate_notification.v1",
+        "event_type": VALIDATION_SAMPLE_CONFIRMED,
+        "fixture_id": bare_fixture,
+        "match": {
+            "home": _team_display_name(row["home_team_label"], "主队"),
+            "away": _team_display_name(row["away_team_label"], "客队"),
+        },
+        "kickoff_local": kickoff.astimezone(BEIJING).isoformat() if kickoff else None,
+        "kickoff_local_hm": kickoff.astimezone(BEIJING).strftime("%H:%M") if kickoff else "--:--",
+        "market": market,
+        "direction": row["selection"],
+        "line": row["exact_line"],
+        "decimal_odds": row["decimal_odds"],
+        "bookmaker": {
+            "id": bookmaker_id,
+            "name": _bookmaker_name(session, bare_fixture, bookmaker_id),
+        },
+        "quote_captured_at": row.get("quote_captured_at"),
+        "current_ev": row.get("current_ev"),
+        "dashboard_url": (
+            _dashboard_fixture_url(bare_fixture, kickoff) if kickoff is not None else None
+        ),
+        "created_at": _iso(now),
+    }
+    if _insert(
+        session,
+        event_id=event_id,
+        opportunity_identity_hash=None,
+        attempt_identity_hash=None,
+        event_type=VALIDATION_SAMPLE_CONFIRMED,
+        previous_state=None,
+        current_state="CONFIRMED",
+        payload=payload,
+        created_at=now,
+    ):
+        return event_id
+    return None
+
+
+def enqueue_validation_sample_fallbacks_in_session(
+    session: Session, *, now: datetime
+) -> list[str]:
+    """② fallback: at kickoff-5min, confirm any validation sample whose T15
+    never produced a real evaluation."""
+
+    recommendations = _official_recommendations(session)
+    inserted: list[str] = []
+    for row in recommendations:
+        kickoff = _parse_time(row.get("kickoff_utc"))
+        if kickoff is None:
+            continue
+        fallback_at = kickoff - timedelta(minutes=VALIDATION_SAMPLE_FALLBACK_MINUTES_BEFORE_KICKOFF)
+        if now < fallback_at:
+            continue
+        event_id = enqueue_validation_sample_confirmed_in_session(
+            session,
+            fixture_id=row["fixture_id"],
+            market=row["market"],
+            now=now,
+        )
+        if event_id:
+            inserted.append(event_id)
+    return inserted
+
+
+def _settlement_bucket(settlement: str) -> str:
+    if settlement in {"WIN", "HALF_WIN"}:
+        return "win"
+    if settlement == "PUSH":
+        return "push"
+    return "loss"
+
+
+def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> str | None:
+    """③ 每日结算.  At Beijing 12:00 for the just-closed football day."""
+
+    now_bj = now.astimezone(BEIJING)
+    if now_bj.hour < DAILY_SETTLEMENT_HOUR:
+        return None
+    today = now_bj.date()
+    settled_day = today - timedelta(days=1)
+    event_id = _event_id(settled_day.isoformat(), DAILY_SETTLEMENT)
+    if session.get(CandidateNotificationOutboxModel, event_id) is not None:
+        return None
+    active = _active_competitions(session)
+    recommendations = _official_recommendations(session, active_competitions=active)
+    window_start, window_end = football_day_window(settled_day)
+
+    def in_window(row: Mapping[str, Any]) -> bool:
+        kickoff = _parse_time(row.get("kickoff_utc"))
+        return kickoff is not None and window_start <= kickoff < window_end
+
+    today_samples = [row for row in recommendations if in_window(row)]
+
+    # 补结算: items pending in the previous settlement that have now settled.
+    prev_day = settled_day - timedelta(days=1)
+    prev_event = session.scalar(
+        select(CandidateNotificationOutboxModel).where(
+            CandidateNotificationOutboxModel.event_type == DAILY_SETTLEMENT,
+            CandidateNotificationOutboxModel.notification_event_id
+            == _event_id(prev_day.isoformat(), DAILY_SETTLEMENT),
+        )
+    )
+    settled_by_key = {
+        (str(row["fixture_id"]), str(row["market"])): row
+        for row in recommendations
+        if row["profit_units"] is not None
+    }
+    supplementary: list[dict[str, Any]] = []
+    if prev_event is not None:
+        for pending in list((prev_event.payload or {}).get("pending") or []):
+            key = (str(pending.get("fixture_id")), str(pending.get("market")))
+            settled = settled_by_key.get(key)
+            if settled is not None:
+                supplementary.append(settled)
+
+    win = push = loss = 0
+    total = Decimal("0")
+    items: list[dict[str, Any]] = []
+
+    def add_item(row: Mapping[str, Any], *, supplementary_flag: bool) -> None:
+        nonlocal win, push, loss, total
+        base = {
+            "fixture_id": row["fixture_id"],
+            "home": _team_display_name(row["home_team_label"], "主队"),
+            "away": _team_display_name(row["away_team_label"], "客队"),
+            "market": row["market"],
+            "direction": row["selection"],
+            "line": row["exact_line"],
+            "decimal_odds": row["decimal_odds"],
+            "score": row["score"],
+            "settlement": row["settlement"],
+            "profit_units": row["profit_units"],
+            "supplementary": supplementary_flag,
+        }
+        items.append(base)
+        if row["profit_units"] is not None:
+            bucket = _settlement_bucket(row["settlement"])
+            if bucket == "win":
+                win += 1
+            elif bucket == "push":
+                push += 1
+            else:
+                loss += 1
+            total += Decimal(str(row["profit_units"]))
+
+    for row in today_samples:
+        add_item(row, supplementary_flag=False)
+    for row in supplementary:
+        add_item(row, supplementary_flag=True)
+
+    pending = [
+        {"fixture_id": row["fixture_id"], "market": row["market"]}
+        for row in today_samples
+        if row["profit_units"] is None
+    ]
+    payload = {
+        "schema_version": "w2.candidate_notification.v1",
+        "event_type": DAILY_SETTLEMENT,
+        "football_day": settled_day.isoformat(),
+        "item_count": len(items),
+        "win_count": win,
+        "push_count": push,
+        "loss_count": loss,
+        "total_profit_units": float(total),
+        "items": items,
+        "pending": pending,
+        "dashboard_url": _dashboard_day_url(settled_day.isoformat()),
+        "created_at": _iso(now),
+    }
+    if _insert(
+        session,
+        event_id=event_id,
+        opportunity_identity_hash=None,
+        attempt_identity_hash=None,
+        event_type=DAILY_SETTLEMENT,
+        previous_state=None,
+        current_state="SETTLED",
+        payload=payload,
+        created_at=now,
+    ):
+        return event_id
+    return None
+
+
+def enqueue_daily_settlement(
+    *, now: datetime | None = None, engine: Engine | None = None
+) -> list[str]:
+    resolved_now = now or datetime.now(UTC)
+    with Session(engine or create_engine()) as session:
+        inserted = enqueue_daily_settlement_in_session(session, now=resolved_now)
+        session.commit()
+    return [inserted] if inserted else []
+
+
+def enqueue_scheduled_notifications_in_session(session: Session, *, now: datetime) -> list[str]:
+    """① ②(fallback) ③ scheduled enqueues, for the scheduler tick."""
+
+    inserted: list[str] = []
+    candidate = enqueue_daily_candidate_list_in_session(session, now=now)
+    if candidate:
+        inserted.append(candidate)
+    fallbacks = enqueue_validation_sample_fallbacks_in_session(session, now=now)
+    inserted.extend(fallbacks)
+    settlement = enqueue_daily_settlement_in_session(session, now=now)
+    if settlement:
+        inserted.append(settlement)
+    return inserted
+
+
+def enqueue_scheduled_notifications(
+    *, now: datetime | None = None, engine: Engine | None = None
+) -> list[str]:
+    resolved_now = now or datetime.now(UTC)
+    with Session(engine or create_engine()) as session:
+        inserted = enqueue_scheduled_notifications_in_session(session, now=resolved_now)
+        session.commit()
+    return inserted
+
+
 def _dashboard_fixture_url(fixture_id: str, kickoff: datetime) -> str:
     params = {
         "date": football_day_for_kickoff(kickoff).isoformat(),
@@ -1463,6 +1999,22 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
             f"[酝酿] {payload.get('fixture_count', 0)} 场 "
             f"{payload.get('candidate_count', 0)} 个候选"
         )
+    elif event_type == DAILY_CANDIDATE_LIST:
+        mm_dd = _mm_dd(str(payload.get("football_day") or ""))
+        count = int(payload.get("match_count") or 0)
+        title = (
+            f"[今日评估] {mm_dd} 共 {count} 场"
+            if count
+            else f"[今日评估] {mm_dd} 今天没有可评估的比赛"
+        )
+    elif event_type == VALIDATION_SAMPLE_CONFIRMED:
+        title = f"[验证样本] {teams} {kickoff_hm} {market}{line} {direction} @{odds}"
+    elif event_type == DAILY_SETTLEMENT:
+        mm_dd = _mm_dd(str(payload.get("football_day") or ""))
+        title = (
+            f"[结算] {mm_dd} 共 {payload.get('item_count', 0)} 条 "
+            f"合计 {_format_units(payload.get('total_profit_units'))} 单位"
+        )
     elif event_type == TEST_MESSAGE:
         title = "[测试] W2 Bark 通道"
     else:
@@ -1629,6 +2181,55 @@ def _message_body(payload: Mapping[str, Any]) -> str:
             )
         )
         return "\n".join(lines)
+    if event_type == DAILY_CANDIDATE_LIST:
+        lines = [
+            "以下比赛将在开球前 3 小时起评估，开球前 15 分钟确定的验证样本会逐条推送"
+        ]
+        for item in payload.get("matches") or []:
+            if not isinstance(item, Mapping):
+                continue
+            lines.append(
+                f"{item.get('kickoff_local_hm', '--:--')} {item.get('competition', '')} "
+                f"{item.get('home', '主队')} vs {item.get('away', '客队')}"
+            )
+        return "\n".join(lines)
+    if event_type == VALIDATION_SAMPLE_CONFIRMED:
+        bookmaker = _as_mapping(payload.get("bookmaker"))
+        return "\n".join(
+            (
+                f"机构：{bookmaker.get('name') or bookmaker.get('id') or '未知'}",
+                f"报价时间：{payload.get('quote_captured_at') or '未知'}",
+                f"EV：{_format_ev(payload.get('current_ev'))}",
+            )
+        )
+    if event_type == DAILY_SETTLEMENT:
+        lines = []
+        for item in payload.get("items") or []:
+            if not isinstance(item, Mapping):
+                continue
+            market = _market_label(item.get("market"))
+            line = _format_line(item.get("line"))
+            direction = _direction_label(item.get("direction"))
+            odds = _format_odds(item.get("decimal_odds"))
+            score = str(item.get("score") or "--")
+            prefix = "补结算 " if item.get("supplementary") else ""
+            if item.get("profit_units") is None:
+                suffix = "待结算"
+            else:
+                suffix = (
+                    f"{_settlement_short_label(item.get('settlement'))} · "
+                    f"{_format_units(item.get('profit_units'))} 单位"
+                )
+            lines.append(
+                f"{prefix}{item.get('home', '主队')} vs {item.get('away', '客队')} "
+                f"{score} {market}{line} {direction} @{odds}：{suffix}"
+            )
+        lines.append(
+            f"赢 {payload.get('win_count', 0)} / 走水 {payload.get('push_count', 0)} / "
+            f"输 {payload.get('loss_count', 0)}，"
+            f"合计 {_format_units(payload.get('total_profit_units'))} 单位"
+        )
+        return "\n".join(lines) or "无验证样本"
     if event_type == TEST_MESSAGE:
         return "W2 Bark 外发通道测试消息"
     bookmaker = _as_mapping(payload.get("bookmaker"))
@@ -1689,6 +2290,26 @@ def _settlement_label(value: Any) -> str:
         "RESULT_NOT_COLLECTED": "赛果未采集",
         "SETTLEMENT_ERROR": "无法结算",
     }.get(str(value or ""), str(value or "未知"))
+
+
+def _settlement_short_label(value: Any) -> str:
+    """NOTIF-04 ③ wording: 赢/赢半/走水/输半/输."""
+
+    return {
+        "WIN": "赢",
+        "HALF_WIN": "赢半",
+        "PUSH": "走水",
+        "HALF_LOSS": "输半",
+        "LOSS": "输",
+        "VOID": "作废",
+        "RESULT_NOT_COLLECTED": "待结算",
+        "SETTLEMENT_ERROR": "无法结算",
+        "PENDING": "待结算",
+    }.get(str(value or ""), str(value or "未知"))
+
+
+def _mm_dd(day: str) -> str:
+    return day[5:] if len(day) >= 10 else day
 
 
 def _closeout_recommendation_line(item: Mapping[str, Any]) -> str:

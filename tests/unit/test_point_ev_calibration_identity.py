@@ -43,7 +43,11 @@ from w2.prematch.lifecycle import (
     classify_evaluation,
     opportunity_identity_hash,
 )
-from w2.prematch.candidate_notifications import CANDIDATE_FORMED, CANDIDATE_WITHDRAWN
+from w2.prematch.candidate_notifications import (
+    CANDIDATE_FORMED,
+    CANDIDATE_WITHDRAWN,
+    VALIDATION_SAMPLE_CONFIRMED,
+)
 from w2.prematch.read_model_projection import _dynamic_evaluations
 from w2.prematch.repository import DynamicPrematchRepository
 from w2.strategy.calibration import CALIBRATION_VERSION, LambdaCalibrationParams
@@ -451,9 +455,11 @@ def test_e_downgrade_updates_opportunity_without_unfrozen_notification() -> None
 
     # The downgrade must not leave a candidate standing quietly: the Owner is
     # told the candidate formed and then told it was withdrawn. The card-level
-    # V4 gate silenced both until 2026-09-15.
+    # V4 gate silenced both until 2026-09-15. NOTIF-04 additionally confirms the
+    # validation sample the moment the T15 candidate forms.
     assert [event.event_type for event in outbox] == [
         CANDIDATE_FORMED,
+        VALIDATION_SAMPLE_CONFIRMED,
         CANDIDATE_WITHDRAWN,
     ]
 
@@ -575,7 +581,10 @@ def test_f_notification_comes_from_the_frozen_attempt_not_the_card() -> None:
     engine = _engine()
     DynamicPrematchRepository(engine).append_evaluation(_attempt("PRODUCTION_VALIDATED"))
     events = _outbox(engine)
-    assert [event.event_type for event in events] == [CANDIDATE_FORMED]
+    assert [event.event_type for event in events] == [
+        CANDIDATE_FORMED,
+        VALIDATION_SAMPLE_CONFIRMED,
+    ]
 
 
 # --- (h) EV_SE and EV minus SE are different numbers -------------------------
