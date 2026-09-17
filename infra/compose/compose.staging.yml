@@ -187,6 +187,7 @@ services:
     environment:
       <<: *common-env
       W2_FORMAL_RECOMMENDATION_ENABLED: ${W2_FORMAL_RECOMMENDATION_ENABLED:-false}
+      W2_DASHBOARD_PUBLIC_BASE_URL: ${W2_DASHBOARD_PUBLIC_BASE_URL:-}
     depends_on:
       redis:
         condition: service_healthy
