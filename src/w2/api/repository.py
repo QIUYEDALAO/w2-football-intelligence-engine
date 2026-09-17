@@ -1676,7 +1676,6 @@ class ReadModelRepository:
                             defer(DynamicPrematchEvaluationModel.quote_identity_hash),
                             defer(DynamicPrematchEvaluationModel.model_input_hash),
                             defer(DynamicPrematchEvaluationModel.lineup_input_hash),
-                            defer(DynamicPrematchEvaluationModel.capture_at),
                             defer(DynamicPrematchEvaluationModel.exclusion_reason),
                             defer(DynamicPrematchEvaluationModel.scheduled_checkpoint_at),
                             defer(DynamicPrematchEvaluationModel.checkpoint_plan_identity),

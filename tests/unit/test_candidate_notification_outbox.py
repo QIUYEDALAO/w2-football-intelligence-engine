@@ -1652,3 +1652,25 @@ def test_notif04_titles_and_bodies_render() -> None:
     assert "累计：1 注 +0.91 单位" in settlement["body"]
     assert "上海海港 vs 大连英博　推荐 主队 -0.25 @1.91　比分 2-1　赢 +0.91" in settlement["body"]
     assert "当天：1 注　赢 1 / 走水 0 / 输 0　+0.91 单位" in settlement["body"]
+
+
+def test_dashboard_projection_does_not_detach_capture_at() -> None:
+    """回归：dashboard 投影在会话关闭后访问 deferred capture_at 会 500。
+
+    repository 对 dynamic_evaluations defer 了 capture_at，但
+    official_funnel_recommendations 在会话关闭后读取 capture_at，触发
+    DetachedInstanceError。修复是去掉该 defer；此测试走真实 dashboard 路径。
+    """
+    from w2.api.repository import ReadModelRepository
+
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    kickoff = NOW + timedelta(hours=2)
+    with Session(engine) as session:
+        _insert_enabled_competition(session)
+        _insert_fixture_identity(session, kickoff_utc=kickoff)
+        session.commit()
+    _append(repository, _attempt("T3_ODDS", "a"))
+
+    result = ReadModelRepository(engine=engine).dashboard_model_forecast_validation_progress()
+    assert len(result["official_recommendations"]) >= 1

@@ -337,6 +337,7 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
                     row.get("later_unassessed_checkpoints")
                 ),
                 "lifecycle_note_zh": _optional_text(row.get("lifecycle_note_zh")),
+                "quote_captured_at": _optional_text(row.get("quote_captured_at")),
             }
             for row in official_recommendations
         ],

@@ -367,3 +367,128 @@ def test_freshness_contract_binds_every_approved_domain() -> None:
     ):
         assert f"`{domain}`" in contract
     assert "NO_CALL_ON_READ = true" in contract
+
+
+def test_intelligence_workspace_200_with_complete_recommendation_fields(monkeypatch) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from w2.api import routers
+    from w2.api.repository import ReadModelRepository, ReadModelService
+    from w2.infrastructure.database import Base
+    from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+    from w2.infrastructure.persistence.dynamic_prematch_models import (
+        DynamicPrematchEvaluationModel,
+        DynamicPrematchOpportunityModel,
+        DynamicPrematchSupersessionModel,
+    )
+    from w2.infrastructure.persistence.future_refresh_models import TeamXgMatchModel
+    from w2.infrastructure.persistence.league_models import LeagueSeasonModel
+    from w2.infrastructure.persistence.matchday_intake_models import (
+        MatchdayCheckpointPlanModel,
+        MatchdayFixtureIdentityModel,
+    )
+    from w2.infrastructure.persistence.model_forecast_models import (
+        ModelForecastCaptureDataVersionModel,
+        ModelForecastCaptureModel,
+        ModelForecastOutcomeModel,
+    )
+    from w2.infrastructure.persistence.models import ResultModel
+    from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
+    from sqlalchemy.pool import StaticPool
+
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    kickoff = datetime(2026, 8, 20, 12, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add(
+            LeagueSeasonModel(
+                competition_id="chinese_super_league",
+                season="2026",
+                lifecycle="ACTIVE",
+                payload={"enabled": True},
+            )
+        )
+        session.add(
+            MatchdayFixtureIdentityModel(
+                fixture_id="api_football:1523202",
+                provider="api_football",
+                provider_fixture_id="1523202",
+                competition_id="chinese_super_league",
+                provider_league_id="169",
+                season="2026",
+                kickoff_utc=kickoff,
+                fixture_status="NS",
+                home_provider_team_id="1",
+                away_provider_team_id="2",
+                home_w2_team_id=None,
+                away_w2_team_id=None,
+                team_identity_status="PROVIDER_ONLY",
+                raw_payload_sha256="3" * 64,
+                endpoint_capture_id=None,
+                captured_at=kickoff - timedelta(days=1),
+                identity_hash="4" * 64,
+                payload={"home_team_name": "上海海港", "away_team_name": "大连英博"},
+            )
+        )
+        session.add(
+            DynamicPrematchEvaluationModel(
+                evaluation_id="eval-1",
+                identity_hash="a" * 64,
+                fixture_id="1523202",
+                market="ASIAN_HANDICAP",
+                selection="HOME",
+                checkpoint="T3_ODDS",
+                evaluated_at=kickoff - timedelta(hours=3),
+                capture_at=kickoff - timedelta(hours=3),
+                original_state="EVALUATED_CANDIDATE",
+                official_funnel_eligible=True,
+                opportunity_identity_hash="opp-1",
+                attempt_identity_hash="att-1",
+                payload={
+                    "state": "ANALYSIS_PICK_ACTIVE",
+                    "exact_line": "-0.5",
+                    "decimal_odds": "1.90",
+                },
+            )
+        )
+        session.add(
+            DynamicPrematchOpportunityModel(
+                opportunity_identity_hash="opp-1",
+                fixture_id="1523202",
+                market="ASIAN_HANDICAP",
+                model_forecast_capture_identity_hash="m" * 64,
+                evaluation_policy_version="candidate-eval.v1",
+                evaluation_slot_id="T3_ODDS",
+                scheduled_checkpoint_at=kickoff - timedelta(hours=3),
+                checkpoint_plan_identity="plan-1",
+                state="EVALUATED_CANDIDATE",
+                recorded_at=kickoff - timedelta(hours=3),
+                latest_attempt_identity_hash="att-1",
+                payload={},
+            )
+        )
+        session.commit()
+
+    service = ReadModelService(repository=ReadModelRepository(engine=engine))
+
+    def _public_dashboard(**kwargs: Any) -> dict[str, Any]:
+        return _empty_day_view()
+
+    monkeypatch.setattr(service, "public_dashboard", _public_dashboard)
+    monkeypatch.setattr(routers, "service", service)
+    client = TestClient(app)
+    response = client.get("/v1/dashboard/intelligence-workspace?date=2026-08-09")
+    assert response.status_code == 200
+    payload = response.json()
+    recommendations = payload["validation"]["model_forecast"]["official_recommendations"]
+    assert len(recommendations) >= 1
+    assert recommendations[0]["fixture_id"] == "1523202"
+    assert recommendations[0]["quote_captured_at"] is not None

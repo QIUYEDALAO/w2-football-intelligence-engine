@@ -1517,6 +1517,7 @@ class WorkspaceOfficialRecommendation(BaseModel):
     confirmed_checkpoint: str
     later_unassessed_checkpoints: list[str]
     lifecycle_note_zh: str | None
+    quote_captured_at: str | None
 
     @model_validator(mode="after")
     def settlement_fields_are_consistent(self) -> WorkspaceOfficialRecommendation:
