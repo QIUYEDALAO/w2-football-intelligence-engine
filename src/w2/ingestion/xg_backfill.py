@@ -418,11 +418,20 @@ class XgHistoryBackfillService:
             str(row["id"]): self._team_xg_match_from_dict(row) for row in plan.team_xg_matches
         }
         persisted = {row.id: row for row in self._persisted_xg_matches()}
+        superseded_xg_conflicts: list[dict[str, Any]] = list(plan.superseded_xg_conflicts)
+        new_rows: list[TeamXgMatch] = []
         for row_id, row in parsed.items():
             previous = persisted.get(row_id)
-            if previous is not None and self._xg_values(previous) != self._xg_values(row):
-                raise XgBackfillError(f"SAVED_XG_CONFLICT:{row_id}")
-        new_rows = [row for row_id, row in parsed.items() if row_id not in persisted]
+            if previous is None:
+                new_rows.append(row)
+                continue
+            if self._xg_values(previous) != self._xg_values(row):
+                kept, superseded = self._newest_xg_match(row, previous)
+                superseded_xg_conflicts.append(
+                    self._superseded_xg_conflict_record(row_id, kept, superseded)
+                )
+                if kept is row:
+                    new_rows.append(row)
         if persist:
             try:
                 upserted_matches = self.repository.upsert_team_xg_matches(
@@ -448,7 +457,7 @@ class XgHistoryBackfillService:
             remaining_quota=None,
             blockers=list(plan.blockers),
             requests=[],
-            superseded_xg_conflicts=list(plan.superseded_xg_conflicts),
+            superseded_xg_conflicts=superseded_xg_conflicts,
             dry_run=not persist,
         )
 

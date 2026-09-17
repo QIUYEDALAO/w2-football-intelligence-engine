@@ -1252,3 +1252,54 @@ def test_pro_backfill_batch_4_caps_2025_season_at_60_per_league(
     ).run()
 
     assert len(client.calls) == 60
+
+
+class PersistedConflictRepository(SavedRawRepository):
+    def team_xg_matches(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "id": "saved-0:10",
+                "fixture_id": "saved-0",
+                "team_id": "10",
+                "opponent_team_id": "20",
+                "kickoff_at": (NOW - timedelta(days=5)).isoformat(),
+                "captured_at": (NOW - timedelta(days=1)).isoformat(),
+                "xg_for": 0.5,
+                "xg_against": 0.8,
+                "goals_for": 2,
+                "goals_against": 1,
+                "raw_payload_sha256": "a" * 64,
+            },
+            {
+                "id": "saved-0:20",
+                "fixture_id": "saved-0",
+                "team_id": "20",
+                "opponent_team_id": "10",
+                "kickoff_at": (NOW - timedelta(days=5)).isoformat(),
+                "captured_at": (NOW - timedelta(days=1)).isoformat(),
+                "xg_for": 0.8,
+                "xg_against": 0.5,
+                "goals_for": 1,
+                "goals_against": 2,
+                "raw_payload_sha256": "a" * 64,
+            },
+        ]
+
+
+def test_saved_statistics_raw_conflict_against_persisted_keeps_newest() -> None:
+    repository = PersistedConflictRepository()
+
+    result = XgHistoryBackfillService(
+        client=NoCallClient(),
+        repository=repository,
+        config=XgBackfillConfig(min_rolling_matches=3),
+        now=NOW,
+    ).run_saved_raw()
+
+    conflicts = {conflict["id"]: conflict for conflict in result.superseded_xg_conflicts}
+    assert {"saved-0:10", "saved-0:20"} <= set(conflicts)
+    # raw captured_at（NOW）较新，persisted（NOW-1d）较旧 → 保留 raw，记录 persisted 为 superseded
+    assert conflicts["saved-0:10"]["kept"]["xg_for"] == 1.2
+    assert conflicts["saved-0:10"]["superseded"]["xg_for"] == 0.5
+    assert conflicts["saved-0:20"]["kept"]["xg_against"] == 1.2
+    assert conflicts["saved-0:20"]["superseded"]["xg_against"] == 0.5
