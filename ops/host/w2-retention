@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# w2-retention — W2 构建产物与本地镜像保留策略。
+#
+# 保留：当前 release 与前 2 个版本的构建目录与本地镜像 tag、永久保留名单；
+# 清理：其余构建目录、其余 python/web 本地镜像、/tmp 下 24h 前的构建/临时残留。
+# 永不触碰：/opt/w2/backups、/opt/w2/shared（除写日志）、docker volumes、运行中
+# 容器、release.env 及其 release.pre-* 备份。
+#
+# 用法：w2-retention [--dry-run]
+# 环境变量（用于测试）：W2_RETENTION_REGISTRY_PREFIX / W2_RETENTION_RELEASE_ENV /
+#   W2_RETENTION_BUILDS_DIR / W2_RETENTION_REPORTS_DIR / W2_RETENTION_TMP_DIR /
+#   W2_RETENTION_DOCKER_BIN
+set -euo pipefail
+
+REGISTRY_PREFIX="${W2_RETENTION_REGISTRY_PREFIX:-127.0.0.1:5000/w2}"
+RELEASE_ENV="${W2_RETENTION_RELEASE_ENV:-/opt/w2/shared/release.env}"
+BUILDS_DIR="${W2_RETENTION_BUILDS_DIR:-/opt/w2/builds}"
+REPORTS_DIR="${W2_RETENTION_REPORTS_DIR:-/opt/w2/shared/runtime/reports}"
+TMP_DIR="${W2_RETENTION_TMP_DIR:-/tmp}"
+DOCKER_BIN="${W2_RETENTION_DOCKER_BIN:-docker}"
+
+DRY_RUN=0
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY_RUN=1 ;;
+    *) echo "unknown argument: $arg" >&2; exit 2 ;;
+  esac
+done
+
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+LOG="$REPORTS_DIR/retention-$STAMP.log"
+mkdir -p "$REPORTS_DIR"
+
+failures=0
+
+log() { printf '%s %s\n' "$(date -u +%H:%M:%SZ)" "$*" | tee -a "$LOG"; }
+
+record_failure() {
+  failures=$((failures + 1))
+  log "FAILURE: $*"
+}
+
+df_line() {
+  df -h "$BUILDS_DIR" 2>/dev/null | tail -1 || echo "df unavailable"
+}
+
+# 永久保留（repo 短名|tag），仅作用于 python/web 删除范围内的镜像。
+PERMANENT_KEEP=$(cat <<'EOF'
+python|728eaf57
+python|728eaf57-regression
+web|728eaf57
+web|728eaf57-perf3
+EOF
+)
+
+log "== w2-retention start (dry_run=$DRY_RUN) =="
+log "df_before: $(df_line)"
+
+# ---- 1. 当前版本 ----
+CURRENT=$(grep -m1 -E '^W2_RELEASE_ID=' "$RELEASE_ENV" 2>/dev/null | cut -d= -f2- | sed 's/[[:space:]]//g')
+if [ -z "$CURRENT" ]; then
+  record_failure "cannot read W2_RELEASE_ID from $RELEASE_ENV"
+  exit 1
+fi
+log "current_version=$CURRENT"
+
+# ---- 2. 前 2 个版本（release.pre-*.env 按 mtime 倒序，去重，排除当前） ----
+PREV_VERSIONS=$(ls -t "$(dirname "$RELEASE_ENV")"/release.pre-*.env 2>/dev/null | while read -r f; do
+  grep -m1 -E '^W2_RELEASE_ID=' "$f" 2>/dev/null | cut -d= -f2- | sed 's/[[:space:]]//g'
+done | awk -v cur="$CURRENT" 'NF && $0 != cur && !seen[$0]++ && n < 2 {print; n++}')
+log "prev_versions:"
+printf '%s\n' "$PREV_VERSIONS" | while read -r v; do [ -n "$v" ] && log "  $v"; done
+
+# 保留版本完整 sha 集合 + 前 8 位目录名集合
+KEEP_FULL=$(printf '%s\n%s\n' "$CURRENT" "$PREV_VERSIONS" | sed 's/[[:space:]]//g' | grep -E '^[0-9a-f]{40}$' | sort -u || true)
+KEEP_DIRS=$(printf '%s\n' "$KEEP_FULL" | cut -c1-8 | sort -u)
+
+# ---- 3. 构建目录 ----
+log "== builds ($BUILDS_DIR) =="
+for d in "$BUILDS_DIR"/*/; do
+  [ -d "$d" ] || continue
+  name=$(basename "$d")
+  if printf '%s\n' "$KEEP_DIRS" | grep -qx "$name"; then
+    log "keep build dir: $name"
+    continue
+  fi
+  size=$(du -sh "$d" 2>/dev/null | cut -f1 || echo "?")
+  if [ "$DRY_RUN" = 1 ]; then
+    log "would delete build dir: $name (size=$size)"
+  else
+    log "delete build dir: $name (size=$size)"
+    rm -rf "$d" || record_failure "rm -rf $d"
+  fi
+done
+
+# ---- 4. 本地镜像（仅 python / web） ----
+log "== images ($REGISTRY_PREFIX/{python,web}) =="
+"$DOCKER_BIN" images --format '{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Digest}}\t{{.Size}}' \
+  "$REGISTRY_PREFIX/python" "$REGISTRY_PREFIX/web" 2>/dev/null \
+| while IFS=$'\t' read -r repo tag id digest size; do
+  short_repo=$(basename "$repo")
+  # 判断是否保留：具名 tag 且 (完整 sha 在保留集 或 repo|tag 在永久名单)
+  keep=0
+  if [ "$tag" != "<none>" ]; then
+    if printf '%s\n' "$KEEP_FULL" | grep -qx "$tag"; then
+      keep=1
+    elif printf '%s\n' "$PERMANENT_KEEP" | grep -qx "$short_repo|$tag"; then
+      keep=1
+    fi
+  fi
+  if [ "$keep" = 1 ]; then
+    log "keep image: $repo:$tag ($size)"
+    continue
+  fi
+  ref="$repo:$tag"
+  [ "$tag" = "<none>" ] && ref="$repo@sha256:$digest"
+  if [ "$DRY_RUN" = 1 ]; then
+    log "would rmi image: $ref ($size)"
+  else
+    if "$DOCKER_BIN" rmi "$ref" >/dev/null 2>&1; then
+      log "rmi image: $ref ($size)"
+    else
+      # 被运行中容器引用等 → 跳过，不算失败
+      log "skip rmi (in use/unavailable): $ref ($size)"
+    fi
+  fi
+done
+
+# ---- 5. /tmp 临时残留（>24h） ----
+log "== tmp ($TMP_DIR) =="
+find "$TMP_DIR" -maxdepth 1 -type f \
+  \( -name 'w2-build-*' -o -name 'w2-release-*' -o -name 'w2-src-*.tar.gz' \
+     -o -name 'run-pro-batch4*.sh' -o -name 'w2_probe*.py' \) \
+  -mmin +1440 -print 2>/dev/null \
+| while read -r f; do
+  size=$(ls -la "$f" 2>/dev/null | awk '{print $5}' || echo "?")
+  if [ "$DRY_RUN" = 1 ]; then
+    log "would delete tmp file: $f (bytes=$size)"
+  else
+    log "delete tmp file: $f (bytes=$size)"
+    rm -f "$f" || record_failure "rm -f $f"
+  fi
+done
+# 明确永不触碰（列出便于核对，不删除）
+for p in "$TMP_DIR"/w2-watchdog-* "$TMP_DIR"/w2-meta.json "$TMP_DIR"/w2-ready.json; do
+  if [ -e "$p" ]; then
+    log "skip (protected): $p"
+  fi
+done
+
+log "df_after: $(df_line)"
+log "== w2-retention done (failures=$failures) =="
+
+[ "$failures" -eq 0 ]

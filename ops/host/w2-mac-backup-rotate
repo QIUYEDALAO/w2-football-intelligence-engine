@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# w2-mac-backup-rotate — 轮转 Mac 本机部署前备份到 U 盘。
+#
+# 1. ~/Desktop/W2文档/backups 中 predeploy-*.dump 按修改时间保留最新 3 份；
+#    更早的逐个复制到 U 盘 /Volumes/256G/W2-predeploy-dumps/，两端 sha256 一致后才
+#    删除 Mac 上的文件；U 盘目录维护 MANIFEST.sha256（文件名|字节数|sha256|原路径）。
+# 2. rehearsal-*.dump 直接删除（可由生产库重新导出）。
+# 3. U 盘未挂载 → 只列清单并以非 0 退出，不删除。
+#
+# 用法：w2-mac-backup-rotate [--dry-run]
+set -euo pipefail
+
+SRC_DIR="${HOME}/Desktop/W2文档/backups"
+USB_ROOT="/Volumes/256G"
+USB_DIR="$USB_ROOT/W2-predeploy-dumps"
+
+DRY_RUN=0
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY_RUN=1 ;;
+    *) echo "unknown argument: $arg" >&2; exit 2 ;;
+  esac
+done
+
+if [ ! -d "$SRC_DIR" ]; then
+  echo "backups dir not found: $SRC_DIR" >&2
+  exit 1
+fi
+
+list_predeploy() {
+  find "$SRC_DIR" -maxdepth 1 -type f -name 'predeploy-*.dump' -print0 2>/dev/null \
+    | xargs -0 ls -t 2>/dev/null
+}
+
+PREFILES=$(list_predeploy)
+PREFILE_COUNT=$(printf '%s\n' "$PREFILES" | grep -c . || true)
+
+REHEARSAL=$(find "$SRC_DIR" -maxdepth 1 -type f -name 'rehearsal-*.dump' -print 2>/dev/null || true)
+
+if [ ! -d "$USB_ROOT" ] || [ ! -d "$USB_DIR" ]; then
+  echo "U 盘未挂载或目录不存在：$USB_DIR —— 只列清单，不删除，退出非 0" >&2
+  echo "== 待轮转 predeploy（保留最新 3 份，其余迁移）：共 $PREFILE_COUNT 份 =="
+  printf '%s\n' "$PREFILES" | nl -ba 2>/dev/null || true
+  echo "== rehearsal 待删除 =="
+  printf '%s\n' "$REHEARSAL" || true
+  exit 1
+fi
+
+echo "== 迁移 predeploy 到 U 盘（保留最新 3 份）=="
+count=0
+printf '%s\n' "$PREFILES" | while read -r f; do
+  [ -n "$f" ] || continue
+  count=$((count + 1))
+  if [ "$count" -le 3 ]; then
+    echo "keep (最新 3 份内): $f"
+    continue
+  fi
+  base=$(basename "$f")
+  dest="$USB_DIR/$base"
+  size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo "?")
+  src_hash=$(shasum -a 256 "$f" | awk '{print $1}')
+  if [ "$DRY_RUN" = 1 ]; then
+    echo "would migrate: $f -> $dest (bytes=$size sha256=$src_hash)"
+    continue
+  fi
+  cp "$f" "$dest"
+  dest_hash=$(shasum -a 256 "$dest" | awk '{print $1}')
+  if [ "$src_hash" != "$dest_hash" ]; then
+    echo "SHA256 不一致，跳过删除: $f (src=$src_hash dest=$dest_hash)" >&2
+    continue
+  fi
+  echo "$base|$size|$src_hash|$f" >> "$USB_DIR/MANIFEST.sha256"
+  rm -f "$f"
+  echo "migrated + removed: $f"
+done
+
+echo "== 删除 rehearsal =="
+if [ -n "$REHEARSAL" ]; then
+  printf '%s\n' "$REHEARSAL" | while read -r f; do
+    [ -n "$f" ] || continue
+    if [ "$DRY_RUN" = 1 ]; then
+      echo "would delete rehearsal: $f"
+    else
+      rm -f "$f"
+      echo "deleted rehearsal: $f"
+    fi
+  done
+else
+  echo "(无 rehearsal 文件)"
+fi
+
+echo "== 完成 =="

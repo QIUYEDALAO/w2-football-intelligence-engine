@@ -1,0 +1,7 @@
+[Unit]
+Description=Daily W2 build artifact and local image retention at 02:50 UTC
+[Timer]
+OnCalendar=*-*-* 02:50:00
+Persistent=true
+[Install]
+WantedBy=timers.target
