@@ -957,7 +957,7 @@ class ProStatisticsBackfillService:
             if competition_id:
                 uncached_by_competition.setdefault(competition_id, []).append(fixture)
 
-        pilot_size_by_competition: dict[str, int] = {}
+        bulk_fixtures_by_competition: dict[str, list[dict[str, Any]]] = {}
         for competition_id in PRO_BACKFILL_BATCHES[self.config.batch]:
             if request_budget == 0:
                 break
@@ -965,20 +965,27 @@ class ProStatisticsBackfillService:
             if not fixtures:
                 verified.add(competition_id)
                 continue
-            probe = fixtures
             if self.config.batch == 4:
-                # 批次 4：试探只从第 2 部分（2025）取，第 1 部分（2026）直接进 bulk。
-                probe = [
+                # 批次 4：试探只从 2025 部分取，2026 部分不做试探、直接进 bulk。
+                season_2025 = [
                     fixture
                     for fixture in fixtures
                     if self._fixture_season(fixture) == "2025"
                 ]
+                season_2026 = [
+                    fixture
+                    for fixture in fixtures
+                    if self._fixture_season(fixture) == "2026"
+                ]
+                probe = season_2025
+            else:
+                season_2026 = []
+                probe = fixtures
             pilot_size = (
                 min(self.config.pilot_per_competition, len(probe))
                 if self.config.batch in {2, 3, 4}
                 else 0
             )
-            pilot_size_by_competition[competition_id] = pilot_size
             pilot = probe[:pilot_size]
             if pilot:
                 pilot_xg_count = 0
@@ -994,23 +1001,25 @@ class ProStatisticsBackfillService:
                 if blockers and blockers[-1] == "PRO_STATISTICS_DAILY_CAP_REACHED":
                     break
                 if pilot_xg_count != len(pilot):
+                    # 试探失败：只跳过该联赛的 2025 部分，2026 部分照常抓取。
                     skipped.add(competition_id)
                     blockers.append(f"PRO_STATISTICS_XG_PILOT_EMPTY:{competition_id}")
-                    continue
-                verified.add(competition_id)
+                    bulk_fixtures_by_competition[competition_id] = season_2026
+                else:
+                    verified.add(competition_id)
+                    bulk_fixtures_by_competition[competition_id] = (
+                        probe[pilot_size:] + season_2026
+                    )
             else:
                 verified.add(competition_id)
+                bulk_fixtures_by_competition[competition_id] = (
+                    season_2026 if self.config.batch == 4 else fixtures
+                )
 
         for competition_id in PRO_BACKFILL_BATCHES[self.config.batch]:
-            if (
-                competition_id not in verified
-                or blockers
-                and blockers[-1] == "PRO_STATISTICS_DAILY_CAP_REACHED"
-            ):
+            if blockers and blockers[-1] == "PRO_STATISTICS_DAILY_CAP_REACHED":
                 continue
-            fixtures = uncached_by_competition.get(competition_id, [])
-            pilot_size = pilot_size_by_competition.get(competition_id, 0)
-            for fixture in fixtures[pilot_size:]:
+            for fixture in bulk_fixtures_by_competition.get(competition_id, []):
                 if len(requested) >= request_budget:
                     blockers.append("PRO_STATISTICS_DAILY_CAP_REACHED")
                     break
@@ -1136,6 +1145,18 @@ class ProStatisticsBackfillService:
         return str(league.get("season") or "") if isinstance(league, dict) else ""
 
     @staticmethod
+    def _is_regular_season(item: dict[str, Any]) -> bool:
+        """True when the fixture's league.round starts with "Regular Season".
+
+        Batch 4 restricts its 2025 target to the regular season only, so
+        play-offs, promotion/relegation play-offs and other post-season rounds
+        are excluded (they carry no xG for these leagues).
+        """
+        league = item.get("league") if isinstance(item, dict) else None
+        round_name = str(league.get("round") or "") if isinstance(league, dict) else ""
+        return round_name.startswith("Regular Season")
+
+    @staticmethod
     def _apply_season_limit(
         fixtures: list[dict[str, Any]],
         limits: dict[str, int],
@@ -1197,7 +1218,9 @@ class ProStatisticsBackfillService:
                     if fixture_id_from_payload(fixture) not in already_fetched:
                         part1.append(fixture)
             else:
-                part2.append(fixture)
+                # 2025 部分只取 Regular Season，附加赛/季后赛一律排除。
+                if self._is_regular_season(fixture):
+                    part2.append(fixture)
 
         part2_sorted = sorted(
             part2,

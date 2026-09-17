@@ -998,9 +998,10 @@ def pro_fixture_season(
     league_id: int,
     season: str,
     kickoff: datetime | None = None,
+    round_name: str = "Regular Season - 1",
 ) -> dict[str, Any]:
     fixture = finished_fixture(fixture_id, kickoff or (NOW - timedelta(days=1)))
-    fixture["league"] = {"id": league_id, "season": season}
+    fixture["league"] = {"id": league_id, "season": season, "round": round_name}
     return fixture
 
 
@@ -1311,8 +1312,103 @@ def test_pro_backfill_batch_4_pilot_uses_2025_not_2026(monkeypatch: Any) -> None
         now=NOW,
     ).run()
 
-    # 试探只从 2025（第 2 部分）取：2025 无 xG -> 跳过联赛，2026 不参与试探也不 fetch
-    assert client.calls == ["ec-2025"]
+    # 试探只从 2025（第 2 部分）取；2025 无 xG 只跳过 2025，2026 部分照常抓取
+    assert client.calls == ["ec-2025", "ec-2026"]
+    assert result.skipped_competitions == ("england_championship",)
+    assert result.blockers == ("PRO_STATISTICS_XG_PILOT_EMPTY:england_championship",)
+
+
+def test_pro_backfill_batch_4_2025_excludes_playoff_rounds(monkeypatch: Any) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    fixtures = [
+        pro_fixture_season(
+            "ec-rs-1",
+            league_id=40,
+            season="2025",
+            kickoff=NOW - timedelta(days=5),
+        ),
+        pro_fixture_season(
+            "ec-rs-2",
+            league_id=40,
+            season="2025",
+            kickoff=NOW - timedelta(days=10),
+        ),
+        # 附加赛（round 非 Regular Season 开头）：即使开球最新也必须被排除
+        pro_fixture_season(
+            "ec-playoff",
+            league_id=40,
+            season="2025",
+            kickoff=NOW - timedelta(days=1),
+            round_name="Promotion Play-offs",
+        ),
+    ]
+    repository = ProBackfillRepository(fixtures)
+    client = ProBackfillClient()
+
+    ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=4,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    # 附加赛被排除，只处理 Regular Season 比赛（新→旧）
+    assert client.calls == ["ec-rs-1", "ec-rs-2"]
+
+
+def test_pro_backfill_batch_4_pilot_failure_only_skips_2025(monkeypatch: Any) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    fixtures = [
+        # 2025：5 场，pilot 取最新 3 场（无 xG），剩余 2 场应随 2025 部分一起跳过
+        *[
+            pro_fixture_season(
+                f"ec-2025-{index}",
+                league_id=40,
+                season="2025",
+                kickoff=NOW - timedelta(days=30 - index),
+            )
+            for index in range(5)
+        ],
+        # 2026：2 场（≥7 天且从未抓过），照常抓取
+        pro_fixture_season(
+            "ec-2026-a",
+            league_id=40,
+            season="2026",
+            kickoff=NOW - timedelta(days=40),
+        ),
+        pro_fixture_season(
+            "ec-2026-b",
+            league_id=40,
+            season="2026",
+            kickoff=NOW - timedelta(days=35),
+        ),
+    ]
+    repository = ProBackfillRepository(fixtures)
+    client = ProBackfillClient(with_xg=False)
+
+    result = ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=4,
+            request_budget=20,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    # 2025 试探 3 场（无 xG）→ 跳过 2025 剩余；2026 两场照常抓取（新→旧）
+    assert client.calls == [
+        "ec-2025-4",
+        "ec-2025-3",
+        "ec-2025-2",
+        "ec-2026-b",
+        "ec-2026-a",
+    ]
     assert result.skipped_competitions == ("england_championship",)
     assert result.blockers == ("PRO_STATISTICS_XG_PILOT_EMPTY:england_championship",)
 
