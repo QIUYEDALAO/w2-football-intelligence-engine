@@ -125,3 +125,48 @@ than guessing at what normal looks like.
 | Image lineage | 914 layers | 10 |
 | Journal | 507MB uncapped | 291MB, capped at 300MB |
 | Backups | 71 files, 3 directories, none off-host | 8 kept, one directory, verified off-site copy |
+
+## SEC-01 公网访问加固
+
+SSH 只允许密钥、域名 HTTPS + 网页登录密码、源站只放行 Cloudflare。
+
+| File | Installs to | Purpose |
+|---|---|---|
+| `nginx-w2.site.conf` | `/etc/nginx/sites-available/w2` | 80/443 站点：HTTP Basic 认证 + 反代 127.0.0.1:18000/18080 |
+| `sshd-05-w2-hardening.conf` | `/etc/ssh/sshd_config.d/05-w2-hardening.conf` | 只允许密钥登录（禁密码/键盘交互，root 只允许密钥） |
+| `sshd-60-w2-pubkey.conf` | `/etc/ssh/sshd_config.d/60-w2-pubkey.conf` | 启用 PubkeyAuthentication（镜像默认关闭） |
+
+### 网页登录密码（htpasswd 永不入库）
+
+- 密码文件 `/etc/nginx/w2.htpasswd`（`root:www-data`，`chmod 640`）。
+- **该文件与明文密码永不进入 git**（`.gitignore` 已忽略 `*.htpasswd`）。
+- 明文密码只写在 Mac 的 `~/Desktop/W2文档/W2_网页登录.txt`（`chmod 600`），不进入回执/git/终端。
+- 改密码命令：
+  ```bash
+  PW=$(openssl rand -base64 18)
+  printf 'w2:%s\n' "$(openssl passwd -6 "$PW")" > /etc/nginx/w2.htpasswd
+  chown root:www-data /etc/nginx/w2.htpasswd && chmod 640 /etc/nginx/w2.htpasswd
+  systemctl reload nginx
+  # 明文写到 Mac 的 W2_网页登录.txt
+  ```
+
+### TLS 证书（certbot 自动续期）
+
+- 证书 `/etc/letsencrypt/live/w2.ai138.top/{fullchain,privkey}.pem`，由 `certbot.timer` 每日自动续期（`--deploy-hook "systemctl reload nginx"`）。
+- 续期验证走 80 端口 `/.well-known/acme-challenge/`（该 location `auth_basic off`，root `/var/www/certbot`）。
+- 手动校验：`certbot renew --dry-run`。
+
+### 源站只放行 Cloudflare（ufw）
+
+- Cloudflare 网段存 `/etc/w2/cloudflare-ips.txt`；ufw 只对 Cloudflare 段放行 `80,443/tcp`，`22/tcp` 保持 Anywhere。
+- 更新网段方法：
+  ```bash
+  curl -fsS https://www.cloudflare.com/ips-v4 https://www.cloudflare.com/ips-v6 \
+    | grep -vE '^[[:space:]]*$' > /etc/w2/cloudflare-ips.txt
+  # 删除旧 CF 规则后按新段重建：
+  #   ufw status numbered | grep '80,443/tcp'   # 从大到小 delete 编号
+  #   while read -r cidr; do ufw allow proto tcp from "$cidr" to any port 80,443; done < /etc/w2/cloudflare-ips.txt
+  ```
+
+- 本机脚本/容器只走 127.0.0.1:18000/18080，不经过 80/443。
+- Cloudflare 后台 SSL/TLS 加密模式「完全（严格）」、边缘证书「始终使用 HTTPS」需 Owner 在 Cloudflare 后台开启（老 K 无权限，不代做）。
