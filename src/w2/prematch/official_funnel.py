@@ -196,13 +196,18 @@ def official_funnel_recommendations(
             if later
             else None
         )
-    return sorted(
+    # 按北京开球时间倒序（最新在前）；同场让球(ASIAN_HANDICAP)在前、大小球(TOTALS)在后。
+    by_market = sorted(
         projected,
+        key=lambda item: str(item["market"]),
+    )
+    return sorted(
+        by_market,
         key=lambda item: (
             str(item.get("kickoff_utc") or ""),
             str(item["fixture_id"]),
-            str(item["market"]),
         ),
+        reverse=True,
     )
 
 

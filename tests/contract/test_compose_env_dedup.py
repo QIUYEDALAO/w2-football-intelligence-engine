@@ -54,6 +54,7 @@ EXPECTED_UNIQUE = {
             "W2_REGISTRY_DIGEST",
         },
         "worker": {
+            "W2_DASHBOARD_PUBLIC_BASE_URL",
             "W2_FORMAL_RECOMMENDATION_ENABLED",
         },
         "scheduler": {
@@ -287,6 +288,8 @@ def test_compose_expansion_matches_authorized_runtime_delta(
                     "W2_DASHBOARD_PUBLIC_BASE_URL": "",
                 }
             )
+        if service == "worker" and path == FORMAL:
+            expected["W2_DASHBOARD_PUBLIC_BASE_URL"] = ""
         expected.update(AUTHORIZED_PROVIDER_ENV)
         if path == FORMAL:
             expected.update(AUTHORIZED_FORMAL_ONLY_ENV)

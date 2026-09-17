@@ -1491,6 +1491,98 @@ def test_daily_settlement_settles_and_marks_pending() -> None:
         session.commit()
 
 
+def test_daily_settlement_triggers_at_1130() -> None:
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    kickoff = datetime(2026, 8, 19, 20, 0, tzinfo=candidate_notifications.BEIJING)
+    with Session(engine) as session:
+        _insert_enabled_competition(session)
+        _insert_fixture_identity(session, kickoff_utc=kickoff)
+        session.commit()
+    _append(repository, _attempt("T3_ODDS", "a"))
+
+    before = datetime(2026, 8, 20, 11, 29, tzinfo=candidate_notifications.BEIJING)
+    with Session(engine) as session:
+        assert (
+            candidate_notifications.enqueue_daily_settlement_in_session(session, now=before)
+            is None
+        )
+    at = datetime(2026, 8, 20, 11, 30, tzinfo=candidate_notifications.BEIJING)
+    with Session(engine) as session:
+        assert (
+            candidate_notifications.enqueue_daily_settlement_in_session(session, now=at)
+            is not None
+        )
+        session.commit()
+
+
+def test_daily_settlement_zero_note_day() -> None:
+    engine = _engine()
+    at = datetime(2026, 8, 20, 11, 30, tzinfo=candidate_notifications.BEIJING)
+    with Session(engine) as session:
+        event_id = candidate_notifications.enqueue_daily_settlement_in_session(session, now=at)
+        assert event_id is not None
+        event = session.get(CandidateNotificationOutboxModel, event_id)
+        rendered = render_bark_message(event.payload)
+        assert rendered["title"] == "[结算] 08-19 当天无验证样本"
+        assert "累计：0 注 +0.00 单位" in rendered["body"]
+        session.commit()
+
+
+def test_validation_sample_fallback_skips_out_of_day_samples() -> None:
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    old_kickoff = NOW - timedelta(days=3)
+    with Session(engine) as session:
+        _insert_enabled_competition(session)
+        _insert_fixture_identity(session, kickoff_utc=old_kickoff)
+        session.commit()
+    _append(repository, _attempt("T3_ODDS", "a"))
+    repository.record_opportunity_without_attempt(
+        fixture_id="1523202",
+        market="ASIAN_HANDICAP",
+        context=_context("T15_ODDS", "missed"),
+        state=OpportunityState.MISSED_CHECKPOINT,
+        recorded_at=old_kickoff - timedelta(minutes=10),
+        blocker="CHECKPOINT_WINDOW_MISSED",
+    )
+
+    with Session(engine) as session:
+        assert (
+            candidate_notifications.enqueue_validation_sample_fallbacks_in_session(
+                session, now=NOW
+            )
+            == []
+        )
+
+
+def test_validation_sample_fallback_skips_after_kickoff_past_30min() -> None:
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    kickoff = NOW - timedelta(minutes=60)
+    with Session(engine) as session:
+        _insert_enabled_competition(session)
+        _insert_fixture_identity(session, kickoff_utc=kickoff)
+        session.commit()
+    _append(repository, _attempt("T3_ODDS", "a"))
+    repository.record_opportunity_without_attempt(
+        fixture_id="1523202",
+        market="ASIAN_HANDICAP",
+        context=_context("T15_ODDS", "missed"),
+        state=OpportunityState.MISSED_CHECKPOINT,
+        recorded_at=kickoff - timedelta(minutes=10),
+        blocker="CHECKPOINT_WINDOW_MISSED",
+    )
+
+    with Session(engine) as session:
+        assert (
+            candidate_notifications.enqueue_validation_sample_fallbacks_in_session(
+                session, now=NOW
+            )
+            == []
+        )
+
+
 def test_notif04_titles_and_bodies_render() -> None:
     beijing = candidate_notifications.BEIJING
     candidate_list = render_bark_message(
@@ -1538,6 +1630,8 @@ def test_notif04_titles_and_bodies_render() -> None:
             "push_count": 0,
             "loss_count": 0,
             "total_profit_units": 0.91,
+            "cumulative_settled_count": 1,
+            "cumulative_profit_units": 0.91,
             "items": [
                 {
                     "home": "上海海港",
@@ -1554,5 +1648,7 @@ def test_notif04_titles_and_bodies_render() -> None:
             ],
         }
     )
-    assert settlement["title"] == "[结算] 08-19 共 1 条 合计 +0.910 单位"
-    assert "赢 1 / 走水 0 / 输 0" in settlement["body"]
+    assert settlement["title"] == "[结算] 08-19 当天 +0.91 单位"
+    assert "累计：1 注 +0.91 单位" in settlement["body"]
+    assert "上海海港 vs 大连英博　推荐 主队 -0.25 @1.91　比分 2-1　赢 +0.91" in settlement["body"]
+    assert "当天：1 注　赢 1 / 走水 0 / 输 0　+0.91 单位" in settlement["body"]

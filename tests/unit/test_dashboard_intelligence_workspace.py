@@ -216,6 +216,80 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
     )
 
 
+def test_official_funnel_recommendations_ordered_latest_first_with_ah_before_totals() -> None:
+    base = datetime(2026, 8, 20, tzinfo=UTC)
+
+    def _evaluation(fixture_id: str, market: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            evaluation_id=f"eval-{fixture_id}-{market}",
+            fixture_id=fixture_id,
+            market=market,
+            selection="HOME" if market == "ASIAN_HANDICAP" else "OVER",
+            evaluated_at=base,
+            official_funnel_eligible=True,
+            opportunity_identity_hash=f"opp-{fixture_id}-{market}",
+            attempt_identity_hash=f"att-{fixture_id}-{market}",
+            payload={"state": "ANALYSIS_PICK_ACTIVE", "exact_line": "2.5", "decimal_odds": "1.90"},
+        )
+
+    evaluations = [
+        _evaluation(fixture_id, market)
+        for fixture_id in ("late", "early")
+        for market in ("ASIAN_HANDICAP", "TOTALS")
+    ]
+    opportunities = [
+        SimpleNamespace(
+            opportunity_identity_hash=row.opportunity_identity_hash,
+            fixture_id=row.fixture_id,
+            market=row.market,
+            state="EVALUATED_CANDIDATE",
+            evaluation_slot_id="T45_ODDS",
+            scheduled_checkpoint_at=row.evaluated_at,
+            recorded_at=row.evaluated_at,
+            latest_attempt_identity_hash=row.attempt_identity_hash,
+        )
+        for row in evaluations
+    ]
+
+    def _fixture(fixture_id: str, kickoff: datetime) -> SimpleNamespace:
+        return SimpleNamespace(
+            fixture_id=f"api_football:{fixture_id}",
+            provider_fixture_id=fixture_id,
+            kickoff_utc=kickoff,
+            home_provider_team_id="h",
+            away_provider_team_id="a",
+            home_w2_team_id=None,
+            away_w2_team_id=None,
+            team_identity_status="UNRESOLVED",
+            payload={
+                "teams": {
+                    "home": {"name": f"{fixture_id} Home"},
+                    "away": {"name": f"{fixture_id} Away"},
+                }
+            },
+        )
+
+    fixtures = {
+        "late": _fixture("late", base + timedelta(hours=2)),
+        "early": _fixture("early", base + timedelta(hours=1)),
+    }
+
+    rows = repository_module._official_funnel_recommendations(
+        evaluations, opportunities, fixtures, {}, {}
+    )
+
+    # 最新开球在前；同场让球(ASIAN_HANDICAP)在前、大小球(TOTALS)在后。
+    assert [row["fixture_id"] for row in rows] == ["late", "late", "early", "early"]
+    assert [row["market"] for row in rows] == [
+        "ASIAN_HANDICAP",
+        "TOTALS",
+        "ASIAN_HANDICAP",
+        "TOTALS",
+    ]
+    kickoffs = [row["kickoff_utc"] for row in rows]
+    assert kickoffs == sorted(kickoffs, reverse=True)
+
+
 def test_official_recommendation_is_removed_by_later_evaluated_no_edge() -> None:
     base = datetime(2026, 8, 20, tzinfo=UTC)
     candidate = SimpleNamespace(

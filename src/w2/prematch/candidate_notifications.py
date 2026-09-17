@@ -103,8 +103,12 @@ DAILY_CANDIDATE_LIST_DEFAULT_HOUR = 14
 DAILY_CANDIDATE_LIST_DEFAULT_MINUTE = 0
 DAILY_CANDIDATE_LIST_ADVANCE_THRESHOLD = time(14, 30)
 DAILY_CANDIDATE_LIST_ADVANCE_MINUTES = 30
-DAILY_SETTLEMENT_HOUR = 12
+DAILY_SETTLEMENT_HOUR = 11
+DAILY_SETTLEMENT_MINUTE = 30
 VALIDATION_SAMPLE_FALLBACK_MINUTES_BEFORE_KICKOFF = 5
+# ② fallback 只补推当天（北京 12:00~次日 12:00）且开球未过 30 分钟的比赛，
+# 避免调度延迟把历史样本一次性全推出去。
+VALIDATION_SAMPLE_MAX_AFTER_KICKOFF_MINUTES = 30
 T15_SLOT = "T15_ODDS"
 
 # Owner-ordered notification types that stay in the outbox for audit but are
@@ -1530,10 +1534,18 @@ def enqueue_validation_sample_fallbacks_in_session(
     never produced a real evaluation."""
 
     recommendations = _official_recommendations(session)
+    # ② fallback 只推当天比赛：开球在北京 [当日 12:00, 次日 12:00) 且开球已过
+    # 不超过 30 分钟，避免调度延迟把历史样本一次性全推出去。
+    day = football_day_for_kickoff(now)
+    window_start, window_end = football_day_window(day)
     inserted: list[str] = []
     for row in recommendations:
         kickoff = _parse_time(row.get("kickoff_utc"))
         if kickoff is None:
+            continue
+        if not (window_start <= kickoff < window_end):
+            continue
+        if now - kickoff > timedelta(minutes=VALIDATION_SAMPLE_MAX_AFTER_KICKOFF_MINUTES):
             continue
         fallback_at = kickoff - timedelta(minutes=VALIDATION_SAMPLE_FALLBACK_MINUTES_BEFORE_KICKOFF)
         if now < fallback_at:
@@ -1558,10 +1570,10 @@ def _settlement_bucket(settlement: str) -> str:
 
 
 def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> str | None:
-    """③ 每日结算.  At Beijing 12:00 for the just-closed football day."""
+    """③ 每日结算.  At Beijing 11:30 for the just-closed football day."""
 
     now_bj = now.astimezone(BEIJING)
-    if now_bj.hour < DAILY_SETTLEMENT_HOUR:
+    if (now_bj.hour, now_bj.minute) < (DAILY_SETTLEMENT_HOUR, DAILY_SETTLEMENT_MINUTE):
         return None
     today = now_bj.date()
     settled_day = today - timedelta(days=1)
@@ -1577,6 +1589,7 @@ def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> s
         return kickoff is not None and window_start <= kickoff < window_end
 
     today_samples = [row for row in recommendations if in_window(row)]
+    today_samples.sort(key=lambda row: str(row.get("kickoff_utc") or ""))
 
     # 补结算: items pending in the previous settlement that have now settled.
     prev_day = settled_day - timedelta(days=1)
@@ -1599,6 +1612,10 @@ def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> s
             settled = settled_by_key.get(key)
             if settled is not None:
                 supplementary.append(settled)
+    supplementary.sort(key=lambda row: str(row.get("kickoff_utc") or ""))
+
+    # 累计 = 推荐表全部已结算样本（不限日期窗口）的注数与单位合计。
+    cumulative_settled = [row for row in recommendations if row["profit_units"] is not None]
 
     win = push = loss = 0
     total = Decimal("0")
@@ -1630,10 +1647,11 @@ def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> s
                 loss += 1
             total += Decimal(str(row["profit_units"]))
 
-    for row in today_samples:
-        add_item(row, supplementary_flag=False)
+    # 补结算列在当天场次前。
     for row in supplementary:
         add_item(row, supplementary_flag=True)
+    for row in today_samples:
+        add_item(row, supplementary_flag=False)
 
     pending = [
         {"fixture_id": row["fixture_id"], "market": row["market"]}
@@ -1649,6 +1667,10 @@ def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> s
         "push_count": push,
         "loss_count": loss,
         "total_profit_units": float(total),
+        "cumulative_settled_count": len(cumulative_settled),
+        "cumulative_profit_units": float(
+            sum(Decimal(str(row["profit_units"])) for row in cumulative_settled)
+        ),
         "items": items,
         "pending": pending,
         "dashboard_url": _dashboard_day_url(settled_day.isoformat()),
@@ -2011,10 +2033,13 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
         title = f"[验证样本] {teams} {kickoff_hm} {market}{line} {direction} @{odds}"
     elif event_type == DAILY_SETTLEMENT:
         mm_dd = _mm_dd(str(payload.get("football_day") or ""))
-        title = (
-            f"[结算] {mm_dd} 共 {payload.get('item_count', 0)} 条 "
-            f"合计 {_format_units(payload.get('total_profit_units'))} 单位"
-        )
+        if int(payload.get("item_count", 0) or 0) == 0:
+            title = f"[结算] {mm_dd} 当天无验证样本"
+        else:
+            title = (
+                f"[结算] {mm_dd} 当天 "
+                f"{_format_settlement_units(payload.get('total_profit_units'))} 单位"
+            )
     elif event_type == TEST_MESSAGE:
         title = "[测试] W2 Bark 通道"
     else:
@@ -2203,33 +2228,36 @@ def _message_body(payload: Mapping[str, Any]) -> str:
             )
         )
     if event_type == DAILY_SETTLEMENT:
-        lines = []
+        lines = [
+            f"累计：{payload.get('cumulative_settled_count', 0)} 注 "
+            f"{_format_settlement_units(payload.get('cumulative_profit_units'))} 单位"
+        ]
         for item in payload.get("items") or []:
             if not isinstance(item, Mapping):
                 continue
-            market = _market_label(item.get("market"))
+            direction = _settlement_direction(item.get("market"), item.get("direction"))
             line = _format_line(item.get("line"))
-            direction = _direction_label(item.get("direction"))
             odds = _format_odds(item.get("decimal_odds"))
             score = str(item.get("score") or "--")
             prefix = "补结算 " if item.get("supplementary") else ""
             if item.get("profit_units") is None:
-                suffix = "待结算"
+                result = "待结算"
             else:
-                suffix = (
-                    f"{_settlement_short_label(item.get('settlement'))} · "
-                    f"{_format_units(item.get('profit_units'))} 单位"
+                result = (
+                    f"{_settlement_short_label(item.get('settlement'))} "
+                    f"{_format_settlement_units(item.get('profit_units'))}"
                 )
             lines.append(
-                f"{prefix}{item.get('home', '主队')} vs {item.get('away', '客队')} "
-                f"{score} {market}{line} {direction} @{odds}：{suffix}"
+                f"{prefix}{item.get('home', '主队')} vs {item.get('away', '客队')}　"
+                f"推荐 {direction} {line} @{odds}　比分 {score}　{result}"
             )
         lines.append(
+            f"当天：{payload.get('item_count', 0)} 注　"
             f"赢 {payload.get('win_count', 0)} / 走水 {payload.get('push_count', 0)} / "
-            f"输 {payload.get('loss_count', 0)}，"
-            f"合计 {_format_units(payload.get('total_profit_units'))} 单位"
+            f"输 {payload.get('loss_count', 0)}　"
+            f"{_format_settlement_units(payload.get('total_profit_units'))} 单位"
         )
-        return "\n".join(lines) or "无验证样本"
+        return "\n".join(lines)
     if event_type == TEST_MESSAGE:
         return "W2 Bark 外发通道测试消息"
     bookmaker = _as_mapping(payload.get("bookmaker"))
@@ -2308,6 +2336,22 @@ def _settlement_short_label(value: Any) -> str:
     }.get(str(value or ""), str(value or "未知"))
 
 
+def _settlement_direction(market: Any, value: Any) -> str:
+    """③ 结算行方向：让球「主队/客队」、大小球「大/小」."""
+
+    raw = str(value or "")
+    if str(market) == "TOTALS":
+        if raw.startswith("OVER"):
+            return "大"
+        if raw.startswith("UNDER"):
+            return "小"
+    if raw.startswith("HOME"):
+        return "主队"
+    if raw.startswith("AWAY"):
+        return "客队"
+    return raw or "方向未知"
+
+
 def _mm_dd(day: str) -> str:
     return day[5:] if len(day) >= 10 else day
 
@@ -2349,6 +2393,15 @@ def _format_units(value: Any) -> str:
     if number is None:
         return "未知"
     return f"{number:+.3f}" if number else "0.000"
+
+
+def _format_settlement_units(value: Any) -> str:
+    """③ 结算单位：两位小数（如 +1.05 / -1.00）。"""
+
+    number = _float(value)
+    if number is None:
+        return "未知"
+    return f"{number:+.2f}"
 
 
 def _settlement_selection(market: str, value: Any) -> str:
