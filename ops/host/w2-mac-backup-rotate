@@ -37,14 +37,15 @@ PREFILE_COUNT=$(printf '%s\n' "$PREFILES" | grep -c . || true)
 
 REHEARSAL=$(find "$SRC_DIR" -maxdepth 1 -type f -name 'rehearsal-*.dump' -print 2>/dev/null || true)
 
-if [ ! -d "$USB_ROOT" ] || [ ! -d "$USB_DIR" ]; then
-  echo "U 盘未挂载或目录不存在：$USB_DIR —— 只列清单，不删除，退出非 0" >&2
+if [ ! -d "$USB_ROOT" ]; then
+  echo "U 盘未挂载：$USB_ROOT —— 只列清单，不删除，退出非 0" >&2
   echo "== 待轮转 predeploy（保留最新 3 份，其余迁移）：共 $PREFILE_COUNT 份 =="
   printf '%s\n' "$PREFILES" | nl -ba 2>/dev/null || true
   echo "== rehearsal 待删除 =="
   printf '%s\n' "$REHEARSAL" || true
   exit 1
 fi
+mkdir -p "$USB_DIR"
 
 echo "== 迁移 predeploy 到 U 盘（保留最新 3 份）=="
 count=0
