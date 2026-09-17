@@ -167,8 +167,27 @@ PRO_BACKFILL_BATCHES: dict[int, tuple[str, ...]] = {
     ),
     2: ("bundesliga", "la_liga", "ligue_1", "premier_league", "serie_a"),
     3: ("eredivisie", "primeira_liga"),
+    4: (
+        "england_championship",
+        "italy_serie_b",
+        "spain_segunda_division",
+        "germany_2_bundesliga",
+        "netherlands_eerste_divisie",
+        "belgium_jupiler_pro_league",
+        "scotland_premiership",
+        "denmark_superliga",
+        "austria_bundesliga",
+        "switzerland_super_league",
+        "czech_republic_liga",
+        "turkey_super_lig",
+        "greece_super_league_1",
+        "croatia_hnl",
+    ),
 }
 PRO_BACKFILL_SEASONS = frozenset({"2024", "2025", "2026"})
+PRO_BACKFILL_SEASONS_BY_BATCH: dict[int, frozenset[str]] = {
+    4: frozenset({"2025", "2026"}),
+}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -828,6 +847,16 @@ class ProStatisticsBackfillService:
             for competition_id in PRO_BACKFILL_BATCHES[config.batch]
         }
 
+    def _batch_seasons(self) -> frozenset[str]:
+        """Seasons in scope for the configured batch.
+
+        Batches 1-3 keep the full {2024, 2025, 2026} window.  Batch 4 (the 14
+        newly-enabled national leagues) is restricted to the two most recent
+        seasons so it does not replay the 2024 history the league profiles do
+        not yet target.
+        """
+        return PRO_BACKFILL_SEASONS_BY_BATCH.get(self.config.batch, PRO_BACKFILL_SEASONS)
+
     def run(self) -> ProStatisticsBackfillResult:
         fixture_manifest_request_count, raw_fixtures_added = self._ensure_fixture_manifests()
         targets = self._target_fixtures()
@@ -870,7 +899,7 @@ class ProStatisticsBackfillService:
                 continue
             pilot_size = (
                 min(self.config.pilot_per_competition, len(fixtures))
-                if self.config.batch in {2, 3}
+                if self.config.batch in {2, 3, 4}
                 else 0
             )
             pilot_size_by_competition[competition_id] = pilot_size
@@ -972,7 +1001,7 @@ class ProStatisticsBackfillService:
         hashes: list[str] = []
         for competition_id in PRO_BACKFILL_BATCHES[self.config.batch]:
             league_id = self._provider_league_by_competition[competition_id]
-            for season in sorted(PRO_BACKFILL_SEASONS):
+            for season in sorted(self._batch_seasons()):
                 if (league_id, season) in cached_scopes:
                     continue
                 response = self.client.request_live(
@@ -1014,8 +1043,16 @@ class ProStatisticsBackfillService:
             raise XgBackfillError("PRO_FIXTURE_MANIFEST_RAW_HASH_MISSING")
         return len(hashes), len(hashes)
 
+    @staticmethod
+    def _kickoff_descending(item: dict[str, Any]) -> float:
+        fixture = item.get("fixture") if isinstance(item, dict) else None
+        date = fixture.get("date") if isinstance(fixture, dict) else None
+        parsed = parse_utc(date)
+        return -(parsed.timestamp()) if parsed is not None else float("inf")
+
     def _target_fixtures(self) -> list[dict[str, Any]]:
         fixtures: dict[str, dict[str, Any]] = {}
+        seasons = self._batch_seasons()
         for fixture in self.repository.fixture_payloads():
             fixture_id = fixture_id_from_payload(fixture)
             fixture_data = fixture.get("fixture") if isinstance(fixture, dict) else None
@@ -1026,10 +1063,20 @@ class ProStatisticsBackfillService:
                 fixture_id
                 and isinstance(status, dict)
                 and str(status.get("short") or "") in FINISHED_STATUS
-                and season in PRO_BACKFILL_SEASONS
+                and season in seasons
                 and self._competition_id(fixture)
             ):
                 fixtures[fixture_id] = fixture
+        if self.config.batch == 4:
+            return sorted(
+                fixtures.values(),
+                key=lambda item: (
+                    str(item.get("league", {}).get("id") or ""),
+                    str(item.get("league", {}).get("season") or ""),
+                    self._kickoff_descending(item),
+                    fixture_id_from_payload(item),
+                ),
+            )
         return sorted(
             fixtures.values(),
             key=lambda item: (
@@ -1050,7 +1097,7 @@ class ProStatisticsBackfillService:
         if direct:
             return direct
         for (scope_league, _scope_season), competition_id in self._competition_by_scope.items():
-            if scope_league == league_id and season in PRO_BACKFILL_SEASONS:
+            if scope_league == league_id and season in self._batch_seasons():
                 return competition_id
         return ""
 

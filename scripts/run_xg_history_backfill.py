@@ -20,7 +20,7 @@ def main() -> None:
         action="store_true",
         help="Materialize persisted fixture/statistics evidence with zero Provider calls.",
     )
-    parser.add_argument("--pro-batch", type=int, choices=(1, 2, 3))
+    parser.add_argument("--pro-batch", type=int, choices=(1, 2, 3, 4))
     parser.add_argument("--request-budget", type=int, default=5500)
     parser.add_argument("--requests-per-minute", type=int, default=60)
     parser.add_argument("--report", type=Path)

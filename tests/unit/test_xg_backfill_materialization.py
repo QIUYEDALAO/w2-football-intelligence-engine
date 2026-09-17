@@ -10,6 +10,7 @@ from w2.features.xg_materialization import (
     parse_team_xg_matches,
 )
 from w2.ingestion.xg_backfill import (
+    PRO_BACKFILL_BATCHES,
     ProStatisticsBackfillConfig,
     ProStatisticsBackfillService,
     XgBackfillConfig,
@@ -913,3 +914,211 @@ def test_pro_statistics_backfill_verifies_all_pilots_before_bulk(monkeypatch: An
         "de-3",
         "pl-3",
     ]
+
+
+def pro_fixture_season(
+    fixture_id: str,
+    *,
+    league_id: int,
+    season: str,
+    kickoff: datetime | None = None,
+) -> dict[str, Any]:
+    fixture = finished_fixture(fixture_id, kickoff or (NOW - timedelta(days=1)))
+    fixture["league"] = {"id": league_id, "season": season}
+    return fixture
+
+
+def test_pro_backfill_batch_4_is_14_new_leagues_in_audit_order() -> None:
+    from w2.competitions.registry import CompetitionRegistry
+
+    entries = CompetitionRegistry().entries()
+    batch = PRO_BACKFILL_BATCHES[4]
+    assert len(batch) == 14
+    assert [entries[competition_id].audit_order for competition_id in batch] == list(
+        range(8, 22)
+    )
+    assert batch == (
+        "england_championship",
+        "italy_serie_b",
+        "spain_segunda_division",
+        "germany_2_bundesliga",
+        "netherlands_eerste_divisie",
+        "belgium_jupiler_pro_league",
+        "scotland_premiership",
+        "denmark_superliga",
+        "austria_bundesliga",
+        "switzerland_super_league",
+        "czech_republic_liga",
+        "turkey_super_lig",
+        "greece_super_league_1",
+        "croatia_hnl",
+    )
+
+
+def test_pro_backfill_batch_4_manifest_requests_only_2025_and_2026(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+
+    class ManifestOnlyClient:
+        def __init__(self) -> None:
+            self.manifest_calls: list[tuple[str, str]] = []
+
+        def request_live(
+            self,
+            endpoint: str,
+            params: dict[str, str],
+        ) -> LiveApiFootballResponse:
+            assert endpoint == "fixtures"
+            self.manifest_calls.append((params["league"], params["season"]))
+            return LiveApiFootballResponse(
+                endpoint=endpoint,
+                params=params,
+                status_code=200,
+                elapsed_ms=1,
+                payload={"parameters": params, "response": []},
+                headers={"x-ratelimit-requests-remaining": "7000"},
+                captured_at=NOW,
+            )
+
+    client = ManifestOnlyClient()
+    ProStatisticsBackfillService(
+        client=client,
+        repository=ProBackfillRepository([]),
+        config=ProStatisticsBackfillConfig(batch=4),
+        now=NOW,
+    ).run()
+
+    assert len(client.manifest_calls) == 28  # 14 leagues x 2 seasons
+    assert {season for _league, season in client.manifest_calls} == {"2025", "2026"}
+
+
+def test_pro_backfill_batch_4_targets_only_2025_and_2026_seasons(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    # england_championship -> api_football_league_id 40
+    fixtures = [
+        pro_fixture_season("ec-2024", league_id=40, season="2024"),
+        pro_fixture_season("ec-2025", league_id=40, season="2025"),
+        pro_fixture_season("ec-2026", league_id=40, season="2026"),
+    ]
+    repository = ProBackfillRepository(fixtures)
+    client = ProBackfillClient()
+
+    ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=4,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    assert set(client.calls) == {"ec-2025", "ec-2026"}
+
+
+def test_pro_backfill_batch_4_processes_newest_fixtures_first(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    fixtures = [
+        pro_fixture_season(
+            "ec-old",
+            league_id=40,
+            season="2026",
+            kickoff=NOW - timedelta(days=30),
+        ),
+        pro_fixture_season(
+            "ec-new",
+            league_id=40,
+            season="2026",
+            kickoff=NOW - timedelta(days=1),
+        ),
+        pro_fixture_season(
+            "ec-mid",
+            league_id=40,
+            season="2026",
+            kickoff=NOW - timedelta(days=15),
+        ),
+    ]
+    repository = ProBackfillRepository(fixtures)
+    client = ProBackfillClient()
+
+    ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=4,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    assert client.calls == ["ec-new", "ec-mid", "ec-old"]
+
+
+def test_pro_backfill_batch_4_runs_three_fixture_pilot_and_skips_empty(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    fixtures = [
+        pro_fixture_season(
+            f"ec-{index}",
+            league_id=40,
+            season="2026",
+            kickoff=NOW - timedelta(days=30 - index),
+        )
+        for index in range(5)
+    ]
+    repository = ProBackfillRepository(fixtures)
+    client = ProBackfillClient(with_xg=False)
+
+    result = ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=4,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    assert client.calls == ["ec-4", "ec-3", "ec-2"]
+    assert result.skipped_competitions == ("england_championship",)
+    assert result.blockers == ("PRO_STATISTICS_XG_PILOT_EMPTY:england_championship",)
+
+
+def test_pro_backfill_batches_1_to_3_unchanged(monkeypatch: Any) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    assert PRO_BACKFILL_BATCHES[1] == (
+        "argentina_primera",
+        "brasileirao_serie_a",
+        "chinese_super_league",
+        "eliteserien",
+        "allsvenskan",
+        "mls",
+    )
+    assert PRO_BACKFILL_BATCHES[2] == (
+        "bundesliga",
+        "la_liga",
+        "ligue_1",
+        "premier_league",
+        "serie_a",
+    )
+    assert PRO_BACKFILL_BATCHES[3] == ("eredivisie", "primeira_liga")
+    for batch in (1, 2, 3):
+        service = ProStatisticsBackfillService(
+            client=ProBackfillClient(),
+            repository=ProBackfillRepository([]),
+            config=ProStatisticsBackfillConfig(
+                batch=batch,
+                ensure_fixture_manifests=False,
+            ),
+            now=NOW,
+        )
+        assert service._batch_seasons() == frozenset({"2024", "2025", "2026"})
