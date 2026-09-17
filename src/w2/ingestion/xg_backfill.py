@@ -426,12 +426,12 @@ class XgHistoryBackfillService:
                 new_rows.append(row)
                 continue
             if self._xg_values(previous) != self._xg_values(row):
-                kept, superseded = self._newest_xg_match(row, previous)
+                # team_xg_match is an append-only immutable ledger: a persisted row
+                # cannot be overwritten by a raw-derived value. Keep the persisted
+                # row and record the raw value as superseded.
                 superseded_xg_conflicts.append(
-                    self._superseded_xg_conflict_record(row_id, kept, superseded)
+                    self._superseded_xg_conflict_record(row_id, previous, row)
                 )
-                if kept is row:
-                    new_rows.append(row)
         if persist:
             try:
                 upserted_matches = self.repository.upsert_team_xg_matches(

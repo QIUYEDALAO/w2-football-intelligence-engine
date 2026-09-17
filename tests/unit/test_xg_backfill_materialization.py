@@ -1286,7 +1286,7 @@ class PersistedConflictRepository(SavedRawRepository):
         ]
 
 
-def test_saved_statistics_raw_conflict_against_persisted_keeps_newest() -> None:
+def test_saved_statistics_raw_conflict_against_persisted_keeps_persisted() -> None:
     repository = PersistedConflictRepository()
 
     result = XgHistoryBackfillService(
@@ -1298,8 +1298,10 @@ def test_saved_statistics_raw_conflict_against_persisted_keeps_newest() -> None:
 
     conflicts = {conflict["id"]: conflict for conflict in result.superseded_xg_conflicts}
     assert {"saved-0:10", "saved-0:20"} <= set(conflicts)
-    # raw captured_at（NOW）较新，persisted（NOW-1d）较旧 → 保留 raw，记录 persisted 为 superseded
-    assert conflicts["saved-0:10"]["kept"]["xg_for"] == 1.2
-    assert conflicts["saved-0:10"]["superseded"]["xg_for"] == 0.5
-    assert conflicts["saved-0:20"]["kept"]["xg_against"] == 1.2
-    assert conflicts["saved-0:20"]["superseded"]["xg_against"] == 0.5
+    # team_xg_match 不可变：保留 persisted（旧值），raw（新值）记为 superseded，不 upsert
+    assert conflicts["saved-0:10"]["kept"]["xg_for"] == 0.5
+    assert conflicts["saved-0:10"]["superseded"]["xg_for"] == 1.2
+    assert conflicts["saved-0:20"]["kept"]["xg_against"] == 0.5
+    assert conflicts["saved-0:20"]["superseded"]["xg_against"] == 1.2
+    # 冲突的两条不写入，只有 saved-1/2/3 的 6 条新记录被 upsert
+    assert result.team_xg_match_rows == 6
