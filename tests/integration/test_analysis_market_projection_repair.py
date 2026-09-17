@@ -24,7 +24,7 @@ def test_projection_repair_is_dry_by_default_and_exactly_guarded(tmp_path) -> No
             ReadModelCheckpointModel.__table__.insert(),
             [
                 _checkpoint("eligible", "allsvenskan", "v3-source", "v3"),
-                _checkpoint("current", "allsvenskan", "v4-source", "v4"),
+                _checkpoint("current", "allsvenskan", "v5-source", "v5"),
                 _checkpoint("world-cup", "world_cup_2026", "world-source", "v3"),
             ],
         )

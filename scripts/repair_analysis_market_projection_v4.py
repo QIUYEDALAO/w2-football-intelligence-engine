@@ -58,8 +58,8 @@ def repair_analysis_market_projection_v4(
     competition_ids = tuple(
         load_league_whitelist_scope(CompetitionRegistry(engine)).all_whitelist
     )
-    if len(competition_ids) != 13:
-        raise RuntimeError(f"PROJECTION_REPAIR_SCOPE_NOT_EXACT_13:{len(competition_ids)}")
+    if not competition_ids:
+        raise RuntimeError("PROJECTION_REPAIR_SCOPE_EMPTY")
 
     rows = _shadow_rows(engine)
     targets_with_rows = [

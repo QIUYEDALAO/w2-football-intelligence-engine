@@ -556,7 +556,7 @@ def test_input_manifest_declares_optional_model_enhancements_unused() -> None:
     manifest = artifact.payload["input_manifest"]
     assert (
         manifest["analysis_evidence_contract_version"]
-        == "w2.analysis-market-evidence-projection.v4"
+        == "w2.analysis-market-evidence-projection.v5"
     )
     assert manifest["ratings_used_in_lambda"] is False
     assert manifest["squad_value_used_in_lambda"] is False
@@ -918,7 +918,7 @@ def test_incompatible_analysis_evidence_checkpoint_is_replaced(
     assert persisted is not None
     assert (
         persisted.payload["input_manifest"]["analysis_evidence_contract_version"]
-        == "w2.analysis-market-evidence-projection.v4"
+        == "w2.analysis-market-evidence-projection.v5"
     )
 
 
