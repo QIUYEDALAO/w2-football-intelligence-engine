@@ -2,7 +2,7 @@ name: W2 Main Promotion
 
 on:
   push:
-    branches: [main]
+    branches: [codex/w2-authority-20260916]
 
 concurrency:
   group: main-promote
@@ -63,7 +63,7 @@ jobs:
             python3 scripts/classify_ci.py --base "$base_main_sha" --head "$GITHUB_SHA" --force-full --github-output "$classification"
             deployable="$(sed -n 's/^deployable=//p' "$classification")"
             triggered_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            gh workflow run release-candidate.yml --ref main \
+            gh workflow run release-candidate.yml --ref codex/w2-authority-20260916 \
               -f pr_number=0 -f "expected_head_sha=${GITHUB_SHA}" -f force_full=true -f "deployable=${deployable}"
             deadline=$(( $(date +%s) + 3600 ))
             run_id=""

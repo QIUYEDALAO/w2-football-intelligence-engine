@@ -893,7 +893,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
                 : item.exact_line;
               return <div key={item.market}>
                 <strong>{MARKET_LABELS[item.market]} · 盘口 {item.market === "ASIAN_HANDICAP" ? `${ahRecommendationTeamLabel(item.selection, match.home_team_label?.display_name, match.away_team_label?.display_name)}${itemLine ?? "待确认"}` : itemLine ?? "待确认"} · 推荐{item.selection ? SELECTION_LABELS[item.selection] || item.selection : "方向待确认"} {item.decimal_odds === null ? "" : `@${item.decimal_odds.toFixed(2)}`}</strong>
-                <span>{item.checkpoint} 形成 · {opportunityStateLabel(item.final_state)}{item.later_unassessed_checkpoints.length ? ` · 此后 ${item.later_unassessed_checkpoints.join(" / ")} 未产出评估，不影响确认` : ""}</span>
+                <span>{item.first_checkpoint} 形成 · {opportunityStateLabel(item.final_state)}{item.later_unassessed_checkpoints.length ? ` · 此后 ${item.later_unassessed_checkpoints.join(" / ")} 未产出评估，不影响确认` : ""}</span>
               </div>;
             })}
             <footer>{match.evaluation_execution.summary_zh}</footer>

@@ -977,6 +977,7 @@ class WorkspaceEvaluationCandidate(BaseModel):
     captured_at: datetime | str | None
     evaluated_at: datetime | str | None
     checkpoint: str
+    first_checkpoint: str
     final_state: (
         Literal[
             "EVALUATED_NO_EDGE",

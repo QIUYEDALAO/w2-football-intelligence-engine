@@ -2986,15 +2986,15 @@ class FutureFixtureRefreshService:
         reader: Any = None
         if self.config.persistence == "db":
             from w2.matchday.intake_v2 import (
-                REQUIRED_MATCHDAY_COMPETITIONS,
                 competition_policies,
                 load_matchday_policy,
+                required_matchday_competition_ids,
             )
 
             policy_by_league = {
                 policy.provider_league_id: policy
                 for competition_id, policy in competition_policies(load_matchday_policy()).items()
-                if competition_id in REQUIRED_MATCHDAY_COMPETITIONS and policy.enabled
+                if competition_id in required_matchday_competition_ids() and policy.enabled
             }
             reader = getattr(self._db_repository(), "provider_team_mapping", None)
         rows: list[dict[str, Any]] = []
@@ -3113,15 +3113,15 @@ class FutureFixtureRefreshService:
         if not isinstance(response, list) or any(not isinstance(item, dict) for item in response):
             raise FutureRefreshError("PROVIDER_FIXTURES_SCHEMA_DRIFT")
         from w2.matchday.intake_v2 import (
-            REQUIRED_MATCHDAY_COMPETITIONS,
             competition_policies,
             load_matchday_policy,
+            required_matchday_competition_ids,
         )
 
         allowed = {
             policy.provider_league_id: policy.fixture_status_allowlist
             for competition_id, policy in competition_policies(load_matchday_policy()).items()
-            if competition_id in REQUIRED_MATCHDAY_COMPETITIONS and policy.enabled
+            if competition_id in required_matchday_competition_ids() and policy.enabled
         }
         rows = [
             item

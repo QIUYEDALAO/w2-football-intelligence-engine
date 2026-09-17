@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
@@ -86,6 +87,8 @@ from w2.providers.control import provider_quota_authority_max_age_seconds
 
 QUOTA_USAGE_LEDGER_DIVERGENCE_THRESHOLD = 5
 
+logger = logging.getLogger(__name__)
+
 
 class FutureRefreshPersistenceError(RuntimeError):
     pass
@@ -93,7 +96,6 @@ class FutureRefreshPersistenceError(RuntimeError):
 
 SCOPED_OBSERVATION_ROWS_PER_MARKET = 128
 ROUND3_EVIDENCE_ROWS_PER_FIXTURE = 4096
-ROUND3_ACTIVE_WHITELIST_SIZE = 13
 
 
 def parse_db_datetime(value: Any) -> datetime:
@@ -109,13 +111,21 @@ def _fixture_aliases(fixture_id: str) -> tuple[str, ...]:
 
 
 def _round3_active_whitelist(rows: list[tuple[str, Any]]) -> set[str]:
+    # 白名单 = 注册表中 scope_group ∈ {top_five, national_leagues} 的全部联赛。
+    # 联赛扩容后不再对数量做断言（曾经的写死值 13 会在扩容后 fail-closed 导致快照全 0）。
     competition_ids = {
         str(competition_id)
         for competition_id, payload in rows
         if isinstance(payload, dict)
         and payload.get("scope_group") in {"top_five", "national_leagues"}
     }
-    return competition_ids if len(competition_ids) == ROUND3_ACTIVE_WHITELIST_SIZE else set()
+    if not competition_ids:
+        logger.warning(
+            "round3_active_whitelist empty: no league_profile rows with "
+            "scope_group in {top_five, national_leagues}; fail-closed"
+        )
+        return set()
+    return competition_ids
 
 
 def _fixture_identity_candidates(

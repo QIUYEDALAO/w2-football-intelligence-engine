@@ -29,7 +29,7 @@ from w2.ingestion.xg_backfill import (
     XgBackfillConfig,
     XgHistoryBackfillService,
 )
-from w2.matchday.intake_v2 import REQUIRED_MATCHDAY_COMPETITIONS
+from w2.matchday.intake_v2 import required_matchday_competition_ids
 
 RETENTION_SCHEMA = "w2.xg_retention_hardening.v1"
 XG_RETENTION_HASH_DOMAIN = HashDomain.FUTURE_REFRESH_EVIDENCE
@@ -347,7 +347,7 @@ class XgRetentionHardeningService:
             repository=repository,
             now=self.now,
             config=XgBackfillConfig(
-                competition_ids=tuple(sorted(REQUIRED_MATCHDAY_COMPETITIONS)),
+                competition_ids=tuple(sorted(required_matchday_competition_ids())),
             ),
         )
 

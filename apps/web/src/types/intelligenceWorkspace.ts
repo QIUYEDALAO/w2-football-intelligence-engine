@@ -353,6 +353,7 @@ export interface WorkspaceMatch {
       captured_at: string | null;
       evaluated_at: string | null;
       checkpoint: string;
+      first_checkpoint: string;
       final_state: "EVALUATED_NO_EDGE" | "EVALUATED_CANDIDATE" | "BLOCKED_BY_GATE" | "MISSED_CHECKPOINT" | "EVALUATION_ERROR" | null;
       final_active: boolean;
       later_unassessed_checkpoints: string[];

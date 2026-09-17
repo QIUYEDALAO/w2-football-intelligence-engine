@@ -28,7 +28,7 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
     FutureRefreshPersistenceError,
 )
-from w2.matchday.intake_v2 import REQUIRED_MATCHDAY_COMPETITIONS
+from w2.matchday.intake_v2 import required_matchday_competition_ids
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.control import env_int
 from w2.providers.quota import (
@@ -97,7 +97,9 @@ class XgBackfillRepository(Protocol):
 
 @dataclass(frozen=True, kw_only=True)
 class XgBackfillConfig:
-    competition_ids: tuple[str, ...] = tuple(sorted(REQUIRED_MATCHDAY_COMPETITIONS))
+    competition_ids: tuple[str, ...] = field(
+        default_factory=lambda: tuple(sorted(required_matchday_competition_ids()))
+    )
     recent_match_count: int = 5
     request_budget: int = 120
     quota_reserve: int = 1500
@@ -263,8 +265,8 @@ class XgHistoryBackfillService:
         self._audit: list[dict[str, Any]] = []
         self._remaining_quota: int | None = None
         requested = set(self.config.competition_ids)
-        if not requested or not requested <= REQUIRED_MATCHDAY_COMPETITIONS:
-            raise XgBackfillError("XG_COMPETITION_SCOPE_NOT_EXACT13")
+        if not requested or not requested <= required_matchday_competition_ids():
+            raise XgBackfillError("XG_COMPETITION_SCOPE_NOT_AUTHORIZED")
         entries = CompetitionRegistry().entries()
         missing = requested - set(entries)
         if missing:
@@ -1349,8 +1351,8 @@ def run_xg_history_backfill(
     requested_competition_id = (
         competition_id or os.environ.get("W2_XG_BACKFILL_COMPETITION_ID", "")
     ).strip()
-    if requested_competition_id not in REQUIRED_MATCHDAY_COMPETITIONS:
-        raise XgBackfillError("XG_LIVE_COMPETITION_EXACT13_REQUIRED")
+    if requested_competition_id not in required_matchday_competition_ids():
+        raise XgBackfillError("XG_LIVE_COMPETITION_AUTHORIZED_REQUIRED")
     return XgHistoryBackfillService(
         client=client,
         repository=repository,
@@ -1381,7 +1383,7 @@ def materialize_saved_xg(
         repository=repository,
         now=now,
         config=XgBackfillConfig(
-            competition_ids=tuple(sorted(REQUIRED_MATCHDAY_COMPETITIONS)),
+            competition_ids=tuple(sorted(required_matchday_competition_ids())),
             min_rolling_matches=int(os.environ.get("W2_XG_MIN_ROLLING_MATCHES", "3")),
             max_rolling_matches=int(os.environ.get("W2_XG_MAX_ROLLING_MATCHES", "5")),
             source_revision=os.environ.get("W2_SERVICE_VERSION", "LOCAL_UNDEPLOYED"),

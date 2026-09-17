@@ -35,37 +35,22 @@ CHECKPOINT_STATUSES = {
     "SKIPPED_BUDGET",
     "CONFLICT",
 }
-REQUIRED_MATCHDAY_COMPETITIONS = frozenset(
-    {
-        "premier_league",
-        "la_liga",
-        "bundesliga",
-        "serie_a",
-        "ligue_1",
-        "brasileirao_serie_a",
-        "argentina_primera",
-        "mls",
-        "chinese_super_league",
-        "allsvenskan",
-        "eliteserien",
-        "eredivisie",
-        "primeira_liga",
-        "england_championship",
-        "italy_serie_b",
-        "spain_segunda_division",
-        "germany_2_bundesliga",
-        "netherlands_eerste_divisie",
-        "belgium_jupiler_pro_league",
-        "scotland_premiership",
-        "denmark_superliga",
-        "austria_bundesliga",
-        "switzerland_super_league",
-        "czech_republic_liga",
-        "turkey_super_lig",
-        "greece_super_league_1",
-        "croatia_hnl",
-    }
-)
+def required_matchday_competition_ids(
+    registry: CompetitionRegistry | None = None,
+) -> frozenset[str]:
+    """由注册表与采集策略派生的 matchday 采集联赛集合（权威范围）。
+
+    采集策略：scope_group ∈ {top_five, national_leagues} 且 odds/lineups 任一开启。
+    联赛扩容后不再写死清单；调用方据此做 fail-closed 断言。
+    """
+    required: set[str] = set()
+    for entry in (registry or CompetitionRegistry()).entries().values():
+        if entry.scope_group not in {"top_five", "national_leagues"}:
+            continue
+        switches = entry.refresh_switches
+        if switches.get("odds") is True or switches.get("lineups") is True:
+            required.add(entry.competition_id)
+    return frozenset(required)
 MANIFEST_HASH_EXCLUDED_FIELDS = frozenset({"manifest_hash", "audit"})
 
 
@@ -158,8 +143,9 @@ class CheckpointPlan:
 def load_matchday_policy(
     registry: CompetitionRegistry | None = None,
 ) -> dict[str, Any]:
+    resolved = registry or CompetitionRegistry()
     policies = []
-    for entry in (registry or CompetitionRegistry()).entries().values():
+    for entry in resolved.entries().values():
         if not isinstance(entry.matchday_policy, dict):
             continue
         odds_enabled = entry.refresh_switches.get("odds") is True
@@ -194,7 +180,7 @@ def load_matchday_policy(
         for item in _list(payload.get("competitions"))
         if isinstance(item, Mapping)
     }
-    missing = REQUIRED_MATCHDAY_COMPETITIONS - competition_ids
+    missing = required_matchday_competition_ids(resolved) - competition_ids
     if missing:
         raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE:" + ",".join(sorted(missing)))
     return dict(payload)
@@ -239,9 +225,6 @@ def competition_policies(payload: Mapping[str, Any]) -> dict[str, MatchdayCompet
                 str(k): str(v) for k, v in _mapping(item.get("feature_enrichment_policy")).items()
             },
         )
-    missing = REQUIRED_MATCHDAY_COMPETITIONS - set(output)
-    if missing:
-        raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE:" + ",".join(sorted(missing)))
     return output
 
 

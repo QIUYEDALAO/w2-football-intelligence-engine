@@ -2307,6 +2307,69 @@ def test_finished_match_keeps_final_candidate_state_and_kickoff_quote_age() -> N
     )
 
 
+def test_candidate_first_checkpoint_is_earliest_candidate_slot() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-10T20:00:00Z"
+    card = day_view["cards"][0]
+    card["status"] = "FT"
+    market = _market(1)
+    market["timeline"]["points"][0]["captured_at"] = "2026-08-10T09:50:00Z"
+    card["market_radar"]["markets"]["TOTALS"] = market
+    card["dynamic_prematch"] = {
+        "versions": [
+            {
+                "checkpoint": "T3_ODDS",
+                "evaluation_slot_id": "T3_ODDS",
+                "evaluated_at": "2026-08-10T07:04:31Z",
+                "capture_at": "2026-08-10T07:03:00Z",
+                "market": "TOTALS",
+                "selection": "OVER",
+                "exact_line": "3.5",
+                "decimal_odds": "1.87",
+                "state": "ANALYSIS_PICK_ACTIVE",
+                "original_state": "ANALYSIS_PICK_ACTIVE",
+                "official_funnel_eligible": True,
+                "measurement_semantics": "CHECKPOINT_EVALUATION_OPPORTUNITY",
+                "opportunity_identity_hash": "candidate-t3",
+                "attempt_identity_hash": "candidate-t3-attempt",
+            },
+            {
+                "checkpoint": "T15_ODDS",
+                "evaluation_slot_id": "T15_ODDS",
+                "evaluated_at": "2026-08-10T09:46:10Z",
+                "capture_at": "2026-08-10T09:45:00Z",
+                "market": "TOTALS",
+                "selection": "OVER",
+                "exact_line": "3.5",
+                "decimal_odds": "1.90",
+                "state": "ANALYSIS_PICK_ACTIVE",
+                "original_state": "ANALYSIS_PICK_ACTIVE",
+                "official_funnel_eligible": True,
+                "measurement_semantics": "CHECKPOINT_EVALUATION_OPPORTUNITY",
+                "opportunity_identity_hash": "candidate-t15",
+                "attempt_identity_hash": "candidate-t15-attempt",
+            },
+        ],
+        "opportunities": [
+            {
+                "opportunity_identity_hash": "candidate-t15",
+                "latest_attempt_identity_hash": "candidate-t15-attempt",
+                "market": "TOTALS",
+                "evaluation_slot_id": "T15_ODDS",
+                "scheduled_checkpoint_at": "2026-08-10T09:46:10Z",
+                "recorded_at": "2026-08-10T09:46:10Z",
+                "state": "EVALUATED_CANDIDATE",
+            },
+        ],
+    }
+
+    match = _workspace(day_view)["matches"][0]
+    candidate = match["evaluation_execution"]["latest_candidates"][0]
+
+    assert candidate["checkpoint"] == "T-15m"
+    assert candidate["first_checkpoint"] == "T-3h"
+
+
 @pytest.mark.parametrize("fixture_id", ("1490393", "1490395", "1490397"))
 def test_missed_checkpoint_without_prior_candidate_does_not_claim_candidate_loss(
     fixture_id: str,

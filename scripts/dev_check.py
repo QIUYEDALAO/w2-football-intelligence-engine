@@ -61,7 +61,7 @@ def python_tests(paths: list[str]) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base", default="origin/main")
+    parser.add_argument("--base", default="origin/codex/w2-authority-20260916")
     parser.add_argument("--head", default="HEAD")
     parser.add_argument("--print-class", action="store_true")
     args = parser.parse_args()

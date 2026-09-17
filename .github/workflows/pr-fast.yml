@@ -2,7 +2,7 @@ name: W2 PR Fast
 
 on:
   pull_request:
-    branches: [main]
+    branches: [codex/w2-authority-20260916]
     types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:

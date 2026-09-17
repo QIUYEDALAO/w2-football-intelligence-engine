@@ -197,15 +197,14 @@ def official_funnel_recommendations(
             else None
         )
     # 按北京开球时间倒序（最新在前）；同场让球(ASIAN_HANDICAP)在前、大小球(TOTALS)在后。
-    by_market = sorted(
-        projected,
-        key=lambda item: str(item["market"]),
-    )
+    # 市场顺序用 negated rank 纳入排序键，避免整体 reverse 连带反转同场市场顺序。
+    market_rank = {"ASIAN_HANDICAP": 0, "TOTALS": 1}
     return sorted(
-        by_market,
+        projected,
         key=lambda item: (
             str(item.get("kickoff_utc") or ""),
             str(item["fixture_id"]),
+            -market_rank.get(str(item["market"]), 99),
         ),
         reverse=True,
     )

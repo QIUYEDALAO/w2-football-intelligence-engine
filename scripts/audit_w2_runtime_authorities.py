@@ -592,7 +592,7 @@ def build_findings(
 ) -> dict[str, Any]:
     findings = [
         ("P0-DATA-ASSET-REGISTRY-MISSING", "P0", "Historical data assets lack durable registry/backup/restore proof"),
-        ("P0-PROVIDER-INTAKE-SPLIT", "P0", "Provider intake remains split between future refresh and matchday endpoint capture"),
+        ("P0-PROVIDER-INTAKE-SPLIT", "P0", "Provider intake converges on matchday policy but future-refresh and matchday endpoint capture still have separate executors"),
         ("P0-CHECKPOINT-AUTHORITY-SPLIT", "P0", "Checkpoint policy still has multiple active or compatibility authorities"),
         ("P0-RECOMMENDATION-STATE-SPLIT", "P0", "Recommendation status is distributed across V3, legacy states and projections"),
         ("P0-F5-RUNTIME-DATA-MISSING", "P0", "F5 source data exists but canonical runtime readiness is not proven"),
@@ -685,7 +685,7 @@ def build_authority_map(
 def _canonical_authority(concept: str) -> str:
     mapping = {
         "checkpoint_policy": "config/policies/matchday_intake.v2.json",
-        "provider_request": "target MatchdayIntakeExecutor -> MatchdayEndpointCapture",
+        "provider_request": "config/policies/matchday_intake.v2.json -> MatchdayEndpointCapture",
         "recommendation_decision_v3": "src/w2/domain/recommendation_decision_v3.py",
         "F5": "target canonical runtime F5 query backed by approved team crosswalk",
         "F8": "target TeamValueAsOfArtifactModel + reviewed identity",
@@ -1249,7 +1249,7 @@ def write_all(output_dir: Path = DEFAULT_OUTPUT_DIR) -> dict[str, str]:
         "W2_PROVIDER_ENDPOINT_MATRIX_V3": build_simple_report(
             "W2_PROVIDER_ENDPOINT_MATRIX_V3",
             ["P0-PROVIDER-INTAKE-SPLIT"],
-            {"provider_calls": 0, "canonical_front_door": "target MatchdayIntakeExecutor", "phase_a_status": "BLOCKED_PENDING_PHASE0_GATE"},
+            {"provider_calls": 0, "canonical_front_door": "config/policies/matchday_intake.v2.json", "phase_a_status": "BLOCKED_PENDING_PHASE0_GATE"},
             generated_at=generated_at,
             source_sha=generation_head,
             generator_sha=generator_sha,

@@ -11,7 +11,7 @@ from typing import Any
 
 from w2.competitions.league_whitelist_audit import MIN_BOOKMAKER_DEPTH
 from w2.domain.recommendation_decision_v4 import CANDIDATE_QUOTE_MAX_AGE_SECONDS
-from w2.matchday.intake_v2 import REQUIRED_MATCHDAY_COMPETITIONS
+from w2.matchday.intake_v2 import required_matchday_competition_ids
 
 SCHEMA_VERSION = "w2.sc21-factor-coverage.v2"
 MARKETS = ("ASIAN_HANDICAP", "TOTALS")
@@ -402,9 +402,10 @@ def build_audit(
     if set(workspace_by_id) != set(db_by_id):
         raise ValueError("workspace and persisted T+7 fixture sets differ")
     competitions = {match["competition_id"] for match in matches}
-    if not competitions <= REQUIRED_MATCHDAY_COMPETITIONS:
+    authorized = required_matchday_competition_ids()
+    if not competitions <= authorized:
         raise ValueError(
-            f"non-authorized competitions: {sorted(competitions - REQUIRED_MATCHDAY_COMPETITIONS)}"
+            f"non-authorized competitions: {sorted(competitions - authorized)}"
         )
 
     fixtures = []

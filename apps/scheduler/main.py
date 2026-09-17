@@ -177,7 +177,6 @@ def fixture_discovery_tick() -> dict[str, object]:
     operational_date = BeijingOperationalDayPolicy().current_window(now_utc=now).local_date
     offset = (int(now.timestamp()) // interval) % (fixture_discovery_max_offset_days() + 1)
     discovery_date = (operational_date + timedelta(days=offset)).isoformat()
-    task_key = f"fixture-discovery:{operational_date.isoformat()}:{discovery_date}"
     competition_ids = matchday_checkpoint_competition_ids()
     if not competition_ids:
         return {
@@ -186,6 +185,14 @@ def fixture_discovery_tick() -> dict[str, object]:
             "candidate": False,
             "formal_recommendation": False,
         }
+    # 任务键纳入联赛集合哈希：新增/启用联赛当天不会被已完成的 discovery 去重抑制。
+    league_set_hash = hashlib.sha256(
+        ",".join(competition_ids).encode("utf-8")
+    ).hexdigest()[:16]
+    task_key = (
+        f"fixture-discovery:{operational_date.isoformat()}:"
+        f"{discovery_date}:{league_set_hash}"
+    )
     gate = provider_task_key_gate(task_key=task_key, ttl_seconds=24 * 60 * 60)
     if not gate.allowed:
         return {

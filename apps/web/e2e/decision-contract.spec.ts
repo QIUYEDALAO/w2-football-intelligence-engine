@@ -757,7 +757,7 @@ test("V41 makes the final official candidate card authoritative and folds repeat
     status: "CANDIDATE",
     ever_formed_candidate: true,
     final_states: [],
-    latest_candidates: [{ market: "ASIAN_HANDICAP", selection: "AWAY", exact_line: "-0.5", decimal_odds: 1.88, bookmaker_id: "bookmaker-1", captured_at: "2026-08-09T15:15:00Z", evaluated_at: "2026-08-09T15:16:00Z", checkpoint: "T15_ODDS", final_state: "EVALUATED_CANDIDATE", final_active: true, later_unassessed_checkpoints: [] }],
+    latest_candidates: [{ market: "ASIAN_HANDICAP", selection: "AWAY", exact_line: "-0.5", decimal_odds: 1.88, bookmaker_id: "bookmaker-1", captured_at: "2026-08-09T15:15:00Z", evaluated_at: "2026-08-09T15:16:00Z", checkpoint: "T15_ODDS", first_checkpoint: "T3_ODDS", final_state: "EVALUATED_CANDIDATE", final_active: true, later_unassessed_checkpoints: [] }],
     checkpoint_count: 2,
     market_evaluation_count: 2,
     checkpoints: ["T3_ODDS", "T15_ODDS"],

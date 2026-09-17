@@ -72,8 +72,8 @@ jobs:
           set -euo pipefail
           [[ "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
-          git fetch --no-tags origin main
-          base_main_sha="$(git rev-parse origin/main)"
+          git fetch --no-tags origin codex/w2-authority-20260916
+          base_main_sha="$(git rev-parse origin/codex/w2-authority-20260916)"
           if [ "$PR_NUMBER" = 0 ]; then
             test "$EXPECTED_HEAD_SHA" = "$base_main_sha"
             base_main_sha="$(git rev-parse "${EXPECTED_HEAD_SHA}^1")"
@@ -81,7 +81,7 @@ jobs:
           else
             pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
             test "$(jq -r .state <<<"$pr_json")" = open
-            test "$(jq -r .base.ref <<<"$pr_json")" = main
+            test "$(jq -r .base.ref <<<"$pr_json")" = codex/w2-authority-20260916
             test "$(jq -r .head.sha <<<"$pr_json")" = "$EXPECTED_HEAD_SHA"
             mergeable="$(jq -r '.mergeable // "pending"' <<<"$pr_json")"
             for attempt in 1 2 3 4 5; do
@@ -91,7 +91,7 @@ jobs:
               mergeable="$(jq -r '.mergeable // "pending"' <<<"$pr_json")"
             done
             test "$mergeable" = true
-            if ! git merge-base --is-ancestor origin/main "$EXPECTED_HEAD_SHA"; then
+            if ! git merge-base --is-ancestor origin/codex/w2-authority-20260916 "$EXPECTED_HEAD_SHA"; then
               echo 'RELEASE_CANDIDATE=STALE_BASE' >&2
               exit 1
             fi

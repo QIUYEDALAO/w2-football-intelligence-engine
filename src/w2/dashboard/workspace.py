@@ -776,6 +776,7 @@ def _evaluation_execution(
         status = "UNASSESSED"
 
     latest_candidates: dict[str, tuple[Mapping[str, Any], datetime]] = {}
+    first_candidates: dict[str, tuple[Mapping[str, Any], datetime]] = {}
     for version, state, evaluated_at in evaluated:
         if state != "ANALYSIS_PICK_ACTIVE":
             continue
@@ -783,6 +784,9 @@ def _evaluation_execution(
         previous_candidate_row = latest_candidates.get(market)
         if previous_candidate_row is None or evaluated_at > previous_candidate_row[1]:
             latest_candidates[market] = (version, evaluated_at)
+        first_candidate_row = first_candidates.get(market)
+        if first_candidate_row is None or evaluated_at < first_candidate_row[1]:
+            first_candidates[market] = (version, evaluated_at)
     candidate_rows = [
         {
             "market": market,
@@ -795,6 +799,12 @@ def _evaluation_execution(
             "checkpoint": _EVALUATION_CHECKPOINT_LABELS.get(
                 _text(version.get("evaluation_slot_id"), version.get("checkpoint")),
                 _text(version.get("evaluation_slot_id"), version.get("checkpoint")),
+            ),
+            "first_checkpoint": _evaluation_checkpoint_label(
+                _text(
+                    first_candidates[market][0].get("evaluation_slot_id"),
+                    first_candidates[market][0].get("checkpoint"),
+                )
             ),
             "final_state": _optional_text(_mapping(final_by_market.get(market)).get("state")),
             "final_active": _text(_mapping(final_by_market.get(market)).get("state"))
@@ -840,7 +850,7 @@ def _evaluation_execution(
         summary = "本场未形成候选；期间有检查点错过，但不影响该结论。"
     elif status == "BLOCKED":
         summary = (
-            "曾形成候选，最后官方状态已被门禁阻断，不计入正式推荐。"
+            "曾形成候选，最后官方状态已被门禁阻断，不计入赛后验证样本。"
             if ever_formed_candidate
             else "最后官方状态被门禁阻断，未形成有效候选。"
         )
@@ -850,7 +860,7 @@ def _evaluation_execution(
             "两个市场均为 NO_EDGE —— 模型与市场看法一致，无可利用价差。"
             if status == "NO_EDGE"
             and all({"ASIAN_HANDICAP", "TOTALS"} <= markets for markets in checkpoints.values())
-            else "最后官方状态仍为候选，计入正式推荐。"
+            else "最后官方状态仍为候选，计入赛后验证样本。"
             if status == "CANDIDATE"
             else "已完成市场评估。"
         )

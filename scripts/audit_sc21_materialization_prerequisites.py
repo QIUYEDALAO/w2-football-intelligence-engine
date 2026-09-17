@@ -32,7 +32,7 @@ from w2.infrastructure.persistence.models import (
     RegisteredRosterSnapshotModel,
     TeamValueAsOfArtifactModel,
 )
-from w2.matchday.intake_v2 import REQUIRED_MATCHDAY_COMPETITIONS, stable_hash
+from w2.matchday.intake_v2 import required_matchday_competition_ids, stable_hash
 from w2.ratings.elo import rating_from_history
 
 
@@ -42,7 +42,7 @@ def _utc(value: datetime) -> datetime:
 
 def build_audit(*, start: datetime, end: datetime) -> dict[str, Any]:
     engine = create_engine()
-    exact13 = sorted(REQUIRED_MATCHDAY_COMPETITIONS)
+    exact13 = sorted(required_matchday_competition_ids())
     with Session(engine) as session:
         fixtures = list(
             session.scalars(

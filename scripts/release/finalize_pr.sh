@@ -102,14 +102,14 @@ wait_run() {
 
 pr_json="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json state,headRefName,headRefOid,baseRefName,mergeStateStatus)"
 test "$(jq -r .state <<<"$pr_json")" = OPEN
-test "$(jq -r .baseRefName <<<"$pr_json")" = main
+test "$(jq -r .baseRefName <<<"$pr_json")" = codex/w2-authority-20260916
 source_branch="$(jq -r .headRefName <<<"$pr_json")"
 source_sha="$(jq -r .headRefOid <<<"$pr_json")"
 [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]]
 wait_check "$source_sha" PR_FAST_REQUIRED
 
-git -C "$ROOT" fetch origin main "$source_branch" --quiet
-base_main_sha="$(git -C "$ROOT" rev-parse origin/main)"
+git -C "$ROOT" fetch origin codex/w2-authority-20260916 "$source_branch" --quiet
+base_main_sha="$(git -C "$ROOT" rev-parse origin/codex/w2-authority-20260916)"
 git -C "$ROOT" merge-base --is-ancestor "$base_main_sha" "$source_sha" || {
   echo 'RELEASE_CANDIDATE=STALE_BASE' >&2
   exit 1
@@ -166,7 +166,7 @@ if [ "$deployable" = true ]; then
 fi
 
 test "$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json headRefOid --jq .headRefOid)" = "$source_sha"
-test "$(git -C "$ROOT" ls-remote origin refs/heads/main | awk '{print $1}')" = "$base_main_sha"
+test "$(git -C "$ROOT" ls-remote origin refs/heads/codex/w2-authority-20260916 | awk '{print $1}')" = "$base_main_sha"
 deadline="$(( $(date +%s) + TIMEOUT_SECONDS ))"
 while [ "$(date +%s)" -lt "$deadline" ]; do
   merge_state="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json mergeStateStatus --jq .mergeStateStatus)"
@@ -182,8 +182,8 @@ for attempt in $(seq 1 30); do
   sleep 2
 done
 [[ "$main_merge_sha" =~ ^[0-9a-f]{40}$ ]]
-git -C "$ROOT" fetch origin main --quiet
-test "$(git -C "$ROOT" rev-parse 'origin/main^{tree}')" = "$source_tree_sha"
+git -C "$ROOT" fetch origin codex/w2-authority-20260916 --quiet
+test "$(git -C "$ROOT" rev-parse 'origin/codex/w2-authority-20260916^{tree}')" = "$source_tree_sha"
 promotion_run_id="$(wait_run main-promote.yml "$main_merge_sha")"
 
 health=NOT_REQUIRED
@@ -225,7 +225,7 @@ printf '%s\n' \
   "FINAL_RESULT=$result"
 
 git -C "$ROOT" fetch --prune origin --quiet
-git -C "$ROOT" merge-base --is-ancestor "$source_sha" origin/main
+git -C "$ROOT" merge-base --is-ancestor "$source_sha" origin/codex/w2-authority-20260916
 source_worktree="$(git -C "$ROOT" worktree list --porcelain | awk -v branch="refs/heads/${source_branch}" '
   /^worktree / { path=substr($0, 10) }
   /^branch / && substr($0, 8) == branch { print path }

@@ -73,12 +73,33 @@ def test_round3_authority_isolated_from_legacy_action_modules() -> None:
     assert not any(name.startswith("w2.providers") for name in imports)
 
 
-def test_round3_whitelist_is_exact_13_and_fixture_aliases_are_not_conflicts() -> None:
-    rows = [(value, {"scope_group": "top_five"}) for value in sorted(ACTIVE_13)]
-    rows.append(("world_cup_2026", {"scope_group": "world_cup"}))
+def test_round3_whitelist_scales_13_and_27_and_fail_closed_at_zero() -> None:
+    # 13 规模：top_five 5 + national_leagues 8（联赛扩容前）
+    rows_13 = [
+        (value, {"scope_group": "top_five" if idx < 5 else "national_leagues"})
+        for idx, value in enumerate(sorted(ACTIVE_13))
+    ]
+    rows_13.append(("world_cup_2026", {"scope_group": "world_cup"}))
+    assert _round3_active_whitelist(rows_13) == ACTIVE_13
 
-    assert _round3_active_whitelist(rows) == ACTIVE_13
-    assert _round3_active_whitelist(rows[:-2]) == set()
+    # 27 规模：top_five 5 + national_leagues 22（联赛扩容后）
+    league_27 = [f"league_{i:02d}" for i in range(27)]
+    rows_27 = [
+        (value, {"scope_group": "top_five" if idx < 5 else "national_leagues"})
+        for idx, value in enumerate(league_27)
+    ]
+    rows_27.append(("world_cup_2026", {"scope_group": "world_cup"}))
+    assert _round3_active_whitelist(rows_27) == set(league_27)
+
+    # 0 规模：无任何 top_five / national_leagues → fail-closed 空
+    assert _round3_active_whitelist([]) == set()
+    assert (
+        _round3_active_whitelist(
+            [("world_cup_2026", {"scope_group": "world_cup"})]
+        )
+        == set()
+    )
+
     assert "1494218" in _fixture_aliases("api_football:1494218")
 
 
