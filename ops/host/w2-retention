@@ -132,11 +132,7 @@ done
 
 # ---- 5. /tmp 临时残留（>24h） ----
 log "== tmp ($TMP_DIR) =="
-find "$TMP_DIR" -maxdepth 1 -type f \
-  \( -name 'w2-build-*' -o -name 'w2-release-*' -o -name 'w2-src-*.tar.gz' \
-     -o -name 'run-pro-batch4*.sh' -o -name 'w2_probe*.py' \) \
-  -mmin +1440 -print 2>/dev/null \
-| while read -r f; do
+while read -r f; do
   size=$(ls -la "$f" 2>/dev/null | awk '{print $5}' || echo "?")
   if [ "$DRY_RUN" = 1 ]; then
     log "would delete tmp file: $f (bytes=$size)"
@@ -144,7 +140,12 @@ find "$TMP_DIR" -maxdepth 1 -type f \
     log "delete tmp file: $f (bytes=$size)"
     rm -f "$f" || record_failure "rm -f $f"
   fi
-done
+done < <(
+  find "$TMP_DIR" -maxdepth 1 -type f \
+    \( -name 'w2-*' -o -name 'run-*.sh' -o -name 'w2_probe*.py' \) \
+    ! -name 'w2-watchdog-*' ! -name 'w2-meta.json' ! -name 'w2-ready.json' \
+    -mmin +1440 -print 2>/dev/null
+)
 # 明确永不触碰（列出便于核对，不删除）
 for p in "$TMP_DIR"/w2-watchdog-* "$TMP_DIR"/w2-meta.json "$TMP_DIR"/w2-ready.json; do
   if [ -e "$p" ]; then

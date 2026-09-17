@@ -128,6 +128,36 @@ def test_retention_tmp_24h_rule(tmp_path: Path) -> None:
     assert f"would delete tmp file: {new_file}" not in out
 
 
+def test_retention_tmp_matches_any_w2_run_probe_with_exclusions(tmp_path: Path) -> None:
+    _backups_file, env = _build_env(tmp_path)
+    tmp = Path(env["W2_RETENTION_TMP_DIR"])
+
+    cases = {
+        "w2-anything-old.tar.gz": True,  # 任意 w2-*
+        "run-something.sh": True,        # 任意 run-*.sh
+        "w2_probe_old.py": True,         # w2_probe*.py
+        "w2-watchdog-old": False,        # 排除 w2-watchdog-*
+        "w2-meta.json": False,           # 排除 w2-meta.json
+        "w2-ready.json": False,          # 排除 w2-ready.json
+    }
+    for name in cases:
+        f = tmp / name
+        _write(f, "x")
+        two_days_ago = os.stat(f).st_mtime - 2 * 86400
+        os.utime(f, (two_days_ago, two_days_ago))
+
+    result = _run(env)
+
+    assert result.returncode == 0, result.stderr
+    out = result.stdout
+    for name, should_delete in cases.items():
+        f = tmp / name
+        if should_delete:
+            assert f"would delete tmp file: {f}" in out, name
+        else:
+            assert f"would delete tmp file: {f}" not in out, name
+
+
 def test_retention_never_touches_backups(tmp_path: Path) -> None:
     backups_file, env = _build_env(tmp_path)
     result = _run(env)
