@@ -1305,3 +1305,44 @@ def test_saved_statistics_raw_conflict_against_persisted_keeps_persisted() -> No
     assert conflicts["saved-0:20"]["superseded"]["xg_against"] == 1.2
     # 冲突的两条不写入，只有 saved-1/2/3 的 6 条新记录被 upsert
     assert result.team_xg_match_rows == 6
+
+
+def test_pro_statistics_backfill_tolerates_deduplicated_payloads(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+
+    class DedupRepository(ProBackfillRepository):
+        def raw_payload_count(self, endpoint: str) -> int:
+            return 0  # 模拟 save 去重：raw 计数不增长
+
+        def raw_payload_exists(self, *, sha256: str, endpoint: str) -> bool:
+            return True  # digest 已存在（去重命中）
+
+    repository = DedupRepository(
+        [
+            pro_fixture_season(
+                f"ec-{index}",
+                league_id=40,
+                season="2026",
+                kickoff=NOW - timedelta(days=30 - index),
+            )
+            for index in range(3)
+        ]
+    )
+    client = ProBackfillClient()
+
+    result = ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=4,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    # 3 场都 fetch，但 payload 去重（不新增），不得误报 PRO_STATISTICS_RAW_COUNT_MISMATCH
+    assert len(client.calls) == 3
+    assert result.raw_statistics_added == 0

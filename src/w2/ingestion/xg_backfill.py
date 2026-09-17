@@ -1011,7 +1011,11 @@ class ProStatisticsBackfillService:
 
         raw_after = self.repository.raw_payload_count("statistics")
         raw_added = raw_after - raw_before
-        if raw_added != len(raw_hashes):
+        # A raw payload is keyed by sha256, so re-fetching a fixture whose prior
+        # (incomplete-xG) payload already exists deduplicates instead of adding a
+        # row. raw_added may therefore be lower than len(raw_hashes); only a count
+        # that exceeds the fetches indicates a write problem.
+        if raw_added > len(raw_hashes):
             raise XgBackfillError(
                 f"PRO_STATISTICS_RAW_COUNT_MISMATCH:{raw_before}:{raw_after}:{len(raw_hashes)}"
             )
