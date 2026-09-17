@@ -116,7 +116,8 @@ log "== images ($REGISTRY_PREFIX/{python,web}) =="
     continue
   fi
   ref="$repo:$tag"
-  [ "$tag" = "<none>" ] && ref="$repo@sha256:$digest"
+  # digest 引用（tag=<none>）用 image ID 删除，避免空 Digest 字段错位
+  [ "$tag" = "<none>" ] && ref="$id"
   if [ "$DRY_RUN" = 1 ]; then
     log "would rmi image: $ref ($size)"
   else
