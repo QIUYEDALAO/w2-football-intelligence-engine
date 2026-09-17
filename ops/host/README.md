@@ -128,11 +128,11 @@ than guessing at what normal looks like.
 
 ## SEC-01 公网访问加固
 
-SSH 只允许密钥、域名 HTTPS + 网页登录密码、源站只放行 Cloudflare。
+SSH 只允许密钥、域名 HTTPS + 网页登录密码、直连不经 Cloudflare（80 跳 443，ufw 放行 22/80/443）。
 
 | File | Installs to | Purpose |
 |---|---|---|
-| `nginx-w2.site.conf` | `/etc/nginx/sites-available/w2` | 80/443 站点：HTTP Basic 认证 + 反代 127.0.0.1:18000/18080 |
+| `nginx-w2.site.conf` | `/etc/nginx/sites-available/w2` | 80 跳 443；443：HTTP Basic 认证 + 反代 127.0.0.1:18000/18080 |
 | `sshd-05-w2-hardening.conf` | `/etc/ssh/sshd_config.d/05-w2-hardening.conf` | 只允许密钥登录（禁密码/键盘交互，root 只允许密钥） |
 | `sshd-60-w2-pubkey.conf` | `/etc/ssh/sshd_config.d/60-w2-pubkey.conf` | 启用 PubkeyAuthentication（镜像默认关闭） |
 
@@ -156,17 +156,9 @@ SSH 只允许密钥、域名 HTTPS + 网页登录密码、源站只放行 Cloudf
 - 续期验证走 80 端口 `/.well-known/acme-challenge/`（该 location `auth_basic off`，root `/var/www/certbot`）。
 - 手动校验：`certbot renew --dry-run`。
 
-### 源站只放行 Cloudflare（ufw）
+### 源站直连（ufw 放行 22/80/443）
 
-- Cloudflare 网段存 `/etc/w2/cloudflare-ips.txt`；ufw 只对 Cloudflare 段放行 `80,443/tcp`，`22/tcp` 保持 Anywhere。
-- 更新网段方法：
-  ```bash
-  curl -fsS https://www.cloudflare.com/ips-v4 https://www.cloudflare.com/ips-v6 \
-    | grep -vE '^[[:space:]]*$' > /etc/w2/cloudflare-ips.txt
-  # 删除旧 CF 规则后按新段重建：
-  #   ufw status numbered | grep '80,443/tcp'   # 从大到小 delete 编号
-  #   while read -r cidr; do ufw allow proto tcp from "$cidr" to any port 80,443; done < /etc/w2/cloudflare-ips.txt
-  ```
-
+- 不经 Cloudflare（Cloudflare 记录仅 DNS/灰云），ufw 对 Anywhere 放行 `22/tcp`、`80/tcp`、`443/tcp`（v4 与 v6）。
+- 80 端口只做 `301 → https://w2.ai138.top`（`/.well-known/acme-challenge/` 除外，供 certbot 续期）；443 端口承载 HTTP Basic 认证 + 反代。
 - 本机脚本/容器只走 127.0.0.1:18000/18080，不经过 80/443。
-- Cloudflare 后台 SSL/TLS 加密模式「完全（严格）」、边缘证书「始终使用 HTTPS」需 Owner 在 Cloudflare 后台开启（老 K 无权限，不代做）。
+- TLS 由 443 端口 certbot 自动续期；Cloudflare 侧 SSL/TLS 与边缘证书不再涉及（记录仅 DNS）。
