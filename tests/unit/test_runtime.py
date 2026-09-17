@@ -1288,3 +1288,140 @@ def test_worker_future_refresh_task_is_registered() -> None:
 def test_redis_status_handles_unavailable_connection() -> None:
     settings = Settings(redis_url="redis://127.0.0.1:1/0")
     assert redis_status(settings) == "unavailable"
+
+
+def test_forward_outcome_ledger_feeds_retry_only_to_model_capture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Retry fixtures reach model_forecast_capture, not the outcome ledger."""
+    from w2.tracking.outcome_ledger_runtime import IncrementalWork
+
+    work = IncrementalWork(
+        analysis_fixture_ids=("1570001",),
+        result_fixture_ids=(),
+        capture_retry_fixture_ids=("1570002",),
+        source_cursor={"analysis_sources": {}},
+    )
+    captured: dict[str, Any] = {}
+
+    class FakeRuntime:
+        def __init__(self, engine: object | None = None) -> None:
+            self.engine = engine
+
+        def incremental_work(self, *, now: Any = None, horizon: Any = None) -> IncrementalWork:
+            return work
+
+    monkeypatch.setattr(
+        "w2.tracking.outcome_ledger_runtime.OutcomeLedgerRuntimeRepository",
+        FakeRuntime,
+    )
+
+    cards = [
+        {"fixture_id": "1570001", "simulation": {"status": "READY", "simulation": {"status": "READY"}}},
+        {"fixture_id": "1570002", "simulation": {"status": "READY", "simulation": {"status": "READY"}}},
+    ]
+
+    class FakeReadModel:
+        def dashboard_cards_for_fixtures(
+            self, fixture_ids: Any, *, generated_at: Any = None
+        ) -> list[dict[str, Any]]:
+            ids = set(fixture_ids)
+            return [card for card in cards if card["fixture_id"] in ids]
+
+    monkeypatch.setattr("w2.api.repository.ReadModelService", FakeReadModel)
+    monkeypatch.setattr(
+        "w2.dashboard.date_window.default_football_day",
+        lambda evaluated_at: evaluated_at.date(),
+    )
+
+    def fake_build_day_view(dashboard: Any, *, environment: Any) -> dict[str, Any]:
+        captured["day_view_all"] = [card.get("fixture_id") for card in dashboard["all"]]
+        return {"matches": []}
+
+    monkeypatch.setattr("w2.dashboard.day_view.build_dashboard_day_view", fake_build_day_view)
+
+    def fake_model_capture(
+        day_view: Any,
+        *,
+        repository: Any = None,
+        captured_at: Any = None,
+        dry_run: bool = True,
+        write_db: bool = False,
+        capture_retry_fixture_ids: Any = None,
+    ) -> dict[str, Any]:
+        captured["model_cards"] = [card.get("fixture_id") for card in day_view["cards"]]
+        captured["retry_ids"] = capture_retry_fixture_ids
+        return {"db_writes": 0, "status": "PASS"}
+
+    monkeypatch.setattr(
+        "w2.tracking.model_forecast_ledger.run_model_forecast_capture",
+        fake_model_capture,
+    )
+
+    def fake_run_ledger(
+        day_view: Any,
+        *,
+        repository: Any = None,
+        dry_run: bool = True,
+        write_db: bool = False,
+    ) -> dict[str, Any]:
+        captured["ledger_day_view"] = day_view
+        return {"db_writes": 0, "status": "PASS"}
+
+    monkeypatch.setattr(
+        "w2.tracking.forward_outcome_ledger.run_forward_outcome_ledger",
+        fake_run_ledger,
+    )
+    monkeypatch.setattr(
+        "w2.tracking.forward_outcome_ledger.backfill_outcomes",
+        lambda **kwargs: {"db_writes": 0, "unresolved_count": 0, "unresolved_fixture_ids": []},
+    )
+    monkeypatch.setattr(
+        "w2.tracking.outcome_result_refresh.run_outcome_result_refresh",
+        lambda **kwargs: {"status": "NO_DUE_WORK", "db_writes": 0, "confirmed_fixture_ids": []},
+    )
+
+    class FakeModelRepo:
+        def __init__(self, engine: object | None = None) -> None:
+            self.engine = engine
+
+    monkeypatch.setattr(
+        "w2.tracking.model_forecast_ledger.ModelForecastLedgerRepository",
+        FakeModelRepo,
+    )
+
+    class FakeLedgerRepo:
+        def __init__(self) -> None:
+            self.engine = object()
+
+    monkeypatch.setattr(
+        "w2.tracking.outcome_ledger_repository.OutcomeLedgerRepository",
+        FakeLedgerRepo,
+    )
+
+    class _Env:
+        value = "staging"
+
+    class _FakeSettings:
+        environment = _Env()
+
+    monkeypatch.setattr("w2.config.get_settings", lambda: _FakeSettings())
+    monkeypatch.setattr(
+        "apps.worker.celery_app._materialize_ah_facts_after_results",
+        lambda *args, **kwargs: {"status": "CLEAN", "db_writes": 0},
+    )
+    monkeypatch.setattr(
+        "w2.historical.runtime_ah_settlement_materializer.writer_status_is_clean",
+        lambda report: True,
+    )
+
+    import apps.worker.celery_app as worker_module
+
+    result = worker_module._run_forward_outcome_ledger(window="next7")
+
+    # ② 重试卡喂给 model_forecast_capture（analysis + retry 全部卡）
+    assert captured["model_cards"] == ["1570001", "1570002"]
+    assert captured["retry_ids"] == {"1570002"}
+    # ④ 重试卡不进入 outcome_ledger capture（day_view 只含 analysis 卡）
+    assert captured["day_view_all"] == ["1570001"]
+    assert result["status"] == "PASS"

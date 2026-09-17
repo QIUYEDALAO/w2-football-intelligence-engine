@@ -12,6 +12,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEndpointCaptureModel,
     MatchdayFixtureIdentityModel,
 )
+from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
 from w2.infrastructure.persistence.models import ResultModel
 from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerRunStateModel
 from w2.matchday.intake_v2 import stable_hash
@@ -29,6 +30,7 @@ def _repository() -> OutcomeLedgerRuntimeRepository:
     ReadModelCheckpointModel.__table__.create(engine)
     ResultModel.__table__.create(engine)
     OutcomeLedgerRunStateModel.__table__.create(engine)
+    ModelForecastCaptureModel.__table__.create(engine)
     return OutcomeLedgerRuntimeRepository(engine)
 
 
@@ -355,3 +357,193 @@ def test_terminal_raw_fixture_payload_without_endpoint_capture_is_consumed_once(
         "raw-5-terminal"
     )
     assert second.result_fixture_ids == ()
+
+
+def _fixture_identity(
+    provider_fixture_id: str, *, kickoff: datetime
+) -> MatchdayFixtureIdentityModel:
+    return MatchdayFixtureIdentityModel(
+        fixture_id=f"api_football:{provider_fixture_id}",
+        provider="api_football",
+        provider_fixture_id=provider_fixture_id,
+        competition_id="la_liga",
+        provider_league_id="140",
+        season="2026",
+        kickoff_utc=kickoff,
+        fixture_status="NS",
+        home_provider_team_id="1",
+        away_provider_team_id="2",
+        team_identity_status="RESOLVED",
+        raw_payload_sha256=stable_hash(f"raw-{provider_fixture_id}"),
+        captured_at=NOW,
+        identity_hash=stable_hash(f"identity-{provider_fixture_id}"),
+        payload={},
+    )
+
+
+def _shadow_card(
+    provider_fixture_id: str, *, source_hash: str | None = None
+) -> ReadModelCheckpointModel:
+    return ReadModelCheckpointModel(
+        checkpoint_key=f"analysis-card:shadow:v1:{provider_fixture_id}",
+        source_hash=source_hash or stable_hash(f"source-{provider_fixture_id}"),
+        created_at=NOW,
+        payload={"analysis_card": {"fixture_id": provider_fixture_id}},
+    )
+
+
+def _capture_row(
+    provider_fixture_id: str,
+    *,
+    fixture_id: str | None = None,
+    captured_at: datetime | None = None,
+) -> ModelForecastCaptureModel:
+    captured = captured_at or NOW
+    return ModelForecastCaptureModel(
+        capture_identity_hash=f"cap-{provider_fixture_id}",
+        fixture_id=fixture_id if fixture_id is not None else provider_fixture_id,
+        competition_id="la_liga",
+        kickoff_utc=NOW + timedelta(hours=2),
+        captured_at=captured,
+        lead_time_seconds=7200,
+        lead_time_bucket="T-2h",
+        model_family="EXACT_DC_POISSON",
+        model_version="v1",
+        capture_policy="FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
+        horizon_id="NONE",
+        model_input_manifest_hash="h" * 64,
+        four_field_xg_identity_hash="h" * 64,
+        score_matrix_hash="h" * 64,
+        payload={},
+        payload_sha256="h" * 64,
+        inserted_at=captured,
+    )
+
+
+def _advance_cursor(repository: OutcomeLedgerRuntimeRepository) -> None:
+    """Persist the current source_cursor so a second pass sees unchanged cards."""
+    work = repository.incremental_work(now=NOW)
+    repository.prepare_dispatch(
+        now=NOW,
+        task_id="task-retry",
+        pending_settlement_count=0,
+    )
+    assert repository.mark_running(task_id="task-retry", now=NOW)
+    repository.mark_succeeded(
+        task_id="task-retry",
+        now=NOW,
+        source_cursor=work.source_cursor,
+        pending_settlement_count=0,
+    )
+
+
+def test_capture_retry_excludes_already_captured_fixtures() -> None:
+    repository = _repository()
+    with Session(repository.engine) as session:
+        session.add(_fixture_identity("1570001", kickoff=NOW + timedelta(hours=2)))
+        session.add(_shadow_card("1570001", source_hash=stable_hash("source-1")))
+        session.add(_capture_row("1570001"))  # 不带前缀
+        session.add(_fixture_identity("1570002", kickoff=NOW + timedelta(hours=3)))
+        session.add(_shadow_card("1570002", source_hash=stable_hash("source-2")))
+        session.add(_capture_row("1570002", fixture_id="api_football:1570002"))  # 带前缀
+        session.commit()
+
+    _advance_cursor(repository)
+    work = repository.incremental_work(now=NOW)
+
+    # 卡未变（cursor 已记录）且已捕获 → 不进入重试
+    assert work.analysis_fixture_ids == ()
+    assert work.capture_retry_fixture_ids == ()
+
+
+def test_unchanged_uncaptured_card_enters_retry() -> None:
+    repository = _repository()
+    with Session(repository.engine) as session:
+        session.add(_fixture_identity("1570001", kickoff=NOW + timedelta(hours=2)))
+        session.add(_shadow_card("1570001"))
+        session.commit()
+
+    first = repository.incremental_work(now=NOW)
+    # 第一次：卡变化进入 analysis，去重后不进 retry
+    assert first.analysis_fixture_ids == ("1570001",)
+    assert first.capture_retry_fixture_ids == ()
+
+    repository.prepare_dispatch(now=NOW, task_id="t1", pending_settlement_count=0)
+    assert repository.mark_running(task_id="t1", now=NOW)
+    repository.mark_succeeded(
+        task_id="t1",
+        now=NOW,
+        source_cursor=first.source_cursor,
+        pending_settlement_count=0,
+    )
+    second = repository.incremental_work(now=NOW)
+
+    # 第二次：卡未变、无 capture → 进入 retry，不再进 analysis
+    assert second.analysis_fixture_ids == ()
+    assert second.capture_retry_fixture_ids == ("1570001",)
+
+
+def test_changed_card_does_not_duplicate_in_retry() -> None:
+    repository = _repository()
+    with Session(repository.engine) as session:
+        session.add(_fixture_identity("1570001", kickoff=NOW + timedelta(hours=2)))
+        session.add(_shadow_card("1570001"))
+        session.commit()
+
+    work = repository.incremental_work(now=NOW)
+
+    # 卡变化走原路径；同一 fixture 不重复出现在 retry
+    assert work.analysis_fixture_ids == ("1570001",)
+    assert "1570001" not in work.capture_retry_fixture_ids
+
+
+def test_capture_retry_capped_at_200() -> None:
+    repository = _repository()
+    with Session(repository.engine) as session:
+        for index in range(205):
+            provider_id = f"1571{index:03d}"
+            session.add(
+                _fixture_identity(
+                    provider_id,
+                    kickoff=NOW + timedelta(days=1, minutes=index),
+                )
+            )
+            session.add(_shadow_card(provider_id))
+        session.commit()
+
+    _advance_cursor(repository)
+    work = repository.incremental_work(now=NOW)
+
+    # 205 个未捕获的未变卡（均在 7 天窗口内）→ retry 上限 200
+    assert len(work.capture_retry_fixture_ids) == 200
+
+
+def test_capture_retry_excludes_past_kickoff() -> None:
+    repository = _repository()
+    with Session(repository.engine) as session:
+        session.add(_fixture_identity("1570001", kickoff=NOW - timedelta(hours=1)))
+        session.add(_shadow_card("1570001"))
+        session.commit()
+
+    work = repository.incremental_work(now=NOW)
+
+    # kickoff 已过 → 不进 retry（也不进 analysis 窗口）
+    assert work.analysis_fixture_ids == ()
+    assert work.capture_retry_fixture_ids == ()
+
+
+def test_capture_retry_does_not_alter_source_cursor() -> None:
+    repository = _repository()
+    with Session(repository.engine) as session:
+        session.add(_fixture_identity("1570001", kickoff=NOW + timedelta(hours=2)))
+        session.add(_shadow_card("1570001"))
+        session.commit()
+
+    _advance_cursor(repository)
+    work = repository.incremental_work(now=NOW)
+
+    # retry 名单每次重查，不写入游标；游标字段与改动前一致
+    assert work.capture_retry_fixture_ids == ("1570001",)
+    assert "capture_retry" not in work.source_cursor
+    assert "capture_retry_fixture_ids" not in work.source_cursor
+    assert "analysis_sources" in work.source_cursor

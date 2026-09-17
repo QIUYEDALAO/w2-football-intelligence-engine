@@ -138,11 +138,14 @@ class ModelForecastLedgerRepository:
         captured_at: datetime | None = None,
         dry_run: bool = True,
         write_db: bool = False,
+        capture_retry_fixture_ids: set[str] | None = None,
     ) -> dict[str, Any]:
         if dry_run and write_db:
             raise ModelForecastLedgerError("write_db requires dry_run=false")
         now = _utc(captured_at or datetime.now(UTC), "captured_at")
         cards = _cards(day_view)
+        retry_ids = frozenset(capture_retry_fixture_ids or ())
+        retry_results: dict[str, str] = {}
         coverage_eligible_count = 0
         model_eligible_count = 0
         no_four_field_xg_count = 0
@@ -160,11 +163,26 @@ class ModelForecastLedgerRepository:
                 kickoff = _parse_time(card.get("kickoff_utc"))
                 fixture_id = str(card.get("fixture_id") or "")
                 competition_id = str(card.get("competition_id") or "")
+                retry_scope = bool(
+                    retry_ids
+                    and fixture_id
+                    and any(alias in retry_ids for alias in _fixture_aliases(fixture_id))
+                )
                 if not fixture_id or not competition_id or kickoff is None or now >= kickoff:
+                    if retry_scope:
+                        retry_results[fixture_id] = (
+                            "kickoff_passed"
+                            if kickoff is not None and now >= kickoff
+                            else "missing_kickoff"
+                            if kickoff is None
+                            else "missing_competition"
+                        )
                     continue
                 coverage_eligible_count += 1
                 simulation = _ready_simulation(card)
                 if simulation is None:
+                    if retry_scope:
+                        retry_results[fixture_id] = "simulation_not_ready"
                     continue
                 xg_identity = self._four_field_xg_identity(
                     session,
@@ -174,13 +192,18 @@ class ModelForecastLedgerRepository:
                 )
                 if xg_identity is None:
                     no_four_field_xg_count += 1
+                    if retry_scope:
+                        retry_results[fixture_id] = "no_four_field_xg"
                     continue
-                blocker = _neutral_site_blocker(card, simulation) or _lambda_sigma_blocker(
-                    simulation
-                )
+                neutral_site_blocker = _neutral_site_blocker(card, simulation)
+                blocker = neutral_site_blocker or _lambda_sigma_blocker(simulation)
                 if blocker is not None:
                     no_neutral_site_or_lambda_count += 1
                     blocked_reasons.append({"fixture_id": fixture_id, "blocker": blocker})
+                    if retry_scope:
+                        retry_results[fixture_id] = (
+                            "neutral_site" if neutral_site_blocker else "lambda_sigma"
+                        )
                     continue
                 capture = _build_capture(
                     card=card,
@@ -202,8 +225,12 @@ class ModelForecastLedgerRepository:
                 )
                 if existing is not None:
                     already_captured += 1
+                    if retry_scope:
+                        retry_results[fixture_id] = "already_captured"
                     continue
                 captures.append(capture)
+                if retry_scope:
+                    retry_results[fixture_id] = "captured"
                 if write_db:
                     session.add(_capture_model(capture, inserted_at=now))
                     # The version row has a restrictive FK but no ORM relationship;
@@ -238,6 +265,10 @@ class ModelForecastLedgerRepository:
             "team_xg_match_count": team_xg_match_count,
             "shadow_candidate_count": _shadow_candidate_count(cards),
             "captures": captures if dry_run else [],
+            "capture_retry": {
+                "count": len(retry_results),
+                "by_fixture": retry_results,
+            },
         }
 
     def freeze_t30(
@@ -846,12 +877,14 @@ def run_model_forecast_capture(
     captured_at: datetime | None = None,
     dry_run: bool = True,
     write_db: bool = False,
+    capture_retry_fixture_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     return (repository or ModelForecastLedgerRepository()).capture(
         day_view,
         captured_at=captured_at,
         dry_run=dry_run,
         write_db=write_db,
+        capture_retry_fixture_ids=capture_retry_fixture_ids,
     )
 
 

@@ -16,6 +16,10 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEndpointCaptureModel,
     MatchdayFixtureIdentityModel,
 )
+from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureModel,
+    canonical_model_forecast_fixture_id_sql,
+)
 from w2.infrastructure.persistence.models import ResultModel
 from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerRunStateModel
 from w2.prematch.read_model_projection import ANALYSIS_CARD_SHADOW_PREFIX
@@ -72,6 +76,7 @@ class DispatchDecision:
 class IncrementalWork:
     analysis_fixture_ids: tuple[str, ...]
     result_fixture_ids: tuple[str, ...]
+    capture_retry_fixture_ids: tuple[str, ...]
     source_cursor: dict[str, Any]
 
 
@@ -208,6 +213,15 @@ class OutcomeLedgerRuntimeRepository:
                 start=reference,
                 end=reference + horizon,
             )
+            retry_ids = self._capture_retry_fixture_ids(
+                session,
+                start=reference,
+                end=reference + horizon,
+            )
+            analysis_set = set(analysis_fixture_ids)
+            capture_retry_fixture_ids = tuple(
+                fixture_id for fixture_id in retry_ids if fixture_id not in analysis_set
+            )
             fixture_ids, capture_cursor = self._changed_fixture_captures(session, cursor)
             raw_result_ids, raw_result_cursor = self._changed_raw_fixture_results(
                 session,
@@ -230,6 +244,7 @@ class OutcomeLedgerRuntimeRepository:
                     | set(raw_result_ids)
                 )
             ),
+            capture_retry_fixture_ids=capture_retry_fixture_ids,
             source_cursor={
                 **cursor,
                 **analysis_cursor,
@@ -409,6 +424,53 @@ class OutcomeLedgerRuntimeRepository:
             fixture_id = row.checkpoint_key.removeprefix(ANALYSIS_CARD_SHADOW_PREFIX)
             fixture_ids.append(fixture_id)
         return fixture_ids, {"analysis_sources": current_sources}
+
+    @staticmethod
+    def _capture_retry_fixture_ids(
+        session: Session,
+        *,
+        start: datetime,
+        end: datetime,
+        limit: int = 200,
+    ) -> list[str]:
+        """Shadow analysis cards in the window whose fixture has no capture yet.
+
+        A shadow card whose ``source_hash`` is unchanged skips the analysis path
+        (``_changed_analysis_fixture_ids``), so its ``model_forecast_capture`` is
+        never retried once it was first skipped (missing xG, not-ready
+        simulation, ...). Recover those fixtures here so they are fed back into
+        the model-forecast capture track while the outcome-ledger capture track
+        keeps its original changed-only fixture set.
+        """
+        checkpoint_identity = (
+            literal(ANALYSIS_CARD_SHADOW_PREFIX)
+            + MatchdayFixtureIdentityModel.provider_fixture_id
+        )
+        capture_fixture = canonical_model_forecast_fixture_id_sql(
+            ModelForecastCaptureModel.fixture_id
+        )
+        provider_fixture = canonical_model_forecast_fixture_id_sql(
+            MatchdayFixtureIdentityModel.provider_fixture_id
+        )
+        rows = session.execute(
+            select(MatchdayFixtureIdentityModel.provider_fixture_id)
+            .join(
+                ReadModelCheckpointModel,
+                ReadModelCheckpointModel.checkpoint_key == checkpoint_identity,
+            )
+            .outerjoin(
+                ModelForecastCaptureModel,
+                capture_fixture == provider_fixture,
+            )
+            .where(
+                MatchdayFixtureIdentityModel.kickoff_utc >= start,
+                MatchdayFixtureIdentityModel.kickoff_utc < end,
+                ModelForecastCaptureModel.capture_identity_hash.is_(None),
+            )
+            .order_by(MatchdayFixtureIdentityModel.kickoff_utc)
+            .limit(limit)
+        )
+        return [str(fixture_id) for (fixture_id,) in rows]
 
     @staticmethod
     def _changed_fixture_captures(

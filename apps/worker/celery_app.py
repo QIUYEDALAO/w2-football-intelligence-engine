@@ -900,17 +900,24 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
     evaluated_at = datetime.now(UTC)
     work = OutcomeLedgerRuntimeRepository(repository.engine).incremental_work(now=evaluated_at)
     football_day = default_football_day(evaluated_at).isoformat()
+    all_fixture_ids = list(
+        dict.fromkeys([*work.analysis_fixture_ids, *work.capture_retry_fixture_ids])
+    )
     cards = ReadModelService().dashboard_cards_for_fixtures(
-        work.analysis_fixture_ids,
+        all_fixture_ids,
         generated_at=evaluated_at,
     )
+    analysis_set = set(work.analysis_fixture_ids)
+    analysis_cards = [
+        card for card in cards if str(card.get("fixture_id") or "") in analysis_set
+    ]
     dashboard = {
         "generated_at": evaluated_at.isoformat().replace("+00:00", "Z"),
         "date": football_day,
         "selected_football_day": football_day,
         "timezone": "Asia/Shanghai",
         "window": window,
-        "all": cards,
+        "all": analysis_cards,
     }
     day_view = build_dashboard_day_view(dashboard, environment=get_settings().environment.value)
     model_forecast_repository = ModelForecastLedgerRepository(repository.engine)
@@ -939,6 +946,7 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         repository=model_forecast_repository,
         dry_run=False,
         write_db=True,
+        capture_retry_fixture_ids=set(work.capture_retry_fixture_ids),
     )
     capture = run_forward_outcome_ledger(
         day_view,
