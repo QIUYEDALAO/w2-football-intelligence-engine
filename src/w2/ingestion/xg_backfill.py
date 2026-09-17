@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -192,11 +192,15 @@ PRO_BACKFILL_SEASONS_BY_BATCH: dict[int, frozenset[str]] = {
     4: frozenset({"2025", "2026"}),
 }
 # Per-season target cap applied inside a batch.  Batch 4 caps the 2025 season at
-# 60 finished fixtures per league (newest-first); 2026 and every batch 1-3 season
-# stay uncapped.
+# 60 finished fixtures per league (newest-first); every batch 1-3 season stays
+# uncapped. The 2026 season in batch 4 is bounded separately by a minimum age and
+# a "never fetched" gate (see PRO_BACKFILL_2026_MIN_AGE_DAYS).
 PRO_BACKFILL_SEASON_LIMIT_BY_BATCH: dict[int, dict[str, int]] = {
     4: {"2025": 60},
 }
+# Batch 4 (2026 season) targets only finished fixtures kicked off at least this
+# many days ago and with no statistics raw payload yet.
+PRO_BACKFILL_2026_MIN_AGE_DAYS: int = 7
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -961,13 +965,21 @@ class ProStatisticsBackfillService:
             if not fixtures:
                 verified.add(competition_id)
                 continue
+            probe = fixtures
+            if self.config.batch == 4:
+                # 批次 4：试探只从第 2 部分（2025）取，第 1 部分（2026）直接进 bulk。
+                probe = [
+                    fixture
+                    for fixture in fixtures
+                    if self._fixture_season(fixture) == "2025"
+                ]
             pilot_size = (
-                min(self.config.pilot_per_competition, len(fixtures))
+                min(self.config.pilot_per_competition, len(probe))
                 if self.config.batch in {2, 3, 4}
                 else 0
             )
             pilot_size_by_competition[competition_id] = pilot_size
-            pilot = fixtures[:pilot_size]
+            pilot = probe[:pilot_size]
             if pilot:
                 pilot_xg_count = 0
                 for fixture in pilot:
@@ -1119,13 +1131,9 @@ class ProStatisticsBackfillService:
         return -(parsed.timestamp()) if parsed is not None else float("inf")
 
     @staticmethod
-    def _season_descending(item: dict[str, Any]) -> int:
+    def _fixture_season(item: dict[str, Any]) -> str:
         league = item.get("league") if isinstance(item, dict) else None
-        season = str(league.get("season") or "") if isinstance(league, dict) else ""
-        try:
-            return -int(season)
-        except ValueError:
-            return 0
+        return str(league.get("season") or "") if isinstance(league, dict) else ""
 
     @staticmethod
     def _apply_season_limit(
@@ -1152,6 +1160,64 @@ class ProStatisticsBackfillService:
             result.append(fixture)
         return result
 
+    def _statistics_fixture_ids_any(self) -> set[str]:
+        """Return every fixture that has any statistics raw payload, regardless of xG completeness."""
+        fetched: set[str] = set()
+        for raw in self.repository.raw_payloads("statistics"):
+            payload = raw.get("payload") if isinstance(raw, dict) else None
+            parameters = payload.get("parameters") if isinstance(payload, dict) else None
+            fixture_id = (
+                str(parameters.get("fixture") or "") if isinstance(parameters, dict) else ""
+            )
+            if fixture_id:
+                fetched.add(fixture_id)
+        return fetched
+
+    def _batch4_targets(self, fixtures: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Batch 4 targets two parts, newest-first within each.
+
+        Part 2 (2025) is the xG probe source: capped at 60 finished fixtures per
+        league (newest-first), and the 3-fixture pilot is drawn from its newest
+        rows. Part 1 (2026) is never probed: only finished fixtures at least
+        PRO_BACKFILL_2026_MIN_AGE_DAYS old with no statistics raw payload yet.
+        Part 2 precedes part 1 so the pilot picks the 2025 rows.
+        """
+        already_fetched = self._statistics_fixture_ids_any()
+        min_age = timedelta(days=PRO_BACKFILL_2026_MIN_AGE_DAYS)
+        part2: list[dict[str, Any]] = []
+        part1: list[dict[str, Any]] = []
+        for fixture in fixtures:
+            league = fixture.get("league") if isinstance(fixture, dict) else None
+            season = str(league.get("season") or "") if isinstance(league, dict) else ""
+            if season == "2026":
+                fixture_data = fixture.get("fixture") if isinstance(fixture, dict) else None
+                date = fixture_data.get("date") if isinstance(fixture_data, dict) else None
+                kickoff = parse_utc(date)
+                if kickoff is not None and kickoff <= self.now - min_age:
+                    if fixture_id_from_payload(fixture) not in already_fetched:
+                        part1.append(fixture)
+            else:
+                part2.append(fixture)
+
+        part2_sorted = sorted(
+            part2,
+            key=lambda item: (
+                str(item.get("league", {}).get("id") or ""),
+                self._kickoff_descending(item),
+                fixture_id_from_payload(item),
+            ),
+        )
+        part2_limited = self._apply_season_limit(part2_sorted, {"2025": 60})
+        part1_sorted = sorted(
+            part1,
+            key=lambda item: (
+                str(item.get("league", {}).get("id") or ""),
+                self._kickoff_descending(item),
+                fixture_id_from_payload(item),
+            ),
+        )
+        return part2_limited + part1_sorted
+
     def _target_fixtures(self) -> list[dict[str, Any]]:
         fixtures: dict[str, dict[str, Any]] = {}
         seasons = self._batch_seasons()
@@ -1170,19 +1236,7 @@ class ProStatisticsBackfillService:
             ):
                 fixtures[fixture_id] = fixture
         if self.config.batch == 4:
-            ordered = sorted(
-                fixtures.values(),
-                key=lambda item: (
-                    str(item.get("league", {}).get("id") or ""),
-                    self._season_descending(item),
-                    self._kickoff_descending(item),
-                    fixture_id_from_payload(item),
-                ),
-            )
-            return self._apply_season_limit(
-                ordered,
-                PRO_BACKFILL_SEASON_LIMIT_BY_BATCH.get(self.config.batch, {}),
-            )
+            return self._batch4_targets(list(fixtures.values()))
         return sorted(
             fixtures.values(),
             key=lambda item: (

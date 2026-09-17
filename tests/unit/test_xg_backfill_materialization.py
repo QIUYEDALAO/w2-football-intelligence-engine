@@ -1031,7 +1031,7 @@ def test_pro_backfill_batch_4_is_14_new_leagues_in_audit_order() -> None:
     )
 
 
-def test_pro_backfill_batch_4_manifest_requests_only_2025_and_2026(
+def test_pro_backfill_batch_4_manifest_requests_2025_and_2026(
     monkeypatch: Any,
 ) -> None:
     monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
@@ -1069,7 +1069,7 @@ def test_pro_backfill_batch_4_manifest_requests_only_2025_and_2026(
     assert {season for _league, season in client.manifest_calls} == {"2025", "2026"}
 
 
-def test_pro_backfill_batch_4_targets_only_2025_and_2026_seasons(
+def test_pro_backfill_batch_4_targets_two_parts(
     monkeypatch: Any,
 ) -> None:
     monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
@@ -1077,7 +1077,20 @@ def test_pro_backfill_batch_4_targets_only_2025_and_2026_seasons(
     fixtures = [
         pro_fixture_season("ec-2024", league_id=40, season="2024"),
         pro_fixture_season("ec-2025", league_id=40, season="2025"),
-        pro_fixture_season("ec-2026", league_id=40, season="2026"),
+        # 2026 开球 >= 7 天且从未抓过 -> 第 1 部分
+        pro_fixture_season(
+            "ec-2026-old",
+            league_id=40,
+            season="2026",
+            kickoff=NOW - timedelta(days=30),
+        ),
+        # 2026 开球 < 7 天 -> 过滤
+        pro_fixture_season(
+            "ec-2026-recent",
+            league_id=40,
+            season="2026",
+            kickoff=NOW - timedelta(days=1),
+        ),
     ]
     repository = ProBackfillRepository(fixtures)
     client = ProBackfillClient()
@@ -1093,7 +1106,8 @@ def test_pro_backfill_batch_4_targets_only_2025_and_2026_seasons(
         now=NOW,
     ).run()
 
-    assert set(client.calls) == {"ec-2025", "ec-2026"}
+    # 2024 与 2026-recent（<7 天）被过滤；2025（第2部分）在前，2026-old（第1部分）在后
+    assert client.calls == ["ec-2025", "ec-2026-old"]
 
 
 def test_pro_backfill_batch_4_processes_newest_fixtures_first(
@@ -1104,19 +1118,19 @@ def test_pro_backfill_batch_4_processes_newest_fixtures_first(
         pro_fixture_season(
             "ec-old",
             league_id=40,
-            season="2026",
+            season="2025",
             kickoff=NOW - timedelta(days=30),
         ),
         pro_fixture_season(
             "ec-new",
             league_id=40,
-            season="2026",
+            season="2025",
             kickoff=NOW - timedelta(days=1),
         ),
         pro_fixture_season(
             "ec-mid",
             league_id=40,
-            season="2026",
+            season="2025",
             kickoff=NOW - timedelta(days=15),
         ),
     ]
@@ -1145,7 +1159,7 @@ def test_pro_backfill_batch_4_runs_three_fixture_pilot_and_skips_empty(
         pro_fixture_season(
             f"ec-{index}",
             league_id=40,
-            season="2026",
+            season="2025",
             kickoff=NOW - timedelta(days=30 - index),
         )
         for index in range(5)
@@ -1200,29 +1214,6 @@ def test_pro_backfill_batches_1_to_3_unchanged(monkeypatch: Any) -> None:
         assert service._batch_seasons() == frozenset({"2024", "2025", "2026"})
 
 
-def test_pro_backfill_batch_4_processes_2026_before_2025(monkeypatch: Any) -> None:
-    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
-    fixtures = [
-        pro_fixture_season("ec-2025", league_id=40, season="2025"),
-        pro_fixture_season("ec-2026", league_id=40, season="2026"),
-    ]
-    repository = ProBackfillRepository(fixtures)
-    client = ProBackfillClient()
-
-    ProStatisticsBackfillService(
-        client=client,
-        repository=repository,
-        config=ProStatisticsBackfillConfig(
-            batch=4,
-            request_budget=10,
-            ensure_fixture_manifests=False,
-        ),
-        now=NOW,
-    ).run()
-
-    assert client.calls == ["ec-2026", "ec-2025"]
-
-
 def test_pro_backfill_batch_4_caps_2025_season_at_60_per_league(
     monkeypatch: Any,
 ) -> None:
@@ -1252,6 +1243,78 @@ def test_pro_backfill_batch_4_caps_2025_season_at_60_per_league(
     ).run()
 
     assert len(client.calls) == 60
+
+
+def test_pro_backfill_batch_4_2026_requires_never_fetched(monkeypatch: Any) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+
+    class FetchedRepository(ProBackfillRepository):
+        def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+            if endpoint != "statistics":
+                return []
+            return [{"payload": {"parameters": {"fixture": "ec-2026-fetched"}}}]
+
+    fixtures = [
+        pro_fixture_season(
+            "ec-2026-fetched",
+            league_id=40,
+            season="2026",
+            kickoff=NOW - timedelta(days=30),
+        ),
+        pro_fixture_season(
+            "ec-2026-new",
+            league_id=40,
+            season="2026",
+            kickoff=NOW - timedelta(days=20),
+        ),
+    ]
+    repository = FetchedRepository(fixtures)
+    client = ProBackfillClient()
+
+    ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=4,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    # 已抓过的 ec-2026-fetched 被过滤；从未抓过的 ec-2026-new 保留
+    assert client.calls == ["ec-2026-new"]
+
+
+def test_pro_backfill_batch_4_pilot_uses_2025_not_2026(monkeypatch: Any) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    fixtures = [
+        pro_fixture_season("ec-2025", league_id=40, season="2025"),
+        pro_fixture_season(
+            "ec-2026",
+            league_id=40,
+            season="2026",
+            kickoff=NOW - timedelta(days=30),
+        ),
+    ]
+    repository = ProBackfillRepository(fixtures)
+    client = ProBackfillClient(with_xg=False)  # 2025 试探无 xG
+
+    result = ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=4,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    # 试探只从 2025（第 2 部分）取：2025 无 xG -> 跳过联赛，2026 不参与试探也不 fetch
+    assert client.calls == ["ec-2025"]
+    assert result.skipped_competitions == ("england_championship",)
+    assert result.blockers == ("PRO_STATISTICS_XG_PILOT_EMPTY:england_championship",)
 
 
 class PersistedConflictRepository(SavedRawRepository):
@@ -1324,7 +1387,7 @@ def test_pro_statistics_backfill_tolerates_deduplicated_payloads(
             pro_fixture_season(
                 f"ec-{index}",
                 league_id=40,
-                season="2026",
+                season="2025",
                 kickoff=NOW - timedelta(days=30 - index),
             )
             for index in range(3)
