@@ -121,6 +121,7 @@ class XgBackfillResult:
     remaining_quota: int | None
     blockers: list[str] = field(default_factory=list)
     requests: list[dict[str, Any]] = field(default_factory=list)
+    superseded_xg_conflicts: list[dict[str, Any]] = field(default_factory=list)
     candidate: bool = False
     formal_recommendation: bool = False
     dry_run: bool = False
@@ -141,6 +142,7 @@ class XgBackfillResult:
             ),
             "blockers": self.blockers,
             "requests": self.requests,
+            "superseded_xg_conflicts": self.superseded_xg_conflicts,
             "candidate": False,
             "formal_recommendation": False,
             "dry_run": self.dry_run,
@@ -154,6 +156,7 @@ class SavedRawXgPlan:
     raw_statistics_sha256: tuple[str, ...]
     future_fixture_count: int
     blockers: tuple[str, ...]
+    superseded_xg_conflicts: tuple[dict[str, Any], ...] = ()
 
 
 PRO_BACKFILL_BATCHES: dict[int, tuple[str, ...]] = {
@@ -187,6 +190,12 @@ PRO_BACKFILL_BATCHES: dict[int, tuple[str, ...]] = {
 PRO_BACKFILL_SEASONS = frozenset({"2024", "2025", "2026"})
 PRO_BACKFILL_SEASONS_BY_BATCH: dict[int, frozenset[str]] = {
     4: frozenset({"2025", "2026"}),
+}
+# Per-season target cap applied inside a batch.  Batch 4 caps the 2025 season at
+# 60 finished fixtures per league (newest-first); 2026 and every batch 1-3 season
+# stay uncapped.
+PRO_BACKFILL_SEASON_LIMIT_BY_BATCH: dict[int, dict[str, int]] = {
+    4: {"2025": 60},
 }
 
 
@@ -439,6 +448,7 @@ class XgHistoryBackfillService:
             remaining_quota=None,
             blockers=list(plan.blockers),
             requests=[],
+            superseded_xg_conflicts=list(plan.superseded_xg_conflicts),
             dry_run=not persist,
         )
 
@@ -458,6 +468,7 @@ class XgHistoryBackfillService:
             fixture_by_id[fixture_id] = item
         parsed: dict[str, TeamXgMatch] = {}
         raw_statistics_sha256: list[str] = []
+        superseded_xg_conflicts: list[dict[str, Any]] = []
         for raw in self.repository.raw_payloads("statistics"):
             payload = raw.get("payload")
             captured_at = parse_utc(raw.get("captured_at"))
@@ -476,8 +487,13 @@ class XgHistoryBackfillService:
             ):
                 previous = parsed.get(row.id)
                 if previous is not None and self._xg_values(previous) != self._xg_values(row):
-                    raise XgBackfillError(f"SAVED_XG_CONFLICT:{row.id}")
-                parsed.setdefault(row.id, row)
+                    kept, superseded = self._newest_xg_match(previous, row)
+                    parsed[row.id] = kept
+                    superseded_xg_conflicts.append(
+                        self._superseded_xg_conflict_record(row.id, kept, superseded)
+                    )
+                else:
+                    parsed.setdefault(row.id, row)
 
         snapshot_fixtures = future_fixtures
         expected_snapshot_ids: set[str] | None = None
@@ -520,6 +536,7 @@ class XgHistoryBackfillService:
             raw_statistics_sha256=tuple(sorted(set(raw_statistics_sha256))),
             future_fixture_count=len(future_fixtures),
             blockers=tuple(sorted(snapshot_blockers)),
+            superseded_xg_conflicts=tuple(superseded_xg_conflicts),
         )
 
     def _request(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
@@ -616,6 +633,44 @@ class XgHistoryBackfillService:
             row.goals_for,
             row.goals_against,
         )
+
+    @staticmethod
+    def _newest_xg_match(
+        first: TeamXgMatch,
+        second: TeamXgMatch,
+    ) -> tuple[TeamXgMatch, TeamXgMatch]:
+        """Return (kept, superseded) preferring newer captured_at, then larger sha256."""
+        if first.captured_at != second.captured_at:
+            return (first, second) if first.captured_at > second.captured_at else (second, first)
+        if first.raw_payload_sha256 >= second.raw_payload_sha256:
+            return (first, second)
+        return (second, first)
+
+    @staticmethod
+    def _superseded_xg_conflict_record(
+        row_id: str,
+        kept: TeamXgMatch,
+        superseded: TeamXgMatch,
+    ) -> dict[str, Any]:
+        return {
+            "id": row_id,
+            "kept": {
+                "xg_for": kept.xg_for,
+                "xg_against": kept.xg_against,
+                "goals_for": kept.goals_for,
+                "goals_against": kept.goals_against,
+                "sha256": kept.raw_payload_sha256,
+                "captured_at": iso(kept.captured_at),
+            },
+            "superseded": {
+                "xg_for": superseded.xg_for,
+                "xg_against": superseded.xg_against,
+                "goals_for": superseded.goals_for,
+                "goals_against": superseded.goals_against,
+                "sha256": superseded.raw_payload_sha256,
+                "captured_at": iso(superseded.captured_at),
+            },
+        }
 
     def _target_team_ids(self, fixtures: list[dict[str, Any]]) -> set[str]:
         ids: set[str] = set()
@@ -1050,6 +1105,40 @@ class ProStatisticsBackfillService:
         parsed = parse_utc(date)
         return -(parsed.timestamp()) if parsed is not None else float("inf")
 
+    @staticmethod
+    def _season_descending(item: dict[str, Any]) -> int:
+        league = item.get("league") if isinstance(item, dict) else None
+        season = str(league.get("season") or "") if isinstance(league, dict) else ""
+        try:
+            return -int(season)
+        except ValueError:
+            return 0
+
+    @staticmethod
+    def _apply_season_limit(
+        fixtures: list[dict[str, Any]],
+        limits: dict[str, int],
+    ) -> list[dict[str, Any]]:
+        if not limits:
+            return fixtures
+        result: list[dict[str, Any]] = []
+        counts: dict[tuple[str, str], int] = {}
+        for fixture in fixtures:
+            league = fixture.get("league") if isinstance(fixture, dict) else None
+            league_id = str(league.get("id") or "") if isinstance(league, dict) else ""
+            season = str(league.get("season") or "") if isinstance(league, dict) else ""
+            limit = limits.get(season)
+            if limit is None:
+                result.append(fixture)
+                continue
+            key = (league_id, season)
+            count = counts.get(key, 0)
+            if count >= limit:
+                continue
+            counts[key] = count + 1
+            result.append(fixture)
+        return result
+
     def _target_fixtures(self) -> list[dict[str, Any]]:
         fixtures: dict[str, dict[str, Any]] = {}
         seasons = self._batch_seasons()
@@ -1068,14 +1157,18 @@ class ProStatisticsBackfillService:
             ):
                 fixtures[fixture_id] = fixture
         if self.config.batch == 4:
-            return sorted(
+            ordered = sorted(
                 fixtures.values(),
                 key=lambda item: (
                     str(item.get("league", {}).get("id") or ""),
-                    str(item.get("league", {}).get("season") or ""),
+                    self._season_descending(item),
                     self._kickoff_descending(item),
                     fixture_id_from_payload(item),
                 ),
+            )
+            return self._apply_season_limit(
+                ordered,
+                PRO_BACKFILL_SEASON_LIMIT_BY_BATCH.get(self.config.batch, {}),
             )
         return sorted(
             fixtures.values(),

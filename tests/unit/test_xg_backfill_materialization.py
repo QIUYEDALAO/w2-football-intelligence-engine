@@ -534,19 +534,95 @@ def test_saved_statistics_raw_with_less_than_three_matches_has_no_snapshot() -> 
     assert result.rolling_snapshot_rows == 0
 
 
-def test_saved_statistics_raw_conflict_fails_closed() -> None:
+def test_saved_statistics_raw_conflict_keeps_newest_and_records() -> None:
     repository = ConflictingSavedRawRepository()
 
-    with pytest.raises(XgBackfillError, match="SAVED_XG_CONFLICT:saved-0:10"):
-        XgHistoryBackfillService(
-            client=NoCallClient(),
-            repository=repository,
-            config=XgBackfillConfig(min_rolling_matches=3),
-            now=NOW,
-        ).run_saved_raw()
+    result = XgHistoryBackfillService(
+        client=NoCallClient(),
+        repository=repository,
+        config=XgBackfillConfig(min_rolling_matches=3),
+        now=NOW,
+    ).run_saved_raw()
 
-    assert repository.matches == []
-    assert repository.snapshots == []
+    assert result.team_xg_match_rows == 8
+    conflicts = {conflict["id"]: conflict for conflict in result.superseded_xg_conflicts}
+    assert set(conflicts) == {"saved-0:10", "saved-0:20"}
+    assert conflicts["saved-0:10"]["kept"]["xg_for"] == 9.9
+    assert conflicts["saved-0:10"]["kept"]["sha256"] == "f" * 64
+    assert conflicts["saved-0:10"]["superseded"]["xg_for"] == 1.2
+    assert conflicts["saved-0:10"]["superseded"]["sha256"] == "0" * 64
+    assert conflicts["saved-0:20"]["kept"]["xg_against"] == 9.9
+    assert conflicts["saved-0:20"]["superseded"]["xg_against"] == 1.2
+
+
+class NewerCapturedAtConflictingRepository(FakeRepository):
+    def fixture_payloads(self) -> list[dict[str, Any]]:
+        item = finished_fixture("fx-new", NOW - timedelta(days=5))
+        item["league"] = {"id": 113, "season": "2026"}
+        return [item]
+
+    def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+        assert endpoint == "statistics"
+        return [
+            {
+                "sha256": "f" * 64,
+                "captured_at": (NOW - timedelta(days=1)).isoformat(),
+                "payload": {
+                    **statistics(home_xg="1.2", away_xg="0.8"),
+                    "parameters": {"fixture": "fx-new"},
+                },
+            },
+            {
+                "sha256": "0" * 64,
+                "captured_at": NOW.isoformat(),
+                "payload": {
+                    **statistics(home_xg="9.9", away_xg="0.8"),
+                    "parameters": {"fixture": "fx-new"},
+                },
+            },
+        ]
+
+
+def test_saved_statistics_raw_conflict_keeps_newer_captured_at() -> None:
+    repository = NewerCapturedAtConflictingRepository()
+
+    result = XgHistoryBackfillService(
+        client=NoCallClient(),
+        repository=repository,
+        config=XgBackfillConfig(min_rolling_matches=3),
+        now=NOW,
+    ).run_saved_raw(persist=False)
+
+    conflicts = {conflict["id"]: conflict for conflict in result.superseded_xg_conflicts}
+    assert set(conflicts) == {"fx-new:10", "fx-new:20"}
+    # 较新 captured_at（sha256 较小）被保留，较旧（sha256 较大）被取代
+    assert conflicts["fx-new:10"]["kept"]["xg_for"] == 9.9
+    assert conflicts["fx-new:10"]["kept"]["sha256"] == "0" * 64
+    assert conflicts["fx-new:10"]["superseded"]["xg_for"] == 1.2
+    assert conflicts["fx-new:10"]["superseded"]["sha256"] == "f" * 64
+    assert conflicts["fx-new:20"]["kept"]["xg_against"] == 9.9
+    assert conflicts["fx-new:20"]["superseded"]["xg_against"] == 1.2
+
+
+class IdenticalDuplicateRepository(SavedRawRepository):
+    def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+        rows = super().raw_payloads(endpoint)
+        rows.append(rows[0])
+        return rows
+
+
+def test_saved_statistics_raw_duplicate_identical_rows_are_not_recorded() -> None:
+    repository = IdenticalDuplicateRepository()
+
+    result = XgHistoryBackfillService(
+        client=NoCallClient(),
+        repository=repository,
+        config=XgBackfillConfig(min_rolling_matches=3),
+        now=NOW,
+    ).run_saved_raw(persist=False)
+
+    assert result.team_xg_match_rows == 8
+    assert result.superseded_xg_conflicts == []
 
 
 def test_xg_backfill_uses_fake_provider_audits_and_materializes_snapshots() -> None:
@@ -1122,3 +1198,57 @@ def test_pro_backfill_batches_1_to_3_unchanged(monkeypatch: Any) -> None:
             now=NOW,
         )
         assert service._batch_seasons() == frozenset({"2024", "2025", "2026"})
+
+
+def test_pro_backfill_batch_4_processes_2026_before_2025(monkeypatch: Any) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    fixtures = [
+        pro_fixture_season("ec-2025", league_id=40, season="2025"),
+        pro_fixture_season("ec-2026", league_id=40, season="2026"),
+    ]
+    repository = ProBackfillRepository(fixtures)
+    client = ProBackfillClient()
+
+    ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=4,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    assert client.calls == ["ec-2026", "ec-2025"]
+
+
+def test_pro_backfill_batch_4_caps_2025_season_at_60_per_league(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    # 65 个 2025 赛季已完赛比赛（超过 60 上限），只处理最新 60 场
+    fixtures = [
+        pro_fixture_season(
+            f"ec-2025-{index:03d}",
+            league_id=40,
+            season="2025",
+            kickoff=NOW - timedelta(days=100 - index),
+        )
+        for index in range(65)
+    ]
+    repository = ProBackfillRepository(fixtures)
+    client = ProBackfillClient()
+
+    ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=4,
+            request_budget=1000,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    assert len(client.calls) == 60

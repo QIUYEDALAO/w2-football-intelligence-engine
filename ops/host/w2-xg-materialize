@@ -40,8 +40,15 @@ docker run --rm --network "$NET" --env-file "$ENVFILE" \
   -v "$REPORTS":/app/runtime/reports \
   --entrypoint python "$IMAGE" \
   /app/scripts/run_xg_history_backfill.py --saved-raw-only \
-  --report "/app/runtime/reports/xg-materialize-$STAMP.json" >/dev/null 2>&1
+  --report "/app/runtime/reports/xg-materialize-$STAMP.json" \
+  >"$REPORTS/xg-materialize-$STAMP.log" 2>&1
 rc=$?
+
+if [ "$rc" -ne 0 ]; then
+  echo "XG_MATERIALIZE_FAILED rc=$rc"
+  logger -t w2-xg-materialize "materialize failed rc=$rc; see $REPORTS/xg-materialize-$STAMP.log"
+  exit 1
+fi
 
 after_rows=$(docker exec w2-staging-postgres-1 psql -U w2_user -d w2 -A -t -c \
   "SELECT count(*) FROM team_xg_rolling_snapshot;" 2>/dev/null | tr -d ' ')
