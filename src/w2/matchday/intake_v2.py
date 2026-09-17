@@ -50,6 +50,20 @@ REQUIRED_MATCHDAY_COMPETITIONS = frozenset(
         "eliteserien",
         "eredivisie",
         "primeira_liga",
+        "england_championship",
+        "italy_serie_b",
+        "spain_segunda_division",
+        "germany_2_bundesliga",
+        "netherlands_eerste_divisie",
+        "belgium_jupiler_pro_league",
+        "scotland_premiership",
+        "denmark_superliga",
+        "austria_bundesliga",
+        "switzerland_super_league",
+        "czech_republic_liga",
+        "turkey_super_lig",
+        "greece_super_league_1",
+        "croatia_hnl",
     }
 )
 MANIFEST_HASH_EXCLUDED_FIELDS = frozenset({"manifest_hash", "audit"})
