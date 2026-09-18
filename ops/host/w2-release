@@ -14,7 +14,7 @@
 # 可用环境变量（测试注入点，均可在 shell 中覆盖）：
 #   W2_RELEASE_SSH_HOST         ssh 目标（默认 w2-hk）
 #   W2_RELEASE_NOW             覆盖当前时间（ISO8601 UTC，如 2026-09-18T12:00:00Z）
-#   W2_RELEASE_BLOCKED_WINDOW  禁止部署时段 HH:MM-HH:MM（默认 13:00-19:30）
+#   W2_RELEASE_BLOCKED_WINDOW  手动指定禁止部署时段 HH:MM-HH:MM（默认空：改用评估档位窗口检查）
 #   W2_RELEASE_STABILIZE_SEC   部署后稳定等待秒数（默认 180）
 #   W2_RELEASE_BASE_TAG         runtime-base 标签（默认 4d5f257daa500878）
 #   W2_RELEASE_GIT              git 命令（默认 git）
@@ -26,7 +26,7 @@ set -uo pipefail
 BRANCH="${W2_RELEASE_BRANCH:-codex/w2-authority-20260916}"
 REMOTE="${W2_RELEASE_REMOTE:-github-w2}"
 SSH_HOST="${W2_RELEASE_SSH_HOST:-w2-hk}"
-BLOCKED_WINDOW="${W2_RELEASE_BLOCKED_WINDOW:-13:00-19:30}"
+BLOCKED_WINDOW="${W2_RELEASE_BLOCKED_WINDOW:-}"
 STABILIZE_SEC="${W2_RELEASE_STABILIZE_SEC:-180}"
 BASE_TAG="${W2_RELEASE_BASE_TAG:-4d5f257daa500878}"
 GIT_CMD="${W2_RELEASE_GIT:-git}"
@@ -46,7 +46,9 @@ RECEIPT_DIR="${HOME}/Desktop/W2文档"
 
 API_PORT=18000
 WEB_PORT=18080
-SCHEMA_VERSION="0072_runtime_ah_settlement_fact"
+
+# 评估档位（部署窗口冲突检查用）
+CHECKPOINT_SLOTS="T3_ODDS T60_ODDS_LINEUPS T45_ODDS T-30m_VALIDATION_LOCK T15_ODDS"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 工具函数
@@ -109,6 +111,71 @@ next_available_time() {
   printf '%s' "${window##*-}"
 }
 
+# ISO8601 UTC -> epoch 秒（macOS date 与 GNU date 都兼容）
+iso_to_epoch() {
+  local iso="$1"
+  if date -j -f "%Y-%m-%dT%H:%M:%SZ" "$iso" "+%s" >/dev/null 2>&1; then
+    date -j -f "%Y-%m-%dT%H:%M:%SZ" "$iso" "+%s" 2>/dev/null
+  else
+    date -d "$iso" "+%s" 2>/dev/null || echo ""
+  fi
+}
+
+# epoch 秒 -> ISO8601 UTC
+epoch_to_iso() {
+  local epoch="$1"
+  if date -u -r "$epoch" "+%Y-%m-%dT%H:%M:%SZ" >/dev/null 2>&1; then
+    date -u -r "$epoch" "+%Y-%m-%dT%H:%M:%SZ" 2>/dev/null
+  else
+    date -u -d "@$epoch" "+%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo ""
+  fi
+}
+
+# 判断评估档位是否与部署窗口冲突。
+# 若任一档位 scheduled_at 落在 [now-5min, now+15min] 内则冲突。
+# 输入：now_iso(UTC) 与空格分隔的档位 scheduled_at(ISO) 列表。
+# 输出：无冲突 -> "0"；冲突 -> "1 <最近可部署时间 ISO>"（最晚档位 +15min）。
+checkpoint_window_conflict() {
+  local now_iso="$1" slot slot_epoch now_epoch lo_epoch hi_epoch latest=0
+  shift
+  now_epoch="$(iso_to_epoch "$now_iso")"
+  [ -z "$now_epoch" ] && { echo "0"; return 0; }
+  lo_epoch=$((now_epoch - 300))
+  hi_epoch=$((now_epoch + 900))
+  for slot in "$@"; do
+    slot_epoch="$(iso_to_epoch "$slot")"
+    [ -z "$slot_epoch" ] && continue
+    if [ "$slot_epoch" -ge "$lo_epoch" ] && [ "$slot_epoch" -le "$hi_epoch" ]; then
+      [ "$slot_epoch" -gt "$latest" ] && latest="$slot_epoch"
+    fi
+  done
+  if [ "$latest" -gt 0 ]; then
+    echo "1 $(epoch_to_iso $((latest + 900)))"
+  else
+    echo "0"
+  fi
+}
+
+# 从 migrations/versions 目录解析 alembic head（不写死）。
+# 输入：versions 目录路径；输出：head revision（多个用逗号连接）。
+migration_heads_from_dir() {
+  local versions_dir="$1"
+  python3 - "$versions_dir" <<'PY'
+import glob, os, re, sys
+versions = sys.argv[1]
+revs = {}
+for f in glob.glob(versions + '/*.py'):
+    text = open(f, encoding='utf-8').read()
+    m = re.search(r'revision\b[^"\n]*"([^"]+)"', text)
+    d = re.search(r'down_revision\b[^"\n]*"([^"]*)"', text)
+    if m:
+        revs[m.group(1)] = d.group(1) if d else None
+down = {v for v in revs.values() if v}
+heads = [r for r in revs if r not in down]
+print(','.join(sorted(heads)))
+PY
+}
+
 # 判断线上 release 与 target 之间是否需要备份：diff 中是否含 migrations/ 改动。
 # 输出 "yes" 或 "no"。参数：base_sha target_sha
 needs_backup() {
@@ -151,7 +218,7 @@ while [ "$#" -gt 0 ]; do
 
   --target <sha>         要发布的提交，默认 HEAD
   --dry-run              只打印计划，不执行构建/部署/推送/轮转
-  --skip-window-check    跳过禁止部署时段检查（默认 UTC 13:00-19:30）
+  --skip-window-check    跳过部署窗口检查（评估档位前后 / 手动时段）
 USAGE
       exit 0 ;;
     *)
@@ -215,13 +282,29 @@ log "当前线上 release：$online_release"
 
 # 1e. 禁止时段判断
 if [ "$SKIP_WINDOW" = "0" ]; then
-  if in_blocked_window "$NOW_ISO" "$BLOCKED_WINDOW"; then
-    warn "处于禁止部署时段（UTC ${BLOCKED_WINDOW}）内"
-    warn "最近可用时间：UTC $(next_available_time "$BLOCKED_WINDOW")"
-    warn "可用 --skip-window-check 显式跳过（仅限紧急且经 Owner 批准）"
-    exit 2
+  if [ -n "$BLOCKED_WINDOW" ]; then
+    # 手动指定固定时段（W2_RELEASE_BLOCKED_WINDOW）
+    if in_blocked_window "$NOW_ISO" "$BLOCKED_WINDOW"; then
+      warn "处于禁止部署时段（UTC ${BLOCKED_WINDOW}）内"
+      warn "最近可用时间：UTC $(next_available_time "$BLOCKED_WINDOW")"
+      warn "可用 --skip-window-check 显式跳过（仅限紧急且经 Owner 批准）"
+      exit 2
+    fi
+    log "固定时段检查通过（当前不在 ${BLOCKED_WINDOW} 内）"
+  else
+    # 默认：评估档位窗口检查（未来 15 分钟 / 过去 5 分钟内有档位则拒绝）
+    slot_rows="$(vps "docker exec w2-staging-postgres-1 psql -XAt -U w2_user -d w2 -c \"SELECT replace(to_char(scheduled_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'), ' ', 'T') || 'Z' FROM matchday_checkpoint_plans WHERE checkpoint IN ('T3_ODDS','T60_ODDS_LINEUPS','T45_ODDS','T-30m_VALIDATION_LOCK','T15_ODDS') AND scheduled_at >= now() - interval '5 minutes' AND scheduled_at <= now() + interval '15 minutes' ORDER BY scheduled_at;\"" 2>/dev/null || true)"
+    conflict_result="$(checkpoint_window_conflict "$NOW_ISO" $slot_rows)"
+    conflict_flag="${conflict_result%% *}"
+    if [ "$conflict_flag" = "1" ]; then
+      available="${conflict_result#* }"
+      warn "未来 15 分钟或过去 5 分钟内有评估档位（${CHECKPOINT_SLOTS}），拒绝部署"
+      warn "最近可部署时间：${available}"
+      warn "可用 --skip-window-check 显式跳过（仅限紧急且经 Owner 批准）"
+      exit 2
+    fi
+    log "评估档位窗口检查通过（无临近档位）"
   fi
-  log "时段检查通过（当前不在禁止时段内）"
 else
   log "时段检查已跳过（--skip-window-check）"
 fi
@@ -249,6 +332,17 @@ else
   log "无 migrations 目录改动 → 跳过备份（无迁移，跳过）"
 fi
 
+# 动态取目标 schema head（不写死）
+head_tmp="$(mktemp -d)"
+"$GIT_CMD" archive "$TARGET" migrations/versions 2>/dev/null | tar -xf - -C "$head_tmp" 2>/dev/null || true
+target_head="$(migration_heads_from_dir "$head_tmp/migrations/versions" 2>/dev/null || echo "")"
+rm -rf "$head_tmp"
+if [ -z "$target_head" ]; then
+  warn "无法从目标提交解析 alembic head"
+  exit 2
+fi
+log "目标 schema head：$target_head"
+
 # dry-run：打印完整计划后结束
 if [ "$DRY_RUN" = "1" ]; then
   log ""
@@ -265,7 +359,11 @@ if [ "$DRY_RUN" = "1" ]; then
     log "  8. 回执骨架：不生成（无发布）"
   else
     log "  2. 备份：$([ "$need_backup" = "yes" ] && echo "pg_dump -Fc → ${HOME}/Desktop/W2文档/backups" || echo "无迁移，跳过")"
+    log "  2b. schema head：${target_head}（从目标 migrations 动态解析，不写死）"
     log "  3. 构建：python 镜像（VPS, Dockerfile.release, base=${BASE_TAG}）+ web 镜像（Mac buildx amd64, nginx=${NGINX_BASE}），均打 revision=${TARGET}，推本地 registry"
+    if [ "$need_backup" = "yes" ]; then
+      log "  3b. 迁移：新镜像 alembic upgrade head → 校验 schema == ${target_head}（失败则停止且不切换）"
+    fi
     log "  4. 部署：compose 切换 release.env（8 个 key），等六容器 healthy"
     log "  5. 回读 7 项：a 六接口200 / b release_id+sha 一致 / c 推荐>0且倒序 / d market_radar 抽样3场≥1 / e 容器 healthy+StartedAt / f 部署后${STABILIZE_SEC}s Traceback=0 / g outbox 无过期样本"
     log "  6. 推送：git push $REMOTE $BRANCH 并回读远端 sha 一致"
@@ -350,23 +448,63 @@ UTC_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOCAL_LOG="/tmp/w2-release-${UTC_STAMP}.log"
 REMOTE_LOG="${VPS_REPORTS_DIR}/release-${UTC_STAMP}.log"
 
-vps "sudo bash -s -- '${TARGET}' '${py_ref}' '${web_ref}' '${python_digest}' '${web_digest}' '${BUILD_TIME}' '${STABILIZE_SEC}' '${SCHEMA_VERSION}' '${API_PORT}' '${WEB_PORT}' '${BASE_TAG}'" <<'VPS_SCRIPT' 2>&1 | tee "$LOCAL_LOG"
+vps "sudo bash -s -- '${TARGET}' '${py_ref}' '${web_ref}' '${python_digest}' '${web_digest}' '${BUILD_TIME}' '${STABILIZE_SEC}' '${API_PORT}' '${WEB_PORT}' '${BASE_TAG}' '${need_backup}' '${online_release}' '${target_head}'" <<'VPS_SCRIPT' 2>&1 | tee "$LOCAL_LOG"
 set -euo pipefail
 
 release_sha="$1"; py_ref="$2"; web_ref="$3"; python_digest="$4"; web_digest="$5"
-build_time="$6"; stabilize_sec="$7"; schema_version="$8"; api_port="$9"; web_port="${10}"; base_tag="${11}"
+build_time="$6"; stabilize_sec="$7"; api_port="$8"; web_port="$9"; base_tag="${10}"
+has_migration="${11}"; online_release="${12}"; target_head="${13}"
 
 compose=(docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml -f /opt/w2/deploy/controlled-future-refresh.override.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env)
 Q() { docker exec -i w2-staging-postgres-1 psql -XAt -U w2_user -d w2 -c "$1"; }
 
+echo "target_head=$target_head"
+[ -n "$target_head" ] || { echo "FAIL 目标 head 为空"; exit 2; }
+
+# 回滚状态：activate release.env 前 ACTIVE=0，切换后 ACTIVE=1。
+# 用 EXIT trap（而非 ERR trap）保证 exit/||/set -e 任何退出路径都触发回滚。
+ACTIVE=0
+backup=""
+
+rollback() {
+  if [ "$ACTIVE" = "1" ] && [ -n "$backup" ]; then
+    echo "ROLLBACK_START"
+    if install -m 0644 "$backup" /opt/w2/shared/release.env; then
+      "${compose[@]}" up -d --no-deps --force-recreate worker scheduler api web || true
+      ready=0
+      for _ in $(seq 1 60); do
+        if curl -fsS --max-time 5 "http://127.0.0.1:${api_port}/ready" >/dev/null 2>&1; then ready=1; break; fi
+        sleep 2
+      done
+      rid="$(curl -fsS --max-time 10 "http://127.0.0.1:${api_port}/v1/version" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("release_id",""))' 2>/dev/null || echo "")"
+      echo "ROLLBACK_READBACK ready=$ready release_id=$rid expected=$online_release"
+      if [ "$ready" = "1" ] && [ "$rid" = "$online_release" ]; then
+        echo "ROLLBACK_DONE restored=$backup"
+      else
+        echo "ROLLBACK_WARN 回读未达旧版本（ready=${ready} release_id=${rid}）"
+      fi
+    else
+      echo "ROLLBACK_FAILED release.env 恢复失败，请人工恢复：sudo install -m 0644 $backup /opt/w2/shared/release.env && docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml -f /opt/w2/deploy/controlled-future-refresh.override.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env up -d --no-deps --force-recreate worker scheduler api web"
+    fi
+    ACTIVE=0
+  fi
+}
+trap rollback EXIT
+
+fail() {
+  local msg="$1"
+  echo "FAIL: $msg" >&2
+  exit 2
+}
+
 echo "== preflight =="
-W2_BASE_TAG="$base_tag" /usr/local/bin/w2-release-preflight "$py_ref" || { echo "FAIL preflight"; exit 2; }
-W2_BASE_TAG="$base_tag" /opt/w2/deploy/w2-release-sync-preflight "$py_ref" "$web_ref" "$release_sha" || { echo "FAIL release-sync-preflight"; exit 2; }
+W2_BASE_TAG="$base_tag" /usr/local/bin/w2-release-preflight "$py_ref" || fail "preflight"
+W2_BASE_TAG="$base_tag" /opt/w2/deploy/w2-release-sync-preflight "$py_ref" "$web_ref" "$release_sha" || fail "release-sync-preflight"
 
 echo "== checkpoint gate =="
 active_claims="$(Q "SELECT count(*) FROM matchday_checkpoint_plans WHERE status='DUE' AND claim_expires_at > now();")"
 echo "active_claims=$active_claims"
-if [ "$active_claims" != "0" ]; then echo "FAIL SWITCH_BLOCKED_ACTIVE_CLAIM"; exit 2; fi
+[ "$active_claims" = "0" ] || fail "SWITCH_BLOCKED_ACTIVE_CLAIM"
 
 echo "== baseline =="
 Q "SELECT (SELECT version_num FROM alembic_version), (SELECT count(*) FROM candidate_notification_outbox), (SELECT count(*) FROM recommendations)"
@@ -392,24 +530,29 @@ sed -i \
   -e "s|^W2_API_REGISTRY_DIGEST=.*|W2_API_REGISTRY_DIGEST=${python_digest}|" \
   "$candidate"
 for key in W2_PYTHON_IMAGE W2_WEB_IMAGE W2_GIT_SHA W2_BUILD_TIME W2_RELEASE_ID W2_API_IMAGE_ID W2_API_OCI_DIGEST W2_API_REGISTRY_DIGEST; do
-  grep -Eq "^${key}=.+" "$candidate" || { echo "FAIL candidate 缺 ${key}"; exit 2; }
+  grep -Eq "^${key}=.+" "$candidate" || fail "candidate 缺 ${key}"
 done
 
-rollback() {
-  echo "ROLLBACK_START"
-  install -m 0644 "$backup" /opt/w2/shared/release.env
-  "${compose[@]}" up -d --no-deps --force-recreate worker scheduler api web || true
-  echo "ROLLBACK_DONE restored=$backup"
-}
-trap rollback ERR
+# 迁移（若有）：先 alembic upgrade head，校验等于目标 head，再切换；失败则不切换
+if [ "$has_migration" = "yes" ]; then
+  echo "== migration: alembic upgrade head =="
+  if docker run --rm --entrypoint alembic "$py_ref" upgrade head; then
+    migrated="$(Q "SELECT version_num FROM alembic_version")"
+    echo "migrated_schema=$migrated"
+    [ "$migrated" = "$target_head" ] || fail "迁移后 schema 不等于目标 head：$migrated != $target_head"
+  else
+    fail "alembic upgrade head 失败（未切换 release.env；数据库可能停在失败迁移之前，需人工处置）"
+  fi
+fi
 
 echo "== activate release.env =="
 install -m 0644 "$candidate" /opt/w2/shared/release.env
+ACTIVE=1
 
 echo "== schema assertion =="
 schema="$(Q "SELECT version_num FROM alembic_version")"
 echo "schema=$schema"
-[ "$schema" = "$schema_version" ] || { echo "FAIL schema mismatch: $schema"; exit 2; }
+[ "$schema" = "$target_head" ] || fail "schema mismatch: $schema != $target_head"
 
 echo "== recreate worker + scheduler =="
 "${compose[@]}" up -d --no-deps --force-recreate worker scheduler
@@ -421,7 +564,7 @@ for _ in $(seq 1 60); do
   if curl -fsS --max-time 5 "http://127.0.0.1:${api_port}/ready" >/dev/null 2>&1; then ready=1; break; fi
   sleep 2
 done
-[ "$ready" = "1" ] || { echo "FAIL api /ready 超时"; exit 2; }
+[ "$ready" = "1" ] || fail "api /ready 超时"
 
 echo "== recreate web =="
 "${compose[@]}" up -d --no-deps --force-recreate web
@@ -430,9 +573,8 @@ for _ in $(seq 1 30); do
   if curl -fsS --max-time 5 "http://127.0.0.1:${web_port}/meta.json" >/tmp/w2-meta.json 2>/dev/null; then meta=1; break; fi
   sleep 1
 done
-[ "$meta" = "1" ] || { echo "FAIL web meta.json 超时"; exit 2; }
+[ "$meta" = "1" ] || fail "web meta.json 超时"
 
-trap - ERR
 echo "SWITCH_OK backup=$backup"
 
 # 记录部署完成时间（回读 f 项用）
@@ -565,6 +707,8 @@ if [ "${#fails[@]}" -gt 0 ]; then
   echo "READBACK_FAILED ${fails[*]}"
   exit 1
 fi
+# 回读全部通过：解除回滚（ACTIVE=0 后 EXIT trap 不再回滚）
+ACTIVE=0
 echo "READBACK_OK"
 VPS_SCRIPT
 

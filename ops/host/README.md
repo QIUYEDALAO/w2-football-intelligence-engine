@@ -67,9 +67,9 @@ noticing.
 ops/host/w2-release [--target <sha，默认 HEAD>] [--dry-run] [--skip-window-check]
 ```
 
-它按顺序完成：前置检查（工作区干净/分支正确/target 已提交/线上 release 可读/禁止时段）→ 判断是否需要备份（`online..target` 含 `migrations/` 改动才备份）→ 构建（python 在 VPS、web 在 Mac buildx，同 revision）→ 部署（compose 切 release.env）→ 回读 7 项（六接口 200 / release_id+sha 一致 / 推荐倒序 / market_radar 抽样 ≥1 / 容器 healthy+StartedAt / 部署后 180s Traceback=0 / outbox 无过期样本）→ 推送 → 备份轮转 → 回执骨架。
+它按顺序完成：前置检查（工作区干净/分支正确/target 已提交/线上 release 可读/部署窗口检查）→ 判断是否需要备份（`online..target` 含 `migrations/` 改动才备份）→ 从目标提交 `migrations/versions` 动态取 schema head → 构建（python 在 VPS、web 在 Mac buildx，同 revision）→ 迁移（有迁移时新镜像 `alembic upgrade head`，校验等于目标 head，失败则停止且不切换）→ 部署（compose 切 release.env）→ 回读 7 项（六接口 200 / release_id+sha 一致 / 推荐倒序 / market_radar 抽样 ≥1 / 容器 healthy+StartedAt / 部署后 180s Traceback=0 / outbox 无过期样本）→ 推送 → 备份轮转 → 回执骨架。
 
-任何一步不通过就打印 `FAIL` 并停下，不推送、不轮转，退出码非 0。`--dry-run` 只打印计划不产生副作用。禁止部署时段默认 UTC 13:00–19:30（可用 `W2_RELEASE_BLOCKED_WINDOW` 覆盖，`--skip-window-check` 跳过）。今后每次发布都用它，不要手工拼 deploy 脚本。
+切换 release.env 之后任何失败路径都通过 EXIT trap 自动回滚（恢复旧 release.env + recreate + 回读旧 release_id 并写日志），成功后解除。任何一步不通过就打印 `FAIL` 并停下，不推送、不轮转，退出码非 0；回滚本身失败会单独打印 `ROLLBACK_FAILED` 并给出人工恢复命令。`--dry-run` 只打印计划不产生副作用。部署窗口检查：默认查询 `matchday_checkpoint_plans`，未来 15 分钟或过去 5 分钟内有评估档位（T3_ODDS / T60_ODDS_LINEUPS / T45_ODDS / T-30m_VALIDATION_LOCK / T15_ODDS）则拒绝并打印最近可部署时间；可用 `W2_RELEASE_BLOCKED_WINDOW` 手动指定固定时段 HH:MM-HH:MM，`--skip-window-check` 跳过。今后每次发布都用它，不要手工拼 deploy 脚本。
 
 **Release preflight.** A release holds the old image, the running containers,
 the build context, the new image and a predeploy dump on disk at once, so
