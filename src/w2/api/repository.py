@@ -2868,7 +2868,11 @@ class ReadModelService:
         now_tick = monotonic()
         cached = self._dashboard_response_cache.get(cache_key)
         if cached is not None and now_tick - cached[0] <= 60:
-            return deepcopy(cached[1])
+            # PERF-01 续：缓存写入时已存独立副本（见下方 deepcopy(payload)），
+            # 命中时直接返回引用。调用链（build_dashboard_day_view → _day_view_card）
+            # 全程只读、创建新 dict，不修改 payload，因此省掉这次 ~2s 的 deepcopy
+            # （107 场整卡约 3.7MB）。
+            return cached[1]
 
         query_start: datetime | None
         query_end: datetime | None
