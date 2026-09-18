@@ -450,13 +450,16 @@ REMOTE_LOG="${VPS_REPORTS_DIR}/release-${UTC_STAMP}.log"
 
 vps "sudo bash -s -- '${TARGET}' '${py_ref}' '${web_ref}' '${python_digest}' '${web_digest}' '${BUILD_TIME}' '${STABILIZE_SEC}' '${API_PORT}' '${WEB_PORT}' '${BASE_TAG}' '${need_backup}' '${online_release}' '${target_head}'" <<'VPS_SCRIPT' 2>&1 | tee "$LOCAL_LOG"
 set -euo pipefail
+# 注意：heredoc 通过 `bash -s` 逐行读入 stdin，任何从 stdin 读取的子进程都会
+# 吞掉后续脚本（导致提前结束、误报成功）。因此这里绝不能 `exec 0</dev/null`，
+# 且 Q() 必须用 `docker exec`（不带 -i），否则会重读 heredoc 剩余内容。
 
 release_sha="$1"; py_ref="$2"; web_ref="$3"; python_digest="$4"; web_digest="$5"
 build_time="$6"; stabilize_sec="$7"; api_port="$8"; web_port="$9"; base_tag="${10}"
 has_migration="${11}"; online_release="${12}"; target_head="${13}"
 
 compose=(docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml -f /opt/w2/deploy/controlled-future-refresh.override.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env)
-Q() { docker exec -i w2-staging-postgres-1 psql -XAt -U w2_user -d w2 -c "$1"; }
+Q() { docker exec w2-staging-postgres-1 psql -XAt -U w2_user -d w2 -c "$1"; }
 
 echo "target_head=$target_head"
 [ -n "$target_head" ] || { echo "FAIL 目标 head 为空"; exit 2; }

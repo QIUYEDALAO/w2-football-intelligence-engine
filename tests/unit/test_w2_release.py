@@ -382,8 +382,6 @@ fi
 if echo "$cmd" | grep -q "bash -s"; then
   args="${{cmd#*-- }}"
   eval "set -- $args"
-  cat > "{vps_script_file}"
-  sed -i '' "s|/usr/local/bin/w2-release-preflight|{vps_bin}/preflight|g; s|/opt/w2/deploy/w2-release-sync-preflight|{vps_bin}/sync-preflight|g; s|/opt/w2|{opt_w2}|g" "{vps_script_file}"
   mkdir -p "{opt_w2}/shared" "{opt_w2}/deploy"
   cat > "{opt_w2}/shared/release.env" <<'ENVEOF'
 W2_PYTHON_IMAGE=old
@@ -395,7 +393,8 @@ W2_API_IMAGE_ID=old
 W2_API_OCI_DIGEST=old
 W2_API_REGISTRY_DIGEST=old
 ENVEOF
-  PATH="{vps_bin}:$PATH" bash "{vps_script_file}" "$@"
+  # 模拟真实 ssh：stdin（heredoc）直接经 sed 管道传给 bash -s
+  sed -e "s|/usr/local/bin/w2-release-preflight|{vps_bin}/preflight|g; s|/opt/w2/deploy/w2-release-sync-preflight|{vps_bin}/sync-preflight|g; s|/opt/w2|{opt_w2}|g" | PATH="{vps_bin}:$PATH" bash -s -- "$@"
   exit $?
 fi
 if echo "$cmd" | grep -q "image inspect"; then
