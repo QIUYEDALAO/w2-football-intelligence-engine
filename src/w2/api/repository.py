@@ -2208,7 +2208,11 @@ class ReadModelRepository:
             raise SystemDegradedError("ANALYSIS_PROJECTION_INVALID") from exc
         if artifact.checkpoint_key != row.key or artifact.source_hash != row.source_hash:
             raise SystemDegradedError("ANALYSIS_PROJECTION_IDENTITY_MISMATCH")
-        payload = deepcopy(artifact.payload)
+        # PERF-01 续：validate 返回的 artifact.payload 是 row.payload 的只读引用，
+        # 这里原先 deepcopy 整个 payload 再 deepcopy analysis_card，等于把
+        # analysis_card 深拷贝了两次（每场 ~0.3MB），107 场列表共 ~10s。只读
+        # 元数据用引用、只深拷贝 analysis_card 一次。
+        payload = artifact.payload
         card = cast(dict[str, Any], deepcopy(payload["analysis_card"]))
         card["projection_health"] = {"status": "READY", "reason_code": None}
         card["read_model_projection"] = {
@@ -3087,10 +3091,14 @@ class ReadModelService:
         canonical_competition_id: str | None = None,
         public_team_labels: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
-        fixture = deepcopy(fixture)
+        # PERF-01 续：先 pop 出大字段（整卡 _analysis_card_projection）再 deepcopy
+        # 小的 fixture 骨架，避免 deepcopy(fixture) 把整卡深拷贝一遍，紧接着
+        # 下面 **deepcopy(card) 又深拷贝一次。fixture 是 window_reader 新产出的
+        # 列表元素，dashboard 方法在其后不再使用，原地 pop 是安全的。
         has_embedded_analysis = "_analysis_card_projection" in fixture
         embedded_analysis = fixture.pop("_analysis_card_projection", None)
         embedded_team_labels = fixture.pop("_public_team_labels", None)
+        fixture = deepcopy(fixture)
         fixture_id = str(fixture.get("fixture_id") or fixture.get("provider_fixture_id") or "")
         if not fixture_id:
             raise SystemDegradedError("DASHBOARD_FIXTURE_IDENTITY_MISSING")
