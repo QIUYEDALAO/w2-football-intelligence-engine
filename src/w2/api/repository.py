@@ -1681,6 +1681,10 @@ class ReadModelRepository:
                             defer(DynamicPrematchEvaluationModel.checkpoint_plan_identity),
                             defer(DynamicPrematchEvaluationModel.source_event_identity),
                             defer(DynamicPrematchEvaluationModel.bookmaker_count),
+                            # PERF-01 阶段2：投影读表后不再读 payload；funnel 走
+                            # gate_results（eligible 行全有 gate_results）。payload 是
+                            # 最大 JSON 列，defer 掉省约 1.6s 的 JSON 解析。
+                            defer(DynamicPrematchEvaluationModel.payload),
                         )
                     )
                 )
@@ -1701,32 +1705,6 @@ class ReadModelRepository:
                         select(MatchdayCheckpointPlanModel.plan_id).where(
                             MatchdayCheckpointPlanModel.checkpoint == "T-30m_VALIDATION_LOCK",
                             MatchdayCheckpointPlanModel.status == "CAPTURED",
-                        )
-                    )
-                )
-                candidate_fixture_ids = {
-                    str(row.fixture_id).removeprefix("api_football:")
-                    for row in dynamic_evaluations
-                    if row.official_funnel_eligible is True
-                    and isinstance(row.payload, dict)
-                    and row.payload.get("state") == "ANALYSIS_PICK_ACTIVE"
-                }
-                candidate_fixtures = list(
-                    session.scalars(
-                        select(MatchdayFixtureIdentityModel).where(
-                            MatchdayFixtureIdentityModel.provider == "api_football",
-                            MatchdayFixtureIdentityModel.provider_fixture_id.in_(
-                                candidate_fixture_ids
-                            ),
-                        )
-                    )
-                )
-                candidate_results = list(
-                    session.scalars(
-                        select(ResultModel).where(
-                            ResultModel.fixture_id.in_(
-                                [row.fixture_id for row in candidate_fixtures]
-                            )
                         )
                     )
                 )
@@ -1784,9 +1762,6 @@ class ReadModelRepository:
                     for row in session.scalars(select(LeagueSeasonModel))
                     if isinstance(row.payload, dict) and row.payload.get("enabled") is True
                 )
-            candidate_team_labels = self.public_team_labels_for_fixtures(
-                sorted(candidate_fixture_ids)
-            )
         except SQLAlchemyError as exc:
             raise SystemDegradedError("DASHBOARD_MODEL_FORECAST_QUERY_FAILED") from exc
         settled_hashes = {row.capture_identity_hash for row in outcomes}
@@ -1804,14 +1779,28 @@ class ReadModelRepository:
         official_recommendations = validation_samples_snapshot(
             session, active_competitions=active_competitions
         )
-        ever_formed_candidate_count = len(
-            {
-                (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
-                for row in dynamic_evaluations
-                if row.official_funnel_eligible is True
-                and isinstance(row.payload, dict)
-                and row.payload.get("state") == "ANALYSIS_PICK_ACTIVE"
-            }
+        # PERF-01 阶段2：payload 已 defer，改为 SQL 直接聚合（JSONB 查询不加载 payload）。
+        ever_formed_candidate_count = int(
+            session.scalar(
+                select(func.count()).select_from(
+                    select(
+                        func.replace(
+                            DynamicPrematchEvaluationModel.fixture_id,
+                            "api_football:",
+                            "",
+                        ),
+                        DynamicPrematchEvaluationModel.market,
+                    )
+                    .where(
+                        DynamicPrematchEvaluationModel.official_funnel_eligible.is_(True),
+                        DynamicPrematchEvaluationModel.payload["state"].as_string()
+                        == "ANALYSIS_PICK_ACTIVE",
+                    )
+                    .distinct()
+                    .subquery()
+                )
+            )
+            or 0
         )
         final_candidate_count = len(official_recommendations)
         t30_candidate_opportunities = [
