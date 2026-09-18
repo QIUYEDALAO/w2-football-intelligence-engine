@@ -624,7 +624,15 @@ done
 # 迁移（若有）：先 alembic upgrade head，校验等于目标 head，再切换；失败则不切换
 if [ "$has_migration" = "yes" ]; then
   echo "== migration: alembic upgrade head =="
-  if docker run --rm --entrypoint alembic "$py_ref" upgrade head; then
+  # 迁移在 compose 网络内用新镜像跑，需显式注入 DATABASE_URL（否则
+  # create_engine() 会回退到默认 SQLite 路径并以非 root 用户失败）。
+  # 密码从 shared/.env 读，网络名与 compose 项目 w2-staging 一致。
+  pg_password="$(grep -E '^POSTGRES_PASSWORD=' /opt/w2/shared/.env | head -1 | cut -d= -f2-)"
+  db_url="postgresql+psycopg://w2_user:${pg_password}@postgres:5432/w2"
+  if docker run --rm --network w2-staging_w2-staging \
+      -e "W2_DATABASE_URL=${db_url}" \
+      -e "W2_ENVIRONMENT=staging" \
+      --entrypoint alembic "$py_ref" upgrade head; then
     migrated="$(Q "SELECT version_num FROM alembic_version")"
     echo "migrated_schema=$migrated"
     [ "$migrated" = "$target_head" ] || fail "迁移后 schema 不等于目标 head：$migrated != $target_head"
