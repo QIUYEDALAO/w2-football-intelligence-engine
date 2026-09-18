@@ -89,9 +89,35 @@ def test_needs_backup_no(tmp_path: Path) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 # 测试 3：回读某项失败时不推送、不轮转
 # ─────────────────────────────────────────────────────────────────────────────
-def _write_fake_ssh(tmp_path: Path, *, fail_readback: bool) -> tuple[Path, Path]:
+def _deploy_body(mode: str, target: str) -> str:
+    """模拟 VPS 端 heredoc 在 `bash -s` 分支的输出（不同失败/成功模式）。"""
+    if mode == "readback_fail":
+        return 'cat >/dev/null\necho "READBACK_FAILED a"\nexit 1'
+    if mode == "early_exit_0":
+        return "cat >/dev/null\nexit 0"
+    if mode == "missing_readback":
+        lines = ['cat >/dev/null', 'echo "SWITCH_OK backup=/opt/w2/shared/release.pre-x.env"']
+        for k in "abcdef":
+            lines.append(f'echo "READBACK {k}=PASS"')
+        lines.append(f'echo "DEPLOY_COMPLETE {target}"')
+        lines.append("exit 0")
+        return "\n".join(lines)
+    if mode == "full_success":
+        lines = ['cat >/dev/null', 'echo "SWITCH_OK backup=/opt/w2/shared/release.pre-x.env"']
+        for k in "abcdefg":
+            lines.append(f'echo "READBACK {k}=PASS"')
+        lines.append(f'echo "DEPLOY_COMPLETE {target}"')
+        lines.append("exit 0")
+        return "\n".join(lines)
+    raise ValueError(f"unknown mode: {mode}")
+
+
+def _write_fake_ssh(
+    tmp_path: Path, *, mode: str, target: str = FAKE_ONLINE, window_fail: bool = False
+) -> tuple[Path, Path]:
     log = tmp_path / "ssh.log"
     fake = tmp_path / "fake-ssh"
+    window_exit = "exit 1" if window_fail else "exit 0"
     fake.write_text(
         f"""#!/usr/bin/env bash
 echo "$*" >> "{log}"
@@ -101,13 +127,14 @@ case "$cmd" in
   *"/v1/version"*)
     echo '{{"release_id":"{FAKE_ONLINE}","api_git_sha":"{FAKE_ONLINE}"}}'
     exit 0 ;;
+  *"matchday_checkpoint_plans"*)
+    {window_exit} ;;
   *"image inspect"*)
     echo "127.0.0.1:5000/w2/python@sha256:fake0000000000000000000000000000000000000000000000000000000000000000"
     exit 0 ;;
   *"bash -s"*)
-    cat >/dev/null
-    echo "READBACK_FAILED a"
-    exit 1 ;;
+{_deploy_body(mode, target)}
+    ;;
   *)
     exit 0 ;;
 esac
@@ -162,13 +189,16 @@ exit 0
     return fake, log
 
 
-def _build_test_env(tmp_path: Path) -> tuple[dict[str, str], Path]:
-    fake_ssh, ssh_log = _write_fake_ssh(tmp_path, fail_readback=True)
+def _build_test_env(
+    tmp_path: Path, *, mode: str, target: str = FAKE_ONLINE, window_fail: bool = False
+) -> tuple[dict[str, str], Path]:
+    fake_ssh, ssh_log = _write_fake_ssh(tmp_path, mode=mode, target=target, window_fail=window_fail)
     fake_git, git_log = _write_fake_git(tmp_path)
     fake_scp, _scp_log = _write_fake_scp(tmp_path)
     fake_docker, _docker_log = _write_fake_docker(tmp_path)
     home = tmp_path / "home"
     home.mkdir()
+    (home / "Desktop" / "W2文档" / "backups").mkdir(parents=True)
     env = {
         **os.environ,
         "W2_RELEASE_SSH_CMD": str(fake_ssh),
@@ -184,20 +214,21 @@ def _build_test_env(tmp_path: Path) -> tuple[dict[str, str], Path]:
 
 def test_readback_fail_no_push_no_rotate(tmp_path: Path) -> None:
     repo, _base, target = _make_repo(tmp_path, with_migration=False)
-    env, home = _build_test_env(tmp_path)
+    env, home = _build_test_env(tmp_path, mode="readback_fail", target=target)
     r = subprocess.run(
         ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True
     )
     assert r.returncode == 1
-    assert "不推送、不轮转" in r.stderr
     assert "READBACK_FAILED" in r.stdout
     # 不推送：fake git 记录里没有 push
     git_log = tmp_path / "git.log"
     git_calls = git_log.read_text(encoding="utf-8") if git_log.exists() else ""
     assert "push" not in git_calls
-    # 不轮转：无回执（回执在推送/轮转之后）
+    # 失败也写回执，且首行是「结果：失败」
     receipt_dir = home / "Desktop" / "W2文档"
-    assert not receipt_dir.exists()
+    receipts = list(receipt_dir.glob("W2_发布_*.md"))
+    assert receipts
+    assert any("结果：失败" in l for l in receipts[0].read_text(encoding="utf-8").splitlines())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -205,7 +236,7 @@ def test_readback_fail_no_push_no_rotate(tmp_path: Path) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 def test_dry_run_no_side_effects(tmp_path: Path) -> None:
     repo, _base, target = _make_repo(tmp_path, with_migration=False)
-    fake_ssh, ssh_log = _write_fake_ssh(tmp_path, fail_readback=False)
+    fake_ssh, ssh_log = _write_fake_ssh(tmp_path, mode="full_success", target=target)
     home = tmp_path / "home"
     home.mkdir()
     env = {
@@ -455,3 +486,72 @@ def test_migration_fail_does_not_switch(tmp_path: Path) -> None:
     lines = install_log.read_text(encoding="utf-8").splitlines() if install_log.exists() else []
     # 迁移失败 → 不切换：install 日志里没有 candidate -> release.env
     assert not any("release.candidate-" in l and "release.env" in l for l in lines)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REL-01C 新增：正向成功标记判定（无 FAIL 即成功 → 必须看到全部成功标记）
+# ─────────────────────────────────────────────────────────────────────────────
+def _git_calls(tmp_path: Path) -> str:
+    git_log = tmp_path / "git.log"
+    return git_log.read_text(encoding="utf-8") if git_log.exists() else ""
+
+
+def test_vps_early_exit_zero_judged_failed(tmp_path: Path) -> None:
+    """VPS 端提前退出且返回 0（无任何成功标记）→ Mac 判失败、不推送。"""
+    repo, _base, target = _make_repo(tmp_path, with_migration=False)
+    env, home = _build_test_env(tmp_path, mode="early_exit_0", target=target)
+    r = subprocess.run(
+        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True
+    )
+    assert r.returncode == 1
+    assert "正向成功标记缺失" in r.stderr
+    assert "DEPLOY_COMPLETE" in r.stderr
+    assert "push" not in _git_calls(tmp_path)
+    receipt_dir = home / "Desktop" / "W2文档"
+    receipts = list(receipt_dir.glob("W2_发布_*.md"))
+    assert receipts
+    assert any("结果：失败" in l for l in receipts[0].read_text(encoding="utf-8").splitlines())
+
+
+def test_missing_readback_marker_judged_failed(tmp_path: Path) -> None:
+    """缺任一 READBACK 行（缺 g）→ Mac 判失败、不推送。"""
+    repo, _base, target = _make_repo(tmp_path, with_migration=False)
+    env, home = _build_test_env(tmp_path, mode="missing_readback", target=target)
+    r = subprocess.run(
+        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True
+    )
+    assert r.returncode == 1
+    assert "READBACK_g" in r.stderr
+    assert "push" not in _git_calls(tmp_path)
+
+
+def test_verify_release_id_mismatch_judged_failed(tmp_path: Path) -> None:
+    """VPS 端输出完整成功标记，但推送前独立回读 /v1/version 与目标不符 → 判失败、不推送。"""
+    repo, _base, target = _make_repo(tmp_path, with_migration=False)
+    env, home = _build_test_env(tmp_path, mode="full_success", target=target)
+    r = subprocess.run(
+        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True
+    )
+    assert r.returncode == 1
+    assert "release_id 与目标不符" in r.stderr
+    assert "push" not in _git_calls(tmp_path)
+    receipt_dir = home / "Desktop" / "W2文档"
+    receipts = list(receipt_dir.glob("W2_发布_*.md"))
+    assert receipts
+    assert any("结果：失败" in l for l in receipts[0].read_text(encoding="utf-8").splitlines())
+
+
+def test_window_query_fail_rejects_deploy(tmp_path: Path) -> None:
+    """评估档位窗口查询失败 → 拒绝部署（fail-closed，不 fail-open）。"""
+    repo, _base, target = _make_repo(tmp_path, with_migration=False)
+    env, home = _build_test_env(tmp_path, mode="early_exit_0", target=target, window_fail=True)
+    r = subprocess.run(
+        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True
+    )
+    assert r.returncode == 2
+    assert "窗口查询失败" in r.stderr
+    assert "push" not in _git_calls(tmp_path)
+    # 未进入部署：fake ssh 无 bash -s 调用
+    ssh_log = tmp_path / "ssh.log"
+    calls = ssh_log.read_text(encoding="utf-8").splitlines() if ssh_log.exists() else []
+    assert not any("bash -s" in c for c in calls)

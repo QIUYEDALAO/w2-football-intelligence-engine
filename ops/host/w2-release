@@ -293,7 +293,12 @@ if [ "$SKIP_WINDOW" = "0" ]; then
     log "固定时段检查通过（当前不在 ${BLOCKED_WINDOW} 内）"
   else
     # 默认：评估档位窗口检查（未来 15 分钟 / 过去 5 分钟内有档位则拒绝）
-    slot_rows="$(vps "docker exec w2-staging-postgres-1 psql -XAt -U w2_user -d w2 -c \"SELECT replace(to_char(scheduled_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'), ' ', 'T') || 'Z' FROM matchday_checkpoint_plans WHERE checkpoint IN ('T3_ODDS','T60_ODDS_LINEUPS','T45_ODDS','T-30m_VALIDATION_LOCK','T15_ODDS') AND scheduled_at >= now() - interval '5 minutes' AND scheduled_at <= now() + interval '15 minutes' ORDER BY scheduled_at;\"" 2>/dev/null || true)"
+    # fail-closed：查询失败即拒绝部署，绝不把「查不到」当成「无冲突」
+    if ! slot_rows="$(vps "docker exec w2-staging-postgres-1 psql -XAt -U w2_user -d w2 -c \"SELECT replace(to_char(scheduled_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'), ' ', 'T') || 'Z' FROM matchday_checkpoint_plans WHERE checkpoint IN ('T3_ODDS','T60_ODDS_LINEUPS','T45_ODDS','T-30m_VALIDATION_LOCK','T15_ODDS') AND scheduled_at >= now() - interval '5 minutes' AND scheduled_at <= now() + interval '15 minutes' ORDER BY scheduled_at;\"" 2>/dev/null)"; then
+      warn "评估档位窗口查询失败，无法确认是否临近档位，拒绝部署（fail-closed）"
+      warn "可用 --skip-window-check 显式跳过（仅限紧急且经 Owner 批准）"
+      exit 2
+    fi
     conflict_result="$(checkpoint_window_conflict "$NOW_ISO" $slot_rows)"
     conflict_flag="${conflict_result%% *}"
     if [ "$conflict_flag" = "1" ]; then
@@ -342,6 +347,86 @@ if [ -z "$target_head" ]; then
   exit 2
 fi
 log "目标 schema head：$target_head"
+
+# 写回执（成功/失败共用）。result=成功|失败，detail=失败原因（成功时为空）。
+write_receipt() {
+  local result="$1" detail="${2:-}"
+  local first_line
+  END_EPOCH="$(date +%s)"
+  ELAPSED="$((END_EPOCH - START_EPOCH))"
+  RECEIPT_DATE="$(date -u +%Y%m%d)"
+  RECEIPT_FILE="${RECEIPT_DIR}/W2_发布_${TARGET}_${RECEIPT_DATE}.md"
+  if [ "$result" = "成功" ]; then
+    first_line="结果：成功"
+  else
+    first_line="结果：失败（${detail}）"
+  fi
+  {
+    echo "# W2 发布回执 ${TARGET}（${RECEIPT_DATE}）"
+    echo ""
+    echo "${first_line}"
+    echo ""
+    echo "## 前后 release"
+    echo ""
+    echo "- 前：\`${online_release}\`"
+    echo "- 后：\`${TARGET}\`"
+    echo ""
+    echo "## 改动文件 stat"
+    echo ""
+    echo '```'
+    printf '%s\n' "$changed_stat"
+    echo '```'
+    echo ""
+    echo "## 是否备份"
+    echo ""
+    if [ "$need_backup" = "yes" ]; then
+      echo "- 是（migrations 改动）：\`${backup_file:-未生成}\`"
+    else
+      echo "- 否（无迁移，跳过）"
+    fi
+    echo ""
+    echo "## 回读每一项的原始输出"
+    echo ""
+    echo '```'
+    if [ -n "${LOCAL_LOG:-}" ] && [ -f "$LOCAL_LOG" ]; then
+      grep -E '^READBACK |^SWITCH_OK|^DEPLOY_COMPLETE|^MIGRATION_OK|^READBACK_FAILED' "$LOCAL_LOG" 2>/dev/null || true
+    else
+      echo "（无 VPS 输出）"
+    fi
+    echo '```'
+    echo ""
+    echo "## 推送结果"
+    echo ""
+    echo '```'
+    if [ -n "${remote_sha:-}" ]; then
+      echo "远端 sha：${remote_sha}"
+    else
+      echo "未推送"
+    fi
+    echo '```'
+    echo ""
+    echo "## 耗时"
+    echo ""
+    echo "- ${ELAPSED}s"
+    echo ""
+    echo "## 执行方说明"
+    echo ""
+    echo "（待老K 填写）"
+    echo ""
+    echo "## 异常与处置"
+    echo ""
+    echo "（待老K 填写）"
+  } > "$RECEIPT_FILE"
+  log "回执：$RECEIPT_FILE"
+}
+
+# 部署/回读/推送任一环节失败：写失败回执并退出（退出码非 0，不推送、不轮转）
+fail_release() {
+  local reason="$1"
+  warn "$reason"
+  write_receipt "失败" "$reason"
+  exit 1
+}
 
 # dry-run：打印完整计划后结束
 if [ "$DRY_RUN" = "1" ]; then
@@ -543,6 +628,7 @@ if [ "$has_migration" = "yes" ]; then
     migrated="$(Q "SELECT version_num FROM alembic_version")"
     echo "migrated_schema=$migrated"
     [ "$migrated" = "$target_head" ] || fail "迁移后 schema 不等于目标 head：$migrated != $target_head"
+    echo "MIGRATION_OK $target_head"
   else
     fail "alembic upgrade head 失败（未切换 release.env；数据库可能停在失败迁移之前，需人工处置）"
   fi
@@ -712,7 +798,8 @@ if [ "${#fails[@]}" -gt 0 ]; then
 fi
 # 回读全部通过：解除回滚（ACTIVE=0 后 EXIT trap 不再回滚）
 ACTIVE=0
-echo "READBACK_OK"
+# 唯一成功标记（Mac 端必须看到且 sha 等于目标才判成功）
+echo "DEPLOY_COMPLETE $release_sha"
 VPS_SCRIPT
 
 rc="${PIPESTATUS[0]}"
@@ -726,23 +813,55 @@ if [ "$rc" -ne 0 ]; then
   warn "部署或回读失败（退出码 ${rc}）。不推送、不轮转。"
   warn "完整日志：${LOCAL_LOG}（VPS：${REMOTE_LOG}）"
   warn "回滚命令：ssh $SSH_HOST 'sudo install -m 0644 /opt/w2/shared/release.pre-*.env /opt/w2/shared/release.env && docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml -f /opt/w2/deploy/controlled-future-refresh.override.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env up -d --no-deps --force-recreate worker scheduler api web'"
-  exit 1
+  fail_release "VPS 退出码 ${rc}"
 fi
 
+# rc == 0 仍须正向验证成功标记（防止 VPS 提前退出却返回 0 的假成功）
 log ""
-log "== 回读全部通过 =="
+log "== 5b. 正向成功标记验证 =="
+missing_marks=""
+mark_missing() { missing_marks="${missing_marks}${missing_marks:+ }$1"; }
+
+grep -qF "SWITCH_OK backup=" "$LOCAL_LOG" 2>/dev/null || mark_missing "SWITCH_OK"
+for k in a b c d e f g; do
+  grep -qF "READBACK ${k}=PASS" "$LOCAL_LOG" 2>/dev/null || mark_missing "READBACK_${k}"
+done
+grep -qF "DEPLOY_COMPLETE ${TARGET}" "$LOCAL_LOG" 2>/dev/null || mark_missing "DEPLOY_COMPLETE"
+if [ "$need_backup" = "yes" ]; then
+  grep -qF "MIGRATION_OK ${target_head}" "$LOCAL_LOG" 2>/dev/null || mark_missing "MIGRATION_OK"
+fi
+
+if [ -n "$missing_marks" ]; then
+  fail_release "正向成功标记缺失：${missing_marks}"
+fi
+if [ "$need_backup" = "yes" ]; then
+  log "正向成功标记齐全（SWITCH_OK + READBACK a-g PASS + DEPLOY_COMPLETE + MIGRATION_OK）"
+else
+  log "正向成功标记齐全（SWITCH_OK + READBACK a-g PASS + DEPLOY_COMPLETE）"
+fi
+
+# 推送前独立回读：线上 release_id 必须等于目标 sha
+log ""
+log "== 5c. 推送前独立回读 /v1/version =="
+verify_rid=""
+if vps "curl -fsS --max-time 10 http://127.0.0.1:${API_PORT}/v1/version" > /tmp/w2-release-verify.json 2>/dev/null; then
+  verify_rid="$(python3 -c 'import json,sys; print(json.load(open("/tmp/w2-release-verify.json")).get("release_id",""))' 2>/dev/null || echo "")"
+fi
+if [ "$verify_rid" != "$TARGET" ]; then
+  fail_release "线上 release_id 与目标不符：线上=${verify_rid} 期望=${TARGET}"
+fi
+log "线上 release_id == 目标 sha（${verify_rid}）"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 步骤 6：推送
 # ─────────────────────────────────────────────────────────────────────────────
 log ""
 log "== 6. 推送 =="
-"$GIT_CMD" push "$REMOTE" "$BRANCH" || { warn "git push 失败"; exit 1; }
+"$GIT_CMD" push "$REMOTE" "$BRANCH" || fail_release "git push 失败"
 remote_sha="$("$GIT_CMD" ls-remote "$REMOTE" "$BRANCH" 2>/dev/null | awk '{print $1}' | head -1)"
 log "远端 sha：$remote_sha"
 if [ "$remote_sha" != "$TARGET" ]; then
-  warn "远端 sha 不一致：远端=$remote_sha 期望=$TARGET"
-  exit 1
+  fail_release "远端 sha 不一致：远端=${remote_sha} 期望=${TARGET}"
 fi
 log "远端 sha 一致"
 
@@ -752,69 +871,17 @@ log "远端 sha 一致"
 log ""
 log "== 7. 备份轮转 =="
 if [ "$BACKUP_DONE" = "1" ]; then
-  bash "$BACKUP_ROTATE_SCRIPT" || { warn "备份轮转失败"; exit 1; }
+  bash "$BACKUP_ROTATE_SCRIPT" || fail_release "备份轮转失败"
 else
   log "本次未备份，跳过轮转"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 步骤 8：回执骨架
+# 步骤 8：回执
 # ─────────────────────────────────────────────────────────────────────────────
 log ""
-log "== 8. 回执骨架 =="
-END_EPOCH="$(date +%s)"
-ELAPSED="$((END_EPOCH - START_EPOCH))"
-RECEIPT_DATE="$(date -u +%Y%m%d)"
-RECEIPT_FILE="${RECEIPT_DIR}/W2_发布_${TARGET}_${RECEIPT_DATE}.md"
-
-{
-  echo "# W2 发布回执 ${TARGET}（${RECEIPT_DATE}）"
-  echo ""
-  echo "## 前后 release"
-  echo ""
-  echo "- 前：\`${online_release}\`"
-  echo "- 后：\`${TARGET}\`"
-  echo ""
-  echo "## 改动文件 stat"
-  echo ""
-  echo '```'
-  printf '%s\n' "$changed_stat"
-  echo '```'
-  echo ""
-  echo "## 是否备份"
-  echo ""
-  if [ "$need_backup" = "yes" ]; then
-    echo "- 是（migrations 改动）：\`${backup_file}\`"
-  else
-    echo "- 否（无迁移，跳过）"
-  fi
-  echo ""
-  echo "## 回读每一项的原始输出"
-  echo ""
-  echo '```'
-  grep -E '^READBACK ' "$LOCAL_LOG" 2>/dev/null || cat "$LOCAL_LOG"
-  echo '```'
-  echo ""
-  echo "## 推送结果"
-  echo ""
-  echo '```'
-  echo "远端 sha：${remote_sha}"
-  echo '```'
-  echo ""
-  echo "## 耗时"
-  echo ""
-  echo "- ${ELAPSED}s"
-  echo ""
-  echo "## 执行方说明"
-  echo ""
-  echo "（待老K 填写）"
-  echo ""
-  echo "## 异常与处置"
-  echo ""
-  echo "（待老K 填写）"
-} > "$RECEIPT_FILE"
-
-log "回执骨架：$RECEIPT_FILE"
+log "== 8. 回执 =="
+write_receipt "成功" ""
 log "VPS 日志：$REMOTE_LOG"
 
 log ""
