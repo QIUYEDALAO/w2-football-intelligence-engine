@@ -18,6 +18,7 @@ here so a new host can be brought up without reconstructing it from memory.
 | `w2-xg-refresh.service` / `.timer` | `/etc/systemd/system/` | Runs the fetch |
 | `w2-totals-calibration` | `/opt/w2/deploy/` | Totals calibration snapshot, read-only |
 | `w2-registry-gc.service` / `.timer` | `/etc/systemd/system/` | Runs the collection |
+| `w2-release` | Mac 本机（不装到 VPS） | 一条命令完成发布：前置检查 → 备份 → 构建 → 部署 → 回读 → 推送 → 轮转 → 回执骨架 |
 | `w2-release-preflight` | `/usr/local/bin/` | Space, base image and layer count before a release |
 | `w2-release-sync-preflight` | `/opt/w2/deploy/` | Block mixed Python/Web image revisions before a release |
 | `w2-staging-release-sync.conf` | `/etc/systemd/system/w2-staging.service.d/` | Run release-sync before stack activation |
@@ -59,6 +60,16 @@ separate directories of database backups and an orphan PostgreSQL install
 accumulated with nothing watching. The guard reports registry storage and
 `pg_wal` size alongside the usual figures, because both grow without anyone
 noticing.
+
+**w2-release（下次发布一律用它）.** 把发布收敛成一条命令，在 Mac 本机运行：
+
+```bash
+ops/host/w2-release [--target <sha，默认 HEAD>] [--dry-run] [--skip-window-check]
+```
+
+它按顺序完成：前置检查（工作区干净/分支正确/target 已提交/线上 release 可读/禁止时段）→ 判断是否需要备份（`online..target` 含 `migrations/` 改动才备份）→ 构建（python 在 VPS、web 在 Mac buildx，同 revision）→ 部署（compose 切 release.env）→ 回读 7 项（六接口 200 / release_id+sha 一致 / 推荐倒序 / market_radar 抽样 ≥1 / 容器 healthy+StartedAt / 部署后 180s Traceback=0 / outbox 无过期样本）→ 推送 → 备份轮转 → 回执骨架。
+
+任何一步不通过就打印 `FAIL` 并停下，不推送、不轮转，退出码非 0。`--dry-run` 只打印计划不产生副作用。禁止部署时段默认 UTC 13:00–19:30（可用 `W2_RELEASE_BLOCKED_WINDOW` 覆盖，`--skip-window-check` 跳过）。今后每次发布都用它，不要手工拼 deploy 脚本。
 
 **Release preflight.** A release holds the old image, the running containers,
 the build context, the new image and a predeploy dump on disk at once, so

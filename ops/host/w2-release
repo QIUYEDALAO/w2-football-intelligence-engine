@@ -1,0 +1,676 @@
+#!/usr/bin/env bash
+# w2-release — 把发布收敛成一条命令。
+#
+# 老K 发布时只敲一条命令，脚本完成：
+#   前置检查 → 判断是否需要备份 → 构建 → 部署 → 回读 → 推送 → 备份轮转 → 回执骨架
+# 任何一步不通过就停下并打印 FAIL，不继续、不推送、不轮转。
+#
+# 用法：
+#   w2-release [--target <sha，默认 HEAD>] [--dry-run] [--skip-window-check]
+#
+# 本脚本在 Mac 本机运行；构建 python 镜像在 VPS、web 镜像在 Mac buildx，
+# 部署与回读都通过 ssh 在 VPS 上执行。--dry-run 只打印计划不产生副作用。
+#
+# 可用环境变量（测试注入点，均可在 shell 中覆盖）：
+#   W2_RELEASE_SSH_HOST         ssh 目标（默认 w2-hk）
+#   W2_RELEASE_NOW             覆盖当前时间（ISO8601 UTC，如 2026-09-18T12:00:00Z）
+#   W2_RELEASE_BLOCKED_WINDOW  禁止部署时段 HH:MM-HH:MM（默认 13:00-19:30）
+#   W2_RELEASE_STABILIZE_SEC   部署后稳定等待秒数（默认 180）
+#   W2_RELEASE_BASE_TAG         runtime-base 标签（默认 4d5f257daa500878）
+#   W2_RELEASE_GIT              git 命令（默认 git）
+set -uo pipefail
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 常量
+# ─────────────────────────────────────────────────────────────────────────────
+BRANCH="${W2_RELEASE_BRANCH:-codex/w2-authority-20260916}"
+REMOTE="${W2_RELEASE_REMOTE:-github-w2}"
+SSH_HOST="${W2_RELEASE_SSH_HOST:-w2-hk}"
+BLOCKED_WINDOW="${W2_RELEASE_BLOCKED_WINDOW:-13:00-19:30}"
+STABILIZE_SEC="${W2_RELEASE_STABILIZE_SEC:-180}"
+BASE_TAG="${W2_RELEASE_BASE_TAG:-4d5f257daa500878}"
+GIT_CMD="${W2_RELEASE_GIT:-git}"
+NGINX_BASE="${W2_RELEASE_NGINX_BASE:-1.27.5-alpine}"
+
+# VPS 侧固定路径（与现行部署布局一致）
+VPS_DEPLOY_ROOT="/opt/w2"
+VPS_COMPOSE_FILE="$VPS_DEPLOY_ROOT/deploy/compose.staging.yml"
+VPS_OVERRIDE_FILE="$VPS_DEPLOY_ROOT/deploy/controlled-future-refresh.override.yml"
+VPS_ENV_FILE="$VPS_DEPLOY_ROOT/shared/.env"
+VPS_RELEASE_ENV="$VPS_DEPLOY_ROOT/shared/release.env"
+VPS_REPORTS_DIR="$VPS_DEPLOY_ROOT/shared/runtime/reports"
+
+# Mac 侧固定路径
+BACKUP_ROTATE_SCRIPT="${HOME}/Documents/Projects/W2-workspaces/w2-authority-20260916/ops/host/w2-mac-backup-rotate"
+RECEIPT_DIR="${HOME}/Desktop/W2文档"
+
+API_PORT=18000
+WEB_PORT=18080
+SCHEMA_VERSION="0072_runtime_ah_settlement_fact"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 工具函数
+# ─────────────────────────────────────────────────────────────────────────────
+NOW_ISO=""
+if [ -n "${W2_RELEASE_NOW:-}" ]; then
+  NOW_ISO="$W2_RELEASE_NOW"
+else
+  NOW_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+fi
+
+log()  { printf '%s\n' "$*"; }
+warn() { printf 'FAIL: %s\n' "$*" >&2; }
+
+# 可注入的外部命令（单元测试用 fake 覆盖）
+SSH_CMD="${W2_RELEASE_SSH_CMD:-ssh}"
+SCP_CMD="${W2_RELEASE_SCP_CMD:-scp}"
+DOCKER_CMD="${W2_RELEASE_DOCKER_CMD:-docker}"
+
+# 在 VPS 上执行一条命令
+vps() {
+  $SSH_CMD "$SSH_HOST" "$@"
+}
+
+# 拷贝文件到 VPS
+scp_to_vps() {
+  $SCP_CMD "$@"
+}
+
+# 脚本开始计时（秒）
+START_EPOCH="$(date +%s)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 纯函数（可单测）
+# ─────────────────────────────────────────────────────────────────────────────
+
+# now_iso(UTC) 是否落在禁止时段 window(HH:MM-HH:MM) 内。输出 0=在禁止时段内，1=否。
+in_blocked_window() {
+  local now_iso="$1" window="$2"
+  local start end hhmm
+  start="${window%%-*}"
+  end="${window##*-}"
+  # macOS date 与 GNU date 语法不同，两者都试
+  if date -j -f "%Y-%m-%dT%H:%M:%SZ" "$now_iso" "+%H:%M" >/dev/null 2>&1; then
+    hhmm="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%SZ" "$now_iso" "+%H:%M")"
+  else
+    hhmm="$(TZ=UTC date -d "$now_iso" "+%H:%M" 2>/dev/null || echo "")"
+  fi
+  [ -z "$hhmm" ] && return 1
+  # HH:MM 字典序比较：13:00 <= hhmm < 19:30 即在禁止时段内
+  if [[ "$hhmm" > "$start" || "$hhmm" == "$start" ]] && [[ "$hhmm" < "$end" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+# 最近可用时间（禁止时段结束后）：window 的 end，格式化为 HH:MM UTC。
+next_available_time() {
+  local window="$1"
+  printf '%s' "${window##*-}"
+}
+
+# 判断线上 release 与 target 之间是否需要备份：diff 中是否含 migrations/ 改动。
+# 输出 "yes" 或 "no"。参数：base_sha target_sha
+needs_backup() {
+  local base="$1" target="$2" changed
+  if [ "$base" = "$target" ]; then
+    echo "no"
+    return 0
+  fi
+  changed="$("$GIT_CMD" diff --name-only "$base" "$target" 2>/dev/null || true)"
+  if printf '%s\n' "$changed" | grep -q '^migrations/'; then
+    echo "yes"
+  else
+    echo "no"
+  fi
+}
+
+# 被 source 时（单元测试），只暴露纯函数与常量，不执行主流程
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 0 2>/dev/null || exit 0
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 参数解析
+# ─────────────────────────────────────────────────────────────────────────────
+TARGET=""
+DRY_RUN=0
+SKIP_WINDOW=0
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --target) TARGET="${2:-}"; shift 2 ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --skip-window-check) SKIP_WINDOW=1; shift ;;
+    -h|--help)
+      cat <<'USAGE'
+用法: w2-release [--target <sha，默认 HEAD>] [--dry-run] [--skip-window-check]
+
+  前置检查 → 判断是否需要备份 → 构建 → 部署 → 回读 → 推送 → 备份轮转 → 回执骨架
+  任何一步不通过就停下并打印 FAIL，不继续、不推送、不轮转。
+
+  --target <sha>         要发布的提交，默认 HEAD
+  --dry-run              只打印计划，不执行构建/部署/推送/轮转
+  --skip-window-check    跳过禁止部署时段检查（默认 UTC 13:00-19:30）
+USAGE
+      exit 0 ;;
+    *)
+      echo "unknown argument: $1" >&2
+      echo "用法: w2-release [--target <sha>] [--dry-run] [--skip-window-check]" >&2
+      exit 2 ;;
+  esac
+done
+
+# 目标提交：默认 HEAD
+if [ -z "$TARGET" ]; then
+  TARGET="$("$GIT_CMD" rev-parse HEAD 2>/dev/null || echo "")"
+fi
+if [ -z "$TARGET" ]; then
+  warn "无法解析目标提交（git rev-parse HEAD 失败）"
+  exit 2
+fi
+
+log "== w2-release 开始 =="
+log "now=$NOW_ISO target=$TARGET dry_run=$DRY_RUN skip_window=$SKIP_WINDOW"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 步骤 1：前置检查
+# ─────────────────────────────────────────────────────────────────────────────
+log ""
+log "== 1. 前置检查 =="
+
+# 1a. 唯一工作区干净
+if [ -n "$("$GIT_CMD" status --porcelain=v1 2>/dev/null)" ]; then
+  warn "工作区不干净：存在未提交改动"
+  "$GIT_CMD" status --porcelain=v1 2>/dev/null | head -20
+  exit 2
+fi
+log "工作区干净"
+
+# 1b. 分支正确
+current_branch="$("$GIT_CMD" branch --show-current 2>/dev/null || echo "")"
+if [ "$current_branch" != "$BRANCH" ]; then
+  warn "分支不正确：当前=$current_branch 期望=$BRANCH"
+  exit 2
+fi
+log "分支正确：$current_branch"
+
+# 1c. --target 已提交
+if ! "$GIT_CMD" cat-file -e "$TARGET^{commit}" 2>/dev/null; then
+  warn "目标提交不存在：$TARGET"
+  exit 2
+fi
+log "目标提交存在：$TARGET"
+
+# 1d. 当前线上 release 可读
+online_release=""
+if vps "curl -fsS --max-time 10 http://127.0.0.1:${API_PORT}/v1/version" > /tmp/w2-release-version.json 2>/dev/null; then
+  online_release="$(python3 -c 'import json,sys; print(json.load(open("/tmp/w2-release-version.json")).get("release_id",""))' 2>/dev/null || echo "")"
+fi
+if [ -z "$online_release" ]; then
+  warn "当前线上 release 不可读（ssh/curl /v1/version 失败）"
+  exit 2
+fi
+log "当前线上 release：$online_release"
+
+# 1e. 禁止时段判断
+if [ "$SKIP_WINDOW" = "0" ]; then
+  if in_blocked_window "$NOW_ISO" "$BLOCKED_WINDOW"; then
+    warn "处于禁止部署时段（UTC ${BLOCKED_WINDOW}）内"
+    warn "最近可用时间：UTC $(next_available_time "$BLOCKED_WINDOW")"
+    warn "可用 --skip-window-check 显式跳过（仅限紧急且经 Owner 批准）"
+    exit 2
+  fi
+  log "时段检查通过（当前不在禁止时段内）"
+else
+  log "时段检查已跳过（--skip-window-check）"
+fi
+
+# 1f. 目标与线上是否相同
+ALREADY_LATEST=0
+if [ "$TARGET" = "$online_release" ]; then
+  ALREADY_LATEST=1
+  log "目标提交 == 线上 release（已是最新，无需发布）"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 步骤 2：判断是否需要备份
+# ─────────────────────────────────────────────────────────────────────────────
+log ""
+log "== 2. 是否需要备份 =="
+need_backup="$(needs_backup "$online_release" "$TARGET")"
+changed_files="$("$GIT_CMD" diff --name-only "$online_release" "$TARGET" 2>/dev/null || true)"
+changed_stat="$("$GIT_CMD" diff --stat "$online_release" "$TARGET" 2>/dev/null || true)"
+log "改动文件："
+printf '%s\n' "$changed_files" | sed 's/^/  /' | head -50
+if [ "$need_backup" = "yes" ]; then
+  log "检测到 migrations 目录改动 → 需要备份"
+else
+  log "无 migrations 目录改动 → 跳过备份（无迁移，跳过）"
+fi
+
+# dry-run：打印完整计划后结束
+if [ "$DRY_RUN" = "1" ]; then
+  log ""
+  log "== dry-run 计划（不执行，无副作用） =="
+  log "  1. 前置检查：通过（工作区干净 / 分支 ${BRANCH} / target=${TARGET} / 线上=${online_release}）"
+  if [ "$ALREADY_LATEST" = "1" ]; then
+    log "     → target == 线上 release，无操作"
+    log "  2. 备份：无改动，跳过（无迁移，跳过）"
+    log "  3. 构建：跳过（无新 revision）"
+    log "  4. 部署：跳过（无新 revision）"
+    log "  5. 回读：跳过（无部署）"
+    log "  6. 推送：跳过（无新提交）"
+    log "  7. 备份轮转：跳过（未备份）"
+    log "  8. 回执骨架：不生成（无发布）"
+  else
+    log "  2. 备份：$([ "$need_backup" = "yes" ] && echo "pg_dump -Fc → ${HOME}/Desktop/W2文档/backups" || echo "无迁移，跳过")"
+    log "  3. 构建：python 镜像（VPS, Dockerfile.release, base=${BASE_TAG}）+ web 镜像（Mac buildx amd64, nginx=${NGINX_BASE}），均打 revision=${TARGET}，推本地 registry"
+    log "  4. 部署：compose 切换 release.env（8 个 key），等六容器 healthy"
+    log "  5. 回读 7 项：a 六接口200 / b release_id+sha 一致 / c 推荐>0且倒序 / d market_radar 抽样3场≥1 / e 容器 healthy+StartedAt / f 部署后${STABILIZE_SEC}s Traceback=0 / g outbox 无过期样本"
+    log "  6. 推送：git push $REMOTE $BRANCH 并回读远端 sha 一致"
+    log "  7. 备份轮转：$([ "$need_backup" = "yes" ] && echo "w2-mac-backup-rotate" || echo "本次未备份，跳过")"
+    log "  8. 回执骨架：$RECEIPT_DIR/W2_发布_${TARGET}_$(date -u +%Y%m%d).md"
+  fi
+  log ""
+  log "== dry-run 结束 =="
+  exit 0
+fi
+
+# 实际模式：目标已是最新 → 无需发布
+if [ "$ALREADY_LATEST" = "1" ]; then
+  log "目标已是最新，无需发布。"
+  exit 0
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 步骤 2（实际）：备份
+# ─────────────────────────────────────────────────────────────────────────────
+BACKUP_DONE=0
+if [ "$need_backup" = "yes" ]; then
+  log "执行 pg_dump -Fc 备份..."
+  backup_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  backup_file="predeploy-${TARGET}-${backup_stamp}.dump"
+  if vps "docker exec w2-staging-postgres-1 pg_dump -U w2_user -d w2 -Fc" > "${HOME}/Desktop/W2文档/backups/${backup_file}"; then
+    log "备份完成：${backup_file}"
+    BACKUP_DONE=1
+  else
+    warn "pg_dump 备份失败"
+    exit 2
+  fi
+else
+  log "无迁移，跳过备份"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 步骤 3：构建
+# ─────────────────────────────────────────────────────────────────────────────
+log ""
+log "== 3. 构建 =="
+BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# 3a. python 镜像（VPS）
+log "构建 python 镜像（VPS）..."
+git_archive="w2-src-${TARGET}.tar"
+"$GIT_CMD" archive "$TARGET" > "/tmp/${git_archive}" || { warn "git archive 失败"; exit 2; }
+scp_to_vps "/tmp/${git_archive}" "$SSH_HOST:/tmp/${git_archive}" >/dev/null || { warn "scp 源码到 VPS 失败"; exit 2; }
+vps "sudo mkdir -p ${VPS_DEPLOY_ROOT}/builds/${TARGET} && sudo tar -xf /tmp/${git_archive} -C ${VPS_DEPLOY_ROOT}/builds/${TARGET}" \
+  || { warn "VPS 解压源码失败"; exit 2; }
+vps "cd ${VPS_DEPLOY_ROOT}/builds/${TARGET} && docker build -f Dockerfile.release --build-arg BASE_IMAGE=127.0.0.1:5000/w2/runtime-base:${BASE_TAG} --build-arg W2_GIT_SHA=${TARGET} --build-arg W2_BUILD_TIME=${BUILD_TIME} -t 127.0.0.1:5000/w2/python:${TARGET} . && docker push 127.0.0.1:5000/w2/python:${TARGET}" \
+  || { warn "python 镜像构建/推送失败"; exit 2; }
+python_digest="$(vps "docker image inspect 127.0.0.1:5000/w2/python:${TARGET} --format '{{index .RepoDigests 0}}' 2>/dev/null" | sed 's|^.*@||')"
+[ -n "$python_digest" ] || { warn "无法获取 python 镜像 digest"; exit 2; }
+log "python digest：$python_digest"
+
+# 3b. web 镜像（Mac buildx amd64）
+log "构建 web 镜像（Mac buildx amd64）..."
+$DOCKER_CMD buildx build --platform linux/amd64 -f Dockerfile.web \
+  --build-context "nginxinc/nginx-unprivileged:1.27-alpine=docker-image://nginxinc/nginx-unprivileged:${NGINX_BASE}" \
+  --build-arg VITE_GIT_SHA="${TARGET}" --build-arg VITE_BUILD_TIME="${BUILD_TIME}" --build-arg W2_RELEASE_ID="${TARGET}" \
+  -t "127.0.0.1:5000/w2/web:${TARGET}" --load --progress=plain . \
+  || { warn "web 镜像构建失败"; exit 2; }
+web_tar="w2-web-${TARGET}.tar.gz"
+$DOCKER_CMD save "127.0.0.1:5000/w2/web:${TARGET}" | gzip > "/tmp/${web_tar}" || { warn "docker save web 失败"; exit 2; }
+scp_to_vps "/tmp/${web_tar}" "$SSH_HOST:/tmp/${web_tar}" >/dev/null || { warn "scp web 镜像到 VPS 失败"; exit 2; }
+vps "docker load < /tmp/${web_tar} && docker push 127.0.0.1:5000/w2/web:${TARGET}" \
+  || { warn "web 镜像 load/push 失败"; exit 2; }
+web_digest="$(vps "docker image inspect 127.0.0.1:5000/w2/web:${TARGET} --format '{{index .RepoDigests 0}}' 2>/dev/null" | sed 's|^.*@||')"
+[ -n "$web_digest" ] || { warn "无法获取 web 镜像 digest"; exit 2; }
+log "web digest：$web_digest"
+
+py_ref="127.0.0.1:5000/w2/python@${python_digest}"
+web_ref="127.0.0.1:5000/w2/web@${web_digest}"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 步骤 4+5：部署 + 回读（在 VPS 上一个会话内完成，输出回读结果）
+# ─────────────────────────────────────────────────────────────────────────────
+log ""
+log "== 4. 部署 + 5. 回读（VPS）=="
+UTC_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+LOCAL_LOG="/tmp/w2-release-${UTC_STAMP}.log"
+REMOTE_LOG="${VPS_REPORTS_DIR}/release-${UTC_STAMP}.log"
+
+vps "sudo bash -s -- '${TARGET}' '${py_ref}' '${web_ref}' '${python_digest}' '${web_digest}' '${BUILD_TIME}' '${STABILIZE_SEC}' '${SCHEMA_VERSION}' '${API_PORT}' '${WEB_PORT}' '${BASE_TAG}'" <<'VPS_SCRIPT' 2>&1 | tee "$LOCAL_LOG"
+set -euo pipefail
+
+release_sha="$1"; py_ref="$2"; web_ref="$3"; python_digest="$4"; web_digest="$5"
+build_time="$6"; stabilize_sec="$7"; schema_version="$8"; api_port="$9"; web_port="${10}"; base_tag="${11}"
+
+compose=(docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml -f /opt/w2/deploy/controlled-future-refresh.override.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env)
+Q() { docker exec -i w2-staging-postgres-1 psql -XAt -U w2_user -d w2 -c "$1"; }
+
+echo "== preflight =="
+W2_BASE_TAG="$base_tag" /usr/local/bin/w2-release-preflight "$py_ref" || { echo "FAIL preflight"; exit 2; }
+W2_BASE_TAG="$base_tag" /opt/w2/deploy/w2-release-sync-preflight "$py_ref" "$web_ref" "$release_sha" || { echo "FAIL release-sync-preflight"; exit 2; }
+
+echo "== checkpoint gate =="
+active_claims="$(Q "SELECT count(*) FROM matchday_checkpoint_plans WHERE status='DUE' AND claim_expires_at > now();")"
+echo "active_claims=$active_claims"
+if [ "$active_claims" != "0" ]; then echo "FAIL SWITCH_BLOCKED_ACTIVE_CLAIM"; exit 2; fi
+
+echo "== baseline =="
+Q "SELECT (SELECT version_num FROM alembic_version), (SELECT count(*) FROM candidate_notification_outbox), (SELECT count(*) FROM recommendations)"
+# 记录部署前容器 StartedAt（回读 e 项用）
+for c in api web worker scheduler postgres redis; do
+  eval "pre_${c}=$(docker inspect w2-staging-${c}-1 --format '{{.State.StartedAt}}' 2>/dev/null || echo 'unknown')"
+done
+
+echo "== release.env backup + candidate =="
+stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+backup="/opt/w2/shared/release.pre-${stamp}.env"
+candidate="/opt/w2/shared/release.candidate-${stamp}.env"
+cp /opt/w2/shared/release.env "$backup"
+cp /opt/w2/shared/release.env "$candidate"
+sed -i \
+  -e "s|^W2_PYTHON_IMAGE=.*|W2_PYTHON_IMAGE=${py_ref}|" \
+  -e "s|^W2_WEB_IMAGE=.*|W2_WEB_IMAGE=${web_ref}|" \
+  -e "s|^W2_GIT_SHA=.*|W2_GIT_SHA=${release_sha}|" \
+  -e "s|^W2_BUILD_TIME=.*|W2_BUILD_TIME=${build_time}|" \
+  -e "s|^W2_RELEASE_ID=.*|W2_RELEASE_ID=${release_sha}|" \
+  -e "s|^W2_API_IMAGE_ID=.*|W2_API_IMAGE_ID=${python_digest}|" \
+  -e "s|^W2_API_OCI_DIGEST=.*|W2_API_OCI_DIGEST=${python_digest}|" \
+  -e "s|^W2_API_REGISTRY_DIGEST=.*|W2_API_REGISTRY_DIGEST=${python_digest}|" \
+  "$candidate"
+for key in W2_PYTHON_IMAGE W2_WEB_IMAGE W2_GIT_SHA W2_BUILD_TIME W2_RELEASE_ID W2_API_IMAGE_ID W2_API_OCI_DIGEST W2_API_REGISTRY_DIGEST; do
+  grep -Eq "^${key}=.+" "$candidate" || { echo "FAIL candidate 缺 ${key}"; exit 2; }
+done
+
+rollback() {
+  echo "ROLLBACK_START"
+  install -m 0644 "$backup" /opt/w2/shared/release.env
+  "${compose[@]}" up -d --no-deps --force-recreate worker scheduler api web || true
+  echo "ROLLBACK_DONE restored=$backup"
+}
+trap rollback ERR
+
+echo "== activate release.env =="
+install -m 0644 "$candidate" /opt/w2/shared/release.env
+
+echo "== schema assertion =="
+schema="$(Q "SELECT version_num FROM alembic_version")"
+echo "schema=$schema"
+[ "$schema" = "$schema_version" ] || { echo "FAIL schema mismatch: $schema"; exit 2; }
+
+echo "== recreate worker + scheduler =="
+"${compose[@]}" up -d --no-deps --force-recreate worker scheduler
+
+echo "== recreate api =="
+"${compose[@]}" up -d --no-deps --force-recreate api
+ready=0
+for _ in $(seq 1 60); do
+  if curl -fsS --max-time 5 "http://127.0.0.1:${api_port}/ready" >/dev/null 2>&1; then ready=1; break; fi
+  sleep 2
+done
+[ "$ready" = "1" ] || { echo "FAIL api /ready 超时"; exit 2; }
+
+echo "== recreate web =="
+"${compose[@]}" up -d --no-deps --force-recreate web
+meta=0
+for _ in $(seq 1 30); do
+  if curl -fsS --max-time 5 "http://127.0.0.1:${web_port}/meta.json" >/tmp/w2-meta.json 2>/dev/null; then meta=1; break; fi
+  sleep 1
+done
+[ "$meta" = "1" ] || { echo "FAIL web meta.json 超时"; exit 2; }
+
+trap - ERR
+echo "SWITCH_OK backup=$backup"
+
+# 记录部署完成时间（回读 f 项用）
+deploy_done="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo "deploy_done=$deploy_done"
+
+# 稳定窗口（部署后等待，回读 f 项在窗口后检查 Traceback）
+echo "等待 ${stabilize_sec}s 稳定窗口..."
+sleep "$stabilize_sec"
+
+# ── 回读（收集全部结果，统一判断）────────────────────────────────────────
+set +e
+declare -a fails=()
+declare -a readback_output=()
+
+rb() {
+  local key="$1" ok="$2" detail="$3"
+  readback_output+=("[${key}] ${detail}")
+  if [ "$ok" = "1" ]; then
+    echo "READBACK ${key}=PASS"
+  else
+    echo "READBACK ${key}=FAIL ${detail}"
+    fails+=("${key}")
+  fi
+}
+
+# a. 六接口 200
+a_detail=""
+a_ok=1
+for p in /v1/version /ready /v1/dashboard /v1/dashboard/summary /v1/dashboard/day-view /v1/dashboard/intelligence-workspace; do
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "http://127.0.0.1:${api_port}${p}")"
+  a_detail="${a_detail}${p}=${code} "
+  [ "$code" = "200" ] || a_ok=0
+done
+rb "a" "$a_ok" "$a_detail"
+
+# b. release_id + web/python sha 一致
+version_json="$(curl -fsS --max-time 20 "http://127.0.0.1:${api_port}/v1/version" 2>/dev/null)"
+meta_json="$(curl -fsS --max-time 20 "http://127.0.0.1:${web_port}/meta.json" 2>/dev/null)"
+api_sha="$(printf '%s' "$version_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("api_git_sha",""))' 2>/dev/null)"
+rid="$(printf '%s' "$version_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("release_id",""))' 2>/dev/null)"
+web_sha="$(printf '%s' "$meta_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("web_git_sha",""))' 2>/dev/null)"
+b_ok=1
+[ "$rid" = "$release_sha" ] || b_ok=0
+[ "$web_sha" = "$api_sha" ] || b_ok=0
+rb "b" "$b_ok" "release_id=$rid api_sha=$api_sha web_sha=$web_sha"
+
+# c+d. 工作台（推荐倒序 + market_radar 抽样）
+ws_json="$(curl -fsS --max-time 30 "http://127.0.0.1:${api_port}/v1/dashboard/intelligence-workspace" 2>/dev/null)"
+c_d_result="$(printf '%s' "$ws_json" | python3 -c '
+import json,sys
+try:
+    d=json.load(sys.stdin)
+except Exception as e:
+    print("JSON_ERROR", e); sys.exit(0)
+recs=d.get("validation",{}).get("model_forecast",{}).get("official_recommendations",[]) or []
+c_ok = len(recs) > 0
+kicks=[r.get("kickoff_utc") for r in recs if r.get("kickoff_utc")]
+noninc = all(kicks[i] >= kicks[i+1] for i in range(len(kicks)-1)) if len(kicks)>1 else True
+c_ok = c_ok and noninc
+matches=d.get("matches",[]) or []
+now=d.get("generated_at") or ""
+from datetime import datetime
+def t(s):
+    try: return datetime.fromisoformat(str(s).replace("Z","+00:00"))
+    except Exception: return None
+nowt=t(now)
+future=[m for m in matches if t(m.get("kickoff_utc")) is not None and nowt is not None and t(m.get("kickoff_utc")) > nowt]
+sample=future[:3]
+d_ok = len(sample) >= 1
+snaps=[]
+for m in sample:
+    mk=m.get("market_radar",{}).get("markets",{})
+    cnts=[v.get("snapshot_count",0) for v in mk.values() if isinstance(v,dict)]
+    snaps.append((m.get("fixture_id"), cnts))
+    if not any(c >= 1 for c in cnts):
+        d_ok=False
+print(f"c_ok={int(c_ok)} recs={len(recs)} noninc={int(noninc)}")
+print(f"d_ok={int(d_ok)} sample={snaps}")
+')"
+c_ok="$(printf '%s' "$c_d_result" | sed -n 's/^c_ok=\([01]\).*/\1/p' | head -1)"
+d_ok="$(printf '%s' "$c_d_result" | sed -n 's/^d_ok=\([01]\).*/\1/p' | head -1)"
+rb "c" "$c_ok" "$(printf '%s' "$c_d_result" | grep '^c_ok=' | head -1)"
+rb "d" "$d_ok" "$(printf '%s' "$c_d_result" | grep '^d_ok=' | head -1)"
+
+# e. 六容器 healthy + StartedAt
+e_detail=""
+e_ok=1
+for c in api web worker scheduler postgres redis; do
+  hs="$(docker inspect "w2-staging-${c}-1" --format '{{.State.Health.Status}}' 2>/dev/null)"
+  st="$(docker inspect "w2-staging-${c}-1" --format '{{.State.StartedAt}}' 2>/dev/null)"
+  e_detail="${e_detail}${c}:${hs} "
+  [ "$hs" = "healthy" ] || e_ok=0
+  if [ "$c" = "postgres" ] || [ "$c" = "redis" ]; then
+    eval "pre=\$pre_${c}"
+    [ "$st" = "$pre" ] || { e_ok=0; e_detail="${e_detail}(postgres/redis 重启!) "; }
+  else
+    eval "pre=\$pre_${c}"
+    [ "$st" != "$pre" ] || { e_ok=0; e_detail="${e_detail}(${c} 未更新!) "; }
+  fi
+done
+rb "e" "$e_ok" "$e_detail"
+
+# f. 部署后稳定窗口内 Traceback = 0
+f_detail=""
+f_ok=1
+for c in api worker scheduler; do
+  n="$(docker logs --since "$deploy_done" "w2-staging-${c}-1" 2>&1 | grep -c Traceback)"
+  f_detail="${f_detail}${c}=${n} "
+  [ "$n" = "0" ] || f_ok=0
+done
+rb "f" "$f_ok" "$f_detail"
+
+# g. outbox 部署后新增验证样本推送，开球早于当日比赛日 = 0
+bj_hour="$(TZ=Asia/Shanghai date +%H)"
+if [ "$bj_hour" -ge 12 ]; then
+  bj_day="$(TZ=Asia/Shanghai date +%Y-%m-%d)"
+else
+  bj_day="$(TZ=Asia/Shanghai date -d 'yesterday' +%Y-%m-%d)"
+fi
+window_start="$(TZ=Asia/Shanghai date -d "${bj_day} 12:00:00" -u +%Y-%m-%dT%H:%M:%SZ)"
+g_n="$(Q "SELECT count(*) FROM candidate_notification_outbox WHERE event_type='VALIDATION_SAMPLE_CONFIRMED' AND created_at >= '${deploy_done}'::timestamptz AND (payload->>'kickoff_local')::timestamptz < '${window_start}'::timestamptz;")"
+g_ok=1
+[ "$g_n" = "0" ] || g_ok=0
+rb "g" "$g_ok" "新增验证样本推送中开球早于当日比赛日(${window_start})的条数=$g_n"
+
+echo "== 回读汇总 =="
+printf '%s\n' "${readback_output[@]}"
+if [ "${#fails[@]}" -gt 0 ]; then
+  echo "READBACK_FAILED ${fails[*]}"
+  exit 1
+fi
+echo "READBACK_OK"
+VPS_SCRIPT
+
+rc="${PIPESTATUS[0]}"
+
+# 写 VPS 日志（保留完整输出）
+scp_to_vps "$LOCAL_LOG" "$SSH_HOST:/tmp/release-log.tmp" >/dev/null 2>&1
+vps "sudo mkdir -p ${VPS_REPORTS_DIR} && sudo cp /tmp/release-log.tmp ${REMOTE_LOG}" >/dev/null 2>&1
+
+if [ "$rc" -ne 0 ]; then
+  echo ""
+  warn "部署或回读失败（退出码 ${rc}）。不推送、不轮转。"
+  warn "完整日志：${LOCAL_LOG}（VPS：${REMOTE_LOG}）"
+  warn "回滚命令：ssh $SSH_HOST 'sudo install -m 0644 /opt/w2/shared/release.pre-*.env /opt/w2/shared/release.env && docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml -f /opt/w2/deploy/controlled-future-refresh.override.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env up -d --no-deps --force-recreate worker scheduler api web'"
+  exit 1
+fi
+
+log ""
+log "== 回读全部通过 =="
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 步骤 6：推送
+# ─────────────────────────────────────────────────────────────────────────────
+log ""
+log "== 6. 推送 =="
+"$GIT_CMD" push "$REMOTE" "$BRANCH" || { warn "git push 失败"; exit 1; }
+remote_sha="$("$GIT_CMD" ls-remote "$REMOTE" "$BRANCH" 2>/dev/null | awk '{print $1}' | head -1)"
+log "远端 sha：$remote_sha"
+if [ "$remote_sha" != "$TARGET" ]; then
+  warn "远端 sha 不一致：远端=$remote_sha 期望=$TARGET"
+  exit 1
+fi
+log "远端 sha 一致"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 步骤 7：备份轮转（仅当第 2 步做过备份）
+# ─────────────────────────────────────────────────────────────────────────────
+log ""
+log "== 7. 备份轮转 =="
+if [ "$BACKUP_DONE" = "1" ]; then
+  bash "$BACKUP_ROTATE_SCRIPT" || { warn "备份轮转失败"; exit 1; }
+else
+  log "本次未备份，跳过轮转"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 步骤 8：回执骨架
+# ─────────────────────────────────────────────────────────────────────────────
+log ""
+log "== 8. 回执骨架 =="
+END_EPOCH="$(date +%s)"
+ELAPSED="$((END_EPOCH - START_EPOCH))"
+RECEIPT_DATE="$(date -u +%Y%m%d)"
+RECEIPT_FILE="${RECEIPT_DIR}/W2_发布_${TARGET}_${RECEIPT_DATE}.md"
+
+{
+  echo "# W2 发布回执 ${TARGET}（${RECEIPT_DATE}）"
+  echo ""
+  echo "## 前后 release"
+  echo ""
+  echo "- 前：\`${online_release}\`"
+  echo "- 后：\`${TARGET}\`"
+  echo ""
+  echo "## 改动文件 stat"
+  echo ""
+  echo '```'
+  printf '%s\n' "$changed_stat"
+  echo '```'
+  echo ""
+  echo "## 是否备份"
+  echo ""
+  if [ "$need_backup" = "yes" ]; then
+    echo "- 是（migrations 改动）：\`${backup_file}\`"
+  else
+    echo "- 否（无迁移，跳过）"
+  fi
+  echo ""
+  echo "## 回读每一项的原始输出"
+  echo ""
+  echo '```'
+  grep -E '^READBACK ' "$LOCAL_LOG" 2>/dev/null || cat "$LOCAL_LOG"
+  echo '```'
+  echo ""
+  echo "## 推送结果"
+  echo ""
+  echo '```'
+  echo "远端 sha：${remote_sha}"
+  echo '```'
+  echo ""
+  echo "## 耗时"
+  echo ""
+  echo "- ${ELAPSED}s"
+  echo ""
+  echo "## 执行方说明"
+  echo ""
+  echo "（待老K 填写）"
+  echo ""
+  echo "## 异常与处置"
+  echo ""
+  echo "（待老K 填写）"
+} > "$RECEIPT_FILE"
+
+log "回执骨架：$RECEIPT_FILE"
+log "VPS 日志：$REMOTE_LOG"
+
+log ""
+log "== w2-release 完成 =="
+log "耗时 ${ELAPSED}s"
+exit 0
