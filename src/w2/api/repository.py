@@ -1254,6 +1254,11 @@ class ReadModelRepository:
         return self._engine
 
     def _dashboard_competition_ids(self) -> tuple[str, ...]:
+        # PERF-01 续：白名单在同一请求内被读多次（fixtures 窗口、date strip 等），
+        # 用 60s 实例缓存避免重复查 CompetitionRegistry。
+        cached = getattr(self, "_competition_ids_cache", None)
+        if cached is not None and monotonic() - cached[0] <= 60:
+            return cached[1]
         try:
             competition_ids = tuple(
                 sorted(CompetitionRegistry(engine=self._database_engine()).enabled_ids())
@@ -1262,6 +1267,7 @@ class ReadModelRepository:
             raise SystemDegradedError("COMPETITION_WHITELIST_UNAVAILABLE") from exc
         if not competition_ids:
             raise SystemDegradedError("COMPETITION_WHITELIST_INVALID")
+        self._competition_ids_cache = (monotonic(), competition_ids)
         return competition_ids
 
     def active_competition_count(self) -> int:
