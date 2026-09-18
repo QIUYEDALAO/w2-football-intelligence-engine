@@ -27,7 +27,9 @@ BRANCH="${W2_RELEASE_BRANCH:-codex/w2-authority-20260916}"
 REMOTE="${W2_RELEASE_REMOTE:-github-w2}"
 SSH_HOST="${W2_RELEASE_SSH_HOST:-w2-hk}"
 BLOCKED_WINDOW="${W2_RELEASE_BLOCKED_WINDOW:-}"
-STABILIZE_SEC="${W2_RELEASE_STABILIZE_SEC:-180}"
+STABILIZE_SEC="${W2_RELEASE_STABILIZE_SEC:-60}"
+GATE_MAX_WAIT_SEC="${W2_RELEASE_GATE_MAX_WAIT_SEC:-3600}"
+GATE_POLL_SEC="${W2_RELEASE_GATE_POLL_SEC:-30}"
 BASE_TAG="${W2_RELEASE_BASE_TAG:-4d5f257daa500878}"
 GIT_CMD="${W2_RELEASE_GIT:-git}"
 NGINX_BASE="${W2_RELEASE_NGINX_BASE:-1.27.5-alpine}"
@@ -471,12 +473,23 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 BACKUP_DONE=0
 if [ "$need_backup" = "yes" ]; then
-  log "执行 pg_dump -Fc 备份..."
+  log "执行 pg_dump -Fc 备份（VPS 本地，不回传 Mac）..."
   backup_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-  backup_file="predeploy-${TARGET}-${backup_stamp}.dump"
-  if vps "docker exec w2-staging-postgres-1 pg_dump -U w2_user -d w2 -Fc" > "${HOME}/Desktop/W2文档/backups/${backup_file}"; then
-    log "备份完成：${backup_file}"
-    BACKUP_DONE=1
+  backup_file="/opt/w2/backups/predeploy-${TARGET}-${backup_stamp}.dump"
+  # 备份只写 VPS 本地：大库（~1.5GB）经 SSH 回传 Mac 会拖慢发布数十分钟，
+  # 且备份仅用于回滚兜底，放 VPS 本地更可靠。
+  if vps "mkdir -p /opt/w2/backups && docker exec w2-staging-postgres-1 pg_dump -U w2_user -d w2 -Fc > ${backup_file}"; then
+    backup_size="$(vps "stat -c %s ${backup_file}" 2>/dev/null | tr -d '[:space:]' || echo 0)"
+    if [ -n "$backup_size" ] && [ "$backup_size" -gt 0 ] \
+       && vps "docker exec w2-staging-postgres-1 pg_restore --list ${backup_file}" >/dev/null 2>&1; then
+      log "备份完成：${backup_file}（${backup_size} bytes，pg_restore --list 校验通过）"
+      BACKUP_DONE=1
+      # VPS 上 predeploy-*.dump 只保留最新 3 份
+      vps "ls -1t /opt/w2/backups/predeploy-*.dump 2>/dev/null | tail -n +4 | xargs -r rm -f" || true
+    else
+      warn "pg_dump 备份校验失败（空文件或不可读）：${backup_file}"
+      exit 2
+    fi
   else
     warn "pg_dump 备份失败"
     exit 2
@@ -533,7 +546,7 @@ UTC_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOCAL_LOG="/tmp/w2-release-${UTC_STAMP}.log"
 REMOTE_LOG="${VPS_REPORTS_DIR}/release-${UTC_STAMP}.log"
 
-vps "sudo bash -s -- '${TARGET}' '${py_ref}' '${web_ref}' '${python_digest}' '${web_digest}' '${BUILD_TIME}' '${STABILIZE_SEC}' '${API_PORT}' '${WEB_PORT}' '${BASE_TAG}' '${need_backup}' '${online_release}' '${target_head}'" <<'VPS_SCRIPT' 2>&1 | tee "$LOCAL_LOG"
+vps "sudo bash -s -- '${TARGET}' '${py_ref}' '${web_ref}' '${python_digest}' '${web_digest}' '${BUILD_TIME}' '${STABILIZE_SEC}' '${API_PORT}' '${WEB_PORT}' '${BASE_TAG}' '${need_backup}' '${online_release}' '${target_head}' '${SKIP_WINDOW}' '${GATE_MAX_WAIT_SEC}' '${GATE_POLL_SEC}'" <<'VPS_SCRIPT' 2>&1 | tee "$LOCAL_LOG"
 set -euo pipefail
 # 注意：heredoc 通过 `bash -s` 逐行读入 stdin，任何从 stdin 读取的子进程都会
 # 吞掉后续脚本（导致提前结束、误报成功）。因此这里绝不能 `exec 0</dev/null`，
@@ -541,7 +554,8 @@ set -euo pipefail
 
 release_sha="$1"; py_ref="$2"; web_ref="$3"; python_digest="$4"; web_digest="$5"
 build_time="$6"; stabilize_sec="$7"; api_port="$8"; web_port="$9"; base_tag="${10}"
-has_migration="${11}"; online_release="${12}"; target_head="${13}"
+has_migration="${11}"; online_release="${12}"; target_head="${13}"; skip_window="${14}"
+gate_max_wait_sec="${15}"; gate_poll_sec="${16}"
 
 compose=(docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml -f /opt/w2/deploy/controlled-future-refresh.override.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env)
 Q() { docker exec w2-staging-postgres-1 psql -XAt -U w2_user -d w2 -c "$1"; }
@@ -640,6 +654,42 @@ if [ "$has_migration" = "yes" ]; then
   else
     fail "alembic upgrade head 失败（未切换 release.env；数据库可能停在失败迁移之前，需人工处置）"
   fi
+fi
+
+# 切换 release.env 之前再查一次评估档位窗口（前 5 / 后 15 分钟）。
+# 有冲突就等到下一个空档再切，最多等 60 分钟；超时则停止且不切换。
+# 今晚评估档位密集，靠这里自动等空档，而不是靠人工绕过。
+if [ "$skip_window" = "0" ]; then
+  echo "== 切换前评估档位窗口复查 =="
+  wait_deadline=$(( $(date +%s) + gate_max_wait_sec ))
+  while true; do
+    if ! slot_rows="$(Q "SELECT replace(to_char(scheduled_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'), ' ', 'T') || 'Z' FROM matchday_checkpoint_plans WHERE checkpoint IN ('T3_ODDS','T60_ODDS_LINEUPS','T45_ODDS','T-30m_VALIDATION_LOCK','T15_ODDS') AND scheduled_at >= now() - interval '5 minutes' AND scheduled_at <= now() + interval '15 minutes';" 2>/dev/null)"; then
+      fail "切换前评估档位窗口查询失败（fail-closed），拒绝切换"
+    fi
+    if [ -z "$slot_rows" ]; then
+      echo "切换前窗口复查通过（无临近档位）"
+      break
+    fi
+    # 只把合法 ISO 时间行算作冲突档位；其他输出（如 "0"、报错文本）视为
+    # 查询返回异常，按 fail-closed 拒绝部署并退出，绝不进入等待循环。
+    conflict=0
+    while IFS= read -r row; do
+      [ -z "$row" ] && continue
+      case "$row" in
+        [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) conflict=1 ;;
+        *) fail "切换前评估档位窗口查询返回非法内容（fail-closed）：${row}" ;;
+      esac
+    done <<< "$slot_rows"
+    if [ "$conflict" = "0" ]; then
+      echo "切换前窗口复查通过（无临近档位）"
+      break
+    fi
+    if [ "$(date +%s)" -ge "$wait_deadline" ]; then
+      fail "切换前评估档位窗口等待超时（${gate_max_wait_sec} 秒），停止且不切换"
+    fi
+    echo "切换前窗口有冲突（档位：${slot_rows}），等待 ${gate_poll_sec}s 后重试"
+    sleep "$gate_poll_sec"
+  done
 fi
 
 echo "== activate release.env =="

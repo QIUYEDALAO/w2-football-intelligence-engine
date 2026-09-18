@@ -207,6 +207,8 @@ def _build_test_env(
         "W2_RELEASE_GIT": str(fake_git),
         "W2_RELEASE_BRANCH": "main",
         "W2_RELEASE_NOW": "2026-09-18T10:00:00Z",
+        "W2_RELEASE_GATE_MAX_WAIT_SEC": "2",
+        "W2_RELEASE_GATE_POLL_SEC": "1",
         "HOME": str(home),
     }
     return env, home
@@ -216,7 +218,7 @@ def test_readback_fail_no_push_no_rotate(tmp_path: Path) -> None:
     repo, _base, target = _make_repo(tmp_path, with_migration=False)
     env, home = _build_test_env(tmp_path, mode="readback_fail", target=target)
     r = subprocess.run(
-        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True
+        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
     )
     assert r.returncode == 1
     assert "READBACK_FAILED" in r.stdout
@@ -247,7 +249,7 @@ def test_dry_run_no_side_effects(tmp_path: Path) -> None:
         "HOME": str(home),
     }
     r = subprocess.run(
-        ["bash", str(SCRIPT), "--dry-run", "--target", target], cwd=repo, env=env, capture_output=True, text=True
+        ["bash", str(SCRIPT), "--dry-run", "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
     )
     assert r.returncode == 0, r.stderr
     assert "dry-run" in r.stdout
@@ -350,6 +352,7 @@ case "$1" in
     done
     case "$sql" in
       *"matchday_checkpoint_plans WHERE status"*) echo "0" ;;
+      *"matchday_checkpoint_plans WHERE checkpoint IN"*) ;;  # 切换前档位复查：返回空（无冲突）
       *"candidate_notification_outbox"*) echo "${{SCHEMA}}|0|0" ;;
       "SELECT version_num FROM alembic_version") echo "${{SCHEMA}}" ;;
       *) echo "0" ;;
@@ -432,6 +435,14 @@ if echo "$cmd" | grep -q "image inspect"; then
   echo "127.0.0.1:5000/w2/python@sha256:fake0000000000000000000000000000000000000000000000000000000000000000"
   exit 0
 fi
+if echo "$cmd" | grep -q "stat -c %s"; then
+  echo "12345"
+  exit 0
+fi
+if echo "$cmd" | grep -q "pg_restore --list"; then
+  echo "archive-header"
+  exit 0
+fi
 exit 0
 """,
         encoding="utf-8",
@@ -460,11 +471,13 @@ def _run_release_with_vps(tmp_path: Path, *, with_migration: bool, fail_ready: b
         "W2_RELEASE_BRANCH": "main",
         "W2_RELEASE_NOW": "2026-09-18T10:00:00Z",
         "W2_RELEASE_STABILIZE_SEC": "0",
+        "W2_RELEASE_GATE_MAX_WAIT_SEC": "2",
+        "W2_RELEASE_GATE_POLL_SEC": "1",
         "HOME": str(home),
         "SCHEMA": "aaa",
     }
     r = subprocess.run(
-        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True
+        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
     )
     return r, install_log
 
@@ -501,7 +514,7 @@ def test_vps_early_exit_zero_judged_failed(tmp_path: Path) -> None:
     repo, _base, target = _make_repo(tmp_path, with_migration=False)
     env, home = _build_test_env(tmp_path, mode="early_exit_0", target=target)
     r = subprocess.run(
-        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True
+        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
     )
     assert r.returncode == 1
     assert "正向成功标记缺失" in r.stderr
@@ -518,7 +531,7 @@ def test_missing_readback_marker_judged_failed(tmp_path: Path) -> None:
     repo, _base, target = _make_repo(tmp_path, with_migration=False)
     env, home = _build_test_env(tmp_path, mode="missing_readback", target=target)
     r = subprocess.run(
-        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True
+        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
     )
     assert r.returncode == 1
     assert "READBACK_g" in r.stderr
@@ -530,7 +543,7 @@ def test_verify_release_id_mismatch_judged_failed(tmp_path: Path) -> None:
     repo, _base, target = _make_repo(tmp_path, with_migration=False)
     env, home = _build_test_env(tmp_path, mode="full_success", target=target)
     r = subprocess.run(
-        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True
+        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
     )
     assert r.returncode == 1
     assert "release_id 与目标不符" in r.stderr
@@ -546,7 +559,7 @@ def test_window_query_fail_rejects_deploy(tmp_path: Path) -> None:
     repo, _base, target = _make_repo(tmp_path, with_migration=False)
     env, home = _build_test_env(tmp_path, mode="early_exit_0", target=target, window_fail=True)
     r = subprocess.run(
-        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True
+        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
     )
     assert r.returncode == 2
     assert "窗口查询失败" in r.stderr
