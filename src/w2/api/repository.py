@@ -2571,7 +2571,7 @@ class ReadModelRepository:
             # 表的 Seq Scan + DISTINCT（原实现 ~3.4s）。
             evidence_ids = (
                 {
-                    str(row.fixture_id)
+                    str(row)
                     for row in session.scalars(
                         select(MatchdayFixtureIdentityModel.fixture_id).where(
                             MatchdayFixtureIdentityModel.fixture_id.in_(fixture_ids),
