@@ -14,6 +14,7 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchEvaluationModel,
     DynamicPrematchOpportunityModel,
     DynamicPrematchSupersessionModel,
+    ValidationSampleModel,
 )
 from w2.infrastructure.persistence.future_refresh_models import (
     RawPayloadModel,
@@ -225,6 +226,7 @@ def _engine(tmp_path: Path):  # type: ignore[no-untyped-def]
     OutcomeLedgerModel.__table__.create(engine)
     ResultModel.__table__.create(engine)
     LeagueSeasonModel.__table__.create(engine)
+    ValidationSampleModel.__table__.create(engine)
     with Session(engine) as session:
         session.add(
             LeagueSeasonModel(

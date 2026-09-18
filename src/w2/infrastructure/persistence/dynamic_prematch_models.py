@@ -8,6 +8,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -198,3 +199,50 @@ class T30ValidationSnapshotModel(Base):
     checkpoint: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(64), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class ValidationSampleModel(Base):
+    """Materialized post-match validation sample (official-funnel recommendation).
+
+    One row per (fixture_id, market). Written by the forward_outcome_ledger
+    rolling writer for the [now-3d, now+1d] kickoff window and by a one-off
+    backfill; rows outside the writer window are frozen. The projection function
+    that produced these rows stays as the reconciliation authority only.
+    """
+
+    __tablename__ = "validation_samples"
+    __table_args__ = (
+        CheckConstraint(
+            "market in ('ASIAN_HANDICAP', 'TOTALS')",
+            name="ck_validation_samples_market",
+        ),
+        Index("ix_validation_samples_kickoff", "kickoff_utc"),
+        Index("ix_validation_samples_competition", "competition_id"),
+        Index("ix_validation_samples_calibration", "calibration_identity"),
+    )
+
+    fixture_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    market: Mapped[str] = mapped_column(String(64), primary_key=True)
+    competition_id: Mapped[str | None] = mapped_column(String(128))
+    kickoff_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    selection: Mapped[str] = mapped_column(String(64), nullable=False)
+    exact_line: Mapped[str] = mapped_column(String(32), nullable=False)
+    decimal_odds: Mapped[float] = mapped_column(Float, nullable=False)
+    bookmaker_id: Mapped[str | None] = mapped_column(String(128))
+    first_checkpoint: Mapped[str | None] = mapped_column(String(32))
+    final_checkpoint: Mapped[str | None] = mapped_column(String(32))
+    evaluation_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    calibration_identity: Mapped[str | None] = mapped_column(String(64))
+    settlement: Mapped[str] = mapped_column(String(32), nullable=False)
+    profit_units: Mapped[float | None] = mapped_column(Float)
+    score: Mapped[str | None] = mapped_column(String(16))
+    projected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # 展示字段：读取路径零 join 还原 projection 输出，避免请求期重算队名/生命周期。
+    evaluated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    quote_captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    current_ev: Mapped[float | None] = mapped_column(Float)
+    home_team_label: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    away_team_label: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    later_unassessed_checkpoints: Mapped[list[str] | None] = mapped_column(JSON)
+    lifecycle_note_zh: Mapped[str | None] = mapped_column(String(256))

@@ -12,7 +12,7 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
@@ -33,6 +33,7 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
     CandidateNotificationOutboxModel,
     DynamicPrematchEvaluationModel,
     DynamicPrematchOpportunityModel,
+    ValidationSampleModel,
 )
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
@@ -1286,6 +1287,304 @@ def _official_recommendations(
     )
 
 
+def _parse_iso_utc(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _official_recommendations_dashboard_scope(
+    session: Session,
+    *,
+    active_competitions: frozenset[str] | None = None,
+) -> list[dict[str, Any]]:
+    """工作台口径的验证样本投影（不过滤 measurement_semantics）。
+
+    与 ``dashboard_model_forecast_validation_progress`` 上线前对
+    ``official_recommendations`` 的构造一致：只过滤 official_funnel_eligible，
+    队名用 ``public_team_labels_for_fixtures`` 解析。物化表与对账都用这一口径，
+    确保「推荐表条数、单位合计、排序与上线前完全一致」。
+    """
+
+    if active_competitions is None:
+        active_competitions = _active_competitions(session)
+    evaluations = list(
+        session.scalars(
+            select(DynamicPrematchEvaluationModel).where(
+                DynamicPrematchEvaluationModel.official_funnel_eligible.is_(True)
+            )
+        )
+    )
+    opportunities = list(session.scalars(select(DynamicPrematchOpportunityModel)))
+    candidate_fixture_ids = {
+        str(row.fixture_id).removeprefix("api_football:")
+        for row in evaluations
+        if isinstance(row.payload, dict)
+        and row.payload.get("state") == "ANALYSIS_PICK_ACTIVE"
+    }
+    candidate_fixtures = list(
+        session.scalars(
+            select(MatchdayFixtureIdentityModel).where(
+                MatchdayFixtureIdentityModel.provider == "api_football",
+                MatchdayFixtureIdentityModel.provider_fixture_id.in_(
+                    candidate_fixture_ids
+                ),
+            )
+        )
+    )
+    fixtures = {row.provider_fixture_id: row for row in candidate_fixtures}
+    canonical_ids = {str(row.fixture_id) for row in candidate_fixtures}
+    results = {
+        str(row.fixture_id): row
+        for row in session.scalars(
+            select(ResultModel).where(ResultModel.fixture_id.in_(canonical_ids))
+        )
+    }
+    team_labels = public_team_labels_for_fixtures(session, candidate_fixtures)
+    return official_funnel_recommendations(
+        evaluations,
+        opportunities,
+        fixtures,
+        results,
+        team_labels,
+        active_competitions=active_competitions,
+    )
+
+
+def materialize_validation_samples(
+    session: Session,
+    *,
+    now: datetime,
+    window_before_days: int = 3,
+    window_after_days: int = 1,
+) -> dict[str, int]:
+    """Materialize the post-match validation sample set into ``validation_samples``.
+
+    Covers fixtures whose kickoff falls in [now - window_before_days, now +
+    window_after_days]. Uses the same projection 口径 as
+    ``_official_funnel_recommendations``, then upserts the in-window rows and
+    deletes in-window rows that are no longer samples. Rows outside the window
+    are frozen and never touched.
+    """
+
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    now = now.astimezone(UTC)
+    window_start = now - timedelta(days=window_before_days)
+    window_end = now + timedelta(days=window_after_days)
+
+    # 窗口内的 api_football fixture（provider_fixture_id 为纯数字，与投影结果一致）。
+    window_provider_ids = {
+        str(row.provider_fixture_id)
+        for row in session.scalars(
+            select(MatchdayFixtureIdentityModel).where(
+                MatchdayFixtureIdentityModel.provider == "api_football",
+                MatchdayFixtureIdentityModel.kickoff_utc >= window_start,
+                MatchdayFixtureIdentityModel.kickoff_utc < window_end,
+            )
+        )
+    }
+
+    # 同一口径全量投影，再按窗口过滤（口径不变；性能由每 10 分钟一次的写入承担）。
+    active_competitions = _active_competitions(session)
+    recommendations = _official_recommendations_dashboard_scope(
+        session, active_competitions=active_competitions
+    )
+    window_rows = [
+        row for row in recommendations if row["fixture_id"] in window_provider_ids
+    ]
+
+    # 现有窗口内的样本行（用于 upsert 与删除不再属于样本的行）。
+    existing = {
+        (row.fixture_id, row.market): row
+        for row in session.scalars(
+            select(ValidationSampleModel).where(
+                ValidationSampleModel.kickoff_utc >= window_start,
+                ValidationSampleModel.kickoff_utc < window_end,
+            )
+        )
+    }
+
+    projected_now = now
+    new_keys: set[tuple[str, str]] = set()
+    for row in window_rows:
+        key = (row["fixture_id"], row["market"])
+        new_keys.add(key)
+        sample = existing.get(key)
+        if sample is None:
+            sample = ValidationSampleModel(
+                fixture_id=row["fixture_id"],
+                market=row["market"],
+                selection=row["selection"],
+                exact_line=row["exact_line"],
+                decimal_odds=row["decimal_odds"],
+                evaluation_id=row["evaluation_id"],
+                settlement=row["settlement"],
+                projected_at=projected_now,
+            )
+            session.add(sample)
+        sample.competition_id = row.get("competition_id")
+        sample.kickoff_utc = _parse_iso_utc(row.get("kickoff_utc"))
+        sample.selection = row["selection"]
+        sample.exact_line = row["exact_line"]
+        sample.decimal_odds = row["decimal_odds"]
+        sample.bookmaker_id = row.get("bookmaker_id")
+        sample.first_checkpoint = row.get("first_checkpoint")
+        sample.final_checkpoint = row.get("final_checkpoint")
+        sample.evaluation_id = row["evaluation_id"]
+        sample.calibration_identity = row.get("calibration_identity")
+        sample.settlement = row["settlement"]
+        sample.profit_units = row.get("profit_units")
+        sample.score = row.get("score")
+        sample.projected_at = projected_now
+        sample.settled_at = _parse_iso_utc(row.get("settled_at"))
+        sample.evaluated_at = _parse_iso_utc(row.get("evaluated_at"))
+        sample.quote_captured_at = _parse_iso_utc(row.get("quote_captured_at"))
+        sample.current_ev = row.get("current_ev")
+        sample.home_team_label = row.get("home_team_label")
+        sample.away_team_label = row.get("away_team_label")
+        sample.later_unassessed_checkpoints = row.get("later_unassessed_checkpoints")
+        sample.lifecycle_note_zh = row.get("lifecycle_note_zh")
+
+    deleted = 0
+    for key, sample in list(existing.items()):
+        if key not in new_keys:
+            session.delete(sample)
+            deleted += 1
+
+    session.flush()
+    return {
+        "window_fixtures": len(window_provider_ids),
+        "window_rows": len(window_rows),
+        "deleted": deleted,
+    }
+
+
+def _iso_or_none(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _sample_row_to_projection(row: ValidationSampleModel) -> dict[str, Any]:
+    return {
+        "evaluation_id": row.evaluation_id,
+        "fixture_id": row.fixture_id,
+        "evaluated_at": _iso_or_none(row.evaluated_at),
+        "kickoff_utc": _iso_or_none(row.kickoff_utc),
+        "market": row.market,
+        "selection": row.selection,
+        "exact_line": row.exact_line,
+        "decimal_odds": row.decimal_odds,
+        "bookmaker_id": row.bookmaker_id,
+        "quote_captured_at": _iso_or_none(row.quote_captured_at),
+        "current_ev": row.current_ev,
+        "home_team_label": row.home_team_label or {},
+        "away_team_label": row.away_team_label or {},
+        "score": row.score,
+        "settlement": row.settlement,
+        "profit_units": row.profit_units,
+        "confirmed_checkpoint": row.final_checkpoint,
+        "later_unassessed_checkpoints": row.later_unassessed_checkpoints or [],
+        "lifecycle_note_zh": row.lifecycle_note_zh,
+        "competition_id": row.competition_id,
+        "first_checkpoint": row.first_checkpoint,
+        "final_checkpoint": row.final_checkpoint,
+        "calibration_identity": row.calibration_identity,
+        "settled_at": _iso_or_none(row.settled_at),
+    }
+
+
+def validation_samples_snapshot(
+    session: Session,
+    *,
+    active_competitions: frozenset[str] | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """从 validation_samples 物化表读取验证样本（开球时间倒序，同场让球在前）。
+
+    取代请求路径上的全量重算。返回结构与 ``official_funnel_recommendations``
+    输出一致（队名/生命周期等展示字段全部来自物化列，零 join）。
+    """
+
+    stmt = select(ValidationSampleModel)
+    if active_competitions is not None:
+        stmt = stmt.where(ValidationSampleModel.competition_id.in_(active_competitions))
+    stmt = stmt.order_by(
+        ValidationSampleModel.kickoff_utc.desc().nullslast(),
+        ValidationSampleModel.fixture_id.desc(),
+        case(
+            (ValidationSampleModel.market == "ASIAN_HANDICAP", 0),
+            (ValidationSampleModel.market == "TOTALS", 1),
+            else_=99,
+        ),
+    )
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    if offset:
+        stmt = stmt.offset(offset)
+    rows = list(session.scalars(stmt))
+    return [_sample_row_to_projection(row) for row in rows]
+
+
+def validation_sample_totals(
+    session: Session,
+    *,
+    active_competitions: frozenset[str] | None = None,
+) -> dict[str, Any]:
+    """累计注数/单位与按 calibration_identity 拆分的汇总（由表聚合）。"""
+
+    def _where(stmt: Any) -> Any:
+        if active_competitions is not None:
+            return stmt.where(ValidationSampleModel.competition_id.in_(active_competitions))
+        return stmt
+
+    totals = session.execute(
+        _where(
+            select(
+                func.count().label("total_count"),
+                func.count(ValidationSampleModel.profit_units).label("settled_count"),
+                func.coalesce(func.sum(ValidationSampleModel.profit_units), 0.0).label(
+                    "total_profit_units"
+                ),
+            )
+        )
+    ).one()
+    by_calibration = session.execute(
+        _where(
+            select(
+                ValidationSampleModel.calibration_identity,
+                func.count().label("count"),
+                func.coalesce(func.sum(ValidationSampleModel.profit_units), 0.0).label(
+                    "profit_units"
+                ),
+            ).group_by(ValidationSampleModel.calibration_identity)
+        )
+    ).all()
+    return {
+        "total_count": totals.total_count,
+        "settled_count": totals.settled_count,
+        "total_profit_units": float(totals.total_profit_units),
+        "by_calibration_identity": [
+            {
+                "calibration_identity": row.calibration_identity,
+                "count": row.count,
+                "profit_units": float(row.profit_units),
+            }
+            for row in by_calibration
+        ],
+    }
+
+
 def _candidate_track_fixture_ids(
     session: Session,
     window: tuple[datetime, datetime],
@@ -1564,7 +1863,7 @@ def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> s
     if session.get(CandidateNotificationOutboxModel, event_id) is not None:
         return None
     active = _active_competitions(session)
-    recommendations = _official_recommendations(session, active_competitions=active)
+    recommendations = validation_samples_snapshot(session, active_competitions=active)
     window_start, window_end = football_day_window(settled_day)
 
     def in_window(row: Mapping[str, Any]) -> bool:

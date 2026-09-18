@@ -97,6 +97,21 @@ def official_funnel_recommendations(
         ):
             latest[key] = row
 
+    # 每个 (fixture_id, market) 第一次形成候选（ANALYSIS_PICK_ACTIVE）的档位，
+    # 用于物化表的 first_checkpoint 列（最早候选评估的档位标签）。
+    first_checkpoint_state: dict[tuple[str, str], tuple[datetime, str]] = {}
+    for row in evaluations:
+        payload = row.payload if isinstance(row.payload, dict) else {}
+        if payload.get("state") != "ANALYSIS_PICK_ACTIVE":
+            continue
+        fixture_id = str(row.fixture_id).removeprefix("api_football:")
+        key = (fixture_id, str(row.market))
+        slot = str(getattr(row, "evaluation_slot_id", None) or "UNKNOWN_CHECKPOINT")
+        label = CHECKPOINT_LABELS.get(slot, slot)
+        current = first_checkpoint_state.get(key)
+        if current is None or row.evaluated_at < current[0]:
+            first_checkpoint_state[key] = (row.evaluated_at, label)
+
     projected: list[dict[str, Any]] = []
     for (fixture_id, market), row in latest.items():
         final = final_opportunities[(fixture_id, market)]
@@ -112,6 +127,11 @@ def official_funnel_recommendations(
             str(fixture.fixture_id) if fixture is not None else f"api_football:{fixture_id}"
         )
         result = results.get(canonical_fixture_id)
+        final_checkpoint_label = CHECKPOINT_LABELS.get(
+            str(getattr(final, "evaluation_slot_id", "UNKNOWN_CHECKPOINT")),
+            str(getattr(final, "evaluation_slot_id", "UNKNOWN_CHECKPOINT")),
+        )
+        first_checkpoint = first_checkpoint_state.get((fixture_id, market), (None, None))[1]
         line = str(payload["exact_line"])
         decimal_odds = Decimal(str(payload["decimal_odds"]))
         outcome = None
@@ -176,9 +196,19 @@ def official_funnel_recommendations(
                 ),
                 "settlement": outcome or "PENDING",
                 "profit_units": float(profit_units) if profit_units is not None else None,
-                "confirmed_checkpoint": CHECKPOINT_LABELS.get(
-                    str(getattr(final, "evaluation_slot_id", "UNKNOWN_CHECKPOINT")),
-                    str(getattr(final, "evaluation_slot_id", "UNKNOWN_CHECKPOINT")),
+                "confirmed_checkpoint": final_checkpoint_label,
+                "first_checkpoint": first_checkpoint,
+                "final_checkpoint": final_checkpoint_label,
+                "competition_id": (
+                    str(getattr(fixture, "competition_id", ""))
+                    if fixture is not None and getattr(fixture, "competition_id", None)
+                    else None
+                ),
+                "calibration_identity": getattr(row, "evaluation_policy_version", None),
+                "settled_at": (
+                    _iso_or_none(getattr(result, "confirmed_at", None))
+                    if result is not None
+                    else None
                 ),
                 "later_unassessed_checkpoints": _later_unassessed_checkpoints(
                     opportunities,

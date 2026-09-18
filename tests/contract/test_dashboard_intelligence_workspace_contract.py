@@ -477,6 +477,15 @@ def test_intelligence_workspace_200_with_complete_recommendation_fields(monkeypa
         )
         session.commit()
 
+    # PERF-01 阶段2：工作台 official_recommendations 读物化表，先物化 validation_samples。
+    with Session(engine) as session:
+        from w2.prematch.candidate_notifications import materialize_validation_samples
+
+        materialize_validation_samples(
+            session, now=kickoff, window_before_days=3650, window_after_days=3650
+        )
+        session.commit()
+
     service = ReadModelService(repository=ReadModelRepository(engine=engine))
 
     def _public_dashboard(**kwargs: Any) -> dict[str, Any]:

@@ -1796,13 +1796,13 @@ class ReadModelRepository:
             superseded_evaluation_ids,
             dynamic_opportunities,
         )
-        official_recommendations = _official_funnel_recommendations(
-            dynamic_evaluations,
-            dynamic_opportunities,
-            {row.provider_fixture_id: row for row in candidate_fixtures},
-            {row.fixture_id: row for row in candidate_results},
-            candidate_team_labels,
-            active_competitions=active_competitions,
+        # PERF-01 阶段2：官方推荐读 validation_samples 物化表（开球倒序、同场让球
+        # 在前），不再对推荐表全量重算。旧投影函数 _official_funnel_recommendations
+        # 保留，仅用于对账，不再出现在请求路径。
+        from w2.prematch.candidate_notifications import validation_samples_snapshot
+
+        official_recommendations = validation_samples_snapshot(
+            session, active_competitions=active_competitions
         )
         ever_formed_candidate_count = len(
             {

@@ -216,6 +216,20 @@ def _append(repository: DynamicPrematchRepository, version):  # type: ignore[no-
     )
 
 
+def _materialize_validation_samples(engine, *, now: datetime | None = None) -> None:
+    """物化 validation_samples 表（PERF-01 阶段2：读取路径读表前的测试辅助）。"""
+    from w2.prematch.candidate_notifications import materialize_validation_samples
+
+    with Session(engine) as session:
+        materialize_validation_samples(
+            session,
+            now=now or NOW,
+            window_before_days=3650,
+            window_after_days=3650,
+        )
+        session.commit()
+
+
 def test_candidate_event_uses_the_frozen_attempt_and_fails_closed_on_a_bad_v4() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
@@ -1439,6 +1453,7 @@ def test_daily_settlement_settles_and_marks_pending() -> None:
         _insert_fixture_identity(session, kickoff_utc=kickoff)
         session.commit()
     _append(repository, _attempt("T3_ODDS", "a", selection="HOME"))
+    _materialize_validation_samples(engine, now=NOW)
 
     # Before Beijing 12:00, nothing is emitted.
     before = datetime(2026, 8, 20, 11, 0, tzinfo=candidate_notifications.BEIJING)
@@ -1475,6 +1490,7 @@ def test_daily_settlement_settles_and_marks_pending() -> None:
             )
         )
         session.commit()
+    _materialize_validation_samples(engine, now=NOW)  # 重新物化，反映新 result 的结算
 
     next_day = datetime(2026, 8, 21, 12, 0, tzinfo=candidate_notifications.BEIJING)
     with Session(engine) as session:
@@ -1674,6 +1690,7 @@ def test_dashboard_projection_does_not_detach_capture_at() -> None:
         _insert_fixture_identity(session, kickoff_utc=kickoff)
         session.commit()
     _append(repository, _attempt("T3_ODDS", "a"))
+    _materialize_validation_samples(engine, now=NOW)
 
     result = ReadModelRepository(engine=engine).dashboard_model_forecast_validation_progress()
     assert len(result["official_recommendations"]) >= 1

@@ -993,6 +993,23 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         [str(item) for item in confirmed] if isinstance(confirmed, list) else [],
         result_status=str(materialization.get("status") or ""),
     )
+    # PERF-01 阶段2：物化验证样本（validation_samples），供工作台/每日结算读取，
+    # 避免每次请求对推荐表全量重算。结果刷新 + 结算回填之后才物化，保证
+    # settlement / profit_units / settled_at 已随结果落库。物化失败不阻断
+    # ledger 主流程（每 10 分钟重试，最终一致），但把错误带进返回值供监控。
+    validation_sample_report: dict[str, object] = {"window_rows": 0, "deleted": 0}
+    try:
+        from sqlalchemy.orm import Session as _OrmSession
+
+        from w2.prematch.candidate_notifications import materialize_validation_samples
+
+        with _OrmSession(repository.engine) as _materialize_session:
+            validation_sample_report = materialize_validation_samples(
+                _materialize_session, now=evaluated_at
+            )
+            _materialize_session.commit()
+    except Exception as _exc:  # pragma: no cover - 物化失败不阻断主流程
+        validation_sample_report = {"error": f"{type(_exc).__name__}: {_exc}"}
     pending_count = settlement["unresolved_count"]
     if not isinstance(pending_count, int) or isinstance(pending_count, bool):
         raise RuntimeError("OUTCOME_LEDGER_PENDING_COUNT_INVALID")
@@ -1046,6 +1063,7 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         "result_materialization": materialization,
         "outcome_settlement": settlement,
         "runtime_ah_settlement_facts": ah_fact_report,
+        "validation_samples": validation_sample_report,
     }
 
 
