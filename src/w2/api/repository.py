@@ -316,21 +316,16 @@ def _model_forecast_market_evaluation_funnel_sql(
     evl = DynamicPrematchEvaluationModel
     opp = DynamicPrematchOpportunityModel
 
-    opportunity_count = int(session.scalar(select(func.count()).select_from(opp)) or 0)
-    fixture_count = int(
-        session.scalar(
-            select(
-                func.count(func.distinct(func.replace(opp.fixture_id, "api_football:", "")))
-            )
-        )
-        or 0
-    )
-    recorded_at_count = int(
-        session.scalar(
-            select(func.count()).select_from(opp).where(opp.recorded_at.is_not(None))
-        )
-        or 0
-    )
+    opp_stats = session.execute(
+        select(
+            func.count(),
+            func.count(func.distinct(func.replace(opp.fixture_id, "api_football:", ""))),
+            func.count().filter(opp.recorded_at.is_not(None)),
+        ).select_from(opp)
+    ).one()
+    opportunity_count = int(opp_stats[0])
+    fixture_count = int(opp_stats[1])
+    recorded_at_count = int(opp_stats[2])
     capture_count = len({row.fixture_id for row in captures})
 
     superseded_subq = select(DynamicPrematchSupersessionModel.superseded_evaluation_id)
@@ -423,21 +418,16 @@ def _model_forecast_market_evaluation_funnel_sql(
         .subquery()
     )
 
-    gate_counts: dict[str, int] = {}
-    for name in gate_names:
-        gate_counts[name] = int(
-            session.scalar(
-                select(func.count())
-                .select_from(ranked)
-                .where(
-                    ranked.c._rn == 1,
-                    func.coalesce(ranked.c.gate_results[name].as_boolean(), False).is_(
-                        True
-                    ),
-                )
-            )
-            or 0
-        )
+    gate_exprs = [
+        func.count()
+        .filter(func.coalesce(ranked.c.gate_results[name].as_boolean(), False).is_(True))
+        .label(name)
+        for name in gate_names
+    ]
+    gate_row = session.execute(
+        select(*gate_exprs).select_from(ranked).where(ranked.c._rn == 1)
+    ).one()
+    gate_counts = {name: int(gate_row._mapping[name]) for name in gate_names}
 
     first_failed: dict[str, int] = {}
     for blocker, n in session.execute(
