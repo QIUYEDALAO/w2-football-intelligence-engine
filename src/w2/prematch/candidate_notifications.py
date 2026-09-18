@@ -26,6 +26,7 @@ from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
     validate_decision_v4_identity,
 )
+from w2.identity.public_competition_labels import public_competition_labels
 from w2.identity.public_team_labels import reviewed_public_team_labels
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.dynamic_prematch_models import (
@@ -124,26 +125,6 @@ OWNER_STOPPED_EVENT_TYPES = frozenset(
         DAY_CLOSEOUT_SUMMARY,
     }
 )
-
-COMPETITION_ZH_NAMES = {
-    "premier_league": "英超",
-    "la_liga": "西甲",
-    "bundesliga": "德甲",
-    "serie_a": "意甲",
-    "ligue_1": "法甲",
-    "brasileirao_serie_a": "巴甲",
-    "argentina_primera": "阿甲",
-    "mls": "美职联",
-    "chinese_super_league": "中超",
-    "allsvenskan": "瑞典超",
-    "eliteserien": "挪威超",
-    "eredivisie": "荷甲",
-    "primeira_liga": "葡超",
-    "england_championship": "英冠",
-    "spain_segunda_division": "西乙",
-    "turkey_super_lig": "土超",
-}
-
 
 def enqueue_attempt_notification_in_session(
     session: Session,
@@ -1096,7 +1077,7 @@ def _summary_fixture(identity: MatchdayFixtureIdentityModel) -> dict[str, Any]:
         "home": _team_name(identity, "home"),
         "away": _team_name(identity, "away"),
         "kickoff_local": kickoff.astimezone(BEIJING).isoformat(),
-        "kickoff_local_hm": kickoff.astimezone(BEIJING).strftime("%H:%M"),
+        "kickoff_local_hm": kickoff.astimezone(BEIJING).strftime("%m-%d %H:%M"),
         "dashboard_url": _dashboard_fixture_url(fixture_id, kickoff),
     }
 
@@ -1356,7 +1337,9 @@ def _candidate_track_fixture_ids(
 
 
 def _competition_zh_name(competition_id: str | None) -> str:
-    return COMPETITION_ZH_NAMES.get(str(competition_id or ""), str(competition_id or "未知联赛"))
+    return public_competition_labels().get(
+        str(competition_id or ""), str(competition_id or "未知联赛")
+    )
 
 
 def _daily_candidate_list_due_at(
@@ -1413,7 +1396,7 @@ def enqueue_daily_candidate_list_in_session(session: Session, *, now: datetime) 
     matches = [
         {
             "fixture_id": str(identity.provider_fixture_id),
-            "kickoff_local_hm": _utc(identity.kickoff_utc).astimezone(BEIJING).strftime("%H:%M"),
+            "kickoff_local_hm": _utc(identity.kickoff_utc).astimezone(BEIJING).strftime("%m-%d %H:%M"),
             "competition": _competition_zh_name(identity.competition_id),
             "home": _team_name(identity, "home"),
             "away": _team_name(identity, "away"),
@@ -1496,7 +1479,7 @@ def enqueue_validation_sample_confirmed_in_session(
             "away": _team_display_name(row["away_team_label"], "客队"),
         },
         "kickoff_local": kickoff.astimezone(BEIJING).isoformat() if kickoff else None,
-        "kickoff_local_hm": kickoff.astimezone(BEIJING).strftime("%H:%M") if kickoff else "--:--",
+        "kickoff_local_hm": kickoff.astimezone(BEIJING).strftime("%m-%d %H:%M") if kickoff else "--:--",
         "market": market,
         "direction": row["selection"],
         "line": row["exact_line"],
@@ -1965,7 +1948,7 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
     direction = _direction_label(payload.get("direction"))
     odds = _format_odds(payload.get("decimal_odds"))
     kickoff = _parse_time(payload.get("kickoff_local"))
-    kickoff_hm = kickoff.astimezone(BEIJING).strftime("%H:%M") if kickoff else "--:--"
+    kickoff_hm = kickoff.astimezone(BEIJING).strftime("%m-%d %H:%M") if kickoff else "--:--"
     ev = _format_ev(payload.get("current_ev"))
 
     if event_type == CANDIDATE_FORMED:
@@ -2022,12 +2005,19 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
             f"{payload.get('candidate_count', 0)} 个候选"
         )
     elif event_type == DAILY_CANDIDATE_LIST:
-        mm_dd = _mm_dd(str(payload.get("football_day") or ""))
+        day_str = str(payload.get("football_day") or "")
+        mm_dd = _mm_dd(day_str)
         count = int(payload.get("match_count") or 0)
+        try:
+            day = date.fromisoformat(day_str)
+            next_day = day + timedelta(days=1)
+            window = f"{day.strftime('%m-%d')} 12:00 – {next_day.strftime('%m-%d')} 12:00"
+        except ValueError:
+            window = "12:00 – 次日 12:00"
         title = (
-            f"[今日评估] {mm_dd} 共 {count} 场"
+            f"[今日评估] 比赛日 {mm_dd} 共 {count} 场（北京 {window}）"
             if count
-            else f"[今日评估] {mm_dd} 今天没有可评估的比赛"
+            else f"[今日评估] 比赛日 {mm_dd} 今天没有可评估的比赛"
         )
     elif event_type == VALIDATION_SAMPLE_CONFIRMED:
         title = f"[验证样本] {teams} {kickoff_hm} {market}{line} {direction} @{odds}"
@@ -2148,7 +2138,7 @@ def _message_body(payload: Mapping[str, Any]) -> str:
             if not isinstance(item, Mapping):
                 continue
             kickoff = _parse_time(item.get("kickoff_local"))
-            hm = kickoff.astimezone(BEIJING).strftime("%H:%M") if kickoff else "--:--"
+            hm = kickoff.astimezone(BEIJING).strftime("%m-%d %H:%M") if kickoff else "--:--"
             legs = " / ".join(
                 "{market}{line} {direction} @{odds}".format(
                     market=_market_label(leg.get("market")),

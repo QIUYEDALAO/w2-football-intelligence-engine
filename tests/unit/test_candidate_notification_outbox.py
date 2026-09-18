@@ -656,7 +656,7 @@ def test_bark_titles_are_executable_and_keep_fixture_deep_link() -> None:
     }
 
     formed = render_bark_message({**base, "event_type": CANDIDATE_FORMED})
-    assert formed["title"] == "[酝酿] 上海海港 vs 大连英博 20:30 让球-0.5 主 @1.92"
+    assert formed["title"] == "[酝酿] 上海海港 vs 大连英博 08-20 20:30 让球-0.5 主 @1.92"
     assert formed["url"].endswith("fixture_id=1523202")
     assert formed["url"] not in formed["body"]
     assert "报价年龄：1 分 0 秒" in formed["body"]
@@ -1318,7 +1318,7 @@ def test_daily_candidate_list_enqueues_and_renders_n0() -> None:
         event = session.get(CandidateNotificationOutboxModel, event_id)
         assert event.payload["match_count"] == 0
         rendered = render_bark_message(event.payload)
-        assert rendered["title"] == "[今日评估] 08-20 今天没有可评估的比赛"
+        assert rendered["title"] == "[今日评估] 比赛日 08-20 今天没有可评估的比赛"
         session.commit()
 
     # Idempotent: a second call in the same day does not re-enqueue.
@@ -1592,7 +1592,7 @@ def test_notif04_titles_and_bodies_render() -> None:
             "match_count": 1,
             "matches": [
                 {
-                    "kickoff_local_hm": "20:30",
+                    "kickoff_local_hm": "08-20 20:30",
                     "competition": "中超",
                     "home": "上海海港",
                     "away": "大连英博",
@@ -1600,8 +1600,11 @@ def test_notif04_titles_and_bodies_render() -> None:
             ],
         }
     )
-    assert candidate_list["title"] == "[今日评估] 08-20 共 1 场"
+    assert candidate_list["title"] == (
+        "[今日评估] 比赛日 08-20 共 1 场（北京 08-20 12:00 – 08-21 12:00）"
+    )
     assert "开球前 3 小时" in candidate_list["body"]
+    assert "08-20 20:30 中超 上海海港 vs 大连英博" in candidate_list["body"]
 
     confirmed = render_bark_message(
         {
@@ -1617,7 +1620,7 @@ def test_notif04_titles_and_bodies_render() -> None:
             "current_ev": 0.069,
         }
     )
-    assert confirmed["title"] == "[验证样本] 上海海港 vs 大连英博 20:30 让球-0.5 主 @1.92"
+    assert confirmed["title"] == "[验证样本] 上海海港 vs 大连英博 08-20 20:30 让球-0.5 主 @1.92"
     assert "机构：Bet365" in confirmed["body"]
     assert "EV：+6.9%" in confirmed["body"]
 

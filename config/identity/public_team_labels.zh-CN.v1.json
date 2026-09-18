@@ -2832,6 +2832,18 @@
       "public_name": "伊拉克利斯1908",
       "review_status": "APPROVED",
       "source_ref": "owner-delegated-2026-09-17"
+    },
+    {
+      "w2_team_id": "w2:team:api_football:157",
+      "public_name": "拜仁慕尼黑",
+      "review_status": "APPROVED",
+      "source_ref": "owner-delegated-notif06-2026-09-18"
+    },
+    {
+      "w2_team_id": "w2:team:api_football:182",
+      "public_name": "柏林联合",
+      "review_status": "APPROVED",
+      "source_ref": "owner-delegated-notif06-2026-09-18"
     }
   ]
 }
