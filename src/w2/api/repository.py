@@ -1943,7 +1943,11 @@ class ReadModelRepository:
                                 DynamicPrematchEvaluationModel.official_funnel_eligible.is_(
                                     True
                                 ),
-                                DynamicPrematchEvaluationModel.payload["state"].as_string()
+                                # PERF-01 续：payload["state"] 是 JSON 过滤（全表 JSON
+                                # 解析），改用同义普通列 original_state。数据核验：两者
+                                # 命中行数与 distinct 对完全相同（state 与 original_state
+                                # 在写入时同源，payload["state"] 恒非 NULL）。
+                                DynamicPrematchEvaluationModel.original_state
                                 == "ANALYSIS_PICK_ACTIVE",
                             )
                             .distinct()
