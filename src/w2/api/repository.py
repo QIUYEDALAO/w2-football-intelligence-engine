@@ -1822,8 +1822,21 @@ class ReadModelRepository:
         return result
 
     def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
-        """Read the complete append-only model-forecast ledger as one projection."""
+        """Read the complete append-only model-forecast ledger as one projection.
 
+        PERF-01 续：projection 只依赖 append-only 账本（captures/outcomes/
+        evaluations）与每 10 分钟物化的 validation_samples，属于分钟级变化，
+        因此加 60s 进程内缓存。空日期工作台的 progress 从 ~680ms 降到缓存命中
+        近 0ms。
+        """
+        cached = getattr(self, "_progress_cache", None)
+        if cached is not None and monotonic() - cached[0] <= 60:
+            return cached[1]
+        result = self._compute_progress()
+        self._progress_cache = (monotonic(), result)
+        return result
+
+    def _compute_progress(self) -> dict[str, Any]:
         try:
             with Session(self._database_engine()) as session:
                 # Only the columns consumed downstream are materialised; the
