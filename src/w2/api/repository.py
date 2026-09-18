@@ -95,6 +95,7 @@ from w2.prematch.official_funnel import (
     official_funnel_recommendations,
     public_team_labels_for_fixtures as shared_public_team_labels_for_fixtures,
 )
+from w2.prematch.candidate_notifications import validation_samples_snapshot
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_SHADOW_PREFIX,
     FrozenAnalysisError,
@@ -1918,8 +1919,6 @@ class ReadModelRepository:
                 market_evaluation_funnel = _model_forecast_market_evaluation_funnel_sql(
                     session, captures
                 )
-                from w2.prematch.candidate_notifications import validation_samples_snapshot
-
                 official_recommendations = validation_samples_snapshot(
                     session, active_competitions=active_competitions
                 )
