@@ -18,7 +18,7 @@ from time import monotonic
 from typing import Any, Literal, cast
 
 from pydantic import ValidationError
-from sqlalchemy import func, literal, select
+from sqlalchemy import and_, case, exists, func, literal, or_, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, defer, load_only
@@ -278,6 +278,210 @@ def _model_forecast_market_evaluation_funnel(
         # Null, not zeroes: a rate of 0.0 asserts the gate was tested and failed.
         "gate_rates": (
             {name: round(counts[name] / denominator, 6) for name in gate_names}
+            if measurable
+            else None
+        ),
+        "first_failed_gate_counts": dict(sorted(first_failed.items())),
+    }
+
+
+def _model_forecast_market_evaluation_funnel_sql(
+    session: Session,
+    captures: Sequence[ModelForecastCaptureModel],
+) -> dict[str, Any]:
+    """SQL 聚合版漏斗统计（与 _model_forecast_market_evaluation_funnel 逐项相等）。
+
+    不把 evaluations / opportunities / supersessions 整表载入 Python：全部统计
+    在数据库侧按分组计数完成，Python 只接收几十行的聚合结果。
+    """
+
+    gate_names = (
+        "model_ready",
+        "mainline_parsed",
+        "bookmaker_depth",
+        "quote_fresh",
+        "evaluated",
+        "no_edge",
+        "candidate",
+    )
+    policies = ("candidate-eval.v1", "candidate-eval.v2")
+    slots = (
+        "T3_ODDS",
+        "T60_ODDS_LINEUPS",
+        "T45_ODDS",
+        "T-30m_VALIDATION_LOCK",
+        "T15_ODDS",
+    )
+
+    evl = DynamicPrematchEvaluationModel
+    opp = DynamicPrematchOpportunityModel
+
+    opportunity_count = int(session.scalar(select(func.count()).select_from(opp)) or 0)
+    fixture_count = int(
+        session.scalar(
+            select(
+                func.count(func.distinct(func.replace(opp.fixture_id, "api_football:", "")))
+            )
+        )
+        or 0
+    )
+    recorded_at_count = int(
+        session.scalar(
+            select(func.count()).select_from(opp).where(opp.recorded_at.is_not(None))
+        )
+        or 0
+    )
+    capture_count = len({row.fixture_id for row in captures})
+
+    superseded_subq = select(DynamicPrematchSupersessionModel.superseded_evaluation_id)
+    opp_hashes_subq = select(opp.opportunity_identity_hash)
+
+    eligible = evl.official_funnel_eligible.is_(True)
+    not_superseded = evl.evaluation_id.not_in(superseded_subq)
+
+    # ── defects（invalid_opportunity_reasons）───────────────────────────
+    defects: dict[str, int] = {}
+    opp_missing = int(
+        session.scalar(
+            select(func.count())
+            .select_from(evl)
+            .where(
+                eligible,
+                not_superseded,
+                evl.opportunity_identity_hash.not_in(opp_hashes_subq),
+            )
+        )
+        or 0
+    )
+    if opp_missing:
+        defects["OPPORTUNITY_ROW_MISSING"] = opp_missing
+
+    contract_cases = [
+        (evl.denominator_scope != CHECKPOINT_OPPORTUNITY_SCOPE, "SCOPE_MISMATCH"),
+        (
+            evl.measurement_semantics != CHECKPOINT_OPPORTUNITY_SEMANTICS,
+            "SEMANTICS_MISMATCH",
+        ),
+        (evl.market.not_in(MODEL_FORECAST_MARKETS), "MARKET_NOT_REGISTERED"),
+        (
+            evl.model_forecast_capture_identity_hash.is_(None),
+            "FORECAST_CAPTURE_IDENTITY_MISSING",
+        ),
+        (evl.evaluation_policy_version.is_(None), "POLICY_VERSION_MISSING"),
+        (evl.evaluation_slot_id.is_(None), "SLOT_MISSING"),
+        (evl.evaluation_policy_version.not_in(policies), "POLICY_NOT_REGISTERED"),
+        (evl.evaluation_slot_id.not_in(slots), "SLOT_NOT_REGISTERED"),
+    ]
+    defect_case = case(*[(cond, label) for cond, label in contract_cases])
+    contract_defects = session.execute(
+        select(defect_case.label("defect"), func.count())
+        .select_from(evl)
+        .where(
+            eligible,
+            not_superseded,
+            evl.opportunity_identity_hash.in_(opp_hashes_subq),
+            or_(*[cond for cond, _ in contract_cases]),
+        )
+        .group_by(defect_case)
+    ).all()
+    for defect, n in contract_defects:
+        defects[str(defect)] = int(n)
+
+    # ── current（去重 latest）的 gate_counts + first_failed ────────────
+    no_defect = and_(
+        eligible,
+        not_superseded,
+        evl.opportunity_identity_hash.in_(opp_hashes_subq),
+        evl.denominator_scope == CHECKPOINT_OPPORTUNITY_SCOPE,
+        evl.measurement_semantics == CHECKPOINT_OPPORTUNITY_SEMANTICS,
+        evl.market.in_(MODEL_FORECAST_MARKETS),
+        evl.model_forecast_capture_identity_hash.is_not(None),
+        evl.evaluation_policy_version.is_not(None),
+        evl.evaluation_slot_id.is_not(None),
+        evl.evaluation_policy_version.in_(policies),
+        evl.evaluation_slot_id.in_(slots),
+    )
+
+    ranked = (
+        select(
+            evl.gate_results,
+            evl.first_failed_gate,
+            evl.opportunity_identity_hash,
+            func.row_number()
+            .over(
+                partition_by=(
+                    evl.model_forecast_capture_identity_hash,
+                    evl.evaluation_policy_version,
+                    evl.evaluation_slot_id,
+                    evl.market,
+                ),
+                order_by=(evl.evaluated_at.desc(), evl.evaluation_id.desc()),
+            )
+            .label("_rn"),
+        )
+        .where(no_defect)
+        .subquery()
+    )
+
+    gate_counts: dict[str, int] = {}
+    for name in gate_names:
+        gate_counts[name] = int(
+            session.scalar(
+                select(func.count())
+                .select_from(ranked)
+                .where(
+                    ranked.c._rn == 1,
+                    func.coalesce(ranked.c.gate_results[name].as_boolean(), False).is_(
+                        True
+                    ),
+                )
+            )
+            or 0
+        )
+
+    first_failed: dict[str, int] = {}
+    for blocker, n in session.execute(
+        select(ranked.c.first_failed_gate, func.count())
+        .select_from(ranked)
+        .where(ranked.c._rn == 1, ranked.c.first_failed_gate.is_not(None))
+        .group_by(ranked.c.first_failed_gate)
+    ).all():
+        first_failed[str(blocker)] = int(n)
+
+    evaluated_opp_hashes = select(evl.opportunity_identity_hash).where(no_defect)
+    for state, n in session.execute(
+        select(opp.state, func.count())
+        .where(opp.opportunity_identity_hash.not_in(evaluated_opp_hashes))
+        .group_by(opp.state)
+    ).all():
+        key = str(state)
+        first_failed[key] = first_failed.get(key, 0) + int(n)
+
+    # ── 组装 ────────────────────────────────────────────────────────────
+    if defects:
+        status = "INVALID"
+    elif opportunity_count > 0:
+        status = "MEASURABLE"
+    else:
+        status = "NOT_MEASURABLE"
+    measurable = status == "MEASURABLE"
+
+    counts = {name: gate_counts[name] for name in gate_names}
+    return {
+        "scope": CHECKPOINT_OPPORTUNITY_SCOPE,
+        "denominator_unit": "CHECKPOINT_EVALUATION_OPPORTUNITY_SLOT_X_MARKET",
+        "measurement_status": status,
+        "invalid_opportunity_row_count": sum(defects.values()),
+        "invalid_opportunity_reasons": dict(sorted(defects.items())),
+        "opportunity_count": opportunity_count,
+        "fixture_count": fixture_count,
+        "market_unit_count": opportunity_count,
+        "persisted_market_unit_count": opportunity_count,
+        "recorded_at_count": recorded_at_count,
+        "capture_count": capture_count,
+        "gate_counts": dict(counts) if measurable else {},
+        "gate_rates": (
+            {name: round(counts[name] / opportunity_count, 6) for name in gate_names}
             if measurable
             else None
         ),
@@ -1661,56 +1865,14 @@ class ReadModelRepository:
                         )
                     )
                 )
-                # Every consumer skips rows where official_funnel_eligible is not
-                # True, so the filter can be pushed into SQL without changing the
-                # result (NULL and False rows were never read downstream).
-                dynamic_evaluations = list(
-                    session.scalars(
-                        select(DynamicPrematchEvaluationModel)
-                        .where(DynamicPrematchEvaluationModel.official_funnel_eligible.is_(True))
-                        .options(
-                            defer(DynamicPrematchEvaluationModel.all_failed_gates),
-                            defer(DynamicPrematchEvaluationModel.identity_hash),
-                            defer(DynamicPrematchEvaluationModel.checkpoint),
-                            defer(DynamicPrematchEvaluationModel.capture_id),
-                            defer(DynamicPrematchEvaluationModel.quote_identity_hash),
-                            defer(DynamicPrematchEvaluationModel.model_input_hash),
-                            defer(DynamicPrematchEvaluationModel.lineup_input_hash),
-                            defer(DynamicPrematchEvaluationModel.exclusion_reason),
-                            defer(DynamicPrematchEvaluationModel.scheduled_checkpoint_at),
-                            defer(DynamicPrematchEvaluationModel.checkpoint_plan_identity),
-                            defer(DynamicPrematchEvaluationModel.source_event_identity),
-                            defer(DynamicPrematchEvaluationModel.bookmaker_count),
-                            # PERF-01 阶段2：投影读表后不再读 payload；funnel 走
-                            # gate_results（eligible 行全有 gate_results）。payload 是
-                            # 最大 JSON 列，defer 掉省约 1.6s 的 JSON 解析。
-                            defer(DynamicPrematchEvaluationModel.payload),
-                        )
-                    )
-                )
-                dynamic_opportunities = list(
-                    session.scalars(
-                        select(DynamicPrematchOpportunityModel).options(
-                            defer(DynamicPrematchOpportunityModel.payload),
-                            defer(
-                                DynamicPrematchOpportunityModel.model_forecast_capture_identity_hash
-                            ),
-                            defer(DynamicPrematchOpportunityModel.evaluation_policy_version),
-                            defer(DynamicPrematchOpportunityModel.evaluated_at),
-                        )
-                    )
-                )
+                # PERF-01 续：漏斗统计、ever_formed、t30 计数全部改为数据库聚合，
+                # 不再把 evaluations / opportunities / supersessions 整表载入 Python。
                 t30_plans = list(
                     session.scalars(
                         select(MatchdayCheckpointPlanModel.plan_id).where(
                             MatchdayCheckpointPlanModel.checkpoint == "T-30m_VALIDATION_LOCK",
                             MatchdayCheckpointPlanModel.status == "CAPTURED",
                         )
-                    )
-                )
-                superseded_evaluation_ids = set(
-                    session.scalars(
-                        select(DynamicPrematchSupersessionModel.superseded_evaluation_id)
                     )
                 )
                 ready_team_ids = set(
@@ -1762,69 +1924,81 @@ class ReadModelRepository:
                     for row in session.scalars(select(LeagueSeasonModel))
                     if isinstance(row.payload, dict) and row.payload.get("enabled") is True
                 )
+                # PERF-01 续：以下统计全部在 session 内做数据库聚合，不再整表载入。
+                market_evaluation_funnel = _model_forecast_market_evaluation_funnel_sql(
+                    session, captures
+                )
+                from w2.prematch.candidate_notifications import validation_samples_snapshot
+
+                official_recommendations = validation_samples_snapshot(
+                    session, active_competitions=active_competitions
+                )
+                ever_formed_candidate_count = int(
+                    session.scalar(
+                        select(func.count()).select_from(
+                            select(
+                                func.replace(
+                                    DynamicPrematchEvaluationModel.fixture_id,
+                                    "api_football:",
+                                    "",
+                                ),
+                                DynamicPrematchEvaluationModel.market,
+                            )
+                            .where(
+                                DynamicPrematchEvaluationModel.official_funnel_eligible.is_(
+                                    True
+                                ),
+                                DynamicPrematchEvaluationModel.payload["state"].as_string()
+                                == "ANALYSIS_PICK_ACTIVE",
+                            )
+                            .distinct()
+                            .subquery()
+                        )
+                    )
+                    or 0
+                )
+                t30_base_where = (
+                    DynamicPrematchOpportunityModel.evaluation_slot_id
+                    == "T-30m_VALIDATION_LOCK",
+                    DynamicPrematchOpportunityModel.state == "EVALUATED_CANDIDATE",
+                )
+                t30_evaluated_candidate_count = int(
+                    session.scalar(
+                        select(func.count()).select_from(
+                            select(
+                                DynamicPrematchOpportunityModel.fixture_id,
+                                DynamicPrematchOpportunityModel.market,
+                            )
+                            .where(*t30_base_where)
+                            .distinct()
+                            .subquery()
+                        )
+                    )
+                    or 0
+                )
+                t30_confirmed_candidate_count = int(
+                    session.scalar(
+                        select(func.count()).select_from(
+                            select(
+                                DynamicPrematchOpportunityModel.fixture_id,
+                                DynamicPrematchOpportunityModel.market,
+                            )
+                            .where(
+                                *t30_base_where,
+                                DynamicPrematchOpportunityModel.checkpoint_plan_identity.in_(
+                                    t30_plans
+                                ),
+                            )
+                            .distinct()
+                            .subquery()
+                        )
+                    )
+                    or 0
+                )
         except SQLAlchemyError as exc:
             raise SystemDegradedError("DASHBOARD_MODEL_FORECAST_QUERY_FAILED") from exc
         settled_hashes = {row.capture_identity_hash for row in outcomes}
-        market_evaluation_funnel = _model_forecast_market_evaluation_funnel(
-            captures,
-            dynamic_evaluations,
-            superseded_evaluation_ids,
-            dynamic_opportunities,
-        )
-        # PERF-01 阶段2：官方推荐读 validation_samples 物化表（开球倒序、同场让球
-        # 在前），不再对推荐表全量重算。旧投影函数 _official_funnel_recommendations
-        # 保留，仅用于对账，不再出现在请求路径。
-        from w2.prematch.candidate_notifications import validation_samples_snapshot
-
-        official_recommendations = validation_samples_snapshot(
-            session, active_competitions=active_competitions
-        )
-        # PERF-01 阶段2：payload 已 defer，改为 SQL 直接聚合（JSONB 查询不加载 payload）。
-        ever_formed_candidate_count = int(
-            session.scalar(
-                select(func.count()).select_from(
-                    select(
-                        func.replace(
-                            DynamicPrematchEvaluationModel.fixture_id,
-                            "api_football:",
-                            "",
-                        ),
-                        DynamicPrematchEvaluationModel.market,
-                    )
-                    .where(
-                        DynamicPrematchEvaluationModel.official_funnel_eligible.is_(True),
-                        DynamicPrematchEvaluationModel.payload["state"].as_string()
-                        == "ANALYSIS_PICK_ACTIVE",
-                    )
-                    .distinct()
-                    .subquery()
-                )
-            )
-            or 0
-        )
         final_candidate_count = len(official_recommendations)
-        t30_candidate_opportunities = [
-            row
-            for row in dynamic_opportunities
-            if row.evaluation_slot_id == "T-30m_VALIDATION_LOCK"
-            and row.state == "EVALUATED_CANDIDATE"
-        ]
-        # The CAPTURED filter is now applied in SQL; t30_plans is already the
-        # set of captured plan ids.
-        captured_t30_plan_ids = set(t30_plans)
-        t30_evaluated_candidate_count = len(
-            {
-                (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
-                for row in t30_candidate_opportunities
-            }
-        )
-        t30_confirmed_candidate_count = len(
-            {
-                (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
-                for row in t30_candidate_opportunities
-                if row.checkpoint_plan_identity in captured_t30_plan_ids
-            }
-        )
         version_by_capture = {row.capture_identity_hash: row for row in versions}
         version_names = sorted(
             {
@@ -2392,17 +2566,25 @@ class ReadModelRepository:
                 if fixture_ids
                 else []
             )
+            # PERF-01 续：证据计数改为 EXISTS 半连接（对每个窗口 fixture 走
+            # matchday_market_observations 的 fixture_id 索引），避免 196 万行原始
+            # 表的 Seq Scan + DISTINCT（原实现 ~3.4s）。
             evidence_ids = (
-                set(
-                    session.scalars(
-                        select(MatchdayMarketObservationModel.fixture_id)
-                        .where(
-                            MatchdayMarketObservationModel.fixture_id.in_(fixture_ids),
-                            MatchdayMarketObservationModel.live.is_(False),
+                {
+                    str(row.fixture_id)
+                    for row in session.scalars(
+                        select(MatchdayFixtureIdentityModel.fixture_id).where(
+                            MatchdayFixtureIdentityModel.fixture_id.in_(fixture_ids),
+                            exists(
+                                select(literal(1)).where(
+                                    MatchdayMarketObservationModel.fixture_id
+                                    == MatchdayFixtureIdentityModel.fixture_id,
+                                    MatchdayMarketObservationModel.live.is_(False),
+                                )
+                            ),
                         )
-                        .distinct()
                     )
-                )
+                }
                 if fixture_ids
                 else set()
             )
