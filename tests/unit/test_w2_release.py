@@ -97,14 +97,14 @@ def _deploy_body(mode: str, target: str) -> str:
         return "cat >/dev/null\nexit 0"
     if mode == "missing_readback":
         lines = ['cat >/dev/null', 'echo "SWITCH_OK backup=/opt/w2/shared/release.pre-x.env"']
-        for k in "abcdef":
+        for k in "abcdefg":
             lines.append(f'echo "READBACK {k}=PASS"')
         lines.append(f'echo "DEPLOY_COMPLETE {target}"')
         lines.append("exit 0")
         return "\n".join(lines)
     if mode == "full_success":
         lines = ['cat >/dev/null', 'echo "SWITCH_OK backup=/opt/w2/shared/release.pre-x.env"']
-        for k in "abcdefg":
+        for k in "abcdefgh":
             lines.append(f'echo "READBACK {k}=PASS"')
         lines.append(f'echo "DEPLOY_COMPLETE {target}"')
         lines.append("exit 0")
@@ -527,14 +527,14 @@ def test_vps_early_exit_zero_judged_failed(tmp_path: Path) -> None:
 
 
 def test_missing_readback_marker_judged_failed(tmp_path: Path) -> None:
-    """缺任一 READBACK 行（缺 g）→ Mac 判失败、不推送。"""
+    """缺任一 READBACK 行（缺 h）→ Mac 判失败、不推送。"""
     repo, _base, target = _make_repo(tmp_path, with_migration=False)
     env, home = _build_test_env(tmp_path, mode="missing_readback", target=target)
     r = subprocess.run(
         ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
     )
     assert r.returncode == 1
-    assert "READBACK_g" in r.stderr
+    assert "READBACK_h" in r.stderr
     assert "push" not in _git_calls(tmp_path)
 
 

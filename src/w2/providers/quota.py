@@ -333,8 +333,14 @@ def postmatch_result_quota_decision(
     actual = max(actual_calls_today, 0)
     planned = max(planned_calls, 0)
     reserved = max(reserved_capture_calls, 0)
-    projected_total = actual + planned + reserved
+    # RESULT-STUCK：预留用于结算未定模型预测的额度必须封顶，否则预留本身就会把
+    # 当日预算耗尽，导致所有 POSTMATCH_RESULT 采集被 RESULT_QUOTA_EXHAUSTED 永久
+    # 阻断（2026-09-18 28 条卡 DUE）。把预留封顶到 daily_cap - planned，为当前
+    # 批次始终留出执行空间；只要基础 cap 未超，积压就会逐步排空而不是死锁。
+    effective_reserved = min(reserved, max(daily_cap - planned, 0))
+    projected_total = actual + planned + effective_reserved
     allowed = projected_total <= daily_cap
+    # 饱和度信号仍用未封顶的原始预留，以便如实暴露积压规模。
     operational_status = (
         "POSTMATCH_POOL_RESERVED_SATURATED"
         if daily_cap > 0 and reserved * 4 > daily_cap * 3
@@ -349,6 +355,7 @@ def postmatch_result_quota_decision(
         "budget_basis": "POSTMATCH_REQUEST_ATTEMPTS",
         "planned_calls": planned,
         "reserved_capture_calls": reserved,
+        "effective_reserved_capture_calls": effective_reserved,
         "projected_total": projected_total,
         "daily_cap": daily_cap,
         "reserve_bucket": daily_cap,

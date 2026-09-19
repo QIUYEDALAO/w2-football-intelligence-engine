@@ -452,7 +452,7 @@ if [ "$DRY_RUN" = "1" ]; then
       log "  3b. 迁移：新镜像 alembic upgrade head → 校验 schema == ${target_head}（失败则停止且不切换）"
     fi
     log "  4. 部署：compose 切换 release.env（8 个 key），等六容器 healthy"
-    log "  5. 回读 7 项：a 六接口200 / b release_id+sha 一致 / c 推荐>0且倒序 / d market_radar 抽样3场≥1 / e 容器 healthy+StartedAt / f 部署后${STABILIZE_SEC}s Traceback=0 / g outbox 无过期样本"
+    log "  5. 回读 8 项：a 六接口200 / b release_id+sha 一致 / c 推荐>0且倒序 / d market_radar 抽样3场≥1 / e 容器 healthy+StartedAt / f 部署后${STABILIZE_SEC}s Traceback=0 / g outbox 无过期样本 / h 逾期>2h仍DUE的POSTMATCH_RESULT=0"
     log "  6. 推送：git push $REMOTE $BRANCH 并回读远端 sha 一致"
     log "  7. 备份轮转：$([ "$need_backup" = "yes" ] && echo "w2-mac-backup-rotate" || echo "本次未备份，跳过")"
     log "  8. 回执骨架：$RECEIPT_DIR/W2_发布_${TARGET}_$(date -u +%Y%m%d).md"
@@ -861,6 +861,13 @@ g_ok=1
 [ "$g_n" = "0" ] || g_ok=0
 rb "g" "$g_ok" "新增验证样本推送中开球早于当日比赛日(${window_start})的条数=$g_n"
 
+# h. 逾期 2 小时以上仍为 DUE 的 POSTMATCH_RESULT 计划数必须为 0
+# （RESULT-STUCK：结果采集停摆会表现为 POSTMATCH_RESULT 长期卡 DUE）
+h_n="$(Q "SELECT count(*) FROM matchday_checkpoint_plans WHERE checkpoint='POSTMATCH_RESULT' AND status='DUE' AND window_start <= now() - interval '2 hours';")"
+h_ok=1
+[ "$h_n" = "0" ] || h_ok=0
+rb "h" "$h_ok" "逾期>2h 仍 DUE 的 POSTMATCH_RESULT 计划数=$h_n"
+
 echo "== 回读汇总 =="
 printf '%s\n' "${readback_output[@]}"
 if [ "${#fails[@]}" -gt 0 ]; then
@@ -894,7 +901,7 @@ missing_marks=""
 mark_missing() { missing_marks="${missing_marks}${missing_marks:+ }$1"; }
 
 grep -qF "SWITCH_OK backup=" "$LOCAL_LOG" 2>/dev/null || mark_missing "SWITCH_OK"
-for k in a b c d e f g; do
+for k in a b c d e f g h; do
   grep -qF "READBACK ${k}=PASS" "$LOCAL_LOG" 2>/dev/null || mark_missing "READBACK_${k}"
 done
 grep -qF "DEPLOY_COMPLETE ${TARGET}" "$LOCAL_LOG" 2>/dev/null || mark_missing "DEPLOY_COMPLETE"
@@ -906,9 +913,9 @@ if [ -n "$missing_marks" ]; then
   fail_release "正向成功标记缺失：${missing_marks}"
 fi
 if [ "$need_backup" = "yes" ]; then
-  log "正向成功标记齐全（SWITCH_OK + READBACK a-g PASS + DEPLOY_COMPLETE + MIGRATION_OK）"
+  log "正向成功标记齐全（SWITCH_OK + READBACK a-h PASS + DEPLOY_COMPLETE + MIGRATION_OK）"
 else
-  log "正向成功标记齐全（SWITCH_OK + READBACK a-g PASS + DEPLOY_COMPLETE）"
+  log "正向成功标记齐全（SWITCH_OK + READBACK a-h PASS + DEPLOY_COMPLETE）"
 fi
 
 # 推送前独立回读：线上 release_id 必须等于目标 sha

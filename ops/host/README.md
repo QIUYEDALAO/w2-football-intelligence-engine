@@ -16,6 +16,8 @@ here so a new host can be brought up without reconstructing it from memory.
 | `w2-xg-ingest-guard.service` / `.timer` | `/etc/systemd/system/` | Runs the guard hourly |
 | `w2-xg-refresh` | `/usr/local/bin/` | Fetch xG for recently finished matches, twice daily |
 | `w2-xg-refresh.service` / `.timer` | `/etc/systemd/system/` | Runs the fetch |
+| `w2-postmatch-guard` | `/usr/local/bin/` | POSTMATCH_RESULT stall guard (overdue >2h still DUE = 0) |
+| `w2-postmatch-guard.service` / `.timer` | `/etc/systemd/system/` | Runs the guard every 30 minutes |
 | `w2-totals-calibration` | `/opt/w2/deploy/` | Totals calibration snapshot, read-only |
 | `w2-registry-gc.service` / `.timer` | `/etc/systemd/system/` | Runs the collection |
 | `w2-release` | Mac 本机（不装到 VPS） | 一条命令完成发布：前置检查 → 备份 → 构建 → 部署 → 回读 → 推送 → 轮转 → 回执骨架 |
@@ -67,7 +69,7 @@ noticing.
 ops/host/w2-release [--target <sha，默认 HEAD>] [--dry-run] [--skip-window-check]
 ```
 
-它按顺序完成：前置检查（工作区干净/分支正确/target 已提交/线上 release 可读/部署窗口检查）→ 判断是否需要备份（`online..target` 含 `migrations/` 改动才备份）→ 从目标提交 `migrations/versions` 动态取 schema head → 构建（python 在 VPS、web 在 Mac buildx，同 revision）→ 迁移（有迁移时新镜像 `alembic upgrade head`，校验等于目标 head，失败则停止且不切换）→ 部署（compose 切 release.env）→ 回读 7 项（六接口 200 / release_id+sha 一致 / 推荐倒序 / market_radar 抽样 ≥1 / 容器 healthy+StartedAt / 部署后 180s Traceback=0 / outbox 无过期样本）→ 推送 → 备份轮转 → 回执骨架。
+它按顺序完成：前置检查（工作区干净/分支正确/target 已提交/线上 release 可读/部署窗口检查）→ 判断是否需要备份（`online..target` 含 `migrations/` 改动才备份）→ 从目标提交 `migrations/versions` 动态取 schema head → 构建（python 在 VPS、web 在 Mac buildx，同 revision）→ 迁移（有迁移时新镜像 `alembic upgrade head`，校验等于目标 head，失败则停止且不切换）→ 部署（compose 切 release.env）→ 回读 8 项（六接口 200 / release_id+sha 一致 / 推荐倒序 / market_radar 抽样 ≥1 / 容器 healthy+StartedAt / 部署后 180s Traceback=0 / outbox 无过期样本 / 逾期>2h 仍 DUE 的 POSTMATCH_RESULT=0）→ 推送 → 备份轮转 → 回执骨架。
 
 切换 release.env 之后任何失败路径都通过 EXIT trap 自动回滚（恢复旧 release.env + recreate + 回读旧 release_id 并写日志），成功后解除。任何一步不通过就打印 `FAIL` 并停下，不推送、不轮转，退出码非 0；回滚本身失败会单独打印 `ROLLBACK_FAILED` 并给出人工恢复命令。`--dry-run` 只打印计划不产生副作用。部署窗口检查：默认查询 `matchday_checkpoint_plans`，未来 15 分钟或过去 5 分钟内有评估档位（T3_ODDS / T60_ODDS_LINEUPS / T45_ODDS / T-30m_VALIDATION_LOCK / T15_ODDS）则拒绝并打印最近可部署时间；可用 `W2_RELEASE_BLOCKED_WINDOW` 手动指定固定时段 HH:MM-HH:MM，`--skip-window-check` 跳过。今后每次发布都用它，不要手工拼 deploy 脚本。
 

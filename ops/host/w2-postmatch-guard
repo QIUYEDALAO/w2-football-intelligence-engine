@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# RESULT-STUCK guard: POSTMATCH_RESULT collection must never stall.
+# A plan that became DUE more than 2 hours ago and is still DUE means result
+# capture stopped (the 2026-09-18 quota-reservation deadlock stalled 28 plans).
+# Fails closed: any non-zero count is CRITICAL and logs an alarm.
+set -uo pipefail
+
+PSQL=(docker exec -i w2-staging-postgres-1 psql -XqAt -U w2_user -d w2)
+
+count=$("${PSQL[@]}" -c "SELECT count(*) FROM matchday_checkpoint_plans WHERE checkpoint='POSTMATCH_RESULT' AND status='DUE' AND window_start <= now() - interval '2 hours';" 2>/dev/null) || {
+  echo "POSTMATCH_GUARD_QUERY_FAILED"
+  logger -t w2-postmatch-guard "read-only overdue-DUE audit query failed"
+  exit 2
+}
+
+count="${count//[^0-9]/}"
+if [ "${count:-0}" -ne 0 ]; then
+  echo "POSTMATCH_GUARD_ALARM overdue_due_postmatch_result=$count"
+  logger -t w2-postmatch-guard "overdue_due_postmatch_result=$count"
+  exit 2
+fi
+
+echo "POSTMATCH_GUARD_OK overdue_due_postmatch_result=0"

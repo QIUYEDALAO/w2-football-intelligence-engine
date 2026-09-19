@@ -1443,6 +1443,49 @@ def test_validation_sample_fallback_uses_last_real_evaluation_at_kickoff_minus_5
     assert confirmed.payload["decimal_odds"] == 1.91
 
 
+def test_worker_heavy_push_schedule_runs_validation_sample_fallback(monkeypatch) -> None:
+    # RESULT-STUCK：CAP-MISS 之后推送排程移到 worker-heavy 的
+    # w2.candidate_notification_schedule 任务；确认该入口 enqueue_scheduled_notifications
+    # 仍然会触发 ② fallback（T15 缺评估时按最后一次真实评估推送），而不是被重构遗漏。
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    kickoff = NOW + timedelta(hours=2)
+    with Session(engine) as session:
+        _insert_enabled_competition(session)
+        _insert_fixture_identity(session, kickoff_utc=kickoff)
+        session.commit()
+    _append(repository, _attempt("T3_ODDS", "a"))  # last real evaluation is a candidate
+    repository.record_opportunity_without_attempt(
+        fixture_id="1523202",
+        market="ASIAN_HANDICAP",
+        context=_context("T15_ODDS", "missed"),
+        state=OpportunityState.MISSED_CHECKPOINT,
+        recorded_at=kickoff - timedelta(minutes=10),
+        blocker="CHECKPOINT_WINDOW_MISSED",
+    )
+
+    # 隔离 ① ③，只验证排程入口对 ② fallback 的调用链。
+    monkeypatch.setattr(
+        candidate_notifications,
+        "enqueue_daily_candidate_list_in_session",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        candidate_notifications,
+        "enqueue_daily_settlement_in_session",
+        lambda *args, **kwargs: None,
+    )
+
+    inserted = candidate_notifications.enqueue_scheduled_notifications(
+        now=kickoff - timedelta(minutes=5), engine=engine
+    )
+    assert inserted
+    assert any(
+        event.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
+        for event in _events(engine)
+    )
+
+
 def test_daily_settlement_settles_and_marks_pending() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)

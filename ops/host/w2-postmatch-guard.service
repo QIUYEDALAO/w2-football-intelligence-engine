@@ -1,0 +1,8 @@
+[Unit]
+Description=W2 POSTMATCH_RESULT stall guard
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/w2-postmatch-guard

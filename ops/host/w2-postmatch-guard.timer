@@ -1,0 +1,10 @@
+[Unit]
+Description=Run W2 POSTMATCH_RESULT stall guard every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:05,35:00 UTC
+Persistent=true
+Unit=w2-postmatch-guard.service
+
+[Install]
+WantedBy=timers.target

@@ -282,6 +282,39 @@ def test_postmatch_result_quota_exposes_reserved_saturation_above_75_percent() -
     assert saturated["operational_status"] == "POSTMATCH_POOL_RESERVED_SATURATED"
 
 
+def test_postmatch_result_quota_large_reservation_does_not_deadlock() -> None:
+    # RESULT-STUCK：积压超过当日 cap 时，预留必须封顶，不能把当前批次也永久
+    # 阻断。2026-09-18 正是 reserved(194*2=388) > cap(200) 造成 28 条卡 DUE。
+    decision = postmatch_result_quota_decision(
+        actual_calls_today=0,
+        planned_calls=2,
+        reserved_capture_calls=388,
+        daily_cap=200,
+    )
+
+    assert decision["allowed"] is True
+    assert decision["blocker"] is None
+    assert decision["reserved_capture_calls"] == 388
+    assert decision["effective_reserved_capture_calls"] == 198
+    assert decision["projected_total"] == 200
+    # 饱和度信号仍用原始预留，如实暴露积压规模。
+    assert decision["operational_status"] == "POSTMATCH_POOL_RESERVED_SATURATED"
+
+
+def test_postmatch_result_quota_still_blocks_when_actual_usage_exceeds_cap() -> None:
+    # 封顶只放开"无真实用量的死锁"，真实用量已占用预算时仍要硬阻断。
+    blocked = postmatch_result_quota_decision(
+        actual_calls_today=150,
+        planned_calls=2,
+        reserved_capture_calls=388,
+        daily_cap=200,
+    )
+
+    assert blocked["allowed"] is False
+    assert blocked["blocker"] == "RESULT_QUOTA_EXHAUSTED"
+    assert blocked["projected_total"] == 350
+
+
 def test_registered_daily_quota_pools_leave_unallocated_free_plan_buffer() -> None:
     baseline = provider_daily_budget_contract()
     invalid = provider_daily_budget_contract(pool_limits={"GENERAL": 100, "POSTMATCH_RESULT": 20})
