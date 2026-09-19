@@ -611,9 +611,14 @@ echo "active_claims=$active_claims"
 
 echo "== baseline =="
 Q "SELECT (SELECT version_num FROM alembic_version), (SELECT count(*) FROM candidate_notification_outbox), (SELECT count(*) FROM recommendations)"
-# 记录部署前容器 StartedAt（回读 e 项用）
+# 记录部署前容器 StartedAt（回读 e 项用）。容器名带连字符（worker-heavy），
+# 用 printf -v + ${c//-/_} 生成合法变量名（兼容 bash 3.2，无关联数组）。
+# docker inspect 失败时输出可能带换行，一并剥离，避免 eval 把换行后的
+# "unknown" 当命令执行。
 for c in api web worker worker-heavy scheduler postgres redis; do
-  eval "pre_${c//-/_}=$(docker inspect w2-staging-${c}-1 --format '{{.State.StartedAt}}' 2>/dev/null || echo 'unknown')"
+  _s="$(docker inspect "w2-staging-${c}-1" --format '{{.State.StartedAt}}' 2>/dev/null || echo 'unknown')"
+  _s="${_s//$'\n'/}"
+  printf -v "pre_${c//-/_}" '%s' "$_s"
 done
 
 echo "== release.env backup + candidate =="
@@ -820,11 +825,10 @@ for c in api web worker worker-heavy scheduler postgres redis; do
   st="$(docker inspect "w2-staging-${c}-1" --format '{{.State.StartedAt}}' 2>/dev/null)"
   e_detail="${e_detail}${c}:${hs} "
   [ "$hs" = "healthy" ] || e_ok=0
+  eval "pre=\$pre_${c//-/_}"
   if [ "$c" = "postgres" ] || [ "$c" = "redis" ]; then
-    eval "pre=\$pre_${c//-/_}"
     [ "$st" = "$pre" ] || { e_ok=0; e_detail="${e_detail}(postgres/redis 重启!) "; }
   else
-    eval "pre=\$pre_${c//-/_}"
     [ "$st" != "$pre" ] || { e_ok=0; e_detail="${e_detail}(${c} 未更新!) "; }
   fi
 done
