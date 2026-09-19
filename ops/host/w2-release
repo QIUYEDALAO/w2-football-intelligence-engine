@@ -803,12 +803,16 @@ if not sample:
     sample=[m for m in matches][:3]
 d_ok = len(sample) >= 1
 snaps=[]
+has_snapshot=False
 for m in sample:
     mk=m.get("market_radar",{}).get("markets",{})
     cnts=[v.get("snapshot_count",0) for v in mk.values() if isinstance(v,dict)]
     snaps.append((m.get("fixture_id"), cnts))
-    if not any(c >= 1 for c in cnts):
-        d_ok=False
+    if any(c >= 1 for c in cnts):
+        has_snapshot=True
+# d 项语义是「抽样比赛里至少 1 场有 radar 快照」：凌晨部署时未来比赛的档位
+# 尚未采集，部分场次 snapshot_count 为 0 是正常的，不应判发布失败。
+d_ok = d_ok and has_snapshot
 print(f"c_ok={int(c_ok)} recs={len(recs)} noninc={int(noninc)}")
 print(f"d_ok={int(d_ok)} sample={snaps}")
 ')"
