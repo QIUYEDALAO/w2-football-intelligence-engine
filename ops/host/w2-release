@@ -934,7 +934,13 @@ log "远端 sha 一致"
 log ""
 log "== 7. 备份轮转 =="
 if [ "$BACKUP_DONE" = "1" ]; then
-  bash "$BACKUP_ROTATE_SCRIPT" || fail_release "备份轮转失败"
+  # 备份轮转只迁移 Mac 本地旧备份到 U 盘；VPS 本地备份（回滚兜底）不受影响。
+  # 部署、回读、推送都已完成，轮转失败（如 U 盘未挂载）只告警，不判发布失败。
+  if bash "$BACKUP_ROTATE_SCRIPT"; then
+    log "备份轮转完成"
+  else
+    warn "备份轮转失败（U 盘未挂载或迁移失败）：旧备份保留在本地，不影响本次发布（部署+推送已成功）"
+  fi
 else
   log "本次未备份，跳过轮转"
 fi
