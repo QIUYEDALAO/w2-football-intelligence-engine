@@ -573,7 +573,7 @@ rollback() {
   if [ "$ACTIVE" = "1" ] && [ -n "$backup" ]; then
     echo "ROLLBACK_START"
     if install -m 0644 "$backup" /opt/w2/shared/release.env; then
-      "${compose[@]}" up -d --no-deps --force-recreate worker scheduler api web || true
+      "${compose[@]}" up -d --no-deps --force-recreate worker worker-heavy scheduler api web || true
       ready=0
       for _ in $(seq 1 60); do
         if curl -fsS --max-time 5 "http://127.0.0.1:${api_port}/ready" >/dev/null 2>&1; then ready=1; break; fi
@@ -587,7 +587,7 @@ rollback() {
         echo "ROLLBACK_WARN 回读未达旧版本（ready=${ready} release_id=${rid}）"
       fi
     else
-      echo "ROLLBACK_FAILED release.env 恢复失败，请人工恢复：sudo install -m 0644 $backup /opt/w2/shared/release.env && docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml -f /opt/w2/deploy/controlled-future-refresh.override.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env up -d --no-deps --force-recreate worker scheduler api web"
+      echo "ROLLBACK_FAILED release.env 恢复失败，请人工恢复：sudo install -m 0644 $backup /opt/w2/shared/release.env && docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml -f /opt/w2/deploy/controlled-future-refresh.override.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env up -d --no-deps --force-recreate worker worker-heavy scheduler api web"
     fi
     ACTIVE=0
   fi
@@ -612,8 +612,8 @@ echo "active_claims=$active_claims"
 echo "== baseline =="
 Q "SELECT (SELECT version_num FROM alembic_version), (SELECT count(*) FROM candidate_notification_outbox), (SELECT count(*) FROM recommendations)"
 # 记录部署前容器 StartedAt（回读 e 项用）
-for c in api web worker scheduler postgres redis; do
-  eval "pre_${c}=$(docker inspect w2-staging-${c}-1 --format '{{.State.StartedAt}}' 2>/dev/null || echo 'unknown')"
+for c in api web worker worker-heavy scheduler postgres redis; do
+  eval "pre_${c//-/_}=$(docker inspect w2-staging-${c}-1 --format '{{.State.StartedAt}}' 2>/dev/null || echo 'unknown')"
 done
 
 echo "== release.env backup + candidate =="
@@ -702,8 +702,8 @@ schema="$(Q "SELECT version_num FROM alembic_version")"
 echo "schema=$schema"
 [ "$schema" = "$target_head" ] || fail "schema mismatch: $schema != $target_head"
 
-echo "== recreate worker + scheduler =="
-"${compose[@]}" up -d --no-deps --force-recreate worker scheduler
+echo "== recreate worker + worker-heavy + scheduler =="
+"${compose[@]}" up -d --no-deps --force-recreate worker worker-heavy scheduler
 
 echo "== recreate api =="
 "${compose[@]}" up -d --no-deps --force-recreate api
@@ -815,16 +815,16 @@ rb "d" "$d_ok" "$(printf '%s' "$c_d_result" | grep '^d_ok=' | head -1)"
 # e. 六容器 healthy + StartedAt
 e_detail=""
 e_ok=1
-for c in api web worker scheduler postgres redis; do
+for c in api web worker worker-heavy scheduler postgres redis; do
   hs="$(docker inspect "w2-staging-${c}-1" --format '{{.State.Health.Status}}' 2>/dev/null)"
   st="$(docker inspect "w2-staging-${c}-1" --format '{{.State.StartedAt}}' 2>/dev/null)"
   e_detail="${e_detail}${c}:${hs} "
   [ "$hs" = "healthy" ] || e_ok=0
   if [ "$c" = "postgres" ] || [ "$c" = "redis" ]; then
-    eval "pre=\$pre_${c}"
+    eval "pre=\$pre_${c//-/_}"
     [ "$st" = "$pre" ] || { e_ok=0; e_detail="${e_detail}(postgres/redis 重启!) "; }
   else
-    eval "pre=\$pre_${c}"
+    eval "pre=\$pre_${c//-/_}"
     [ "$st" != "$pre" ] || { e_ok=0; e_detail="${e_detail}(${c} 未更新!) "; }
   fi
 done
@@ -833,7 +833,7 @@ rb "e" "$e_ok" "$e_detail"
 # f. 部署后稳定窗口内 Traceback = 0
 f_detail=""
 f_ok=1
-for c in api worker scheduler; do
+for c in api worker worker-heavy scheduler; do
   n="$(docker logs --since "$deploy_done" "w2-staging-${c}-1" 2>&1 | grep -c Traceback)"
   f_detail="${f_detail}${c}=${n} "
   [ "$n" = "0" ] || f_ok=0
@@ -875,7 +875,7 @@ if [ "$rc" -ne 0 ]; then
   echo ""
   warn "部署或回读失败（退出码 ${rc}）。不推送、不轮转。"
   warn "完整日志：${LOCAL_LOG}（VPS：${REMOTE_LOG}）"
-  warn "回滚命令：ssh $SSH_HOST 'sudo install -m 0644 /opt/w2/shared/release.pre-*.env /opt/w2/shared/release.env && docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml -f /opt/w2/deploy/controlled-future-refresh.override.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env up -d --no-deps --force-recreate worker scheduler api web'"
+  warn "回滚命令：ssh $SSH_HOST 'sudo install -m 0644 /opt/w2/shared/release.pre-*.env /opt/w2/shared/release.env && docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml -f /opt/w2/deploy/controlled-future-refresh.override.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env up -d --no-deps --force-recreate worker worker-heavy scheduler api web'"
   fail_release "VPS 退出码 ${rc}"
 fi
 

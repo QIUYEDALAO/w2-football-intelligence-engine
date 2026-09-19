@@ -79,28 +79,6 @@ def forward_outcome_ledger_enabled() -> bool:
     return os.environ.get("W2_FORWARD_OUTCOME_LEDGER_ENABLED", "false").lower() == "true"
 
 
-def candidate_notification_summary_tick() -> dict[str, object]:
-    from w2.prematch.candidate_notifications import (
-        enqueue_brewing_digest,
-        enqueue_operational_summaries,
-        enqueue_scheduled_notifications,
-    )
-
-    inserted = enqueue_operational_summaries()
-    # Brewing candidates are batched into one push per closed window; the
-    # T-30m lock stays on the immediate path and is never routed here.
-    digest = enqueue_brewing_digest()
-    scheduled = enqueue_scheduled_notifications()
-    return {
-        "status": "ENQUEUED" if inserted or digest or scheduled else "NO_SUMMARY_DUE",
-        "outbox_event_ids": inserted + digest + scheduled,
-        "brewing_digest_ids": digest,
-        "scheduled_notification_ids": scheduled,
-        "db_writes": len(inserted) + len(digest) + len(scheduled),
-        "provider_calls": 0,
-    }
-
-
 def candidate_notification_delivery_tick() -> dict[str, object]:
     from w2.prematch.candidate_notifications import deliver_pending_notifications
 
@@ -804,13 +782,13 @@ def run_forever() -> None:
             daemon=True,
         ).start()
     while True:
+        _loop_started = time.monotonic()
         heartbeat()
-        try:
-            result = candidate_notification_summary_tick()
-            if result["status"] != "NO_SUMMARY_DUE":
-                logger.info("w2 candidate notification summary %s", result)
-        except Exception:
-            logger.exception("w2 candidate notification summary failed")
+        # CAP-MISS：推送排程（每日名单 / 验证样本推送 / 每日结算）已移到 worker
+        # 的 beat 任务 w2.candidate_notification_schedule（每 2 分钟，读
+        # validation_samples 表）。scheduler 主循环只做检查点派发，不再每 30s
+        # 全量计算推送排程——那会让 scheduler CPU 飙高、阻塞评估档位派发，
+        # 造成 09-18 的 MISSED_CHECKPOINT 110/278。
         if fixture_discovery_enabled() and datetime.now(UTC) >= next_fixture_discovery_at:
             try:
                 result = fixture_discovery_tick()
@@ -881,6 +859,9 @@ def run_forever() -> None:
                 + forward_outcome_ledger_interval_seconds,
                 tz=UTC,
             )
+        # CAP-MISS 验收：记录每轮主循环耗时，确认 CPU 不再被全量推送排程占用。
+        _loop_elapsed_ms = int((time.monotonic() - _loop_started) * 1000)
+        logger.info("w2 scheduler loop elapsed_ms=%d", _loop_elapsed_ms)
         time.sleep(interval_seconds)
 
 

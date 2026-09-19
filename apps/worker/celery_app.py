@@ -41,7 +41,26 @@ result_backend = (
 )
 
 celery_app = Celery("w2", broker=broker_url, backend=result_backend)
-celery_app.conf.update(task_always_eager=False, task_ignore_result=False)
+celery_app.conf.update(
+    task_always_eager=False,
+    task_ignore_result=False,
+    # CAP-MISS：重任务路由到 heavy 队列，由第二个 worker 容器（-Q heavy）消费，
+    # 避免阻塞原 worker 的检查点采集等时效任务。
+    task_routes={
+        "w2.forward_outcome_ledger": {"queue": "heavy"},
+        "w2.candidate_notification_schedule": {"queue": "heavy"},
+    },
+    # 推送排程（每日名单 / 验证样本推送 / 每日结算）从 scheduler 主循环移出，
+    # 由 worker 的 beat 每 2 分钟调度一次，读 validation_samples 表，不再占用
+    # scheduler 派发循环的 CPU。
+    beat_schedule={
+        "candidate-notification-schedule": {
+            "task": "w2.candidate_notification_schedule",
+            "schedule": 120.0,
+            "options": {"queue": "heavy"},
+        },
+    },
+)
 
 
 def _forward_factor_recorder() -> Any | None:
@@ -621,6 +640,35 @@ def _refresh_model_forecast_analysis_cards(
         "targeted_fixture_count": len(targets),
         "materialized_fixture_count": len(materialized),
         "forward_factor_recording": recording_report,
+    }
+
+
+@celery_app.task(name="w2.candidate_notification_schedule", bind=True)
+def candidate_notification_schedule(self: object) -> dict[str, object]:
+    """推送排程（每日名单 / 验证样本推送 / 每日结算）的定时排程。
+
+   从 scheduler 主循环移出：scheduler 只做检查点派发，不再每 30s 全量计算
+   推送排程（这会让 scheduler CPU 飙高、阻塞评估档位派发）。改由 worker 的
+   beat 每 2 分钟调度，读 validation_samples 表。
+    """
+
+    del self  # 未使用
+    from w2.prematch.candidate_notifications import (
+        enqueue_brewing_digest,
+        enqueue_operational_summaries,
+        enqueue_scheduled_notifications,
+    )
+
+    inserted = enqueue_operational_summaries()
+    digest = enqueue_brewing_digest()
+    scheduled = enqueue_scheduled_notifications()
+    return {
+        "status": "ENQUEUED" if inserted or digest or scheduled else "NO_SUMMARY_DUE",
+        "outbox_event_ids": inserted + digest + scheduled,
+        "brewing_digest_ids": digest,
+        "scheduled_notification_ids": scheduled,
+        "db_writes": len(inserted) + len(digest) + len(scheduled),
+        "provider_calls": 0,
     }
 
 

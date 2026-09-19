@@ -181,6 +181,50 @@ services:
       - "--concurrency=1"
       - "--max-tasks-per-child=10"
       - "--max-memory-per-child=1200000"
+      - "-Q"
+      - "celery"
+    volumes:
+      - /opt/w2/shared/runtime:/app/runtime
+      - /opt/w2/shared/runtime/market_timeline_snapshots:/app/market_timeline_snapshots
+    environment:
+      <<: *common-env
+      W2_FORMAL_RECOMMENDATION_ENABLED: ${W2_FORMAL_RECOMMENDATION_ENABLED:-false}
+      W2_DASHBOARD_PUBLIC_BASE_URL: ${W2_DASHBOARD_PUBLIC_BASE_URL:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; from apps.worker.celery_app import ping; assert ping.run() == 'pong'; assert os.path.isdir('/app/runtime')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - w2-staging
+    mem_limit: 2g
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  worker-heavy:
+    image: ${W2_PYTHON_IMAGE:?immutable Python image reference required}
+    command:
+      - "celery"
+      - "-A"
+      - "apps.worker.celery_app"
+      - "worker"
+      - "--loglevel=INFO"
+      - "--concurrency=1"
+      - "--max-tasks-per-child=10"
+      - "--max-memory-per-child=1200000"
+      - "-Q"
+      - "heavy"
+      - "-B"
+      - "--schedule"
+      - "/app/runtime/celerybeat-schedule-heavy"
     volumes:
       - /opt/w2/shared/runtime:/app/runtime
       - /opt/w2/shared/runtime/market_timeline_snapshots:/app/market_timeline_snapshots
