@@ -15,6 +15,9 @@ ROOT = Path(__file__).resolve().parents[2]
 FORMAL = ROOT / "infra/compose/compose.staging.yml"
 LITE = ROOT / "infra/compose/staging-lite.override.yml"
 SERVICES = ("api", "worker", "scheduler")
+# cap-miss (d5915502) 添加了第四个运行时服务 worker-heavy（heavy 队列 + beat），
+# 仅存在于正式 staging compose；lite override 不携带它。
+FORMAL_ONLY_SERVICES = ("worker-heavy",)
 BASE_SHA = "a607d65b0b71afbc0caa50c44a6e162cf397e4e4"
 REMOVED_EVAL_01A_ENV = {
     FORMAL: {
@@ -57,6 +60,10 @@ EXPECTED_UNIQUE = {
             "W2_DASHBOARD_PUBLIC_BASE_URL",
             "W2_FORMAL_RECOMMENDATION_ENABLED",
         },
+        "worker-heavy": {
+            "W2_DASHBOARD_PUBLIC_BASE_URL",
+            "W2_FORMAL_RECOMMENDATION_ENABLED",
+        },
         "scheduler": {
             "W2_BARK_DEVICE_KEY",
             "W2_BARK_ENDPOINT",
@@ -92,16 +99,20 @@ def load_compose(path: Path) -> dict[str, Any]:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-@pytest.mark.parametrize(("path", "common_count"), [(FORMAL, 44), (LITE, 35)])
+@pytest.mark.parametrize(
+    ("path", "common_count", "anchor_count"),
+    [(FORMAL, 44, 4), (LITE, 35, 3)],
+)
 def test_runtime_services_share_one_common_environment_anchor(
     path: Path,
     common_count: int,
+    anchor_count: int,
 ) -> None:
     text = path.read_text(encoding="utf-8")
     compose = load_compose(path)
 
     assert text.count("x-common-env: &common-env") == 1
-    assert text.count("<<: *common-env") == 3
+    assert text.count("<<: *common-env") == anchor_count
     assert len(compose["x-common-env"]) == common_count
 
 
@@ -109,8 +120,9 @@ def test_runtime_services_share_one_common_environment_anchor(
 def test_service_only_environment_variables_do_not_leak(path: Path) -> None:
     compose = load_compose(path)
     common = set(compose["x-common-env"])
+    services = SERVICES + FORMAL_ONLY_SERVICES if path == FORMAL else SERVICES
 
-    for service in SERVICES:
+    for service in services:
         environment = set(compose["services"][service]["environment"])
         assert environment - common == EXPECTED_UNIQUE[path][service]
 
@@ -158,8 +170,9 @@ RETIRED_MARKET_TIMELINE_ENV = {
 @pytest.mark.parametrize("path", [FORMAL, LITE])
 def test_safety_switches_keep_their_values_and_ownership(path: Path) -> None:
     compose = load_compose(path)
+    services = SERVICES + FORMAL_ONLY_SERVICES if path == FORMAL else SERVICES
     environments = {
-        service: compose["services"][service]["environment"] for service in SERVICES
+        service: compose["services"][service]["environment"] for service in services
     }
     fixed_common = {
         "W2_PROVIDER_CALLS_DISABLED": "true",
@@ -179,6 +192,8 @@ def test_safety_switches_keep_their_values_and_ownership(path: Path) -> None:
     assert "W2_MARKET_TIMELINE_REFRESH_ENABLED" not in environments["scheduler"]
     assert "W2_FUTURE_FIXTURE_REFRESH_ENABLED" not in environments["api"]
     assert "W2_FUTURE_FIXTURE_REFRESH_ENABLED" not in environments["worker"]
+    if path == FORMAL:
+        assert "W2_FUTURE_FIXTURE_REFRESH_ENABLED" not in environments["worker-heavy"]
     assert all(
         "W2_MARKET_TIMELINE_REFRESH_ENABLED" not in environment
         for environment in environments.values()
@@ -187,6 +202,10 @@ def test_safety_switches_keep_their_values_and_ownership(path: Path) -> None:
         expected_formal = "${W2_FORMAL_RECOMMENDATION_ENABLED:-false}"
         assert environments["api"]["W2_FORMAL_RECOMMENDATION_ENABLED"] == expected_formal
         assert environments["worker"]["W2_FORMAL_RECOMMENDATION_ENABLED"] == expected_formal
+        assert (
+            environments["worker-heavy"]["W2_FORMAL_RECOMMENDATION_ENABLED"]
+            == expected_formal
+        )
     else:
         assert "W2_FORMAL_RECOMMENDATION_ENABLED" not in environments["api"]
         assert "W2_FORMAL_RECOMMENDATION_ENABLED" not in environments["worker"]
@@ -298,3 +317,11 @@ def test_compose_expansion_matches_authorized_runtime_delta(
             for name in RETIRED_MARKET_TIMELINE_ENV:
                 expected.pop(name, None)
         assert current_services[service]["environment"] == expected
+
+    # worker-heavy 不存在于 BASE_SHA 基线；它锚定同一 common-env 且仅携带与
+    # worker 相同的两个服务级变量，因此展开后的环境必须与 worker 完全一致。
+    if path == FORMAL:
+        assert (
+            current_services["worker-heavy"]["environment"]
+            == current_services["worker"]["environment"]
+        )
