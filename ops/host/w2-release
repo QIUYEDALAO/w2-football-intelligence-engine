@@ -792,6 +792,10 @@ def t(s):
 nowt=t(now)
 future=[m for m in matches if t(m.get("kickoff_utc")) is not None and nowt is not None and t(m.get("kickoff_utc")) > nowt]
 sample=future[:3]
+# 凌晨部署时「今天」足球日的未来比赛可能为空（绝大多数已开球），此时回退到
+# 从全部比赛抽样，仍验证 market_radar 快照存在性，避免 d 项误判。
+if not sample:
+    sample=[m for m in matches][:3]
 d_ok = len(sample) >= 1
 snaps=[]
 for m in sample:
