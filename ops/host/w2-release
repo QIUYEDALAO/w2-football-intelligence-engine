@@ -480,8 +480,9 @@ if [ "$need_backup" = "yes" ]; then
   # 且备份仅用于回滚兜底，放 VPS 本地更可靠。
   if vps "mkdir -p /opt/w2/backups && docker exec w2-staging-postgres-1 pg_dump -U w2_user -d w2 -Fc > ${backup_file}"; then
     backup_size="$(vps "stat -c %s ${backup_file}" 2>/dev/null | tr -d '[:space:]' || echo 0)"
+    # 备份文件在宿主机，pg_restore 在容器内看不到该路径，须经 stdin 传入校验。
     if [ -n "$backup_size" ] && [ "$backup_size" -gt 0 ] \
-       && vps "docker exec w2-staging-postgres-1 pg_restore --list ${backup_file}" >/dev/null 2>&1; then
+       && vps "docker exec -i w2-staging-postgres-1 pg_restore --list < ${backup_file}" >/dev/null 2>&1; then
       log "备份完成：${backup_file}（${backup_size} bytes，pg_restore --list 校验通过）"
       BACKUP_DONE=1
       # VPS 上 predeploy-*.dump 只保留最新 3 份
