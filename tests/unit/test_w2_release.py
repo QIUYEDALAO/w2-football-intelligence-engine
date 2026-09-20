@@ -597,6 +597,23 @@ def test_release_syncs_override_and_verifies_sha_before_activation() -> None:
     assert 'OVERRIDE_SYNC before_sha=$override_before_sha repo_sha=$override_repo_sha after_sha=$override_after_sha' in text
 
 
+def test_checkpoint_gate_polls_active_claims_and_fails_closed() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+    section = text.split('echo "== checkpoint gate =="', 1)[1].split('echo "== baseline =="', 1)[0]
+
+    assert "active_claim_deadline=$(( $(date +%s) + active_claim_max_wait_sec ))" in section
+    assert 'if ! active_claims="$(Q "SELECT count(*)' in section
+    assert 'fail "SWITCH_ACTIVE_CLAIM_QUERY_FAILED"' in section
+    assert "''|*[!0-9]*) fail \"SWITCH_ACTIVE_CLAIM_QUERY_INVALID：$active_claims\"" in section
+    assert '[ "$active_claims" = "0" ] && break' in section
+    timeout = 'if [ "$(date +%s)" -ge "$active_claim_deadline" ]; then'
+    assert timeout in section
+    assert 'fail "SWITCH_BLOCKED_ACTIVE_CLAIM"' in section
+    assert 'sleep "$active_claim_poll_sec"' in section
+    assert section.index('[ "$active_claims" = "0" ] && break') < section.index(timeout)
+    assert section.index(timeout) < section.index('sleep "$active_claim_poll_sec"')
+
+
 def test_readback_e_polls_health_before_started_at_and_checks_cap_800() -> None:
     text = SCRIPT.read_text(encoding="utf-8")
     section = text.split("# e. 最长 180 秒", 1)[1].split("# f.", 1)[0]
