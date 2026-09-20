@@ -30,6 +30,8 @@ BLOCKED_WINDOW="${W2_RELEASE_BLOCKED_WINDOW:-}"
 STABILIZE_SEC="${W2_RELEASE_STABILIZE_SEC:-60}"
 GATE_MAX_WAIT_SEC="${W2_RELEASE_GATE_MAX_WAIT_SEC:-3600}"
 GATE_POLL_SEC="${W2_RELEASE_GATE_POLL_SEC:-30}"
+ACTIVE_CLAIM_MAX_WAIT_SEC="${W2_RELEASE_ACTIVE_CLAIM_MAX_WAIT_SEC:-120}"
+ACTIVE_CLAIM_POLL_SEC="${W2_RELEASE_ACTIVE_CLAIM_POLL_SEC:-5}"
 DRAIN_MAX_WAIT_SEC="${W2_RELEASE_DRAIN_MAX_WAIT_SEC:-600}"
 DRAIN_POLL_SEC="${W2_RELEASE_DRAIN_POLL_SEC:-30}"
 BASE_TAG="${W2_RELEASE_BASE_TAG:-4d5f257daa500878}"
@@ -565,7 +567,7 @@ UTC_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOCAL_LOG="/tmp/w2-release-${UTC_STAMP}.log"
 REMOTE_LOG="${VPS_REPORTS_DIR}/release-${UTC_STAMP}.log"
 
-vps "sudo bash -s -- '${TARGET}' '${py_ref}' '${web_ref}' '${python_digest}' '${web_digest}' '${BUILD_TIME}' '${STABILIZE_SEC}' '${API_PORT}' '${WEB_PORT}' '${BASE_TAG}' '${need_backup}' '${online_release}' '${target_head}' '${SKIP_WINDOW}' '${GATE_MAX_WAIT_SEC}' '${GATE_POLL_SEC}' '${override_remote_candidate}' '${override_repo_sha}' '${DRAIN_MAX_WAIT_SEC}' '${DRAIN_POLL_SEC}'" <<'VPS_SCRIPT' 2>&1 | tee "$LOCAL_LOG"
+vps "sudo bash -s -- '${TARGET}' '${py_ref}' '${web_ref}' '${python_digest}' '${web_digest}' '${BUILD_TIME}' '${STABILIZE_SEC}' '${API_PORT}' '${WEB_PORT}' '${BASE_TAG}' '${need_backup}' '${online_release}' '${target_head}' '${SKIP_WINDOW}' '${GATE_MAX_WAIT_SEC}' '${GATE_POLL_SEC}' '${override_remote_candidate}' '${override_repo_sha}' '${DRAIN_MAX_WAIT_SEC}' '${DRAIN_POLL_SEC}' '${ACTIVE_CLAIM_MAX_WAIT_SEC}' '${ACTIVE_CLAIM_POLL_SEC}'" <<'VPS_SCRIPT' 2>&1 | tee "$LOCAL_LOG"
 set -euo pipefail
 # 注意：heredoc 通过 `bash -s` 逐行读入 stdin，任何从 stdin 读取的子进程都会
 # 吞掉后续脚本（导致提前结束、误报成功）。因此这里绝不能 `exec 0</dev/null`，
@@ -577,6 +579,7 @@ has_migration="${11}"; online_release="${12}"; target_head="${13}"; skip_window=
 gate_max_wait_sec="${15}"; gate_poll_sec="${16}"
 override_candidate="${17}"; override_repo_sha="${18}"
 drain_max_wait_sec="${19}"; drain_poll_sec="${20}"
+active_claim_max_wait_sec="${21}"; active_claim_poll_sec="${22}"
 
 compose=(docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml -f /opt/w2/deploy/controlled-future-refresh.override.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env)
 Q() { docker exec w2-staging-postgres-1 psql -XAt -U w2_user -d w2 -c "$1"; }
@@ -649,9 +652,22 @@ W2_BASE_TAG="$base_tag" /usr/local/bin/w2-release-preflight "$py_ref" || fail "p
 W2_BASE_TAG="$base_tag" /opt/w2/deploy/w2-release-sync-preflight "$py_ref" "$web_ref" "$release_sha" || fail "release-sync-preflight"
 
 echo "== checkpoint gate =="
-active_claims="$(Q "SELECT count(*) FROM matchday_checkpoint_plans WHERE status='DUE' AND claim_expires_at > now();")"
-echo "active_claims=$active_claims"
-[ "$active_claims" = "0" ] || fail "SWITCH_BLOCKED_ACTIVE_CLAIM"
+active_claim_deadline=$(( $(date +%s) + active_claim_max_wait_sec ))
+while true; do
+  if ! active_claims="$(Q "SELECT count(*) FROM matchday_checkpoint_plans WHERE status='DUE' AND claim_expires_at > now();" 2>/dev/null)"; then
+    fail "SWITCH_ACTIVE_CLAIM_QUERY_FAILED"
+  fi
+  case "$active_claims" in
+    ''|*[!0-9]*) fail "SWITCH_ACTIVE_CLAIM_QUERY_INVALID：$active_claims" ;;
+  esac
+  echo "active_claims=$active_claims"
+  [ "$active_claims" = "0" ] && break
+  if [ "$(date +%s)" -ge "$active_claim_deadline" ]; then
+    fail "SWITCH_BLOCKED_ACTIVE_CLAIM"
+  fi
+  echo "active_claims 非 0，等待 ${active_claim_poll_sec}s 后重查（最长 ${active_claim_max_wait_sec}s）"
+  sleep "$active_claim_poll_sec"
+done
 
 echo "== baseline =="
 Q "SELECT (SELECT version_num FROM alembic_version), (SELECT count(*) FROM candidate_notification_outbox), (SELECT count(*) FROM recommendations)"
