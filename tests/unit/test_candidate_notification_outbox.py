@@ -611,6 +611,10 @@ def test_operational_summaries_use_football_day_and_split_zero_candidate_reasons
     assert _events(engine)[0].payload["summary_timing"] == "TWO_HOURS_BEFORE_FIRST_KICKOFF"
     assert _events(engine)[0].payload["candidate_track_fixture_count"] == 1
     assert _events(engine)[0].payload["candidate_track_matches"][0]["home"] == "上海海港"
+    assert _events(engine)[0].payload["candidate_track_matches"][0]["competition"] == "中超"
+    assert "中超 上海海港 vs 大连英博" in render_bark_message(_events(engine)[0].payload)[
+        "body"
+    ]
 
     repository = DynamicPrematchRepository(engine)
     _append(repository, _attempt("T3_ODDS", "a", depth=0))
@@ -822,6 +826,9 @@ def test_bark_sender_posts_device_key_in_json_not_url(monkeypatch) -> None:
 
 def test_closeout_settles_candidate_direction_without_writing_settlement() -> None:
     engine = _engine()
+    with Session(engine) as session:
+        _insert_fixture_identity(session, kickoff_utc=NOW + timedelta(hours=2))
+        session.commit()
     DynamicPrematchRepository(engine).append_evaluation(_attempt("T3_ODDS", "candidate"))
     result = ResultModel(
         id="result-candidate",
@@ -840,6 +847,7 @@ def test_closeout_settles_candidate_direction_without_writing_settlement() -> No
         recommendations = candidate_notifications._closeout_recommendations(session)
 
     assert len(recommendations) == 1
+    assert recommendations[0]["competition"] == "中超"
     assert recommendations[0]["direction"] == "HOME_AH"
     assert recommendations[0]["score"] == "2-1"
     assert recommendations[0]["settlement"] == "WIN"
@@ -903,6 +911,7 @@ def test_notification_names_use_reviewed_chinese_then_mark_unresolved_provider_i
         },
     )
     assert candidate_notifications._summary_fixture(identity)["home"] == "巴列卡诺"
+    assert candidate_notifications._summary_fixture(identity)["competition"] == "西甲"
     identity.home_w2_team_id = None
     identity.payload = {}
     assert candidate_notifications._summary_fixture(identity)["home"] == (
@@ -933,6 +942,7 @@ def test_closeout_copy_prioritizes_recommendations_and_marks_missing_result() ->
             "cumulative_profit_units": 2.995,
             "recommendations": [
                 {
+                    "competition": "西甲",
                     "home": "巴列卡诺",
                     "away": "阿拉维斯",
                     "market": "TOTALS",
@@ -955,7 +965,7 @@ def test_closeout_copy_prioritizes_recommendations_and_marks_missing_result() ->
         }
     )
     assert rendered["body"].splitlines()[0] == "当日推荐 1 注；已结算 0 注；当日 0.000 单位"
-    assert "巴列卡诺 vs 阿拉维斯 大小球2 大 @1.82：赛果未采集" in rendered["body"]
+    assert "西甲 巴列卡诺 vs 阿拉维斯 大小球2 大 @1.82：赛果未采集" in rendered["body"]
     assert "待结算" not in rendered["body"]
     assert rendered["body"].splitlines()[-1].startswith("漏斗审计：")
 
@@ -1132,6 +1142,7 @@ def test_daily_brewing_digest_waits_for_its_day_to_close() -> None:
                     current_state="EVALUATED_CANDIDATE",
                     payload={
                         "fixture_id": "1550092",
+                        "competition_id": "serie_a",
                         "market": market,
                         "event_type": CANDIDATE_FORMED,
                         "match": {"home": "国际米兰", "away": "蒙扎"},
@@ -1178,7 +1189,7 @@ def test_daily_brewing_digest_waits_for_its_day_to_close() -> None:
 
         rendered = candidate_notifications.render_bark_message(digest.payload)
         assert rendered["title"] == "[酝酿] 1 场 2 个候选"
-        assert "国际米兰 vs 蒙扎" in rendered["body"]
+        assert "意甲 国际米兰 vs 蒙扎" in rendered["body"]
 
         # A second call in the same window must not re-emit the digest.
         assert (
@@ -1225,6 +1236,19 @@ def _insert_fixture_identity(
             payload={"home_team_name": "上海海港", "away_team_name": "大连英博"},
         )
     )
+
+
+def test_candidate_payload_transmits_competition_for_brewing_digest() -> None:
+    engine = _engine()
+    with Session(engine) as session:
+        _insert_fixture_identity(session, kickoff_utc=NOW + timedelta(hours=2))
+        session.commit()
+
+    _append(DynamicPrematchRepository(engine), _attempt("T3_ODDS", "competition"))
+
+    formed = _events(engine)[0]
+    assert formed.payload["competition_id"] == "chinese_super_league"
+    assert formed.payload["competition"] == "中超"
 
 
 def _insert_model_track(
@@ -1510,6 +1534,7 @@ def test_daily_settlement_settles_and_marks_pending() -> None:
         assert event_id is not None
         event = session.get(CandidateNotificationOutboxModel, event_id)
         assert event.payload["item_count"] == 1
+        assert event.payload["items"][0]["competition"] == "中超"
         assert event.payload["items"][0]["profit_units"] is None
         assert event.payload["pending"] == [
             {"fixture_id": "1523202", "market": "ASIAN_HANDICAP"}
@@ -1696,6 +1721,7 @@ def test_notif04_titles_and_bodies_render() -> None:
             "cumulative_profit_units": 0.91,
             "items": [
                 {
+                    "competition": "中超",
                     "home": "上海海港",
                     "away": "大连英博",
                     "market": "ASIAN_HANDICAP",
@@ -1712,7 +1738,7 @@ def test_notif04_titles_and_bodies_render() -> None:
     )
     assert settlement["title"] == "[结算] 08-19 当天 +0.91 单位"
     assert "累计：1 注 +0.91 单位" in settlement["body"]
-    assert "上海海港 vs 大连英博　推荐 主队 -0.25 @1.91　比分 2-1　赢 +0.91" in settlement["body"]
+    assert "中超 上海海港 vs 大连英博　推荐 主队 -0.25 @1.91　比分 2-1　赢 +0.91" in settlement["body"]
     assert "当天：1 注　赢 1 / 走水 0 / 输 0　+0.91 单位" in settlement["body"]
 
 

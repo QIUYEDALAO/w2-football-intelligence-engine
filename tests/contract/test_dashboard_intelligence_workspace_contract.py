@@ -500,4 +500,5 @@ def test_intelligence_workspace_200_with_complete_recommendation_fields(monkeypa
     recommendations = payload["validation"]["model_forecast"]["official_recommendations"]
     assert len(recommendations) >= 1
     assert recommendations[0]["fixture_id"] == "1523202"
+    assert recommendations[0]["competition_id"] == "chinese_super_league"
     assert recommendations[0]["quote_captured_at"] is not None

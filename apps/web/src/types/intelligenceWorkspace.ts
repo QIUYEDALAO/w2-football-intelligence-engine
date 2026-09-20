@@ -588,6 +588,7 @@ export interface WorkspaceValidation {
     official_recommendations: Array<{
       evaluation_id: string;
       fixture_id: string;
+      competition_id: string | null;
       evaluated_at: string | null;
       kickoff_utc: string | null;
       market: "ASIAN_HANDICAP" | "TOTALS";

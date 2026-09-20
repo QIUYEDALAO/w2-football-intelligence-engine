@@ -704,16 +704,25 @@ def enqueue_brewing_digest_in_session(session: Session, *, now: datetime) -> lis
         if not fixture_id:
             continue
         match = _as_mapping(payload.get("match"))
+        competition_id = payload.get("competition_id")
+        if not competition_id:
+            identity = _fixture_identity(session, fixture_id)
+            competition_id = identity.competition_id if identity else None
         entry = fixtures.setdefault(
             fixture_id,
             {
                 "fixture_id": fixture_id,
+                "competition_id": competition_id,
+                "competition": _competition_zh_name(competition_id),
                 "home": str(match.get("home") or "主队"),
                 "away": str(match.get("away") or "客队"),
                 "kickoff_local": payload.get("kickoff_local"),
                 "markets": [],
             },
         )
+        if not entry.get("competition_id") and competition_id:
+            entry["competition_id"] = competition_id
+            entry["competition"] = _competition_zh_name(competition_id)
         entry["markets"].append(
             {
                 "market": payload.get("market"),
@@ -1075,6 +1084,8 @@ def _summary_fixture(identity: MatchdayFixtureIdentityModel) -> dict[str, Any]:
     fixture_id = identity.provider_fixture_id
     return {
         "fixture_id": fixture_id,
+        "competition_id": identity.competition_id,
+        "competition": _competition_zh_name(identity.competition_id),
         "home": _team_name(identity, "home"),
         "away": _team_name(identity, "away"),
         "kickoff_local": kickoff.astimezone(BEIJING).isoformat(),
@@ -1197,6 +1208,10 @@ def _closeout_recommendations(
         recommendations.append(
             {
                 "fixture_id": fixture_id,
+                "competition_id": identity.competition_id if identity else None,
+                "competition": (
+                    _competition_zh_name(identity.competition_id) if identity else "未知联赛"
+                ),
                 "home": _team_name(identity, "home") if identity else "主队（身份未解析）",
                 "away": _team_name(identity, "away") if identity else "客队（身份未解析）",
                 "market": market,
@@ -1907,6 +1922,8 @@ def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> s
         nonlocal win, push, loss, total
         base = {
             "fixture_id": row["fixture_id"],
+            "competition_id": row.get("competition_id"),
+            "competition": _competition_zh_name(row.get("competition_id")),
             "home": _team_display_name(row["home_team_label"], "主队"),
             "away": _team_display_name(row["away_team_label"], "客队"),
             "market": row["market"],
@@ -2194,6 +2211,8 @@ def _payload_from_mapping(
         "schema_version": "w2.candidate_notification.v1",
         "event_type": event_type,
         "fixture_id": fixture_id,
+        "competition_id": identity.competition_id if identity else None,
+        "competition": _competition_zh_name(identity.competition_id) if identity else "未知联赛",
         "match": {
             "home": _team_name(identity, "home") if identity else "主队（身份未解析）",
             "away": _team_name(identity, "away") if identity else "客队（身份未解析）",
@@ -2448,14 +2467,18 @@ def _message_body(payload: Mapping[str, Any]) -> str:
                 for leg in item.get("markets") or []
                 if isinstance(leg, Mapping)
             )
-            lines.append(f"{hm} {item.get('home', '主队')} vs {item.get('away', '客队')}  {legs}")
+            lines.append(
+                f"{hm} {item.get('competition', '未知联赛')} "
+                f"{item.get('home', '主队')} vs {item.get('away', '客队')}  {legs}"
+            )
         lines.append("尚未锁定，T-30m 确认后单独推送")
         return "\n".join(lines)
     if event_type == PLAN_SUMMARY:
         matches = list(payload.get("candidate_track_matches") or [])
         lines = [
-            "{time} {home} vs {away}".format(
+            "{time} {competition} {home} vs {away}".format(
                 time=item.get("kickoff_local_hm", "--:--"),
+                competition=item.get("competition", "未知联赛"),
                 home=item.get("home", "主队"),
                 away=item.get("away", "客队"),
             )
@@ -2537,7 +2560,8 @@ def _message_body(payload: Mapping[str, Any]) -> str:
                     f"{_format_settlement_units(item.get('profit_units'))}"
                 )
             lines.append(
-                f"{prefix}{item.get('home', '主队')} vs {item.get('away', '客队')}　"
+                f"{prefix}{item.get('competition', '未知联赛')} "
+                f"{item.get('home', '主队')} vs {item.get('away', '客队')}　"
                 f"推荐 {direction} {line} @{odds}　比分 {score}　{result}"
             )
         lines.append(
@@ -2648,6 +2672,7 @@ def _mm_dd(day: str) -> str:
 def _closeout_recommendation_line(item: Mapping[str, Any]) -> str:
     selection = _direction_label(item.get("direction"))
     recommendation = (
+        f"{item.get('competition', '未知联赛')} "
         f"{item.get('home', '主队')} vs {item.get('away', '客队')} "
         f"{_market_label(item.get('market'))}{_format_line(item.get('line'))} "
         f"{selection} @{_format_odds(item.get('decimal_odds'))}"

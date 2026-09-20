@@ -667,6 +667,7 @@ test("AH recommendation rows share the owner main-handicap sign convention with 
   payload.validation.model_forecast.official_recommendations = recommendations.map(([fixtureId, selection, exactLine], index) => ({
     evaluation_id: `eval-${fixtureId}`,
     fixture_id: fixtureId,
+    competition_id: "primeira_liga",
     evaluated_at: `2026-08-10T01:0${index}:00Z`,
     kickoff_utc: "2026-08-10T02:00:00Z",
     market: "ASIAN_HANDICAP",
@@ -1358,10 +1359,10 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
   payload.validation.model_forecast.t30_evaluated_candidate_count = 3;
   payload.validation.model_forecast.t30_confirmed_candidate_count = 2;
   payload.validation.model_forecast.official_recommendations = [
-    { evaluation_id: "eval-win", fixture_id: "official-win", evaluated_at: "2026-08-10T01:00:00Z", kickoff_utc: "2026-08-10T02:00:00Z", market: "ASIAN_HANDICAP", selection: "AWAY", exact_line: "1.0", decimal_odds: 1.87, home_team_label: payload.matches[0].home_team_label, away_team_label: payload.matches[0].away_team_label, score: "0-1", settlement: "WIN", profit_units: 0.87 },
-    { evaluation_id: "eval-loss", fixture_id: "official-loss", evaluated_at: "2026-08-10T01:01:00Z", kickoff_utc: "2026-08-10T02:01:00Z", market: "TOTALS", selection: "UNDER", exact_line: "3.5", decimal_odds: 1.9, home_team_label: payload.matches[1].home_team_label, away_team_label: payload.matches[1].away_team_label, score: "3-1", settlement: "LOSS", profit_units: -1 },
-    { evaluation_id: "eval-half-win", fixture_id: "official-half-win", evaluated_at: "2026-08-10T01:02:00Z", kickoff_utc: "2026-08-10T02:02:00Z", market: "ASIAN_HANDICAP", selection: "AWAY", exact_line: "0.25", decimal_odds: 1.77, home_team_label: payload.matches[2].home_team_label, away_team_label: payload.matches[2].away_team_label, score: "3-3", settlement: "HALF_WIN", profit_units: 0.385 },
-    { evaluation_id: "eval-push", fixture_id: "official-push", evaluated_at: "2026-08-10T01:03:00Z", kickoff_utc: "2026-08-10T02:03:00Z", market: "TOTALS", selection: "UNDER", exact_line: "3.0", decimal_odds: 1.81, home_team_label: payload.matches[0].home_team_label, away_team_label: payload.matches[0].away_team_label, score: "1-2", settlement: "PUSH", profit_units: 0 },
+    { evaluation_id: "eval-win", fixture_id: "official-win", competition_id: "primeira_liga", evaluated_at: "2026-08-10T01:00:00Z", kickoff_utc: "2026-08-10T02:00:00Z", market: "ASIAN_HANDICAP", selection: "AWAY", exact_line: "1.0", decimal_odds: 1.87, home_team_label: payload.matches[0].home_team_label, away_team_label: payload.matches[0].away_team_label, score: "0-1", settlement: "WIN", profit_units: 0.87 },
+    { evaluation_id: "eval-loss", fixture_id: "official-loss", competition_id: "primeira_liga", evaluated_at: "2026-08-10T01:01:00Z", kickoff_utc: "2026-08-10T02:01:00Z", market: "TOTALS", selection: "UNDER", exact_line: "3.5", decimal_odds: 1.9, home_team_label: payload.matches[1].home_team_label, away_team_label: payload.matches[1].away_team_label, score: "3-1", settlement: "LOSS", profit_units: -1 },
+    { evaluation_id: "eval-half-win", fixture_id: "official-half-win", competition_id: "primeira_liga", evaluated_at: "2026-08-10T01:02:00Z", kickoff_utc: "2026-08-10T02:02:00Z", market: "ASIAN_HANDICAP", selection: "AWAY", exact_line: "0.25", decimal_odds: 1.77, home_team_label: payload.matches[2].home_team_label, away_team_label: payload.matches[2].away_team_label, score: "3-3", settlement: "HALF_WIN", profit_units: 0.385 },
+    { evaluation_id: "eval-push", fixture_id: "official-push", competition_id: "primeira_liga", evaluated_at: "2026-08-10T01:03:00Z", kickoff_utc: "2026-08-10T02:03:00Z", market: "TOTALS", selection: "UNDER", exact_line: "3.0", decimal_odds: 1.81, home_team_label: payload.matches[0].home_team_label, away_team_label: payload.matches[0].away_team_label, score: "1-2", settlement: "PUSH", profit_units: 0 },
   ];
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requests += 1; return route.fulfill({ status: 200, json: payload }); });
   await page.goto("/");
@@ -1387,6 +1388,7 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
   await expect(recommendationRows.nth(1)).toHaveAttribute("data-settlement", "LOSS");
   await expect(recommendationRows.nth(2)).toHaveAttribute("data-settlement", "HALF_WIN");
   await expect(recommendationRows.nth(3)).toHaveAttribute("data-settlement", "PUSH");
+  await expect(recommendationRows.nth(0).locator("strong")).toContainText("葡超");
   for (const index of [0, 2]) {
     await expect(recommendationRows.nth(index).locator("b")).toHaveCSS("color", "rgb(208, 122, 111)");
     await expect(recommendationRows.nth(index).locator("em")).toHaveCSS("color", "rgb(208, 122, 111)");

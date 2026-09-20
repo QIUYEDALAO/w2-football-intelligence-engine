@@ -472,6 +472,7 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
             {
                 "evaluation_id": _text(row.get("evaluation_id")),
                 "fixture_id": _text(row.get("fixture_id")),
+                "competition_id": _optional_text(row.get("competition_id")),
                 "evaluated_at": _optional_text(row.get("evaluated_at")),
                 "kickoff_utc": _optional_text(row.get("kickoff_utc")),
                 "market": _text(row.get("market")),

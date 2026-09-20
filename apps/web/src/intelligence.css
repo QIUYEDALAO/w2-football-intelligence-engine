@@ -1927,7 +1927,16 @@ summary {
   font-size: 10px;
   line-height: 1.3;
 }
-.v41-official-recommendations strong { overflow-wrap: anywhere; }
+.v41-official-recommendations strong {
+  overflow-wrap: anywhere;
+}
+.v41-official-recommendations strong > small {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--v41-ink-3);
+  font-size: 10px;
+  font-weight: 400;
+}
 .v41-official-recommendations em { color: var(--v41-ink); font-style: normal; font-weight: 700; }
 
 .v41-official-recommendations li[data-settlement="WIN"] b,

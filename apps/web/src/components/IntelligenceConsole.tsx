@@ -1059,7 +1059,7 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
               : `${SELECTION_LABELS[row.selection]} ${row.exact_line}`;
             return <li key={`${row.fixture_id}-${row.market}`} data-fixture-id={row.fixture_id} data-market={row.market} data-settlement={row.settlement}>
               <time>{localDateTime(row.kickoff_utc)}</time>
-              <strong><span className="v41-match-name"><TeamLabel team={row.home_team_label} /><span className="v41-versus"> vs </span><TeamLabel team={row.away_team_label} /></span></strong>
+              <strong><small>{translateCompetition(row.competition_id || "赛事待确认", row.competition_id)}</small><span className="v41-match-name"><TeamLabel team={row.home_team_label} /><span className="v41-versus"> vs </span><TeamLabel team={row.away_team_label} /></span></strong>
               <span>{recommendation}{row.lifecycle_note_zh ? <small>{row.lifecycle_note_zh}</small> : null}</span><span>@{row.decimal_odds.toFixed(2)}</span><span>{row.score ?? "待结算"}</span><b>{row.settlement === "PENDING" ? "待结算" : SETTLEMENT_LABELS[row.settlement]}</b><em>{row.profit_units === null ? "待结算" : `${row.profit_units > 0 ? "+" : ""}${row.profit_units.toFixed(3)}`}</em>
             </li>;
           })}</ol>

@@ -1527,6 +1527,7 @@ class WorkspaceOfficialRecommendation(BaseModel):
 
     evaluation_id: str = Field(min_length=1)
     fixture_id: str = Field(min_length=1)
+    competition_id: str | None = None
     evaluated_at: datetime | str | None
     kickoff_utc: datetime | str | None
     market: Literal["ASIAN_HANDICAP", "TOTALS"]
