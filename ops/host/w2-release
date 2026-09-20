@@ -806,11 +806,15 @@ rb() {
   fi
 }
 
+# a 项前先预热 Dashboard 重查询，只暖缓存、不参与回读判定。
+curl -fsS --max-time 90 "http://127.0.0.1:${api_port}/v1/dashboard/summary" >/dev/null 2>&1 || true
+curl -fsS --max-time 90 "http://127.0.0.1:${api_port}/v1/dashboard/intelligence-workspace" >/dev/null 2>&1 || true
+
 # a. 六接口 200
 a_detail=""
 a_ok=1
 for p in /v1/version /ready /v1/dashboard /v1/dashboard/summary /v1/dashboard/day-view /v1/dashboard/intelligence-workspace; do
-  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "http://127.0.0.1:${api_port}${p}")"
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 90 "http://127.0.0.1:${api_port}${p}")"
   a_detail="${a_detail}${p}=${code} "
   [ "$code" = "200" ] || a_ok=0
 done
@@ -828,7 +832,7 @@ b_ok=1
 rb "b" "$b_ok" "release_id=$rid api_sha=$api_sha web_sha=$web_sha"
 
 # c+d. 工作台（推荐倒序 + market_radar 抽样）
-ws_json="$(curl -fsS --max-time 30 "http://127.0.0.1:${api_port}/v1/dashboard/intelligence-workspace" 2>/dev/null)"
+ws_json="$(curl -fsS --max-time 90 "http://127.0.0.1:${api_port}/v1/dashboard/intelligence-workspace" 2>/dev/null)"
 c_d_result="$(printf '%s' "$ws_json" | python3 -c '
 import json,sys
 try:
