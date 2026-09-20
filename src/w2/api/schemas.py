@@ -1133,6 +1133,29 @@ class WorkspaceMatch(BaseModel):
         return self
 
 
+class WorkspaceMatchSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    projection_scope: Literal["SUMMARY"]
+    fixture_id: str
+    competition_id: str | None
+    competition_name: str | None
+    kickoff_utc: datetime | str | None
+    home_team_name: str | None
+    away_team_name: str | None
+    home_team_label: WorkspacePublicTeamLabel
+    away_team_label: WorkspacePublicTeamLabel
+    public_semantics: WorkspacePublicSemantics
+    status: str | None
+    outcome: WorkspaceMatchOutcome
+    decision_tier: str
+    data_status: str
+    lifecycle_status: str
+    reason_code: str | None
+    action: str | None
+    next_eval_at: datetime | str | None
+
+
 class WorkspaceMatchProjectionErrorDetail(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1703,7 +1726,7 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
     navigation: dict[str, Any]
     date_strip: list[WorkspaceDateStripEntry] = Field(min_length=15, max_length=15)
     attention: list[WorkspaceAttentionItem]
-    matches: list[WorkspaceMatch | WorkspaceMatchProjectionError]
+    matches: list[WorkspaceMatch | WorkspaceMatchSummary | WorkspaceMatchProjectionError]
     validation: WorkspaceValidation
     external_intelligence: WorkspaceExternalIntelligence
     freshness: WorkspaceFreshness

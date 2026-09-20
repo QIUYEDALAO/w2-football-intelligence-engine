@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { footballDayShanghai, translateCompetition, translateReason } from "../lib/formatters";
+import { fetchIntelligenceMatch } from "../lib/intelligenceWorkspaceApi";
 import { PUBLIC_ENUM_LABELS, PUBLIC_REASON_LABELS } from "../lib/labels";
 import { ahRecommendationTeamLabel, formatAhMarketHandicap, formatAhRecommendationHandicap } from "../lib/pricingDisplay";
 import { publicPresentation } from "../lib/publicPresentation";
@@ -10,6 +11,7 @@ import type {
   RiskAxisName,
   WorkspaceMarket,
   WorkspaceMatch,
+  WorkspaceMatchSummary,
   WorkspaceMatchItem,
   WorkspaceMatchProjectionError,
   WorkspaceDateStripEntry,
@@ -65,8 +67,14 @@ function isProjectionError(match: WorkspaceMatchItem): match is WorkspaceMatchPr
   return "projection_status" in match && match.projection_status === "ERROR";
 }
 
+function isSummaryMatch(match: WorkspaceMatchItem): match is WorkspaceMatchSummary {
+  return "projection_scope" in match && match.projection_scope === "SUMMARY";
+}
+
 function projectedMatches(workspace: IntelligenceWorkspace): WorkspaceMatch[] {
-  return workspace.matches.filter((match): match is WorkspaceMatch => !isProjectionError(match));
+  return workspace.matches.filter(
+    (match): match is WorkspaceMatch => !isProjectionError(match) && !isSummaryMatch(match),
+  );
 }
 
 function label(value: string | null | undefined, fallback = "暂无"): string {
@@ -464,8 +472,8 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
     priorityCount: workspace.today_summary.priority_match_count,
   });
   const matches = workspace.matches.slice().sort((left, right) => {
-    const leftPriority = isProjectionError(left) ? null : left.priority_reason_primary;
-    const rightPriority = isProjectionError(right) ? null : right.priority_reason_primary;
+    const leftPriority = isProjectionError(left) || isSummaryMatch(left) ? null : left.priority_reason_primary;
+    const rightPriority = isProjectionError(right) || isSummaryMatch(right) ? null : right.priority_reason_primary;
     const priority = (PRIORITY_ORDER[leftPriority || ""] ?? 99) - (PRIORITY_ORDER[rightPriority || ""] ?? 99);
     return priority || String(left.kickoff_utc || "").localeCompare(String(right.kickoff_utc || "")) || left.fixture_id.localeCompare(right.fixture_id);
   });
@@ -477,13 +485,16 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
   }, new Map<string, { key: string; label: string; count: number }>()).values());
   const activeCompetition = competitionFilter === "ALL" || competitions.some((item) => item.key === competitionFilter) ? competitionFilter : "ALL";
   const filteredMatches = activeCompetition === "ALL" ? matches : matches.filter((match) => (match.competition_id || match.competition_name || "UNKNOWN") === activeCompetition);
-  const validMatches = matches.filter((match): match is WorkspaceMatch => !isProjectionError(match));
+  const validMatches = matches.filter((match): match is WorkspaceMatch => !isProjectionError(match) && !isSummaryMatch(match));
   const marketBlockedCount = validMatches.filter((match) => match.readiness.market_evidence_status === "NOT_READY").length;
   const limited = selectedCause !== null && validMatches.length > 0 && marketBlockedCount === validMatches.length
     ? workspace.global_focus
     : null;
-  const validFilteredMatches = filteredMatches.filter((match): match is WorkspaceMatch => !isProjectionError(match));
+  const validFilteredMatches = filteredMatches.filter(
+    (match): match is WorkspaceMatch => !isProjectionError(match) && !isSummaryMatch(match),
+  );
   const projectionFailures = filteredMatches.filter(isProjectionError);
+  const summaryMatches = filteredMatches.filter(isSummaryMatch);
   const allPrioritized = validMatches.filter((match) => match.priority_reason_primary);
   const prioritized = limited ? [] : validFilteredMatches.filter((match) => match.priority_reason_primary);
   const otherAttention = limited ? [] : validFilteredMatches.filter((match) => !match.priority_reason_primary && match.priority_reason_secondary.length);
@@ -544,6 +555,16 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
       </span>
     </button>;
   };
+  const summaryRow = (match: WorkspaceMatchSummary) => {
+    const matchTitle = `${match.home_team_label.display_name} vs ${match.away_team_label.display_name}`;
+    return <button aria-pressed={selectedId === match.fixture_id} className={selectedId === match.fixture_id ? "is-selected" : undefined} data-fixture-id={match.fixture_id} key={match.fixture_id} onClick={() => onSelect(match.fixture_id)} type="button">
+      <span className="v41-stripe v41-stripe--data_incomplete" />
+      <span className="v41-shortlist-copy">
+        <div className="v41-shortlist-title" title={matchTitle}><small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small><strong><span className="v41-match-name"><TeamLabel team={match.home_team_label} /><span className="v41-versus"> vs </span><TeamLabel team={match.away_team_label} /></span></strong><time>{kickoffLabel(match.kickoff_utc, workspace.date)}</time></div>
+        <div className="v41-shortlist-status" title="完整市场与模型证据按需加载"><span><b>摘要已就绪 · 点击加载完整证据</b></span></div>
+      </span>
+    </button>;
+  };
   return (
     <aside className="v41-shortlist" aria-label={`关注情报 / ${dayNoun}盘口赔率变化重点观察`} data-ui="attention-feed">
       <header><span>{dayNoun}盘口/赔率变化重点观察 · 按信息价值排序 · <span className="v41-no-break">观察阈值：</span>盘口移动或任一侧赔率相对变化 ≥ {(workspace.runtime.market_price_attention_threshold_ratio * 100).toFixed(0)}%</span><b>{prioritized.length} 场重点观察 · {filteredMatches.length} 场可滚动查看</b></header>
@@ -552,6 +573,7 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
         {empty ? <div className="v41-shortlist-empty">本比赛日观察池内没有比赛</div> : null}
         {aggregate ? <div className="v41-shortlist-empty">{limited ? presentation.summary : `${dayNoun}无盘口/赔率变化重点观察；这是有效观测结果。`}</div> : null}
         {projectionFailures.length ? <><div className="v41-shortlist-group">投影异常 · {projectionFailures.length} 场</div>{projectionFailures.map(projectionErrorRow)}</> : null}
+        {summaryMatches.length ? <><div className="v41-shortlist-group">比赛摘要 · {summaryMatches.length} 场</div>{summaryMatches.map(summaryRow)}</> : null}
         {limited && !matches.length ? (
           <div className="v41-shortlist-incident">
             <span className={`v41-stripe v41-stripe--${presentation.tone}`} />
@@ -927,6 +949,16 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
   );
 }
 
+function DetailLoadingFocus({ fixtureId, loading, error }: { fixtureId: string; loading: boolean; error: string | null }) {
+  return <article className="v41-focus v41-global" data-fixture-id={fixtureId} data-focus-type="DETAIL_ON_DEMAND">
+    <div className="v41-global-copy">
+      <span className="v41-eyebrow">比赛摘要已就绪</span>
+      <h1>{error ? "完整证据暂不可用" : loading ? "正在加载完整证据…" : "等待加载完整证据"}</h1>
+      <p>{error || "市场、模型、风险与评估字段仅对当前比赛按需读取，不会批量拖慢首屏。"}</p>
+    </div>
+  </article>;
+}
+
 function ProjectionErrorFocus({ match }: { match: WorkspaceMatchProjectionError }) {
   return <article className="v41-focus v41-global is-warning" data-fixture-id={match.fixture_id}>
     <div className="v41-global-copy"><span className="v41-eyebrow">单场投影已隔离</span><h1><TeamLabel team={match.home_team_label} /> vs <TeamLabel team={match.away_team_label} /></h1><p>{localDateTime(match.kickoff_utc)} · 比赛 {match.fixture_id}</p></div>
@@ -1111,6 +1143,11 @@ export function IntelligenceConsole(props: Props) {
       ? requestedFixtureId
       : workspace.selected_fixture_id,
   );
+  const [details, setDetails] = useState<Record<string, WorkspaceMatch>>({});
+  const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
+  const [detailLoadingIds, setDetailLoadingIds] = useState<Set<string>>(new Set());
+  const detailControllers = useRef(new Map<string, AbortController>());
+  const detailWorkspaceRequest = useRef<string | null>(null);
 
   useEffect(() => {
     setSelectedId(
@@ -1120,9 +1157,60 @@ export function IntelligenceConsole(props: Props) {
     );
   }, [requestedFixtureId, workspace.matches, workspace.selected_fixture_id, workspace.request_id]);
 
-  const selected = useMemo(() => {
-    return workspace.matches.find((match) => match.fixture_id === selectedId) || null;
-  }, [selectedId, workspace.matches]);
+  useEffect(() => {
+    if (detailWorkspaceRequest.current === workspace.request_id) return;
+    for (const controller of detailControllers.current.values()) controller.abort();
+    detailControllers.current.clear();
+    detailWorkspaceRequest.current = workspace.request_id;
+    setDetails({});
+    setDetailErrors({});
+    setDetailLoadingIds(new Set());
+  }, [workspace.request_id]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const item = workspace.matches.find((match) => match.fixture_id === selectedId);
+    if (!item || !isSummaryMatch(item) || details[selectedId] || detailControllers.current.has(selectedId)) return;
+    const controller = new AbortController();
+    const requestId = workspace.request_id;
+    detailControllers.current.set(selectedId, controller);
+    setDetailLoadingIds((current) => new Set(current).add(selectedId));
+    setDetailErrors((current) => {
+      const next = { ...current };
+      delete next[selectedId];
+      return next;
+    });
+    fetchIntelligenceMatch(selectedId, controller.signal)
+      .then((match) => {
+        if (detailWorkspaceRequest.current === requestId) {
+          setDetails((current) => ({ ...current, [selectedId]: match }));
+        }
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (detailWorkspaceRequest.current === requestId) {
+          setDetailErrors((current) => ({ ...current, [selectedId]: "完整证据暂时无法读取，请稍后重试。" }));
+        }
+      })
+      .finally(() => {
+        if (detailControllers.current.get(selectedId) === controller) {
+          detailControllers.current.delete(selectedId);
+        }
+        if (detailWorkspaceRequest.current === requestId) {
+          setDetailLoadingIds((current) => {
+            const next = new Set(current);
+            next.delete(selectedId);
+            return next;
+          });
+        }
+      });
+  }, [details, selectedId, workspace.matches, workspace.request_id]);
+
+  const selectedItem = useMemo(
+    () => workspace.matches.find((match) => match.fixture_id === selectedId) || null,
+    [selectedId, workspace.matches],
+  );
+  const selected = selectedId ? details[selectedId] || (selectedItem && !isProjectionError(selectedItem) && !isSummaryMatch(selectedItem) ? selectedItem : null) : null;
 
   return (
     <main aria-label="W2 INTELLIGENCE" className="dashboard-v41" data-public-cause={selectedDaySemantics(workspace).cause || "NONE"} data-intelligence-vocabulary="MODEL_MARKET_DISAGREEMENT" data-schema-version={workspace.schema_version} id="top">
@@ -1132,7 +1220,7 @@ export function IntelligenceConsole(props: Props) {
       <CapabilityStatus workspace={workspace} />
       <div className="v41-main">
         <PriorityShortlist key={workspace.request_id} workspace={workspace} onSelect={setSelectedId} selectedId={selectedId} />
-        {selected ? isProjectionError(selected) ? <ProjectionErrorFocus match={selected} /> : <MatchFocus generatedAt={workspace.generated_at} match={selected} /> : <GlobalFocus date={props.date} onDateChange={props.onDateChange} workspace={workspace} />}
+        {selected ? <MatchFocus generatedAt={workspace.generated_at} match={selected} /> : selectedItem && isProjectionError(selectedItem) ? <ProjectionErrorFocus match={selectedItem} /> : selectedItem && isSummaryMatch(selectedItem) ? <DetailLoadingFocus fixtureId={selectedItem.fixture_id} loading={detailLoadingIds.has(selectedItem.fixture_id)} error={detailErrors[selectedItem.fixture_id] || null} /> : <GlobalFocus date={props.date} onDateChange={props.onDateChange} workspace={workspace} />}
       </div>
       <ValidationCenter workspace={workspace} />
       <QualityRail workspace={workspace} />

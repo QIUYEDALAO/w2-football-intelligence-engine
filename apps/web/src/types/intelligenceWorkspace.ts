@@ -468,7 +468,28 @@ export interface WorkspaceMatchProjectionError {
   };
 }
 
-export type WorkspaceMatchItem = WorkspaceMatch | WorkspaceMatchProjectionError;
+export interface WorkspaceMatchSummary {
+  projection_scope: "SUMMARY";
+  fixture_id: string;
+  competition_id: string | null;
+  competition_name: string | null;
+  kickoff_utc: string | null;
+  home_team_name: string | null;
+  away_team_name: string | null;
+  home_team_label: WorkspacePublicTeamLabel;
+  away_team_label: WorkspacePublicTeamLabel;
+  public_semantics: PublicStatusSemantics;
+  status: string | null;
+  outcome: WorkspaceMatch["outcome"];
+  decision_tier: string;
+  data_status: string;
+  lifecycle_status: string;
+  reason_code: string | null;
+  action: string | null;
+  next_eval_at: string | null;
+}
+
+export type WorkspaceMatchItem = WorkspaceMatch | WorkspaceMatchSummary | WorkspaceMatchProjectionError;
 
 export interface WorkspaceCompetitionPerformance {
   league: string;

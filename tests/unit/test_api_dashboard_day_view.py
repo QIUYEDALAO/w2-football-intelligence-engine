@@ -25,6 +25,7 @@ class RecordingDashboardService:
         window: str = "today",
         timezone: str = "Asia/Shanghai",
         include_debug: bool = True,
+        include_details: bool = True,
     ) -> dict[str, Any]:
         self.calls.append(
             {
@@ -210,6 +211,35 @@ def test_intelligence_workspace_rejects_multi_day_windows(
         assert response.status_code == 422
 
     assert service.calls == []
+
+
+def test_intelligence_workspace_summary_requests_bounded_projection(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = RecordingDashboardService()
+    include_details: list[bool] = []
+    original_dashboard = service.dashboard
+
+    def recording_dashboard(**kwargs: Any) -> dict[str, Any]:
+        include_details.append(bool(kwargs.get("include_details")))
+        return original_dashboard(**kwargs)
+
+    monkeypatch.setattr(service, "public_dashboard", recording_dashboard)
+    monkeypatch.setattr(routers, "service", service)
+    client = TestClient(app)
+
+    response = client.get(
+        "/v1/dashboard/intelligence-workspace"
+        "?date=2026-07-05&window=today&timezone=UTC&projection=summary"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert include_details == [False]
+    assert payload["matches"][0]["projection_scope"] == "SUMMARY"
+    assert "market_radar" not in payload["matches"][0]
+    assert "simulation" not in payload["matches"][0]
+    assert payload["selected_fixture_id"] == "fixture-1"
 
 
 def test_intelligence_workspace_reads_persisted_finished_outcome_once(

@@ -40,7 +40,13 @@ def build_dashboard_day_view(
         dashboard_payload.get("date"),
     )
     generated_at = _format_time(dashboard_payload.get("generated_at"))
-    cards = [_day_view_card(card) for card in _dashboard_cards(dashboard_payload)]
+    dashboard_cards = _dashboard_cards(dashboard_payload)
+    cards = [
+        _summary_day_view_card(card)
+        if card.get("_dashboard_projection_scope") == "SUMMARY"
+        else _day_view_card(card)
+        for card in dashboard_cards
+    ]
     cards.sort(key=_dashboard_card_order)
     counts = _counts(cards)
     date_strip = [
@@ -119,6 +125,78 @@ def build_dashboard_day_view(
     view["navigation"] = navigation
     view["degradation"] = build_dashboard_degradation(view)
     return view
+
+
+def _summary_day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep list reads bounded; the full frozen card is fetched by fixture on demand."""
+
+    data_status = _text(card.get("data_status"), "BLOCKED")
+    readiness = _mapping_copy(card.get("analysis_readiness"))
+    intelligence_state = (
+        "MARKET_STABLE"
+        if data_status == "READY" and readiness.get("status") == "READY"
+        else "DATA_INCOMPLETE"
+    )
+    risk_dimensions = {
+        dimension: {
+            "dimension": dimension,
+            "status": "ATTENTION",
+            "reason_codes": ["DETAIL_NOT_LOADED"],
+            "explanation": "列表仅展示摘要；选择比赛后加载完整证据。",
+            "assessment_status": "UNASSESSED",
+            "evidence_basis": "DASHBOARD_SUMMARY_PROJECTION",
+            "source_as_of": None,
+        }
+        for dimension in ("EVENT_RISK", "DATA_RISK", "MODEL_RISK", "COLLECTION_RISK")
+    }
+    return {
+        **_fixture_fields(card),
+        "_dashboard_projection_scope": "SUMMARY",
+        "source": "dashboard_summary_projection",
+        "decision_tier": _text(card.get("decision_tier"), "NOT_READY"),
+        "data_status": data_status,
+        "lifecycle_status": _text(card.get("lifecycle_status"), "DRAFT"),
+        "outcome_tracked": card.get("outcome_tracked") is True,
+        "lock_eligible": card.get("lock_eligible") is True,
+        "recommendation_id": None,
+        "lineup_requirement": "ADVISORY",
+        "risk_reason_codes": [],
+        "risk_dimensions": risk_dimensions,
+        "reason_code": _optional_text(card.get("reason_code")),
+        "action": _optional_text(card.get("action")),
+        "next_eval_at": _format_time(card.get("next_eval_at")),
+        "provider_budget_status": None,
+        "missing_fields": [],
+        "stale_fields": [],
+        "data_readiness": {},
+        "analysis_readiness": readiness,
+        "current_odds": {},
+        "market_candidates": {},
+        "market_probabilities": {},
+        "market_radar": {},
+        "model_lab": {},
+        "data_refresh": {},
+        "simulation": {"status": "UNAVAILABLE", "simulation": None},
+        "pick": None,
+        "non_pick": {
+            "reason_code": _text(card.get("reason_code"), "DETAIL_NOT_LOADED"),
+            "reason_human": "列表仅展示摘要；选择比赛后加载完整证据。",
+            "action": "选择比赛查看详情",
+            "next_eval_at": None,
+        },
+        "recommendation": card.get("recommendation"),
+        "validation": card.get("validation"),
+        "intelligence_state": intelligence_state,
+        "analysis_state": intelligence_state,
+        "intelligence_reason_codes": (
+            [] if intelligence_state == "MARKET_STABLE" else ["DETAIL_NOT_LOADED"]
+        ),
+        "analysis_blocker": (
+            None if intelligence_state == "MARKET_STABLE" else "DETAIL_NOT_LOADED"
+        ),
+        "projection_health": {"status": "READY", "reason_code": None},
+        "recommendation_decision_v4": {},
+    }
 
 
 def _dashboard_cards(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:

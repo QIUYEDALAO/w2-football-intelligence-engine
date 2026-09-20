@@ -847,6 +847,105 @@ def test_dashboard_service_consumes_batched_projection_without_per_fixture_reads
     assert targeted == payload["all"]
 
 
+def test_dashboard_summary_projection_never_materializes_full_analysis_cards() -> None:
+    class Repository:
+        @staticmethod
+        def dashboard_fixture_summaries_for_window(
+            *,
+            start: datetime | None,
+            end: datetime | None,
+            limit: int,
+        ) -> list[dict[str, Any]]:
+            assert (start, end) == football_day_window(date(2026, 8, 10))
+            assert limit == api_repository.MAX_PUBLIC_FIXTURES
+            return [
+                {
+                    "_dashboard_projection_scope": "SUMMARY",
+                    "fixture_id": "1493049",
+                    "competition_id": "liga_profesional_argentina",
+                    "competition_name": "Liga Profesional",
+                    "kickoff_utc": "2026-08-10T22:00:00Z",
+                    "status": "FINISHED",
+                    "home_team_name": "Home",
+                    "away_team_name": "Away",
+                    "decision_tier": "ANALYSIS_PICK",
+                    "data_status": "READY",
+                    "lifecycle_status": "SETTLED",
+                    "outcome_tracked": True,
+                    "lock_eligible": False,
+                    "reason_code": "ANALYSIS_ONLY",
+                    "action": "MONITOR",
+                    "next_eval_at": None,
+                    "recommendation": {
+                        "market": "ASIAN_HANDICAP",
+                        "selection": "HOME",
+                        "decision_tier": "ANALYSIS_PICK",
+                    },
+                    "formal_recommendation": False,
+                    "candidate": False,
+                }
+            ]
+
+        @staticmethod
+        def dashboard_fixtures_for_window(**_kwargs: Any) -> list[dict[str, Any]]:
+            raise AssertionError("full analysis card query must not run")
+
+        @staticmethod
+        def analysis_card_projection(_fixture_id: str) -> dict[str, Any]:
+            raise AssertionError("per-fixture analysis card query must not run")
+
+        @staticmethod
+        def market_collection_status_for_fixtures(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            raise AssertionError("full collection projection must not run")
+
+        @staticmethod
+        def market_refresh_status_for_fixtures(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            raise AssertionError("full refresh projection must not run")
+
+    payload = api_repository.ReadModelService(
+        repository=Repository(),  # type: ignore[arg-type]
+    ).public_dashboard(
+        target_date="2026-08-10",
+        window="today",
+        include_debug=False,
+    )
+
+    assert payload["all"][0]["decision_tier"] == "ANALYSIS_PICK"
+    assert payload["recommendations"][0]["fixture_id"] == "1493049"
+    for prohibited in (
+        "markets",
+        "market_candidates",
+        "pricing_shadow",
+        "dynamic_prematch",
+        "simulation",
+        "market_radar",
+        "decision_contract",
+    ):
+        assert prohibited not in payload["all"][0]
+
+
+def test_dashboard_summary_sql_projects_named_json_scalars_only() -> None:
+    source = inspect.getsource(
+        api_repository.ReadModelRepository.dashboard_fixture_summaries_for_window
+    )
+
+    assert "ReadModelCheckpointModel.payload," not in source
+    assert "func.json_to_record(" in source
+    assert 'column("decision_tier", String)' in source
+    assert 'column("recommendation_decision_v4", JSON)' in source
+    assert 'column("market", String)' in source
+    assert '"reason_code": "DETAIL_NOT_LOADED"' in source
+    for prohibited in (
+        'analysis_card["markets"]',
+        'analysis_card["market_candidates"]',
+        'analysis_card["pricing_shadow"]',
+        'analysis_card["dynamic_prematch"]',
+        'analysis_card["simulation"]',
+        'analysis_card["market_radar"]',
+    ):
+        assert prohibited not in source
+
+
 def test_api_dashboard_card_keeps_historical_v3_identity_immutable() -> None:
     class Repository:
         @staticmethod

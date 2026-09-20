@@ -14,17 +14,23 @@ from w2.api import repository as repository_module
 from w2.api.routers import _isolate_workspace_match_projection_failures
 from w2.api.schemas import (
     DashboardIntelligenceWorkspaceResponse,
+    WorkspaceMatch,
     WorkspaceMatchProjectionError,
     WorkspaceModelForecastProgress,
 )
 from w2.config import get_settings
 from w2.dashboard import workspace as workspace_module
 from w2.dashboard.results import outcome_public_cause
-from w2.dashboard.workspace import build_dashboard_intelligence_workspace
+from w2.dashboard.workspace import (
+    build_dashboard_intelligence_match,
+    build_dashboard_intelligence_workspace,
+    build_dashboard_intelligence_workspace_summary,
+)
 from w2.identity.public_team_labels import (
     pending_public_team_labels,
     reviewed_public_team_labels,
 )
+from w2.replay.front_door import build_replay_front_door
 
 
 def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> None:
@@ -745,6 +751,56 @@ def _workspace(
             "replay_gaps": ["MISSING_OUTCOMES"],
         },
     )
+
+
+def test_summary_and_on_demand_detail_preserve_decision_tier() -> None:
+    day_view = _day_view()
+    replay = build_replay_front_door(
+        football_day=day_view["football_day"],
+        environment=day_view["environment"],
+        day_view=day_view,
+        outcomes=[],
+        as_of=day_view["generated_at"],
+    )
+
+    summary = build_dashboard_intelligence_workspace_summary(
+        day_view,
+        replay=replay,
+    )
+    detail = build_dashboard_intelligence_match(
+        day_view["cards"][2],
+        generated_at=day_view["generated_at"],
+    )
+
+    DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "summary-contract", **summary}
+    )
+    WorkspaceMatch.model_validate(detail)
+    assert summary["matches"][2]["projection_scope"] == "SUMMARY"
+    assert summary["matches"][2]["decision_tier"] == "WATCH"
+    assert detail["w2_analysis"]["decision_tier"] == summary["matches"][2]["decision_tier"]
+    assert "market_radar" not in summary["matches"][2]
+    assert detail["market_radar"]["markets"]["ASIAN_HANDICAP"]["snapshot_count"] == 2
+
+
+def test_on_demand_detail_fills_incomplete_source_risk_dimensions() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["risk_dimensions"] = {
+        "EVENT_RISK": {"explanation": "没有可陈述的源证据"},
+        "DATA_RISK": {"explanation": "没有可陈述的源证据", "reason_codes": []},
+        "MODEL_RISK": {"explanation": "没有可陈述的源证据"},
+    }
+
+    detail = build_dashboard_intelligence_match(
+        card,
+        generated_at=day_view["generated_at"],
+    )
+
+    validated = WorkspaceMatch.model_validate(detail)
+    assert validated.risks.event_risk.dimension == "EVENT_RISK"
+    assert validated.risks.event_risk.status == "ATTENTION"
+    assert validated.risks.collection_risk.dimension == "COLLECTION_RISK"
 
 
 def test_shadow_candidate_activation_reuses_v4_and_stays_non_production() -> None:

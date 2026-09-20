@@ -250,6 +250,159 @@ def build_dashboard_intelligence_workspace(
     }
 
 
+def build_dashboard_intelligence_workspace_summary(
+    day_view: Mapping[str, Any],
+    *,
+    replay: Mapping[str, Any],
+    recommendation_capabilities: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the bounded first-paint workspace without loading analysis cards.
+
+    Each row is an explicit summary projection. The complete ``WorkspaceMatch`` is
+    fetched by fixture only after selection.
+    """
+
+    base = build_dashboard_intelligence_workspace(
+        {**day_view, "cards": []},
+        replay=replay,
+        recommendation_capabilities=recommendation_capabilities,
+    )
+    cards = _mapping_list(day_view.get("cards"))
+    selected_semantics = _mapping_list(day_view.get("date_strip"))
+    selected_strip = (
+        selected_semantics[len(selected_semantics) // 2]
+        if selected_semantics
+        else {}
+    )
+    public_semantics = _mapping(selected_strip.get("public_semantics"))
+    if not public_semantics:
+        public_semantics = {"scope": "SELECTED_DAY", "cause": None}
+    generated_at = day_view.get("generated_at")
+    matches = [
+        {
+            "projection_scope": "SUMMARY",
+            "fixture_id": _text(card.get("fixture_id"), "UNKNOWN_FIXTURE"),
+            "competition_id": card.get("competition_id"),
+            "competition_name": card.get("competition_name"),
+            "kickoff_utc": card.get("kickoff_utc"),
+            "home_team_name": card.get("home_team_name"),
+            "away_team_name": card.get("away_team_name"),
+            "home_team_label": _summary_team_label(card, "home"),
+            "away_team_label": _summary_team_label(card, "away"),
+            "public_semantics": {"scope": "MATCH", "cause": public_semantics.get("cause")},
+            "status": card.get("status"),
+            "outcome": {
+                "is_finished": normalize_match_status(card.get("status")) == "FINISHED",
+                "is_tracked": card.get("outcome_tracked") is True,
+                "is_recorded": False,
+                "public_semantics": {
+                    "scope": "MATCH",
+                    "cause": outcome_public_cause(
+                        status=card.get("status"),
+                        kickoff_utc=card.get("kickoff_utc"),
+                        as_of=generated_at,
+                        is_tracked=card.get("outcome_tracked") is True,
+                        is_recorded=False,
+                    ),
+                },
+            },
+            "decision_tier": _text(card.get("decision_tier"), "NOT_READY"),
+            "data_status": _text(card.get("data_status"), "BLOCKED"),
+            "lifecycle_status": _text(card.get("lifecycle_status"), "DRAFT"),
+            "reason_code": _optional_text(card.get("reason_code")),
+            "action": _optional_text(card.get("action")),
+            "next_eval_at": card.get("next_eval_at"),
+        }
+        for card in cards
+    ]
+    competition_ids = {str(card.get("competition_id") or "") for card in cards} - {""}
+    pending_team_ids = {
+        str(label.get("canonical_team_id"))
+        for card in cards
+        for label in (card.get("home_team_label"), card.get("away_team_label"))
+        if isinstance(label, Mapping)
+        and label.get("state") == "CHINESE_LABEL_PENDING_OWNER_REVIEW"
+        and label.get("canonical_team_id")
+    }
+    base["matches"] = matches
+    base["attention"] = []
+    base["selected_fixture_id"] = matches[0]["fixture_id"] if matches else None
+    base["validation"] = {
+        **_validation({}, replay, matches),
+        "model_forecast": _model_forecast_progress({}),
+    }
+    base["today_summary"] = {
+        "match_count": len(matches),
+        "competition_count": len(competition_ids),
+        "priority_match_count": 0,
+        "priority_group_count": 0,
+        "primary_reason_counts": {},
+        "pending_owner_review_team_count": len(pending_team_ids),
+    }
+    if matches:
+        base["global_focus"] = None
+    else:
+        focus = dict(_mapping(base.get("global_focus")))
+        focus.update(
+            {
+                "reason_code": public_semantics.get("cause") or "NO_FIXTURES_IN_FOOTBALL_DAY",
+                "factual_summary": "本比赛日观察池内没有比赛；不会从其他日期填充。",
+                "affected_fixture_count": 0,
+                "affected_competition_count": 0,
+                "public_semantics": dict(public_semantics),
+            }
+        )
+        base["global_focus"] = focus
+    return base
+
+
+def _summary_team_label(card: Mapping[str, Any], side: str) -> dict[str, Any]:
+    return _public_team_label(card, side)
+
+
+def build_dashboard_intelligence_match(
+    card: Mapping[str, Any],
+    *,
+    generated_at: Any,
+    ledger_fact: Mapping[str, Any] | None = None,
+    outcome_recorded: bool = False,
+    candidate_enabled: bool = False,
+) -> dict[str, Any]:
+    """Build one full match projection for the on-demand detail endpoint."""
+
+    match = _match(
+        card,
+        candidate_enabled=candidate_enabled,
+        generated_at=generated_at,
+        ledger_fact=ledger_fact or {},
+    )
+    fixture_id = _text(match.get("fixture_id"))
+    replay_card = {"outcome_status": "MATCHED"} if outcome_recorded else {}
+    match["outcome"] = _match_outcome(
+        card,
+        match,
+        replay_card,
+        {
+            "tracked_fixture_ids": [fixture_id] if card.get("outcome_tracked") is True else [],
+            "matched_fixture_ids": [fixture_id] if outcome_recorded else [],
+        },
+        generated_at=generated_at,
+    )
+    if match["outcome"]["is_recorded"] and normalize_match_status(
+        match.get("status")
+    ) != "FINISHED":
+        match["status"] = "FT"
+    primary, secondary = _priority_reasons(match)
+    match["priority_reason_primary"] = primary
+    match["priority_reason_secondary"] = secondary
+    match["factual_summary"] = _match_factual_summary(match)
+    match["public_semantics"] = _match_public_semantics(
+        match,
+        {"scope": "SELECTED_DAY", "cause": None},
+    )
+    return match
+
+
 def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
     buckets = _mapping(raw.get("lead_time_buckets"))
     data_versions = _mapping(raw.get("data_versions"))
@@ -2048,7 +2201,13 @@ def _match_factual_summary(match: Mapping[str, Any]) -> str:
 def _risks(source: Mapping[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for dimension in ("EVENT_RISK", "DATA_RISK", "MODEL_RISK", "COLLECTION_RISK"):
-        risk = dict(_mapping(source.get(dimension)))
+        risk = {
+            "dimension": dimension,
+            "status": "ATTENTION",
+            "reason_codes": [],
+            "explanation": "没有可陈述的源证据",
+            **dict(_mapping(source.get(dimension))),
+        }
         reasons = _string_list(risk.get("reason_codes"))
         if dimension == "MODEL_RISK" and risk.get("assessment_status") == "UNASSESSED":
             risk["explanation"] = "可比较模型尚无已验证校准证据"

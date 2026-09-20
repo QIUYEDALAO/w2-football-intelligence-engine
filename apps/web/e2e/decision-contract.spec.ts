@@ -4,6 +4,7 @@ import type {
   IntelligenceWorkspace,
   WorkspaceMarket,
   WorkspaceMatch,
+  WorkspaceMatchSummary,
   WorkspaceMatchProjectionError,
   WorkspaceRisks,
   WorkspaceDateStripEntry,
@@ -362,6 +363,57 @@ async function installWorkspace(page: Page, scenario: Scenario = "normal"): Prom
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-08-09T13:07:00Z"));
+});
+
+test("summary first paint loads only the selected match detail on demand", async ({ page }) => {
+  const payload = workspace("normal");
+  const detail = payload.matches[0] as WorkspaceMatch;
+  const summary: WorkspaceMatchSummary = {
+    projection_scope: "SUMMARY",
+    fixture_id: detail.fixture_id,
+    competition_id: detail.competition_id,
+    competition_name: detail.competition_name,
+    kickoff_utc: detail.kickoff_utc,
+    home_team_name: detail.home_team_name,
+    away_team_name: detail.away_team_name,
+    home_team_label: detail.home_team_label,
+    away_team_label: detail.away_team_label,
+    public_semantics: detail.public_semantics,
+    status: detail.status,
+    outcome: detail.outcome,
+    decision_tier: detail.w2_analysis.decision_tier,
+    data_status: detail.readiness.status,
+    lifecycle_status: "DRAFT",
+    reason_code: "DETAIL_NOT_LOADED",
+    action: "LOAD_DETAIL",
+    next_eval_at: detail.readiness.next_eval_at,
+  };
+  payload.matches = [summary];
+  payload.selected_fixture_id = summary.fixture_id;
+  payload.attention = [];
+  payload.today_summary = {
+    match_count: 1,
+    competition_count: 1,
+    priority_match_count: 0,
+    priority_group_count: 0,
+    primary_reason_counts: {},
+    pending_owner_review_team_count: 0,
+  };
+  let detailRequests = 0;
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) =>
+    route.fulfill({ status: 200, json: payload }),
+  );
+  await page.route("**/v1/dashboard/intelligence-workspace/matches/*", (route) => {
+    detailRequests += 1;
+    return route.fulfill({ status: 200, json: detail });
+  });
+
+  await page.goto("/");
+
+  await expect.poll(() => detailRequests).toBe(1);
+  await expect(page.locator(".v41-focus-header h1")).toHaveText(
+    `${detail.home_team_label.display_name} vs ${detail.away_team_label.display_name}`,
+  );
 });
 
 test("public team labels come from the workspace authority, not frontend guessing", async ({ page }) => {

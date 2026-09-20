@@ -54,7 +54,10 @@ from w2.api.schemas import (
 from w2.config import Environment, get_settings
 from w2.dashboard.day_view import build_dashboard_day_view
 from w2.dashboard.results import normalize_match_status, outcome_public_cause
-from w2.dashboard.workspace import build_dashboard_intelligence_workspace
+from w2.dashboard.workspace import (
+    build_dashboard_intelligence_workspace,
+    build_dashboard_intelligence_workspace_summary,
+)
 from w2.domain.decision_contract import DecisionContractViolation
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.monitoring.health import HealthPayload, build_health_payload
@@ -314,12 +317,44 @@ def dashboard_intelligence_workspace(
     date: str | None = None,
     window: Literal["today"] = "today",
     timezone: str = "Asia/Shanghai",
+    projection: Literal["full", "summary"] = "full",
 ) -> dict[str, Any]:
+    if projection == "summary":
+        payload = service.public_dashboard(
+            target_date=date,
+            window=window,
+            timezone=timezone,
+            include_debug=False,
+            include_details=False,
+        )
+        day_view = build_dashboard_day_view(
+            payload,
+            environment=get_settings().environment.value,
+        )
+        replay = build_replay_front_door(
+            football_day=day_view["football_day"],
+            environment=day_view["environment"],
+            day_view=day_view,
+            outcomes=[],
+            as_of=day_view.get("generated_at"),
+        )
+        workspace = build_dashboard_intelligence_workspace_summary(
+            day_view,
+            replay=replay,
+            recommendation_capabilities=load_recommendation_capability_manifest().public_summary()[
+                "capabilities"
+            ],
+        )
+        return {
+            "request_id": request_id(request),
+            **workspace,
+        }
     payload = service.public_dashboard(
         target_date=date,
         window=window,
         timezone=timezone,
         include_debug=False,
+        include_details=True,
     )
     day_view = build_dashboard_day_view(
         payload,
@@ -357,6 +392,20 @@ def dashboard_intelligence_workspace(
         "request_id": request_id(request),
         **_isolate_workspace_match_projection_failures(workspace),
     }
+
+
+@public_router.get(
+    "/dashboard/intelligence-workspace/matches/{fixture_id}",
+    response_model=WorkspaceMatch,
+)
+def dashboard_intelligence_match(fixture_id: str) -> dict[str, Any]:
+    match = service.dashboard_intelligence_match(
+        fixture_id,
+        candidate_enabled=os.environ.get("W2_CANDIDATE_ENABLED", "false").lower() == "true",
+    )
+    if match is None:
+        raise HTTPException(status_code=404, detail="dashboard match not found")
+    return match
 
 
 @public_router.get("/dashboard/summary", response_model=DashboardSummaryResponse)

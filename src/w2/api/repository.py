@@ -18,7 +18,7 @@ from time import monotonic
 from typing import Any, Literal, cast
 
 from pydantic import ValidationError
-from sqlalchemy import and_, case, exists, func, literal, or_, select
+from sqlalchemy import JSON, String, and_, case, column, exists, func, literal, or_, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, defer, load_only
@@ -618,7 +618,28 @@ def _public_team_label_from_identity(
         ),
         None,
     )
-    identity_status = str(fixture.team_identity_status or "").upper()
+    return _public_team_label_from_fields(
+        provider_team_id=provider_team_id,
+        w2_team_id=w2_team_id,
+        identity_status=fixture.team_identity_status,
+        raw_provider_name=raw_provider_name,
+        canonical=canonical,
+        reviewed_labels=reviewed_labels,
+        pending_labels=pending_labels,
+    )
+
+
+def _public_team_label_from_fields(
+    *,
+    provider_team_id: str,
+    w2_team_id: str | None,
+    identity_status: str | None,
+    raw_provider_name: str | None,
+    canonical: Mapping[str, CanonicalTeamModel],
+    reviewed_labels: Mapping[str, str] | None = None,
+    pending_labels: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    identity_status = str(identity_status or "").upper()
     if "AMBIGUOUS" in identity_status:
         state = "AMBIGUOUS"
     elif not w2_team_id or w2_team_id not in canonical:
@@ -1472,6 +1493,207 @@ class ReadModelRepository:
             }
             fixtures.append(fixture)
         return fixtures
+
+    def dashboard_fixture_summaries_for_window(
+        self,
+        *,
+        start: datetime | None,
+        end: datetime | None,
+        limit: int = MAX_PUBLIC_FIXTURES,
+    ) -> list[dict[str, Any]]:
+        """Read the bounded list projection without materialising full analysis cards."""
+
+        bounded = max(0, min(int(limit), MAX_PUBLIC_FIXTURES))
+        if bounded == 0:
+            return []
+        competition_ids = self._dashboard_competition_ids()
+        analysis_card = ReadModelCheckpointModel.payload["analysis_card"]
+        analysis_summary = (
+            func.json_to_record(
+                func.coalesce(analysis_card, literal({}, type_=JSON))
+            )
+            .table_valued(
+                column("decision_tier", String),
+                column("recommendation_decision_v4", JSON),
+            )
+            .render_derived(name="analysis_summary", with_types=True)
+            .lateral()
+        )
+        selected_candidate = analysis_summary.c.recommendation_decision_v4[
+            "selected_candidate"
+        ]
+        selected_summary = (
+            func.json_to_record(
+                case(
+                    (func.json_typeof(selected_candidate) == "object", selected_candidate),
+                    else_=literal({}, type_=JSON),
+                )
+            )
+            .table_valued(
+                column("market", String),
+                column("selection", String),
+                column("exact_line", String),
+                column("decimal_odds", String),
+            )
+            .render_derived(name="selected_summary", with_types=True)
+            .lateral()
+        )
+        checkpoint_identity = (
+            literal(ANALYSIS_CARD_SHADOW_PREFIX)
+            + MatchdayFixtureIdentityModel.provider_fixture_id
+        )
+        query = (
+            select(
+                MatchdayFixtureIdentityModel.provider_fixture_id.label(
+                    "provider_fixture_id"
+                ),
+                MatchdayFixtureIdentityModel.competition_id.label("competition_id"),
+                MatchdayFixtureIdentityModel.kickoff_utc.label("kickoff_utc"),
+                MatchdayFixtureIdentityModel.fixture_status.label("fixture_status"),
+                MatchdayFixtureIdentityModel.home_provider_team_id.label(
+                    "home_provider_team_id"
+                ),
+                MatchdayFixtureIdentityModel.away_provider_team_id.label(
+                    "away_provider_team_id"
+                ),
+                MatchdayFixtureIdentityModel.home_w2_team_id.label("home_w2_team_id"),
+                MatchdayFixtureIdentityModel.away_w2_team_id.label("away_w2_team_id"),
+                MatchdayFixtureIdentityModel.team_identity_status.label(
+                    "team_identity_status"
+                ),
+                MatchdayFixtureIdentityModel.payload["home_team_name"]
+                .as_string()
+                .label("home_team_name"),
+                MatchdayFixtureIdentityModel.payload["home_name"]
+                .as_string()
+                .label("home_name"),
+                MatchdayFixtureIdentityModel.payload["away_team_name"]
+                .as_string()
+                .label("away_team_name"),
+                MatchdayFixtureIdentityModel.payload["away_name"]
+                .as_string()
+                .label("away_name"),
+                analysis_summary.c.decision_tier,
+                selected_summary.c.market.label("selected_market"),
+                selected_summary.c.selection.label("selected_selection"),
+                selected_summary.c.exact_line.label("selected_line"),
+                selected_summary.c.decimal_odds.label("selected_odds"),
+            )
+            .outerjoin(
+                ReadModelCheckpointModel,
+                ReadModelCheckpointModel.checkpoint_key == checkpoint_identity,
+            )
+            .outerjoin(analysis_summary, literal(True))
+            .outerjoin(selected_summary, literal(True))
+            .where(
+                MatchdayFixtureIdentityModel.provider == "api_football",
+                MatchdayFixtureIdentityModel.competition_id.in_(competition_ids),
+            )
+        )
+        if start is not None:
+            query = query.where(MatchdayFixtureIdentityModel.kickoff_utc >= start)
+        if end is not None:
+            query = query.where(MatchdayFixtureIdentityModel.kickoff_utc < end)
+        try:
+            with Session(self._database_engine()) as session:
+                rows = list(
+                    session.execute(
+                        query.order_by(
+                            MatchdayFixtureIdentityModel.kickoff_utc,
+                            MatchdayFixtureIdentityModel.provider_fixture_id,
+                        ).limit(bounded)
+                    )
+                )
+                w2_ids = {
+                    value
+                    for row in rows
+                    for value in (row.home_w2_team_id, row.away_w2_team_id)
+                    if value
+                }
+                canonical = (
+                    {
+                        row.w2_team_id: row
+                        for row in session.scalars(
+                            select(CanonicalTeamModel).where(
+                                CanonicalTeamModel.w2_team_id.in_(w2_ids)
+                            )
+                        ).all()
+                    }
+                    if w2_ids
+                    else {}
+                )
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("READ_MODEL_CHECKPOINT_QUERY_FAILED") from exc
+
+        reviewed_labels = reviewed_public_team_labels()
+        pending_labels = pending_public_team_labels()
+        summaries: list[dict[str, Any]] = []
+        for row in rows:
+            tier = str(row.decision_tier or "NOT_READY")
+            selected_candidate = (
+                {
+                    "market": row.selected_market,
+                    "selection": row.selected_selection,
+                    "exact_line": row.selected_line,
+                    "decimal_odds": row.selected_odds,
+                }
+                if row.selected_market and row.selected_selection
+                else None
+            )
+            summaries.append(
+                {
+                    "_dashboard_projection_scope": "SUMMARY",
+                    "fixture_id": str(row.provider_fixture_id),
+                    "competition_id": row.competition_id,
+                    "competition_name": None,
+                    "kickoff_utc": _iso_or_none(row.kickoff_utc),
+                    "status": normalize_match_status(row.fixture_status),
+                    "raw_status": row.fixture_status,
+                    "home_team_id": row.home_provider_team_id,
+                    "home_team_name": row.home_team_name or row.home_name,
+                    "away_team_id": row.away_provider_team_id,
+                    "away_team_name": row.away_team_name or row.away_name,
+                    "home_team_label": _public_team_label_from_fields(
+                        provider_team_id=str(row.home_provider_team_id),
+                        w2_team_id=row.home_w2_team_id,
+                        identity_status=row.team_identity_status,
+                        raw_provider_name=row.home_team_name or row.home_name,
+                        canonical=canonical,
+                        reviewed_labels=reviewed_labels,
+                        pending_labels=pending_labels,
+                    ),
+                    "away_team_label": _public_team_label_from_fields(
+                        provider_team_id=str(row.away_provider_team_id),
+                        w2_team_id=row.away_w2_team_id,
+                        identity_status=row.team_identity_status,
+                        raw_provider_name=row.away_team_name or row.away_name,
+                        canonical=canonical,
+                        reviewed_labels=reviewed_labels,
+                        pending_labels=pending_labels,
+                    ),
+                    "decision_tier": tier,
+                    "data_status": "BLOCKED",
+                    "lifecycle_status": "DRAFT",
+                    "outcome_tracked": False,
+                    "lock_eligible": False,
+                    "reason_code": "DETAIL_NOT_LOADED",
+                    "action": "LOAD_DETAIL",
+                    "next_eval_at": None,
+                    "recommendation": (
+                        {
+                            **selected_candidate,
+                            "decision_tier": tier,
+                            "formal_recommendation": tier == "RECOMMEND",
+                        }
+                        if selected_candidate is not None
+                        and tier in {"RECOMMEND", "ANALYSIS_PICK"}
+                        else None
+                    ),
+                    "formal_recommendation": False,
+                    "candidate": False,
+                }
+            )
+        return summaries
 
     def dashboard_outcomes_for_fixtures(
         self,
@@ -2560,8 +2782,13 @@ class ReadModelRepository:
         competition_ids = self._dashboard_competition_ids()
         with Session(self._database_engine()) as session:
             fixtures = list(
-                session.scalars(
-                    select(MatchdayFixtureIdentityModel).where(
+                session.execute(
+                    select(
+                        MatchdayFixtureIdentityModel.fixture_id,
+                        MatchdayFixtureIdentityModel.competition_id,
+                        MatchdayFixtureIdentityModel.kickoff_utc,
+                        MatchdayFixtureIdentityModel.fixture_status,
+                    ).where(
                         MatchdayFixtureIdentityModel.provider == "api_football",
                         MatchdayFixtureIdentityModel.competition_id.in_(competition_ids),
                         MatchdayFixtureIdentityModel.kickoff_utc >= start,
@@ -2572,8 +2799,12 @@ class ReadModelRepository:
             fixture_ids = {row.fixture_id for row in fixtures}
             plans = (
                 list(
-                    session.scalars(
-                        select(MatchdayCheckpointPlanModel).where(
+                    session.execute(
+                        select(
+                            MatchdayCheckpointPlanModel.fixture_id,
+                            MatchdayCheckpointPlanModel.scheduled_at,
+                            MatchdayCheckpointPlanModel.endpoints,
+                        ).where(
                             MatchdayCheckpointPlanModel.fixture_id.in_(fixture_ids),
                             MatchdayCheckpointPlanModel.test_only.is_(False),
                         )
@@ -2635,13 +2866,15 @@ class ReadModelService:
         self.day_policy = BeijingOperationalDayPolicy()
         self.date_resolver = FixtureOperationalDateResolver()
         self._dashboard_response_cache: dict[
-            tuple[str, str, str, bool], tuple[float, dict[str, Any]]
+            tuple[str, str, str, bool, bool], tuple[float, dict[str, Any]]
         ] = {}
 
     def public_dashboard(self, **kwargs: Any) -> dict[str, Any]:
+        kwargs.setdefault("include_details", False)
         return self.dashboard(**kwargs)
 
     def public_dashboard_summary(self, **kwargs: Any) -> dict[str, Any]:
+        kwargs.setdefault("include_details", False)
         return self.dashboard_summary(**kwargs)
 
     def dashboard_outcomes_for_fixtures(
@@ -2696,6 +2929,43 @@ class ReadModelService:
         self._apply_collection_status(cards, generated_at or datetime.now(UTC))
         by_fixture = {str(card.get("fixture_id") or ""): card for card in cards}
         return [by_fixture[fixture_id] for fixture_id in requested]
+
+    def dashboard_intelligence_match(
+        self,
+        fixture_id: str,
+        *,
+        candidate_enabled: bool = False,
+    ) -> dict[str, Any] | None:
+        rows = self.repository.dashboard_fixtures_for_window(
+            start=None,
+            end=None,
+            limit=1,
+            fixture_ids=(fixture_id,),
+        )
+        if not rows:
+            return None
+        card = self._project_dashboard_card(rows[0])
+        generated_at = datetime.now(UTC)
+        self._apply_collection_status([card], generated_at)
+        outcome_rows = self.repository.dashboard_outcomes_for_fixtures([fixture_id])
+        forecasts = self.repository.dashboard_model_forecasts_for_fixtures([fixture_id])
+        evaluations = self.repository.dashboard_dynamic_evaluations_for_fixtures([fixture_id])
+        evaluation_checkpoints = self.repository.dashboard_evaluation_checkpoints_for_fixtures(
+            [fixture_id]
+        )
+        if fixture_id in evaluations:
+            card["dynamic_prematch"] = evaluations[fixture_id]
+        card["evaluation_checkpoints"] = evaluation_checkpoints.get(fixture_id, [])
+        replayed = bool(outcome_rows)
+        from w2.dashboard.workspace import build_dashboard_intelligence_match
+
+        return build_dashboard_intelligence_match(
+            card,
+            generated_at=generated_at,
+            ledger_fact=forecasts.get(fixture_id),
+            outcome_recorded=replayed,
+            candidate_enabled=candidate_enabled,
+        )
 
     def public_validation_summary(self, **kwargs: Any) -> dict[str, Any]:
         return self.validation_summary(**kwargs)
@@ -2858,13 +3128,20 @@ class ReadModelService:
         window: str = "today",
         timezone: str = BEIJING_TZ,
         include_debug: bool = True,
+        include_details: bool = True,
     ) -> dict[str, Any]:
         requested_date = (
             date.fromisoformat(target_date)
             if target_date
             else default_football_day(datetime.now(UTC))
         )
-        cache_key = (requested_date.isoformat(), window, timezone, include_debug)
+        cache_key = (
+            requested_date.isoformat(),
+            window,
+            timezone,
+            include_debug,
+            include_details,
+        )
         now_tick = monotonic()
         cached = self._dashboard_response_cache.get(cache_key)
         if cached is not None and now_tick - cached[0] <= 60:
@@ -2887,8 +3164,21 @@ class ReadModelService:
             query_start = query_end = None
         else:
             query_start, query_end = football_day_window(requested_date)
+        summary_reader = getattr(
+            self.repository,
+            "dashboard_fixture_summaries_for_window",
+            None,
+        )
         window_reader = getattr(self.repository, "dashboard_fixtures_for_window", None)
-        if callable(window_reader):
+        list_projection = not include_details and callable(summary_reader)
+        if list_projection:
+            batched_window_read = True
+            fixtures = summary_reader(
+                start=query_start,
+                end=query_end,
+                limit=MAX_PUBLIC_FIXTURES,
+            )
+        elif callable(window_reader):
             batched_window_read = True
             fixtures = window_reader(
                 start=query_start,
@@ -2902,7 +3192,7 @@ class ReadModelService:
         fixture_checkpoint_count = (
             checkpoint_count_reader() if callable(checkpoint_count_reader) else len(fixtures)
         )
-        analysis_projection_count = (
+        analysis_projection_count = len(fixtures) if list_projection else (
             sum(isinstance(item.get("_analysis_card_projection"), dict) for item in fixtures)
             if batched_window_read
             else len(fixtures)
@@ -2940,7 +3230,7 @@ class ReadModelService:
                 if callable(team_label_reader)
                 else {}
             )
-        cards = [
+        cards = fixtures if list_projection else [
             self._project_dashboard_card(
                 item,
                 canonical_competition_id=canonical_competitions.get(
@@ -2952,7 +3242,8 @@ class ReadModelService:
         ]
         selected = self._filter_dashboard_cards(cards, requested_date=requested_date, window=window)
         generated_at = datetime.now(UTC)
-        self._apply_collection_status(selected, generated_at)
+        if not list_projection:
+            self._apply_collection_status(selected, generated_at)
         recommendations = [
             card
             for card in selected
@@ -3008,7 +3299,11 @@ class ReadModelService:
             )
             if forward_ledger is not None:
                 performance["forward_ledger"] = forward_ledger
-        refresh_reader = getattr(self.repository, "market_refresh_status_for_fixtures", None)
+        refresh_reader = (
+            None
+            if list_projection
+            else getattr(self.repository, "market_refresh_status_for_fixtures", None)
+        )
         refresh_status = (
             refresh_reader([str(card.get("fixture_id") or "") for card in selected])
             if callable(refresh_reader)
@@ -3302,8 +3597,13 @@ class ReadModelService:
                 candidates.append(operational)
         return min(candidates).isoformat() if candidates else None
 
-    def dashboard_summary(self, **kwargs: Any) -> dict[str, Any]:
-        payload = self.dashboard(**kwargs)
+    def dashboard_summary(
+        self,
+        *,
+        include_details: bool = True,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        payload = self.dashboard(include_details=include_details, **kwargs)
         return {
             "generated_at": payload["generated_at"],
             "date": payload["date"],
