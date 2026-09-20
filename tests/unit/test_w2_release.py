@@ -53,6 +53,15 @@ def _make_repo(tmp_path: Path, with_migration: bool) -> tuple[Path, str, str]:
     (repo / "migrations" / "versions" / "a.py").write_text(
         'revision = "aaa"\ndown_revision = None\n', encoding="utf-8"
     )
+    override = repo / "infra" / "compose" / "controlled-future-refresh.override.yml"
+    override.parent.mkdir(parents=True)
+    override.write_text(
+        'services:\n  worker:\n    environment:\n      '
+        'W2_POSTMATCH_RESULT_DAILY_HARD_CAP: "800"\n'
+        '  scheduler:\n    environment:\n      '
+        'W2_POSTMATCH_RESULT_DAILY_HARD_CAP: "800"\n',
+        encoding="utf-8",
+    )
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
     subprocess.run(["git", "-C", str(repo), "commit", "-qm", "base"], check=True)
     base = subprocess.run(
@@ -167,6 +176,10 @@ def _write_fake_scp(tmp_path: Path) -> tuple[Path, Path]:
     fake.write_text(
         f"""#!/usr/bin/env bash
 echo "$*" >> "{log}"
+case "$2" in
+  *:/tmp/w2-controlled-future-refresh-*.override.yml)
+    cp "$1" "${{2#*:}}" ;;
+esac
 exit 0
 """,
         encoding="utf-8",
@@ -319,7 +332,7 @@ def _write_fake_vps_bin(tmp_path: Path, install_log: Path, *, online: str, fail_
     (bin_dir / "install").write_text(
         f"""#!/usr/bin/env bash
 echo "$*" >> "{install_log}"
-exit 0
+exec /usr/bin/install "$@"
 """,
         encoding="utf-8",
     )
@@ -417,6 +430,7 @@ if echo "$cmd" | grep -q "bash -s"; then
   args="${{cmd#*-- }}"
   eval "set -- $args"
   mkdir -p "{opt_w2}/shared" "{opt_w2}/deploy"
+  echo old-override > "{opt_w2}/deploy/controlled-future-refresh.override.yml"
   cat > "{opt_w2}/shared/release.env" <<'ENVEOF'
 W2_PYTHON_IMAGE=old
 W2_WEB_IMAGE=old
@@ -568,3 +582,38 @@ def test_window_query_fail_rejects_deploy(tmp_path: Path) -> None:
     ssh_log = tmp_path / "ssh.log"
     calls = ssh_log.read_text(encoding="utf-8").splitlines() if ssh_log.exists() else []
     assert not any("bash -s" in c for c in calls)
+
+
+def test_release_syncs_override_and_verifies_sha_before_activation() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+    sync = text.index("== sync controlled future refresh override ==")
+    activate = text.index("== activate release.env ==")
+
+    assert sync < activate
+    assert 'git" show' not in text  # guard against an accidental malformed invocation
+    assert 'show "${TARGET}:infra/compose/controlled-future-refresh.override.yml"' in text
+    assert "override_before_sha" in text
+    assert "override_after_sha" in text
+    assert 'OVERRIDE_SYNC before_sha=$override_before_sha repo_sha=$override_repo_sha after_sha=$override_after_sha' in text
+
+
+def test_readback_e_polls_health_before_started_at_and_checks_cap_800() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+    section = text.split("# e. 最长 180 秒", 1)[1].split("# f.", 1)[0]
+
+    assert "health_deadline=$(( $(date +%s) + 180 ))" in section
+    assert "sleep 5" in section
+    assert section.index('Health.Status') < section.index('st="$(docker inspect')
+    assert 'printenv W2_POSTMATCH_RESULT_DAILY_HARD_CAP' in section
+    assert '[ "$cap" = "800" ]' in section
+
+
+def test_readback_h_requires_progress_not_zero() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+    section = text.split("# h. 最长 10 分钟", 1)[1].split('echo "== 回读汇总 =="', 1)[0]
+
+    assert 'overdue_due_n0" != "0"' in section
+    assert '"$h_n1" -lt "$overdue_due_n0"' in section
+    assert '"$h_n1" = "0"' not in section
+    assert 'deploy_done_epoch + drain_max_wait_sec' in section
+    assert "drain_max_wait_sec" in section
