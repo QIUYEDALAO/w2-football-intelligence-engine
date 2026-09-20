@@ -175,6 +175,7 @@ class FutureRefreshResult:
     identity_pool_expansions: list[dict[str, Any]] = field(default_factory=list)
     requests: list[dict[str, Any]] = field(default_factory=list)
     refresh_checkpoints: list[dict[str, Any]] = field(default_factory=list)
+    result_not_finished_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -194,6 +195,8 @@ class RefreshTaskAudit:
 def refresh_progress_status(result: FutureRefreshResult) -> str:
     if result.blockers or result.status in {"BLOCKED", "PARTIAL_FAILED", "FAILED"}:
         return "FAILED"
+    if result.result_not_finished_count > 0:
+        return "RETRY_PENDING"
     if (
         result.status == "DISCOVERY_COMPLETE"
         or result.market_snapshot_count > 0
@@ -2804,6 +2807,7 @@ class FutureFixtureRefreshService:
             ]
         except FutureRefreshPersistenceError as exc:
             raise FutureRefreshError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
+        result_not_finished_count = 0
         if self.config.result_refresh_fixture_ids:
             if self.materialize_results is None:
                 raise FutureRefreshError("RESULT_MATERIALIZER_UNAVAILABLE")
@@ -2812,6 +2816,7 @@ class FutureFixtureRefreshService:
                 self.now,
             )
             materialized_fixture_ids = list(result_refresh["confirmed_fixture_ids"])
+            result_not_finished_count = int(result_refresh.get("result_not_finished_count", 0))
             if result_refresh["status"] == "BLOCKED":
                 blockers.extend(str(item) for item in result_refresh.get("blockers", []))
         elif self.config.discovery_date is not None:
@@ -2840,6 +2845,7 @@ class FutureFixtureRefreshService:
             status=(
                 "DISCOVERY_COMPLETE" if self.config.discovery_date is not None else "COMPLETED"
             ),
+            result_not_finished_count=result_not_finished_count,
         )
         self._write_audit(result)
         return result
@@ -3223,6 +3229,7 @@ class FutureFixtureRefreshService:
             "feature_enrichment_batch_count": self._feature_enrichment_batch_count,
             "ledger_appended_count": result.ledger_appended_count,
             "materialized_fixture_ids": result.materialized_fixture_ids,
+            "result_not_finished_count": result.result_not_finished_count,
             "raw_payload_written_count": result.raw_payload_written_count,
             "selected_market_fixture_ids": result.selected_market_fixture_ids,
             "blockers": result.blockers,
@@ -3275,6 +3282,36 @@ class FutureFixtureRefreshService:
             capture_id = None
             capture_ids: list[str] = []
             checkpoint_mode = self._checkpoint_mode()
+            if checkpoint_mode == "POSTMATCH" and result.result_not_finished_count > 0:
+                repository.write_checkpoint_audit(
+                    fixture_id=fixture_id,
+                    checkpoint=name,
+                    as_of=result.generated_at_utc,
+                    calls_used=max(
+                        calls_by_fixture.get(_api_football_fixture_id(fixture_id), 0),
+                        0,
+                    ),
+                    status="RETRY_PENDING",
+                    details={
+                        "contract": "w2.checkpoint_refresh.v1",
+                        "request_count": result.request_count,
+                        "blockers": result.blockers,
+                        "progress_status": "RETRY_PENDING",
+                        "result_collection_state": "RESULT_NOT_FINISHED",
+                        "result_not_finished_count": result.result_not_finished_count,
+                        "endpoints": list(checkpoint.get("endpoints") or []),
+                        "endpoint_capture_ids": [],
+                        "source": checkpoint.get("source"),
+                    },
+                )
+                from w2.matchday.repository import MatchdayRuntimeRepository
+
+                MatchdayRuntimeRepository().release_checkpoint_claim(
+                    plan_id=str(checkpoint.get("id") or checkpoint.get("plan_id") or ""),
+                    claim_token=str(checkpoint.get("claim_token") or ""),
+                    reason="RESULT_NOT_FINISHED",
+                )
+                continue
             if checkpoint_mode == "DIRECT":
                 progress_status, capture_id, capture_ids = self._checkpoint_capture_outcome(
                     checkpoint, result
@@ -3707,6 +3744,7 @@ def run_future_refresh_task(
             "checkpoint_fixture_ids": list(checkpoint_fixture_ids),
             "refresh_checkpoints": result.refresh_checkpoints,
             "materialized_fixture_ids": result.materialized_fixture_ids,
+            "result_not_finished_count": result.result_not_finished_count,
             "identity_pool_expansions": result.identity_pool_expansions,
             "requests": result.requests,
             "skipped_free_plan_restricted_count": (

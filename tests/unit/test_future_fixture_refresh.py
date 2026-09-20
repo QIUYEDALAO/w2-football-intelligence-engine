@@ -90,6 +90,10 @@ def test_refresh_progress_distinguishes_data_empty_and_failure() -> None:
     assert refresh_progress_status(_refresh_result(market_snapshot_count=1)) == "DATA_PROGRESS"
     assert refresh_progress_status(_refresh_result()) == "PROVIDER_EMPTY"
     assert (
+        refresh_progress_status(_refresh_result(result_not_finished_count=1))
+        == "RETRY_PENDING"
+    )
+    assert (
         refresh_progress_status(_refresh_result(blockers=["PROVIDER_REQUEST_FAILED"])) == "FAILED"
     )
 

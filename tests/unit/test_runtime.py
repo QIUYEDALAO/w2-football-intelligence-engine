@@ -30,7 +30,12 @@ from w2.competitions.seed import set_competition_enabled
 from w2.config import Settings
 from w2.infrastructure.cache import redis_status
 from w2.infrastructure.database import create_engine
-from w2.ingestion.checkpoint_refresh import postmatch_result_checkpoint_plan
+from w2.ingestion.checkpoint_refresh import (
+    POSTMATCH_RESULT_DELAY,
+    POSTMATCH_RESULT_GRACE,
+    POSTMATCH_RESULT_MIN_DELAY,
+    postmatch_result_checkpoint_plan,
+)
 from w2.matchday.intake_v2 import stable_hash
 
 
@@ -95,18 +100,32 @@ def test_candidate_delivery_loop_does_not_wait_for_main_scheduler_work(monkeypat
 
 def test_postmatch_result_checkpoint_is_single_bounded_status_fixture_refresh() -> None:
     kickoff = datetime(2026, 8, 3, 17, tzinfo=UTC)
+    not_due = postmatch_result_checkpoint_plan(
+        fixture_id="api_football:1494236",
+        competition_id="allsvenskan",
+        season="2026",
+        kickoff_utc=kickoff,
+        now=kickoff + timedelta(hours=1, minutes=59),
+    )
+    assert not_due.status == "PLANNED"
+
     plan = postmatch_result_checkpoint_plan(
         fixture_id="api_football:1494237",
         competition_id="allsvenskan",
         season="2026",
         kickoff_utc=kickoff,
-        now=kickoff.replace(hour=21),
+        now=kickoff + timedelta(hours=2),
     )
 
     assert plan.status == "DUE"
     assert plan.checkpoint == "POSTMATCH_RESULT"
-    assert plan.scheduled_at == kickoff.replace(hour=20)
+    assert plan.scheduled_at == kickoff + timedelta(hours=2)
+    assert plan.window_end == kickoff + timedelta(hours=35)
     assert plan.endpoints == ("status", "fixtures")
+    assert POSTMATCH_RESULT_MIN_DELAY == timedelta(hours=1, minutes=45)
+    assert POSTMATCH_RESULT_DELAY == timedelta(hours=2)
+    assert POSTMATCH_RESULT_DELAY >= POSTMATCH_RESULT_MIN_DELAY
+    assert POSTMATCH_RESULT_GRACE == timedelta(hours=33)
 
     missed = postmatch_result_checkpoint_plan(
         fixture_id="api_football:1494238",

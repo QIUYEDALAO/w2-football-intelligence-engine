@@ -215,6 +215,31 @@ class FinishedFixtureClient(FakeApiFootballClient):
         return super().payload(endpoint, params)
 
 
+class UnfinishedFixtureClient(FakeApiFootballClient):
+    def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+        if endpoint == "fixtures":
+            return {
+                "response": [
+                    {
+                        "fixture": {
+                            "id": 1489404,
+                            "date": (NOW - timedelta(hours=2)).isoformat(),
+                            "status": {"short": "2H"},
+                        },
+                        "league": {"id": 1, "name": "World Cup", "round": "Group K"},
+                        "teams": {
+                            "home": {"id": 10, "name": "Team A"},
+                            "away": {"id": 20, "name": "Team B"},
+                        },
+                        "goals": {"home": 1, "away": 0},
+                        # Even a populated score must not bypass the terminal-status gate.
+                        "score": {"fulltime": {"home": 1, "away": 0}},
+                    }
+                ]
+            }
+        return super().payload(endpoint, params)
+
+
 class SchemaDriftLineupsClient(FakeApiFootballClient):
     def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
         return {"response": {}} if endpoint == "lineups" else super().payload(endpoint, params)
@@ -1005,6 +1030,61 @@ def test_postmatch_checkpoint_fetches_once_and_materializes_real_result(
         assert checkpoint is not None
         assert checkpoint.status == "CAPTURED"
         assert checkpoint_audit is not None and checkpoint_audit.status == "COMPLETED"
+
+
+def test_postmatch_checkpoint_keeps_due_when_result_is_not_terminal(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "0")
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status,fixtures,odds,lineups")
+    repository = MatchdayRuntimeRepository()
+    repository.upsert_checkpoint_plan(
+        postmatch_result_checkpoint_plan(
+            fixture_id="api_football:1489404",
+            competition_id="world_cup_2026",
+            season="2026",
+            kickoff_utc=NOW - timedelta(hours=2),
+            now=NOW,
+        )
+    )
+    checkpoint = repository.claim_due_checkpoint_plans(
+        now=NOW,
+        worker_id="postmatch-unfinished-test",
+    )[0]
+    client = UnfinishedFixtureClient()
+
+    audit = run_future_refresh_task(
+        task_id="postmatch-unfinished-task",
+        key="postmatch-unfinished:world_cup_2026:1489404",
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=client,
+        now=NOW,
+        persistence="db",
+        checkpoint_fixture_ids=("api_football:1489404",),
+        refresh_checkpoints=(checkpoint,),
+        materialize_public_artifacts=materialize_projection_events_for_test,
+        materialize_results=_materialize_outcome_results,
+    )
+
+    assert [endpoint for endpoint, _params in client.calls] == ["status", "fixtures"]
+    assert audit.status == "RETRY_PENDING"
+    assert audit.result["result_not_finished_count"] == 1, audit.result
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        result = session.scalar(select(ResultModel))
+        checkpoint_row = session.scalar(select(MatchdayCheckpointPlanModel))
+        checkpoint_audit = session.scalar(select(FutureRefreshCheckpointAuditModel))
+        assert result is None
+        assert checkpoint_row is not None
+        assert checkpoint_row.status == "DUE"
+        assert checkpoint_row.claim_token is None
+        assert "RESULT_NOT_FINISHED" in checkpoint_row.blockers
+        assert checkpoint_audit is not None
+        assert checkpoint_audit.status == "RETRY_PENDING"
+        assert checkpoint_audit.details["result_collection_state"] == "RESULT_NOT_FINISHED"
 
 
 def test_c9_fake_provider_emits_exact_required_event_set(

@@ -31,8 +31,17 @@ JUMP_CONFIRMATION_CHECKPOINT = "LINE_JUMP_CONFIRMATION"
 LINEUP_CONFIRMED_CHECKPOINT = "LINEUP_CONFIRMED"
 T30_VALIDATION_CHECKPOINT = "T-30m_VALIDATION_LOCK"
 POSTMATCH_RESULT_CHECKPOINT = "POSTMATCH_RESULT"
-POSTMATCH_RESULT_DELAY = timedelta(hours=3)
+# API-Football exposes live fixture updates at 15-second cadence, but does not
+# publish a post-whistle final-score SLA.  Keep the first result poll at two
+# hours after kickoff: the operational match-duration floor is about 1h45m;
+# this must never be shortened below that floor.  The 33-hour grace window
+# remains the bounded retry safety net when a result is not final yet.
+POSTMATCH_RESULT_MIN_DELAY = timedelta(hours=1, minutes=45)
+POSTMATCH_RESULT_DELAY = timedelta(hours=2)
 POSTMATCH_RESULT_GRACE = timedelta(hours=33)
+
+if POSTMATCH_RESULT_DELAY < POSTMATCH_RESULT_MIN_DELAY:
+    raise ValueError("POSTMATCH_RESULT_DELAY_BELOW_MATCH_DURATION_FLOOR")
 
 
 @dataclass(frozen=True)
