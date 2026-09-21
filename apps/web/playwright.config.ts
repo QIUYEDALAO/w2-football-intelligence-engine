@@ -16,7 +16,9 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      // 既有 e2e 断言按深色主题写就；显式固定 prefers-color-scheme，避免
+      // 浅色主题变量让颜色断言漂移。
+      use: { ...devices["Desktop Chrome"], colorScheme: "dark" },
     },
   ],
   webServer: {

@@ -761,12 +761,12 @@ test("AH recommendation rows share the owner main-handicap sign convention with 
   await page.getByRole("tab", { name: "赛后验证" }).click();
 
   for (const [fixtureId, , , expected] of recommendations) {
-    await expect(page.locator(`.v41-official-recommendations li[data-fixture-id='${fixtureId}'] > span`).first()).toHaveText(expected);
+    await expect(page.locator(`.v41-official-recommendations li[data-fixture-id='${fixtureId}'] .v41-match-card__pick`).first()).toContainText(expected);
   }
   // formatAhMarketHandicap renders the home-frame main_line with its sign
   // preserved, so the market radar and the recommendation rows now share one
   // sign convention: main_line -0.5 reads as "-0.5" in both places.
-  const recommendationText = await page.locator(".v41-official-recommendations li[data-fixture-id='1490405'] > span").first().textContent();
+  const recommendationText = await page.locator(".v41-official-recommendations li[data-fixture-id='1490405'] .v41-match-card__pick").first().textContent();
   expect(recommendationText).toContain(` ${radarLine}`);
 });
 
@@ -1465,16 +1465,20 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
   await expect(recommendationRows.nth(1)).toHaveAttribute("data-settlement", "LOSS");
   await expect(recommendationRows.nth(2)).toHaveAttribute("data-settlement", "HALF_WIN");
   await expect(recommendationRows.nth(3)).toHaveAttribute("data-settlement", "PUSH");
-  await expect(recommendationRows.nth(0).locator("strong")).toContainText("葡超");
+  await expect(recommendationRows.nth(0).locator(".v41-league-tag")).toContainText("葡超");
+  // 语义色锁定：赢绿 / 输红 / 走灰（深浅主题一致）。
   for (const index of [0, 2]) {
-    await expect(recommendationRows.nth(index).locator("b")).toHaveCSS("color", "rgb(208, 122, 111)");
-    await expect(recommendationRows.nth(index).locator("em")).toHaveCSS("color", "rgb(208, 122, 111)");
+    await expect(recommendationRows.nth(index).locator("b")).toHaveCSS("color", "rgb(111, 166, 135)");
+    await expect(recommendationRows.nth(index).locator("em")).toHaveCSS("color", "rgb(111, 166, 135)");
   }
-  for (const index of [1, 3]) {
-    const colors = await recommendationRows.nth(index).locator("b, em").evaluateAll((nodes) =>
+  await expect(recommendationRows.nth(1).locator("b")).toHaveCSS("color", "rgb(208, 122, 111)");
+  await expect(recommendationRows.nth(1).locator("em")).toHaveCSS("color", "rgb(208, 122, 111)");
+  {
+    const pushColors = await recommendationRows.nth(3).locator("b, em").evaluateAll((nodes) =>
       nodes.map((node) => getComputedStyle(node).color),
     );
-    expect(colors).not.toContain("rgb(208, 122, 111)");
+    expect(pushColors).not.toContain("rgb(208, 122, 111)");
+    expect(pushColors).not.toContain("rgb(111, 166, 135)");
   }
   const recommendationBeforeAudit = await validation.evaluate((node) => {
     const recommendation = node.querySelector(".v41-official-recommendations");

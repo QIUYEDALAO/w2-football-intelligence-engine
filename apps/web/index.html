@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>W2 Football Intelligence</title>
+    <script>
+      // 主题初始化：在 React 挂载前按 localStorage 设置 data-theme，避免刷新闪烁。
+      try {
+        var __w2Theme = localStorage.getItem("w2-theme");
+        if (__w2Theme === "light" || __w2Theme === "dark") {
+          document.documentElement.setAttribute("data-theme", __w2Theme);
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

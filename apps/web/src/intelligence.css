@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --v41-bg: #0b1013;
   --v41-rail: #0e151a;
   --v41-panel: #131a1f;
@@ -12,12 +13,95 @@
   --v41-accent: #5ba8be;
   --v41-accent-soft: #16303a;
   --v41-accent-line: #2e6c80;
+  /* 语义色锁定：赢绿 / 输红 / 走灰 / 警告黄（深浅主题一致）。
+     --v41-pnl-up 是历史遗留的歧义别名（名字像“涨”却配了红），不得用于胜负着色。 */
+  --v41-ok: #6fa687;
+  --v41-ok-bg: #16281f;
   --v41-critical: #d07a6f;
-  --v41-pnl-up: #d07a6f;
   --v41-critical-bg: #2e1c19;
+  --v41-pnl-up: #d07a6f;
+  --v41-push: #8496a0;
+  --v41-push-bg: #232e35;
   --v41-warning: #cba05a;
   --v41-warning-bg: #2b2317;
-  --v41-ok: #6fa687;
+  /* 语义派生色（药丸描边/文字、井格底、诊断描边），随主题一起切换 */
+  --v41-ok-line: #335844;
+  --v41-ok-ink: #84b89a;
+  --v41-critical-line: #714039;
+  --v41-warning-line: #654e2d;
+  --v41-warn-ink: #ddb46e;
+  --v41-well-bg: #10171c;
+  --v41-diag-line: #5b482d;
+}
+
+/* 浅色主题（跟随系统，手动 data-theme="dark" 时覆盖为深色） */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --v41-bg: #f4f6f8;
+    --v41-rail: #eef1f3;
+    --v41-panel: #ffffff;
+    --v41-focus: #e9eef1;
+    --v41-ink: #1a2126;
+    --v41-ink-2: #5a6670;
+    --v41-ink-3: #7a8892;
+    --v41-line: #d8dee3;
+    --v41-line-soft: #e4e9ed;
+    --v41-line-faint: #edf1f4;
+    --v41-accent: #0e7490;
+    --v41-accent-soft: #d6ecf3;
+    --v41-accent-line: #b8d8e4;
+    --v41-ok: #15803d;
+    --v41-ok-bg: #e2f3e8;
+    --v41-critical: #c0352b;
+    --v41-critical-bg: #fbe5e2;
+    --v41-pnl-up: #c0352b;
+    --v41-push: #7a8892;
+    --v41-push-bg: #eef1f3;
+    --v41-warning: #a16207;
+    --v41-warning-bg: #fbf0d9;
+    --v41-ok-line: #a7d3b9;
+    --v41-ok-ink: #15803d;
+    --v41-critical-line: #f0c4be;
+    --v41-warning-line: #e3cf9a;
+    --v41-warn-ink: #a16207;
+    --v41-well-bg: #f0f3f5;
+    --v41-diag-line: #e0c98f;
+  }
+}
+
+/* 浅色主题（手动 data-theme="light" 强制覆盖） */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --v41-bg: #f4f6f8;
+  --v41-rail: #eef1f3;
+  --v41-panel: #ffffff;
+  --v41-focus: #e9eef1;
+  --v41-ink: #1a2126;
+  --v41-ink-2: #5a6670;
+  --v41-ink-3: #7a8892;
+  --v41-line: #d8dee3;
+  --v41-line-soft: #e4e9ed;
+  --v41-line-faint: #edf1f4;
+  --v41-accent: #0e7490;
+  --v41-accent-soft: #d6ecf3;
+  --v41-accent-line: #b8d8e4;
+  --v41-ok: #15803d;
+  --v41-ok-bg: #e2f3e8;
+  --v41-critical: #c0352b;
+  --v41-critical-bg: #fbe5e2;
+  --v41-pnl-up: #c0352b;
+  --v41-push: #7a8892;
+  --v41-push-bg: #eef1f3;
+  --v41-warning: #a16207;
+  --v41-warning-bg: #fbf0d9;
+  --v41-ok-line: #a7d3b9;
+  --v41-ok-ink: #15803d;
+  --v41-critical-line: #f0c4be;
+  --v41-warning-line: #e3cf9a;
+  --v41-warn-ink: #a16207;
+  --v41-well-bg: #f0f3f5;
+  --v41-diag-line: #e0c98f;
 }
 
 html {
@@ -154,7 +238,7 @@ summary {
   background: transparent;
   color: var(--v41-ink);
   font-size: 14px;
-  color-scheme: dark;
+  color-scheme: inherit;
 }
 
 .v41-date-nav button.is-text {
@@ -181,8 +265,8 @@ summary {
 }
 
 .v41-pill--ok {
-  border-color: #335844;
-  color: #84b89a;
+  border-color: var(--v41-ok-line);
+  color: var(--v41-ok-ink);
 }
 
 .v41-pill--neutral {
@@ -192,15 +276,15 @@ summary {
 }
 
 .v41-pill--critical {
-  border-color: #714039;
+  border-color: var(--v41-critical-line);
   background: var(--v41-critical-bg);
   color: var(--v41-critical);
 }
 
 .v41-pill--warn {
-  border-color: #654e2d;
+  border-color: var(--v41-warning-line);
   background: var(--v41-warning-bg);
-  color: #ddb46e;
+  color: var(--v41-warn-ink);
 }
 
 .v41-updated {
@@ -259,6 +343,24 @@ summary {
   background: var(--v41-panel);
   color: var(--v41-ink-1);
   box-shadow: inset 0 2px 0 var(--v41-accent);
+}
+
+.v41-theme-btn {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--v41-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--v41-ink-2);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.v41-theme-btn:hover {
+  border-color: var(--v41-accent);
+  color: var(--v41-accent);
 }
 
 .v41-recent-days > span:first-child {
@@ -836,7 +938,7 @@ summary {
   gap: 14px;
   padding: 18px;
   border-top: 1px solid var(--v41-line);
-  background: #10171c;
+  background: var(--v41-well-bg);
 }
 
 .v41-factor-checklist > header {
@@ -1365,7 +1467,7 @@ summary {
   display: flex;
   gap: 10px;
   padding: 9px 11px;
-  border: 1px solid #5b482d;
+  border: 1px solid var(--v41-diag-line);
   border-radius: 3px;
   background: var(--v41-warning-bg);
 }
@@ -1391,7 +1493,7 @@ summary {
   display: flex;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid #5b482d;
+  border: 1px solid var(--v41-diag-line);
   border-radius: 3px;
   background: var(--v41-warning-bg);
 }
@@ -1916,58 +2018,154 @@ summary {
   border-radius: 3px;
 }
 
-.v41-official-recommendations__head,
-.v41-official-recommendations li {
+/* 两列自适应卡片网格（CSS grid auto-fill minmax，窄屏自动降单列） */
+.v41-match-grid {
   display: grid;
-  grid-template-columns: 145px minmax(220px, 1.5fr) minmax(125px, 1fr) 80px 60px 80px 70px;
-  gap: 10px;
-  align-items: center;
-}
-
-.v41-official-recommendations__head {
-  padding: 8px 0;
-  color: var(--v41-ink-3);
-  font-size: 12px;
-}
-
-.v41-official-recommendations ol {
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.v41-official-recommendations li {
-  min-height: 42px;
-  border-top: 1px solid var(--v41-line-faint);
+.v41-match-grid li {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--v41-line-soft);
+  border-radius: 8px;
+  background: var(--v41-panel);
   font-size: 12px;
+  transition: border-color 0.15s;
 }
 
-.v41-official-recommendations time,
-.v41-official-recommendations span { color: var(--v41-ink-2); }
-.v41-official-recommendations span small {
+.v41-match-grid li:hover {
+  border-color: var(--v41-accent);
+}
+
+.v41-match-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.v41-match-card__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--v41-ink-2);
+}
+
+.v41-league-tag {
+  display: inline-block;
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--v41-accent-soft);
+  color: var(--v41-accent);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.v41-match-card__meta time {
+  color: var(--v41-ink-2);
+  white-space: nowrap;
+}
+
+.v41-result-badge {
+  flex: 0 0 auto;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.v41-match-card__teams {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--v41-ink);
+  overflow-wrap: anywhere;
+}
+
+.v41-match-card__detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.v41-match-card__pick {
+  min-width: 0;
+  color: var(--v41-ink-2);
+}
+
+.v41-match-card__odds {
+  margin-left: 6px;
+  color: var(--v41-ink);
+  font-weight: 600;
+}
+
+.v41-match-card__pick small {
   display: block;
   margin-top: 2px;
   color: var(--v41-ink-3);
   font-size: 10px;
   line-height: 1.3;
 }
-.v41-official-recommendations strong {
-  overflow-wrap: anywhere;
-}
-.v41-official-recommendations strong > small {
-  display: block;
-  margin-bottom: 2px;
-  color: var(--v41-ink-3);
-  font-size: 10px;
-  font-weight: 400;
-}
-.v41-official-recommendations em { color: var(--v41-ink); font-style: normal; font-weight: 700; }
 
-.v41-official-recommendations li[data-settlement="WIN"] b,
-.v41-official-recommendations li[data-settlement="WIN"] em,
-.v41-official-recommendations li[data-settlement="HALF_WIN"] b,
-.v41-official-recommendations li[data-settlement="HALF_WIN"] em {
-  color: var(--v41-pnl-up);
+.v41-match-card__score-group {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+.v41-match-card__score {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--v41-ink);
+}
+
+.v41-match-card__profit {
+  font-size: 15px;
+  font-weight: 700;
+  font-style: normal;
+  color: var(--v41-ink);
+}
+
+/* 语义色锁定：赢绿 / 输红 / 走灰（深浅主题一致）。
+   注意：不得再用歧义别名 --v41-pnl-up 给胜负着色。 */
+.v41-match-grid li[data-settlement="WIN"] .v41-result-badge,
+.v41-match-grid li[data-settlement="HALF_WIN"] .v41-result-badge {
+  background: var(--v41-ok-bg);
+  color: var(--v41-ok);
+}
+.v41-match-grid li[data-settlement="LOSS"] .v41-result-badge,
+.v41-match-grid li[data-settlement="HALF_LOSS"] .v41-result-badge {
+  background: var(--v41-critical-bg);
+  color: var(--v41-critical);
+}
+.v41-match-grid li[data-settlement="PUSH"] .v41-result-badge,
+.v41-match-grid li[data-settlement="PENDING"] .v41-result-badge {
+  background: var(--v41-push-bg);
+  color: var(--v41-push);
+}
+
+.v41-match-grid li[data-settlement="WIN"] .v41-match-card__profit,
+.v41-match-grid li[data-settlement="HALF_WIN"] .v41-match-card__profit {
+  color: var(--v41-ok);
+}
+.v41-match-grid li[data-settlement="LOSS"] .v41-match-card__profit,
+.v41-match-grid li[data-settlement="HALF_LOSS"] .v41-match-card__profit {
+  color: var(--v41-critical);
+}
+.v41-match-grid li[data-settlement="PUSH"] .v41-match-card__profit {
+  color: var(--v41-push);
 }
 
 .v41-validation-leagues,
@@ -2261,8 +2459,7 @@ summary {
 .v41-validation-center h3 { margin-bottom: 5px; }
 .v41-validation-verdict { gap: 2px; padding: 9px 11px; font-size: 13px; line-height: 1.4; }
 .v41-official-recommendations { padding: 9px 10px; }
-.v41-official-recommendations__head { padding: 5px 0; }
-.v41-official-recommendations li { min-height: 34px; }
+.v41-match-grid li { padding: 9px 12px; }
 .v41-validation-counts li { padding: 5px 7px; }
 .v41-validation-audit--group { padding: 9px 10px; }
 .v41-validation-layout > section { padding: 9px 10px; }
@@ -2477,10 +2674,6 @@ summary {
   .v41-validation-matches time {
     grid-column: 1 / -1;
   }
-
-  .v41-official-recommendations { overflow-x: auto; }
-  .v41-official-recommendations__head,
-  .v41-official-recommendations li { min-width: 920px; }
 
   .v41-snapshots li,
   .v41-three-layer > div {

@@ -362,6 +362,29 @@ function collectionLabel(match: WorkspaceMatch): string {
 
 function Header({ date, loading, onDateChange, onRefresh, workspace, tab, onTabChange, validationCount }: Props & { tab: WorkspaceTab; onTabChange: (tab: WorkspaceTab) => void; validationCount?: number }) {
   const publicStatus = selectedDayPublicStatus(workspace);
+  const [theme, setTheme] = useState<"light" | "dark" | null>(() => {
+    try {
+      const saved = localStorage.getItem("w2-theme");
+      return saved === "light" || saved === "dark" ? saved : null;
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    try {
+      if (theme) {
+        document.documentElement.setAttribute("data-theme", theme);
+        localStorage.setItem("w2-theme", theme);
+      } else {
+        document.documentElement.removeAttribute("data-theme");
+        localStorage.removeItem("w2-theme");
+      }
+    } catch {
+      // 忽略 localStorage 不可用等环境异常
+    }
+  }, [theme]);
+  const effectiveTheme: "light" | "dark" =
+    theme ?? (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark");
   return (
     <header className="v41-header">
       <a className="v41-brand" href="#top"><strong>W2</strong><span>情报工作台</span></a>
@@ -382,6 +405,7 @@ function Header({ date, loading, onDateChange, onRefresh, workspace, tab, onTabC
       <nav className="v41-tabs" aria-label="工作台视图" role="tablist">
         {([["matches", "比赛列表"], ["validation", "赛后验证"], ["replay", "回放记录"]] as const).map(([value, text]) => <button aria-selected={tab === value} key={value} onClick={() => onTabChange(value)} role="tab" type="button">{text}{value === "validation" && validationCount !== undefined ? ` · ${validationCount}` : ""}</button>)}
       </nav>
+      <button className="v41-theme-btn" onClick={() => setTheme(effectiveTheme === "light" ? "dark" : "light")} title="切换明暗主题" type="button">{effectiveTheme === "light" ? "☀️ 浅白" : "🌙 暗黑"}</button>
     </header>
   );
 }
@@ -1057,19 +1081,22 @@ function ValidationCenter({ workspace, response }: { workspace: IntelligenceWork
         <h3 id="official-recommendations-title">推荐与赛果</h3>
         <p className="v41-validation-verdict"><strong>开赛前最后状态仍为候选且已结算 {officialSettledCount} 注，合计 {officialProfit >= 0 ? "+" : ""}{officialProfit.toFixed(3)} 单位。</strong><span>样本量远不足以判断模型好坏。</span></p>
         <ul className="v41-validation-counts"><li><span>曾形成候选</span><strong>{modelForecast.ever_formed_candidate_count}</strong></li><li><span>最终仍有效</span><strong>{modelForecast.final_candidate_count}</strong></li><li><span>后续失效</span><strong>{modelForecast.invalidated_candidate_count}</strong></li></ul>
-        {officialRecommendations.length ? <>
-          <div className="v41-official-recommendations__head" aria-hidden="true"><span>开球时间</span><span>比赛</span><span>系统推荐</span><span>进场赔率</span><span>比分</span><span>结算结果</span><span>盈亏</span></div>
-          <ol>{officialRecommendations.map((row) => {
-            const recommendation = row.market === "ASIAN_HANDICAP"
-              ? `让球 ${ahRecommendationTeamLabel(row.selection, row.home_team_label?.display_name, row.away_team_label?.display_name)}${formatAhRecommendationHandicap(row.selection, row.exact_line) || row.exact_line} · 推荐${SELECTION_LABELS[row.selection]}`
-              : `${SELECTION_LABELS[row.selection]} ${row.exact_line}`;
-            return <li key={`${row.fixture_id}-${row.market}`} data-fixture-id={row.fixture_id} data-market={row.market} data-settlement={row.settlement}>
-              <time>{localDateTime(row.kickoff_utc)}</time>
-              <strong><small>{translateCompetition(row.competition_id || "赛事待确认", row.competition_id)}</small><span className="v41-match-name"><TeamLabel team={row.home_team_label} /><span className="v41-versus"> vs </span><TeamLabel team={row.away_team_label} /></span></strong>
-              <span>{recommendation}{row.lifecycle_note_zh ? <small>{row.lifecycle_note_zh}</small> : null}</span><span>@{row.decimal_odds.toFixed(2)}</span><span>{row.score ?? "待结算"}</span><b>{row.settlement === "PENDING" ? "待结算" : SETTLEMENT_LABELS[row.settlement]}</b><em>{row.profit_units === null ? "待结算" : `${row.profit_units > 0 ? "+" : ""}${row.profit_units.toFixed(3)}`}</em>
-            </li>;
-          })}</ol>
-        </> : <p className="v41-validation-empty">当日无检查点漏斗候选。</p>}
+        {officialRecommendations.length ? <ol className="v41-match-grid">{officialRecommendations.map((row) => {
+          const recommendation = row.market === "ASIAN_HANDICAP"
+            ? `让球 ${ahRecommendationTeamLabel(row.selection, row.home_team_label?.display_name, row.away_team_label?.display_name)}${formatAhRecommendationHandicap(row.selection, row.exact_line) || row.exact_line} · 推荐${SELECTION_LABELS[row.selection]}`
+            : `${SELECTION_LABELS[row.selection]} ${row.exact_line}`;
+          return <li key={`${row.fixture_id}-${row.market}`} data-fixture-id={row.fixture_id} data-market={row.market} data-settlement={row.settlement}>
+            <div className="v41-match-card__head">
+              <span className="v41-match-card__meta"><span className="v41-league-tag">{translateCompetition(row.competition_id || "赛事待确认", row.competition_id)}</span><time>{localDateTime(row.kickoff_utc)}</time></span>
+              <b className="v41-result-badge">{row.settlement === "PENDING" ? "待结算" : SETTLEMENT_LABELS[row.settlement]}</b>
+            </div>
+            <strong className="v41-match-card__teams"><span className="v41-match-name"><TeamLabel team={row.home_team_label} /><span className="v41-versus"> vs </span><TeamLabel team={row.away_team_label} /></span></strong>
+            <div className="v41-match-card__detail">
+              <span className="v41-match-card__pick">{recommendation}{row.lifecycle_note_zh ? <small>{row.lifecycle_note_zh}</small> : null}<span className="v41-match-card__odds">@{row.decimal_odds.toFixed(2)}</span></span>
+              <span className="v41-match-card__score-group"><span className="v41-match-card__score">{row.score ?? "待结算"}</span><em className="v41-match-card__profit">{row.profit_units === null ? "待结算" : `${row.profit_units > 0 ? "+" : ""}${row.profit_units.toFixed(3)}`}</em></span>
+            </div>
+          </li>;
+        })}</ol> : <p className="v41-validation-empty">当日无检查点漏斗候选。</p>}
       </section>
       <ul className="v41-validation-counts v41-validation-t30"><li><span>T-30 候选评估</span><strong>{modelForecast.t30_evaluated_candidate_count}</strong></li><li><span>T-30 正式档位成功</span><strong>{modelForecast.t30_confirmed_candidate_count}</strong></li></ul>
       <p className="v41-validation-context">候选评估与正式档位终态是两层证据；端点明细仍分别保留 CAPTURED / PROVIDER_EMPTY。</p>
