@@ -188,13 +188,14 @@ class MatchdayCheckpointPlanModel(Base):
 
 
 class MatchdayCheckpointPlanRescheduleModel(Base):
-    """Append-only record of a plan row being re-dated onto a new kickoff.
+    """Append-only record of a plan row moving to a new schedule.
 
     plan_id excludes the kickoff, so a postponed fixture reuses its plan rows
-    and the re-date overwrites the window, status, blockers and missed_at in
-    place. Without this table the previous window leaves no trace anywhere:
-    the endpoint captures and checkpoint audit record attempts, not the plan
-    the attempt was scheduled against.
+    and a delay change reuses POSTMATCH_RESULT rows at the same kickoff.  Both
+    migrations overwrite the window, status, blockers and missed_at in place.
+    Without this table the previous window leaves no trace anywhere: endpoint
+    captures and checkpoint audit record attempts, not the plan the attempt
+    was scheduled against.
     """
 
     __tablename__ = "matchday_checkpoint_plan_reschedules"

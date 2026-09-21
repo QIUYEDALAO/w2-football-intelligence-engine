@@ -21,6 +21,11 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayFixtureIdentityModel,
 )
 from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
+from w2.ingestion.checkpoint_refresh import (
+    POSTMATCH_RESULT_DELAY,
+    POSTMATCH_RESULT_GRACE,
+    postmatch_result_checkpoint_plan,
+)
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.matchday.intake_v2 import (
     CheckpointPlan,
@@ -1402,6 +1407,154 @@ def test_same_kickoff_with_a_different_schedule_is_still_a_conflict() -> None:
     repository.upsert_checkpoint_plan(plan(NOW - timedelta(hours=3)))
     with pytest.raises(MatchdayRepositoryError, match="CHECKPOINT_PLAN_CONFLICT"):
         repository.upsert_checkpoint_plan(plan(NOW - timedelta(hours=2)))
+
+
+def test_result_delay_change_migrates_existing_plan_for_rolling_release() -> None:
+    """A current POSTMATCH_RESULT projection may replace the prior delay window."""
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    fixture_id = "api_football:1493149"
+    old_scheduled_at = KICKOFF + timedelta(hours=3)
+    old_plan = CheckpointPlan(
+        competition_id="argentina_primera",
+        season="2026",
+        fixture_id=fixture_id,
+        checkpoint="POSTMATCH_RESULT",
+        kickoff_utc=KICKOFF,
+        scheduled_at=old_scheduled_at,
+        window_start=old_scheduled_at,
+        window_end=old_scheduled_at + POSTMATCH_RESULT_GRACE,
+        endpoints=("status", "fixtures"),
+        status="PLANNED",
+        blockers=(),
+    )
+    plan_id = repository.upsert_checkpoint_plan(old_plan)
+    current_plan = postmatch_result_checkpoint_plan(
+        fixture_id=fixture_id,
+        competition_id="argentina_primera",
+        season="2026",
+        kickoff_utc=KICKOFF,
+        now=KICKOFF + POSTMATCH_RESULT_DELAY + timedelta(minutes=30),
+    )
+
+    assert repository.upsert_checkpoint_plan(current_plan) == plan_id
+    assert repository.upsert_checkpoint_plan(current_plan) == plan_id
+
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        audits = list(session.scalars(select(MatchdayCheckpointPlanRescheduleModel)))
+
+    assert row is not None
+    assert normalize_repo_time(row.kickoff_utc) == KICKOFF
+    assert normalize_repo_time(row.scheduled_at) == KICKOFF + POSTMATCH_RESULT_DELAY
+    assert normalize_repo_time(row.window_start) == KICKOFF + POSTMATCH_RESULT_DELAY
+    assert normalize_repo_time(row.window_end) == (
+        KICKOFF + POSTMATCH_RESULT_DELAY + POSTMATCH_RESULT_GRACE
+    )
+    assert row.status == "DUE"
+    assert row.plan_hash == current_plan.plan_hash
+    assert len(audits) == 1
+    audit = audits[0]
+    assert audit.plan_id == plan_id
+    assert normalize_repo_time(audit.previous_kickoff_utc) == KICKOFF
+    assert normalize_repo_time(audit.previous_scheduled_at) == old_scheduled_at
+    assert normalize_repo_time(audit.new_kickoff_utc) == KICKOFF
+    assert normalize_repo_time(audit.new_scheduled_at) == KICKOFF + POSTMATCH_RESULT_DELAY
+
+
+@pytest.mark.parametrize("invalid_part", ["delay", "window_start", "window_end"])
+def test_result_delay_migration_rejects_an_unexplained_window(invalid_part: str) -> None:
+    """A POSTMATCH_RESULT label alone cannot bypass the schedule conflict gate."""
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    old_scheduled_at = KICKOFF + timedelta(hours=3)
+
+    def plan(
+        scheduled_at: datetime,
+        *,
+        window_start: datetime | None = None,
+        window_end: datetime | None = None,
+    ) -> CheckpointPlan:
+        return CheckpointPlan(
+            competition_id="argentina_primera",
+            season="2026",
+            fixture_id="api_football:result-delay-invalid",
+            checkpoint="POSTMATCH_RESULT",
+            kickoff_utc=KICKOFF,
+            scheduled_at=scheduled_at,
+            window_start=window_start or scheduled_at,
+            window_end=window_end or scheduled_at + POSTMATCH_RESULT_GRACE,
+            endpoints=("status", "fixtures"),
+            status="PLANNED",
+            blockers=(),
+        )
+
+    plan_id = repository.upsert_checkpoint_plan(plan(old_scheduled_at))
+    current_scheduled_at = KICKOFF + POSTMATCH_RESULT_DELAY
+    invalid_plan = {
+        "delay": plan(current_scheduled_at + timedelta(minutes=5)),
+        "window_start": plan(
+            current_scheduled_at,
+            window_start=current_scheduled_at + timedelta(minutes=5),
+        ),
+        "window_end": plan(
+            current_scheduled_at,
+            window_end=current_scheduled_at + POSTMATCH_RESULT_GRACE + timedelta(minutes=5),
+        ),
+    }[invalid_part]
+    with pytest.raises(MatchdayRepositoryError, match="CHECKPOINT_PLAN_CONFLICT"):
+        repository.upsert_checkpoint_plan(invalid_plan)
+
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        audits = list(session.scalars(select(MatchdayCheckpointPlanRescheduleModel)))
+
+    assert row is not None
+    assert normalize_repo_time(row.scheduled_at) == old_scheduled_at
+    assert audits == []
+
+
+def test_postmatch_result_delay_migration_does_not_regress_fixture_reschedule() -> None:
+    """A kickoff change remains a re-date, even for POSTMATCH_RESULT plans."""
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    fixture_id = "api_football:postmatch-postponed"
+    moved = KICKOFF + timedelta(days=7)
+    original_plan = postmatch_result_checkpoint_plan(
+        fixture_id=fixture_id,
+        competition_id="argentina_primera",
+        season="2026",
+        kickoff_utc=KICKOFF,
+        now=KICKOFF,
+    )
+    moved_plan = postmatch_result_checkpoint_plan(
+        fixture_id=fixture_id,
+        competition_id="argentina_primera",
+        season="2026",
+        kickoff_utc=moved,
+        now=KICKOFF,
+    )
+    plan_id = repository.upsert_checkpoint_plan(original_plan)
+
+    assert repository.upsert_checkpoint_plan(moved_plan) == plan_id
+
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        audits = list(session.scalars(select(MatchdayCheckpointPlanRescheduleModel)))
+
+    assert row is not None
+    assert normalize_repo_time(row.kickoff_utc) == moved
+    assert normalize_repo_time(row.scheduled_at) == moved + POSTMATCH_RESULT_DELAY
+    assert row.plan_hash == moved_plan.plan_hash
+    assert len(audits) == 1
+    assert normalize_repo_time(audits[0].previous_kickoff_utc) == KICKOFF
+    assert normalize_repo_time(audits[0].new_kickoff_utc) == moved
 
 
 def test_reschedule_releases_a_claim_held_against_the_old_window() -> None:

@@ -201,6 +201,30 @@ class MatchdayRuntimeRepository:
             if normalize_repo_time(existing.scheduled_at) != normalize_repo_time(
                 _dt(payload["scheduled_at"])
             ):
+                if _is_current_postmatch_result_schedule(existing, payload) and _is_redatable(
+                    session, existing
+                ):
+                    session.add(
+                        _reschedule_audit_row(
+                            existing,
+                            payload=payload,
+                            new_status=incoming_status,
+                            recorded_at=normalize_repo_time(datetime.now(UTC)),
+                        )
+                    )
+                    existing.scheduled_at = _dt(payload["scheduled_at"])
+                    existing.window_start = _dt(payload["window_start"])
+                    existing.window_end = _dt(payload["window_end"])
+                    existing.status = incoming_status
+                    existing.missed_at = (
+                        _dt(payload["missed_at"]) if payload.get("missed_at") else None
+                    )
+                    existing.endpoints = list(
+                        payload.get("endpoints") or existing.endpoints or []
+                    )
+                    existing.blockers = list(payload.get("blockers") or [])
+                    existing.plan_hash = str(payload.get("plan_hash") or existing.plan_hash)
+                    return plan_id
                 raise MatchdayRepositoryError("CHECKPOINT_PLAN_CONFLICT")
             if existing.status == "MISSED" and incoming_status == "CAPTURED":
                 raise MatchdayRepositoryError("MISSED_CHECKPOINT_IMMUTABLE")
@@ -990,6 +1014,44 @@ def _is_redatable(session: Session, row: MatchdayCheckpointPlanModel) -> bool:
     return linked is None
 
 
+def _is_current_postmatch_result_schedule(
+    row: MatchdayCheckpointPlanModel,
+    payload: Mapping[str, Any],
+) -> bool:
+    """Whether a same-kickoff schedule change is the current result contract.
+
+    Rolling out a new POSTMATCH_RESULT delay reprojects existing plans onto a
+    different scheduled_at without changing their natural identity.  Only the
+    current delay and grace authority may explain that change; malformed
+    offsets or windows continue to fail closed as plan conflicts.
+    """
+
+    from w2.ingestion.checkpoint_refresh import (
+        POSTMATCH_RESULT_CHECKPOINT,
+        POSTMATCH_RESULT_DELAY,
+        POSTMATCH_RESULT_GRACE,
+    )
+
+    if (
+        str(payload.get("checkpoint")) != POSTMATCH_RESULT_CHECKPOINT
+        or str(payload.get("status")) not in {"PLANNED", "DUE", "MISSED"}
+    ):
+        return False
+    try:
+        kickoff = normalize_repo_time(_dt(payload["kickoff_utc"]))
+        scheduled_at = normalize_repo_time(_dt(payload["scheduled_at"]))
+        window_start = normalize_repo_time(_dt(payload["window_start"]))
+        window_end = normalize_repo_time(_dt(payload["window_end"]))
+    except (KeyError, MatchdayRepositoryError, TypeError, ValueError):
+        return False
+    return (
+        normalize_repo_time(row.kickoff_utc) == kickoff
+        and scheduled_at == kickoff + POSTMATCH_RESULT_DELAY
+        and window_start == scheduled_at
+        and window_end == scheduled_at + POSTMATCH_RESULT_GRACE
+    )
+
+
 def _reschedule_audit_row(
     row: MatchdayCheckpointPlanModel,
     *,
@@ -997,7 +1059,7 @@ def _reschedule_audit_row(
     new_status: str,
     recorded_at: datetime,
 ) -> MatchdayCheckpointPlanRescheduleModel:
-    """Capture the window a re-date is about to overwrite.
+    """Capture the window a re-date or delay migration is about to overwrite.
 
     The re-date writes the new kickoff, window, status, blockers and missed_at
     over the same row, and no other table records what the plan looked like
