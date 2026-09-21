@@ -14,7 +14,7 @@ def test_dashboard_uses_only_the_unified_intelligence_workspace() -> None:
 
     assert "fetchIntelligenceWorkspace" in page
     assert "/dashboard/intelligence-workspace" in workspace_api
-    assert 'projection: "summary"' in workspace_api
+    assert 'projection: "full"' in workspace_api
     assert "/dashboard/intelligence-workspace/matches/" in workspace_api
     assert "fetchIntelligenceMatch(selectedId" in console
     assert "details[selectedId]" in console

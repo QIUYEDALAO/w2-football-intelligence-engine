@@ -9,7 +9,7 @@ export async function fetchIntelligenceWorkspace(
     date,
     window: "today",
     timezone: "Asia/Shanghai",
-    projection: "summary",
+    projection: "full",
   });
   const response = await fetch(
     `${API_BASE}/dashboard/intelligence-workspace?${query.toString()}`,
