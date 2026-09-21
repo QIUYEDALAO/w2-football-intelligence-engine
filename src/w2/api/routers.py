@@ -17,6 +17,9 @@ from w2.api.schemas import (
     BacktestLatestResponse,
     CompetitionOperationsProfileResponse,
     DashboardDayViewResponse,
+    DashboardIntelligenceReplayResponse,
+    DashboardIntelligenceValidationResponse,
+    DashboardIntelligenceWorkspaceListResponse,
     DashboardIntelligenceWorkspaceResponse,
     DashboardResponse,
     DashboardSummaryResponse,
@@ -55,7 +58,9 @@ from w2.config import Environment, get_settings
 from w2.dashboard.day_view import build_dashboard_day_view
 from w2.dashboard.results import normalize_match_status, outcome_public_cause
 from w2.dashboard.workspace import (
+    build_dashboard_intelligence_validation,
     build_dashboard_intelligence_workspace,
+    build_dashboard_intelligence_workspace_list,
     build_dashboard_intelligence_workspace_summary,
 )
 from w2.domain.decision_contract import DecisionContractViolation
@@ -391,6 +396,143 @@ def dashboard_intelligence_workspace(
     return {
         "request_id": request_id(request),
         **_isolate_workspace_match_projection_failures(workspace),
+    }
+
+
+@public_router.get(
+    "/dashboard/intelligence-workspace/list",
+    response_model=DashboardIntelligenceWorkspaceListResponse,
+)
+def dashboard_intelligence_workspace_list(
+    request: Request,
+    date: str | None = None,
+    window: Literal["today"] = "today",
+    timezone: str = "Asia/Shanghai",
+) -> dict[str, Any]:
+    payload = service.public_dashboard(
+        target_date=date,
+        window=window,
+        timezone=timezone,
+        include_debug=False,
+        include_details=False,
+    )
+    day_view = build_dashboard_day_view(
+        payload,
+        environment=get_settings().environment.value,
+    )
+    workspace = build_dashboard_intelligence_workspace_list(
+        day_view,
+        recommendation_capabilities=load_recommendation_capability_manifest().public_summary()[
+            "capabilities"
+        ],
+    )
+    return {"request_id": request_id(request), **workspace}
+
+
+@public_router.get(
+    "/dashboard/intelligence-workspace/validation",
+    response_model=DashboardIntelligenceValidationResponse,
+)
+def dashboard_intelligence_validation(
+    request: Request,
+    date: str | None = None,
+    window: Literal["today"] = "today",
+    timezone: str = "Asia/Shanghai",
+) -> dict[str, Any]:
+    payload = service.public_dashboard(
+        target_date=date,
+        window=window,
+        timezone=timezone,
+        include_debug=False,
+        include_details=False,
+    )
+    day_view = build_dashboard_day_view(
+        payload,
+        environment=get_settings().environment.value,
+    )
+    validation = build_dashboard_intelligence_validation(
+        day_view,
+        model_forecast_progress=service.dashboard_model_forecast_validation_progress(),
+    )
+    return {
+        "request_id": request_id(request),
+        "schema_version": "w2.dashboard-intelligence-validation.v1",
+        "generated_at": day_view.get("generated_at"),
+        "validation": validation,
+        "read_contract": {
+            "provider_calls": int(day_view.get("provider_calls") or 0),
+            "db_writes": int(day_view.get("db_writes") or 0),
+            "would_write_checkpoint": day_view.get("would_write_checkpoint") is True,
+            "no_call_on_read": True,
+        },
+    }
+
+
+@public_router.get(
+    "/dashboard/intelligence-workspace/replay",
+    response_model=DashboardIntelligenceReplayResponse,
+)
+def dashboard_intelligence_replay(
+    request: Request,
+    date: str | None = None,
+    window: Literal["today"] = "today",
+    timezone: str = "Asia/Shanghai",
+) -> dict[str, Any]:
+    payload = service.public_dashboard(
+        target_date=date,
+        window=window,
+        timezone=timezone,
+        include_debug=False,
+        include_details=True,
+    )
+    day_view = build_dashboard_day_view(
+        payload,
+        environment=get_settings().environment.value,
+    )
+    fixture_ids = [str(card.get("fixture_id") or "") for card in day_view["cards"]]
+    outcomes = service.dashboard_outcomes_for_fixtures(fixture_ids)
+    replay = build_replay_front_door(
+        football_day=day_view["football_day"],
+        environment=day_view["environment"],
+        day_view=day_view,
+        outcomes=outcomes,
+        as_of=day_view.get("generated_at"),
+    )
+    workspace = build_dashboard_intelligence_workspace(
+        day_view,
+        replay=replay,
+        recommendation_capabilities=load_recommendation_capability_manifest().public_summary()[
+            "capabilities"
+        ],
+    )
+    isolated = _isolate_workspace_match_projection_failures(workspace)
+    matches = [
+        {
+            key: match.get(key)
+            for key in (
+                "fixture_id",
+                "competition_id",
+                "competition_name",
+                "kickoff_utc",
+                "home_team_name",
+                "away_team_name",
+                "home_team_label",
+                "away_team_label",
+                "public_semantics",
+                "status",
+                "outcome",
+            )
+        }
+        for match in isolated["matches"]
+    ]
+    return {
+        "request_id": request_id(request),
+        "schema_version": "w2.dashboard-intelligence-replay.v1",
+        "generated_at": day_view.get("generated_at"),
+        "date": workspace["date"],
+        "matches": matches,
+        "history_replay": workspace["validation"]["history_replay"],
+        "read_contract": workspace["read_contract"],
     }
 
 

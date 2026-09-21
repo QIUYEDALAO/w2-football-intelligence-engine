@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { footballDayShanghai } from "../lib/formatters";
 import { fetchIntelligenceWorkspace } from "../lib/intelligenceWorkspaceApi";
-import type { IntelligenceWorkspace } from "../types/intelligenceWorkspace";
+import type { IntelligenceWorkspaceList } from "../types/intelligenceWorkspace";
 import { IntelligenceConsole } from "./IntelligenceConsole";
 
 type LoadState = "loading" | "ready" | "error";
@@ -18,7 +18,7 @@ function initialQuery() {
 export function DashboardPage() {
   const [query] = useState(initialQuery);
   const [date, setDate] = useState(query.date);
-  const [workspace, setWorkspace] = useState<IntelligenceWorkspace | null>(null);
+  const [workspace, setWorkspace] = useState<IntelligenceWorkspaceList | null>(null);
   const [state, setState] = useState<LoadState>("loading");
   const [refreshKey, setRefreshKey] = useState(0);
 

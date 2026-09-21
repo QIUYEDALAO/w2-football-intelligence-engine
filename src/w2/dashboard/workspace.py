@@ -356,6 +356,49 @@ def build_dashboard_intelligence_workspace_summary(
     return base
 
 
+def build_dashboard_intelligence_workspace_list(
+    day_view: Mapping[str, Any],
+    *,
+    recommendation_capabilities: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the first-paint list contract without validation or replay data."""
+
+    workspace = build_dashboard_intelligence_workspace_summary(
+        day_view,
+        replay={},
+        recommendation_capabilities=recommendation_capabilities,
+    )
+    workspace.pop("validation", None)
+    workspace["source"] = "dashboard_day_view+summary_projection"
+    workspace["selected_fixture_id"] = None
+    if workspace.get("global_focus") is None:
+        workspace["global_focus"] = {
+            "reason_code": "MATCH_SELECTION_REQUIRED",
+            "factual_summary": "比赛列表摘要已就绪；选择比赛后读取完整市场与模型证据。",
+            "affected_fixture_count": len(workspace.get("matches", [])),
+            "affected_competition_count": workspace["today_summary"]["competition_count"],
+            "source_as_of": day_view.get("generated_at"),
+            "next_eval_at": None,
+            "recovery_condition": None,
+            "public_semantics": {"scope": "SELECTED_DAY", "cause": None},
+        }
+    return workspace
+
+
+def build_dashboard_intelligence_validation(
+    day_view: Mapping[str, Any],
+    *,
+    model_forecast_progress: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project the existing cumulative validation authority without replay data."""
+
+    forward = _mapping(_mapping(day_view.get("performance")).get("forward_ledger"))
+    validation = _validation(forward, {}, [])
+    validation.pop("history_replay", None)
+    validation["model_forecast"] = _model_forecast_progress(model_forecast_progress)
+    return validation
+
+
 def _summary_team_label(card: Mapping[str, Any], side: str) -> dict[str, Any]:
     return _public_team_label(card, side)
 

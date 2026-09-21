@@ -242,6 +242,110 @@ def test_intelligence_workspace_summary_requests_bounded_projection(
     assert payload["selected_fixture_id"] == "fixture-1"
 
 
+def test_intelligence_workspace_list_is_first_paint_only(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = RecordingDashboardService()
+    include_details: list[bool] = []
+    original_dashboard = service.dashboard
+
+    def recording_dashboard(**kwargs: Any) -> dict[str, Any]:
+        include_details.append(bool(kwargs.get("include_details")))
+        return original_dashboard(**kwargs)
+
+    monkeypatch.setattr(service, "public_dashboard", recording_dashboard)
+    monkeypatch.setattr(routers, "service", service)
+    client = TestClient(app)
+
+    response = client.get(
+        "/v1/dashboard/intelligence-workspace/list?date=2026-07-05&window=today&timezone=UTC"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert include_details == [False]
+    assert payload["selected_fixture_id"] is None
+    assert payload["matches"][0]["projection_scope"] == "SUMMARY"
+    assert "validation" not in payload
+    assert "history_replay" not in payload
+    for large_field in (
+        "markets",
+        "market_candidates",
+        "pricing_shadow",
+        "dynamic_prematch",
+        "simulation",
+        "market_radar",
+        "model_lab",
+    ):
+        assert large_field not in payload["matches"][0]
+
+
+def test_intelligence_workspace_validation_is_lazy_and_excludes_replay(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = RecordingDashboardService()
+    monkeypatch.setattr(routers, "service", service)
+    client = TestClient(app)
+
+    response = client.get(
+        "/v1/dashboard/intelligence-workspace/validation?date=2026-07-05&window=today&timezone=UTC"
+    )
+    full = client.get(
+        "/v1/dashboard/intelligence-workspace"
+        "?date=2026-07-05&window=today&timezone=UTC&projection=full"
+    )
+
+    assert response.status_code == full.status_code == 200
+    payload = response.json()
+    assert payload["schema_version"] == "w2.dashboard-intelligence-validation.v1"
+    assert "history_replay" not in payload["validation"]
+    assert payload["validation"] == {
+        key: value
+        for key, value in full.json()["validation"].items()
+        if key != "history_replay"
+    }
+    assert payload["validation"]["model_forecast"]["capture_count"] == 13
+    assert payload["read_contract"]["provider_calls"] == 0
+
+
+def test_intelligence_workspace_replay_preserves_existing_replay_projection(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = RecordingDashboardService()
+    monkeypatch.setattr(routers, "service", service)
+    client = TestClient(app)
+
+    full = client.get(
+        "/v1/dashboard/intelligence-workspace"
+        "?date=2026-07-05&window=today&timezone=UTC&projection=full"
+    )
+    replay = client.get(
+        "/v1/dashboard/intelligence-workspace/replay?date=2026-07-05&window=today&timezone=UTC"
+    )
+
+    assert full.status_code == replay.status_code == 200
+    assert replay.json()["history_replay"] == full.json()["validation"]["history_replay"]
+    assert replay.json()["matches"] == [
+        {
+            key: match[key]
+            for key in (
+                "fixture_id",
+                "competition_id",
+                "competition_name",
+                "kickoff_utc",
+                "home_team_name",
+                "away_team_name",
+                "home_team_label",
+                "away_team_label",
+                "public_semantics",
+                "status",
+                "outcome",
+            )
+        }
+        for match in full.json()["matches"]
+    ]
+
+
 def test_intelligence_workspace_reads_persisted_finished_outcome_once(
     monkeypatch: MonkeyPatch,
 ) -> None:

@@ -1,24 +1,54 @@
-import type { IntelligenceWorkspace, WorkspaceMatch } from "../types/intelligenceWorkspace";
+import type {
+  IntelligenceReplayResponse,
+  IntelligenceValidationResponse,
+  IntelligenceWorkspaceList,
+  WorkspaceMatch,
+} from "../types/intelligenceWorkspace";
 import { API_BASE } from "./labels";
 
 export async function fetchIntelligenceWorkspace(
   date: string,
   signal?: AbortSignal,
-): Promise<IntelligenceWorkspace> {
+): Promise<IntelligenceWorkspaceList> {
   const query = new URLSearchParams({
     date,
     window: "today",
     timezone: "Asia/Shanghai",
-    projection: "full",
   });
   const response = await fetch(
-    `${API_BASE}/dashboard/intelligence-workspace?${query.toString()}`,
+    `${API_BASE}/dashboard/intelligence-workspace/list?${query.toString()}`,
     { headers: { Accept: "application/json" }, signal },
   );
   if (!response.ok) {
     throw new Error(`intelligence-workspace -> HTTP ${response.status}`);
   }
-  return response.json() as Promise<IntelligenceWorkspace>;
+  return response.json() as Promise<IntelligenceWorkspaceList>;
+}
+
+export async function fetchIntelligenceValidation(
+  date: string,
+  signal?: AbortSignal,
+): Promise<IntelligenceValidationResponse> {
+  const query = new URLSearchParams({ date, window: "today", timezone: "Asia/Shanghai" });
+  const response = await fetch(
+    `${API_BASE}/dashboard/intelligence-workspace/validation?${query.toString()}`,
+    { headers: { Accept: "application/json" }, signal },
+  );
+  if (!response.ok) throw new Error(`intelligence-workspace validation -> HTTP ${response.status}`);
+  return response.json() as Promise<IntelligenceValidationResponse>;
+}
+
+export async function fetchIntelligenceReplay(
+  date: string,
+  signal?: AbortSignal,
+): Promise<IntelligenceReplayResponse> {
+  const query = new URLSearchParams({ date, window: "today", timezone: "Asia/Shanghai" });
+  const response = await fetch(
+    `${API_BASE}/dashboard/intelligence-workspace/replay?${query.toString()}`,
+    { headers: { Accept: "application/json" }, signal },
+  );
+  if (!response.ok) throw new Error(`intelligence-workspace replay -> HTTP ${response.status}`);
+  return response.json() as Promise<IntelligenceReplayResponse>;
 }
 
 export async function fetchIntelligenceMatch(

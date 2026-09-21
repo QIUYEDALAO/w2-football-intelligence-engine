@@ -1597,6 +1597,17 @@ class WorkspaceValidation(BaseModel):
     history_replay: WorkspaceHistoryReplay
 
 
+class WorkspaceValidationWithoutReplay(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    probability: WorkspaceProbabilityValidation
+    directional: WorkspaceDirectionalValidation
+    league_performance: list[WorkspaceLeaguePerformance]
+    tournament_performance: list[WorkspaceLeaguePerformance]
+    model_forecast: WorkspaceModelForecastProgress
+    forward_validation_records: WorkspaceForwardValidationRecords
+
+
 class WorkspaceExternalSource(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1807,6 +1818,84 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
         if self.validation.history_replay.public_semantics.cause != expected_record_cause:
             raise ValueError("history/replay cause must derive from match outcomes")
         return self
+
+
+class DashboardIntelligenceWorkspaceListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str
+    schema_version: Literal["w2.dashboard-intelligence-workspace.v1"]
+    generated_at: datetime | str | None
+    date: str
+    timezone: str
+    window: Literal["today"]
+    football_day_timezone: str
+    football_day_cutoff_hour: int = Field(ge=0, le=23)
+    football_day_start_utc: datetime | str | None
+    football_day_end_utc: datetime | str | None
+    source: Literal["dashboard_day_view+summary_projection"]
+    selected_fixture_id: None
+    today_summary: WorkspaceTodaySummary
+    global_focus: WorkspaceGlobalFocus
+    global_model_quality: WorkspaceModelQuality
+    read_contract: WorkspaceReadContract
+    runtime: WorkspaceRuntime
+    navigation: dict[str, Any]
+    date_strip: list[WorkspaceDateStripEntry] = Field(min_length=15, max_length=15)
+    attention: list[WorkspaceAttentionItem]
+    matches: list[WorkspaceMatchSummary | WorkspaceMatchProjectionError]
+    external_intelligence: WorkspaceExternalIntelligence
+    freshness: WorkspaceFreshness
+    data_operations: WorkspaceDataOperations
+
+    @model_validator(mode="after")
+    def list_counts_are_exact(self) -> DashboardIntelligenceWorkspaceListResponse:
+        competition_ids = {match.competition_id for match in self.matches if match.competition_id}
+        if self.today_summary.match_count != len(self.matches):
+            raise ValueError("selected-day match count must equal list matches")
+        if self.today_summary.competition_count != len(competition_ids):
+            raise ValueError("selected-day competition count must equal list matches")
+        if self.selected_fixture_id is not None:
+            raise ValueError("list projection must not preselect a fixture")
+        return self
+
+
+class DashboardIntelligenceValidationResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str
+    schema_version: Literal["w2.dashboard-intelligence-validation.v1"]
+    generated_at: datetime | str | None
+    validation: WorkspaceValidationWithoutReplay
+    read_contract: WorkspaceReadContract
+
+
+class WorkspaceReplayMatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fixture_id: str
+    competition_id: str | None
+    competition_name: str | None
+    kickoff_utc: datetime | str | None
+    home_team_name: str | None
+    away_team_name: str | None
+    home_team_label: WorkspacePublicTeamLabel
+    away_team_label: WorkspacePublicTeamLabel
+    public_semantics: WorkspacePublicSemantics
+    status: str | None
+    outcome: WorkspaceMatchOutcome
+
+
+class DashboardIntelligenceReplayResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str
+    schema_version: Literal["w2.dashboard-intelligence-replay.v1"]
+    generated_at: datetime | str | None
+    date: str
+    matches: list[WorkspaceReplayMatch]
+    history_replay: WorkspaceHistoryReplay
+    read_contract: WorkspaceReadContract
 
 
 class DashboardSummaryResponse(BaseModel):

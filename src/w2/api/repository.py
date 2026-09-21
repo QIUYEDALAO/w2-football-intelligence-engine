@@ -13,15 +13,14 @@ from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
-from decimal import Decimal
 from time import monotonic
 from typing import Any, Literal, cast
 
 from pydantic import ValidationError
-from sqlalchemy import JSON, String, and_, case, column, exists, func, literal, or_, select
+from sqlalchemy import JSON, Boolean, String, and_, case, column, exists, func, literal, or_, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, defer, load_only
+from sqlalchemy.orm import Session, load_only
 
 from w2.api.schemas import (
     PerformanceCohortProjection,
@@ -43,7 +42,6 @@ from w2.dashboard.performance import dashboard_performance
 from w2.dashboard.results import FINISHED_STATUSES, normalize_match_status
 from w2.dashboard.validation_summary import validation_summary
 from w2.domain.decision_card import compute_card_hash
-from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
@@ -90,19 +88,20 @@ from w2.matchday.timezone import (
 )
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.release_evidence import build_release_identity
+from w2.prematch.candidate_notifications import validation_samples_snapshot
 from w2.prematch.evaluation_slots import EvaluationSlotError, is_evaluation_slot
 from w2.prematch.official_funnel import (
     official_funnel_recommendations,
+)
+from w2.prematch.official_funnel import (
     public_team_labels_for_fixtures as shared_public_team_labels_for_fixtures,
 )
-from w2.prematch.candidate_notifications import validation_samples_snapshot
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_SHADOW_PREFIX,
     FrozenAnalysisError,
     validate_frozen_analysis_payload,
 )
 from w2.providers.quota import api_football_quota_policy, parse_int
-from w2.settlement.settle import WIN_UNITS
 from w2.tracking.forward_ledger_performance import (
     MIN_DECISIVE_SAMPLES_FOR_RATE,
     SAMPLE_TARGET,
@@ -1515,6 +1514,14 @@ class ReadModelRepository:
             .table_valued(
                 column("decision_tier", String),
                 column("recommendation_decision_v4", JSON),
+                column("data_status", String),
+                column("lifecycle_status", String),
+                column("outcome_tracked", Boolean),
+                column("lock_eligible", Boolean),
+                column("recommendation_id", String),
+                column("reason_code", String),
+                column("action", String),
+                column("next_eval_at", String),
             )
             .render_derived(name="analysis_summary", with_types=True)
             .lateral()
@@ -1574,6 +1581,14 @@ class ReadModelRepository:
                 .as_string()
                 .label("away_name"),
                 analysis_summary.c.decision_tier,
+                analysis_summary.c.data_status,
+                analysis_summary.c.lifecycle_status,
+                analysis_summary.c.outcome_tracked,
+                analysis_summary.c.lock_eligible,
+                analysis_summary.c.recommendation_id,
+                analysis_summary.c.reason_code,
+                analysis_summary.c.action,
+                analysis_summary.c.next_eval_at,
                 selected_summary.c.market.label("selected_market"),
                 selected_summary.c.selection.label("selected_selection"),
                 selected_summary.c.exact_line.label("selected_line"),
@@ -1672,13 +1687,16 @@ class ReadModelRepository:
                         pending_labels=pending_labels,
                     ),
                     "decision_tier": tier,
-                    "data_status": "BLOCKED",
-                    "lifecycle_status": "DRAFT",
-                    "outcome_tracked": False,
-                    "lock_eligible": False,
-                    "reason_code": "DETAIL_NOT_LOADED",
-                    "action": "LOAD_DETAIL",
-                    "next_eval_at": None,
+                    "data_status": str(
+                        row.data_status or ("BLOCKED" if tier == "NOT_READY" else "READY")
+                    ),
+                    "lifecycle_status": str(row.lifecycle_status or "DRAFT"),
+                    "outcome_tracked": bool(row.outcome_tracked),
+                    "lock_eligible": bool(row.lock_eligible),
+                    "recommendation_id": row.recommendation_id,
+                    "reason_code": row.reason_code or "DETAIL_NOT_LOADED",
+                    "action": row.action or "LOAD_DETAIL",
+                    "next_eval_at": row.next_eval_at,
                     "recommendation": (
                         {
                             **selected_candidate,

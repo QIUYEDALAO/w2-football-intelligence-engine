@@ -934,7 +934,9 @@ def test_dashboard_summary_sql_projects_named_json_scalars_only() -> None:
     assert 'column("decision_tier", String)' in source
     assert 'column("recommendation_decision_v4", JSON)' in source
     assert 'column("market", String)' in source
-    assert '"reason_code": "DETAIL_NOT_LOADED"' in source
+    assert 'column("reason_code", String)' in source
+    assert '"reason_code": row.reason_code or "DETAIL_NOT_LOADED"' in source
+    assert 'column("outcome_tracked", Boolean)' in source
     for prohibited in (
         'analysis_card["markets"]',
         'analysis_card["market_candidates"]',

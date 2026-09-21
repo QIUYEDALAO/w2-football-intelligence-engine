@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { footballDayShanghai, translateCompetition, translateReason } from "../lib/formatters";
-import { fetchIntelligenceMatch } from "../lib/intelligenceWorkspaceApi";
+import { fetchIntelligenceMatch, fetchIntelligenceReplay, fetchIntelligenceValidation } from "../lib/intelligenceWorkspaceApi";
 import { PUBLIC_ENUM_LABELS, PUBLIC_REASON_LABELS } from "../lib/labels";
 import { ahRecommendationTeamLabel, formatAhMarketHandicap, formatAhRecommendationHandicap } from "../lib/pricingDisplay";
 import { publicPresentation } from "../lib/publicPresentation";
 import type {
   FixtureFactor,
   FixtureFactorChecklist,
+  IntelligenceReplayResponse,
+  IntelligenceValidationResponse,
   IntelligenceWorkspace,
+  IntelligenceWorkspaceList,
   RiskAxisName,
+  WorkspaceValidation,
   WorkspaceMarket,
   WorkspaceMatch,
   WorkspaceMatchSummary,
@@ -23,9 +27,11 @@ type Props = {
   loading: boolean;
   onDateChange: (date: string) => void;
   onRefresh: () => void;
-  workspace: IntelligenceWorkspace;
+  workspace: IntelligenceWorkspaceList;
   initialFixtureId?: string | null;
 };
+
+type WorkspaceTab = "matches" | "validation" | "replay";
 
 const MARKET_LABELS = {
   ASIAN_HANDICAP: "让球主盘",
@@ -71,7 +77,7 @@ function isSummaryMatch(match: WorkspaceMatchItem): match is WorkspaceMatchSumma
   return "projection_scope" in match && match.projection_scope === "SUMMARY";
 }
 
-function projectedMatches(workspace: IntelligenceWorkspace): WorkspaceMatch[] {
+function projectedMatches(workspace: IntelligenceWorkspaceList): WorkspaceMatch[] {
   return workspace.matches.filter(
     (match): match is WorkspaceMatch => !isProjectionError(match) && !isSummaryMatch(match),
   );
@@ -97,7 +103,7 @@ function evaluationStatusLabel(value: WorkspaceMatch["evaluation_execution"]["st
   }[value];
 }
 
-function capabilityLabel(capability: IntelligenceWorkspace["runtime"]["recommendation_capabilities"][string]): string {
+function capabilityLabel(capability: IntelligenceWorkspaceList["runtime"]["recommendation_capabilities"][string]): string {
   if (capability.implementation === "NOT_IMPLEMENTED") return "未实现";
   return capability.feature_enabled ? "开" : "关";
 }
@@ -113,24 +119,24 @@ function opportunityStateLabel(value: WorkspaceMatch["evaluation_execution"]["la
   }[value];
 }
 
-function selectedDaySemantics(workspace: IntelligenceWorkspace) {
+function selectedDaySemantics(workspace: IntelligenceWorkspaceList) {
   return workspace.date_strip.find((entry) => entry.football_day === workspace.date)?.public_semantics
     || { scope: "SELECTED_DAY" as const, cause: null };
 }
 
-function selectedDayPublicStatus(workspace: IntelligenceWorkspace) {
+function selectedDayPublicStatus(workspace: IntelligenceWorkspaceList) {
   const selectedDay = workspace.date_strip.find((entry) => entry.football_day === workspace.date);
   return publicPresentation(selectedDaySemantics(workspace), {
     dayNoun: selectedDayNoun(workspace),
     fixtureCount: workspace.today_summary.match_count,
     competitionCount: workspace.today_summary.competition_count,
-    marketReadyCount: projectedMatches(workspace).filter((match) => match.readiness.market_evidence_status === "AVAILABLE").length,
+    marketReadyCount: selectedDay?.market_evidence_fixture_count,
     marketObservationCount: selectedDay?.market_evidence_fixture_count,
     priorityCount: workspace.today_summary.priority_match_count,
   });
 }
 
-function selectedDayNoun(workspace: IntelligenceWorkspace): "今日" | "所选比赛日" {
+function selectedDayNoun(workspace: IntelligenceWorkspaceList): "今日" | "所选比赛日" {
   return workspace.date === footballDayShanghai() ? "今日" : "所选比赛日";
 }
 
@@ -146,7 +152,7 @@ function TeamLabel({ team }: { team: WorkspacePublicTeamLabel }) {
   return <span className="v41-team-label"><span>{team.display_name}</span>{team.public_semantics.cause ? <em className={`is-${presentation.tone}`}>{presentation.label}</em> : null}</span>;
 }
 
-function MatchName({ match }: { match: WorkspaceMatch }) {
+function MatchName({ match }: { match: Pick<WorkspaceMatch, "home_team_label" | "away_team_label"> }) {
   return <span className="v41-match-name"><TeamLabel team={match.home_team_label} /><span className="v41-versus"> vs </span><TeamLabel team={match.away_team_label} /></span>;
 }
 
@@ -181,11 +187,11 @@ function kickoffLabel(value: string | null, selectedDate: string): string {
   return formatted;
 }
 
-function byKickoff(matches: WorkspaceMatch[]): WorkspaceMatch[] {
+function byKickoff<T extends { kickoff_utc: string | null; fixture_id: string }>(matches: T[]): T[] {
   return matches.slice().sort((left, right) => String(left.kickoff_utc || "").localeCompare(String(right.kickoff_utc || "")) || left.fixture_id.localeCompare(right.fixture_id));
 }
 
-function historyRecordLabel(recordKind: IntelligenceWorkspace["validation"]["history_replay"]["record_kind"]): string {
+function historyRecordLabel(recordKind: WorkspaceValidation["history_replay"]["record_kind"]): string {
   if (recordKind === "FORWARD_RECORD") return "前向记录";
   if (recordKind === "REPLAY") return "回放记录";
   if (recordKind === "MIXED_RECORD") return "前向 / 回放记录";
@@ -239,7 +245,7 @@ function dateShift(value: string, days: number): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(date);
 }
 
-function footballDayWindow(workspace: IntelligenceWorkspace): string {
+function footballDayWindow(workspace: IntelligenceWorkspaceList): string {
   const start = localDateTime(workspace.football_day_start_utc);
   const end = localDateTime(workspace.football_day_end_utc);
   return `比赛日 ${start} → ${end}（不含）`;
@@ -354,7 +360,7 @@ function collectionLabel(match: WorkspaceMatch): string {
   return "当前档位已满足";
 }
 
-function Header({ date, loading, onDateChange, onRefresh, workspace }: Props) {
+function Header({ date, loading, onDateChange, onRefresh, workspace, tab, onTabChange, validationCount }: Props & { tab: WorkspaceTab; onTabChange: (tab: WorkspaceTab) => void; validationCount?: number }) {
   const publicStatus = selectedDayPublicStatus(workspace);
   return (
     <header className="v41-header">
@@ -373,10 +379,8 @@ function Header({ date, loading, onDateChange, onRefresh, workspace }: Props) {
         {publicStatus.label}
       </span>
       <time className="v41-updated">更新 {clock(workspace.generated_at)}</time>
-      <nav className="v41-secondary-nav" aria-label="辅助视图">
-        <a href="#history">证据审计台</a>
-        <a href="#secondary-validation">赛后验证</a>
-        <a href="#system-status">系统状态</a>
+      <nav className="v41-tabs" aria-label="工作台视图" role="tablist">
+        {([["matches", "比赛列表"], ["validation", "赛后验证"], ["replay", "回放记录"]] as const).map(([value, text]) => <button aria-selected={tab === value} key={value} onClick={() => onTabChange(value)} role="tab" type="button">{text}{value === "validation" && validationCount !== undefined ? ` · ${validationCount}` : ""}</button>)}
       </nav>
     </header>
   );
@@ -418,37 +422,45 @@ function RecentDateNav({ date, onDateChange, workspace }: Pick<Props, "date" | "
   );
 }
 
-function TodaySummary({ workspace }: { workspace: IntelligenceWorkspace }) {
+function TodaySummary({ workspace }: { workspace: IntelligenceWorkspaceList }) {
   const matches = projectedMatches(workspace);
-  const projectionErrorCount = workspace.matches.length - matches.length;
+  const projectionErrorCount = workspace.matches.filter(isProjectionError).length;
   const dayNoun = selectedDayNoun(workspace);
-  const selectedCause = selectedDaySemantics(workspace).cause;
   const presentation = selectedDayPublicStatus(workspace);
-  const counts = workspace.today_summary.primary_reason_counts;
-  const readyCount = matches.filter((match) => match.readiness.market_aggregate_status === "READY").length;
-  const partialCount = matches.filter((match) => match.readiness.market_aggregate_status === "PARTIAL").length;
-  const candidateBlockedCount = matches.filter((match) => match.readiness.market_aggregate_status === "NOT_READY").length;
-  const marketBlockedCount = matches.filter((match) => match.readiness.market_evidence_status === "NOT_READY").length;
-  const limitedCount = selectedCause && matches.length > 0 && marketBlockedCount === matches.length
-    ? marketBlockedCount
-    : 0;
-  const calmCount = !selectedCause && !workspace.selected_fixture_id ? workspace.today_summary.match_count : 0;
-  const candidateCount = matches.filter((match) => match.evaluation_execution.status === "CANDIDATE").length;
+  const selectedDay = workspace.date_strip.find((entry) => entry.football_day === workspace.date);
+  const marketEvidenceCount = selectedDay?.market_evidence_fixture_count ?? 0;
+  if (matches.length) {
+    const selectedCause = selectedDaySemantics(workspace).cause;
+    const counts = workspace.today_summary.primary_reason_counts;
+    const readyCount = matches.filter((match) => match.readiness.market_aggregate_status === "READY").length;
+    const partialCount = matches.filter((match) => match.readiness.market_aggregate_status === "PARTIAL").length;
+    const candidateBlockedCount = matches.filter((match) => match.readiness.market_aggregate_status === "NOT_READY").length;
+    const marketBlockedCount = matches.filter((match) => match.readiness.market_evidence_status === "NOT_READY").length;
+    const limitedCount = selectedCause && marketBlockedCount === matches.length ? marketBlockedCount : 0;
+    const calmCount = !selectedCause && !workspace.selected_fixture_id ? workspace.today_summary.match_count : 0;
+    const candidateCount = matches.filter((match) => match.evaluation_execution.status === "CANDIDATE").length;
+    return <section className="v41-today" aria-label={`${dayNoun}比赛摘要`}>
+      <div className="v41-today-primary">
+        <div><strong>{workspace.today_summary.match_count}</strong><span>场{dayNoun}比赛</span></div>
+        <p>{limitedCount ? <><span className="is-accent"><b>{workspace.today_summary.match_count}</b> 场可查看赛程</span><span className={presentation.tone === "neutral" ? "is-accent" : "is-warning"}><b>0</b> 场可进行市场分析</span></> : <><span className={readyCount ? "is-accent" : "is-warning"}><b>{readyCount}</b> 场候选输入全部就绪</span>{partialCount ? <span className="is-warning"><b>{partialCount}</b> 场候选输入部分就绪</span> : null}{candidateBlockedCount ? <span className="is-critical"><b>{candidateBlockedCount}</b> 场候选输入均未就绪</span> : null}{marketBlockedCount ? <span className="is-critical"><b>{marketBlockedCount}</b> 场尚无市场证据</span> : null}</>}</p>
+      </div>
+      {limitedCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{limitedCount} 场可查看赛程；{presentation.label}</b></p></div> : calmCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{calmCount} 场均未触发优先复核</b></p></div> : Object.keys(counts).length ? <div className="v41-today-other"><span>优先复核</span><p>{Object.entries(counts).slice(0, 3).map(([reason, count]) => <b key={reason}>{count} 场{REASON_LABELS[reason] || label(reason)}</b>)}</p></div> : null}
+      <div className="v41-today-day"><strong>共 {workspace.today_summary.match_count} 场 · {candidateCount} 场检查点漏斗最终候选 · {workspace.today_summary.competition_count || workspace.runtime.active_whitelist_count} 联赛{projectionErrorCount ? ` · ${projectionErrorCount} 场投影异常` : ""}{workspace.today_summary.pending_owner_review_team_count ? ` · ${workspace.today_summary.pending_owner_review_team_count} 支候选译名待审` : ""}</strong><small>{footballDayWindow(workspace)}</small></div>
+    </section>;
+  }
   return (
     <section className="v41-today" aria-label={`${dayNoun}比赛摘要`}>
       <div className="v41-today-primary">
         <div><strong>{workspace.today_summary.match_count}</strong><span>场{dayNoun}比赛</span></div>
-        <p>
-      {limitedCount ? <><span className="is-accent"><b>{workspace.today_summary.match_count}</b> 场可查看赛程</span><span className={presentation.tone === "neutral" ? "is-accent" : "is-warning"}><b>0</b> 场可进行市场分析</span></> : <><span className={readyCount ? "is-accent" : "is-warning"}><b>{readyCount}</b> 场候选输入全部就绪</span>{partialCount ? <span className="is-warning"><b>{partialCount}</b> 场候选输入部分就绪</span> : null}{candidateBlockedCount ? <span className="is-critical"><b>{candidateBlockedCount}</b> 场候选输入均未就绪</span> : null}{marketBlockedCount ? <span className="is-critical"><b>{marketBlockedCount}</b> 场尚无市场证据</span> : null}</>}
-        </p>
+        <p><span className="is-accent"><b>{workspace.today_summary.match_count}</b> 场比赛摘要已就绪</span><span className={marketEvidenceCount ? "is-accent" : "is-warning"}><b>{marketEvidenceCount}</b> 场已有持久化市场证据</span></p>
       </div>
-      {limitedCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{limitedCount} 场可查看赛程；{presentation.label}</b></p></div> : calmCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{calmCount} 场均未触发优先复核</b></p></div> : Object.keys(counts).length ? <div className="v41-today-other"><span>优先复核</span><p>{Object.entries(counts).slice(0, 3).map(([reason, count]) => <b key={reason}>{count} 场{REASON_LABELS[reason] || label(reason)}</b>)}</p></div> : null}
-      <div className="v41-today-day"><strong>共 {workspace.today_summary.match_count} 场 · {candidateCount} 场检查点漏斗最终候选 · {workspace.today_summary.competition_count || workspace.runtime.active_whitelist_count} 联赛{projectionErrorCount ? ` · ${projectionErrorCount} 场投影异常` : ""}{workspace.today_summary.pending_owner_review_team_count ? ` · ${workspace.today_summary.pending_owner_review_team_count} 支候选译名待审` : ""}</strong><small>{footballDayWindow(workspace)}</small></div>
+      <div className="v41-today-other"><span>当前口径</span><p><b>{presentation.label} · 完整市场与模型证据在选择单场后读取</b></p></div>
+      <div className="v41-today-day"><strong>共 {workspace.today_summary.match_count} 场 · {workspace.today_summary.competition_count || workspace.runtime.active_whitelist_count} 联赛{projectionErrorCount ? ` · ${projectionErrorCount} 场投影异常` : ""}{workspace.today_summary.pending_owner_review_team_count ? ` · ${workspace.today_summary.pending_owner_review_team_count} 支候选译名待审` : ""}</strong><small>{footballDayWindow(workspace)}</small></div>
     </section>
   );
 }
 
-function CapabilityStatus({ workspace }: { workspace: IntelligenceWorkspace }) {
+function CapabilityStatus({ workspace }: { workspace: IntelligenceWorkspaceList }) {
   const capabilities = workspace.runtime.recommendation_capabilities;
   return <section className="v41-capabilities" aria-label="全局能力状态">
     <b>全局能力</b>
@@ -460,7 +472,7 @@ function CapabilityStatus({ workspace }: { workspace: IntelligenceWorkspace }) {
   </section>;
 }
 
-function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: IntelligenceWorkspace; selectedId: string | null; onSelect: (id: string) => void }) {
+function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: IntelligenceWorkspaceList; selectedId: string | null; onSelect: (id: string) => void }) {
   const [competitionFilter, setCompetitionFilter] = useState("ALL");
   const dayNoun = selectedDayNoun(workspace);
   const selectedSemantics = selectedDaySemantics(workspace);
@@ -997,7 +1009,7 @@ function GlobalFocus({ date, onDateChange, workspace }: Pick<Props, "date" | "on
   );
 }
 
-function QualityRail({ workspace }: { workspace: IntelligenceWorkspace }) {
+function QualityRail({ workspace }: { workspace: IntelligenceWorkspaceList }) {
   const quality = workspace.global_model_quality;
   const available = quality.status === "AVAILABLE";
   const qualityCopy = available
@@ -1009,7 +1021,7 @@ function QualityRail({ workspace }: { workspace: IntelligenceWorkspace }) {
         : "尚无可用模型质量证据";
   if (!available) return (
     <section className="v41-quality v41-quality--compact" id="validation">
-      <header><span>全局模型质量</span><p><b>{qualityCopy}</b></p><a href="#secondary-validation">进入赛后验证</a></header>
+      <header><span>全局模型质量</span><p><b>{qualityCopy}</b></p><span>赛后验证按 Tab 加载</span></header>
     </section>
   );
   return (
@@ -1020,28 +1032,22 @@ function QualityRail({ workspace }: { workspace: IntelligenceWorkspace }) {
         <span><small>W2 Brier</small><strong>{available ? quality.model_brier?.toFixed(3) : "—"}</strong><b>市场 {available ? quality.market_brier?.toFixed(3) : "—"}</b></span>
         <span><small>校准误差 ECE</small><strong>{available && quality.model_calibration_error !== null ? `${(quality.model_calibration_error * 100).toFixed(1)}%` : "—"}</strong><b>{label(quality.status)}</b></span>
         <span><small>前向有效样本</small><strong>{available ? quality.sample_count : "—"}</strong><b>{available && quality.checkpoint_generated_at ? `截至 ${localDateTime(quality.checkpoint_generated_at)}` : quality.status === "NOT_AVAILABLE" ? "checkpoint 缺失" : label(quality.status)}</b></span>
-        <a href="#secondary-validation">赛后验证</a>
+        <span>赛后验证按 Tab 加载</span>
       </div>
     </section>
   );
 }
 
-function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
-  const matches = projectedMatches(workspace);
-  const modelForecast = workspace.validation.model_forecast;
+function ValidationCenter({ workspace, response }: { workspace: IntelligenceWorkspaceList; response: IntelligenceValidationResponse }) {
+  const modelForecast = response.validation.model_forecast;
   const evaluationFunnel = modelForecast.market_evaluation_funnel;
   const officialRecommendations = modelForecast.official_recommendations;
   const officialSettledCount = officialRecommendations.filter((row) => row.settlement !== "PENDING").length;
   const officialProfit = officialRecommendations.reduce((sum, row) => sum + (row.profit_units ?? 0), 0);
-  const records = workspace.validation.forward_validation_records;
+  const records = response.validation.forward_validation_records;
   const outcomes = records.outcomes;
   const settledCandidateCount = typeof outcomes.settled_sample_count === "number" ? outcomes.settled_sample_count : 0;
   const legacyAnalysisPickCount = Math.max(0, settledCandidateCount - modelForecast.current_flow_settled_count);
-  const replay = workspace.validation.history_replay;
-  const finishedCount = matches.filter((match) => match.outcome.is_finished).length;
-  const replayPresentation = publicPresentation(replay.public_semantics, { subject: "赛果", fixtureCount: matches.length, finishedCount, outcomeRecorded: matches.length > 0 && matches.every((match) => match.outcome.is_recorded) });
-  const selectedRecordsLabel = historyRecordLabel(replay.record_kind);
-  const outcomePresentation = (match: WorkspaceMatch) => publicPresentation(match.outcome.public_semantics, { subject: "赛果", fixtureCount: 1, finishedCount: match.outcome.is_finished ? 1 : 0, outcomeRecorded: match.outcome.is_recorded });
   return (
     <section className="v41-validation-center" id="secondary-validation" aria-labelledby="validation-title">
       <header>
@@ -1105,31 +1111,30 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
           </section>
         </div>
       </details>
-      <div className="v41-validation-layout v41-validation-layout--single">
-        <section>
-          <h3>{workspace.date} {selectedRecordsLabel}</h3>
-          <p className="v41-validation-context">所选比赛日 {workspace.today_summary.match_count} 场 · 已形成 {replay.decision_summary.total_cards} 张{selectedRecordsLabel}</p>
-          {matches.length ? <ol className="v41-validation-matches">{byKickoff(matches).map((match) => <li key={match.fixture_id}><time>{localDateTime(match.kickoff_utc)}</time><strong><MatchName match={match} /></strong><span>{outcomePresentation(match).label}</span></li>)}</ol> : <p className="v41-validation-empty">所选比赛日没有比赛记录；可使用上方日期浏览历史。</p>}
-          {matches.length ? <p className={replayPresentation.tone === "warning" ? "v41-validation-gaps" : "v41-validation-ok"}>{replayPresentation.summary}</p> : null}
-        </section>
-      </div>
-      {workspace.validation.league_performance.length ? <details className="v41-validation-leagues"><summary>按联赛查看验证状态（{workspace.validation.league_performance.length}）</summary><ul>{workspace.validation.league_performance.slice(0, 13).map((league) => <li key={`${league.competition_id}-${league.source_league}`}><strong>{translateCompetition(league.competition_name || league.league, league.canonical_competition_id || league.competition_id)}</strong><span>{league.only_record_reason === "PROBABILITY_QUALITY_NOT_READY" ? "概率质量待就绪" : league.only_record_reason === "AGGREGATION_CONFLICT" ? "聚合冲突" : league.only_record_reason === "SAMPLE_INSUFFICIENT" ? "样本不足" : "可用"}</span></li>)}</ul></details> : null}
-      <details className="v41-validation-technical"><summary>技术证据详情</summary><p>回放状态：<code>{replay.status}</code></p><p>原始缺口：{replay.replay_gaps.map((gap) => <code key={gap}>{gap}</code>)}</p><p>读取合同：<code>provider_calls={workspace.read_contract.provider_calls}</code> <code>db_writes={workspace.read_contract.db_writes}</code> <code>no_call_on_read={String(workspace.read_contract.no_call_on_read)}</code></p></details>
+      {response.validation.league_performance.length ? <details className="v41-validation-leagues"><summary>按联赛查看验证状态（{response.validation.league_performance.length}）</summary><ul>{response.validation.league_performance.slice(0, 13).map((league) => <li key={`${league.competition_id}-${league.source_league}`}><strong>{translateCompetition(league.competition_name || league.league, league.canonical_competition_id || league.competition_id)}</strong><span>{league.only_record_reason === "PROBABILITY_QUALITY_NOT_READY" ? "概率质量待就绪" : league.only_record_reason === "AGGREGATION_CONFLICT" ? "聚合冲突" : league.only_record_reason === "SAMPLE_INSUFFICIENT" ? "样本不足" : "可用"}</span></li>)}</ul></details> : null}
+      <details className="v41-validation-technical"><summary>技术证据详情</summary><p>读取合同：<code>provider_calls={response.read_contract.provider_calls}</code> <code>db_writes={response.read_contract.db_writes}</code> <code>no_call_on_read={String(response.read_contract.no_call_on_read)}</code></p></details>
     </section>
   );
 }
 
-function SecondaryViews({ workspace }: { workspace: IntelligenceWorkspace }) {
-  const matches = projectedMatches(workspace);
-  const replay = workspace.validation.history_replay;
+function ReplayCenter({ response }: { response: IntelligenceReplayResponse }) {
+  const replay = response.history_replay;
   const recordLabel = historyRecordLabel(replay.record_kind);
-  const finishedCount = matches.filter((match) => match.outcome.is_finished).length;
-  const replayPresentation = publicPresentation(replay.public_semantics, { subject: "赛果", fixtureCount: matches.length, finishedCount, outcomeRecorded: matches.length > 0 && matches.every((match) => match.outcome.is_recorded) });
+  const finishedCount = response.matches.filter((match) => match.outcome.is_finished).length;
+  const replayPresentation = publicPresentation(replay.public_semantics, { subject: "赛果", fixtureCount: response.matches.length, finishedCount, outcomeRecorded: response.matches.length > 0 && response.matches.every((match) => match.outcome.is_recorded) });
+  const outcomePresentation = (match: IntelligenceReplayResponse["matches"][number]) => publicPresentation(match.outcome.public_semantics, { subject: "赛果", fixtureCount: 1, finishedCount: match.outcome.is_finished ? 1 : 0, outcomeRecorded: match.outcome.is_recorded });
+  return <section className="v41-validation-center" id="history" data-contract="HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN">
+    <header><div><span className="v41-eyebrow">所选比赛日证据</span><h2>回放记录</h2><p>{response.date} · {recordLabel} {replay.decision_summary.total_cards}</p></div></header>
+    {response.matches.length ? <ol className="v41-validation-matches">{byKickoff(response.matches).map((match) => <li key={match.fixture_id}><time>{localDateTime(match.kickoff_utc)}</time><strong><small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small><MatchName match={match} /></strong><span>{outcomePresentation(match).label}</span></li>)}</ol> : <p className="v41-validation-empty">所选比赛日没有比赛记录；可使用比赛列表上方日期切换。</p>}
+    <p className={replayPresentation.tone === "warning" ? "v41-validation-gaps" : "v41-validation-ok"}>{replayPresentation.summary}</p>
+    <details className="v41-validation-technical"><summary>技术合同</summary><p>原始状态：<code>{replay.status}</code></p><p>原始缺口：{replay.replay_gaps.map((gap) => <code key={gap}>{gap}</code>)}</p><p><code>HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN</code></p><p><code>provider_calls={response.read_contract.provider_calls}</code> <code>db_writes={response.read_contract.db_writes}</code></p></details>
+  </section>;
+}
+
+function SecondaryViews({ workspace }: { workspace: IntelligenceWorkspaceList }) {
   const publicStatus = selectedDayPublicStatus(workspace);
   return (
     <section className="v41-secondary" aria-label="数据与系统 / 辅助详情">
-      <details id="all-matches"><summary>全部比赛</summary><ol>{byKickoff(matches).map((match) => <li key={match.fixture_id}><span>{localDateTime(match.kickoff_utc)}</span><strong><MatchName match={match} /></strong><b>{label(match.readiness.market_aggregate_status)}</b></li>)}</ol></details>
-      <details data-contract="HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN" id="history"><summary>证据审计台 / {recordLabel}</summary><p>{recordLabel} {replay.decision_summary.total_cards} · {replayPresentation.summary}</p><details><summary>技术合同</summary><p>原始状态：<code>{replay.status}</code></p><p>原始缺口：{replay.replay_gaps.map((gap) => <code key={gap}>{gap}</code>)}</p><code>HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN</code></details></details>
       <details id="system-status"><summary>系统状态与读取合同</summary><p>13 联赛 · 影子候选 {workspace.runtime.candidate === "SHADOW_ONLY" ? "已启用" : "未启用"} · 正式、锁定、生产与实盘均关闭</p><p>所选比赛日公开状态：{publicStatus.label}</p><details><summary>技术字段</summary><p><code>{workspace.data_operations.system_health}</code></p><p><code>provider_calls={workspace.read_contract.provider_calls}</code> · <code>db_writes={workspace.read_contract.db_writes}</code> · <code>would_write_checkpoint={String(workspace.read_contract.would_write_checkpoint)}</code> · <code>no_call_on_read={String(workspace.read_contract.no_call_on_read)}</code></p></details></details>
     </section>
   );
@@ -1138,10 +1143,18 @@ function SecondaryViews({ workspace }: { workspace: IntelligenceWorkspace }) {
 export function IntelligenceConsole(props: Props) {
   const { workspace } = props;
   const requestedFixtureId = props.initialFixtureId;
+  const legacyValidation = (workspace as unknown as Partial<IntelligenceWorkspace>).validation;
+  const defaultFullFixtureId = workspace.selected_fixture_id && workspace.matches.some((match) => match.fixture_id === workspace.selected_fixture_id && !isSummaryMatch(match) && !isProjectionError(match))
+    ? workspace.selected_fixture_id
+    : null;
+  const [tab, setTab] = useState<WorkspaceTab>("matches");
+  const [validationByDate, setValidationByDate] = useState<Record<string, IntelligenceValidationResponse>>({});
+  const [replayByDate, setReplayByDate] = useState<Record<string, IntelligenceReplayResponse>>({});
+  const [tabState, setTabState] = useState<"idle" | "loading" | "error">("idle");
   const [selectedId, setSelectedId] = useState<string | null>(
     requestedFixtureId && workspace.matches.some((match) => match.fixture_id === requestedFixtureId)
       ? requestedFixtureId
-      : workspace.selected_fixture_id,
+      : defaultFullFixtureId,
   );
   const [details, setDetails] = useState<Record<string, WorkspaceMatch>>({});
   const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
@@ -1153,9 +1166,53 @@ export function IntelligenceConsole(props: Props) {
     setSelectedId(
       requestedFixtureId && workspace.matches.some((match) => match.fixture_id === requestedFixtureId)
         ? requestedFixtureId
-        : workspace.selected_fixture_id,
+        : defaultFullFixtureId,
     );
-  }, [requestedFixtureId, workspace.matches, workspace.selected_fixture_id, workspace.request_id]);
+    setTab("matches");
+  }, [defaultFullFixtureId, requestedFixtureId, workspace.matches, workspace.request_id]);
+
+  useEffect(() => {
+    if (!legacyValidation) return;
+    const { history_replay: historyReplay, ...validation } = legacyValidation;
+    setValidationByDate((current) => current[props.date] ? current : {
+      ...current,
+      [props.date]: {
+        request_id: `${workspace.request_id}:validation`,
+        schema_version: "w2.dashboard-intelligence-validation.v1",
+        generated_at: workspace.generated_at,
+        validation,
+        read_contract: workspace.read_contract,
+      },
+    });
+    setReplayByDate((current) => current[props.date] ? current : {
+      ...current,
+      [props.date]: {
+        request_id: `${workspace.request_id}:replay`,
+        schema_version: "w2.dashboard-intelligence-replay.v1",
+        generated_at: workspace.generated_at,
+        date: workspace.date,
+        matches: projectedMatches(workspace),
+        history_replay: historyReplay,
+        read_contract: workspace.read_contract,
+      },
+    });
+  }, [legacyValidation, props.date, workspace]);
+
+  useEffect(() => {
+    if (tab === "matches" || (tab === "validation" && validationByDate[props.date]) || (tab === "replay" && replayByDate[props.date])) return;
+    const controller = new AbortController();
+    setTabState("loading");
+    const request = tab === "validation" ? fetchIntelligenceValidation(props.date, controller.signal) : fetchIntelligenceReplay(props.date, controller.signal);
+    request.then((payload) => {
+      if (tab === "validation") setValidationByDate((current) => ({ ...current, [props.date]: payload as IntelligenceValidationResponse }));
+      else setReplayByDate((current) => ({ ...current, [props.date]: payload as IntelligenceReplayResponse }));
+      setTabState("idle");
+    }).catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setTabState("error");
+    });
+    return () => controller.abort();
+  }, [props.date, tab, replayByDate, validationByDate]);
 
   useEffect(() => {
     if (detailWorkspaceRequest.current === workspace.request_id) return;
@@ -1212,19 +1269,26 @@ export function IntelligenceConsole(props: Props) {
   );
   const selected = selectedId ? details[selectedId] || (selectedItem && !isProjectionError(selectedItem) && !isSummaryMatch(selectedItem) ? selectedItem : null) : null;
 
+  const validation = validationByDate[props.date];
+  const replay = replayByDate[props.date];
+  const selectTab = (next: WorkspaceTab) => {
+    setTab(next);
+    setTabState("idle");
+  };
   return (
     <main aria-label="W2 INTELLIGENCE" className="dashboard-v41" data-public-cause={selectedDaySemantics(workspace).cause || "NONE"} data-intelligence-vocabulary="MODEL_MARKET_DISAGREEMENT" data-schema-version={workspace.schema_version} id="top">
-      <Header {...props} />
+      <Header {...props} tab={tab} onTabChange={selectTab} validationCount={validation?.validation.model_forecast.official_recommendations.length} />
       <RecentDateNav date={props.date} onDateChange={props.onDateChange} workspace={workspace} />
-      <TodaySummary workspace={workspace} />
-      <CapabilityStatus workspace={workspace} />
-      <div className="v41-main">
-        <PriorityShortlist key={workspace.request_id} workspace={workspace} onSelect={setSelectedId} selectedId={selectedId} />
-        {selected ? <MatchFocus generatedAt={workspace.generated_at} match={selected} /> : selectedItem && isProjectionError(selectedItem) ? <ProjectionErrorFocus match={selectedItem} /> : selectedItem && isSummaryMatch(selectedItem) ? <DetailLoadingFocus fixtureId={selectedItem.fixture_id} loading={detailLoadingIds.has(selectedItem.fixture_id)} error={detailErrors[selectedItem.fixture_id] || null} /> : <GlobalFocus date={props.date} onDateChange={props.onDateChange} workspace={workspace} />}
-      </div>
-      <ValidationCenter workspace={workspace} />
-      <QualityRail workspace={workspace} />
-      <SecondaryViews workspace={workspace} />
+      {tab === "matches" ? <>
+        <TodaySummary workspace={workspace} />
+        <CapabilityStatus workspace={workspace} />
+        <div className="v41-main">
+          <PriorityShortlist key={workspace.request_id} workspace={workspace} onSelect={setSelectedId} selectedId={selectedId} />
+          {selected ? <MatchFocus generatedAt={workspace.generated_at} match={selected} /> : selectedItem && isProjectionError(selectedItem) ? <ProjectionErrorFocus match={selectedItem} /> : selectedItem && isSummaryMatch(selectedItem) ? <DetailLoadingFocus fixtureId={selectedItem.fixture_id} loading={detailLoadingIds.has(selectedItem.fixture_id)} error={detailErrors[selectedItem.fixture_id] || null} /> : <GlobalFocus date={props.date} onDateChange={props.onDateChange} workspace={workspace} />}
+        </div>
+        <QualityRail workspace={workspace} />
+        <SecondaryViews workspace={workspace} />
+      </> : tabState === "loading" ? <section className="v41-validation-center"><p className="v41-validation-context">正在按需读取{tab === "validation" ? "赛后验证" : "回放记录"}…</p></section> : tabState === "error" ? <section className="v41-validation-center"><p className="v41-validation-warning">该视图暂不可用，请点击 Tab 重试。</p><button type="button" onClick={() => { if (tab === "validation") setValidationByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); else setReplayByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); }}>重试</button></section> : tab === "validation" && validation ? <ValidationCenter workspace={workspace} response={validation} /> : tab === "replay" && replay ? <ReplayCenter response={replay} /> : null}
     </main>
   );
 }

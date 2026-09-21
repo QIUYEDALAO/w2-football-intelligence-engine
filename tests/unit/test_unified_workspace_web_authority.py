@@ -14,10 +14,16 @@ def test_dashboard_uses_only_the_unified_intelligence_workspace() -> None:
 
     assert "fetchIntelligenceWorkspace" in page
     assert "/dashboard/intelligence-workspace" in workspace_api
-    assert 'projection: "full"' in workspace_api
+    assert "/dashboard/intelligence-workspace/list" in workspace_api
+    assert "/dashboard/intelligence-workspace/validation" in workspace_api
+    assert "/dashboard/intelligence-workspace/replay" in workspace_api
+    assert 'projection: "full"' not in workspace_api
     assert "/dashboard/intelligence-workspace/matches/" in workspace_api
     assert "fetchIntelligenceMatch(selectedId" in console
     assert "details[selectedId]" in console
+    assert 'useState<WorkspaceTab>("matches")' in console
+    assert 'tab === "validation" ? fetchIntelligenceValidation' in console
+    assert "fetchIntelligenceReplay(props.date" in console
     assert "/dashboard/day-view" not in workspace_api
     assert "IntelligenceConsole" in page
     assert "W2 INTELLIGENCE" in console

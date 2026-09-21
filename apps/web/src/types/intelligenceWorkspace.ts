@@ -659,6 +659,40 @@ export interface WorkspaceValidation {
   };
 }
 
+export type WorkspaceValidationWithoutReplay = Omit<WorkspaceValidation, "history_replay">;
+
+export interface IntelligenceValidationResponse {
+  request_id: string;
+  schema_version: "w2.dashboard-intelligence-validation.v1";
+  generated_at: string | null;
+  validation: WorkspaceValidationWithoutReplay;
+  read_contract: IntelligenceWorkspace["read_contract"];
+}
+
+export interface WorkspaceReplayMatch {
+  fixture_id: string;
+  competition_id: string | null;
+  competition_name: string | null;
+  kickoff_utc: string | null;
+  home_team_name: string | null;
+  away_team_name: string | null;
+  home_team_label: WorkspacePublicTeamLabel;
+  away_team_label: WorkspacePublicTeamLabel;
+  public_semantics: PublicStatusSemantics;
+  status: string | null;
+  outcome: WorkspaceMatch["outcome"];
+}
+
+export interface IntelligenceReplayResponse {
+  request_id: string;
+  schema_version: "w2.dashboard-intelligence-replay.v1";
+  generated_at: string | null;
+  date: string;
+  matches: WorkspaceReplayMatch[];
+  history_replay: WorkspaceValidation["history_replay"];
+  read_contract: IntelligenceWorkspace["read_contract"];
+}
+
 export interface IntelligenceWorkspace {
   request_id: string;
   schema_version: "w2.dashboard-intelligence-workspace.v1";
@@ -753,3 +787,7 @@ export interface IntelligenceWorkspace {
     provider_budget_status: string;
   };
 }
+
+export type IntelligenceWorkspaceList = Omit<IntelligenceWorkspace, "validation" | "source"> & {
+  source: "dashboard_day_view+summary_projection";
+};

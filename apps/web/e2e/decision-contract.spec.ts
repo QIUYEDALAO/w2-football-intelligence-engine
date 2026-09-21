@@ -358,14 +358,14 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
 }
 
 async function installWorkspace(page: Page, scenario: Scenario = "normal"): Promise<void> {
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: workspace(scenario) }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: workspace(scenario) }));
 }
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-08-09T13:07:00Z"));
 });
 
-test("summary first paint loads only the selected match detail on demand", async ({ page }) => {
+test("summary first paint waits for an explicit match selection before loading detail", async ({ page }) => {
   const payload = workspace("normal");
   const detail = payload.matches[0] as WorkspaceMatch;
   const summary: WorkspaceMatchSummary = {
@@ -400,7 +400,7 @@ test("summary first paint loads only the selected match detail on demand", async
     pending_owner_review_team_count: 0,
   };
   let detailRequests = 0;
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) =>
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) =>
     route.fulfill({ status: 200, json: payload }),
   );
   await page.route("**/v1/dashboard/intelligence-workspace/matches/*", (route) => {
@@ -410,10 +410,82 @@ test("summary first paint loads only the selected match detail on demand", async
 
   await page.goto("/");
 
+  await page.waitForTimeout(100);
+  expect(detailRequests).toBe(0);
+  await page.locator(`[data-fixture-id="${summary.fixture_id}"]`).first().click();
   await expect.poll(() => detailRequests).toBe(1);
   await expect(page.locator(".v41-focus-header h1")).toHaveText(
     `${detail.home_team_label.display_name} vs ${detail.away_team_label.display_name}`,
   );
+});
+
+test("dashboard tabs lazy-load validation and replay once per selected date", async ({ page }) => {
+  const payload = workspace("normal");
+  const full = payload.matches[0] as WorkspaceMatch;
+  const summary: WorkspaceMatchSummary = {
+    projection_scope: "SUMMARY",
+    fixture_id: full.fixture_id,
+    competition_id: full.competition_id,
+    competition_name: full.competition_name,
+    kickoff_utc: full.kickoff_utc,
+    home_team_name: full.home_team_name,
+    away_team_name: full.away_team_name,
+    home_team_label: full.home_team_label,
+    away_team_label: full.away_team_label,
+    public_semantics: full.public_semantics,
+    status: full.status,
+    outcome: full.outcome,
+    decision_tier: full.w2_analysis.decision_tier,
+    data_status: full.readiness.status,
+    lifecycle_status: "DRAFT",
+    reason_code: "DETAIL_NOT_LOADED",
+    action: "LOAD_DETAIL",
+    next_eval_at: full.readiness.next_eval_at,
+  };
+  const { history_replay: historyReplay, ...validation } = payload.validation;
+  const listPayload = {
+    ...payload,
+    source: "dashboard_day_view+summary_projection",
+    selected_fixture_id: null,
+    matches: [summary],
+    attention: [],
+    today_summary: { ...payload.today_summary, match_count: 1, competition_count: 1 },
+  };
+  delete (listPayload as Partial<typeof payload>).validation;
+  let validationRequests = 0;
+  let replayRequests = 0;
+  let detailRequests = 0;
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: listPayload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/validation?**", (route) => {
+    validationRequests += 1;
+    return route.fulfill({ status: 200, json: { request_id: "validation-1", schema_version: "w2.dashboard-intelligence-validation.v1", generated_at: payload.generated_at, validation, read_contract: payload.read_contract } });
+  });
+  await page.route("**/v1/dashboard/intelligence-workspace/replay?**", (route) => {
+    replayRequests += 1;
+    return route.fulfill({ status: 200, json: { request_id: "replay-1", schema_version: "w2.dashboard-intelligence-replay.v1", generated_at: payload.generated_at, date: payload.date, matches: payload.matches, history_replay: historyReplay, read_contract: payload.read_contract } });
+  });
+  await page.route("**/v1/dashboard/intelligence-workspace/matches/*", (route) => {
+    detailRequests += 1;
+    return route.fulfill({ status: 200, json: full });
+  });
+
+  await page.goto("/");
+  await expect(page.getByRole("tab", { name: "比赛列表" })).toHaveAttribute("aria-selected", "true");
+  expect(validationRequests).toBe(0);
+  expect(replayRequests).toBe(0);
+  expect(detailRequests).toBe(0);
+
+  await page.getByRole("tab", { name: "赛后验证" }).click();
+  await expect(page.locator("#secondary-validation")).toBeVisible();
+  expect(validationRequests).toBe(1);
+  await page.getByRole("tab", { name: "比赛列表" }).click();
+  await page.getByRole("tab", { name: /赛后验证/ }).click();
+  await expect(page.locator("#secondary-validation")).toBeVisible();
+  expect(validationRequests).toBe(1);
+
+  await page.getByRole("tab", { name: "回放记录" }).click();
+  await expect(page.locator("#history")).toBeVisible();
+  expect(replayRequests).toBe(1);
 });
 
 test("public team labels come from the workspace authority, not frontend guessing", async ({ page }) => {
@@ -452,7 +524,7 @@ test("future selected day derives neutral scope/cause copy and keeps known raw t
   selected.persisted_inventory_status = "PERSISTED_FIXTURES_AVAILABLE";
   selected.market_collection_window_status = "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW";
   selected.public_semantics = { scope: "SELECTED_DAY", cause: "NOT_YET_DUE" };
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
 
   await page.goto("/");
   await page.getByLabel("选择比赛日").fill(payload.date);
@@ -474,17 +546,19 @@ test("future selected day derives neutral scope/cause copy and keeps known raw t
   await expect(page.locator("body")).not.toContainText("仅赛程");
   await expect(page.locator(".v41-shortlist time").first()).toHaveText("20:00");
   await expect(page.locator(".v41-shortlist time").nth(1)).toHaveText("次日 01:00");
-  await expect(page.locator("#secondary-validation")).toContainText("前向记录");
-  await expect(page.locator("#secondary-validation")).toContainText("赛果尚未产生");
-  await expect(page.locator("#secondary-validation")).not.toContainText("赛果匹配 / 缺失");
+  await page.getByRole("tab", { name: "回放记录" }).click();
+  await expect(page.locator("#history")).toContainText("前向记录");
+  await expect(page.locator("#history")).toContainText("赛果尚未产生");
+  await expect(page.locator("#history")).not.toContainText("赛果匹配 / 缺失");
 });
 
 test("cross-day cumulative insufficiency never becomes a selected-day failure", async ({ page }) => {
   const payload = workspace("normal");
   payload.validation.forward_validation_records.public_semantics = { scope: "CROSS_DAY_CUMULATIVE", cause: "INSUFFICIENT" };
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
 
   await page.goto("/");
+  await page.getByRole("tab", { name: "赛后验证" }).click();
 
   await expect(page.locator(".v41-validation-verdict")).toContainText("样本量远不足以判断模型好坏");
   await expect(page.locator(".v41-validation-verdict")).not.toContainText("所选比赛日");
@@ -513,8 +587,9 @@ test("shadow candidate is explicit, tracked and non-production", async ({ page }
   // shadow_candidate is selection HOME with exact_line -0.75. Since e90c0abe the
   // selected-team line is rendered as-is instead of being re-framed, so the sign
   // stays negative here.
-  await expect(page.locator(".v41-candidate")).toContainText("推荐主队盘口 -0.75 · 赔率 1.95");
+  await expect(page.locator(".v41-candidate")).toContainText("推荐主队盘口 本菲卡 -0.75 · 赔率 1.95");
   await expect(page.locator(".v41-candidate")).toContainText("Formal、Lock、Production 与实盘保持关闭");
+  await page.getByRole("tab", { name: "赛后验证" }).click();
   await expect(page.locator("#secondary-validation .v41-validation-t30")).toContainText("T-30 候选评估0");
 });
 
@@ -543,7 +618,7 @@ test("V41 presents unassessed model evidence in Chinese and keeps codes technica
     explanation: "可比较模型尚无已验证校准证据",
     assessment_status: "UNASSESSED",
   };
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
   await expect(page.locator(".v41-three-layer")).toContainText("逐市场 · 均未就绪");
@@ -564,7 +639,7 @@ test("market depth asymmetry stays inside the existing technical details", async
   const payload = workspace();
   const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
   focused.market_radar.markets.ASIAN_HANDICAP.reason_codes.push("MARKET_DEPTH_ASYMMETRY");
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
   const focus = page.locator(".v41-focus");
@@ -607,7 +682,7 @@ for (const [scenario, cause, copy] of [
 test("V41 separates diagnostic market age from the candidate quote-age hard gate", async ({ page }) => {
   const payload = workspace("stale");
   payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!.kickoff_utc = "2026-08-10T14:30:00Z";
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
   const totals = page.locator("[data-market='TOTALS']");
   await expect(page.locator("[data-market-details='TOTALS']")).toContainText("证据不足");
@@ -629,7 +704,7 @@ test("AH market radar uses the owner main-handicap sign convention", async ({ pa
     canonical_line: "0.5",
     prices: { HOME: 1.94, AWAY: 1.80 },
   }));
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
   const market = page.locator("[data-market='ASIAN_HANDICAP']");
@@ -657,12 +732,12 @@ test("AH recommendation rows share the owner main-handicap sign convention with 
   // through formatSignedLine: positive keeps a "+", negative keeps its "-",
   // and trailing zeros are trimmed, so +1.0 renders as "+1".
   const recommendations = [
-    ["1490398", "AWAY", "-0.5", "让球 -0.5 · 推荐客队"],
-    ["1490400", "HOME", "+0.25", "让球 +0.25 · 推荐主队"],
-    ["1490401", "AWAY", "+0.75", "让球 +0.75 · 推荐客队"],
-    ["1490402", "AWAY", "+0.5", "让球 +0.5 · 推荐客队"],
-    ["1490404", "AWAY", "+1.0", "让球 +1 · 推荐客队"],
-    ["1490405", "HOME", "-0.5", "让球 -0.5 · 推荐主队"],
+    ["1490398", "AWAY", "-0.5", "让球 波尔图 -0.5 · 推荐客队"],
+    ["1490400", "HOME", "+0.25", "让球 本菲卡 +0.25 · 推荐主队"],
+    ["1490401", "AWAY", "+0.75", "让球 波尔图 +0.75 · 推荐客队"],
+    ["1490402", "AWAY", "+0.5", "让球 波尔图 +0.5 · 推荐客队"],
+    ["1490404", "AWAY", "+1.0", "让球 波尔图 +1 · 推荐客队"],
+    ["1490405", "HOME", "-0.5", "让球 本菲卡 -0.5 · 推荐主队"],
   ] as const;
   payload.validation.model_forecast.official_recommendations = recommendations.map(([fixtureId, selection, exactLine], index) => ({
     evaluation_id: `eval-${fixtureId}`,
@@ -680,8 +755,10 @@ test("AH recommendation rows share the owner main-handicap sign convention with 
     settlement: "PENDING",
     profit_units: null,
   }));
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
+  const radarLine = await page.locator("[data-focus-type='MATCH'] [data-market='ASIAN_HANDICAP'] [data-market-line]").textContent();
+  await page.getByRole("tab", { name: "赛后验证" }).click();
 
   for (const [fixtureId, , , expected] of recommendations) {
     await expect(page.locator(`.v41-official-recommendations li[data-fixture-id='${fixtureId}'] > span`).first()).toHaveText(expected);
@@ -689,9 +766,8 @@ test("AH recommendation rows share the owner main-handicap sign convention with 
   // formatAhMarketHandicap renders the home-frame main_line with its sign
   // preserved, so the market radar and the recommendation rows now share one
   // sign convention: main_line -0.5 reads as "-0.5" in both places.
-  const radarLine = await page.locator("[data-focus-type='MATCH'] [data-market='ASIAN_HANDICAP'] [data-market-line]").textContent();
   const recommendationText = await page.locator(".v41-official-recommendations li[data-fixture-id='1490405'] > span").first().textContent();
-  expect(recommendationText).toContain(`让球 ${radarLine}`);
+  expect(recommendationText).toContain(` ${radarLine}`);
 });
 
 test("quote age gate mark reads each market's projected maximum", async ({ page }) => {
@@ -702,7 +778,7 @@ test("quote age gate mark reads each market's projected maximum", async ({ page 
   for (const factor of focused.factor_checklist.factors) {
     if (factor.factor_id === "MK_QUOTE_AGE") factor.evidence.maximum_seconds = 120;
   }
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
   const ready = page.locator("[data-market='ASIAN_HANDICAP'] [data-quote-age-state='ready']");
@@ -776,7 +852,7 @@ test("V41 uses diagnosis as the only unassessed conclusion and explains stale ma
     price_delta: { HOME: 0.02, AWAY: 0.51 },
     probability_delta: { HOME: 0.064689, AWAY: -0.064689 },
   };
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
   const row = page.locator(`.v41-shortlist-list [data-fixture-id='${focused.fixture_id}']`);
@@ -818,13 +894,13 @@ test("V41 makes the final official candidate card authoritative and folds repeat
     summary_zh: "已评估 2 次（T-3h / T-15m），最终官方状态仍为候选。",
     diagnosis: { status: "CANDIDATE_ACTIVE", primary_blocker_zh: "最终仍为候选", missing_detail_zh: "候选轨道已完成评估并保持有效。", next_step_zh: "等待赛果进入既有结算流程。", next_checkpoint: null, next_checkpoint_at: null, non_blocking_missing_zh: [], evidence_codes: [] },
   };
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
   const official = page.locator(".v41-candidate--official");
   await expect(official.locator("header")).toContainText("检查点漏斗候选最终仍有效");
   await expect(official.locator("header")).not.toContainText("产品权限未启用");
-  await expect(official).toContainText("让球主盘 · 盘口 -0.5 · 推荐客队 @1.88");
+  await expect(official).toContainText("让球主盘 · 盘口 波尔图 -0.5 · 推荐客队 @1.88");
   await expect(official.locator("footer")).toHaveText(focused.evaluation_execution.summary_zh);
   await expect(page.locator(".v41-evaluation-diagnosis[data-diagnosis-status]")).toHaveCount(0);
   await expect(page.locator(".v41-semantic-audit")).not.toHaveAttribute("open", "");
@@ -833,7 +909,7 @@ test("V41 makes the final official candidate card authoritative and folds repeat
 test("V41 reads global capability state and distinguishes disabled from not implemented", async ({ page }) => {
   const payload = workspace();
   payload.runtime.recommendation_capabilities.formal_ah.feature_enabled = true;
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
   const capabilities = page.locator(".v41-capabilities");
@@ -853,7 +929,7 @@ test("V41 uses one lifecycle decision for a match that never formed a candidate"
   focused.evaluation_execution.ever_formed_candidate = false;
   focused.evaluation_execution.summary_zh = "本场未形成候选；期间有检查点错过，但不影响该结论。";
   focused.factual_summary = focused.evaluation_execution.summary_zh;
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
   await expect(page.locator(`.v41-shortlist-list [data-fixture-id='${focused.fixture_id}']`)).toContainText("已完场 · 未形成候选");
@@ -902,7 +978,7 @@ test("R6 renders the complete persisted capture fact independently of current pr
     calibration_version: "w2.formal.lambda_baseline_prior.v1",
     calibration_status: "BASELINE_PRIOR",
   };
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
   const checklist = page.locator(".v41-factor-checklist");
@@ -916,7 +992,7 @@ test("R6 renders the complete persisted capture fact independently of current pr
 test("V41 keeps the zero-observation market state explicit", async ({ page }, testInfo) => {
   const payload = workspace();
   payload.selected_fixture_id = "1571808";
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
   const focus = page.locator(".v41-focus");
@@ -950,12 +1026,13 @@ test("one match projection failure remains visible without hiding the selected d
   };
   payload.matches[0] = failed;
   payload.selected_fixture_id = failed.fixture_id;
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
 
   await page.goto("/");
 
-  await expect(page.locator("[data-fixture-id]")).toHaveCount(4);
+  await expect(page.locator(".v41-shortlist-list [data-fixture-id]")).toHaveCount(payload.matches.length);
   await expect(page.locator(".v41-shortlist")).toContainText("投影异常 · 1 场");
+  await page.locator(`.v41-shortlist-list [data-fixture-id="${failed.fixture_id}"]`).click();
   await expect(page.locator(".v41-focus")).toContainText("单场投影已隔离");
   await expect(page.locator(".v41-focus")).toContainText("其余比赛不受影响");
 });
@@ -989,7 +1066,7 @@ test("D16 keeps canonical risk codes in technical detail, not public explanation
   const payload = workspace("deployed");
   const focused = payload.matches.find((item) => item.fixture_id === "1571806")!;
   focused.risks.DATA_RISK = { dimension: "DATA_RISK", status: "INCIDENT", reason_codes: ["DATA_FIELD_STALE", "DATA_IDENTITY_NOT_READY"], explanation: "数据字段已超过新鲜度边界；比赛或盘口身份尚未完成" };
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
   const risks = page.locator(".v41-risk-list");
   const publicCopy = risks.locator(".is-incident").first().locator(":scope > small");
@@ -1019,7 +1096,7 @@ for (const [status, timestamp, copy] of [
       payload.global_model_quality.model_calibration_error = null;
       payload.global_model_quality.sample_count = 0;
     }
-    await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+    await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
     await page.goto("/");
     await expect(page.locator(".v41-quality")).toContainText(copy);
     if (status !== "AVAILABLE") await expect(page.locator(".v41-quality > div")).toHaveCount(0);
@@ -1050,7 +1127,7 @@ test("V41 limited day keeps affected match names, kickoff times and recorded eva
 test("V41 limited day does not promise a schedule when none exists", async ({ page }) => {
   const payload = workspace("limited");
   payload.global_focus!.next_eval_at = null;
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
   await expect(page.locator(".v41-global-stats")).toContainText("暂无适用于所选比赛日的调度记录");
   await expect(page.locator(".v41-focus")).not.toContainText("等待既有调度");
@@ -1108,7 +1185,7 @@ test("V41 derives age across timezone and day boundaries and never labels a past
   focused.market_radar.markets.ASIAN_HANDICAP.timeline_points.at(-1)!.checkpoint = null;
   focused.market_collection = { latest_snapshot_at: "2026-08-09T15:18:00Z", latest_snapshot_checkpoint: "T24_OPEN_ODDS", target_checkpoint: "T12_OPEN_ODDS", scheduled_at: "2026-08-09T18:30:00Z", window_end_at: "2026-08-09T18:40:00Z", overdue: false, public_semantics: { scope: "MATCH", cause: "NOT_YET_DUE" } };
   focused.readiness.next_eval_at = "2026-08-09T16:30:00Z";
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
   const freshness = page.locator("[data-market-details='ASIAN_HANDICAP']");
   await expect(freshness.locator("span").nth(1)).toHaveText("T24_OPEN_ODDS");
@@ -1151,7 +1228,7 @@ test("V41 finished match freezes quote age at kickoff and closes prematch planni
   focused.outcome.is_finished = true;
   focused.kickoff_utc = "2026-08-10T10:00:00Z";
   focused.market_radar.markets.ASIAN_HANDICAP.latest_snapshot_at = "2026-08-10T09:50:00Z";
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
   const market = page.locator("[data-market='ASIAN_HANDICAP']");
@@ -1181,7 +1258,7 @@ test("V41 keeps not-yet-due lineups out of anomalous missing inputs", async ({ p
     overdue: false,
     public_semantics: { scope: "MATCH", cause: "NOT_YET_DUE" },
   };
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
   const risk = page.locator("[data-risk-axis='DATA_RISK']");
   await expect(risk).toContainText("待补齐：模型核心输入 xG、评级增强输入、球队身价增强输入");
@@ -1201,7 +1278,7 @@ for (const state of [
       overdue: state.overdue,
       public_semantics: { scope: "MATCH", cause: "AWAITING_COLLECTION" },
     };
-    await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+    await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
     await page.goto("/");
     await expect(page.locator(".v41-focus-summary b")).toHaveText("采集状态");
     await expect(page.locator(".v41-next strong").nth(2)).toHaveText(state.expected);
@@ -1210,7 +1287,7 @@ for (const state of [
 
 test("V41 date navigation, Today, Refresh and keyboard focus are functional", async ({ page }) => {
   const requestedDates: string[] = [];
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requestedDates.push(new URL(route.request().url()).searchParams.get("date") || ""); return route.fulfill({ status: 200, json: workspace() }); });
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => { requestedDates.push(new URL(route.request().url()).searchParams.get("date") || ""); return route.fulfill({ status: 200, json: workspace() }); });
   await page.goto("/");
   await page.getByLabel("选择比赛日").fill("2026-08-09");
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-09");
@@ -1235,7 +1312,7 @@ test("refresh keeps the current workspace visible while the read is pending", as
   let holdRefresh = false;
   let finishRefresh!: () => void;
   const refreshPending = new Promise<void>((resolve) => { finishRefresh = resolve; });
-  await page.route("**/v1/dashboard/intelligence-workspace?**", async (route) => {
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", async (route) => {
     if (holdRefresh) await refreshPending;
     await route.fulfill({ status: 200, json: workspace() });
   });
@@ -1258,7 +1335,7 @@ test("SC19 date strip exposes persisted counts and collection-window truth", asy
   selected.market_evidence_fixture_count = 1;
   selected.market_collection_window_status = "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY";
   selected.public_semantics = { scope: "SELECTED_DAY", cause: "AWAITING_COLLECTION" };
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
   const strip = page.getByRole("navigation", { name: "近七日比赛浏览" });
@@ -1316,7 +1393,7 @@ test("mobile selected date remains visible after the workspace replaces date-str
     ...entry,
     football_day: new Date(Date.UTC(2026, 7, 7 + index)).toISOString().slice(0, 10),
   }));
-  await page.route("**/v1/dashboard/intelligence-workspace?**", async (route) => {
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", async (route) => {
     const requestedDate = new URL(route.request().url()).searchParams.get("date");
     if (requestedDate === selected.date) {
       await new Promise((resolve) => setTimeout(resolve, 200));
@@ -1340,7 +1417,7 @@ test("mobile selected date remains visible after the workspace replaces date-str
 
 test("V41 empty-day adjacent controls change the requested football day", async ({ page }) => {
   const requestedDates: string[] = [];
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requestedDates.push(new URL(route.request().url()).searchParams.get("date") || ""); return route.fulfill({ status: 200, json: workspace("empty") }); });
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => { requestedDates.push(new URL(route.request().url()).searchParams.get("date") || ""); return route.fulfill({ status: 200, json: workspace("empty") }); });
   await page.goto("/");
   await page.locator(".v41-adjacent-days button").first().click();
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-08");
@@ -1364,8 +1441,9 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
     { evaluation_id: "eval-half-win", fixture_id: "official-half-win", competition_id: "primeira_liga", evaluated_at: "2026-08-10T01:02:00Z", kickoff_utc: "2026-08-10T02:02:00Z", market: "ASIAN_HANDICAP", selection: "AWAY", exact_line: "0.25", decimal_odds: 1.77, home_team_label: payload.matches[2].home_team_label, away_team_label: payload.matches[2].away_team_label, score: "3-3", settlement: "HALF_WIN", profit_units: 0.385 },
     { evaluation_id: "eval-push", fixture_id: "official-push", competition_id: "primeira_liga", evaluated_at: "2026-08-10T01:03:00Z", kickoff_utc: "2026-08-10T02:03:00Z", market: "TOTALS", selection: "UNDER", exact_line: "3.0", decimal_odds: 1.81, home_team_label: payload.matches[0].home_team_label, away_team_label: payload.matches[0].away_team_label, score: "1-2", settlement: "PUSH", profit_units: 0 },
   ];
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requests += 1; return route.fulfill({ status: 200, json: payload }); });
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => { requests += 1; return route.fulfill({ status: 200, json: payload }); });
   await page.goto("/");
+  await page.getByRole("tab", { name: "赛后验证" }).click();
   const validation = page.locator("#secondary-validation");
   await expect(validation).toBeVisible();
   await expect(validation).toContainText("赛后验证");
@@ -1380,7 +1458,6 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
   await expect(validation.getByText("模型预测验证账本", { exact: true })).not.toBeVisible();
   await expect(validation.getByText("历史已结算 ANALYSIS_PICK", { exact: true }).first()).not.toBeVisible();
   await expect(validation.getByText("当前流程逐门覆盖", { exact: false })).not.toBeVisible();
-  await expect(validation.locator(".v41-validation-matches")).toBeVisible();
   await expect(validation.locator(".v41-official-recommendations b")).toHaveText(["赢", "输", "赢一半", "走盘"]);
   const recommendationRows = validation.locator(".v41-official-recommendations ol > li");
   await expect(recommendationRows).toHaveCount(4);
@@ -1412,33 +1489,33 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
   await expect(validation.getByText("已有 ≥3 场历史的球队")).toBeVisible();
   await expect(validation).toContainText("赛果基表记录36");
   await expect(validation).toContainText("不混入所选比赛日的前向记录与赛果缺口");
-  await expect(validation).toContainText("赛果尚未产生");
   await expect(validation).not.toContainText("所选比赛日证据缺口");
   await expect(validation).not.toContainText("赛果尚未接入");
   await expect(validation.getByText("MISSING_OUTCOMES", { exact: true })).not.toBeVisible();
   const initialRequests = requests;
   await validation.locator(".v41-validation-technical summary").click();
-  await expect(validation.getByText("FORWARD_RECORD", { exact: true })).toBeVisible();
+  await expect(validation.getByText("provider_calls=0", { exact: false })).toBeVisible();
   expect(requests).toBe(initialRequests);
 });
 
 test("official recommendation empty state is explicit", async ({ page }) => {
   await installWorkspace(page);
   await page.goto("/");
+  await page.getByRole("tab", { name: "赛后验证" }).click();
   await expect(page.locator(".v41-official-recommendations")).toContainText("当日无检查点漏斗候选");
 });
 
 test("empty selected day never leaks replay gaps into public copy", async ({ page }) => {
   await installWorkspace(page, "empty");
   await page.goto("/");
+  await page.getByRole("tab", { name: "回放记录" }).click();
 
-  const validation = page.locator("#secondary-validation");
+  const validation = page.locator("#history");
   await expect(validation).toContainText("所选比赛日没有比赛记录");
   await expect(validation).not.toContainText("所选比赛日证据缺口");
   await expect(validation).not.toContainText("赛果尚未接入");
   await expect(validation.getByText("MISSING_OUTCOMES", { exact: true })).not.toBeVisible();
-  await expect(page.locator("#history > summary")).toHaveText("证据审计台 / 比赛记录");
-  await expect(page.locator("#history > summary")).not.toContainText("回放");
+  await expect(page.locator("#history h2")).toHaveText("回放记录");
 });
 
 test("finished selected-day records derive awaiting-outcome copy from public semantics", async ({ page }) => {
@@ -1454,10 +1531,11 @@ test("finished selected-day records derive awaiting-outcome copy from public sem
   payload.validation.history_replay.public_semantics = { scope: "SELECTED_DAY", cause: "AWAITING_COLLECTION" };
   payload.date_strip[7].finished_fixture_count = payload.matches.length;
   payload.date_strip[7].upcoming_fixture_count = 0;
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
+  await page.getByRole("tab", { name: "回放记录" }).click();
 
-  const validation = page.locator("#secondary-validation");
+  const validation = page.locator("#history");
   await expect(validation).toContainText("赛果待采集");
   await expect(validation).toContainText("比赛已经结束，赛果仍待既有流程采集");
   await expect(validation).not.toContainText("赛果尚未产生");
@@ -1478,10 +1556,11 @@ test("past-due upcoming records show status awaiting update, not outcome not yet
   payload.validation.history_replay.replay_gaps = [];
   payload.validation.history_replay.record_kind = "FORWARD_RECORD";
   payload.validation.history_replay.public_semantics = { scope: "SELECTED_DAY", cause: "AWAITING_COLLECTION" };
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
+  await page.getByRole("tab", { name: "回放记录" }).click();
 
-  const validation = page.locator("#secondary-validation");
+  const validation = page.locator("#history");
   await expect(validation.getByText("比赛状态待更新", { exact: true })).toHaveCount(3);
   await expect(validation).toContainText("计划开球时间已过，持久化比赛状态或赛果仍待既有流程更新");
   await expect(validation).not.toContainText("赛果尚未产生");
@@ -1502,17 +1581,18 @@ test("mixed selected-day records derive each outcome label from match semantics"
   payload.validation.history_replay.public_semantics = { scope: "SELECTED_DAY", cause: "AWAITING_COLLECTION" };
   payload.date_strip[7].finished_fixture_count = 2;
   payload.date_strip[7].upcoming_fixture_count = 1;
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
+  await page.getByRole("tab", { name: "回放记录" }).click();
 
-  const rows = page.locator("#secondary-validation .v41-validation-matches li");
+  const rows = page.locator("#history .v41-validation-matches li");
   await expect(rows.nth(0)).toContainText("赛果待采集");
   await expect(rows.nth(1)).toContainText("赛果尚未产生");
   await expect(rows.nth(2)).toContainText("赛果未纳入跟踪");
-  await expect(page.locator("#secondary-validation")).toContainText(
+  await expect(page.locator("#history")).toContainText(
     "已有 2 场完场；其余比赛状态或赛果仍待既有流程更新",
   );
-  await expect(page.locator("#history > summary")).toHaveText("证据审计台 / 前向 / 回放记录");
+  await expect(page.locator("#history")).toContainText("前向 / 回放记录");
 });
 
 test("recorded match outcomes render only the persisted outcome semantics", async ({ page }) => {
@@ -1528,10 +1608,11 @@ test("recorded match outcomes render only the persisted outcome semantics", asyn
   payload.validation.history_replay.public_semantics = { scope: "SELECTED_DAY", cause: null };
   payload.date_strip[7].finished_fixture_count = payload.matches.length;
   payload.date_strip[7].upcoming_fixture_count = 0;
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
+  await page.getByRole("tab", { name: "回放记录" }).click();
 
-  const validation = page.locator("#secondary-validation");
+  const validation = page.locator("#history");
   await expect(validation.locator(".v41-validation-matches").getByText("赛果已记录", { exact: true })).toHaveCount(3);
   await expect(validation).toContainText("3 场比赛的赛果已由既有流程记录");
 });
@@ -1647,7 +1728,7 @@ for (const scenario of ["limited", "calm", "stale", "empty"] as const) {
 }
 
 test("endpoint failure remains fail-closed without legacy fallback", async ({ page }) => {
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 503, json: { code: "SYSTEM_DEGRADED" } }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 503, json: { code: "SYSTEM_DEGRADED" } }));
   await page.goto("/");
   await expect(page.locator(".workspace-load-state--error")).toContainText("统一情报工作台暂不可用");
   await expect(page.locator(".workspace-load-state--error")).toContainText("不会回退旧 Dashboard，也不会填充合成数据");
