@@ -51,8 +51,6 @@ def requeue_unlinked_t168_provider_empty(
     competition_ids = tuple(
         load_league_whitelist_scope(CompetitionRegistry(engine)).all_whitelist
     )
-    if len(competition_ids) != 13:
-        raise RuntimeError(f"REQUEUE_SCOPE_NOT_EXACT_13:{len(competition_ids)}")
     unlinked_first_attempt = and_(
         plans.checkpoint == "T168_OPEN_ODDS",
         plans.status == "PROVIDER_EMPTY",

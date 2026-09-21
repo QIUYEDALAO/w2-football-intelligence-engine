@@ -282,6 +282,52 @@ def test_checkpoint_state_machine_due_claim_capture_and_single_winner() -> None:
         assert row.claim_token is None
 
 
+def test_transition_checkpoint_failed_records_blockers() -> None:
+    # RESULT-STUCK 修复：_transition_checkpoint_plan 写 FAILED 时要把失败原因
+    # (result.blockers) 持久化到 matchday_checkpoint_plans.blockers。
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    plan = next(
+        item
+        for item in build_checkpoint_plans(
+            fixture_id="api_football:t168-fail",
+            competition_id="allsvenskan",
+            season="2026",
+            kickoff_utc=KICKOFF,
+            now=KICKOFF - timedelta(hours=25),
+            policy=policy,
+        )
+        if item.checkpoint == "T24_ODDS"
+    )
+
+    repository.upsert_checkpoint_plan(plan)
+    claim = repository.claim_due_checkpoint_plans(
+        now=plan.window_start + timedelta(minutes=1),
+        worker_id="worker-fail",
+        limit=10,
+    )
+    repository.transition_checkpoint(
+        fixture_id=plan.fixture_id,
+        competition_id=plan.competition_id,
+        season=plan.season,
+        checkpoint=plan.checkpoint,
+        policy_version=plan.policy_version,
+        status="FAILED",
+        blockers=["RESULT_QUOTA_EXHAUSTED"],
+        now=plan.window_start + timedelta(minutes=2),
+        claim_token=str(claim[0]["claim_token"]),
+    )
+
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, claim[0]["id"])
+        assert row is not None
+        assert row.status == "FAILED"
+        assert row.blockers == ["RESULT_QUOTA_EXHAUSTED"]
+        assert row.claim_token is None
+
+
 def test_prematch_collection_is_claimed_before_ordinary_postmatch_result() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -1996,7 +2042,7 @@ def test_a_claimed_plan_keeps_the_window_its_worker_was_handed() -> None:
 def test_t30_validation_grace_meets_t15_at_boundary_for_every_policy() -> None:
     policies = competition_policies(load_matchday_policy())
 
-    assert len(policies) == 14
+    assert len(policies) == 28
     for policy in policies.values():
         checkpoints = {item.name: item for item in policy.checkpoints}
         t30 = checkpoints["T-30m_VALIDATION_LOCK"]

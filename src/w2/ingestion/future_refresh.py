@@ -3470,6 +3470,7 @@ class FutureFixtureRefreshService:
             capture_id=capture_id,
             now=result.generated_at_utc,
             claim_token=claim_token,
+            blockers=list(result.blockers) if status == "FAILED" else None,
         )
 
 

@@ -302,6 +302,7 @@ class MatchdayRuntimeRepository:
         capture_id: str | None = None,
         now: datetime | None = None,
         claim_token: str | None = None,
+        blockers: Sequence[str] | None = None,
     ) -> None:
         plan_id = stable_hash(
             ":".join([fixture_id, competition_id, season, checkpoint, policy_version])
@@ -326,6 +327,8 @@ class MatchdayRuntimeRepository:
             row.capture_id = capture_id or row.capture_id
             if status == "MISSED":
                 row.missed_at = current
+            if blockers:
+                row.blockers = list(blockers)
             if status in _TERMINAL_CHECKPOINT_STATUSES or status == "FAILED":
                 row.claimed_at = None
                 row.claimed_by = None

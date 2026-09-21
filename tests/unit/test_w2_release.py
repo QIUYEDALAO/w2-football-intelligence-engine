@@ -326,6 +326,31 @@ def test_target_full_sha_passes_through(tmp_path: Path) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# REL-SHORT-SHA 批次新增：前端无改动时跳过 web 镜像重建
+# ─────────────────────────────────────────────────────────────────────────────
+def test_web_skipped_when_frontend_unchanged(tmp_path: Path) -> None:
+    """前后端 diff 不含 apps/web/ 或 Dockerfile.web 时，dry-run 计划标注复用 web。"""
+    repo, _base, target = _make_repo(tmp_path, with_migration=False)
+    fake_ssh, _ssh_log = _write_fake_ssh(tmp_path, mode="full_success", target=target)
+    home = tmp_path / "home"
+    home.mkdir()
+    env = {
+        **os.environ,
+        "W2_RELEASE_SSH_CMD": str(fake_ssh),
+        "W2_RELEASE_BRANCH": "main",
+        "W2_RELEASE_NOW": "2026-09-18T10:00:00Z",
+        "HOME": str(home),
+    }
+    r = subprocess.run(
+        ["bash", str(SCRIPT), "--dry-run", "--target", target],
+        cwd=repo, env=env, capture_output=True, text=True, timeout=120
+    )
+    assert r.returncode == 0, r.stderr
+    # 前端无改动时 dry-run 计划里明确标注「复用线上 web 镜像」。
+    assert "复用线上" in r.stdout
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # REL-01B 新增：评估档位窗口判断
 # ─────────────────────────────────────────────────────────────────────────────
 def test_checkpoint_window_conflict_inside_future() -> None:
