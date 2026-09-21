@@ -340,14 +340,6 @@ changed_files="$("$GIT_CMD" diff --name-only "$online_release" "$TARGET" 2>/dev/
 changed_stat="$("$GIT_CMD" diff --stat "$online_release" "$TARGET" 2>/dev/null || true)"
 log "改动文件："
 printf '%s\n' "$changed_files" | sed 's/^/  /' | head -50
-
-# 前端是否改动：只有 apps/web/ 或 Dockerfile.web 变化才需要重建 web 镜像。
-# 纯后端/脚本改动时跳过 web 构建，复用线上 web 镜像（省 buildx 数分钟）。
-web_changed=0
-if printf '%s\n' "$changed_files" | grep -Eq '^(apps/web/|Dockerfile\.web)'; then
-  web_changed=1
-fi
-log "前端改动：$([ "$web_changed" = "1" ] && echo "是（重建 web）" || echo "否（复用线上 web 镜像）")"
 if [ "$need_backup" = "yes" ]; then
   log "检测到 migrations 目录改动 → 需要备份"
 else
@@ -462,7 +454,7 @@ if [ "$DRY_RUN" = "1" ]; then
   else
     log "  2. 备份：$([ "$need_backup" = "yes" ] && echo "pg_dump -Fc → ${HOME}/Desktop/W2文档/backups" || echo "无迁移，跳过")"
     log "  2b. schema head：${target_head}（从目标 migrations 动态解析，不写死）"
-    log "  3. 构建：python 镜像（VPS, Dockerfile.release, base=${BASE_TAG}）+ web 镜像（$([ "$web_changed" = "1" ] && echo "Mac buildx amd64, nginx=${NGINX_BASE}" || echo "前端无改动，复用线上 ${online_release}")），均打 revision=${TARGET}，推本地 registry"
+    log "  3. 构建：python 镜像（VPS, Dockerfile.release, base=${BASE_TAG}）+ web 镜像（Mac buildx amd64, nginx=${NGINX_BASE}），均打 revision=${TARGET}，推本地 registry"
     if [ "$need_backup" = "yes" ]; then
       log "  3b. 迁移：新镜像 alembic upgrade head → 校验 schema == ${target_head}（失败则停止且不切换）"
     fi
@@ -534,28 +526,21 @@ python_digest="$(vps "docker image inspect 127.0.0.1:5000/w2/python:${TARGET} --
 [ -n "$python_digest" ] || { warn "无法获取 python 镜像 digest"; exit 2; }
 log "python digest：$python_digest"
 
-# 3b. web 镜像（Mac buildx amd64）；前端无改动时复用线上 web 镜像
-if [ "$web_changed" = "1" ]; then
-  log "构建 web 镜像（Mac buildx amd64）..."
-  $DOCKER_CMD buildx build --platform linux/amd64 -f Dockerfile.web \
-    --build-context "nginxinc/nginx-unprivileged:1.27-alpine=docker-image://nginxinc/nginx-unprivileged:${NGINX_BASE}" \
-    --build-arg VITE_GIT_SHA="${TARGET}" --build-arg VITE_BUILD_TIME="${BUILD_TIME}" --build-arg W2_RELEASE_ID="${TARGET}" \
-    -t "127.0.0.1:5000/w2/web:${TARGET}" --load --progress=plain . \
-    || { warn "web 镜像构建失败"; exit 2; }
-  web_tar="w2-web-${TARGET}.tar.gz"
-  $DOCKER_CMD save "127.0.0.1:5000/w2/web:${TARGET}" | gzip > "/tmp/${web_tar}" || { warn "docker save web 失败"; exit 2; }
-  scp_to_vps "/tmp/${web_tar}" "$SSH_HOST:/tmp/${web_tar}" >/dev/null || { warn "scp web 镜像到 VPS 失败"; exit 2; }
-  vps "docker load < /tmp/${web_tar} && docker push 127.0.0.1:5000/w2/web:${TARGET}" \
-    || { warn "web 镜像 load/push 失败"; exit 2; }
-  web_digest="$(vps "docker image inspect 127.0.0.1:5000/w2/web:${TARGET} --format '{{index .RepoDigests 0}}' 2>/dev/null" | sed 's|^.*@||')"
-  [ -n "$web_digest" ] || { warn "无法获取 web 镜像 digest"; exit 2; }
-  log "web digest：$web_digest"
-else
-  log "前端无改动，复用线上 web 镜像（${online_release}）"
-  web_digest="$(vps "docker image inspect 127.0.0.1:5000/w2/web:${online_release} --format '{{index .RepoDigests 0}}' 2>/dev/null" | sed 's|^.*@||')"
-  [ -n "$web_digest" ] || { warn "无法获取线上 web 镜像 digest（${online_release}，前端未改动但镜像缺失）"; exit 2; }
-  log "复用 web digest：$web_digest"
-fi
+# 3b. web 镜像（Mac buildx amd64）
+log "构建 web 镜像（Mac buildx amd64）..."
+$DOCKER_CMD buildx build --platform linux/amd64 -f Dockerfile.web \
+  --build-context "nginxinc/nginx-unprivileged:1.27-alpine=docker-image://nginxinc/nginx-unprivileged:${NGINX_BASE}" \
+  --build-arg VITE_GIT_SHA="${TARGET}" --build-arg VITE_BUILD_TIME="${BUILD_TIME}" --build-arg W2_RELEASE_ID="${TARGET}" \
+  -t "127.0.0.1:5000/w2/web:${TARGET}" --load --progress=plain . \
+  || { warn "web 镜像构建失败"; exit 2; }
+web_tar="w2-web-${TARGET}.tar.gz"
+$DOCKER_CMD save "127.0.0.1:5000/w2/web:${TARGET}" | gzip > "/tmp/${web_tar}" || { warn "docker save web 失败"; exit 2; }
+scp_to_vps "/tmp/${web_tar}" "$SSH_HOST:/tmp/${web_tar}" >/dev/null || { warn "scp web 镜像到 VPS 失败"; exit 2; }
+vps "docker load < /tmp/${web_tar} && docker push 127.0.0.1:5000/w2/web:${TARGET}" \
+  || { warn "web 镜像 load/push 失败"; exit 2; }
+web_digest="$(vps "docker image inspect 127.0.0.1:5000/w2/web:${TARGET} --format '{{index .RepoDigests 0}}' 2>/dev/null" | sed 's|^.*@||')"
+[ -n "$web_digest" ] || { warn "无法获取 web 镜像 digest"; exit 2; }
+log "web digest：$web_digest"
 
 py_ref="127.0.0.1:5000/w2/python@${python_digest}"
 web_ref="127.0.0.1:5000/w2/web@${web_digest}"
