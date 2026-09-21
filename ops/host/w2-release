@@ -234,12 +234,15 @@ USAGE
   esac
 done
 
-# 目标提交：默认 HEAD
+# 目标提交：默认 HEAD；短 SHA 解析成完整 40 位 SHA。否则 8 位短 SHA 会被写进
+# W2_GIT_SHA，触发 scheduler 健康检查的 SOURCE_REVISION_NOT_BOUND_TO_EXACT_GIT_SHA。
 if [ -z "$TARGET" ]; then
   TARGET="$("$GIT_CMD" rev-parse HEAD 2>/dev/null || echo "")"
+elif ! printf '%s' "$TARGET" | grep -Eq '^[0-9a-f]{40}$'; then
+  TARGET="$("$GIT_CMD" rev-parse "$TARGET" 2>/dev/null || echo "")"
 fi
 if [ -z "$TARGET" ]; then
-  warn "无法解析目标提交（git rev-parse HEAD 失败）"
+  warn "无法解析目标提交（git rev-parse 失败）"
   exit 2
 fi
 

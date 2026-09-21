@@ -276,6 +276,56 @@ def test_dry_run_no_side_effects(tmp_path: Path) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# REL-SHORT-SHA 新增：--target 短 SHA 解析成完整 40 位 SHA
+# ─────────────────────────────────────────────────────────────────────────────
+def test_target_short_sha_resolved_to_full(tmp_path: Path) -> None:
+    """传短 SHA → 解析成完整 40 位 SHA，否则 8 位会被写进 W2_GIT_SHA。"""
+    repo, _base, target = _make_repo(tmp_path, with_migration=False)
+    short = target[:8]
+    assert len(short) < 40
+    fake_ssh, _ssh_log = _write_fake_ssh(tmp_path, mode="full_success", target=target)
+    home = tmp_path / "home"
+    home.mkdir()
+    env = {
+        **os.environ,
+        "W2_RELEASE_SSH_CMD": str(fake_ssh),
+        "W2_RELEASE_BRANCH": "main",
+        "W2_RELEASE_NOW": "2026-09-18T10:00:00Z",
+        "HOME": str(home),
+    }
+    r = subprocess.run(
+        ["bash", str(SCRIPT), "--dry-run", "--target", short],
+        cwd=repo, env=env, capture_output=True, text=True, timeout=120
+    )
+    assert r.returncode == 0, r.stderr
+    # dry-run 计划里的 target 应为完整 SHA，而不是短 SHA。
+    assert f"target={target} " in r.stdout
+    assert f"target={short} " not in r.stdout
+
+
+def test_target_full_sha_passes_through(tmp_path: Path) -> None:
+    """传完整 40 位 SHA → 原样保留。"""
+    repo, _base, target = _make_repo(tmp_path, with_migration=False)
+    assert len(target) == 40
+    fake_ssh, _ssh_log = _write_fake_ssh(tmp_path, mode="full_success", target=target)
+    home = tmp_path / "home"
+    home.mkdir()
+    env = {
+        **os.environ,
+        "W2_RELEASE_SSH_CMD": str(fake_ssh),
+        "W2_RELEASE_BRANCH": "main",
+        "W2_RELEASE_NOW": "2026-09-18T10:00:00Z",
+        "HOME": str(home),
+    }
+    r = subprocess.run(
+        ["bash", str(SCRIPT), "--dry-run", "--target", target],
+        cwd=repo, env=env, capture_output=True, text=True, timeout=120
+    )
+    assert r.returncode == 0, r.stderr
+    assert f"target={target} " in r.stdout
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # REL-01B 新增：评估档位窗口判断
 # ─────────────────────────────────────────────────────────────────────────────
 def test_checkpoint_window_conflict_inside_future() -> None:
