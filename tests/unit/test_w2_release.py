@@ -39,6 +39,15 @@ def test_blocked_window_end_exclusive() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 测试 1b：iso_to_epoch UTC 解析（时区回归）
+# ─────────────────────────────────────────────────────────────────────────────
+def test_iso_to_epoch_parses_utc_without_local_offset() -> None:
+    # 回归：iso_to_epoch 曾把 UTC 当本地时间解析（macOS date -j 缺 -u），
+    # 导致 epoch 偏移 8 小时，使「最近可部署时间」显示早 8h。
+    assert _source_call("iso_to_epoch '2026-09-21T14:21:32Z'").stdout.strip() == "1790000492"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 测试 2：迁移检测（有/无）
 # ─────────────────────────────────────────────────────────────────────────────
 def _make_repo(tmp_path: Path, with_migration: bool) -> tuple[Path, str, str]:

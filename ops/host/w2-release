@@ -120,8 +120,8 @@ next_available_time() {
 # ISO8601 UTC -> epoch 秒（macOS date 与 GNU date 都兼容）
 iso_to_epoch() {
   local iso="$1"
-  if date -j -f "%Y-%m-%dT%H:%M:%SZ" "$iso" "+%s" >/dev/null 2>&1; then
-    date -j -f "%Y-%m-%dT%H:%M:%SZ" "$iso" "+%s" 2>/dev/null
+  if date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$iso" "+%s" >/dev/null 2>&1; then
+    date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$iso" "+%s" 2>/dev/null
   else
     date -d "$iso" "+%s" 2>/dev/null || echo ""
   fi
