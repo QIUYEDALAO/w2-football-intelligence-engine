@@ -1,0 +1,353 @@
+{
+  "preregistration_id": "W2-CANDIDATE-C-RECALIBRATION-PREREG-01",
+  "title": "概率重校准预注册：Track A + Track B 输出校准；Track C 无 PIT 数据取消",
+  "summary_zh": "诊断已确认 MODEL_BIAS_SUPPORTED（模型概率系统性偏高、越自信越离谱）。Track A 继续作为 total + home advantage 的离线候选；Track B 现按本次预注册进行 TRAIN-only 的 market×selection 分层层级 isotonic，并与 selection-aware Platt baseline 做时间 OOF 选择。Track C 因无逐场 PIT Elo/身价数据取消。所有候选不上线、不推荐，前瞻 holdout/test 仍是独立的一次性验收。",
+  "status": "FROZEN",
+  "drafted_at": "2026-09-22T08:47:00+08:00",
+  "frozen_at": "2026-09-22T18:32:06+08:00",
+  "frozen_by": "owner-authorized-codex",
+  "amendment_id": "W2-TRACK-B-IMPLEMENTATION-FIX-01",
+  "amended_at": "2026-09-22T18:32:06+08:00",
+
+  "authority_boundary": {
+    "authorized_now": "offline fitting of Track A and Track B candidates only; Track C cancelled",
+    "not_authorized": [
+      "holdout/test scoring",
+      "production code changes",
+      "calibration ledger changes",
+      "lambda formula changes",
+      "EV threshold changes",
+      "new blockers",
+      "migration",
+      "deployment",
+      "Provider calls",
+      "GitHub operations"
+    ],
+    "next_gate": "INDEPENDENT_ACCEPTANCE_BEFORE_ANY_HOLDOUT_REGISTRATION_OR_DEPLOYMENT"
+  },
+
+  "known_evidence_not_to_be_recomputed": {
+    "model_bias_supported": {
+      "verdict": "MODEL_BIAS_SUPPORTED",
+      "full_sample_n": 1392,
+      "model_positive_prob_mean": 0.5746,
+      "actual_positive_rate": 0.4817,
+      "gap": 0.0929,
+      "monotonic_overconfidence": {
+        "bin_0_4_0_5": 0.0558,
+        "bin_0_5_0_6": 0.0648,
+        "bin_0_6_0_7": 0.0954,
+        "bin_0_7_0_8": 0.2205,
+        "bin_0_8_0_9": 0.2812
+      },
+      "high_ev_bin_gap": -105.9
+    },
+    "ev_arithmetic_no_bug": {
+      "independent_decimal_ev_matches_current_ev": "1364/1364",
+      "max_abs_error": "5e-7",
+      "settlement_valid": "1392/1392"
+    },
+    "totals_mapping_no_bug": {
+      "code": "settlement_distribution_totals and settlement_distribution_ah integrate the same score_matrix symmetrically",
+      "verdict": "NO_MAPPING_FORMULA_BUG"
+    },
+    "bias_by_market_selection": {
+      "totals_under": 0.157,
+      "totals_over": 0.020,
+      "ah_away": 0.099,
+      "ah_home": 0.069
+    },
+    "bias_by_league": {
+      "la_liga": 0.255,
+      "allsvenskan": 0.196,
+      "eredivisie": 0.146,
+      "brasileirao_serie_a": 0.132,
+      "bundesliga": 0.123,
+      "primeira_liga": 0.118,
+      "mls": 0.096,
+      "premier_league": 0.043,
+      "argentina_primera": 0.035,
+      "serie_a": 0.035,
+      "eliteserien": 0.015,
+      "ligue_1": -0.065,
+      "note": "法甲、英冠为负偏差（模型低估），禁止全局一刀切压低"
+    },
+    "total_underestimate": {
+      "inferred_model_total_mean": 2.84,
+      "actual_total_mean": 3.06,
+      "gap": -0.22,
+      "direct_high_total_field": {
+        "model_p_ge4": 0.315,
+        "actual_p_ge4": 0.397,
+        "gap": -0.082,
+        "n": 199
+      },
+      "interpretation": "模型总进球水平系统性偏低，且分联赛异质（德甲最严重）"
+    },
+    "root_cause_decomposition": {
+      "global_confidence_bias": 0.084,
+      "total_bias_on_under": 0.06,
+      "total_bias_on_over": -0.06,
+      "under_expected": 0.14,
+      "under_observed": 0.157,
+      "over_expected": 0.02,
+      "over_observed": 0.020
+    },
+    "prior_v1_slope_rejected": {
+      "task": "V1-SLOPE-RECALIBRATION-PREREG-01",
+      "result": "raw_delta_scale=1.102038 REJECTED by OOF gate (95% CI upper bound > 0)",
+      "lesson": "单一全局 scale 缩放被证伪；本协议 total 拟合必须 per-league + shrinkage"
+    },
+    "prior_193_fitted_model": {
+      "result": "五大 Understat 离线拟合 lambda ~0.99 稳健，但市场基准 eval 裁决模型相对 Pinnacle 收盘负增量，未接 champion；降级为分歧雷达 FITTED_CALIBRATED",
+      "lesson": "#193 方法论（离线拟合 lambda + walk-forward + challenger）可复用，但需扩联赛、换目标指标（正向结算概率校准）、分联赛分层"
+    }
+  },
+
+  "contamination_disclosure": {
+    "diagnostic_1394": {
+      "source": "dynamic_prematch_evaluations 全量去重，kickoff 截至 2026-09-22",
+      "already_used_for": [
+        "MODEL_BIAS_SUPPORTED diagnosis",
+        "bias-by-market/selection/league decomposition",
+        "total-underestimate inference"
+      ],
+      "allowed_role_here": "TRAIN_AND_DEVELOPMENT_DIAGNOSTICS_ONLY",
+      "forbidden_roles": ["VALIDATION", "TEST", "FINAL_ACCEPTANCE"]
+    },
+    "rebuildable_historical_pit": {
+      "source": "当前可重建历史 PIT；按当前 enabled competition、严格赛前至少 5 场历史重建；实际数量与 fixture identity digest 写入拟合 artifact",
+      "prior_reference": "历史 8,659 场仅保留为已披露诊断背景，不再作为精确 TRAIN identity 硬锁",
+      "allowed_role_here": "TRAIN_ONLY",
+      "forbidden_roles": ["VALIDATION", "TEST", "FINAL_ACCEPTANCE"],
+      "no_count_backfill": "不得为凑固定数量而截断、插补或删除 fixture"
+    },
+    "rule": "任何出现在上述两个集合的 fixture 不得进入 validation 或 test，无论后续如何重抽取或身份拼写。"
+  },
+
+  "two_track_design": {
+    "track_a_root_fix_total": {
+      "goal": "治本：修正模型 total(λh+λa) 的系统性偏低与实际生效的 home advantage 偏差",
+      "hypothesis": "模型 total 由 base_home+base_away（xG 攻守平均纯量）构成且无额外校准，系统性低于真实总进球，分联赛异质",
+      "parameterization": {
+        "global": ["total_scale", "home_advantage_goals"],
+        "per_league": ["league_total_scale[league]", "league_home_advantage[league]"],
+        "shrinkage": "两个分层参数分别向对应全局参数收缩（见 shrinkage_contract）"
+      },
+      "candidate_formula": "total_calibrated = clamp(total * total_scale * league_total_scale[league], 1.35, 4.40); delta = raw_delta + league_home_advantage[league]，其中 league_home_advantage 向全局 home_advantage_goals 收缩；lambda_home=(total_calibrated+delta)/2; lambda_away=(total_calibrated-delta)/2",
+      "unchanged": [
+        "delta 路径的 elo_gap_weight / squad_value_log_weight / lineup 项（Elo/身价缺失时保持生产语义 0）",
+        "dixon_coles_rho",
+        "individual lambda clamps",
+        "market selectors",
+        "proportional devig",
+        "EV / cashflow_price_edge / EV-SE 阈值"
+      ]
+    },
+    "track_b_output_calibration": {
+      "goal": "治标：对模型正向结算概率做分层输出校准，比较层级 isotonic 与 selection-aware Platt",
+      "calibration_target": "模型正向结算概率 P(WIN)+P(HALF_WIN) -> 校准后正向结算概率",
+      "stratification": ["league", "market(ASIAN_HANDICAP/TOTALS)", "selection(HOME/AWAY/OVER/UNDER)"],
+      "function": "层级 isotonic 单调非递减 + 连续 shrinkage；selection-aware Platt 作为低方差 baseline",
+      "rationale": "偏差单调且方向依赖 selection（UNDER 严重高估、OVER 基本准、AH 两方向居中），全局单函数会混叠；UNDER/OVER 必须分开"
+    },
+    "track_c_root_fix_delta": {
+      "status": "CANCELLED_NO_PIT_DATA",
+      "cancellation_reason": "Elo 仅 242 条静态快照、无逐场 PIT；身价逐场 PIT artifact 为 0，无法识别 elo_gap_weight / squad_value_log_weight。",
+      "retained_diagnosis": "Elo/身价可能解释部分 delta 偏差，但在缺少逐场 PIT 特征时不可估计；不得创建候选参数或待上线缺口。",
+      "execution": "NOT_RUN_AND_NOT_PENDING"
+    },
+    "track_relationship": {
+      "order": "本轮离线启动 Track A 与 Track B；Track C=CANCELLED_NO_PIT_DATA；两轨候选分别验收，不互相替代",
+      "independence": "Track A 单独验收并有失败回退；不得用已取消 Track C 或未启动 Track B 掩盖 Track A 失败",
+      "forbidden": "不得以 Track B 的 isotonic 校准结果反向声称 Track A 参数已修复；不得用 Track A 拟合内 NLL 替代前瞻 holdout 验收"
+    }
+  },
+
+  "track_a_fit_method": {
+    "parameters": {
+      "total_scale": { "bounds": [0.8, 1.3], "initial": 1.0 },
+      "league_total_scale": { "bounds": [0.7, 1.4], "initial": 1.0, "per_league": true },
+      "home_advantage_goals": { "bounds": [-0.2, 0.8], "initial": 0.3 },
+      "league_home_advantage": { "bounds": [-0.4, 0.8], "initial": 0.3, "per_league": true, "shrinks_to": "home_advantage_goals" }
+    },
+    "objective": "fixture-level Dixon-Coles-corrected Poisson negative log likelihood of the observed scoreline under unchanged production lambda clamps",
+    "shrinkage_penalty": "lambda_reg * sum_over_leagues((league_total_scale[league] - total_scale)^2 + (league_home_advantage[league] - home_advantage_goals)^2)",
+    "lambda_reg": 5.0,
+    "optimizer": "projected diagonal-Newton updates with closed bounds and backtracking line search; stop on objective tolerance",
+    "fit_data": "TRAIN only",
+    "delta_terms_fixed_except_home_advantage": true,
+    "precision": "store at 6 decimal places; code uses exactly the stored decimal",
+    "no_manual_override": true
+  },
+
+  "track_b_fit_method": {
+    "function": "hierarchical PAVA isotonic with right-edge block thresholds; selection-aware Platt logistic baseline",
+    "stratification_keys": ["competition_id", "market", "selection"],
+    "global_prior": "market x selection (OVER, UNDER, HOME, AWAY are independent)",
+    "pava_threshold_contract": "each fitted block is serialized with right_edge=max(x), never mean(x); prediction uses the block containing x",
+    "min_cell_n": null,
+    "continuous_shrinkage": "w = n/(n+k) for every cell, k=20; p_cal=w*p_cell+(1-w)*p_market_selection_global",
+    "fit_data": "TRAIN only",
+    "baseline": "sigmoid(intercept + slope*logit(model_probability)), slope constrained non-negative",
+    "oof_selection": "expanding-time OOF within each market x selection; choose lowest Brier, then NLL, then fixed name tie-break",
+    "oof_folds": 4,
+    "holdout_rule": "selected family and parameters are frozen before any holdout/test access; holdout/test are not read during fitting"
+  },
+
+  "track_c_fit_method": {
+    "status": "CANCELLED_NO_PIT_DATA",
+    "execution": "FORBIDDEN_THIS_PROTOCOL",
+    "retained_evidence": {"elo_static_snapshot_rows": 242, "per_fixture_elo_pit": 0, "per_fixture_squad_value_pit": 0},
+    "candidate_parameters": null
+  },
+
+  "shrinkage_contract": {
+    "track_a": {
+      "mechanism": "hierarchical ridge: league_total_scale shrinks toward total_scale；league_home_advantage shrinks toward home_advantage_goals；penalty lambda_reg=5.0",
+      "effect": "小联赛样本少时两个分层参数自动靠近对应全局参数，防过拟合"
+    },
+    "track_b": {
+      "mechanism": "per-competition isotonic shrinks toward the matching market x selection global isotonic; selection-aware Platt is a preregistered baseline",
+      "weight": "w = n / (n + k), k = 20, applied continuously for every n",
+      "calibrated_prob": "p_cal = w * p_cell + (1 - w) * p_market_selection_global",
+      "effect": "消除 n=20 结构跳变，且不让 UNDER 的先验污染 OVER；OOF 只用于 family selection，不查看 holdout"
+    },
+    "track_c": {
+      "status": "CANCELLED_NO_PIT_DATA",
+      "mechanism": "NOT_RUN",
+      "effect": "仅保留取消原因与历史诊断，不保留待拟合缺口"
+    },
+    "no_post_hoc_tuning": "lambda_reg 与 k 均为预注册固定值，拟合后不得因结果调整"
+  },
+
+  "cohort_contract": {
+    "universe": {
+      "competitions": "生产 enabled 联赛在 fixture kickoff 时解析出的确切集合，冻结 ID 于抽取 artifact",
+      "fixture_identity": "canonical provider fixture ID",
+      "completion": "权威 FT 结果，明确 home/away 进球",
+      "duplicate_rule": "每 fixture 一行；身份冲突 fail-closed",
+      "minimum_team_history": 5
+    },
+    "train": {
+      "identity": "诊断 1,394 条 + 当前可重建历史 PIT（仅作 TRAIN，禁验证；实际计数与 fixture identity digest 以拟合 artifact 为准）",
+      "ordering": "ascending (kickoff_at, fixture_id)",
+      "role": "拟合 Track A 参数与 Track B 输出校准候选；仅 TRAIN，不承担 validation/test 接受",
+      "acceptance_authority": "NONE"
+    },
+    "validation": {
+      "selection": "kickoff_at > T0 的前瞻 1,000 个 eligible fixture（升序），排除全部已披露历史 fixture",
+      "required_fixture_count": 1000,
+      "role": "一次性 go/no-go 验证，绝不用作参数/阈值选择",
+      "look_rule": "outcome 与 metric 密封，直至 validation 与 test 共 2,000 条全部 eligible"
+    },
+    "test": {
+      "selection": "validation 之后紧接的 1,000 个 eligible fixture（升序）",
+      "required_fixture_count": 1000,
+      "role": "单一最终验收集",
+      "look_rule": "validation 通过且保持不变后，且 validation + test 共 2,000 条全部 eligible，才可打开"
+    },
+    "cross_split_rules": [
+      "一个 fixture 只属于一个 split",
+      "不得在观察到计数或 metric 后移除任何联赛/赛季/方向",
+      "PIT 输入缺失 = 在 outcome 访问前记录原因的排除，绝不以后来数据插补",
+      "validation/test 边界由 eligible fixture 顺序决定，不由 metric 值决定"
+    ]
+  },
+
+  "acceptance_metrics": {
+    "candidate_primary": {
+      "calibration_gap_reduction": {
+        "definition": "前瞻 holdout 上 candidate calibration gap 减 baseline calibration gap；按预注册方向定义为 absolute gap reduction = |gap_baseline| - |gap_candidate|",
+        "required": "fixture-bootstrap 95% CI 完全高于 0（CI 不含 0）"
+      },
+      "brier_not_worse": {
+        "definition": "candidate 正向结算二值 Brier - BASELINE_PRIOR Brier",
+        "required": "fixture-bootstrap 95% CI 上界 <= 0（不恶化）"
+      },
+      "all_required": true,
+      "applies_to": ["Track A"],
+      "validation_then_test": "先在 1,000 条 validation 上做 go/no-go；validation 通过且冻结不变后，才打开紧接的 1,000 条 test"
+    },
+    "track_a_primary": {
+      "total_calibration": {
+        "definition": "前瞻 validation 上 |mean(model_total_calibrated) - mean(actual_total)|，全局与分联赛（n>=20）分别报告",
+        "required": "全局绝对偏差 <= 0.10；分联赛绝对偏差中位数 <= 0.15"
+      },
+      "scoreline_nll": {
+        "definition": "Dixon-Coles 泊松比分 NLL，候选 vs BASELINE_PRIOR",
+        "required": "candidate NLL < baseline NLL，且 fixture-bootstrap 95% CI 不含 0"
+      },
+      "brier_not_worse": {
+        "definition": "正向结算二值 Brier，候选 vs BASELINE_PRIOR",
+        "required": "不恶化（bootstrap 95% CI 上界 <= 0.01）"
+      },
+      "all_required": true,
+      "role": "candidate_primary 之外的结构性诊断，不替代前瞻 gap reduction gate"
+    },
+    "track_b_primary": {
+      "calibration_gap": {
+        "definition": "分层（league x market x selection）的模型正向概率 vs 实际正向率校准差",
+        "required": "各主要格子（n>=50）|cal_gap| <= 0.05，且整体 |cal_gap| <= 0.03"
+      },
+      "brier_not_worse": {
+        "definition": "校准后正向二值 Brier vs 原始",
+        "required": "不恶化（bootstrap 95% CI 上界 <= 0.01）"
+      },
+      "all_required": true,
+      "role": "本轮仅产出 TRAIN-only 离线候选；不打开 holdout/test，不注册、不上线"
+    },
+    "track_c_primary": {
+      "status": "CANCELLED_NO_PIT_DATA",
+      "acceptance": "NOT_APPLICABLE"
+    },
+    "descriptive_only": [
+      "EV gap 收窄",
+      "推荐数量",
+      "命中率",
+      "P&L"
+    ],
+    "forbidden_for_selection": ["P&L", "hit rate", "recommendation count", "EV gap"]
+  },
+
+  "failure_and_rollback_rules": {
+    "before_look": "只报告 eligible 计数与排除原因，不计算或暴露 validation/test metric",
+    "on_track_a_validation_failure": [
+      "不开 test metric",
+      "不改拟合值/阈值/blocker",
+      "不 grant、不部署",
+      "回退 BASELINE_PRIOR，报告失败并停止",
+      "新假设需新预注册 + 全新 cohort"
+    ],
+    "on_track_b_validation_failure": [
+      "不上线分层 isotonic",
+      "不改分桶/删联赛/改阈值/缩样本",
+      "报告失败并停止"
+    ],
+    "on_track_c_validation_failure": ["NOT_APPLICABLE_TRACK_C_CANCELLED_NO_PIT_DATA"],
+    "on_test_failure": "no grant / no deployment / no reinterpretation of secondary metrics / report and stop",
+    "on_test_pass": "准备 APPROVED_VALIDATED 注册提案；注册与部署仍是独立的 Owner 授权动作",
+    "forbidden_post_hoc": [
+      "看结果后改分桶",
+      "看结果后删联赛",
+      "看结果后改阈值",
+      "看结果后缩样本",
+      "看结果后切换参数化（total_scale vs total_offset）"
+    ]
+  },
+
+  "identity_contract": {
+    "calibration_version": "Track A 或 Track B 任一导致 lambda 公式或概率输出变化时，必须递增 calibration_version；Track C 已取消",
+    "params_snapshot": "LambdaCalibrationParams 增加 Track A 的 total_scale / league_total_scale / home_advantage_goals 与分联赛 home_advantage，Track C 参数保持取消状态，保留全部现有字段",
+    "identity_function": "w2.domain.calibration_validation_registry.calibration_identity(calibration_version, complete params snapshot)",
+    "safety_property": "任何公式版本或参数变化产生不同 calibration identity；旧 BASELINE_PRIOR 授权不得前向继承",
+    "grant_rule": "validation 与 test 均通过且不可变证据 digest 齐备后，才可 ledger 注册"
+  },
+
+  "safety_invariants": [
+    "不碰 Provider allowlist / 配额 / 并发 / 重试",
+    "不碰推荐 / 结算 / 因子安全门",
+    "不改生产，零 enable / 零部署",
+    "raw payload / header / key 不提交"
+  ]
+}
