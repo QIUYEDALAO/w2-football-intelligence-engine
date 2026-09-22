@@ -8,8 +8,9 @@ imports.  It fits two preregistered output calibrators on TRAIN only:
   toward an independent market x selection global curve; and
 * a selection-aware Platt baseline.
 
-The model family is selected per market x selection by deterministic expanding-time
-OOF Brier score (NLL breaks ties).  Holdout/test files are not accepted by the
+The model family is selected per market x selection from raw identity,
+hierarchical isotonic, and Platt by deterministic expanding-time OOF Brier score
+(NLL breaks ties).  Holdout/test files are not accepted by the
 interface and are never read or scored here.
 """
 from __future__ import annotations
@@ -204,7 +205,7 @@ def _temporal_oof(rows: list[dict], k: float, folds: int = 5) -> tuple[dict[tupl
         else:
             selection_metrics = {
                 name: candidate_metrics[name]
-                for name in ("hierarchical_isotonic", "platt")
+                for name in ("raw", "hierarchical_isotonic", "platt")
             }
             selected[pair] = min(
                 selection_metrics,
@@ -215,9 +216,8 @@ def _temporal_oof(rows: list[dict], k: float, folds: int = 5) -> tuple[dict[tupl
             "folds": folds - 1,
             "candidates": {
                 name: candidate_metrics[name]
-                for name in ("hierarchical_isotonic", "platt")
+                for name in ("raw", "hierarchical_isotonic", "platt")
             },
-            "raw": candidate_metrics["raw"],
             "selected": selected[pair],
         }
     return selected, diagnostics
@@ -368,6 +368,11 @@ def main() -> None:
     k = 20.0
     global_curves, cell_curves = _fit_hierarchical_maps(rows, k)
     selected_models, oof = _temporal_oof(rows, k)
+    stopping_pairs = []
+    for pair, details in oof.items():
+        selected_metrics = details["candidates"][details["selected"]]
+        if selected_metrics["n"] >= 50 and abs(selected_metrics["cal_gap"]) > 0.05:
+            stopping_pairs.append({"market": pair[0], "selection": pair[1], "n": selected_metrics["n"], "selected": details["selected"], "cal_gap": selected_metrics["cal_gap"]})
     pair_rows = {
         pair: [row for row in rows if (row["market"], row["selection"]) == pair]
         for pair in global_curves
@@ -388,7 +393,9 @@ def main() -> None:
         model = selected_models[(market, selection)]
         cell_calibrated = []
         for row in cell:
-            if model == "platt":
+            if model == "raw":
+                calibrated = float(row["model_probability"])
+            elif model == "platt":
                 # final Platt baseline is fit on all TRAIN rows of this pair
                 calibrated = predict_platt(platt_models[(market, selection)], float(row["model_probability"]))
             else:
@@ -408,12 +415,22 @@ def main() -> None:
         })
     raw_gap = sum(r["model_probability"] - r["y"] for r in rows) / len(rows)
     cal_gap = sum(c - r["y"] for r, c in calibrated_rows) / len(rows)
+    overall_status = "TERMINATED_AFTER_TWO_ITERATIONS" if stopping_pairs else "FITTED_CALIBRATED"
     payload = {
         "schema": "w2.track_b.output_calibration.offline_fit.v2",
-        "status": "FITTED_CALIBRATED",
+        "protocol_revision": "TRACK_B_V2_RAW_FAMILY",
+        "status": overall_status,
+        "stopping_rule": {
+            "threshold": "any major market×selection cell with n>=50 and abs(selected OOF cal_gap)>0.05",
+            "triggered": bool(stopping_pairs),
+            "decision": "TERMINATED_AFTER_TWO_ITERATIONS" if stopping_pairs else "CONTINUE_NOT_TRIGGERED",
+            "triggered_pairs": stopping_pairs,
+            "third_iteration_forbidden": bool(stopping_pairs),
+        },
         "data_role": "TRAIN_ONLY_OFFLINE",
         "fit_method": {
-            "model": "hierarchical PAVA isotonic + selection-aware Platt baseline",
+            "model": "raw identity + hierarchical PAVA isotonic + selection-aware Platt",
+            "family_pool": ["raw", "hierarchical_isotonic", "platt"],
             "stratification": ["competition_id", "market", "selection"],
             "global_prior": "market x selection",
             "pava_threshold": "right_edge=max(x) per fitted block",
@@ -421,7 +438,7 @@ def main() -> None:
             "shrinkage": "p_cal = n/(n+k)*p_cell + k/(n+k)*p_market_selection_global",
             "k": 20,
             "continuous_weight": "n/(n+k), all n",
-            "selection_rule": "expanding-time OOF; Brier then NLL then model name",
+            "selection_rule": "expanding-time OOF over raw, hierarchical_isotonic, and platt; Brier then NLL then model name",
             "oof_folds": 4,
         },
         "manifest": {"evaluation_sha256": sha256(args.evaluations), "home_away_sha256": sha256(args.home_away), "team_xg_sha256": sha256(args.team_xg), "independent_rows": len(rows), "fixtures": len({r["fixture_id"] for r in rows}), "cells": len(cells), **exclusions},

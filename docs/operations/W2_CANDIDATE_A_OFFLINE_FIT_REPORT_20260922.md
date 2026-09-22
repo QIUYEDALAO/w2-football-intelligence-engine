@@ -2,11 +2,13 @@
 
 ## 结论
 
-Track C 已按预注册标记 `CANCELLED_NO_PIT_DATA`。本轮 Track A 只拟合
+Track C 已按预注册标记 `CANCELLED_NO_PIT_DATA`。Track A 已按预注册终止并归档，artifact
+状态为 `REJECTED_BY_TRAIN_OOF_SCORELINE_NLL`：`candidate mean_nll=2.973974352639`
+高于 `raw mean_nll=2.973314433300`，且三个已评分 rolling-origin folds 方向一致，违反
+`track_a_primary.scoreline_nll.required`。因此不打开 holdout、不再重拟合。Track A 原本只拟合
 `total_scale` 与 `league_total_scale[league]`；`home_advantage_goals` 沿用生产中已
 由 `V1-HOME-ADVANTAGE-RECALIBRATION-01` 验证的 `0.30`，`league_home_advantage`
-及其余 delta 路径不拟合、不改写。候选状态为 `FITTED_CALIBRATED`，仅 TRAIN-only
-离线研究产物，不表示验证通过、注册或上线；生产仍为 `BASELINE_PRIOR`。
+及其余 delta 路径不拟合、不改写。该 artifact 已归档，不进入 holdout。
 
 ## TRAIN manifest
 

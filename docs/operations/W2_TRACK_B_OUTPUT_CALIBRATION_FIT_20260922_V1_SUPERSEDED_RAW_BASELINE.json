@@ -1,4 +1,6 @@
 {
+  "artifact_status": "SUPERSEDED_BY_TRACK_B_V2_RAW_FAMILY",
+  "superseded_by": "W2_TRACK_B_OUTPUT_CALIBRATION_FIT_20260922.json",
   "cells": [
     {
       "calibrated_abs_cal_gap": 0.067074468377,
@@ -187,8 +189,8 @@
       "weight": 0.2
     },
     {
-      "calibrated_abs_cal_gap": 0.421675407955,
-      "calibrated_cal_gap": 0.421675407955,
+      "calibrated_abs_cal_gap": 0.270108043217,
+      "calibrated_cal_gap": 0.270108043217,
       "competition_id": "allsvenskan",
       "continuous_shrinkage": true,
       "curve": [
@@ -255,7 +257,7 @@
       "n": 7,
       "raw_abs_cal_gap": 0.421675407955,
       "raw_cal_gap": 0.421675407955,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.259259259259
     },
@@ -543,8 +545,8 @@
       "weight": 0.666666666667
     },
     {
-      "calibrated_abs_cal_gap": 0.049245789449,
-      "calibrated_cal_gap": -0.049245789449,
+      "calibrated_abs_cal_gap": 0.018026277662,
+      "calibrated_cal_gap": -0.018026277662,
       "competition_id": "argentina_primera",
       "continuous_shrinkage": true,
       "curve": [
@@ -647,7 +649,7 @@
       "n": 50,
       "raw_abs_cal_gap": 0.049245789449,
       "raw_cal_gap": -0.049245789449,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.714285714286
     },
@@ -919,8 +921,8 @@
       "weight": 0.166666666667
     },
     {
-      "calibrated_abs_cal_gap": 0.07377131395,
-      "calibrated_cal_gap": -0.07377131395,
+      "calibrated_abs_cal_gap": 0.107173304104,
+      "calibrated_cal_gap": -0.107173304104,
       "competition_id": "austria_bundesliga",
       "continuous_shrinkage": true,
       "curve": [
@@ -991,7 +993,7 @@
       "n": 3,
       "raw_abs_cal_gap": 0.07377131395,
       "raw_cal_gap": -0.07377131395,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.130434782609
     },
@@ -1243,8 +1245,8 @@
       "weight": 0.130434782609
     },
     {
-      "calibrated_abs_cal_gap": 0.494567372001,
-      "calibrated_cal_gap": 0.494567372001,
+      "calibrated_abs_cal_gap": 0.433312755387,
+      "calibrated_cal_gap": 0.433312755387,
       "competition_id": "belgium_jupiler_pro_league",
       "continuous_shrinkage": true,
       "curve": [
@@ -1319,7 +1321,7 @@
       "n": 3,
       "raw_abs_cal_gap": 0.494567372001,
       "raw_cal_gap": 0.494567372001,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.130434782609
     },
@@ -1611,8 +1613,8 @@
       "weight": 0.459459459459
     },
     {
-      "calibrated_abs_cal_gap": 0.026017974273,
-      "calibrated_cal_gap": -0.026017974273,
+      "calibrated_abs_cal_gap": 0.013772925057,
+      "calibrated_cal_gap": -0.013772925057,
       "competition_id": "brasileirao_serie_a",
       "continuous_shrinkage": true,
       "curve": [
@@ -1699,7 +1701,7 @@
       "n": 19,
       "raw_abs_cal_gap": 0.026017974273,
       "raw_cal_gap": -0.026017974273,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.487179487179
     },
@@ -1991,8 +1993,8 @@
       "weight": 0.333333333333
     },
     {
-      "calibrated_abs_cal_gap": 0.197535644922,
-      "calibrated_cal_gap": -0.197535644922,
+      "calibrated_abs_cal_gap": 0.123916420223,
+      "calibrated_cal_gap": -0.123916420223,
       "competition_id": "bundesliga",
       "continuous_shrinkage": true,
       "curve": [
@@ -2083,7 +2085,7 @@
       "n": 13,
       "raw_abs_cal_gap": 0.197535644922,
       "raw_cal_gap": -0.197535644922,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.393939393939
     },
@@ -2359,8 +2361,8 @@
       "weight": 0.166666666667
     },
     {
-      "calibrated_abs_cal_gap": 0.416587633195,
-      "calibrated_cal_gap": 0.416587633195,
+      "calibrated_abs_cal_gap": 0.355090311987,
+      "calibrated_cal_gap": 0.355090311987,
       "competition_id": "chinese_super_league",
       "continuous_shrinkage": true,
       "curve": [
@@ -2447,7 +2449,7 @@
       "n": 6,
       "raw_abs_cal_gap": 0.416587633195,
       "raw_cal_gap": 0.416587633195,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.230769230769
     },
@@ -2942,8 +2944,8 @@
       "weight": 0.166666666667
     },
     {
-      "calibrated_abs_cal_gap": 0.081816094422,
-      "calibrated_cal_gap": 0.081816094422,
+      "calibrated_abs_cal_gap": 0.041778074866,
+      "calibrated_cal_gap": 0.041778074866,
       "competition_id": "czech_republic_liga",
       "continuous_shrinkage": true,
       "curve": [
@@ -3014,7 +3016,7 @@
       "n": 2,
       "raw_abs_cal_gap": 0.081816094422,
       "raw_cal_gap": 0.081816094422,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.090909090909
     },
@@ -3209,8 +3211,8 @@
       "weight": 0.230769230769
     },
     {
-      "calibrated_abs_cal_gap": 0.403707807495,
-      "calibrated_cal_gap": 0.403707807495,
+      "calibrated_abs_cal_gap": 0.350877192982,
+      "calibrated_cal_gap": 0.350877192982,
       "competition_id": "denmark_superliga",
       "continuous_shrinkage": true,
       "curve": [
@@ -3277,7 +3279,7 @@
       "n": 1,
       "raw_abs_cal_gap": 0.403707807495,
       "raw_cal_gap": 0.403707807495,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.047619047619
     },
@@ -3557,8 +3559,8 @@
       "weight": 0.354838709677
     },
     {
-      "calibrated_abs_cal_gap": 0.181172152864,
-      "calibrated_cal_gap": 0.181172152864,
+      "calibrated_abs_cal_gap": 0.118416731484,
+      "calibrated_cal_gap": 0.118416731484,
       "competition_id": "eliteserien",
       "continuous_shrinkage": true,
       "curve": [
@@ -3629,7 +3631,7 @@
       "n": 10,
       "raw_abs_cal_gap": 0.181172152864,
       "raw_cal_gap": 0.181172152864,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.333333333333
     },
@@ -3897,8 +3899,8 @@
       "weight": 0.310344827586
     },
     {
-      "calibrated_abs_cal_gap": 0.221353521081,
-      "calibrated_cal_gap": -0.221353521081,
+      "calibrated_abs_cal_gap": 0.210489713127,
+      "calibrated_cal_gap": -0.210489713127,
       "competition_id": "england_championship",
       "continuous_shrinkage": true,
       "curve": [
@@ -3977,7 +3979,7 @@
       "n": 5,
       "raw_abs_cal_gap": 0.221353521081,
       "raw_cal_gap": -0.221353521081,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.2
     },
@@ -4245,8 +4247,8 @@
       "weight": 0.473684210526
     },
     {
-      "calibrated_abs_cal_gap": 0.197444372918,
-      "calibrated_cal_gap": -0.197444372918,
+      "calibrated_abs_cal_gap": 0.129585627354,
+      "calibrated_cal_gap": -0.129585627354,
       "competition_id": "eredivisie",
       "continuous_shrinkage": true,
       "curve": [
@@ -4329,7 +4331,7 @@
       "n": 10,
       "raw_abs_cal_gap": 0.197444372918,
       "raw_cal_gap": -0.197444372918,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.333333333333
     },
@@ -4605,8 +4607,8 @@
       "weight": 0.2
     },
     {
-      "calibrated_abs_cal_gap": 0.066485684139,
-      "calibrated_cal_gap": 0.066485684139,
+      "calibrated_abs_cal_gap": 0.042377495463,
+      "calibrated_cal_gap": 0.042377495463,
       "competition_id": "germany_2_bundesliga",
       "continuous_shrinkage": true,
       "curve": [
@@ -4681,7 +4683,7 @@
       "n": 5,
       "raw_abs_cal_gap": 0.066485684139,
       "raw_cal_gap": 0.066485684139,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.2
     },
@@ -4941,8 +4943,8 @@
       "weight": 0.166666666667
     },
     {
-      "calibrated_abs_cal_gap": 0.469847260043,
-      "calibrated_cal_gap": -0.469847260043,
+      "calibrated_abs_cal_gap": 0.427807486631,
+      "calibrated_cal_gap": -0.427807486631,
       "competition_id": "greece_super_league_1",
       "continuous_shrinkage": true,
       "curve": [
@@ -5013,7 +5015,7 @@
       "n": 2,
       "raw_abs_cal_gap": 0.469847260043,
       "raw_cal_gap": -0.469847260043,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.090909090909
     },
@@ -5269,8 +5271,8 @@
       "weight": 0.130434782609
     },
     {
-      "calibrated_abs_cal_gap": 0.471912571338,
-      "calibrated_cal_gap": -0.471912571338,
+      "calibrated_abs_cal_gap": 0.448179271709,
+      "calibrated_cal_gap": -0.448179271709,
       "competition_id": "italy_serie_b",
       "continuous_shrinkage": true,
       "curve": [
@@ -5337,7 +5339,7 @@
       "n": 1,
       "raw_abs_cal_gap": 0.471912571338,
       "raw_cal_gap": -0.471912571338,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.047619047619
     },
@@ -5617,8 +5619,8 @@
       "weight": 0.622641509434
     },
     {
-      "calibrated_abs_cal_gap": 0.205663627129,
-      "calibrated_cal_gap": 0.205663627129,
+      "calibrated_abs_cal_gap": 0.073418104806,
+      "calibrated_cal_gap": 0.073418104806,
       "competition_id": "la_liga",
       "continuous_shrinkage": true,
       "curve": [
@@ -5705,7 +5707,7 @@
       "n": 26,
       "raw_abs_cal_gap": 0.205663627129,
       "raw_cal_gap": 0.205663627129,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.565217391304
     },
@@ -6049,8 +6051,8 @@
       "weight": 0.5
     },
     {
-      "calibrated_abs_cal_gap": 0.101825125941,
-      "calibrated_cal_gap": -0.101825125941,
+      "calibrated_abs_cal_gap": 0.053557184299,
+      "calibrated_cal_gap": -0.053557184299,
       "competition_id": "ligue_1",
       "continuous_shrinkage": true,
       "curve": [
@@ -6133,7 +6135,7 @@
       "n": 22,
       "raw_abs_cal_gap": 0.101825125941,
       "raw_cal_gap": -0.101825125941,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.52380952381
     },
@@ -6465,8 +6467,8 @@
       "weight": 0.642857142857
     },
     {
-      "calibrated_abs_cal_gap": 0.116154529033,
-      "calibrated_cal_gap": 0.116154529033,
+      "calibrated_abs_cal_gap": 0.036774854655,
+      "calibrated_cal_gap": 0.036774854655,
       "competition_id": "mls",
       "continuous_shrinkage": true,
       "curve": [
@@ -6553,7 +6555,7 @@
       "n": 23,
       "raw_abs_cal_gap": 0.116154529033,
       "raw_cal_gap": 0.116154529033,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.53488372093
     },
@@ -6821,8 +6823,8 @@
       "weight": 0.285714285714
     },
     {
-      "calibrated_abs_cal_gap": 0.216177387136,
-      "calibrated_cal_gap": 0.216177387136,
+      "calibrated_abs_cal_gap": 0.155636467481,
+      "calibrated_cal_gap": 0.155636467481,
       "competition_id": "netherlands_eerste_divisie",
       "continuous_shrinkage": true,
       "curve": [
@@ -6897,7 +6899,7 @@
       "n": 3,
       "raw_abs_cal_gap": 0.216177387136,
       "raw_cal_gap": 0.216177387136,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.130434782609
     },
@@ -7173,8 +7175,8 @@
       "weight": 0.555555555556
     },
     {
-      "calibrated_abs_cal_gap": 0.003633294682,
-      "calibrated_cal_gap": 0.003633294682,
+      "calibrated_abs_cal_gap": 0.014716988562,
+      "calibrated_cal_gap": -0.014716988562,
       "competition_id": "premier_league",
       "continuous_shrinkage": true,
       "curve": [
@@ -7249,7 +7251,7 @@
       "n": 21,
       "raw_abs_cal_gap": 0.003633294682,
       "raw_cal_gap": 0.003633294682,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.512195121951
     },
@@ -7537,8 +7539,8 @@
       "weight": 0.574468085106
     },
     {
-      "calibrated_abs_cal_gap": 0.140420385732,
-      "calibrated_cal_gap": -0.140420385732,
+      "calibrated_abs_cal_gap": 0.101502822224,
+      "calibrated_cal_gap": -0.101502822224,
       "competition_id": "primeira_liga",
       "continuous_shrinkage": true,
       "curve": [
@@ -7625,7 +7627,7 @@
       "n": 14,
       "raw_abs_cal_gap": 0.140420385732,
       "raw_cal_gap": -0.140420385732,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.411764705882
     },
@@ -7881,8 +7883,8 @@
       "weight": 0.2
     },
     {
-      "calibrated_abs_cal_gap": 0.334142305085,
-      "calibrated_cal_gap": 0.334142305085,
+      "calibrated_abs_cal_gap": 0.232268907563,
+      "calibrated_cal_gap": 0.232268907563,
       "competition_id": "scotland_premiership",
       "continuous_shrinkage": true,
       "curve": [
@@ -7961,7 +7963,7 @@
       "n": 5,
       "raw_abs_cal_gap": 0.334142305085,
       "raw_cal_gap": 0.334142305085,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.2
     },
@@ -8249,8 +8251,8 @@
       "weight": 0.6
     },
     {
-      "calibrated_abs_cal_gap": 0.007891366476,
-      "calibrated_cal_gap": 0.007891366476,
+      "calibrated_abs_cal_gap": 0.002761634617,
+      "calibrated_cal_gap": -0.002761634617,
       "competition_id": "serie_a",
       "continuous_shrinkage": true,
       "curve": [
@@ -8325,7 +8327,7 @@
       "n": 27,
       "raw_abs_cal_gap": 0.007891366476,
       "raw_cal_gap": 0.007891366476,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.574468085106
     },
@@ -8597,8 +8599,8 @@
       "weight": 0.2
     },
     {
-      "calibrated_abs_cal_gap": 0.016405431301,
-      "calibrated_cal_gap": 0.016405431301,
+      "calibrated_abs_cal_gap": 0.004086515243,
+      "calibrated_cal_gap": 0.004086515243,
       "competition_id": "spain_segunda_division",
       "continuous_shrinkage": true,
       "curve": [
@@ -8677,7 +8679,7 @@
       "n": 6,
       "raw_abs_cal_gap": 0.016405431301,
       "raw_cal_gap": 0.016405431301,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.230769230769
     },
@@ -9188,8 +9190,8 @@
       "weight": 0.166666666667
     },
     {
-      "calibrated_abs_cal_gap": 0.07647530933,
-      "calibrated_cal_gap": -0.07647530933,
+      "calibrated_abs_cal_gap": 0.051361540785,
+      "calibrated_cal_gap": -0.051361540785,
       "competition_id": "turkey_super_lig",
       "continuous_shrinkage": true,
       "curve": [
@@ -9264,7 +9266,7 @@
       "n": 7,
       "raw_abs_cal_gap": 0.07647530933,
       "raw_cal_gap": -0.07647530933,
-      "selected_model": "raw",
+      "selected_model": "hierarchical_isotonic",
       "selection": "OVER",
       "weight": 0.259259259259
     },
@@ -9333,18 +9335,13 @@
   "data_role": "TRAIN_ONLY_OFFLINE",
   "fit_method": {
     "continuous_weight": "n/(n+k), all n",
-    "family_pool": [
-      "raw",
-      "hierarchical_isotonic",
-      "platt"
-    ],
     "global_prior": "market x selection",
     "k": 20,
     "min_cell_n": null,
-    "model": "raw identity + hierarchical PAVA isotonic + selection-aware Platt",
+    "model": "hierarchical PAVA isotonic + selection-aware Platt baseline",
     "oof_folds": 4,
     "pava_threshold": "right_edge=max(x) per fitted block",
-    "selection_rule": "expanding-time OOF over raw, hierarchical_isotonic, and platt; Brier then NLL then model name",
+    "selection_rule": "expanding-time OOF; Brier then NLL then model name",
     "shrinkage": "p_cal = n/(n+k)*p_cell + k/(n+k)*p_market_selection_global",
     "stratification": [
       "competition_id",
@@ -9624,16 +9621,16 @@
           "cal_gap": 0.066664489524,
           "n": 286,
           "nll": 0.70888442227
-        },
-        "raw": {
-          "brier": 0.270085956299,
-          "cal_gap": 0.120811105705,
-          "n": 286,
-          "nll": 0.742250062314
         }
       },
       "folds": 4,
       "oof_rows": 286,
+      "raw": {
+        "brier": 0.270085956299,
+        "cal_gap": 0.120811105705,
+        "n": 286,
+        "nll": 0.742250062314
+      },
       "selected": "platt"
     },
     "ASIAN_HANDICAP|HOME": {
@@ -9649,16 +9646,16 @@
           "cal_gap": -0.016588814269,
           "n": 272,
           "nll": 0.666285950087
-        },
-        "raw": {
-          "brier": 0.240701525544,
-          "cal_gap": 0.066700991389,
-          "n": 272,
-          "nll": 0.673792207037
         }
       },
       "folds": 4,
       "oof_rows": 272,
+      "raw": {
+        "brier": 0.240701525544,
+        "cal_gap": 0.066700991389,
+        "n": 272,
+        "nll": 0.673792207037
+      },
       "selected": "platt"
     },
     "TOTALS|OVER": {
@@ -9674,17 +9671,17 @@
           "cal_gap": -0.109698780924,
           "n": 233,
           "nll": 0.729656803375
-        },
-        "raw": {
-          "brier": 0.241060042004,
-          "cal_gap": -0.030367915496,
-          "n": 233,
-          "nll": 0.674754912693
         }
       },
       "folds": 4,
       "oof_rows": 233,
-      "selected": "raw"
+      "raw": {
+        "brier": 0.241060042004,
+        "cal_gap": -0.030367915496,
+        "n": 233,
+        "nll": 0.674754912693
+      },
+      "selected": "hierarchical_isotonic"
     },
     "TOTALS|UNDER": {
       "candidates": {
@@ -9699,16 +9696,16 @@
           "cal_gap": 0.003557530081,
           "n": 326,
           "nll": 0.674132923114
-        },
-        "raw": {
-          "brier": 0.267546616478,
-          "cal_gap": 0.1582689316,
-          "n": 326,
-          "nll": 0.730932480746
         }
       },
       "folds": 4,
       "oof_rows": 326,
+      "raw": {
+        "brier": 0.267546616478,
+        "cal_gap": 0.1582689316,
+        "n": 326,
+        "nll": 0.730932480746
+      },
       "selected": "platt"
     }
   },
@@ -9734,7 +9731,6 @@
       "slope": 0.380074842698
     }
   },
-  "protocol_revision": "TRACK_B_V2_RAW_FAMILY",
   "safety": {
     "calibration_ledger_writes": 0,
     "deployments": 0,
@@ -9747,30 +9743,15 @@
   "selected_models": {
     "ASIAN_HANDICAP|AWAY": "platt",
     "ASIAN_HANDICAP|HOME": "platt",
-    "TOTALS|OVER": "raw",
+    "TOTALS|OVER": "hierarchical_isotonic",
     "TOTALS|UNDER": "platt"
   },
-  "status": "TERMINATED_AFTER_TWO_ITERATIONS",
-  "stopping_rule": {
-    "decision": "TERMINATED_AFTER_TWO_ITERATIONS",
-    "third_iteration_forbidden": true,
-    "threshold": "any major market\u00d7selection cell with n>=50 and abs(selected OOF cal_gap)>0.05",
-    "triggered": true,
-    "triggered_pairs": [
-      {
-        "cal_gap": 0.066664489524,
-        "market": "ASIAN_HANDICAP",
-        "n": 286,
-        "selected": "platt",
-        "selection": "AWAY"
-      }
-    ]
-  },
+  "status": "FITTED_CALIBRATED",
   "training_metrics": {
-    "calibrated_abs_cal_gap": 0.003862610656,
-    "calibrated_cal_gap": 0.003862610656,
-    "cells_abs_gap_improved": 48,
-    "cells_abs_gap_not_improved": 57,
+    "calibrated_abs_cal_gap": 0.001052441852,
+    "calibrated_cal_gap": 0.001052441852,
+    "cells_abs_gap_improved": 71,
+    "cells_abs_gap_not_improved": 34,
     "raw_abs_cal_gap": 0.092005596089,
     "raw_cal_gap": 0.092005596089
   }

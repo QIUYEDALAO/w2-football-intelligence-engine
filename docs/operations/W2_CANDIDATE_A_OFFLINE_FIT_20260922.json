@@ -232,5 +232,7 @@
     "provider_calls": 0
   },
   "schema": "w2.candidate_a.offline_fit.v2",
-  "status": "FITTED_CALIBRATED"
+  "status": "REJECTED_BY_TRAIN_OOF_SCORELINE_NLL",
+  "rejection_reason": "OOF candidate mean_nll=2.973974352639 exceeded raw mean_nll=2.973314433300; all three scored rolling-origin folds had candidate NLL above raw",
+  "holdout_opened": false
 }

@@ -6,7 +6,7 @@
   "drafted_at": "2026-09-22T08:47:00+08:00",
   "frozen_at": "2026-09-22T09:31:00+08:00",
   "frozen_by": "owner-authorized-codex",
-  "amendment_id": "W2-EV-CALIB-TRACK-A-OOF-AND-ARTIFACT-COMPLETION-01",
+  "amendment_id": "W2-EV-CALIB-TRACK-A-TERMINATION-TRACK-B-V2-STOP-01",
   "amended_at": "2026-09-22T18:32:06+08:00",
   "amendment_log": [
     {
@@ -43,6 +43,24 @@
       "id": "ANCHOR-AND-DC-DISCLOSURE-01",
       "changed": "corrected report hash anchor and replaced the Dixon-Coles rationale with the verified production no-op rho=0.0 statement",
       "evidence": "shasum -a 256 of every referenced local input and production calibration ledger params",
+      "holdout_contacted": false
+    },
+    {
+      "id": "TRACK-A-TERMINATION-OOF-NLL-01",
+      "changed": "Track A artifact is archived as REJECTED_BY_TRAIN_OOF_SCORELINE_NLL; no holdout opening and no further refit",
+      "evidence": "TRAIN-only expanding-window OOF candidate mean_nll=2.973974352639 exceeded raw mean_nll=2.973314433300 in all three scored folds, violating track_a_primary.scoreline_nll.required",
+      "holdout_contacted": false
+    },
+    {
+      "id": "TRACK-B-V2-RAW-FAMILY-01",
+      "changed": "Track B candidate family pool now includes raw identity alongside hierarchical_isotonic and platt; selection rule, k, min_cell_n, binning, and OOF folds unchanged",
+      "evidence": "TRAIN-only OOF rerun; raw is an explicit恒等映射 baseline and does not alter the preregistered Brier then NLL then fixed-name rule",
+      "holdout_contacted": false
+    },
+    {
+      "id": "TRACK-B-V2-STOPPING-RULE-01",
+      "changed": "added frozen stopping rule: if any major market×selection cell n>=50 has abs(selected TRAIN OOF cal_gap)>0.05, terminate Track B after two iterations and forbid a third iteration or further family/parameter amendment",
+      "evidence": "TRAIN-only OOF stopping gate pre-registered before any holdout/test access",
       "holdout_contacted": false
     }
   ],
@@ -231,10 +249,18 @@
     "continuous_shrinkage": "w = n/(n+k) for every cell, k=20; p_cal=w*p_cell+(1-w)*p_market_selection_global",
     "fit_data": "TRAIN only",
     "baseline": "sigmoid(intercept + slope*logit(model_probability)), slope constrained non-negative",
-    "oof_selection": "expanding-time OOF within each market x selection; choose lowest Brier, then NLL, then fixed name tie-break",
+    "oof_selection": "expanding-time OOF within each market x selection over raw, hierarchical_isotonic, and platt; choose lowest Brier, then NLL, then fixed name tie-break",
     "oof_folds": 4,
-    "raw_baseline_reporting": "report raw uncalibrated Brier/NLL/cal_gap alongside both candidate families for all four market x selection pairs; does not affect selection",
+    "raw_baseline_reporting": "raw is now a candidate family and is also reported in the four market x selection OOF rows",
     "holdout_rule": "selected family and parameters are frozen before any holdout/test access; holdout/test are not read during fitting"
+  },
+
+  "stopping_rule": {
+    "condition": "若 Track B v2 在 TRAIN OOF 上仍有任一主要格（n>=50）abs(cal_gap)>0.05",
+    "decision": "TERMINATED_AFTER_TWO_ITERATIONS",
+    "scope": "Track B overall",
+    "forbidden_after_trigger": ["第三轮迭代", "再次修订 family", "再次修订参数"],
+    "holdout_contacted": false
   },
 
   "track_c_fit_method": {

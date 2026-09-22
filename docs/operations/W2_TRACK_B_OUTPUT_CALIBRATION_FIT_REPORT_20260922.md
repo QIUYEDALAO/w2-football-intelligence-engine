@@ -1,20 +1,25 @@
-# Track B 输出层校准：修复后 TRAIN-only 离线拟合报告
+# Track B v2 输出层校准：TRAIN-only 离线拟合报告
 
 日期：2026-09-22（Asia/Shanghai）  
-状态：`FITTED_CALIBRATED`；仅离线候选，不上线、不推荐、不写 calibration ledger。  
+状态：`TERMINATED_AFTER_TWO_ITERATIONS`；仅离线候选，不上线、不推荐、不写 calibration ledger。
 边界：未读取或评分 holdout/test，未改生产代码、未写生产库、未调用 Provider、未部署；生产仍为 `BASELINE_PRIOR`。
 
 ## 结论
 
-三个实现问题已修复并重新拟合：
+本轮按冻结 Track B v2 预注册重新拟合：
 
 1. PAVA 合并块阈值从 `mean(x)` 改为右边界 `max(x)`，保留既有 rightmost-knot 阶梯预测合同。
 2. global 先验改为 `market × selection`：`TOTALS/OVER`、`TOTALS/UNDER`、`ASIAN_HANDICAP/HOME`、`ASIAN_HANDICAP/AWAY` 四条曲线互相独立。
 3. 删除 `n=20` 硬切换；所有联赛格子均使用连续权重 `w=n/(n+20)` 向对应 market×selection global 收缩。
 
-预注册同步加入 selection-aware Platt logistic baseline 与 TRAIN 内 expanding-time OOF family 选择：每个 market×selection 先比 Brier，再比 NLL，再按固定名称打破平局。此流程没有接触 holdout/test。
+candidate family 池为 `raw` 恒等映射、hierarchical isotonic、selection-aware Platt；每个
+market×selection 仍先比 Brier，再比 NLL，再按固定名称打破平局。k、min_cell_n、分桶和
+4-block expanding-time OOF 折数均未改变。此流程没有接触 holdout/test。
 
-修复后的层级 isotonic 不再被跨 selection global 压坏：时间 OOF 为 OVER 选择 hierarchical isotonic，训练集 OVER `cal_gap` 从 `+0.018530` 到 `+0.005049`；其余三个 market×selection 选择 Platt。OOF 上 OVER 两个候选的 cal_gap 仍为负（isotonic `-0.092736`、Platt `-0.109699`），说明时间漂移/泛化风险仍大；本轮不据 TRAIN 收敛申请上线。
+v2 OOF 选择：OVER 选择 `raw`，UNDER/HOME/AWAY 仍选择 Platt。由于选中 family 的
+`TOTALS/OVER` OOF cal_gap 为 `-0.030368`、`ASIAN_HANDICAP/AWAY` 为 `+0.066664`
+且后者 n=286≥50，冻结停止规则触发：`TERMINATED_AFTER_TWO_ITERATIONS`。不得进行
+第三轮迭代或再次修订 family/参数；本轮不打开 holdout/test。
 
 ## 数据与独立样本
 
@@ -36,16 +41,25 @@
 
 独立样本仍是每场×盘口最后一次评估；正向目标仍为 `P(WIN)+P(HALF_WIN)` 对实际正向结算事件。没有改推荐、结算、EV 或赔率口径。
 
-## 时间 OOF family 选择
+## 时间 OOF family 选择（v1 / v2 并排）
 
-| market × selection | raw Brier / NLL / gap | hierarchical isotonic Brier / NLL / gap | Platt Brier / NLL / gap | 选中 family | OOF n |
-|---|---:|---:|---:|---|---:|
-| TOTALS × OVER | 0.241061 / 0.674755 / -0.030368 | 0.262316 / 0.718902 / -0.092736 | 0.267178 / 0.729656 / -0.109699 | hierarchical isotonic | 233 |
-| TOTALS × UNDER | 0.267547 / 0.730932 / +0.158269 | 0.251952 / 0.707734 / +0.005869 | 0.240557 / 0.674133 / +0.003558 | Platt | 326 |
-| AH × HOME | 0.240702 / 0.673792 / +0.066701 | 0.243733 / 0.748198 / +0.006689 | 0.237149 / 0.666286 / -0.016589 | Platt | 272 |
-| AH × AWAY | 0.270086 / 0.742250 / +0.120811 | 0.277087 / 1.332965 / +0.069308 | 0.257490 / 0.708884 / +0.066664 | Platt | 286 |
+| market × selection | raw Brier / NLL / gap | isotonic Brier / NLL / gap | Platt Brier / NLL / gap | v1 selected | v2 selected | OOF n |
+|---|---:|---:|---:|---|---|---:|
+| TOTALS × OVER | 0.241061 / 0.674755 / -0.030368 | 0.262316 / 0.718902 / -0.092736 | 0.267178 / 0.729656 / -0.109699 | isotonic | raw | 233 |
+| TOTALS × UNDER | 0.267547 / 0.730932 / +0.158269 | 0.251952 / 0.707734 / +0.005869 | 0.240557 / 0.674133 / +0.003558 | Platt | Platt | 326 |
+| AH × HOME | 0.240702 / 0.673792 / +0.066701 | 0.243733 / 0.748198 / +0.006689 | 0.237149 / 0.666286 / -0.016589 | Platt | Platt | 272 |
+| AH × AWAY | 0.270086 / 0.742250 / +0.120811 | 0.277087 / 1.332965 / +0.069308 | 0.257490 / 0.708884 / +0.066664 | Platt | Platt | 286 |
 
-这里的 OOF 只承担预注册的 family 选择，不是 holdout 结果；raw 只作对照，不参与选择。OVER 选择 isotonic，其余三层选择 Platt。完整曲线和参数保存在机器 artifact。本轮没有据结果改动 family、`k=20`、`min_cell_n`、分桶或选择规则。
+这里的 OOF 只承担预注册的 family 选择，不是 holdout 结果；v1 的 raw 仅作对照，v2
+将其纳入同一候选池。完整曲线和参数保存在机器 artifact；没有改动 k、min_cell_n、
+分桶或选择规则。
+
+## v2 停止规则
+
+条件：任一主要 market×selection 格子 n≥50 且选中 family 的 TRAIN OOF `|cal_gap|>0.05`。
+本轮 `ASIAN_HANDICAP/AWAY` 选中 Platt，n=286，cal_gap=+0.066664，触发
+`TERMINATED_AFTER_TWO_ITERATIONS`。因此不进行第三轮迭代，不再次修订 family 或参数，
+也不打开 holdout/test。
 
 ## TRAIN cal_gap 汇总
 
@@ -53,13 +67,13 @@
 
 | 分层 | n | 原始 cal_gap | 选中 family 的 TRAIN cal_gap |
 |---|---:|---:|---:|
-| 全体 | 1,396 | +0.092006 | +0.001052 |
-| TOTALS / OVER | 291 | +0.018530 | +0.005049 |
+| 全体 | 1,396 | +0.092006 | +0.003863 |
+| TOTALS / OVER | 291 | +0.018530 | +0.018530 |
 | TOTALS / UNDER | 407 | +0.157099 | -0.000000 |
 | AH / HOME | 340 | +0.068603 | +0.000000 |
 | AH / AWAY | 358 | +0.099954 | +0.000000 |
 
-这是在同一 TRAIN 上拟合/选择后的完整性结果（OVER 用层级 isotonic，其余分层用 Platt），不是泛化改善证据；判断必须以未来未见 holdout/test 为准。
+这是在同一 TRAIN 上拟合/选择后的完整性结果（OVER 用 raw，其余分层用 Platt），不是泛化改善证据；且已触发停止规则，不进入 holdout/test。
 
 排除披露：当前输入中 26 行、13 个 fixture 因缺少 `model_settlement_distribution` 被原
 admission 规则排除；artifact 的 `manifest.excluded_fixture_ids` 保留完整 ID 清单。本轮
@@ -68,11 +82,12 @@ admission 规则排除；artifact 的 `manifest.excluded_fixture_ids` 保留完�
 ## 产物与验证
 
 - 脚本：[fit_track_b_output_calibration.py](../../scripts/quant/fit_track_b_output_calibration.py)
-- 机器 artifact：[W2_TRACK_B_OUTPUT_CALIBRATION_FIT_20260922.json](W2_TRACK_B_OUTPUT_CALIBRATION_FIT_20260922.json)
+- v2 机器 artifact：[W2_TRACK_B_OUTPUT_CALIBRATION_FIT_20260922.json](W2_TRACK_B_OUTPUT_CALIBRATION_FIT_20260922.json)
+- v1 归档 artifact：[W2_TRACK_B_OUTPUT_CALIBRATION_FIT_20260922_V1_SUPERSEDED_RAW_BASELINE.json](W2_TRACK_B_OUTPUT_CALIBRATION_FIT_20260922_V1_SUPERSEDED_RAW_BASELINE.json)
 - 预注册协议：[W2_CANDIDATE_C_RECALIBRATION_PREREGISTRATION_20260922.json](W2_CANDIDATE_C_RECALIBRATION_PREREGISTRATION_20260922.json)
 - 契约测试：[test_fit_track_b_output_calibration.py](../../tests/unit/test_fit_track_b_output_calibration.py)
 
-验证结果：`.venv/bin/python -m pytest -q tests/unit/test_fit_track_b_output_calibration.py` → **4 passed**；JSON 可解析；冻结输入重放得到 4 条 market×selection global、105 条 cell 曲线、单调曲线和连续权重；PAVA 右边界契约测试覆盖了 mean(x) 提前切换的回归场景。
+验证结果：`.venv/bin/python -m pytest -q tests/unit/test_fit_track_b_output_calibration.py` → **4 passed**；JSON 可解析；冻结输入重放得到 4 条 market×selection global、105 条 cell 曲线、单调曲线和连续权重；PAVA 右边界契约测试覆盖了 mean(x) 提前切换的回归场景；v2 四格 `candidates` 均含 `raw`。
 
 ## 安全状态
 

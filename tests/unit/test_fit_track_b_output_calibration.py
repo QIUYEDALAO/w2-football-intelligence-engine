@@ -66,7 +66,7 @@ def test_cell_shrinkage_is_continuous_across_old_n20_boundary() -> None:
     assert abs(p20 - p19) < 0.01
 
 
-def test_temporal_oof_preregisters_platt_and_isotonic_for_each_selection() -> None:
+def test_temporal_oof_candidate_pool_includes_raw_platt_and_isotonic() -> None:
     rows = []
     for i in range(25):
         rows.append(
@@ -85,6 +85,7 @@ def test_temporal_oof_preregisters_platt_and_isotonic_for_each_selection() -> No
     assert selected[("TOTALS", "OVER")] in {"hierarchical_isotonic", "platt"}
     assert diagnostics[("TOTALS", "OVER")]["oof_rows"] == 20
     assert set(diagnostics[("TOTALS", "OVER")]["candidates"]) == {
+        "raw",
         "hierarchical_isotonic",
         "platt",
     }
