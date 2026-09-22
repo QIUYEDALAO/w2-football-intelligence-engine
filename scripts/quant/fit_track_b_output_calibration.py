@@ -176,7 +176,7 @@ def _temporal_oof(rows: list[dict], k: float, folds: int = 5) -> tuple[dict[tupl
     diagnostics: dict[tuple[str, str], dict] = {}
     for pair, pair_rows in sorted(by_pair.items()):
         pair_rows = sorted(pair_rows, key=lambda r: (r["evaluated_at"], r["fixture_id"], r["competition_id"]))
-        predictions = {"hierarchical_isotonic": [], "platt": []}
+        predictions = {"hierarchical_isotonic": [], "platt": [], "raw": []}
         observed: list[dict] = []
         n = len(pair_rows)
         if n >= folds * 2:
@@ -196,19 +196,28 @@ def _temporal_oof(rows: list[dict], k: float, folds: int = 5) -> tuple[dict[tupl
                     predictions["hierarchical_isotonic"].append(_predict_hierarchical(row, global_curves, cell_curves, k, cell_n))
                 platt = fit_platt(train)
                 predictions["platt"].extend(predict_platt(platt, float(row["model_probability"])) for row in valid)
+                predictions["raw"].extend(float(row["model_probability"]) for row in valid)
                 observed.extend(valid)
         candidate_metrics = {name: _metrics(observed, values) for name, values in predictions.items()}
         if not observed:
             selected[pair] = "hierarchical_isotonic"
         else:
+            selection_metrics = {
+                name: candidate_metrics[name]
+                for name in ("hierarchical_isotonic", "platt")
+            }
             selected[pair] = min(
-                candidate_metrics,
-                key=lambda name: (candidate_metrics[name]["brier"], candidate_metrics[name]["nll"], name),
+                selection_metrics,
+                key=lambda name: (selection_metrics[name]["brier"], selection_metrics[name]["nll"], name),
             )
         diagnostics[pair] = {
             "oof_rows": len(observed),
             "folds": folds - 1,
-            "candidates": candidate_metrics,
+            "candidates": {
+                name: candidate_metrics[name]
+                for name in ("hierarchical_isotonic", "platt")
+            },
+            "raw": candidate_metrics["raw"],
             "selected": selected[pair],
         }
     return selected, diagnostics
@@ -264,8 +273,11 @@ def load_scores(home_away: Path, team_xg: Path) -> dict[str, tuple[int, int]]:
     return result
 
 
-def load_rows(evaluations: Path, scores: dict[str, tuple[int, int]]) -> list[dict]:
+def load_rows(evaluations: Path, scores: dict[str, tuple[int, int]]) -> tuple[list[dict], dict]:
     latest: dict[tuple[str, str], dict] = {}
+    excluded_fixture_ids: set[str] = set()
+    exclusion_reasons: dict[str, int] = defaultdict(int)
+    excluded_rows = 0
     with evaluations.open(newline="", encoding="utf-8") as fh:
         first = fh.readline()
         fh.seek(0)
@@ -302,6 +314,9 @@ def load_rows(evaluations: Path, scores: dict[str, tuple[int, int]]) -> list[dic
             if not key[1] or key[0] not in scores:
                 continue
             if not payload.get("model_settlement_distribution"):
+                excluded_rows += 1
+                excluded_fixture_ids.add(key[0])
+                exclusion_reasons["no_model_settlement_distribution"] += 1
                 continue
             if payload.get("exact_line") is None or payload.get("selection") is None:
                 continue
@@ -326,7 +341,12 @@ def load_rows(evaluations: Path, scores: dict[str, tuple[int, int]]) -> list[dic
             "y": 1.0 if settlement > 0 else 0.0,
             "evaluated_at": str(p.get("evaluated_at", "")),
         })
-    return sorted(rows, key=lambda r: (r["evaluated_at"], r["fixture_id"], r["market"]))
+    return sorted(rows, key=lambda r: (r["evaluated_at"], r["fixture_id"], r["market"])), {
+        "excluded_rows": excluded_rows,
+        "excluded_fixtures": len(excluded_fixture_ids),
+        "exclusion_reasons": dict(sorted(exclusion_reasons.items())),
+        "excluded_fixture_ids": sorted(excluded_fixture_ids),
+    }
 
 
 def fit_curve(rows: list[dict]) -> list[tuple[float, float]]:
@@ -342,7 +362,7 @@ def main() -> None:
     args = ap.parse_args()
 
     scores = load_scores(args.home_away, args.team_xg)
-    rows = load_rows(args.evaluations, scores)
+    rows, exclusions = load_rows(args.evaluations, scores)
     if not rows:
         raise SystemExit("no complete evaluation rows")
     k = 20.0
@@ -404,7 +424,7 @@ def main() -> None:
             "selection_rule": "expanding-time OOF; Brier then NLL then model name",
             "oof_folds": 4,
         },
-        "manifest": {"evaluation_sha256": sha256(args.evaluations), "home_away_sha256": sha256(args.home_away), "team_xg_sha256": sha256(args.team_xg), "independent_rows": len(rows), "fixtures": len({r["fixture_id"] for r in rows}), "cells": len(cells)},
+        "manifest": {"evaluation_sha256": sha256(args.evaluations), "home_away_sha256": sha256(args.home_away), "team_xg_sha256": sha256(args.team_xg), "independent_rows": len(rows), "fixtures": len({r["fixture_id"] for r in rows}), "cells": len(cells), **exclusions},
         "global_curves": {f"{market}|{selection}": _curve_json(curve) for (market, selection), curve in global_curves.items()},
         "platt_models": {f"{market}|{selection}": params for (market, selection), params in platt_models.items()},
         "selected_models": {f"{market}|{selection}": model for (market, selection), model in selected_models.items()},

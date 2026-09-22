@@ -1,0 +1,43 @@
+{
+  "schema": "w2.candidate_c.recalibration_fit_report.v1",
+  "generated_at": "2026-09-22T09:49:08+08:00",
+  "protocol": {
+    "path": "docs/operations/W2_CANDIDATE_C_RECALIBRATION_PREREGISTRATION_20260922.json",
+    "status": "FROZEN",
+    "frozen_at": "2026-09-22T09:31:00+08:00"
+  },
+  "status": "SUPERSEDED_BY_OWNER_AUTHORIZED_TRACK_A_REFIT",
+  "superseded_by": "docs/operations/W2_CANDIDATE_A_OFFLINE_FIT_20260922.json",
+  "tracks": {
+    "A": {"status": "NOT_RUN_BLOCKED_EXACT_TRAIN_COHORT_MISSING"},
+    "C": {"status": "NOT_IDENTIFIABLE_MISSING_PIT_ELO_AND_SQUAD_VALUE"}
+  },
+  "observed_read_only_snapshot": {
+    "host": "root@45.207.194.97",
+    "container": "w2-staging-postgres-1",
+    "team_xg_match_rows_before_2026_08_30T05Z": 21686,
+    "team_xg_match_fixtures_before_2026_08_30T05Z": 10843,
+    "strict_prior_five_fixture_rebuild": 9325,
+    "historical_enabled_league_rebuild": 8671,
+    "frozen_train_fixture_count_required": 8659,
+    "team_rating_snapshots_rows": 242,
+    "team_rating_snapshot_teams": 242,
+    "team_value_asof_artifacts_rows": 0,
+    "provider_calls": 0,
+    "production_writes": 0,
+    "deployments": 0
+  },
+  "fail_closed_reasons": [
+    "current PIT rebuild count does not equal frozen 8659 and no immutable exclusion artifact identifies the 12-row difference",
+    "no complete per-fixture PIT Elo feature artifact",
+    "no squad value as-of artifact exists",
+    "validation and test outcomes were not opened or scored"
+  ],
+  "candidate_parameters": null,
+  "nll_convergence": null,
+  "production_state": "BASELINE_PRIOR_UNCHANGED",
+  "next_required_artifacts": [
+    "digest-bound frozen 8659-fixture TRAIN artifact with identity, league, PIT xG, outcomes, and exclusions",
+    "per-fixture PIT Elo and squad-value features or an authoritative frozen missing-feature contract"
+  ]
+}

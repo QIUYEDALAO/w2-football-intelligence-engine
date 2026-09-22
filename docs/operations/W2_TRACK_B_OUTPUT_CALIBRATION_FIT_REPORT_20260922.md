@@ -25,6 +25,9 @@
 | 独立评估行 | 1,396 |
 | 覆盖 fixture | 698 |
 | 格子数 | 105 |
+| 按 admission 排除行 | 26 |
+| 按 admission 排除 fixture | 13 |
+| 排除原因 | `no_model_settlement_distribution`（26 行） |
 | `ASIAN_HANDICAP` 行 | 698 |
 | `TOTALS` 行 | 698 |
 | evaluation CSV SHA-256 | `901ffc1409677a3a68160a8d3ad16ac9b3fa35a596007e57819bbedc64e7a159` |
@@ -35,14 +38,14 @@
 
 ## 时间 OOF family 选择
 
-| market × selection | 选中 family | hierarchical isotonic Brier / gap | Platt Brier / gap | OOF n |
-|---|---|---|---|---:|
-| TOTALS × OVER | hierarchical isotonic | 0.262316 / -0.092736 | 0.267178 / -0.109699 | 233 |
-| TOTALS × UNDER | Platt | 0.251952 / +0.005869 | 0.240557 / +0.003558 | 326 |
-| AH × HOME | Platt | 0.243733 / +0.006689 | 0.237149 / -0.016589 | 272 |
-| AH × AWAY | Platt | 0.277087 / +0.069308 | 0.257490 / +0.066664 | 286 |
+| market × selection | raw Brier / NLL / gap | hierarchical isotonic Brier / NLL / gap | Platt Brier / NLL / gap | 选中 family | OOF n |
+|---|---:|---:|---:|---|---:|
+| TOTALS × OVER | 0.241061 / 0.674755 / -0.030368 | 0.262316 / 0.718902 / -0.092736 | 0.267178 / 0.729656 / -0.109699 | hierarchical isotonic | 233 |
+| TOTALS × UNDER | 0.267547 / 0.730932 / +0.158269 | 0.251952 / 0.707734 / +0.005869 | 0.240557 / 0.674133 / +0.003558 | Platt | 326 |
+| AH × HOME | 0.240702 / 0.673792 / +0.066701 | 0.243733 / 0.748198 / +0.006689 | 0.237149 / 0.666286 / -0.016589 | Platt | 272 |
+| AH × AWAY | 0.270086 / 0.742250 / +0.120811 | 0.277087 / 1.332965 / +0.069308 | 0.257490 / 0.708884 / +0.066664 | Platt | 286 |
 
-这里的 OOF 只承担预注册的 family 选择，不是 holdout 结果；OVER 选择 isotonic，其余三层选择 Platt。完整曲线和参数保存在机器 artifact。
+这里的 OOF 只承担预注册的 family 选择，不是 holdout 结果；raw 只作对照，不参与选择。OVER 选择 isotonic，其余三层选择 Platt。完整曲线和参数保存在机器 artifact。本轮没有据结果改动 family、`k=20`、`min_cell_n`、分桶或选择规则。
 
 ## TRAIN cal_gap 汇总
 
@@ -57,6 +60,10 @@
 | AH / AWAY | 358 | +0.099954 | +0.000000 |
 
 这是在同一 TRAIN 上拟合/选择后的完整性结果（OVER 用层级 isotonic，其余分层用 Platt），不是泛化改善证据；判断必须以未来未见 holdout/test 为准。
+
+排除披露：当前输入中 26 行、13 个 fixture 因缺少 `model_settlement_distribution` 被原
+admission 规则排除；artifact 的 `manifest.excluded_fixture_ids` 保留完整 ID 清单。本轮
+只补披露，没有改变 admission 规则，也没有把这些行或 fixture 捞回训练集。
 
 ## 产物与验证
 

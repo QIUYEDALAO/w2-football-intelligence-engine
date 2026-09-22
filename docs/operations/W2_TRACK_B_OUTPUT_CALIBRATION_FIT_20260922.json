@@ -9580,6 +9580,26 @@
   "manifest": {
     "cells": 105,
     "evaluation_sha256": "901ffc1409677a3a68160a8d3ad16ac9b3fa35a596007e57819bbedc64e7a159",
+    "excluded_fixture_ids": [
+      "1490390",
+      "1492369",
+      "1493120",
+      "1493121",
+      "1494241",
+      "1494242",
+      "1494243",
+      "1494244",
+      "1494245",
+      "1494246",
+      "1494247",
+      "1494248",
+      "1523240"
+    ],
+    "excluded_fixtures": 13,
+    "excluded_rows": 26,
+    "exclusion_reasons": {
+      "no_model_settlement_distribution": 26
+    },
     "fixtures": 698,
     "home_away_sha256": "3a533486d2508bc32861f9632ed9ca0b561ace116e2ce46ff60f49022645df60",
     "independent_rows": 1396,
@@ -9603,6 +9623,12 @@
       },
       "folds": 4,
       "oof_rows": 286,
+      "raw": {
+        "brier": 0.270085956299,
+        "cal_gap": 0.120811105705,
+        "n": 286,
+        "nll": 0.742250062314
+      },
       "selected": "platt"
     },
     "ASIAN_HANDICAP|HOME": {
@@ -9622,6 +9648,12 @@
       },
       "folds": 4,
       "oof_rows": 272,
+      "raw": {
+        "brier": 0.240701525544,
+        "cal_gap": 0.066700991389,
+        "n": 272,
+        "nll": 0.673792207037
+      },
       "selected": "platt"
     },
     "TOTALS|OVER": {
@@ -9641,6 +9673,12 @@
       },
       "folds": 4,
       "oof_rows": 233,
+      "raw": {
+        "brier": 0.241060042004,
+        "cal_gap": -0.030367915496,
+        "n": 233,
+        "nll": 0.674754912693
+      },
       "selected": "hierarchical_isotonic"
     },
     "TOTALS|UNDER": {
@@ -9660,6 +9698,12 @@
       },
       "folds": 4,
       "oof_rows": 326,
+      "raw": {
+        "brier": 0.267546616478,
+        "cal_gap": 0.1582689316,
+        "n": 326,
+        "nll": 0.730932480746
+      },
       "selected": "platt"
     }
   },

@@ -48,9 +48,9 @@ direct_high_total_field: model P(total>=4)=0.315,
 {"threshold": 4, "probability": ..., "representative_scoreline": ...}
 ```
 
-从 `P(total>=4)` 反解均值 `mu` 只有在**独立 Poisson**假设下才唯一且无偏。生产标记为 `w2.formal.exact_dc_poisson.v1`，含 Dixon–Coles 低比分修正；低比分联合概率会改变 `P(total>=4)` 与 `lambda_home + lambda_away` 的关系。payload 又没有完整的 lambda/rho，且 probability 已序列化到有限小数位。因此 `2.84` 是“按独立 Poisson 反解的等效均值”，不是生产模型 lambda 总和的严格回读。
+从 `P(total>=4)` 反解均值 `mu` 只有在**独立 Poisson**假设下才唯一且无偏。实查生产 `dixon_coles_rho=0.0`，因此当前生产路径中的 Dixon–Coles 修正是 no-op，不能把 DC 低比分修正作为这两个数字差异的原因。`high_total` payload 没有完整的 lambda/rho，且 probability 已序列化到有限小数位；因此 `2.84` 只是“按独立 Poisson 反解的等效均值”，不是生产模型 lambda 总和的严格回读。结论不变：该窄 cohort 的选择、口径和反解误差仍使 7.2% 不可外推为全局估计。
 
-**判断**：7.2% 是一个窄 cohort + 反解假设下的历史描述，存在选择偏差、样本不确定性和 DC/四舍五入反解误差；在缺少 199 条 manifest 的情况下，不能用它推断全量 total 偏低。
+**判断**：7.2% 是一个窄 cohort + 反解假设下的历史描述，存在选择偏差、样本不确定性和四舍五入反解误差；DC no-op 不改变结论。在缺少 199 条 manifest 的情况下，不能用它推断全量 total 偏低。
 
 ## 2. 9,325 场 PIT 的可复核估计
 
@@ -62,7 +62,16 @@ direct_high_total_field: model P(total>=4)=0.315,
 - 每场仅一条，故比赛级 bootstrap 与 fixture 聚类 bootstrap 相同。
 - fixture：9,325；联赛：26；kickoff：2024-03-30 至 2026-08-30。
 - `team_xg_match.csv` SHA-256：`609bbbe3f22d98707906f235a1007e5359a47b23037d58c5e14b50554424d376`。
-- `home_away.csv` SHA-256：`3a533486d2508bc32861f9632eddb8f32861f9632ed9ca0b561ace116e2ce46ff60f49022645df60`。
+- `home_away.csv` SHA-256：`3a533486d2508bc32861f9632ed9ca0b561ace116e2ce46ff60f49022645df60`。
+
+哈希复核（每个报告引用的输入哈希）：
+
+```text
+shasum -a 256 /private/tmp/w2-fit.ORUh8X/home_away.csv
+3a533486d2508bc32861f9632ed9ca0b561ace116e2ce46ff60f49022645df60
+shasum -a 256 /private/tmp/w2-fit.ORUh8X/team_xg_match.csv
+609bbbe3f22d98707906f235a1007e5359a47b23037d58c5e14b50554424d376
+```
 
 ### 总体与不确定性
 

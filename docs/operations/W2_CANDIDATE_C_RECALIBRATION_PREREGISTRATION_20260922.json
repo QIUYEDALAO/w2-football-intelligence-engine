@@ -1,13 +1,51 @@
 {
   "preregistration_id": "W2-CANDIDATE-C-RECALIBRATION-PREREG-01",
   "title": "概率重校准预注册：Track A + Track B 输出校准；Track C 无 PIT 数据取消",
-  "summary_zh": "诊断已确认 MODEL_BIAS_SUPPORTED（模型概率系统性偏高、越自信越离谱）。Track A 继续作为 total + home advantage 的离线候选；Track B 现按本次预注册进行 TRAIN-only 的 market×selection 分层层级 isotonic，并与 selection-aware Platt baseline 做时间 OOF 选择。Track C 因无逐场 PIT Elo/身价数据取消。所有候选不上线、不推荐，前瞻 holdout/test 仍是独立的一次性验收。",
+  "summary_zh": "诊断已确认 MODEL_BIAS_SUPPORTED（模型概率系统性偏高、越自信越离谱）。Track A 仅作为 total 的离线候选，home advantage 沿用已验证的生产值 0.30；Track B 现按本次预注册进行 TRAIN-only 的 market×selection 分层层级 isotonic，并与 selection-aware Platt baseline 做时间 OOF 选择。Track C 因无逐场 PIT Elo/身价数据取消。所有候选不上线、不推荐，前瞻 holdout/test 仍是独立的一次性验收。",
   "status": "FROZEN",
   "drafted_at": "2026-09-22T08:47:00+08:00",
-  "frozen_at": "2026-09-22T18:32:06+08:00",
+  "frozen_at": "2026-09-22T09:31:00+08:00",
   "frozen_by": "owner-authorized-codex",
-  "amendment_id": "W2-TRACK-B-IMPLEMENTATION-FIX-01",
+  "amendment_id": "W2-EV-CALIB-TRACK-A-OOF-AND-ARTIFACT-COMPLETION-01",
   "amended_at": "2026-09-22T18:32:06+08:00",
+  "amendment_log": [
+    {
+      "id": "TRACK-A-SCOPE-RESTORE-01",
+      "changed": "home_advantage_goals and league_home_advantage moved to unchanged; Track A fits only total_scale and league_total_scale; production home advantage remains 0.30",
+      "evidence": "calibration_validation_ledger.v1 V1-HOME-ADVANTAGE-RECALIBRATION-01: 10-fold OOF plus 2,000 bootstrap, APPROVED_VALIDATED",
+      "holdout_contacted": false
+    },
+    {
+      "id": "TRACK-A-OPTIMIZER-01",
+      "changed": "Track A optimizer parameter vector reduced to total-only hierarchical projected diagonal-Newton with fixed lambda_reg_total=5.0 and backtracking",
+      "evidence": "prior zero-OOF home-advantage single-split fit was lower evidence grade than the validated 0.30 ledger value",
+      "holdout_contacted": false
+    },
+    {
+      "id": "TRACK-A-ROLLING-OOF-01",
+      "changed": "added fixed 4-fold expanding-window rolling-origin OOF diagnostics for raw versus candidate mean NLL, total absolute gap, and 1X2 multiclass Brier",
+      "evidence": "pre-registered before rerun; OOF is TRAIN-only and cannot select or alter parameters",
+      "holdout_contacted": false
+    },
+    {
+      "id": "TRACK-B-RAW-OOF-01",
+      "changed": "added raw uncalibrated baseline metrics to the existing four market×selection OOF rows without changing family, k, min_cell, binning, or selection rules",
+      "evidence": "same expanding-time OOF folds as the existing candidate comparison",
+      "holdout_contacted": false
+    },
+    {
+      "id": "MANIFEST-EXCLUSION-DISCLOSURE-01",
+      "changed": "added exclusion counts, reasons, and fixture IDs for 26 rows/13 fixtures; admission rules unchanged",
+      "evidence": "frozen TRAIN CSV inspection found all 26 rows lacking model_settlement_distribution",
+      "holdout_contacted": false
+    },
+    {
+      "id": "ANCHOR-AND-DC-DISCLOSURE-01",
+      "changed": "corrected report hash anchor and replaced the Dixon-Coles rationale with the verified production no-op rho=0.0 statement",
+      "evidence": "shasum -a 256 of every referenced local input and production calibration ledger params",
+      "holdout_contacted": false
+    }
+  ],
 
   "authority_boundary": {
     "authorized_now": "offline fitting of Track A and Track B candidates only; Track C cancelled",
@@ -127,15 +165,17 @@
 
   "two_track_design": {
     "track_a_root_fix_total": {
-      "goal": "治本：修正模型 total(λh+λa) 的系统性偏低与实际生效的 home advantage 偏差",
+      "goal": "治本：修正模型 total(λh+λa) 的系统性偏低；home advantage 固定沿用已验证的生产值",
       "hypothesis": "模型 total 由 base_home+base_away（xG 攻守平均纯量）构成且无额外校准，系统性低于真实总进球，分联赛异质",
       "parameterization": {
-        "global": ["total_scale", "home_advantage_goals"],
-        "per_league": ["league_total_scale[league]", "league_home_advantage[league]"],
-        "shrinkage": "两个分层参数分别向对应全局参数收缩（见 shrinkage_contract）"
+        "global": ["total_scale"],
+        "per_league": ["league_total_scale[league]"],
+        "unchanged": ["home_advantage_goals=0.30", "league_home_advantage[league] production semantics"],
+        "shrinkage": "league_total_scale 向 total_scale 收缩（见 shrinkage_contract）"
       },
-      "candidate_formula": "total_calibrated = clamp(total * total_scale * league_total_scale[league], 1.35, 4.40); delta = raw_delta + league_home_advantage[league]，其中 league_home_advantage 向全局 home_advantage_goals 收缩；lambda_home=(total_calibrated+delta)/2; lambda_away=(total_calibrated-delta)/2",
+      "candidate_formula": "total_calibrated = clamp(total * total_scale * league_total_scale[league], 1.35, 4.40); delta/home advantage path unchanged at production home_advantage_goals=0.30; lambda_home/lambda_away use unchanged production delta path",
       "unchanged": [
+        "home_advantage_goals=0.30 and league_home_advantage path",
         "delta 路径的 elo_gap_weight / squad_value_log_weight / lineup 项（Elo/身价缺失时保持生产语义 0）",
         "dixon_coles_rho",
         "individual lambda clamps",
@@ -168,12 +208,13 @@
     "parameters": {
       "total_scale": { "bounds": [0.8, 1.3], "initial": 1.0 },
       "league_total_scale": { "bounds": [0.7, 1.4], "initial": 1.0, "per_league": true },
-      "home_advantage_goals": { "bounds": [-0.2, 0.8], "initial": 0.3 },
-      "league_home_advantage": { "bounds": [-0.4, 0.8], "initial": 0.3, "per_league": true, "shrinks_to": "home_advantage_goals" }
+      "home_advantage_goals": { "fixed": 0.3, "source": "calibration_validation_ledger.v1 V1-HOME-ADVANTAGE-RECALIBRATION-01 APPROVED_VALIDATED" },
+      "league_home_advantage": { "unchanged": true, "source": "production delta path; not fitted in this amendment" }
     },
-    "objective": "fixture-level Dixon-Coles-corrected Poisson negative log likelihood of the observed scoreline under unchanged production lambda clamps",
-    "shrinkage_penalty": "lambda_reg * sum_over_leagues((league_total_scale[league] - total_scale)^2 + (league_home_advantage[league] - home_advantage_goals)^2)",
+    "objective": "fixture-level Poisson negative log likelihood of the observed scoreline under unchanged production lambda clamps; production dixon_coles_rho=0.0 so the Dixon-Coles path is a no-op",
+    "shrinkage_penalty": "lambda_reg_total * sum_over_leagues((league_total_scale[league] - total_scale)^2)",
     "lambda_reg": 5.0,
+    "lambda_reg_total": 5.0,
     "optimizer": "projected diagonal-Newton updates with closed bounds and backtracking line search; stop on objective tolerance",
     "fit_data": "TRAIN only",
     "delta_terms_fixed_except_home_advantage": true,
@@ -192,6 +233,7 @@
     "baseline": "sigmoid(intercept + slope*logit(model_probability)), slope constrained non-negative",
     "oof_selection": "expanding-time OOF within each market x selection; choose lowest Brier, then NLL, then fixed name tie-break",
     "oof_folds": 4,
+    "raw_baseline_reporting": "report raw uncalibrated Brier/NLL/cal_gap alongside both candidate families for all four market x selection pairs; does not affect selection",
     "holdout_rule": "selected family and parameters are frozen before any holdout/test access; holdout/test are not read during fitting"
   },
 
@@ -204,8 +246,8 @@
 
   "shrinkage_contract": {
     "track_a": {
-      "mechanism": "hierarchical ridge: league_total_scale shrinks toward total_scale；league_home_advantage shrinks toward home_advantage_goals；penalty lambda_reg=5.0",
-      "effect": "小联赛样本少时两个分层参数自动靠近对应全局参数，防过拟合"
+      "mechanism": "hierarchical ridge: league_total_scale shrinks toward total_scale；home advantage remains fixed at production 0.30；penalty lambda_reg_total=5.0",
+      "effect": "小联赛样本少时 total 分层参数自动靠近全局参数，防过拟合"
     },
     "track_b": {
       "mechanism": "per-competition isotonic shrinks toward the matching market x selection global isotonic; selection-aware Platt is a preregistered baseline",
@@ -338,7 +380,7 @@
 
   "identity_contract": {
     "calibration_version": "Track A 或 Track B 任一导致 lambda 公式或概率输出变化时，必须递增 calibration_version；Track C 已取消",
-    "params_snapshot": "LambdaCalibrationParams 增加 Track A 的 total_scale / league_total_scale / home_advantage_goals 与分联赛 home_advantage，Track C 参数保持取消状态，保留全部现有字段",
+    "params_snapshot": "Track A candidate snapshot contains total_scale / league_total_scale; home_advantage_goals and league_home_advantage remain unchanged production fields; Track C parameters remain cancelled",
     "identity_function": "w2.domain.calibration_validation_registry.calibration_identity(calibration_version, complete params snapshot)",
     "safety_property": "任何公式版本或参数变化产生不同 calibration identity；旧 BASELINE_PRIOR 授权不得前向继承",
     "grant_rule": "validation 与 test 均通过且不可变证据 digest 齐备后，才可 ledger 注册"

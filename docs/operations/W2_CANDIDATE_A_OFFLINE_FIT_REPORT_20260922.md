@@ -1,52 +1,79 @@
-# Track A 离线拟合报告（2026-09-22）
+# Track A 离线拟合报告（2026-09-22，当前有效 artifact）
 
 ## 结论
 
-Track C 已标记 `CANCELLED_NO_PIT_DATA`；本轮仅运行 Track A。Track A 已在当前可重建
-的历史 PIT 上完成离线拟合，产出标记为 `FITTED_CALIBRATED`。该标记只表示离线候选
-产出，不表示验证通过、注册或上线。
-
-生产仍保持 `BASELINE_PRIOR`。
+Track C 已按预注册标记 `CANCELLED_NO_PIT_DATA`。本轮 Track A 只拟合
+`total_scale` 与 `league_total_scale[league]`；`home_advantage_goals` 沿用生产中已
+由 `V1-HOME-ADVANTAGE-RECALIBRATION-01` 验证的 `0.30`，`league_home_advantage`
+及其余 delta 路径不拟合、不改写。候选状态为 `FITTED_CALIBRATED`，仅 TRAIN-only
+离线研究产物，不表示验证通过、注册或上线；生产仍为 `BASELINE_PRIOR`。
 
 ## TRAIN manifest
 
-- 来源：只读 VPS 导出 `team_xg_match` + `raw_payload fixtures`。
-- 规则：按 kickoff 排序；每队严格使用此前最近 5 场；两队均满足后保留；不按数量截断。
-- 实际独立 fixture：9,325 场；联赛：26 个。
+- 来源：只读冻结导出 `team_xg_match.csv` + `home_away.csv`。
+- 规则：按 kickoff 排序，每队严格使用此前最近 5 场；两队均满足后保留。
+- 独立 fixture：9,325；联赛：26。
 - `team_xg_match.csv` SHA-256：`609bbbe3f22d98707906f235a1007e5359a47b23037d58c5e14b50554424d376`
 - `home_away.csv` SHA-256：`3a533486d2508bc32861f9632ed9ca0b561ace116e2ce46ff60f49022645df60`
 - fixture-id manifest SHA-256：`fb482298257ba76051cd168d9591fae2475e0efb4ec66b75600f0dc2b218a6da`
 
 ## 参数化与收敛
 
-拟合 `total_scale`、`league_total_scale[league]`、`home_advantage_goals` 和
-`league_home_advantage[league]`；分层参数以固定 `lambda_reg=5.0` 向全局参数收缩。
-目标为比分 Poisson NLL（保持生产 total/lambda clamp），使用闭区间投影对角 Newton
-更新和回溯线搜索。
+候选只优化 `total_scale` 与按联赛分层的 `league_total_scale`，采用
+`lambda_reg_total=5.0` 的层级收缩。`home_advantage_goals=0.30` 固定，来源是生产
+calibration ledger 中 `V1-HOME-ADVANTAGE-RECALIBRATION-01` 的 10 折 OOF + 2,000 次
+bootstrap `APPROVED_VALIDATED` 记录。生产 `dixon_coles_rho=0.0`，因此比分 NLL 使用的
+Dixon-Coles 路径在当前生产参数下是 no-op；没有引入新的 DC 参数。
 
-| 指标 | 值 |
-|---|---:|
-| baseline NLL | 27,673.054423 |
-| baseline mean NLL | 2.967620 |
-| candidate NLL | 27,629.285841 |
-| candidate mean NLL | 2.962926 |
-| penalized objective | 27,631.034930 |
-| 迭代次数 | 115 |
-| 收敛状态 | `CONVERGED_OBJECTIVE_TOL` |
+| 指标 | baseline | candidate |
+|---|---:|---:|
+| 未惩罚总 NLL | 27,673.054423 | 27,629.285841 |
+| mean NLL | 2.967620 | 2.962926 |
+| 拟合最终状态 | — | `CONVERGED_OBJECTIVE_TOL` |
 
 全局候选参数：
 
 ```text
-total_scale = 1.015879
-home_advantage_goals = 0.316214
+total_scale = 1.015086
+home_advantage_goals = 0.300000 (fixed)
 ```
 
-完整的 26 个联赛分层参数、manifest、收敛尾迹和 NLL 数值见机器报告：
+26 个 `league_total_scale`、收敛尾迹和完整 manifest 见：
+`W2_CANDIDATE_A_OFFLINE_FIT_20260922.json`（schema `w2.candidate_a.offline_fit.v2`）。
 
-`docs/operations/W2_CANDIDATE_A_OFFLINE_FIT_20260922.json`
+## TRAIN 内 expanding-window rolling-origin OOF
+
+折数在运行前固定为 4 个连续时间块，因此产生 3 个可评分 validation folds；每折只
+用此前块拟合，再评分下一块。OOF 不读取、不评分 holdout/test，也不用于事后改变参数
+或预注册规则。
+
+| 指标（3 折合并） | raw baseline | candidate |
+|---|---:|---:|
+| OOF mean scoreline NLL | 2.973314433300 | 2.973974352639 |
+| OOF total absolute gap | 0.058146554189 | 0.004456397579 |
+| OOF league n≥20 absolute gap 中位数 | 0.116137931034 | 0.084664443840 |
+| OOF 1X2 multiclass Brier | 0.206030582452 | 0.206161293555 |
+| OOF rows | 6,994 | 6,994 |
+
+逐折 raw/candidate 指标和训练窗口大小保存在 artifact 的 `oof.folds`。这些是 TRAIN
+内部诊断，不能替代前瞻 validation/test 验收。
+
+## 旧 artifact
+
+旧的零 OOF 单切分 home-advantage 回归产物保留为：
+`W2_CANDIDATE_A_OFFLINE_FIT_20260922_SUPERSEDED_HOME_ADVANTAGE_REGRESSION.json`。
+其状态为 `SUPERSEDED_HOME_ADVANTAGE_REGRESSION`，旧 `home_advantage_goals=0.316214`
+不再作为当前候选参数。
 
 ## 安全边界
 
-`provider_calls=0`、`production_writes=0`、`deployments=0`、`calibration_ledger_writes=0`。
+```text
+provider_calls=0
+production_writes=0
+deployments=0
+calibration_ledger_writes=0
+holdout_read_or_scored=0
+production_status=BASELINE_PRIOR
+```
 
-validation/test 尚未打开；本报告不声称候选通过前瞻验收，也不申请注册或部署。
+本轮没有改生产代码、推荐/结算/EV、ledger、Provider、配额、并发、重试或安全门。
