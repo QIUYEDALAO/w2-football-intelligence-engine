@@ -3236,6 +3236,11 @@ class ReadModelService:
             include_debug=include_debug,
             include_details=include_details,
         )
+        now_tick = monotonic()
+        with self._dashboard_cache_guard:
+            cached = self._dashboard_response_cache.get(cache_key)
+        if cached is not None and now_tick - cached[0] <= 60:
+            return cached[1]
         cache_lock = self._dashboard_lock_for_key(cache_key)
         with cache_lock:
             now_tick = monotonic()

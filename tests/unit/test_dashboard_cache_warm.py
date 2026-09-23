@@ -73,6 +73,33 @@ def test_dashboard_cache_singleflight_for_five_concurrent_requests() -> None:
     assert len(results) == 5
 
 
+def test_dashboard_hot_cache_does_not_wait_for_key_lock() -> None:
+    service, _ = _service()
+    key = ("2026-09-23", "today", "Asia/Shanghai", False, False)
+    service._dashboard_response_cache[key] = (time.monotonic(), {"hot": True})
+    key_lock = service._dashboard_lock_for_key(key)
+    key_lock.acquire()
+    calls = 0
+
+    def compute(**_: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        return {"hot": False}
+
+    service._dashboard_uncached = compute
+    try:
+        started = time.monotonic()
+        result = service.dashboard(
+            target_date="2026-09-23", include_debug=False, include_details=False
+        )
+        elapsed = time.monotonic() - started
+    finally:
+        key_lock.release()
+    assert result == {"hot": True}
+    assert elapsed < 0.05
+    assert calls == 0
+
+
 def test_dashboard_cache_warm_then_dashboard_hits_cache() -> None:
     service, repository = _service()
     calls = 0
