@@ -694,6 +694,7 @@ export interface CalibratedValidationSample {
   filter_decision: CalibratedFilterDecision;
   param_version: string;
   warmup: boolean;
+  forward: boolean;
 }
 
 export interface IntelligenceCalibratedValidationResponse {
@@ -701,6 +702,8 @@ export interface IntelligenceCalibratedValidationResponse {
   schema_version: "w2.dashboard-intelligence-validation-calibrated.v1";
   generated_at: string | null;
   date: string | null;
+  forward_start: string | null;
+  forward_progress: Record<string, unknown>;
   samples: CalibratedValidationSample[];
   counts: {
     total: number;

@@ -20,9 +20,9 @@ from w2.api.schemas import (
     BacktestLatestResponse,
     CompetitionOperationsProfileResponse,
     DashboardDayViewResponse,
+    DashboardIntelligenceCalibratedValidationResponse,
     DashboardIntelligenceReplayResponse,
     DashboardIntelligenceValidationResponse,
-    DashboardIntelligenceCalibratedValidationResponse,
     DashboardIntelligenceWorkspaceListResponse,
     DashboardIntelligenceWorkspaceResponse,
     DashboardResponse,
@@ -69,11 +69,12 @@ from w2.dashboard.workspace import (
 )
 from w2.domain.decision_contract import DecisionContractViolation
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
+from w2.infrastructure.persistence.dynamic_prematch_models import CalibratedValidationSampleModel
 from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
 from w2.prematch.candidate_notifications import notification_health
 from w2.replay.front_door import build_replay_front_door
-from w2.infrastructure.persistence.dynamic_prematch_models import CalibratedValidationSampleModel
+from w2.strategy.online_calibration_filter import FORWARD_START_UTC, is_forward
 from w2.tracking.outcome_ledger_runtime import outcome_ledger_runtime_health
 
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
@@ -109,6 +110,7 @@ def _calibrated_sample_projection(row: CalibratedValidationSampleModel) -> dict[
         "filter_decision": row.filter_decision,
         "param_version": row.param_version,
         "warmup": row.warmup,
+        "forward": is_forward(row.evaluated_at),
     }
 
 
@@ -521,7 +523,9 @@ def dashboard_intelligence_validation_calibrated(
     if date:
         try:
             local_zone = ZoneInfo(timezone)
-            local_start = datetime.combine(datetime.fromisoformat(date).date(), time.min, tzinfo=local_zone)
+            local_start = datetime.combine(
+                datetime.fromisoformat(date).date(), time.min, tzinfo=local_zone
+            )
             start = local_start.astimezone(UTC)
             stmt = stmt.where(
                 CalibratedValidationSampleModel.kickoff_utc >= start,
@@ -540,11 +544,21 @@ def dashboard_intelligence_validation_calibrated(
     non_warmup_filtered = sum(
         row["filter_decision"] == "FILTERED" and not row["warmup"] for row in rows
     )
+    forward_kept = sum(
+        row["forward"] and not row["warmup"] and row["filter_decision"] == "KEPT"
+        for row in rows
+    )
     return {
         "request_id": request_id(request),
         "schema_version": "w2.dashboard-intelligence-validation-calibrated.v1",
         "generated_at": datetime.now(UTC),
         "date": date,
+        "forward_start": FORWARD_START_UTC,
+        "forward_progress": {
+            "kept": forward_kept,
+            "target": 300,
+            "ratio": min(1.0, forward_kept / 300),
+        },
         "samples": rows,
         "counts": {
             "total": len(rows),
@@ -555,9 +569,10 @@ def dashboard_intelligence_validation_calibrated(
             "non_warmup_filtered": non_warmup_filtered,
         },
         "decision_contract": {
-            "kind": "EV_ONLINE_FAST_CRITERIA_V1",
+            "kind": "EV_ONLINE_FAST_CRITERIA_V3",
             "minimum_non_warmup_kept": 300,
-            "population_filter": "warmup=false",
+            "population_filter": "forward=true AND warmup=false",
+            "forward_start": FORWARD_START_UTC,
             "criteria": [
                 "bias_by_market_selection_stays_positive",
                 "filtered_positive_rate_below_kept",

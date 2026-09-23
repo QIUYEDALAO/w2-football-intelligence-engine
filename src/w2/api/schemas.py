@@ -1895,6 +1895,7 @@ class CalibratedValidationSample(BaseModel):
     filter_decision: Literal["KEPT", "FILTERED"]
     param_version: str
     warmup: bool
+    forward: bool = False
 
 
 class DashboardIntelligenceCalibratedValidationResponse(BaseModel):
@@ -1904,6 +1905,8 @@ class DashboardIntelligenceCalibratedValidationResponse(BaseModel):
     schema_version: Literal["w2.dashboard-intelligence-validation-calibrated.v1"]
     generated_at: datetime | str | None
     date: str | None
+    forward_start: datetime | str | None = None
+    forward_progress: dict[str, Any] = Field(default_factory=dict)
     samples: list[CalibratedValidationSample]
     counts: dict[str, int]
     decision_contract: dict[str, Any]
