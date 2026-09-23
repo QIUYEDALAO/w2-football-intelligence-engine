@@ -1,6 +1,7 @@
 import type {
   IntelligenceReplayResponse,
   IntelligenceValidationResponse,
+  IntelligenceCalibratedValidationResponse,
   IntelligenceWorkspaceList,
   WorkspaceMatch,
 } from "../types/intelligenceWorkspace";
@@ -36,6 +37,19 @@ export async function fetchIntelligenceValidation(
   );
   if (!response.ok) throw new Error(`intelligence-workspace validation -> HTTP ${response.status}`);
   return response.json() as Promise<IntelligenceValidationResponse>;
+}
+
+export async function fetchIntelligenceCalibratedValidation(
+  date: string,
+  signal?: AbortSignal,
+): Promise<IntelligenceCalibratedValidationResponse> {
+  const query = new URLSearchParams({ date, window: "today", timezone: "Asia/Shanghai" });
+  const response = await fetch(
+    `${API_BASE}/dashboard/intelligence-workspace/validation-calibrated?${query.toString()}`,
+    { headers: { Accept: "application/json" }, signal },
+  );
+  if (!response.ok) throw new Error(`intelligence-workspace calibrated validation -> HTTP ${response.status}`);
+  return response.json() as Promise<IntelligenceCalibratedValidationResponse>;
 }
 
 export async function fetchIntelligenceReplay(

@@ -669,6 +669,51 @@ export interface IntelligenceValidationResponse {
   read_contract: IntelligenceWorkspace["read_contract"];
 }
 
+export type CalibratedFilterDecision = "KEPT" | "FILTERED";
+
+export interface CalibratedValidationSample {
+  fixture_id: string;
+  market: string;
+  competition_id: string | null;
+  kickoff_utc: string | null;
+  selection: string;
+  exact_line: string;
+  decimal_odds: number;
+  evaluation_id: string;
+  settlement: string;
+  profit_units: number | null;
+  score: string | null;
+  settled_at: string | null;
+  evaluated_at: string | null;
+  home_team_label: WorkspacePublicTeamLabel | Record<string, unknown>;
+  away_team_label: WorkspacePublicTeamLabel | Record<string, unknown>;
+  settlement_observed_at: string | null;
+  bias_at_decision: number | null;
+  ev_raw: number | null;
+  ev_corrected: number | null;
+  filter_decision: CalibratedFilterDecision;
+  param_version: string;
+  warmup: boolean;
+}
+
+export interface IntelligenceCalibratedValidationResponse {
+  request_id: string;
+  schema_version: "w2.dashboard-intelligence-validation-calibrated.v1";
+  generated_at: string | null;
+  date: string | null;
+  samples: CalibratedValidationSample[];
+  counts: {
+    total: number;
+    kept: number;
+    filtered: number;
+    warmup_kept: number;
+    non_warmup_kept: number;
+    non_warmup_filtered: number;
+  };
+  decision_contract: Record<string, unknown>;
+  read_contract: IntelligenceWorkspace["read_contract"];
+}
+
 export interface WorkspaceReplayMatch {
   fixture_id: string;
   competition_id: string | null;

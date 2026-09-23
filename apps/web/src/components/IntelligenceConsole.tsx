@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { footballDayShanghai, translateCompetition, translateReason } from "../lib/formatters";
-import { fetchIntelligenceMatch, fetchIntelligenceReplay, fetchIntelligenceValidation } from "../lib/intelligenceWorkspaceApi";
+import { fetchIntelligenceCalibratedValidation, fetchIntelligenceMatch, fetchIntelligenceReplay, fetchIntelligenceValidation } from "../lib/intelligenceWorkspaceApi";
 import { PUBLIC_ENUM_LABELS, PUBLIC_REASON_LABELS } from "../lib/labels";
 import { ahRecommendationTeamLabel, formatAhMarketHandicap, formatAhRecommendationHandicap } from "../lib/pricingDisplay";
 import { publicPresentation } from "../lib/publicPresentation";
@@ -9,6 +9,7 @@ import type {
   FixtureFactorChecklist,
   IntelligenceReplayResponse,
   IntelligenceValidationResponse,
+  IntelligenceCalibratedValidationResponse,
   IntelligenceWorkspace,
   IntelligenceWorkspaceList,
   RiskAxisName,
@@ -31,7 +32,7 @@ type Props = {
   initialFixtureId?: string | null;
 };
 
-type WorkspaceTab = "matches" | "validation" | "replay";
+type WorkspaceTab = "matches" | "validation" | "validation-calibrated" | "replay";
 
 const MARKET_LABELS = {
   ASIAN_HANDICAP: "让球主盘",
@@ -403,7 +404,7 @@ function Header({ date, loading, onDateChange, onRefresh, workspace, tab, onTabC
       </span>
       <time className="v41-updated">更新 {clock(workspace.generated_at)}</time>
       <nav className="v41-tabs" aria-label="工作台视图" role="tablist">
-        {([["matches", "比赛列表"], ["validation", "赛后验证"], ["replay", "回放记录"]] as const).map(([value, text]) => <button aria-selected={tab === value} key={value} onClick={() => onTabChange(value)} role="tab" type="button">{text}{value === "validation" && validationCount !== undefined ? ` · ${validationCount}` : ""}</button>)}
+        {([["matches", "比赛列表"], ["validation", "赛后验证"], ["validation-calibrated", "赛后验证（校准版）"], ["replay", "回放记录"]] as const).map(([value, text]) => <button aria-selected={tab === value} key={value} onClick={() => onTabChange(value)} role="tab" type="button">{text}{value === "validation" && validationCount !== undefined ? ` · ${validationCount}` : ""}</button>)}
       </nav>
       <button className="v41-theme-btn" onClick={() => setTheme(effectiveTheme === "light" ? "dark" : "light")} title="切换明暗主题" type="button">{effectiveTheme === "light" ? "☀️ 浅白" : "🌙 暗黑"}</button>
     </header>
@@ -1167,6 +1168,23 @@ function SecondaryViews({ workspace }: { workspace: IntelligenceWorkspaceList })
   );
 }
 
+function CalibratedValidationCenter({ response }: { response: IntelligenceCalibratedValidationResponse }) {
+  const teamLabel = (team: IntelligenceCalibratedValidationResponse["samples"][number]["home_team_label"]) => {
+    if (team && typeof team === "object" && "display_name" in team && typeof team.display_name === "string") return team.display_name;
+    return "球队待确认";
+  };
+  return <section className="v41-validation-center" id="secondary-validation-calibrated" aria-labelledby="validation-calibrated-title">
+    <header><div><span className="v41-eyebrow">旁路、独立数据源</span><h2 id="validation-calibrated-title">赛后验证（校准版）</h2><p>只读在线 bias 过滤层；被过滤的注也保留在本页。</p></div></header>
+    <ul className="v41-validation-counts"><li><span>总样本</span><strong>{response.counts.total}</strong></li><li><span>热身直通</span><strong>{response.counts.warmup_kept}</strong></li><li><span>非热身 KEPT</span><strong>{response.counts.non_warmup_kept}</strong></li><li><span>非热身 FILTERED</span><strong>{response.counts.non_warmup_filtered}</strong></li></ul>
+    {response.samples.length ? <ol className="v41-match-grid">{response.samples.map((row) => <li key={`${row.fixture_id}-${row.market}`} data-filter-decision={row.filter_decision} data-fixture-id={row.fixture_id} data-warmup={String(row.warmup)}>
+      <div className="v41-match-card__head"><span className="v41-match-card__meta"><span className="v41-league-tag">{row.competition_id || "赛事待确认"}</span><time>{localDateTime(row.kickoff_utc)}</time></span><b className={row.filter_decision === "KEPT" ? "v41-result-badge" : "v41-result-badge is-muted"}>{row.filter_decision}</b></div>
+      <strong className="v41-match-card__teams"><span className="v41-match-name">{teamLabel(row.home_team_label)}<span className="v41-versus"> vs </span>{teamLabel(row.away_team_label)}</span></strong>
+      <div className="v41-match-card__detail"><span className="v41-match-card__pick">{row.market} · {row.selection} · EV {row.ev_raw === null ? "—" : row.ev_raw.toFixed(3)} → {row.ev_corrected === null ? "—" : row.ev_corrected.toFixed(3)}</span><span className="v41-match-card__score-group"><span className="v41-match-card__score">{row.settlement}</span><em className="v41-match-card__profit">{row.warmup ? "热身放行" : `bias ${row.bias_at_decision === null ? "—" : row.bias_at_decision.toFixed(3)}`}</em></span></div>
+    </li>)}</ol> : <p className="v41-validation-empty">旁路表尚无样本；缺失真实 settlement_observed_at 的记录会 fail-closed。</p>}
+    <details className="v41-validation-technical"><summary>冻结去留判据</summary><p>warmup=false 的 KEPT ≥ 300 后，仅用 warmup=false 行按 market × selection 检查 bias 恒正、FILTERED 正向率低于 KEPT、KEPT |cal_gap| 不劣于 FILTERED；盈亏仅记录。</p><code>{response.samples[0]?.param_version || "PARAM_VERSION_UNAVAILABLE"}</code></details>
+  </section>;
+}
+
 export function IntelligenceConsole(props: Props) {
   const { workspace } = props;
   const requestedFixtureId = props.initialFixtureId;
@@ -1176,8 +1194,10 @@ export function IntelligenceConsole(props: Props) {
     : null;
   const [tab, setTab] = useState<WorkspaceTab>("matches");
   const [validationByDate, setValidationByDate] = useState<Record<string, IntelligenceValidationResponse>>({});
+  const [calibratedValidationByDate, setCalibratedValidationByDate] = useState<Record<string, IntelligenceCalibratedValidationResponse>>({});
   const [replayByDate, setReplayByDate] = useState<Record<string, IntelligenceReplayResponse>>({});
   const [tabState, setTabState] = useState<"idle" | "loading" | "error">("idle");
+  const calibratedValidation = calibratedValidationByDate[props.date];
   const [selectedId, setSelectedId] = useState<string | null>(
     requestedFixtureId && workspace.matches.some((match) => match.fixture_id === requestedFixtureId)
       ? requestedFixtureId
@@ -1226,12 +1246,13 @@ export function IntelligenceConsole(props: Props) {
   }, [legacyValidation, props.date, workspace]);
 
   useEffect(() => {
-    if (tab === "matches" || (tab === "validation" && validationByDate[props.date]) || (tab === "replay" && replayByDate[props.date])) return;
+    if (tab === "matches" || (tab === "validation" && validationByDate[props.date]) || (tab === "validation-calibrated" && calibratedValidationByDate[props.date]) || (tab === "replay" && replayByDate[props.date])) return;
     const controller = new AbortController();
     setTabState("loading");
-    const request = tab === "validation" ? fetchIntelligenceValidation(props.date, controller.signal) : fetchIntelligenceReplay(props.date, controller.signal);
+    const request = tab === "validation" ? fetchIntelligenceValidation(props.date, controller.signal) : tab === "validation-calibrated" ? fetchIntelligenceCalibratedValidation(props.date, controller.signal) : fetchIntelligenceReplay(props.date, controller.signal);
     request.then((payload) => {
       if (tab === "validation") setValidationByDate((current) => ({ ...current, [props.date]: payload as IntelligenceValidationResponse }));
+      else if (tab === "validation-calibrated") setCalibratedValidationByDate((current) => ({ ...current, [props.date]: payload as IntelligenceCalibratedValidationResponse }));
       else setReplayByDate((current) => ({ ...current, [props.date]: payload as IntelligenceReplayResponse }));
       setTabState("idle");
     }).catch((error: unknown) => {
@@ -1239,7 +1260,7 @@ export function IntelligenceConsole(props: Props) {
       setTabState("error");
     });
     return () => controller.abort();
-  }, [props.date, tab, replayByDate, validationByDate]);
+  }, [props.date, tab, replayByDate, validationByDate, calibratedValidationByDate]);
 
   useEffect(() => {
     if (detailWorkspaceRequest.current === workspace.request_id) return;
@@ -1315,7 +1336,7 @@ export function IntelligenceConsole(props: Props) {
         </div>
         <QualityRail workspace={workspace} />
         <SecondaryViews workspace={workspace} />
-      </> : tabState === "loading" ? <section className="v41-validation-center"><p className="v41-validation-context">正在按需读取{tab === "validation" ? "赛后验证" : "回放记录"}…</p></section> : tabState === "error" ? <section className="v41-validation-center"><p className="v41-validation-warning">该视图暂不可用，请点击 Tab 重试。</p><button type="button" onClick={() => { if (tab === "validation") setValidationByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); else setReplayByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); }}>重试</button></section> : tab === "validation" && validation ? <ValidationCenter workspace={workspace} response={validation} /> : tab === "replay" && replay ? <ReplayCenter response={replay} /> : null}
+      </> : tabState === "loading" ? <section className="v41-validation-center"><p className="v41-validation-context">正在按需读取{tab === "validation" ? "赛后验证" : tab === "validation-calibrated" ? "赛后验证（校准版）" : "回放记录"}…</p></section> : tabState === "error" ? <section className="v41-validation-center"><p className="v41-validation-warning">该视图暂不可用，请点击 Tab 重试。</p><button type="button" onClick={() => { if (tab === "validation") setValidationByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); else if (tab === "validation-calibrated") setCalibratedValidationByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); else setReplayByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); }}>重试</button></section> : tab === "validation" && validation ? <ValidationCenter workspace={workspace} response={validation} /> : tab === "validation-calibrated" && calibratedValidation ? <CalibratedValidationCenter response={calibratedValidation} /> : tab === "replay" && replay ? <ReplayCenter response={replay} /> : null}
     </main>
   );
 }

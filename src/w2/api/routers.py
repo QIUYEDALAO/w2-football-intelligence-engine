@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime
+from datetime import UTC, datetime, time, timedelta
 from typing import Annotated, Any, Literal
 from uuid import uuid4
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from w2.api.cache import read_cache
 from w2.api.repository import ReadModelService, SystemDegradedError
@@ -19,6 +22,7 @@ from w2.api.schemas import (
     DashboardDayViewResponse,
     DashboardIntelligenceReplayResponse,
     DashboardIntelligenceValidationResponse,
+    DashboardIntelligenceCalibratedValidationResponse,
     DashboardIntelligenceWorkspaceListResponse,
     DashboardIntelligenceWorkspaceResponse,
     DashboardResponse,
@@ -69,6 +73,7 @@ from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
 from w2.prematch.candidate_notifications import notification_health
 from w2.replay.front_door import build_replay_front_door
+from w2.infrastructure.persistence.dynamic_prematch_models import CalibratedValidationSampleModel
 from w2.tracking.outcome_ledger_runtime import outcome_ledger_runtime_health
 
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
@@ -76,6 +81,35 @@ ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
 service = ReadModelService()
 logger = logging.getLogger(__name__)
 DASHBOARD_WINDOWS = {"today", "next36", "future", "results", "all"}
+
+
+def _calibrated_sample_projection(row: CalibratedValidationSampleModel) -> dict[str, Any]:
+    """Serialize the already-materialized parallel row; no calibration here."""
+
+    return {
+        "fixture_id": row.fixture_id,
+        "market": row.market,
+        "competition_id": row.competition_id,
+        "kickoff_utc": row.kickoff_utc,
+        "selection": row.selection,
+        "exact_line": row.exact_line,
+        "decimal_odds": row.decimal_odds,
+        "evaluation_id": row.evaluation_id,
+        "settlement": row.settlement,
+        "profit_units": row.profit_units,
+        "score": row.score,
+        "settled_at": row.settled_at,
+        "evaluated_at": row.evaluated_at,
+        "home_team_label": row.home_team_label or {},
+        "away_team_label": row.away_team_label or {},
+        "settlement_observed_at": row.settlement_observed_at,
+        "bias_at_decision": row.bias_at_decision,
+        "ev_raw": row.ev_raw,
+        "ev_corrected": row.ev_corrected,
+        "filter_decision": row.filter_decision,
+        "param_version": row.param_version,
+        "warmup": row.warmup,
+    }
 
 
 def request_id(request: Request) -> str:
@@ -463,6 +497,78 @@ def dashboard_intelligence_validation(
             "provider_calls": int(day_view.get("provider_calls") or 0),
             "db_writes": int(day_view.get("db_writes") or 0),
             "would_write_checkpoint": day_view.get("would_write_checkpoint") is True,
+            "no_call_on_read": True,
+        },
+    }
+
+
+@public_router.get(
+    "/dashboard/intelligence-workspace/validation-calibrated",
+    response_model=DashboardIntelligenceCalibratedValidationResponse,
+)
+def dashboard_intelligence_validation_calibrated(
+    request: Request,
+    date: str | None = None,
+    window: Literal["today"] = "today",
+    timezone: str = "Asia/Shanghai",
+) -> dict[str, Any]:
+    """Read the EV-ONLINE-01 parallel projection; never recompute old validation."""
+
+    stmt = select(CalibratedValidationSampleModel).order_by(
+        CalibratedValidationSampleModel.kickoff_utc.desc().nullslast(),
+        CalibratedValidationSampleModel.fixture_id.desc(),
+    )
+    if date:
+        try:
+            local_zone = ZoneInfo(timezone)
+            local_start = datetime.combine(datetime.fromisoformat(date).date(), time.min, tzinfo=local_zone)
+            start = local_start.astimezone(UTC)
+            stmt = stmt.where(
+                CalibratedValidationSampleModel.kickoff_utc >= start,
+                CalibratedValidationSampleModel.kickoff_utc < start + timedelta(days=1),
+            )
+        except (ValueError, ZoneInfoNotFoundError):
+            raise HTTPException(status_code=400, detail="invalid date") from None
+    with Session(service.repository._database_engine()) as session:
+        rows = [_calibrated_sample_projection(row) for row in session.scalars(stmt)]
+    kept = sum(row["filter_decision"] == "KEPT" for row in rows)
+    filtered = len(rows) - kept
+    warmup_kept = sum(row["filter_decision"] == "KEPT" and row["warmup"] for row in rows)
+    non_warmup_kept = sum(
+        row["filter_decision"] == "KEPT" and not row["warmup"] for row in rows
+    )
+    non_warmup_filtered = sum(
+        row["filter_decision"] == "FILTERED" and not row["warmup"] for row in rows
+    )
+    return {
+        "request_id": request_id(request),
+        "schema_version": "w2.dashboard-intelligence-validation-calibrated.v1",
+        "generated_at": datetime.now(UTC),
+        "date": date,
+        "samples": rows,
+        "counts": {
+            "total": len(rows),
+            "kept": kept,
+            "filtered": filtered,
+            "warmup_kept": warmup_kept,
+            "non_warmup_kept": non_warmup_kept,
+            "non_warmup_filtered": non_warmup_filtered,
+        },
+        "decision_contract": {
+            "kind": "EV_ONLINE_FAST_CRITERIA_V1",
+            "minimum_non_warmup_kept": 300,
+            "population_filter": "warmup=false",
+            "criteria": [
+                "bias_by_market_selection_stays_positive",
+                "filtered_positive_rate_below_kept",
+                "kept_absolute_cal_gap_not_worse_than_filtered",
+            ],
+            "slow_pnl_comparison": "RECORD_ONLY_NOT_A_DECISION_CRITERION",
+        },
+        "read_contract": {
+            "provider_calls": 0,
+            "db_writes": 0,
+            "would_write_checkpoint": False,
             "no_call_on_read": True,
         },
     }

@@ -1050,12 +1050,15 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         from sqlalchemy.orm import Session as _OrmSession
 
         from w2.prematch.candidate_notifications import materialize_validation_samples
+        from w2.strategy.online_calibration_filter import materialize_calibrated_validation_samples
 
         with _OrmSession(repository.engine) as _materialize_session:
             validation_sample_report = materialize_validation_samples(
                 _materialize_session, now=evaluated_at
             )
+            calibrated_report = materialize_calibrated_validation_samples(_materialize_session)
             _materialize_session.commit()
+            validation_sample_report["calibrated"] = calibrated_report
     except Exception as _exc:  # pragma: no cover - 物化失败不阻断主流程
         validation_sample_report = {"error": f"{type(_exc).__name__}: {_exc}"}
     pending_count = settlement["unresolved_count"]

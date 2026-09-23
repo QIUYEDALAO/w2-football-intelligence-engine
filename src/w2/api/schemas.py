@@ -1870,6 +1870,46 @@ class DashboardIntelligenceValidationResponse(BaseModel):
     read_contract: WorkspaceReadContract
 
 
+class CalibratedValidationSample(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fixture_id: str
+    market: str
+    competition_id: str | None = None
+    kickoff_utc: datetime | str | None = None
+    selection: str
+    exact_line: str
+    decimal_odds: float
+    evaluation_id: str
+    settlement: str
+    profit_units: float | None = None
+    score: str | None = None
+    settled_at: datetime | str | None = None
+    evaluated_at: datetime | str | None = None
+    home_team_label: WorkspacePublicTeamLabel | dict[str, Any] = Field(default_factory=dict)
+    away_team_label: WorkspacePublicTeamLabel | dict[str, Any] = Field(default_factory=dict)
+    settlement_observed_at: datetime | str | None = None
+    bias_at_decision: float | None = None
+    ev_raw: float | None = None
+    ev_corrected: float | None = None
+    filter_decision: Literal["KEPT", "FILTERED"]
+    param_version: str
+    warmup: bool
+
+
+class DashboardIntelligenceCalibratedValidationResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str
+    schema_version: Literal["w2.dashboard-intelligence-validation-calibrated.v1"]
+    generated_at: datetime | str | None
+    date: str | None
+    samples: list[CalibratedValidationSample]
+    counts: dict[str, int]
+    decision_contract: dict[str, Any]
+    read_contract: WorkspaceReadContract
+
+
 class WorkspaceReplayMatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
