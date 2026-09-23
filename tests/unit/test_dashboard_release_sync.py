@@ -566,8 +566,8 @@ def test_startup_warm_cache_only_materializes_bounded_public_scope() -> None:
     assert [card["fixture_id"] for card in all_payload["all"]] == ["9001"]
 
 
-def test_frontend_uses_only_the_unified_workspace_endpoint() -> None:
+def test_frontend_uses_workspace_list_and_no_legacy_dashboard_api() -> None:
     body = Path("apps/web/src/lib/intelligenceWorkspaceApi.ts").read_text(encoding="utf-8")
 
-    assert '`${API_BASE}/dashboard/intelligence-workspace?' in body
+    assert '`${API_BASE}/dashboard/intelligence-workspace/list?' in body
     assert not Path("apps/web/src/lib/dashboardApi.ts").exists()
