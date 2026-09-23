@@ -73,37 +73,6 @@ export function ahRecommendationTeamLabel(
   return selection === "HOME" ? "主队 " : "客队 ";
 }
 
-export function ahDisplayContract(homeLine: unknown): {
-  display_line_cn: string;
-  home_display_line_cn: string;
-  away_display_line_cn: string;
-} | null {
-  const numeric = numericValue(homeLine);
-  if (numeric == null) return null;
-  const sideLines = formatAhSideLines(numeric);
-  const mainLine = formatAhMainLine(numeric);
-  if (!sideLines || !mainLine) return null;
-  return {
-    display_line_cn: Math.abs(numeric) < 0.005 ? "平手 0" : mainLine,
-    home_display_line_cn: sideLines.home,
-    away_display_line_cn: sideLines.away,
-  };
-}
-
-export function formatAhDelta(value: unknown): string | null {
-  const numeric = numericValue(value);
-  if (numeric == null) return null;
-  return formatLine(Math.abs(numeric));
-}
-
-export function hasValidatedAhCalibration(shadow: PricingShadow | null | undefined): boolean {
-  if (!shadow) return false;
-  if (shadow.simulation_status === "READY") return true;
-  const version = String(shadow.calibration_version ?? "").trim().toUpperCase();
-  if (!version) return false;
-  return !["UNVALIDATED", "UNCALIBRATED", "RULE_BASED_UNCALIBRATED", "SHADOW", "SHADOW_ONLY"].includes(version);
-}
-
 export function teamScoreLeader(shadow: PricingShadow | null | undefined): ScoreLeader {
   const home = numericValue(shadow?.team_score?.home);
   const away = numericValue(shadow?.team_score?.away);
@@ -120,10 +89,4 @@ export function unvalidatedAhLean(shadow: PricingShadow | null | undefined): Sco
   const diff = market - fair;
   if (Math.abs(diff) < 0.25) return "NEUTRAL";
   return diff > 0 ? "HOME" : "AWAY";
-}
-
-export function hasFactorLeanConflict(shadow: PricingShadow | null | undefined): boolean {
-  const leader = teamScoreLeader(shadow);
-  const lean = unvalidatedAhLean(shadow);
-  return (leader === "HOME" || leader === "AWAY") && (lean === "HOME" || lean === "AWAY") && leader !== lean;
 }

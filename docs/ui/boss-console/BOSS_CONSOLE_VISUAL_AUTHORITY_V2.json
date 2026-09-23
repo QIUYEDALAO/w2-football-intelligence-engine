@@ -1,4 +1,6 @@
 {
+  "status": "SUPERSEDED",
+  "superseded_reason": "保护的 reference/boss-console 文件已不存在；没有代码读取本文件。",
   "schema_version": "w2.boss_console.visual_authority.v2",
   "authority": "USER_APPROVED_V2_1_DYNAMIC_EV_AND_LINEUP_SEMANTICS",
   "supersedes": "w2.boss_console_visual_authority.v1",

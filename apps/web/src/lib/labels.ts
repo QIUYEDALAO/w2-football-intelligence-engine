@@ -1,7 +1,4 @@
-import type { MarketCode } from "../types/dashboard";
-
 export const API_BASE = "/v1";
-export const COMPETITION_ID = "1";
 
 export const CANONICAL_COMPETITION_LABELS: Record<string, string> = {
   allsvenskan: "瑞典超",
@@ -32,38 +29,6 @@ export const CANONICAL_COMPETITION_LABELS: Record<string, string> = {
   switzerland_super_league: "瑞士超",
   turkey_super_lig: "土超",
   world_cup_2026: "世界杯",
-};
-
-export const MARKET_ORDER: MarketCode[] = ["ASIAN_HANDICAP", "TOTALS", "FIRST_HALF_GOALS", "SCORE"];
-
-export const MARKET_META: Record<MarketCode, { label: string; short: string; className: string }> = {
-  ASIAN_HANDICAP: { label: "让球", short: "让球", className: "market-ah" },
-  TOTALS: { label: "大小球", short: "大小", className: "market-ou" },
-  FIRST_HALF_GOALS: { label: "半场进球", short: "半场", className: "market-half" },
-  SCORE: { label: "比分", short: "比分", className: "market-score" },
-};
-
-export const INTENT_LABELS: Record<string, string> = {
-  HOME_LEAN: "盘口偏移待验证",
-  AWAY_LEAN: "盘口偏移待验证",
-  OVER_LEAN: "盘口偏移待验证",
-  UNDER_LEAN: "盘口偏移待验证",
-  CONFLICTED: "信号分歧",
-  INSUFFICIENT_DATA: "数据不足",
-  LEAKAGE_BLOCKED: "赛前时间点拦截",
-};
-
-export const TENDENCY_LABELS: Record<string, string> = {
-  HOME_AH: "让球方向待校准",
-  AWAY_AH: "让球方向待校准",
-  NO_SIDE_EDGE: "暂无边向",
-  OVER: "大小球方向收起",
-  UNDER: "大小球方向收起",
-  "1H_OVER": "半场方向收起",
-  "1H_UNDER": "半场谨慎",
-  HOME: "赛果方向待校准",
-  AWAY: "赛果方向待校准",
-  DRAW: "赛果方向待校准",
 };
 
 export const COMPETITION_NAME_LABELS: Record<string, string> = {

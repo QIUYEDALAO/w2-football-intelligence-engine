@@ -1,9 +1,3 @@
-export type MarketCode =
-  | "ASIAN_HANDICAP"
-  | "TOTALS"
-  | "FIRST_HALF_GOALS"
-  | "SCORE";
-
 export type Decision = "PICK" | "SKIP" | "WATCH" | "ANALYSIS_PICK" | string;
 
 export type DecisionTier =
@@ -25,34 +19,6 @@ export type LifecycleStatus =
 export type FilterMode = "ALL" | "PICK" | "SKIP" | "WATCH";
 
 export type LoadState = "loading" | "ok" | "error" | "empty";
-
-export interface MarketAnalysis {
-  market?: MarketCode | string;
-  decision?: Decision;
-  analysis_decision?: Decision;
-  tendency?: string | null;
-  lean?: string | null;
-  lean_cn?: string | null;
-  signal_strength?: number | string | null;
-  /** Legacy input only; normalized display treats this as signal strength. */
-  confidence?: number | string | null;
-  line?: string | number | null;
-  odds?: string | number | null;
-  model_probability?: number | string | null;
-  fair_odds?: string | number | null;
-  risk_adjusted_ev?: string | number | null;
-  reasons?: unknown;
-  reason?: unknown;
-  reason_cn?: unknown;
-  risks?: unknown;
-  risks_cn?: unknown;
-  reference_scores?: unknown;
-  scores?: unknown;
-  decision_score?: number | string | null;
-  selection_role?: "PRIMARY" | "SECONDARY" | null;
-  lineup_adjustment?: number | string | null;
-  lineup_status?: string | null;
-}
 
 export interface ReadinessPayload {
   bookmakers?: number | string | null;
@@ -220,28 +186,6 @@ export interface DashboardCard {
   timeline?: unknown;
   temporal?: unknown;
   generated_at?: string | null;
-}
-
-export interface ReadinessItem {
-  key: "odds" | "xg" | "h2h" | "lineups";
-  label: string;
-  value: string;
-  ready: boolean;
-  short: string;
-}
-
-export interface ScoreReference {
-  scoreline: string;
-  probability: string;
-}
-
-export interface DashboardStats {
-  total: number;
-  picks: number;
-  skips: number;
-  watch: number;
-  ready: number;
-  highWatch: number;
 }
 
 export type MatchStatus =

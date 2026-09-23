@@ -1063,7 +1063,7 @@ function QualityRail({ workspace }: { workspace: IntelligenceWorkspaceList }) {
   );
 }
 
-function ValidationCenter({ workspace, response }: { workspace: IntelligenceWorkspaceList; response: IntelligenceValidationResponse }) {
+function ValidationCenter({ response }: { response: IntelligenceValidationResponse }) {
   const modelForecast = response.validation.model_forecast;
   const evaluationFunnel = modelForecast.market_evaluation_funnel;
   const officialRecommendations = modelForecast.official_recommendations;
@@ -1336,7 +1336,7 @@ export function IntelligenceConsole(props: Props) {
         </div>
         <QualityRail workspace={workspace} />
         <SecondaryViews workspace={workspace} />
-      </> : tabState === "loading" ? <section className="v41-validation-center"><p className="v41-validation-context">正在按需读取{tab === "validation" ? "赛后验证" : tab === "validation-calibrated" ? "赛后验证（校准版）" : "回放记录"}…</p></section> : tabState === "error" ? <section className="v41-validation-center"><p className="v41-validation-warning">该视图暂不可用，请点击 Tab 重试。</p><button type="button" onClick={() => { if (tab === "validation") setValidationByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); else if (tab === "validation-calibrated") setCalibratedValidationByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); else setReplayByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); }}>重试</button></section> : tab === "validation" && validation ? <ValidationCenter workspace={workspace} response={validation} /> : tab === "validation-calibrated" && calibratedValidation ? <CalibratedValidationCenter response={calibratedValidation} /> : tab === "replay" && replay ? <ReplayCenter response={replay} /> : null}
+      </> : tabState === "loading" ? <section className="v41-validation-center"><p className="v41-validation-context">正在按需读取{tab === "validation" ? "赛后验证" : tab === "validation-calibrated" ? "赛后验证（校准版）" : "回放记录"}…</p></section> : tabState === "error" ? <section className="v41-validation-center"><p className="v41-validation-warning">该视图暂不可用，请点击 Tab 重试。</p><button type="button" onClick={() => { if (tab === "validation") setValidationByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); else if (tab === "validation-calibrated") setCalibratedValidationByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); else setReplayByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); }}>重试</button></section> : tab === "validation" && validation ? <ValidationCenter response={validation} /> : tab === "validation-calibrated" && calibratedValidation ? <CalibratedValidationCenter response={calibratedValidation} /> : tab === "replay" && replay ? <ReplayCenter response={replay} /> : null}
     </main>
   );
 }
