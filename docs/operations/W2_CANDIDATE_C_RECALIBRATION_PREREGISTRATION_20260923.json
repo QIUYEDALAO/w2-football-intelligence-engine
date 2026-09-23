@@ -1,0 +1,183 @@
+{
+  "preregistration_id": "W2-CANDIDATE-C-RECALIBRATION-PREREG-02",
+  "revision": "v5 (2026-09-23 23:53+08:00): 返水修正 −7.56% + 新增 Track D 单侧反转",
+  "title": "Candidate C 重校准 v2：total 刻度修正（Track A）+ λ 层市场融合（Track B）+ 三档展示制（Track C）",
+  "summary_zh": "取代 20260922 DRAFT（PREREG-01）。v3 修订响应独立复核：①『单调过自信』措辞修正为高置信端急剧恶化（非严格单调）；②回放改用合法候选池（剔除 BLOCKED_BY_FACTOR）+ 冻结参数 + 不可变逐笔账本（SHA-256 可复核）；③冻结参数全样本渠道价下重点档均注 -2.15%（现行机制 -4.13%），改善约 2pp/注但不得宣称从亏变赚，含返水后重点档 OOS 期望约 +4.03%/注；④Track B 由标量融合改为 λ 层融合，输出完整五态分布；⑤融合权重冻结为证据值（AH 0.9 / TOTALS 0.0），取消一切前向调参口子；⑥验收主指标回归概率质量（logloss/bias/分联赛分层），P&L 仅作描述；⑦实施前必须补齐 evaluated_at 逐行 PIT 证明与干净工作树核对；⑧返水 2.5%（Boss 确认），有效摩擦 -7.56%；新增 Track D 单侧反转（模型喊小球→买大球，fade_delta +0.05）。",
+  "status": "FROZEN",
+  "drafted_at": "2026-09-23T22:50:00+08:00",
+  "frozen_at": "2026-09-24T00:27:59+08:00",
+  "frozen_by": "Owner",
+  "supersedes": "W2-CANDIDATE-C-RECALIBRATION-PREREG-01 (20260922 DRAFT, 未冻结)",
+
+  "authority_boundary": {
+    "authorized_now": "preregistration review only; 离线复现与 shadow 评估",
+    "not_authorized": [
+      "parameter fitting on production data",
+      "production code changes",
+      "lambda formula changes",
+      "fusion weight changes",
+      "EV threshold or tier boundary changes",
+      "calibration ledger changes",
+      "migration",
+      "deployment",
+      "Provider calls",
+      "GitHub operations",
+      "宣称历史回放已证明盈利能力"
+    ],
+    "next_gate": "OWNER_EXPLICIT_AUTHORIZATION_TO_FREEZE_AND_BEGIN_FIT",
+    "workspace_hygiene": "本文件与回放账本当前均为未跟踪文件；任何实施动作前必须完成来源核对与干净工作树确认"
+  },
+
+  "evidence_base_20260923": {
+    "data": {
+      "eval_sample": "1,150 行已结算评估（SHA-256 c62207...f55，独立复核一致）",
+      "market_sample": "243,480 行 Pinnacle 双侧赔率（league/line/captured_at/kickoff_utc）",
+      "replay_ledger": "W2_重校准回放账本_v3_20260923.jsonl（SHA-256 e854d02517f8ce9e47f8c3143e77fabb62dc71a1263bd3bec31747805c9da730），含冻结参数快照、过滤链、逐笔 p_model/trackA/融合/EV/档位/结算",
+      "settlement_convention": "精确五态：WIN=+(o-1), HALF_WIN=+0.5(o-1), PUSH=0, HALF_LOSS=-0.5, LOSS=-1"
+    },
+    "version_split_20260923": {
+      "mapping": "业务口径旧模型 V1 = schema w2.dynamic_quote_evaluation.v2（350 行，已停用）；业务口径新模型 V2 = schema w2.dynamic_quote_evaluation.v3（800 行，现行）",
+      "legacy_v2_reproduce": "schema v2 的 ANALYSIS_PICK_ACTIVE 133 注渠道价精确结算 -17.75u，与业务口径『V1 133 注 -16.20u』一致（差 1.55u 为赔率口径差）",
+      "current_v3_reproduce": "schema v3 的 ANALYSIS_PICK_ACTIVE 宽口径 249 注 -5.93u；合法池∩有赔率基线 151 注 +0.56u（+0.37%，≈打平，与业务口径『V2 官方推荐 114 注 +10.75u 接近打平』定性一致；115 注官方窄口径需 official_funnel 字段才能精确复现，当前 CSV 未含）",
+      "hard_rule": "fit / 回放 / 验收仅以 schema v3 计算；schema v2 行仅作历史对照，不得进入任何参数估计或指标"
+    },
+    "confirmed_findings": {
+      "overconfidence_pattern": "高置信端急剧恶化（非严格单调）：固定桶 +6.0/+6.8/+4.8/+18.4/+33.9pp；等频五桶 +8.9/+5.0/+4.2/+5.1/+22.6pp，前四桶平台、末桶爆炸",
+      "global_bias": "全样本 +9.14pp；ANALYSIS_PICK_ACTIVE 子集 +15.57pp（独立复核一致）",
+      "total_underestimate": "total 低估方向确认但数值未冻结：官方口径 2.84 vs 3.06（-0.22）；本轮非整数线子集反推 2.68 vs 2.98（-0.30）；独立复核全量 Poisson 反推 2.84 vs 3.01（-0.17）。实施时必须在预注册附件中冻结唯一反推公式后取值",
+      "ah_model_oos": "让球增量为 schema v3 独有：v3 让球 logloss 0.7008 vs Pinnacle 0.7525（-0.0517，n=279，约 1.4σ）；旧 schema v2 让球 +0.0016（与市场打平，零增量）。此前混合口径 -0.036 与『8月vs9月时间异质性』主因是旧模型混入，非时间效应",
+      "totals_model_no_skill": "大小球生模型样本外输市场（v3 +0.0206 / v2 +0.0210 两版本一致）；v3 训练段预测高低两组实际率几乎相同（无排序能力）；v3-only walk-forward 三段 w_TOTALS 均扫至 0",
+      "calibration_params_unstable": "三段 walk-forward Platt b=-0.43/-0.39/-0.15：概率形状类参数（Platt/isotonic/温度）随时间漂移不可冻结；total_scale 与融合权重为低维物理参数（三段收敛 1.055→1.104 / 0.8-0.9 / 0.0），性质不同",
+      "channel_friction": "渠道价 × Pinnacle 公平概率 - 1 = -10.06%（765 行均值）；含 Boss 渠道返水 2.5% 后有效摩擦 = -7.56%",
+      "time_league_heterogeneity": "重点档 9 月 OOS 窗口（欧洲联赛）渠道价 +2.4~+5.0%/注，而冻结参数全样本（含 8 月夏季联赛）-2.15%/注：模型让球增量的时间/联赛异质性显著，验收必须分联赛分层报告，禁止由历史挑选联赛"
+    },
+    "frozen_replay_result_v4": {
+      "ledger": "W2_重校准回放账本_v4_v3only_20260923.jsonl（SHA-256 ee12818825abc2a0964c4bc7bdbc2b0ad75ea95031df5cc321e327871eb53064），schema v3 only，含三折训练/OOS 边界与每折参数快照、逐笔五态结算",
+      "filter_chain": "1,150 行 → 剔 schema v2（旧模型）350 → 剔 BLOCKED 199 → 剔整数线 128 → 无 kickoff 3 → 无 Pinnacle 双侧 43 → 计分 427 行",
+      "walkforward_params_by_fold": "total_scale 1.066/1.030/1.070（收敛 ~1.05，低于混合口径 1.11——v3 的 total 低估较轻）；w_AH 1.0/1.0/0.9；w_TOTALS 0/0/0",
+      "oos_result_channel_price": "重点 43 注 +0.66u（+1.53%/注，<0.2σ，≈打平微正）；一般 2 注、观察 5 注（样本过小）；不推 207 注 -2.79%",
+      "in_sample_upper_bound": "v3 全样本冻结参数重点 80 注 +8.41%/注（内样本上界，非验收依据）",
+      "baseline_same_filter": "v3 现行推荐同口径 151 注 +0.56u（+0.37%，≈打平）",
+      "honest_conclusion": "概率质量改善明确（让球 logloss -0.0517 优于市场）；渠道价 P&L 在 OOS 下≈打平微正（+1.53%，统计不可判）；渠道摩擦 -10% 仍是主要约束；前向 validation 是唯一验收"
+    }
+  },
+
+  "contamination_disclosure": {
+    "diagnostic_1394": {"allowed_role_here": "TRAIN_AND_DEVELOPMENT_DIAGNOSTICS_ONLY", "forbidden_roles": ["VALIDATION", "TEST", "FINAL_ACCEPTANCE"]},
+    "sample_1150_and_pinnacle_243k": {"already_used_for": ["假设验证", "市场基准", "冻结参数取值（total_scale/w/档位边界）", "合法池回放"], "allowed_role_here": "TRAIN_AND_DEVELOPMENT_DIAGNOSTICS_ONLY", "forbidden_roles": ["VALIDATION", "TEST", "FINAL_ACCEPTANCE"], "version_rule": "其中 schema v2（旧模型）350 行仅作历史对照，不进入任何参数估计、回放或指标"},
+    "v1_8659": {"allowed_role_here": "TRAIN_ONLY", "forbidden_roles": ["VALIDATION", "TEST", "FINAL_ACCEPTANCE"]},
+    "rule": "任何出现在上述集合的 fixture 不得进入 validation 或 test。冻结参数源自 TRAIN/诊断集，其历史回放仅为 sanity check，不构成验收证据。"
+  },
+
+  "track_design": {
+    "track_a_total_scale": {
+      "goal": "修正模型 total 系统性低估",
+      "formula": "total_calibrated = clamp(total * total_scale * league_total_scale[league], 1.35, 4.40); lambda_home=(total_calibrated+delta)/2; lambda_away=(total_calibrated-delta)/2",
+      "initial_estimate": "total_scale ≈ 1.05（v3-only 三段 walk-forward 收敛 1.030~1.070；混合口径 1.11 系旧模型拖累，弃用）",
+      "fit_method": "fixture-level Dixon-Coles-corrected Poisson NLL on TRAIN, per-league ridge shrinkage toward global (lambda_reg=5.0), L-BFGS-B, bounds [0.8,1.3]/[0.7,1.4]",
+      "frozen_before_fit": "实施附件须冻结 total 反推的唯一权威公式（当前三种口径 -0.17/-0.22/-0.30 球并存，取值以冻结公式重算为准）",
+      "unchanged": ["delta 路径全部项", "dixon_coles_rho", "individual lambda clamps", "home_advantage_goals 0.30"],
+      "declared_expectation": "存量 TOTALS 行 UNDER 侧 bias 预期改善、OVER 侧预期恶化（条件于选边的结构性结果，不得据此判 Track A 失败）"
+    },
+    "track_b_lambda_level_fusion": {
+      "goal": "在 λ 层融合模型与市场，输出完整五态分布（v2 标量融合无法支撑 quarter-line 五态 EV，已废弃）",
+      "totals_path": "lambda_total_mkt 由市场大小球线+双侧赔率去水后数值反解 Poisson CDF；log(lambda_total_fused) = w_TOT*log(lambda_total_model_trackA) + (1-w_TOT)*log(lambda_total_mkt)；结合模型 delta 拆回 lambda_home/lambda_away → Dixon-Coles 比分矩阵 → 对盘口线积分得完整五态",
+      "ah_path": "由市场 AH 线+双侧赔率去水得 P(side1)，结合 lambda_total（Track A 模型值）数值反解 Skellam delta_mkt；delta_fused = w_AH*delta_model + (1-w_AH)*delta_mkt；结合 lambda_total_model_trackA → 比分矩阵 → 完整五态",
+      "ev_formula": "EV = (o-1)*(p_win + 0.5*p_half_win) - (p_loss + 0.5*p_half_loss)，五态由融合矩阵产生，无标量近似",
+      "frozen_weights": {"ASIAN_HANDICAP": 0.9, "TOTALS": 0.0, "rule": "取值 = v3-only walk-forward 证据（w_AH 扫得 0.9~1.0，取 0.9 保留 10% 市场锚定防漂移；w_TOTALS 三段均 0，含义 = 模型概率不作正向输入，但其 UNDER 选边保留为 Track D 反转信号）并全程冻结；任何形式的前向调整（含周复盘微调、授权区间内调整）均禁止，调整=新预注册+新 cohort"},
+      "w_totals_zero_consequence": "TOTALS 融合概率=纯市场去水概率，渠道价下 fusion_ev 恒为负 → 大小球自然全部落入不推档；此为证据的直接后果，预注册主动声明而非事后发现",
+      "market_probability_convention": "Pinnacle 双侧赔率比例法去水",
+      "pit_rule": "赔率快照必须满足 captured_at <= evaluated_at < kickoff_utc 逐行成立；缺 evaluated_at 绑定的行标记 PIT_UNPROVABLE 并排除出 fit/validation/test；当前 1,150 条导出缺 evaluated_at 字段（账本已标 UNPROVABLE_MISSING_EVALUATED_AT），补齐前不得开始 fit",
+      "missing_market_data_rule": "任一侧 Pinnacle 赔率缺失 → 该行 w=1（纯模型）且标记 FUSION_MARKET_MISSING，不进入重点档"
+    },
+    "track_c_tier_presentation": {
+      "goal": "展示层改制，无候选被规则隐藏",
+      "display_universe": "因子门通过的全部候选（现 ANALYSIS_PICK_ACTIVE 与 NO_EDGE_CURRENT 语义）；BLOCKED_BY_FACTOR 不展示（因子门未改）",
+      "tiers_total_order": "重点 fusion_ev>=0.05 / 一般 [0.02,0.05) / 观察 [0,0.02) / 不推 <0（负 EV 同样展示并标注不推）——映射覆盖全实数域，与全量展示无冲突",
+      "presentation": "每候选标注档位 + Pinnacle 公平线 + 渠道价差；不设每日配额、不设 Top-N",
+      "tier_boundaries_frozen": "0.05/0.02/0.00 冻结，禁止看前向结果后调整"
+    },
+    "track_d_totals_fade": {
+      "goal": "大小球保留机制：模型概率不作正向输入（w=0 铁案维持），但其 UNDER 选边作为反转信号——模型 xG 单向低估 total，模型喊 UNDER 的场次定位了市场也轻微低估 total 的场次",
+      "signal_definition": "当行市场=TOTALS 且模型评估 selection=UNDER（原始选边，不经融合）→ 该场 OVER 侧进入反转候选；模型评估 OVER 不产生反转候选（OVER 行市场偏差方向随时间翻转：前半 +16.8pp / 后半 -3.0pp，已证不稳定，禁用）",
+      "probability": "p(over)_fade = clamp(p_pinnacle_devig(over) + fade_delta, 0.01, 0.99)",
+      "fade_delta_initial": "+0.05（v3-only 167 行结构检验：市场低估 OVER 5.1pp；时间稳定性：前半 -4.5pp / 后半 -5.6pp 同号同量级；fit 阶段以 walk-forward 重估并冻结，冻结后禁止调整）",
+      "ev_formula_with_rebate": "EV = p_fade × decimal_odds - 1 + rebate；rebate = 0.025（Boss 渠道返水 2.5%，2026-09-23 确认）；全部 Track 的 EV 均含返水项，有效渠道摩擦由 -10.06% 修正为 -7.56%",
+      "historical_evidence": "167 注反转买 OVER：Pinnacle 价 +11.78u（+7.05%/注），含返水 +9.55%；渠道价+返水估计 +2~5%（反转方向渠道价未采集，Pinnacle 价为不可达上界）；样本 167 注约 1σ，统计单薄，前向 validation 为唯一验收",
+      "dependency_risk": "机制依赖『xG 数据单向低估 total』的结构持续存在；xG 数据源变更或修正时本机制必须重估（列入周复盘监测项）"
+    },
+    "track_relationship": {
+      "order": "Track A 先行；Track B 在 Track A 输出之上融合；Track C 为展示层不改概率",
+      "reestimation_rule": "Track A 验收后 Track B 的 λ 层融合必须以修正后概率重算，禁止直接叠加",
+      "independence": "各轨道独立验收、独立回退；Track A 失败时 Track B 可以 w 全 0（纯市场展示）形态独立立项"
+    }
+  },
+
+  "cohort_contract": {
+    "universe": "生产 enabled 联赛在 fixture kickoff 时解析出的确切集合，冻结 ID 于抽取 artifact；每 fixture 一行；权威 FT 结果；minimum_team_history=5；逐行 evaluated_at 绑定为 eligible 必要条件",
+    "train": "诊断 1,394 + 历史 PIT 8,659 + 20260923 两份导出（仅 TRAIN/诊断）",
+    "validation": "kickoff_at > T0 的前瞻 2,500 eligible（升序），排除全部已披露历史；一次性 go/no-go，outcome 与 metric 密封至 2,500 齐",
+    "test": "validation 之后紧接的 2,500 eligible；单一最终验收集",
+    "cross_split_rules": [
+      "一个 fixture 只属于一个 split",
+      "不得在观察到计数或 metric 后移除任何联赛/赛季/方向/档位",
+      "PIT 输入缺失 = 在 outcome 访问前记录原因的排除，绝不以后来数据插补",
+      "validation/test 边界由 eligible fixture 顺序决定"
+    ]
+  },
+
+  "acceptance_metrics": {
+    "dual_reporting_required": "全部指标同时报两种结算价（渠道/Pinnacle名义价）与两种口径（全样本/walk-forward OOS）；五态精确结算；按联赛分层报告（禁止由历史挑选联赛）",
+    "primary": {
+      "logloss_vs_market": "候选融合概率 vs Pinnacle 收盘去水逐行 logloss 差：ASIAN_HANDICAP 候选 < 市场且 fixture-bootstrap 95% CI 不含 0；TOTALS 候选 ≤ 市场 + 0.003",
+      "bias": "validation 全样本 |mean(predicted_success - realized_success)| <= 0.05；分盘口 <= 0.08；分联赛分层报告",
+      "total_calibration": "validation 上 |mean(model_total_calibrated) - mean(actual_total)| 全局 <= 0.10；分联赛（n>=20）中位数 <= 0.15",
+      "all_required": true
+    },
+    "descriptive_only": ["P&L（含分档结算）", "渠道价差分布", "推荐数量", "重点档周均注数", "命中率"],
+    "forbidden_for_selection": ["P&L", "命中率", "推荐数量", "单日/单场结果", "由历史挑选的联赛子集表现"]
+  },
+
+  "failure_and_rollback_rules": {
+    "before_look": "只报告 eligible 计数与排除原因，不计算或暴露 validation/test metric",
+    "on_validation_failure": ["不开 test metric", "不改拟合值/权重/档位边界", "不 grant、不部署", "回退 BASELINE_PRIOR，报告失败并停止", "新假设需新预注册 + 全新 cohort"],
+    "on_test_failure": "no grant / no deployment / no reinterpretation of secondary metrics / report and stop",
+    "forbidden_post_hoc": [
+      "看结果后改分桶/分档边界/权重/total_scale",
+      "看结果后删联赛/赛季/方向",
+      "看结果后切换参数化（scale vs offset、λ层 vs 标量融合）",
+      "看结果后改赔率快照时点口径或 evaluated_at 绑定规则",
+      "以周复盘或任何前向流程调整已冻结参数（调整=新预注册）"
+    ]
+  },
+
+  "identity_contract": {
+    "calibration_version": "Track A/B 任一导致 lambda 公式或概率输出变化时必须递增",
+    "params_snapshot": "LambdaCalibrationParams 增加 total_scale 与 league_total_scale；新增 FusionParams(fusion_weight_by_market, market_source, devig_method, snapshot_pit_rule, fusion_level='lambda')，均入 calibration identity",
+    "identity_function": "w2.domain.calibration_validation_registry.calibration_identity(calibration_version, complete params snapshot)",
+    "safety_property": "任何公式版本或参数变化产生不同 calibration identity；旧 BASELINE_PRIOR 授权不得前向继承",
+    "grant_rule": "validation 与 test 均通过且不可变证据 digest 齐备后才可 ledger 注册"
+  },
+
+  "open_prerequisites_before_fit": [
+    "补导含逐行 evaluated_at 的评估样本，完成 captured_at <= evaluated_at < kickoff_utc 逐行 PIT 证明",
+    "冻结 total 反推唯一权威公式（消除 -0.17/-0.22/-0.30 三口径并存）",
+    "干净工作树核对（本文件与回放账本当前未跟踪）",
+    "λ 层融合的完整公式实现须配单元测试（五态和=1、quarter line 半态现金流、与标量近似在无 push 时一致）"
+  ],
+
+  "explicitly_not_in_scope": [
+    "isotonic / Platt / 温度缩放等概率形状校准（参数漂移已证不可冻结）",
+    "delta 路径与主场优势 0.30 的任何修改",
+    "ELO/身价/阵容死参数重拟合（无 PIT 数据）",
+    "渠道更换与竞彩调价滞后窗口利用（另立项，需时序赔率采集）",
+    "任何形式的前向参数微调机制"
+  ],
+
+  "safety_invariants": [
+    "不碰 Provider allowlist / 配额 / 并发 / 重试",
+    "不碰推荐 / 结算 / 因子安全门",
+    "不改生产，零 enable / 零部署",
+    "raw payload / header / key 不提交"
+  ]
+}
