@@ -79,10 +79,10 @@ def result_capture_times(
     output: dict[str, datetime] = {}
     for result in results:
         capture = capture_by_id.get(result.source_capture_id or "")
-        if capture is None or capture.fixture_id is None:
+        if capture is None:
             continue
         fixture_key = _fixture_key(result.fixture_id)
-        if _fixture_key(capture.fixture_id) != fixture_key:
+        if capture.fixture_id is not None and _fixture_key(capture.fixture_id) != fixture_key:
             continue
         observed_at = _utc(capture.provider_captured_at)
         if observed_at is not None:
