@@ -74,13 +74,13 @@ from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
 from w2.prematch.candidate_notifications import notification_health
 from w2.replay.front_door import build_replay_front_door
-from w2.strategy.online_calibration_filter import FORWARD_START_UTC, is_forward
 from w2.tracking.outcome_ledger_runtime import outcome_ledger_runtime_health
 
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
 ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
 service = ReadModelService()
 logger = logging.getLogger(__name__)
+FORWARD_START_UTC = datetime(2026, 9, 26, 16, tzinfo=UTC)
 DASHBOARD_WINDOWS = {"today", "next36", "future", "results", "all"}
 
 
@@ -110,7 +110,9 @@ def _calibrated_sample_projection(row: CalibratedValidationSampleModel) -> dict[
         "filter_decision": row.filter_decision,
         "param_version": row.param_version,
         "warmup": row.warmup,
-        "forward": is_forward(row.evaluated_at),
+        "forward": row.evaluated_at is not None and (
+            row.evaluated_at.astimezone(UTC) >= FORWARD_START_UTC
+        ),
     }
 
 
