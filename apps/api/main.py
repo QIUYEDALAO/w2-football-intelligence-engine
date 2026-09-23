@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from threading import Event, Thread
 from time import monotonic
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -15,11 +18,70 @@ from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
 from w2.operations.observability import default_metric_registry
 
+logger = logging.getLogger(__name__)
+DASHBOARD_WARM_INITIAL_DELAY_SECONDS = 5
+DASHBOARD_WARM_DEFAULT_INTERVAL_SECONDS = 45
+
+
+def _dashboard_warm_interval() -> int | None:
+    raw = os.environ.get(
+        "W2_DASHBOARD_WARM_INTERVAL_SECONDS",
+        str(DASHBOARD_WARM_DEFAULT_INTERVAL_SECONDS),
+    ).strip()
+    try:
+        interval = int(raw)
+    except (TypeError, ValueError):
+        logger.warning("dashboard cache warm disabled: invalid interval %r", raw)
+        return None
+    if interval == 0:
+        return None
+    if not 15 <= interval <= 55:
+        logger.warning("dashboard cache warm disabled: interval out of range %r", raw)
+        return None
+    return interval
+
+
+def _dashboard_warm_loop(stop_event: Event, interval: int) -> None:
+    failure_count = 0
+    if stop_event.wait(DASHBOARD_WARM_INITIAL_DELAY_SECONDS):
+        return
+    while not stop_event.is_set():
+        try:
+            service.force_refresh_dashboard_cache()
+            default_metric_registry().inc("w2_dashboard_warm_success_total")
+        except Exception:
+            failure_count += 1
+            default_metric_registry().inc("w2_dashboard_warm_failure_total")
+            if failure_count == 1 or failure_count % 20 == 0:
+                logger.warning(
+                    "dashboard cache warm failed (failure_count=%d)",
+                    failure_count,
+                    exc_info=True,
+                )
+        if stop_event.wait(interval):
+            return
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     service.warm_dashboard_cache()
-    yield
+    interval = _dashboard_warm_interval()
+    stop_event = Event()
+    warm_thread: Thread | None = None
+    if interval is not None:
+        warm_thread = Thread(
+            target=_dashboard_warm_loop,
+            args=(stop_event, interval),
+            name="w2-dashboard-cache-warm",
+            daemon=True,
+        )
+        warm_thread.start()
+    try:
+        yield
+    finally:
+        if warm_thread is not None:
+            stop_event.set()
+            warm_thread.join(timeout=5)
 
 
 app = FastAPI(

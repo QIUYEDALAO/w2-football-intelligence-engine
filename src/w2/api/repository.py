@@ -13,6 +13,7 @@ from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from threading import Lock
 from time import monotonic
 from typing import Any, Literal, cast
 
@@ -2061,7 +2062,11 @@ class ReadModelRepository:
             ]
         return result
 
-    def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
+    def dashboard_model_forecast_validation_progress(
+        self,
+        *,
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
         """Read the complete append-only model-forecast ledger as one projection.
 
         PERF-01 续：projection 只依赖 append-only 账本（captures/outcomes/
@@ -2070,8 +2075,8 @@ class ReadModelRepository:
         近 0ms。
         """
         cached = getattr(self, "_progress_cache", None)
-        if cached is not None and monotonic() - cached[0] <= 60:
-            return cached[1]
+        if not force_refresh and cached is not None and monotonic() - cached[0] <= 60:
+            return cast(dict[str, Any], cached[1])
         result = self._compute_progress()
         self._progress_cache = (monotonic(), result)
         return result
@@ -2886,6 +2891,8 @@ class ReadModelService:
         self._dashboard_response_cache: dict[
             tuple[str, str, str, bool, bool], tuple[float, dict[str, Any]]
         ] = {}
+        self._dashboard_cache_guard = Lock()
+        self._dashboard_cache_locks: dict[tuple[str, str, str, bool, bool], Lock] = {}
 
     def public_dashboard(self, **kwargs: Any) -> dict[str, Any]:
         kwargs.setdefault("include_details", False)
@@ -2919,7 +2926,15 @@ class ReadModelService:
     ) -> dict[str, list[dict[str, Any]]]:
         return self.repository.dashboard_evaluation_checkpoints_for_fixtures(fixture_ids)
 
-    def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
+    def dashboard_model_forecast_validation_progress(
+        self,
+        *,
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
+        if force_refresh:
+            return self.repository.dashboard_model_forecast_validation_progress(
+                force_refresh=True
+            )
         return self.repository.dashboard_model_forecast_validation_progress()
 
     def dashboard_cards_for_fixtures(
@@ -3118,6 +3133,72 @@ class ReadModelService:
         # checkpoint database is degraded; reads are warmed lazily.
         return
 
+    def _dashboard_cache_key(
+        self,
+        *,
+        target_date: str | None,
+        window: str,
+        timezone: str,
+        include_debug: bool,
+        include_details: bool,
+        now: datetime | None = None,
+    ) -> tuple[date, tuple[str, str, str, bool, bool]]:
+        requested_date = (
+            date.fromisoformat(target_date)
+            if target_date
+            else default_football_day(now or datetime.now(UTC))
+        )
+        return requested_date, (
+            requested_date.isoformat(),
+            window,
+            timezone,
+            include_debug,
+            include_details,
+        )
+
+    def _dashboard_lock_for_key(
+        self,
+        cache_key: tuple[str, str, str, bool, bool],
+    ) -> Lock:
+        with self._dashboard_cache_guard:
+            return self._dashboard_cache_locks.setdefault(cache_key, Lock())
+
+    def force_refresh_dashboard_cache(self, now: datetime | None = None) -> None:
+        """Refresh only the current football day's public workspace/list cache.
+
+        The progress projection is refreshed first, and neither projection is
+        written to a cache until its computation succeeds.  This keeps a
+        failed warm-up from replacing a previously good response or timestamp.
+        """
+        refresh_now = now or datetime.now(UTC)
+        requested_date, cache_key = self._dashboard_cache_key(
+            target_date=None,
+            window="today",
+            timezone=BEIJING_TZ,
+            include_debug=False,
+            include_details=False,
+            now=refresh_now,
+        )
+        cache_lock = self._dashboard_lock_for_key(cache_key)
+        with cache_lock:
+            self.repository.dashboard_model_forecast_validation_progress(
+                force_refresh=True
+            )
+            payload = self._dashboard_uncached(
+                requested_date=requested_date,
+                window="today",
+                timezone=BEIJING_TZ,
+                include_debug=False,
+                include_details=False,
+            )
+            with self._dashboard_cache_guard:
+                self._dashboard_response_cache[cache_key] = (monotonic(), deepcopy(payload))
+            now_tick = monotonic()
+            with self._dashboard_cache_guard:
+                for key, value in list(self._dashboard_response_cache.items()):
+                    if key != cache_key and now_tick - value[0] > 60:
+                        del self._dashboard_response_cache[key]
+
     def version(self) -> dict[str, Any]:
         counts = self.repository.release_counts()
         settings = get_settings()
@@ -3148,26 +3229,44 @@ class ReadModelService:
         include_debug: bool = True,
         include_details: bool = True,
     ) -> dict[str, Any]:
-        requested_date = (
-            date.fromisoformat(target_date)
-            if target_date
-            else default_football_day(datetime.now(UTC))
+        requested_date, cache_key = self._dashboard_cache_key(
+            target_date=target_date,
+            window=window,
+            timezone=timezone,
+            include_debug=include_debug,
+            include_details=include_details,
         )
-        cache_key = (
-            requested_date.isoformat(),
-            window,
-            timezone,
-            include_debug,
-            include_details,
-        )
-        now_tick = monotonic()
-        cached = self._dashboard_response_cache.get(cache_key)
-        if cached is not None and now_tick - cached[0] <= 60:
-            # PERF-01 续：缓存写入时已存独立副本（见下方 deepcopy(payload)），
-            # 命中时直接返回引用。调用链（build_dashboard_day_view → _day_view_card）
-            # 全程只读、创建新 dict，不修改 payload，因此省掉这次 ~2s 的 deepcopy
-            # （107 场整卡约 3.7MB）。
-            return cached[1]
+        cache_lock = self._dashboard_lock_for_key(cache_key)
+        with cache_lock:
+            now_tick = monotonic()
+            with self._dashboard_cache_guard:
+                cached = self._dashboard_response_cache.get(cache_key)
+            if cached is not None and now_tick - cached[0] <= 60:
+                # PERF-01 续：缓存写入时已存独立副本（见下方 deepcopy(payload)），
+                # 命中时直接返回引用。调用链（build_dashboard_day_view → _day_view_card）
+                # 全程只读、创建新 dict，不修改 payload，因此省掉这次 ~2s 的 deepcopy
+                # （107 场整卡约 3.7MB）。
+                return cached[1]
+            payload = self._dashboard_uncached(
+                requested_date=requested_date,
+                window=window,
+                timezone=timezone,
+                include_debug=include_debug,
+                include_details=include_details,
+            )
+            with self._dashboard_cache_guard:
+                self._dashboard_response_cache[cache_key] = (monotonic(), deepcopy(payload))
+            return payload
+
+    def _dashboard_uncached(
+        self,
+        *,
+        requested_date: date,
+        window: str,
+        timezone: str,
+        include_debug: bool,
+        include_details: bool,
+    ) -> dict[str, Any]:
 
         query_start: datetime | None
         query_end: datetime | None
@@ -3189,7 +3288,7 @@ class ReadModelService:
         )
         window_reader = getattr(self.repository, "dashboard_fixtures_for_window", None)
         list_projection = not include_details and callable(summary_reader)
-        if list_projection:
+        if callable(summary_reader) and not include_details:
             batched_window_read = True
             fixtures = summary_reader(
                 start=query_start,
@@ -3371,7 +3470,6 @@ class ReadModelService:
             "finished": finished,
             "all": selected,
         }
-        self._dashboard_response_cache[cache_key] = (now_tick, deepcopy(payload))
         return payload
 
     def _apply_collection_status(

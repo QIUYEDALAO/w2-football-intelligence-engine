@@ -15,6 +15,7 @@ from w2.infrastructure.persistence.league_models import LeagueSeasonModel
 
 def pytest_configure() -> None:
     os.environ.setdefault("W2_ENVIRONMENT", "test")
+    os.environ.setdefault("W2_DASHBOARD_WARM_INTERVAL_SECONDS", "0")
     os.environ.setdefault(
         "W2_PROVIDER_ENDPOINT_ALLOWLIST",
         "status,fixtures,odds,lineups,statistics",
