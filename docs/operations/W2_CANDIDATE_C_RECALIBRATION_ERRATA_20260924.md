@@ -53,4 +53,25 @@ bug 说明：初版脚本 UNDER x.75 的 WIN 区间错位一档（误用 ple(ib�
 
 ---
 
+## 勘误 ④（追加）— Track A 最终决策（REL-CALIB-06，2026-09-24 01:55 +08:00）
+
+**决策 1：`total_scale` 冻结值 = 1.0（不修正）。** 数据依据：
+
+- 三段 walk-forward 折估 0.9895 / 0.9533 / 0.9772，围绕 1 波动且 fold 2 < 1；
+- 全样本 v3-only gap = −0.056 球，逐行 SD≈1.7 球、n=373 → SE≈0.088，**|gap| < 1σ，统计上与 0 不可区分**；
+- 分联赛 gap（v3-only，冻结公式）：mls −0.445（n=51）~ ligue_1 +0.539（n=19），方向不一致且单联赛均 < 2σ；全局一刀切必错一半联赛，且含选边合成偏差（±0.4 镜像按各联赛方向比例加权）；
+- 预注册纪律：无证据不动参数。Track A 立项依据（total 低估 0.22~0.30 球）已证为 x.75 映射 bug 假象，依据不存在。
+
+**决策 2：Track A 形态 = 关闭（跳过 fit，`total_scale` 恒 1，不进入 calibration identity 参数表）。** 理由：保留一个恒 1 的"验证性参数"要付出 identity 快照、fit、验收项的维护成本，而其验证价值（total 校准度）用描述性指标即可零成本获得；关闭后实施面收窄至 Track B/C/D，出错面同步收窄。
+
+**替代安排（验证价值不丢失）：**
+
+- total 校准度降级为 validation/test 的**描述性监测项**：报告 |mean(model_total) − mean(actual_total)| 全局与分联赛（n≥20），仅告警、不作选择依据；
+- Track B λ 层融合中 `lambda_total_model_trackA ≡ 原生模型 total`（scale 恒 1）；
+- 重启触发器：validation 或周复盘连续两期出现全局 |Δtotal| > 0.15 球 → 重新立项（新预注册 + 新 cohort），禁止就地调参。
+
+**不受影响项（Track B/C/D 参数维持）：** `w_AH = 0.9`、`w_TOTALS = 0.0`（仅作 Track D 反转信号）、`fade_delta = +0.05`、三档边界 0.05/0.02/0.00、`rebate = 0.025`、档位映射与展示全集定义。
+
+---
+
 签署：kimi（REL-CALIB-02 收尾交付）。本文件落盘后，v5 + ERRATA + TOTAL_INFER_V1 三者构成当前唯一有效口径集。
