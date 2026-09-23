@@ -1047,18 +1047,9 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
     # ledger 主流程（每 10 分钟重试，最终一致），但把错误带进返回值供监控。
     validation_sample_report: dict[str, object] = {"window_rows": 0, "deleted": 0}
     try:
-        from sqlalchemy.orm import Session as _OrmSession
-
-        from w2.prematch.candidate_notifications import materialize_validation_samples
-        from w2.strategy.online_calibration_filter import materialize_calibrated_validation_samples
-
-        with _OrmSession(repository.engine) as _materialize_session:
-            validation_sample_report = materialize_validation_samples(
-                _materialize_session, now=evaluated_at
-            )
-            calibrated_report = materialize_calibrated_validation_samples(_materialize_session)
-            _materialize_session.commit()
-            validation_sample_report["calibrated"] = calibrated_report
+        validation_sample_report = _materialize_validation_sample_projections(
+            repository.engine, evaluated_at=evaluated_at
+        )
     except Exception as _exc:  # pragma: no cover - 物化失败不阻断主流程
         validation_sample_report = {"error": f"{type(_exc).__name__}: {_exc}"}
     pending_count = settlement["unresolved_count"]
@@ -1116,6 +1107,49 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         "runtime_ah_settlement_facts": ah_fact_report,
         "validation_samples": validation_sample_report,
     }
+
+
+def _materialize_validation_sample_projections(
+    engine: Any,
+    *,
+    evaluated_at: datetime,
+) -> dict[str, object]:
+    """Materialize legacy and calibrated samples in isolated transactions.
+
+    The legacy projection is a protected write path.  It must commit before
+    the optional EV-ONLINE projection is imported or executed, so an error in
+    the parallel projection can never roll back the legacy rows.  Calibrated
+    failures are recorded and intentionally swallowed so the worker tick keeps
+    its existing non-blocking behavior.
+    """
+    from sqlalchemy.orm import Session as _OrmSession
+
+    from w2.prematch.candidate_notifications import materialize_validation_samples
+
+    with _OrmSession(engine) as _legacy_session:
+        validation_sample_report = materialize_validation_samples(
+            _legacy_session, now=evaluated_at
+        )
+        _legacy_session.commit()
+
+    try:
+        # Import only after the protected projection has committed.  This keeps
+        # the ordering explicit for both the transaction and the optional code.
+        from w2.strategy.online_calibration_filter import (
+            materialize_calibrated_validation_samples,
+        )
+
+        with _OrmSession(engine) as _calibrated_session:
+            calibrated_report = materialize_calibrated_validation_samples(
+                _calibrated_session
+            )
+            _calibrated_session.commit()
+        validation_sample_report["calibrated"] = calibrated_report
+    except Exception as _exc:  # pragma: no cover - defensive worker isolation
+        validation_sample_report["calibrated_error"] = (
+            f"{type(_exc).__name__}: {_exc}"
+        )
+    return validation_sample_report
 
 
 def _materialize_outcome_results(

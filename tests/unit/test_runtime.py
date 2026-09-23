@@ -966,6 +966,198 @@ def test_worker_forward_outcome_ledger_task_reports_safety_flags(monkeypatch) ->
     }
 
 
+def test_calibrated_materialization_failure_cannot_rollback_legacy_samples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The protected validation projection commits before calibrated code runs."""
+    from sqlalchemy import create_engine as sqlalchemy_create_engine
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+
+    from w2.infrastructure.database import Base
+    from w2.infrastructure.persistence.dynamic_prematch_models import ValidationSampleModel
+
+    engine = sqlalchemy_create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    evaluated_at = datetime(2026, 9, 23, 12, tzinfo=UTC)
+
+    def legacy_materialize(session: Session, *, now: datetime) -> dict[str, int]:
+        session.add(
+            ValidationSampleModel(
+                fixture_id="legacy-fixture",
+                market="ASIAN_HANDICAP",
+                selection="HOME",
+                exact_line="-0.5",
+                decimal_odds=1.9,
+                evaluation_id="legacy-evaluation",
+                settlement="PENDING",
+                projected_at=now,
+            )
+        )
+        return {"window_rows": 1, "deleted": 0}
+
+    monkeypatch.setattr(
+        "w2.prematch.candidate_notifications.materialize_validation_samples",
+        legacy_materialize,
+    )
+
+    def calibrated_materialize(_session: Session) -> dict[str, int]:
+        raise RuntimeError("calibrated boom")
+
+    monkeypatch.setattr(
+        "w2.strategy.online_calibration_filter.materialize_calibrated_validation_samples",
+        calibrated_materialize,
+    )
+
+    from apps.worker.celery_app import _materialize_validation_sample_projections
+
+    report = _materialize_validation_sample_projections(
+        engine, evaluated_at=evaluated_at
+    )
+
+    assert report["window_rows"] == 1
+    assert report["calibrated_error"] == "RuntimeError: calibrated boom"
+    with Session(engine) as session:
+        row = session.scalar(
+            select(ValidationSampleModel).where(
+                ValidationSampleModel.fixture_id == "legacy-fixture"
+            )
+        )
+        assert row is not None
+
+
+def test_worker_tick_continues_and_reports_calibrated_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A calibrated failure is observable without interrupting the worker tick."""
+    from sqlalchemy import create_engine as sqlalchemy_create_engine
+
+    from w2.infrastructure.database import Base
+    from w2.infrastructure.persistence.dynamic_prematch_models import ValidationSampleModel
+    from w2.tracking.outcome_ledger_runtime import IncrementalWork
+
+    engine = sqlalchemy_create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    work = IncrementalWork(
+        analysis_fixture_ids=(),
+        result_fixture_ids=(),
+        capture_retry_fixture_ids=(),
+        source_cursor={},
+    )
+
+    class FakeRuntime:
+        def __init__(self, engine: object | None = None) -> None:
+            self.engine = engine
+
+        def incremental_work(self, *, now: Any = None, horizon: Any = None) -> IncrementalWork:
+            return work
+
+    class FakeLedgerRepo:
+        def __init__(self) -> None:
+            self.engine = engine
+
+    class FakeModelRepo:
+        def __init__(self, engine: object | None = None) -> None:
+            self.engine = engine
+
+    class FakeReadModel:
+        def dashboard_cards_for_fixtures(
+            self, fixture_ids: Any, *, generated_at: Any = None
+        ) -> list[dict[str, Any]]:
+            return []
+
+    class _Env:
+        value = "staging"
+
+    class _FakeSettings:
+        environment = _Env()
+
+    monkeypatch.setattr(
+        "w2.tracking.outcome_ledger_runtime.OutcomeLedgerRuntimeRepository",
+        FakeRuntime,
+    )
+    monkeypatch.setattr(
+        "w2.tracking.outcome_ledger_repository.OutcomeLedgerRepository", FakeLedgerRepo
+    )
+    monkeypatch.setattr(
+        "w2.tracking.model_forecast_ledger.ModelForecastLedgerRepository", FakeModelRepo
+    )
+    monkeypatch.setattr("w2.api.repository.ReadModelService", FakeReadModel)
+    monkeypatch.setattr(
+        "w2.dashboard.date_window.default_football_day",
+        lambda evaluated_at: evaluated_at.date(),
+    )
+    monkeypatch.setattr(
+        "w2.dashboard.day_view.build_dashboard_day_view",
+        lambda dashboard, *, environment: {"cards": []},
+    )
+    monkeypatch.setattr(
+        "w2.tracking.model_forecast_ledger.run_model_forecast_capture",
+        lambda *args, **kwargs: {"db_writes": 0, "status": "PASS"},
+    )
+    monkeypatch.setattr(
+        "w2.tracking.forward_outcome_ledger.run_forward_outcome_ledger",
+        lambda *args, **kwargs: {"db_writes": 0, "status": "PASS"},
+    )
+    monkeypatch.setattr(
+        "w2.tracking.forward_outcome_ledger.backfill_outcomes",
+        lambda **kwargs: {"db_writes": 0, "unresolved_count": 0, "unresolved_fixture_ids": []},
+    )
+    def legacy_materialize(session: Any, *, now: datetime) -> dict[str, int]:
+        session.add(
+            ValidationSampleModel(
+                fixture_id="tick-legacy-fixture",
+                market="ASIAN_HANDICAP",
+                selection="HOME",
+                exact_line="-0.5",
+                decimal_odds=1.9,
+                evaluation_id="tick-legacy-evaluation",
+                settlement="PENDING",
+                projected_at=now,
+            )
+        )
+        return {"window_rows": 1, "deleted": 0}
+
+    monkeypatch.setattr(
+        "w2.prematch.candidate_notifications.materialize_validation_samples",
+        legacy_materialize,
+    )
+
+    def calibrated_materialize(_session: Any) -> dict[str, int]:
+        raise RuntimeError("calibrated boom")
+
+    monkeypatch.setattr(
+        "w2.strategy.online_calibration_filter.materialize_calibrated_validation_samples",
+        calibrated_materialize,
+    )
+    monkeypatch.setattr("w2.config.get_settings", lambda: _FakeSettings())
+    monkeypatch.setattr(
+        "apps.worker.celery_app._materialize_ah_facts_after_results",
+        lambda *args, **kwargs: {"status": "CLEAN", "db_writes": 0},
+    )
+    monkeypatch.setattr(
+        "w2.historical.runtime_ah_settlement_materializer.writer_status_is_clean",
+        lambda report: True,
+    )
+    from apps.worker.celery_app import _run_forward_outcome_ledger
+
+    result = _run_forward_outcome_ledger(window="next7")
+
+    assert result["status"] == "PASS"
+    assert result["validation_samples"]["calibrated_error"] == (
+        "RuntimeError: calibrated boom"
+    )
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as session:
+        assert session.scalar(
+            select(ValidationSampleModel).where(
+                ValidationSampleModel.fixture_id == "tick-legacy-fixture"
+            )
+        ) is not None
+
+
 def test_model_forecast_projection_refresh_targets_only_not_ready(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
