@@ -14,6 +14,8 @@ from w2.strategy.online_calibration_filter import (
     decision_from_bias,
     evaluate_fast_criteria,
 )
+from w2.api.routers import FORWARD_START_UTC as ROUTER_FORWARD_START_UTC
+from w2.domain.ev_online_contract import FORWARD_START_UTC as CONTRACT_FORWARD_START_UTC
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     CalibratedValidationSampleModel,
     ValidationSampleModel,
@@ -55,9 +57,23 @@ def test_bias_pool_is_fail_closed_and_has_no_time_leakage() -> None:
         # A TOTALS result has no real settlement-observed source in the current schema.
         "totals": Fact("totals", _dt(5)),
     }
-    pool = build_bias_pool(rows, facts)
-    assert [item.settlement_observed_at for item in pool] == [_dt(5)]
-    assert all(item.settlement_observed_at < item.evaluated_at for item in pool)
+    sample_rows = [type("Sample", (), {"fixture_id": row.fixture_id, "market": row.market,
+                                        "selection": row.selection, "evaluation_id": row.fixture_id,
+                                        "calibration_identity": None, "kickoff_utc": _dt(25),
+                                        "settlement": facts[row.fixture_id].home_settlement})()
+                   for row in rows]
+    evaluations = [type("Eval", (), {"evaluation_id": row.fixture_id, "fixture_id": row.fixture_id,
+                                      "market": row.market, "selection": row.selection,
+                                      "original_state": row.original_state,
+                                      "evaluated_at": row.evaluated_at, "payload": row.payload})()
+                   for row in rows]
+    pool = build_bias_pool(
+        sample_rows,
+        evaluations,
+        {key: value.settlement_observed_at for key, value in facts.items()},
+    )
+    assert {item.fixture_id for item in pool} == {"future"}
+    assert all(item.evaluated_at < _dt(25) < item.settlement_observed_at for item in pool)
 
 
 def test_bias_warmup_and_market_selection_partition_are_frozen() -> None:
@@ -127,21 +143,19 @@ def test_warmup_is_kept_with_null_bias_and_explicit_marker() -> None:
         raw_ev=0.12,
         decimal_odds=2.0,
         bias=0.0,
-        observed_at=_dt(5),
         history_count=WARMUP_OBSERVATIONS - 1,
     )
     assert (decision, bias, corrected, warmup) == ("KEPT", None, 0.12, True)
 
 
-def test_missing_observed_time_is_not_treated_as_warmup() -> None:
+def test_missing_observed_time_does_not_change_warmup_decision() -> None:
     decision, bias, corrected, warmup = decision_from_bias(
         raw_ev=0.12,
         decimal_odds=2.0,
         bias=None,
-        observed_at=None,
         history_count=0,
     )
-    assert (decision, bias, corrected, warmup) == ("FILTERED", None, None, False)
+    assert (decision, bias, corrected, warmup) == ("KEPT", None, 0.12, True)
 
 
 def test_parallel_component_does_not_change_legacy_snapshot_bytes() -> None:
@@ -178,9 +192,9 @@ def test_fast_criteria_is_frozen_and_pnl_is_only_a_group_rate() -> None:
             "selection": "HOME",
             "warmup": False,
             "filter_decision": "KEPT",
-            "bias_at_decision": 0.05,
-            "profit_units": 1.0,
-            "cal_gap": 0.02,
+                "bias_at_decision": 0.05,
+                "profit_units": 1.0,
+                "predicted_success": 0.6, "realized_success": 0.5,
         })
     rows.extend(
         {
@@ -188,9 +202,9 @@ def test_fast_criteria_is_frozen_and_pnl_is_only_a_group_rate() -> None:
             "selection": "HOME",
             "warmup": False,
             "filter_decision": "FILTERED",
-            "bias_at_decision": 0.05,
-            "profit_units": -1.0,
-            "cal_gap": 0.10,
+                "bias_at_decision": 0.05,
+                "profit_units": -1.0,
+                "predicted_success": 0.8, "realized_success": 0.2,
         }
         for _ in range(10)
     )
@@ -208,7 +222,7 @@ def test_warmup_rows_do_not_count_toward_trigger_or_any_fast_criterion() -> None
             "filter_decision": "KEPT",
             "bias_at_decision": 0.04,
             "profit_units": 1.0,
-            "cal_gap": 0.02,
+            "predicted_success": 0.6, "realized_success": 0.5,
         }
         for _ in range(299)
     ]
@@ -220,7 +234,7 @@ def test_warmup_rows_do_not_count_toward_trigger_or_any_fast_criterion() -> None
             "filter_decision": "FILTERED",
             "bias_at_decision": 0.04,
             "profit_units": -1.0,
-            "cal_gap": 0.10,
+            "predicted_success": 0.8, "realized_success": 0.2,
         }
         for _ in range(10)
     )
@@ -233,7 +247,7 @@ def test_warmup_rows_do_not_count_toward_trigger_or_any_fast_criterion() -> None
             # These deliberately violate all three criteria and must be ignored.
             "bias_at_decision": -1.0,
             "profit_units": -1.0,
-            "cal_gap": 100.0,
+            "predicted_success": 0.0, "realized_success": 1.0,
         }
         for _ in range(500)
     ]
@@ -246,7 +260,21 @@ def test_warmup_rows_do_not_count_toward_trigger_or_any_fast_criterion() -> None
             "filter_decision": "KEPT",
             "bias_at_decision": 0.04,
             "profit_units": 1.0,
-            "cal_gap": 0.02,
+            "predicted_success": 0.6, "realized_success": 0.5,
         }
     )
     assert evaluate_fast_criteria(non_warmup + warmup_rows)
+
+
+def test_b5_forward_start_is_single_domain_object() -> None:
+    from w2.strategy.online_calibration_filter import FORWARD_START_UTC
+
+    assert FORWARD_START_UTC is ROUTER_FORWARD_START_UTC is CONTRACT_FORWARD_START_UTC
+
+
+def test_b7_build_bias_pool_requires_knowable_mapping() -> None:
+    try:
+        build_bias_pool([], [])  # type: ignore[call-arg]
+    except TypeError:
+        return
+    raise AssertionError("legacy two-argument build_bias_pool call must fail")

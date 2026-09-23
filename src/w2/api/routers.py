@@ -68,6 +68,7 @@ from w2.dashboard.workspace import (
     build_dashboard_intelligence_workspace_summary,
 )
 from w2.domain.decision_contract import DecisionContractViolation
+from w2.domain.ev_online_contract import FAST_CRITERIA_MINIMUM_KEPT, FORWARD_START_UTC, is_forward
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.infrastructure.persistence.dynamic_prematch_models import CalibratedValidationSampleModel
 from w2.monitoring.health import HealthPayload, build_health_payload
@@ -80,7 +81,6 @@ public_router = APIRouter(prefix="/v1", tags=["public-read"])
 ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
 service = ReadModelService()
 logger = logging.getLogger(__name__)
-FORWARD_START_UTC = datetime(2026, 9, 26, 16, tzinfo=UTC)
 DASHBOARD_WINDOWS = {"today", "next36", "future", "results", "all"}
 
 
@@ -110,9 +110,7 @@ def _calibrated_sample_projection(row: CalibratedValidationSampleModel) -> dict[
         "filter_decision": row.filter_decision,
         "param_version": row.param_version,
         "warmup": row.warmup,
-        "forward": row.evaluated_at is not None and (
-            row.evaluated_at.astimezone(UTC) >= FORWARD_START_UTC
-        ),
+        "forward": is_forward(row.evaluated_at),
     }
 
 
@@ -522,6 +520,12 @@ def dashboard_intelligence_validation_calibrated(
         CalibratedValidationSampleModel.kickoff_utc.desc().nullslast(),
         CalibratedValidationSampleModel.fixture_id.desc(),
     )
+    with Session(service.repository._database_engine()) as session:
+        all_rows = [
+            _calibrated_sample_projection(row)
+            for row in session.scalars(select(CalibratedValidationSampleModel))
+        ]
+    rows = all_rows
     if date:
         try:
             local_zone = ZoneInfo(timezone)
@@ -535,8 +539,8 @@ def dashboard_intelligence_validation_calibrated(
             )
         except (ValueError, ZoneInfoNotFoundError):
             raise HTTPException(status_code=400, detail="invalid date") from None
-    with Session(service.repository._database_engine()) as session:
-        rows = [_calibrated_sample_projection(row) for row in session.scalars(stmt)]
+        with Session(service.repository._database_engine()) as session:
+            rows = [_calibrated_sample_projection(row) for row in session.scalars(stmt)]
     kept = sum(row["filter_decision"] == "KEPT" for row in rows)
     filtered = len(rows) - kept
     warmup_kept = sum(row["filter_decision"] == "KEPT" and row["warmup"] for row in rows)
@@ -548,7 +552,7 @@ def dashboard_intelligence_validation_calibrated(
     )
     forward_kept = sum(
         row["forward"] and not row["warmup"] and row["filter_decision"] == "KEPT"
-        for row in rows
+        for row in all_rows
     )
     return {
         "request_id": request_id(request),
@@ -559,7 +563,7 @@ def dashboard_intelligence_validation_calibrated(
         "forward_progress": {
             "kept": forward_kept,
             "target": 300,
-            "ratio": min(1.0, forward_kept / 300),
+            "ratio": min(1.0, forward_kept / FAST_CRITERIA_MINIMUM_KEPT),
         },
         "samples": rows,
         "counts": {
@@ -572,7 +576,7 @@ def dashboard_intelligence_validation_calibrated(
         },
         "decision_contract": {
             "kind": "EV_ONLINE_FAST_CRITERIA_V3",
-            "minimum_non_warmup_kept": 300,
+            "minimum_non_warmup_kept": FAST_CRITERIA_MINIMUM_KEPT,
             "population_filter": "forward=true AND warmup=false",
             "forward_start": FORWARD_START_UTC,
             "criteria": [

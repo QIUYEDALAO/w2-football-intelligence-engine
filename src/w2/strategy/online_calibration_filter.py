@@ -11,6 +11,11 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from w2.domain.ev_online_contract import (
+    FAST_CRITERIA_MINIMUM_KEPT,
+    FORWARD_START_UTC as _FORWARD_START_UTC,
+    is_forward,
+)
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     CalibratedValidationSampleModel,
     DynamicPrematchEvaluationModel,
@@ -20,12 +25,12 @@ from w2.infrastructure.persistence.matchday_intake_models import MatchdayEndpoin
 from w2.infrastructure.persistence.models import ResultModel
 
 logger = logging.getLogger(__name__)
+FORWARD_START_UTC = _FORWARD_START_UTC
 PARAM_VERSION = "w2.ev_online.market_selection_rolling_mean.v3"
 STRATIFICATION_KEY = ("market", "selection")
 WARMUP_OBSERVATIONS = 50
 EV_THRESHOLD = 0.0
 LEGAL_STATE = "ANALYSIS_PICK_ACTIVE"
-FORWARD_START_UTC = datetime(2026, 9, 26, 16, tzinfo=UTC)
 
 
 @dataclass(frozen=True)
@@ -92,41 +97,10 @@ def result_capture_times(
 
 def build_bias_pool(
     samples: Iterable[Any],
-    evaluations: Iterable[Any] | dict[str, Any],
-    knowable_at_by_fixture: dict[str, datetime] | None = None,
+    evaluations: Iterable[Any],
+    knowable_at_by_fixture: dict[str, datetime],
 ) -> list[BiasObservation]:
     """Build one observation per settled recommendation row."""
-    if knowable_at_by_fixture is None:
-        # Compatibility path for the original pure unit tests. Production
-        # materialization always supplies validation rows plus capture times.
-        legacy_output: list[BiasObservation] = []
-        for evaluation in samples:
-            if evaluation.original_state != LEGAL_STATE:
-                continue
-            evaluated_at = _utc(evaluation.evaluated_at)
-            fact = evaluations.get(str(evaluation.fixture_id))  # type: ignore[union-attr]
-            observed_at = _utc(getattr(fact, "settlement_observed_at", None))
-            if evaluated_at is None or observed_at is None or observed_at >= evaluated_at:
-                continue
-            predicted = _predicted_success(_mapping(evaluation.payload))
-            settlement = (
-                getattr(fact, "home_settlement", None)
-                if evaluation.selection == "HOME"
-                else getattr(fact, "away_settlement", None)
-                if evaluation.selection == "AWAY"
-                else None
-            )
-            realized = _settlement_success(settlement)
-            if predicted is None or realized is None or evaluation.market != "ASIAN_HANDICAP":
-                continue
-            legacy_output.append(BiasObservation(
-                market=evaluation.market, selection=evaluation.selection,
-                evaluated_at=evaluated_at, settlement_observed_at=observed_at,
-                predicted_success=predicted, realized_success=realized,
-                fixture_id=str(evaluation.fixture_id),
-            ))
-        return legacy_output
-    assert not isinstance(evaluations, dict)
     evaluation_by_id = {row.evaluation_id: row for row in evaluations}
     pool_output: list[BiasObservation] = []
     seen: set[tuple[str, str]] = set()
@@ -187,22 +161,14 @@ def bias_at_decision(
 
 def decision_from_bias(
     *, raw_ev: float | None, decimal_odds: float, bias: float | None,
-    history_count: int, observed_at: datetime | None = None,
-    allow_missing_observed_at: bool = False,
+    history_count: int,
 ) -> tuple[str, float | None, float | None, bool]:
-    if observed_at is None and not allow_missing_observed_at:
-        return "FILTERED", None, None, False
     if history_count < WARMUP_OBSERVATIONS:
         return "KEPT", None, raw_ev, True
     if bias is None or raw_ev is None:
         return "FILTERED", bias, None, False
     corrected = raw_ev - bias * decimal_odds
     return ("KEPT" if corrected >= EV_THRESHOLD else "FILTERED"), bias, corrected, False
-
-
-def is_forward(evaluated_at: datetime | None) -> bool:
-    value = _utc(evaluated_at)
-    return value is not None and value >= FORWARD_START_UTC
 
 
 def _copy_sample(
@@ -220,14 +186,35 @@ def _copy_sample(
 
 
 def _frozen_decision(row: CalibratedValidationSampleModel) -> tuple[Any, ...]:
-    return row.filter_decision, row.bias_at_decision, row.ev_corrected, row.warmup
+    return (
+        row.filter_decision, row.bias_at_decision, row.ev_corrected,
+        row.warmup, row.param_version
+    )
 
 
 def materialize_calibrated_validation_samples(session: Session) -> dict[str, int]:
     samples = list(session.scalars(select(ValidationSampleModel)))
-    evaluations = list(session.scalars(select(DynamicPrematchEvaluationModel)))
+    evaluation_ids = {row.evaluation_id for row in samples}
+    evaluations = (
+        list(session.scalars(select(DynamicPrematchEvaluationModel).where(
+            DynamicPrematchEvaluationModel.evaluation_id.in_(evaluation_ids))))
+        if evaluation_ids else []
+    )
+    fixture_ids = {
+        value
+        for row in samples
+        for value in (
+            row.fixture_id, _fixture_key(row.fixture_id),
+            f"api_football:{_fixture_key(row.fixture_id)}",
+        )
+    }
+    results = list(session.scalars(select(ResultModel).where(
+        ResultModel.fixture_id.in_(fixture_ids)))) if fixture_ids else []
+    capture_ids = {row.source_capture_id for row in results if row.source_capture_id}
+    captures = list(session.scalars(select(MatchdayEndpointCaptureModel).where(
+        MatchdayEndpointCaptureModel.capture_id.in_(capture_ids)))) if capture_ids else []
     knowable = result_capture_times(
-        session.scalars(select(ResultModel)), session.scalars(select(MatchdayEndpointCaptureModel)))
+        results, captures)
     pool = build_bias_pool(samples, evaluations, knowable)
     evaluation_by_id = {row.evaluation_id: row for row in evaluations}
     existing = {(row.fixture_id, row.market): row
@@ -246,8 +233,6 @@ def materialize_calibrated_validation_samples(session: Session) -> dict[str, int
         decision, stored_bias, corrected, warmup = decision_from_bias(
             raw_ev=sample.current_ev, decimal_odds=sample.decimal_odds, bias=bias,
             history_count=len(prior),
-            observed_at=_utc(knowable.get(_fixture_key(sample.fixture_id))),
-            allow_missing_observed_at=True,
         )
         candidate = _copy_sample(
             sample,
@@ -261,6 +246,18 @@ def materialize_calibrated_validation_samples(session: Session) -> dict[str, int
                 frozen_conflicts += 1
                 logger.warning("calibrated v3 decision frozen fixture=%s market=%s",
                     sample.fixture_id, sample.market)
+            frozen = {
+                name: getattr(old, name)
+                for name in (
+                    "filter_decision", "bias_at_decision", "ev_corrected",
+                    "warmup", "param_version",
+                )
+            }
+            for column in ValidationSampleModel.__table__.columns:
+                if column.name not in {"fixture_id", "market"}:
+                    setattr(old, column.name, getattr(candidate, column.name))
+            for name, value in frozen.items():
+                setattr(old, name, value)
             decision = old.filter_decision
         else:
             rewritten_v2 += 1
@@ -269,10 +266,16 @@ def materialize_calibrated_validation_samples(session: Session) -> dict[str, int
                     setattr(old, key, value)
         kept += decision == "KEPT"
         filtered += decision == "FILTERED"
+    seen = {(sample.fixture_id, sample.market) for sample in samples}
+    deleted = 0
+    for key, row in existing.items():
+        if key not in seen:
+            session.delete(row)
+            deleted += 1
     session.flush()
     return {"source_rows": len(samples), "pool_rows": len(pool), "kept": kept,
         "filtered": filtered, "rewritten_v2": rewritten_v2,
-        "frozen_conflicts": frozen_conflicts}
+        "frozen_conflicts": frozen_conflicts, "deleted": deleted}
 
 
 def calibrated_sample_projection(row: CalibratedValidationSampleModel) -> dict[str, Any]:
@@ -290,7 +293,25 @@ def calibrated_sample_projection(row: CalibratedValidationSampleModel) -> dict[s
         "forward": is_forward(row.evaluated_at)}
 
 
-def evaluate_fast_criteria(rows: Iterable[dict[str, Any]], *, minimum_kept: int = 300) -> bool:
+def fast_criteria_rows(session: Session) -> list[dict[str, Any]]:
+    calibrated = list(session.scalars(select(CalibratedValidationSampleModel)))
+    ids = {row.evaluation_id for row in calibrated}
+    evaluations = list(session.scalars(select(DynamicPrematchEvaluationModel).where(
+        DynamicPrematchEvaluationModel.evaluation_id.in_(ids)))) if ids else []
+    by_id = {row.evaluation_id: row for row in evaluations}
+    return [{
+        "market": row.market, "selection": row.selection, "warmup": row.warmup,
+        "filter_decision": row.filter_decision, "bias_at_decision": row.bias_at_decision,
+        "profit_units": row.profit_units, "forward": is_forward(row.evaluated_at),
+        "predicted_success": _predicted_success(_mapping(by_id[row.evaluation_id].payload))
+            if row.evaluation_id in by_id else None,
+        "realized_success": _settlement_success(row.settlement),
+    } for row in calibrated]
+
+
+def evaluate_fast_criteria(
+    rows: Iterable[dict[str, Any]], *, minimum_kept: int = FAST_CRITERIA_MINIMUM_KEPT
+) -> bool:
     evaluated = [
         row for row in rows
         if row.get("forward", True) is True and row.get("warmup") is False
@@ -313,19 +334,6 @@ def evaluate_fast_criteria(rows: Iterable[dict[str, Any]], *, minimum_kept: int 
     kept_rate, filtered_rate = positive_rate(kept), positive_rate(filtered)
     if kept_rate is None or filtered_rate is None or not filtered_rate < kept_rate:
         return False
-    # Legacy offline callers predating v3 did not carry the two source
-    # probabilities. Keep their diagnostic compatibility; materialized v3
-    # rows always use the explicit predicted/realized fields below.
-    if not any("predicted_success" in row or "realized_success" in row for row in evaluated):
-        kept_gaps = [row.get("cal_gap") for row in kept]
-        filtered_gaps = [row.get("cal_gap") for row in filtered]
-        if not kept_gaps or not filtered_gaps or any(
-            not isinstance(value, (int, float)) for value in (*kept_gaps, *filtered_gaps)
-        ):
-            return False
-        return sum(abs(float(value)) for value in kept_gaps) / len(kept_gaps) <= sum(
-            abs(float(value)) for value in filtered_gaps
-        ) / len(filtered_gaps)
     def cal_gap(items: list[dict[str, Any]]) -> float | None:
         predicted = [row.get("predicted_success") for row in items]
         realized = [row.get("realized_success") for row in items]

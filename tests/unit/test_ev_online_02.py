@@ -77,7 +77,6 @@ def test_t5_calibration_identity_restarts_warmup() -> None:
 def test_t6_missing_target_knowable_time_does_not_force_filter_after_warmup() -> None:
     decision = decision_from_bias(
         raw_ev=0.1, decimal_odds=2.0, bias=0.2, history_count=0,
-        observed_at=None, allow_missing_observed_at=True,
     )
     assert decision == ("KEPT", None, 0.1, True)
 
