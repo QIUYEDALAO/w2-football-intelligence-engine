@@ -122,4 +122,4 @@ def test_t10_capture_without_runtime_ah_fact_enters_pool() -> None:
 
 
 def test_forward_start_is_frozen() -> None:
-    assert FORWARD_START_UTC == datetime(2026, 9, 26, 16, tzinfo=UTC)
+    assert FORWARD_START_UTC.isoformat() == "2026-09-26T16:00:00+00:00"
