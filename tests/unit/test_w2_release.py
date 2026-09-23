@@ -384,19 +384,42 @@ def _extract_vps_script() -> str:
     return text[start:end]
 
 
-def _write_fake_vps_bin(tmp_path: Path, install_log: Path, *, online: str, fail_ready: bool, fail_migration: bool) -> Path:
+def _write_fake_vps_bin(
+    tmp_path: Path,
+    install_log: Path,
+    *,
+    online: str,
+    fail_ready: bool,
+    fail_migration: bool,
+    migration_mode: str = "success",
+    readback_ready_fail: bool = False,
+    pre_matches: int = 1,
+    post_matches: int = 1,
+    pre_football_day: str = "2026-09-18T00:00:00Z",
+    post_football_day: str = "2026-09-18T00:00:00Z",
+    post_snapshot: bool = True,
+    baseline_invalid: bool = False,
+    rollback_not_ready: bool = False,
+) -> Path:
     bin_dir = tmp_path / "vps-bin"
     bin_dir.mkdir()
+    state_file = tmp_path / "vps-state"
+    state_file.write_text("aaa\n", encoding="utf-8")
 
     (bin_dir / "install").write_text(
         f"""#!/usr/bin/env bash
 echo "$*" >> "{install_log}"
+case "$*" in
+  *release.pre-*) touch "{tmp_path / 'restored-old'}" ;;
+esac
 exec /usr/bin/install "$@"
 """,
         encoding="utf-8",
     )
     (bin_dir / "docker").write_text(
         f"""#!/usr/bin/env bash
+state_file="{state_file}"
+log_file="{install_log}"
 case "$1" in
   compose) exit 0 ;;
   inspect)
@@ -414,7 +437,18 @@ case "$1" in
     esac
     exit 0 ;;
   run)
-    if [ "{'1' if fail_migration else '0'}" = "1" ]; then exit 1; else exit 0; fi ;;
+    echo "docker $*" >> "$log_file"
+    case "$*" in
+      *" downgrade "*)
+        if [ "{migration_mode}" = "downgrade_fail" ]; then exit 1; fi
+        if [ "{migration_mode}" != "downgrade_mismatch" ]; then printf 'aaa\\n' > "$state_file"; fi
+        exit 0 ;;
+      *" upgrade "*)
+        if [ "{'1' if fail_migration else '0'}" = "1" ]; then exit 1; fi
+        printf 'bbb\\n' > "$state_file"
+        exit 0 ;;
+      *) exit 0 ;;
+    esac ;;
   exec)
     sql=""
     prev=""
@@ -425,8 +459,8 @@ case "$1" in
     case "$sql" in
       *"matchday_checkpoint_plans WHERE status"*) echo "0" ;;
       *"matchday_checkpoint_plans WHERE checkpoint IN"*) ;;  # 切换前档位复查：返回空（无冲突）
-      *"candidate_notification_outbox"*) echo "${{SCHEMA}}|0|0" ;;
-      "SELECT version_num FROM alembic_version") echo "${{SCHEMA}}" ;;
+      *"candidate_notification_outbox"*) echo "0|0|0" ;;
+      "SELECT version_num FROM alembic_version") cat "$state_file" ;;
       *) echo "0" ;;
     esac
     exit 0 ;;
@@ -438,6 +472,12 @@ esac
     )
     (bin_dir / "curl").write_text(
         f"""#!/usr/bin/env bash
+state_file="{state_file}"
+count_file="{tmp_path / 'curl-count'}"
+count=0
+[ -f "$count_file" ] && count=$(cat "$count_file")
+count=$((count + 1))
+printf '%s\\n' "$count" > "$count_file"
 url=""
 for a in "$@"; do
   case "$a" in
@@ -446,8 +486,35 @@ for a in "$@"; do
 done
 case "$url" in
   */ready)
-    if [ "{'1' if fail_ready else '0'}" = "1" ]; then exit 1; else echo '{{}}'; fi ;;
+    if [ "{'1' if fail_ready else '0'}" = "1" ]; then exit 1; fi
+    if [ "{'1' if readback_ready_fail else '0'}" = "1" ] && [ "$count" -ge 3 ] && [ ! -f "{tmp_path / 'restored-old'}" ]; then exit 1; fi
+    if [ "{'1' if rollback_not_ready else '0'}" = "1" ] && [ -f "{tmp_path / 'restored-old'}" ]; then exit 1; fi
+    echo '{{}}' ;;
   */v1/version) echo '{{"release_id":"{online}","api_git_sha":"{online}"}}' ;;
+  */v1/dashboard/intelligence-workspace)
+    dash_count_file="{tmp_path / 'dash-count'}"
+    dash_count=0
+    [ -f "$dash_count_file" ] && dash_count=$(cat "$dash_count_file")
+    dash_count=$((dash_count + 1))
+    printf '%s\\n' "$dash_count" > "$dash_count_file"
+    if [ "$dash_count" -eq 1 ] && [ "{'1' if baseline_invalid else '0'}" = "1" ]; then
+      echo '{{}}'
+      exit 0
+    elif [ "$dash_count" -eq 1 ]; then
+      matches="{pre_matches}"; day="{pre_football_day}"
+    else
+      matches="{post_matches}"; day="{post_football_day}"
+    fi
+    if [ "$matches" -gt 0 ]; then
+      if [ "{'1' if post_snapshot else '0'}" = "1" ]; then
+        radar='{{"markets":{{"AH":{{"snapshot_count":1}}}}}}'
+      else
+        radar='{{"markets":{{"AH":{{"snapshot_count":0}}}}}}'
+      fi
+      echo '{{"football_day_start_utc":"'"$day"'","generated_at":"2026-09-18T00:00:00Z","matches":[{{"kickoff_utc":"2026-09-19T00:00:00Z","fixture_id":"f1","market_radar":'"$radar"'}}],"validation":{{"model_forecast":{{"official_recommendations":[{{"kickoff_utc":"2026-09-19T00:00:00Z"}}]}}}}}}'
+    else
+      echo '{{"football_day_start_utc":"'"$day"'","generated_at":"2026-09-18T00:00:00Z","matches":[],"validation":{{"model_forecast":{{"official_recommendations":[{{"kickoff_utc":"2026-09-19T00:00:00Z"}}]}}}}}}'
+    fi ;;
   *) echo '{{}}' ;;
 esac
 exit 0
@@ -524,10 +591,41 @@ exit 0
     return fake, vps_script_file
 
 
-def _run_release_with_vps(tmp_path: Path, *, with_migration: bool, fail_ready: bool, fail_migration: bool) -> tuple[subprocess.CompletedProcess[str], Path]:
+def _run_release_with_vps(
+    tmp_path: Path,
+    *,
+    with_migration: bool,
+    fail_ready: bool,
+    fail_migration: bool,
+    migration_mode: str = "success",
+    readback_ready_fail: bool = False,
+    pre_matches: int = 1,
+    post_matches: int = 1,
+    pre_football_day: str = "2026-09-18T00:00:00Z",
+    post_football_day: str = "2026-09-18T00:00:00Z",
+    post_snapshot: bool = True,
+    baseline_invalid: bool = False,
+    rollback_not_ready: bool = False,
+) -> tuple[subprocess.CompletedProcess[str], Path]:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     repo, base, target = _make_repo(tmp_path, with_migration=with_migration)
     install_log = tmp_path / "install.log"
-    vps_bin = _write_fake_vps_bin(tmp_path, install_log, online=base, fail_ready=fail_ready, fail_migration=fail_migration)
+    vps_bin = _write_fake_vps_bin(
+        tmp_path,
+        install_log,
+        online=base,
+        fail_ready=fail_ready,
+        fail_migration=fail_migration,
+        migration_mode=migration_mode,
+        readback_ready_fail=readback_ready_fail,
+        pre_matches=pre_matches,
+        post_matches=post_matches,
+        pre_football_day=pre_football_day,
+        post_football_day=post_football_day,
+        post_snapshot=post_snapshot,
+        baseline_invalid=baseline_invalid,
+        rollback_not_ready=rollback_not_ready,
+    )
     fake_ssh, _vps_file = _write_fake_ssh_run_heredoc(tmp_path, vps_bin, online=base)
     fake_git, _git_log = _write_fake_git(tmp_path)
     fake_scp, _scp_log = _write_fake_scp(tmp_path)
@@ -572,6 +670,200 @@ def test_migration_fail_does_not_switch(tmp_path: Path) -> None:
     lines = install_log.read_text(encoding="utf-8").splitlines() if install_log.exists() else []
     # 迁移失败 → 不切换：install 日志里没有 candidate -> release.env
     assert not any("release.candidate-" in l and "release.env" in l for l in lines)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REL-ROLLBACK：迁移后失败、schema 回退与空足球日回读
+# ─────────────────────────────────────────────────────────────────────────────
+def _release_env(tmp_path: Path) -> str:
+    return (tmp_path / "opt-w2" / "shared" / "release.env").read_text(encoding="utf-8")
+
+
+def _docker_calls(log: Path) -> list[str]:
+    return [line for line in log.read_text(encoding="utf-8").splitlines() if line.startswith("docker ")] if log.exists() else []
+
+
+def test_t1_migration_readback_d_fail_ready_keeps_new_without_downgrade(tmp_path: Path) -> None:
+    r, install_log = _run_release_with_vps(
+        tmp_path,
+        with_migration=True,
+        fail_ready=False,
+        fail_migration=False,
+        pre_matches=1,
+        post_matches=0,
+    )
+    assert r.returncode == 1
+    assert "READBACK_FAILED_KEPT_NEW" in r.stdout
+    assert "MANUAL_DECISION_REQUIRED" in r.stdout
+    assert not any(" downgrade " in call for call in _docker_calls(install_log))
+    assert "W2_GIT_SHA=" in _release_env(tmp_path)
+    assert "W2_GIT_SHA=old" not in _release_env(tmp_path)
+    assert not any("release.pre-" in line and "release.env" in line for line in install_log.read_text().splitlines())
+
+
+def test_t2_migration_readback_failure_ready_503_downgrades_before_restore(tmp_path: Path) -> None:
+    r, install_log = _run_release_with_vps(
+        tmp_path,
+        with_migration=True,
+        fail_ready=False,
+        fail_migration=False,
+        readback_ready_fail=True,
+        pre_matches=1,
+        post_matches=0,
+    )
+    assert r.returncode == 1
+    assert "ROLLBACK_SCHEMA_OK aaa" in r.stdout
+    assert "ROLLBACK_DONE" in r.stdout
+    lines = install_log.read_text().splitlines()
+    downgrade_index = next(i for i, line in enumerate(lines) if " downgrade aaa" in line)
+    restore_index = next(i for i, line in enumerate(lines) if "release.pre-" in line and "release.env" in line)
+    assert downgrade_index < restore_index
+    assert "W2_GIT_SHA=old" in _release_env(tmp_path)
+
+
+def test_t3_migration_downgrade_failure_blocks_code_rollback(tmp_path: Path) -> None:
+    r, install_log = _run_release_with_vps(
+        tmp_path,
+        with_migration=True,
+        fail_ready=False,
+        fail_migration=False,
+        migration_mode="downgrade_fail",
+        readback_ready_fail=True,
+        pre_matches=1,
+        post_matches=0,
+    )
+    assert r.returncode == 1
+    assert "ROLLBACK_BLOCKED_SCHEMA" in r.stdout
+    assert not any("release.pre-" in line and "release.env" in line for line in install_log.read_text().splitlines())
+    assert "W2_GIT_SHA=old" not in _release_env(tmp_path)
+
+
+def test_t4_migration_downgrade_schema_mismatch_blocks_code_rollback(tmp_path: Path) -> None:
+    r, install_log = _run_release_with_vps(
+        tmp_path,
+        with_migration=True,
+        fail_ready=False,
+        fail_migration=False,
+        migration_mode="downgrade_mismatch",
+        readback_ready_fail=True,
+        pre_matches=1,
+        post_matches=0,
+    )
+    assert r.returncode == 1
+    assert "ROLLBACK_BLOCKED_SCHEMA" in r.stdout
+    assert "current=bbb" in r.stdout
+    assert not any("release.pre-" in line and "release.env" in line for line in install_log.read_text().splitlines())
+
+
+def test_t5_no_migration_readback_failure_keeps_existing_rollback_behavior(tmp_path: Path) -> None:
+    r, install_log = _run_release_with_vps(
+        tmp_path,
+        with_migration=False,
+        fail_ready=False,
+        fail_migration=False,
+        pre_matches=1,
+        post_matches=0,
+    )
+    assert r.returncode == 1
+    assert "ROLLBACK_DONE" in r.stdout
+    assert not any(" downgrade " in call for call in _docker_calls(install_log))
+    assert any("release.pre-" in line and "release.env" in line for line in install_log.read_text().splitlines())
+
+
+def test_t6_rollback_old_version_not_ready_is_failure(tmp_path: Path) -> None:
+    r, _install_log = _run_release_with_vps(
+        tmp_path,
+        with_migration=False,
+        fail_ready=False,
+        fail_migration=False,
+        rollback_not_ready=True,
+        pre_matches=1,
+        post_matches=0,
+    )
+    assert r.returncode == 1
+    assert "ROLLBACK_FAILED_NOT_READY" in r.stdout
+
+
+def test_t7_empty_both_d_passes_without_snapshot_check(tmp_path: Path) -> None:
+    r, _install_log = _run_release_with_vps(
+        tmp_path,
+        with_migration=False,
+        fail_ready=False,
+        fail_migration=False,
+        pre_matches=0,
+        post_matches=0,
+    )
+    assert "READBACK d=PASS" in r.stdout
+    assert "mode=EMPTY_BOTH" in r.stdout
+    assert "snapshot_check=NOT_APPLICABLE" in r.stdout
+    assert "WARNING d 的盘口快照子项这次没有检验" in r.stdout
+
+
+def test_t8_matches_regressed_fails_d(tmp_path: Path) -> None:
+    r, _install_log = _run_release_with_vps(
+        tmp_path,
+        with_migration=False,
+        fail_ready=False,
+        fail_migration=False,
+        pre_matches=1,
+        post_matches=0,
+    )
+    assert "READBACK d=FAIL" in r.stdout
+    assert "MATCHES_REGRESSED" in r.stdout
+
+
+def test_t9_football_day_rolled_fails_d(tmp_path: Path) -> None:
+    r, _install_log = _run_release_with_vps(
+        tmp_path,
+        with_migration=False,
+        fail_ready=False,
+        fail_migration=False,
+        pre_matches=0,
+        post_matches=0,
+        post_football_day="2026-09-19T00:00:00Z",
+    )
+    assert "READBACK d=FAIL" in r.stdout
+    assert "FOOTBALL_DAY_ROLLED" in r.stdout
+
+
+def test_t10_post_matches_snapshot判定保持通过和失败(tmp_path: Path) -> None:
+    r_pass, _ = _run_release_with_vps(
+        tmp_path / "pass",
+        with_migration=False,
+        fail_ready=False,
+        fail_migration=False,
+        pre_matches=0,
+        post_matches=1,
+        post_snapshot=True,
+    )
+    assert "READBACK d=PASS" in r_pass.stdout
+    assert "mode=SNAPSHOT" in r_pass.stdout
+
+    r_fail, _ = _run_release_with_vps(
+        tmp_path / "fail",
+        with_migration=False,
+        fail_ready=False,
+        fail_migration=False,
+        pre_matches=0,
+        post_matches=1,
+        post_snapshot=False,
+    )
+    assert "READBACK d=FAIL" in r_fail.stdout
+    assert "mode=SNAPSHOT" in r_fail.stdout
+
+
+def test_t11_baseline_capture_failure_stops_before_migration(tmp_path: Path) -> None:
+    r, install_log = _run_release_with_vps(
+        tmp_path,
+        with_migration=True,
+        fail_ready=False,
+        fail_migration=False,
+        baseline_invalid=True,
+    )
+    assert r.returncode == 1
+    assert "BASELINE_CAPTURE_FAILED" in r.stdout
+    assert not any(" upgrade " in call or " downgrade " in call for call in _docker_calls(install_log))
+    assert "W2_GIT_SHA=old" in _release_env(tmp_path)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
