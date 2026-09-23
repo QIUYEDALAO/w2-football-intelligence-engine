@@ -36,6 +36,7 @@ from w2.dashboard.date_window import (
     FOOTBALL_DAY_CUTOFF_HOUR,
     FOOTBALL_DAY_TZ,
     default_football_day,
+    football_day_for_kickoff,
     football_day_window,
 )
 from w2.dashboard.factor_checklist import MIN_XG_MATCHES
@@ -58,6 +59,7 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchEvaluationModel,
     DynamicPrematchOpportunityModel,
     DynamicPrematchSupersessionModel,
+    ValidationSampleModel,
 )
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamModel,
@@ -1542,6 +1544,7 @@ class ReadModelRepository:
                 column("selection", String),
                 column("exact_line", String),
                 column("decimal_odds", String),
+                column("expected_value", String),
             )
             .render_derived(name="selected_summary", with_types=True)
             .lateral()
@@ -1594,6 +1597,7 @@ class ReadModelRepository:
                 selected_summary.c.selection.label("selected_selection"),
                 selected_summary.c.exact_line.label("selected_line"),
                 selected_summary.c.decimal_odds.label("selected_odds"),
+                selected_summary.c.expected_value.label("selected_ev"),
             )
             .outerjoin(
                 ReadModelCheckpointModel,
@@ -1652,6 +1656,7 @@ class ReadModelRepository:
                     "selection": row.selected_selection,
                     "exact_line": row.selected_line,
                     "decimal_odds": row.selected_odds,
+                    "expected_value": row.selected_ev,
                 }
                 if row.selected_market and row.selected_selection
                 else None
@@ -2913,6 +2918,93 @@ class ReadModelService:
         fixture_ids: Sequence[str],
     ) -> dict[str, dict[str, Any]]:
         return self.repository.dashboard_model_forecasts_for_fixtures(fixture_ids)
+
+    def dashboard_design_v1_facts(self, *, anchor: date) -> dict[str, Any]:
+        """Read persisted validation facts for the Dashboard design projection."""
+        start, _ = football_day_window(anchor - timedelta(days=29))
+        end, _ = football_day_window(anchor + timedelta(days=1))
+        with Session(self.repository._database_engine()) as session:
+            current = session.scalar(
+                select(ValidationSampleModel)
+                .where(ValidationSampleModel.calibration_identity.is_not(None))
+                .order_by(
+                    ValidationSampleModel.evaluated_at.desc().nullslast(),
+                    ValidationSampleModel.projected_at.desc(),
+                    ValidationSampleModel.fixture_id.desc(),
+                )
+                .limit(1)
+            )
+            rows = list(session.scalars(
+                select(ValidationSampleModel).where(
+                    ValidationSampleModel.kickoff_utc >= start,
+                    ValidationSampleModel.kickoff_utc < end,
+                )
+            ))
+        projected = [
+            {
+                "fixture_id": row.fixture_id,
+                "market": row.market,
+                "competition_id": row.competition_id,
+                "kickoff_utc": row.kickoff_utc,
+                "selection": row.selection,
+                "exact_line": row.exact_line,
+                "decimal_odds": row.decimal_odds,
+                "settlement": row.settlement,
+                "profit_units": row.profit_units,
+                "calibration_identity": row.calibration_identity,
+                "home_team_label": row.home_team_label or {},
+                "away_team_label": row.away_team_label or {},
+                "current_ev": row.current_ev,
+                "evaluation_id": row.evaluation_id,
+            }
+            for row in rows
+        ]
+        return {
+            "rows": projected,
+            "current_calibration_identity": (
+                current.calibration_identity if current is not None else None
+            ),
+        }
+
+    def dashboard_validation_samples(
+        self, *, anchor: date | None = None, days: int | None = None,
+        limit: int | None = None, offset: int = 0,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Read the existing validation projection; never recompute settlement."""
+        with Session(self.repository._database_engine()) as session:
+            stmt = select(ValidationSampleModel).order_by(
+                ValidationSampleModel.kickoff_utc.desc().nullslast(),
+                ValidationSampleModel.fixture_id.desc(),
+            )
+            rows = list(session.scalars(stmt))
+        if days is not None and anchor is not None:
+            start = anchor - timedelta(days=max(1, days) - 1)
+            rows = [
+                row for row in rows
+                if row.kickoff_utc is not None
+                and start <= football_day_for_kickoff(
+                    row.kickoff_utc if row.kickoff_utc.tzinfo
+                    else row.kickoff_utc.replace(tzinfo=UTC)
+                ) <= anchor
+            ]
+        total = len(rows)
+        if offset:
+            rows = rows[offset:]
+        if limit is not None:
+            rows = rows[: max(0, limit)]
+        return [
+            {
+                "fixture_id": row.fixture_id, "competition_id": row.competition_id,
+                "kickoff_utc": row.kickoff_utc, "market": row.market,
+                "selection": row.selection, "exact_line": row.exact_line,
+                "decimal_odds": row.decimal_odds, "settlement": row.settlement,
+                "profit_units": row.profit_units, "calibration_identity": row.calibration_identity,
+                "home_team_label": row.home_team_label or {},
+                "away_team_label": row.away_team_label or {},
+                "current_ev": row.current_ev, "evaluation_id": row.evaluation_id,
+            }
+            for row in rows
+        ], total
 
     def dashboard_dynamic_evaluations_for_fixtures(
         self,

@@ -59,7 +59,14 @@ from w2.api.schemas import (
     WorldCupReadinessResponse,
 )
 from w2.config import Environment, get_settings
+from w2.dashboard.date_window import football_day_for_kickoff
 from w2.dashboard.day_view import build_dashboard_day_view
+from w2.dashboard.design_v1_projection import (
+    performance_summary,
+    replay_display_row,
+    review_row,
+    today_recommendations,
+)
 from w2.dashboard.results import normalize_match_status, outcome_public_cause
 from w2.dashboard.workspace import (
     build_dashboard_intelligence_validation,
@@ -92,7 +99,7 @@ DASHBOARD_WINDOWS = {"today", "next36", "future", "results", "all"}
 def _calibrated_sample_projection(row: CalibratedValidationSampleModel) -> dict[str, Any]:
     """Serialize the already-materialized parallel row; no calibration here."""
 
-    return {
+    raw = {
         "fixture_id": row.fixture_id,
         "market": row.market,
         "competition_id": row.competition_id,
@@ -117,6 +124,7 @@ def _calibrated_sample_projection(row: CalibratedValidationSampleModel) -> dict[
         "warmup": row.warmup,
         "forward": is_forward(row.evaluated_at),
     }
+    return {**raw, **review_row(raw, calibrated=True)}
 
 
 def request_id(request: Request) -> str:
@@ -467,6 +475,38 @@ def dashboard_intelligence_workspace_list(
             "capabilities"
         ],
     )
+    anchor = datetime.fromisoformat(str(day_view["date"])).date()
+    facts_reader = getattr(service, "dashboard_design_v1_facts", None)
+    facts = (
+        facts_reader(anchor=anchor)
+        if callable(facts_reader)
+        else {"rows": [], "current_calibration_identity": None}
+    )
+    workspace["performance_summary"] = performance_summary(
+        facts["rows"], anchor=anchor,
+        calibration_identity=facts["current_calibration_identity"],
+    )
+    workspace["today_recommendations"] = today_recommendations(
+        workspace["matches"], facts["rows"], anchor=anchor,
+        calibration_identity=facts["current_calibration_identity"],
+    )
+    workspace["system_status"] = {
+        "data": (
+            "实时数据"
+            if workspace["freshness"]["domains"]["odds_prematch"]["status"] == "AVAILABLE"
+            and workspace["data_operations"]["system_health"]
+            not in {"STALE_DATA", "PROVIDER_BUDGET_EXHAUSTED", "BLOCKED_DAY", "EMPTY_DAY"}
+            else "数据未就绪"
+        ),
+        "recommendations": (
+            "推荐已开启"
+            if any(
+                row.get("feature_enabled") is True
+                for row in workspace["runtime"]["recommendation_capabilities"].values()
+            )
+            else "推荐未开启"
+        ),
+    }
     return {"request_id": request_id(request), **workspace}
 
 
@@ -479,6 +519,9 @@ def dashboard_intelligence_validation(
     date: str | None = None,
     window: Literal["today"] = "today",
     timezone: str = "Asia/Shanghai",
+    days: Annotated[int | None, Query(ge=1, le=365)] = None,
+    limit: Annotated[int | None, Query(ge=1, le=500)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> dict[str, Any]:
     payload = service.public_dashboard(
         target_date=date,
@@ -495,11 +538,20 @@ def dashboard_intelligence_validation(
         day_view,
         model_forecast_progress=service.dashboard_model_forecast_validation_progress(),
     )
+    sample_reader = getattr(service, "dashboard_validation_samples", None)
+    samples, total = (
+        sample_reader(
+            anchor=datetime.fromisoformat(str(day_view["date"])).date(),
+            days=days, limit=limit, offset=offset,
+        ) if callable(sample_reader) else ([], 0)
+    )
     return {
         "request_id": request_id(request),
         "schema_version": "w2.dashboard-intelligence-validation.v1",
         "generated_at": day_view.get("generated_at"),
         "validation": validation,
+        "samples": [review_row(row) for row in samples],
+        "pagination": {"days": days, "limit": limit, "offset": offset, "total": total},
         "read_contract": {
             "provider_calls": int(day_view.get("provider_calls") or 0),
             "db_writes": int(day_view.get("db_writes") or 0),
@@ -518,6 +570,9 @@ def dashboard_intelligence_validation_calibrated(
     date: str | None = None,
     window: Literal["today"] = "today",
     timezone: str = "Asia/Shanghai",
+    days: Annotated[int | None, Query(ge=1, le=365)] = None,
+    limit: Annotated[int | None, Query(ge=1, le=500)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> dict[str, Any]:
     """Read the EV-ONLINE-01 parallel projection; never recompute old validation."""
 
@@ -531,7 +586,7 @@ def dashboard_intelligence_validation_calibrated(
             for row in session.scalars(select(CalibratedValidationSampleModel))
         ]
     rows = all_rows
-    if date:
+    if date and days is None:
         try:
             local_zone = ZoneInfo(timezone)
             local_start = datetime.combine(
@@ -546,6 +601,25 @@ def dashboard_intelligence_validation_calibrated(
             raise HTTPException(status_code=400, detail="invalid date") from None
         with Session(service.repository._database_engine()) as session:
             rows = [_calibrated_sample_projection(row) for row in session.scalars(stmt)]
+    if days is not None:
+        try:
+            anchor = (
+                datetime.fromisoformat(date).date()
+                if date
+                else datetime.now(ZoneInfo(timezone)).date()
+            )
+        except (ValueError, ZoneInfoNotFoundError):
+            raise HTTPException(status_code=400, detail="invalid date or timezone") from None
+        start = anchor - timedelta(days=days - 1)
+        rows = [
+            row for row in rows if row["date"] is not None
+            and start <= datetime.fromisoformat(row["date"]).date() <= anchor
+        ]
+    total_before_page = len(rows)
+    if offset:
+        rows = rows[offset:]
+    if limit is not None:
+        rows = rows[:limit]
     kept = sum(row["filter_decision"] == "KEPT" for row in rows)
     filtered = len(rows) - kept
     warmup_kept = sum(row["filter_decision"] == "KEPT" and row["warmup"] for row in rows)
@@ -575,6 +649,7 @@ def dashboard_intelligence_validation_calibrated(
             "ratio": min(1.0, forward_kept / FAST_CRITERIA_MINIMUM_KEPT),
         },
         "samples": rows,
+        "pagination": {"days": days, "limit": limit, "offset": offset, "total": total_before_page},
         "counts": {
             "total": len(rows),
             "kept": kept,
@@ -611,6 +686,7 @@ def dashboard_intelligence_validation_calibrated(
 @public_router.get(
     "/dashboard/intelligence-workspace/replay",
     response_model=DashboardIntelligenceReplayResponse,
+    response_model_exclude_defaults=True,
 )
 def dashboard_intelligence_replay(
     request: Request,
@@ -646,6 +722,8 @@ def dashboard_intelligence_replay(
         ],
     )
     isolated = _isolate_workspace_match_projection_failures(workspace)
+    evaluation_reader = getattr(service, "dashboard_dynamic_evaluations_for_fixtures", None)
+    evaluation_map = evaluation_reader(fixture_ids) if callable(evaluation_reader) else {}
     matches = [
         {
             key: match.get(key)
@@ -665,6 +743,13 @@ def dashboard_intelligence_replay(
         }
         for match in isolated["matches"]
     ]
+    for match in matches:
+        versions = evaluation_map.get(str(match.get("fixture_id")), {}).get("versions", [])
+        match.update(replay_display_row(match, versions))
+        kickoff = match.get("kickoff_utc")
+        if kickoff:
+            parsed = datetime.fromisoformat(str(kickoff).replace("Z", "+00:00"))
+            match["date"] = football_day_for_kickoff(parsed).isoformat()
     return {
         "request_id": request_id(request),
         "schema_version": "w2.dashboard-intelligence-replay.v1",

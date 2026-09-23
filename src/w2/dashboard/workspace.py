@@ -312,6 +312,33 @@ def build_dashboard_intelligence_workspace_summary(
             "reason_code": _optional_text(card.get("reason_code")),
             "action": _optional_text(card.get("action")),
             "next_eval_at": card.get("next_eval_at"),
+            "pick": _mapping(card.get("pick")) or None,
+            "market": (_mapping(card.get("pick")).get("market")
+                        if _mapping(card.get("pick")) else None),
+            "selection": (_mapping(card.get("pick")).get("selection")
+                           if _mapping(card.get("pick")) else None),
+            "line": (_mapping(card.get("pick")).get("exact_line")
+                     or _mapping(card.get("pick")).get("line")
+                     if _mapping(card.get("pick")) else None),
+            "odds": (_mapping(card.get("pick")).get("decimal_odds")
+                     or _mapping(card.get("pick")).get("odds")
+                     if _mapping(card.get("pick")) else None),
+            "ev": (_mapping(card.get("pick")).get("expected_value")
+                   if _mapping(card.get("pick")) else None),
+            "recommendation_status": (
+                "已结算" if card.get("validation") else
+                "已撤回"
+                if str(card.get("lifecycle_status") or "")
+                in {"WITHDRAWN", "REVOKED", "CANCELLED"}
+                else "已确认" if card.get("decision_tier") == "RECOMMEND" else
+                "候选" if card.get("pick") else None
+            ),
+            "withdraw_reason": (
+                card.get("reason_code")
+                if str(card.get("lifecycle_status") or "")
+                in {"WITHDRAWN", "REVOKED", "CANCELLED"}
+                else None
+            ),
         }
         for card in cards
     ]

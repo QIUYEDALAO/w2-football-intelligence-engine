@@ -1154,6 +1154,14 @@ class WorkspaceMatchSummary(BaseModel):
     reason_code: str | None
     action: str | None
     next_eval_at: datetime | str | None
+    pick: dict[str, Any] | None = None
+    market: str | None = None
+    selection: str | None = None
+    line: str | float | None = None
+    odds: float | str | None = None
+    ev: float | None = None
+    recommendation_status: str | None = None
+    withdraw_reason: str | None = None
 
 
 class WorkspaceMatchProjectionErrorDetail(BaseModel):
@@ -1847,6 +1855,9 @@ class DashboardIntelligenceWorkspaceListResponse(BaseModel):
     external_intelligence: WorkspaceExternalIntelligence
     freshness: WorkspaceFreshness
     data_operations: WorkspaceDataOperations
+    performance_summary: dict[str, Any] = Field(default_factory=dict)
+    today_recommendations: list[dict[str, Any]] = Field(default_factory=list)
+    system_status: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def list_counts_are_exact(self) -> DashboardIntelligenceWorkspaceListResponse:
@@ -1868,6 +1879,8 @@ class DashboardIntelligenceValidationResponse(BaseModel):
     generated_at: datetime | str | None
     validation: WorkspaceValidationWithoutReplay
     read_contract: WorkspaceReadContract
+    samples: list[dict[str, Any]] = Field(default_factory=list)
+    pagination: dict[str, Any] = Field(default_factory=dict)
 
 
 class CalibratedValidationSample(BaseModel):
@@ -1896,6 +1909,13 @@ class CalibratedValidationSample(BaseModel):
     param_version: str
     warmup: bool
     forward: bool = False
+    date: str | None = None
+    league: str | None = None
+    match: str | None = None
+    recommendation: str | None = None
+    result: str | None = None
+    calibration_decision: str | None = None
+    calibrated_ev: float | None = None
 
 
 class DashboardIntelligenceCalibratedValidationResponse(BaseModel):
@@ -1911,6 +1931,7 @@ class DashboardIntelligenceCalibratedValidationResponse(BaseModel):
     counts: dict[str, int]
     decision_contract: dict[str, Any]
     read_contract: WorkspaceReadContract
+    pagination: dict[str, Any] = Field(default_factory=dict)
 
 
 class WorkspaceReplayMatch(BaseModel):
@@ -1927,6 +1948,11 @@ class WorkspaceReplayMatch(BaseModel):
     public_semantics: WorkspacePublicSemantics
     status: str | None
     outcome: WorkspaceMatchOutcome
+    evaluation_count: int = 0
+    final_recommendation: str | None = None
+    date: str | None = None
+    league: str | None = None
+    match: str | None = None
 
 
 class DashboardIntelligenceReplayResponse(BaseModel):

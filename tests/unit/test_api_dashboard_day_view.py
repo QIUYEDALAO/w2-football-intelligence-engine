@@ -325,7 +325,14 @@ def test_intelligence_workspace_replay_preserves_existing_replay_projection(
 
     assert full.status_code == replay.status_code == 200
     assert replay.json()["history_replay"] == full.json()["validation"]["history_replay"]
-    assert replay.json()["matches"] == [
+    assert [
+        {key: match[key] for key in (
+            "fixture_id", "competition_id", "competition_name", "kickoff_utc",
+            "home_team_name", "away_team_name", "home_team_label", "away_team_label",
+            "public_semantics", "status", "outcome",
+        )}
+        for match in replay.json()["matches"]
+    ] == [
         {
             key: match[key]
             for key in (
@@ -344,6 +351,7 @@ def test_intelligence_workspace_replay_preserves_existing_replay_projection(
         }
         for match in full.json()["matches"]
     ]
+    assert replay.json()["matches"][0]["date"] == "2026-07-05"
 
 
 def test_intelligence_workspace_reads_persisted_finished_outcome_once(

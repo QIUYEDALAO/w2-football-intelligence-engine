@@ -177,7 +177,7 @@ def _summary_day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
         "model_lab": {},
         "data_refresh": {},
         "simulation": {"status": "UNAVAILABLE", "simulation": None},
-        "pick": None,
+        "pick": _mapping_copy(card.get("recommendation")),
         "non_pick": {
             "reason_code": _text(card.get("reason_code"), "DETAIL_NOT_LOADED"),
             "reason_human": "列表仅展示摘要；选择比赛后加载完整证据。",
