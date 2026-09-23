@@ -91,15 +91,15 @@ def result_capture_times(
 
 
 def build_bias_pool(
-    samples: Iterable[ValidationSampleModel],
-    evaluations: Iterable[DynamicPrematchEvaluationModel] | dict[str, Any],
+    samples: Iterable[Any],
+    evaluations: Iterable[Any] | dict[str, Any],
     knowable_at_by_fixture: dict[str, datetime] | None = None,
 ) -> list[BiasObservation]:
     """Build one observation per settled recommendation row."""
     if knowable_at_by_fixture is None:
         # Compatibility path for the original pure unit tests. Production
         # materialization always supplies validation rows plus capture times.
-        output: list[BiasObservation] = []
+        legacy_output: list[BiasObservation] = []
         for evaluation in samples:
             if evaluation.original_state != LEGAL_STATE:
                 continue
@@ -119,22 +119,22 @@ def build_bias_pool(
             realized = _settlement_success(settlement)
             if predicted is None or realized is None or evaluation.market != "ASIAN_HANDICAP":
                 continue
-            output.append(BiasObservation(
+            legacy_output.append(BiasObservation(
                 market=evaluation.market, selection=evaluation.selection,
                 evaluated_at=evaluated_at, settlement_observed_at=observed_at,
                 predicted_success=predicted, realized_success=realized,
                 fixture_id=str(evaluation.fixture_id),
             ))
-        return output
+        return legacy_output
     assert not isinstance(evaluations, dict)
     evaluation_by_id = {row.evaluation_id: row for row in evaluations}
-    output: list[BiasObservation] = []
+    pool_output: list[BiasObservation] = []
     seen: set[tuple[str, str]] = set()
     for sample in samples:
         key = (_fixture_key(sample.fixture_id), sample.market)
         if key in seen:
             continue
-        evaluation = evaluation_by_id.get(sample.evaluation_id)
+        evaluation: Any = evaluation_by_id.get(sample.evaluation_id)
         if evaluation is None or evaluation.original_state != LEGAL_STATE:
             continue
         evaluated_at = _utc(evaluation.evaluated_at)
@@ -149,13 +149,13 @@ def build_bias_pool(
         ):
             continue
         seen.add(key)
-        output.append(BiasObservation(
+        pool_output.append(BiasObservation(
             fixture_id=sample.fixture_id, market=sample.market, selection=sample.selection,
             calibration_identity=sample.calibration_identity, evaluated_at=evaluated_at,
             settlement_observed_at=observed_at, predicted_success=predicted,
             realized_success=realized,
         ))
-    return output
+    return pool_output
 
 
 def _prior_observations(
@@ -309,7 +309,7 @@ def evaluate_fast_criteria(rows: Iterable[dict[str, Any]], *, minimum_kept: int 
         profits = [row.get("profit_units") for row in items]
         if not profits or any(not isinstance(value, (int, float)) for value in profits):
             return None
-        return sum(float(value) > 0 for value in profits) / len(profits)
+        return sum(1 for value in profits if float(value) > 0) / len(profits)
     kept_rate, filtered_rate = positive_rate(kept), positive_rate(filtered)
     if kept_rate is None or filtered_rate is None or not filtered_rate < kept_rate:
         return False
@@ -332,8 +332,8 @@ def evaluate_fast_criteria(rows: Iterable[dict[str, Any]], *, minimum_kept: int 
         values = (*predicted, *realized)
         if not predicted or any(not isinstance(value, (int, float)) for value in values):
             return None
-        predicted_mean = sum(map(float, predicted)) / len(predicted)
-        realized_mean = sum(map(float, realized)) / len(realized)
+        predicted_mean = sum(float(value) for value in predicted) / len(predicted)
+        realized_mean = sum(float(value) for value in realized) / len(realized)
         return predicted_mean - realized_mean
     for group in groups:
         group_kept = [
