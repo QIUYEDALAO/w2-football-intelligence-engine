@@ -68,7 +68,12 @@ from w2.dashboard.workspace import (
     build_dashboard_intelligence_workspace_summary,
 )
 from w2.domain.decision_contract import DecisionContractViolation
-from w2.domain.ev_online_contract import FAST_CRITERIA_MINIMUM_KEPT, FORWARD_START_UTC, is_forward
+from w2.domain.ev_online_contract import (
+    FAST_CRITERIA_MINIMUM_KEPT,
+    FORWARD_START_UTC,
+    SETTLED_STATES,
+    is_forward,
+)
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.infrastructure.persistence.dynamic_prematch_models import CalibratedValidationSampleModel
 from w2.monitoring.health import HealthPayload, build_health_payload
@@ -550,6 +555,10 @@ def dashboard_intelligence_validation_calibrated(
     non_warmup_filtered = sum(
         row["filter_decision"] == "FILTERED" and not row["warmup"] for row in rows
     )
+    unsettled_excluded = sum(
+        row["forward"] and not row["warmup"] and row["settlement"] not in SETTLED_STATES
+        for row in all_rows
+    )
     forward_kept = sum(
         row["forward"] and not row["warmup"] and row["filter_decision"] == "KEPT"
         for row in all_rows
@@ -562,7 +571,7 @@ def dashboard_intelligence_validation_calibrated(
         "forward_start": FORWARD_START_UTC,
         "forward_progress": {
             "kept": forward_kept,
-            "target": 300,
+            "target": FAST_CRITERIA_MINIMUM_KEPT,
             "ratio": min(1.0, forward_kept / FAST_CRITERIA_MINIMUM_KEPT),
         },
         "samples": rows,
@@ -573,11 +582,15 @@ def dashboard_intelligence_validation_calibrated(
             "warmup_kept": warmup_kept,
             "non_warmup_kept": non_warmup_kept,
             "non_warmup_filtered": non_warmup_filtered,
+            "unsettled_excluded": unsettled_excluded,
         },
         "decision_contract": {
             "kind": "EV_ONLINE_FAST_CRITERIA_V3",
             "minimum_non_warmup_kept": FAST_CRITERIA_MINIMUM_KEPT,
             "population_filter": "forward=true AND warmup=false",
+            "unsettled_rows_excluded": (
+                "settlement must be one of WIN, HALF_WIN, PUSH, HALF_LOSS, LOSS"
+            ),
             "forward_start": FORWARD_START_UTC,
             "criteria": [
                 "bias_by_market_selection_stays_positive",

@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 FORWARD_START_UTC = datetime(2026, 9, 26, 16, tzinfo=UTC)
 FAST_CRITERIA_MINIMUM_KEPT = 300
+SETTLED_STATES = frozenset({"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"})
 
 
 def is_forward(evaluated_at: datetime | None) -> bool:

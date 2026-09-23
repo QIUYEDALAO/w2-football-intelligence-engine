@@ -13,8 +13,11 @@ from sqlalchemy.orm import Session
 
 from w2.domain.ev_online_contract import (
     FAST_CRITERIA_MINIMUM_KEPT,
-    FORWARD_START_UTC as _FORWARD_START_UTC,
+    SETTLED_STATES,
     is_forward,
+)
+from w2.domain.ev_online_contract import (
+    FORWARD_START_UTC as _FORWARD_START_UTC,
 )
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     CalibratedValidationSampleModel,
@@ -303,6 +306,7 @@ def fast_criteria_rows(session: Session) -> list[dict[str, Any]]:
         "market": row.market, "selection": row.selection, "warmup": row.warmup,
         "filter_decision": row.filter_decision, "bias_at_decision": row.bias_at_decision,
         "profit_units": row.profit_units, "forward": is_forward(row.evaluated_at),
+        "settlement": row.settlement,
         "predicted_success": _predicted_success(_mapping(by_id[row.evaluation_id].payload))
             if row.evaluation_id in by_id else None,
         "realized_success": _settlement_success(row.settlement),
@@ -314,7 +318,11 @@ def evaluate_fast_criteria(
 ) -> bool:
     evaluated = [
         row for row in rows
-        if row.get("forward", True) is True and row.get("warmup") is False
+        if (row.get("forward") is True or (
+            row.get("forward") is None and "settlement" not in row
+        ))
+        and row.get("warmup") is False
+        and (row.get("settlement") is None or row.get("settlement") in SETTLED_STATES)
     ]
     kept = [row for row in evaluated if row.get("filter_decision") == "KEPT"]
     filtered = [row for row in evaluated if row.get("filter_decision") == "FILTERED"]
