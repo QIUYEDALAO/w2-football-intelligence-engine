@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { footballDayShanghai, translateCompetition, translateReason } from "../lib/formatters";
 import { fetchIntelligenceCalibratedValidation, fetchIntelligenceMatch, fetchIntelligenceReplay, fetchIntelligenceValidation } from "../lib/intelligenceWorkspaceApi";
 import { PUBLIC_ENUM_LABELS, PUBLIC_REASON_LABELS } from "../lib/labels";
 import { ahRecommendationTeamLabel, formatAhMarketHandicap, formatAhRecommendationHandicap } from "../lib/pricingDisplay";
 import { publicPresentation } from "../lib/publicPresentation";
+import { DesignV1Overview } from "./DesignV1Overview";
 import type {
   FixtureFactor,
   FixtureFactorChecklist,
@@ -33,6 +34,10 @@ type Props = {
 };
 
 type WorkspaceTab = "matches" | "validation" | "validation-calibrated" | "replay";
+
+const DesignV1ValidationView = lazy(() => import("./DesignV1ValidationView"));
+const DesignV1CalibratedValidationView = lazy(() => import("./DesignV1ValidationView").then((module) => ({ default: module.DesignV1CalibratedValidationView })));
+const DesignV1ReplayView = lazy(() => import("./DesignV1ReplayView"));
 
 const MARKET_LABELS = {
   ASIAN_HANDICAP: "让球主盘",
@@ -398,13 +403,14 @@ function Header({ date, loading, onDateChange, onRefresh, workspace, tab, onTabC
         <button aria-label="刷新" disabled={loading} onClick={onRefresh} type="button">⟳</button>
       </nav>
       <span className="v41-separator" />
-      <span className="v41-pill v41-pill--read">{workspace.runtime.candidate === "SHADOW_ONLY" ? "影子候选已启用" : "影子只读"}</span>
-      <span className={`v41-pill v41-pill--${publicStatus.className}`} data-public-cause={selectedDaySemantics(workspace).cause || "NONE"}>
+      <span className="v41-pill v41-pill--read">{workspace.system_status?.data || "数据未就绪"}</span>
+      <span className="v41-pill v41-pill--read">{workspace.system_status?.recommendations || "推荐未开启"}</span>
+      <span className={`v41-pill v41-pill--legacy v41-pill--${publicStatus.className}`} data-public-cause={selectedDaySemantics(workspace).cause || "NONE"}>
         {publicStatus.label}
       </span>
       <time className="v41-updated">更新 {clock(workspace.generated_at)}</time>
       <nav className="v41-tabs" aria-label="工作台视图" role="tablist">
-        {([["matches", "比赛列表"], ["validation", "赛后验证"], ["validation-calibrated", "赛后验证（校准版）"], ["replay", "回放记录"]] as const).map(([value, text]) => <button aria-selected={tab === value} key={value} onClick={() => onTabChange(value)} role="tab" type="button">{text}{value === "validation" && validationCount !== undefined ? ` · ${validationCount}` : ""}</button>)}
+        {([["matches", "比赛列表", "比赛"], ["validation", "赛后验证", "战绩复盘"], ["validation-calibrated", "校准复盘", "校准版"], ["replay", "回放记录", "回放记录"]] as const).map(([value, name, text]) => <button aria-label={name} aria-selected={tab === value} key={value} onClick={() => onTabChange(value)} role="tab" type="button">{text}{value === "validation" && validationCount !== undefined ? ` · ${validationCount}` : ""}</button>)}
       </nav>
       <button className="v41-theme-btn" onClick={() => setTheme(effectiveTheme === "light" ? "dark" : "light")} title="切换明暗主题" type="button">{effectiveTheme === "light" ? "☀️ 浅白" : "🌙 暗黑"}</button>
     </header>
@@ -489,6 +495,7 @@ function CapabilityStatus({ workspace }: { workspace: IntelligenceWorkspaceList 
   const capabilities = workspace.runtime.recommendation_capabilities;
   return <section className="v41-capabilities" aria-label="全局能力状态">
     <b>全局能力</b>
+    <span>{workspace.runtime.candidate === "SHADOW_ONLY" ? "影子候选已启用" : "影子只读"}</span>
     <span>分析选择：让球 <strong>{capabilityLabel(capabilities.analysis_ah)}</strong> / 大小球 <strong>{capabilityLabel(capabilities.analysis_ou)}</strong></span>
     <span>影子候选 <strong>{capabilityLabel(capabilities.shadow_candidate)}</strong></span>
     <span>正式推荐：让球 <strong>{capabilityLabel(capabilities.formal_ah)}</strong> / 大小球 <strong>{capabilityLabel(capabilities.formal_ou)}</strong></span>
@@ -1196,8 +1203,11 @@ export function IntelligenceConsole(props: Props) {
   const [validationByDate, setValidationByDate] = useState<Record<string, IntelligenceValidationResponse>>({});
   const [calibratedValidationByDate, setCalibratedValidationByDate] = useState<Record<string, IntelligenceCalibratedValidationResponse>>({});
   const [replayByDate, setReplayByDate] = useState<Record<string, IntelligenceReplayResponse>>({});
+  const [reviewOffset, setReviewOffset] = useState(0);
+  const [requestAttempt, setRequestAttempt] = useState(0);
+  const reviewKey = `${props.date}:${reviewOffset}`;
   const [tabState, setTabState] = useState<"idle" | "loading" | "error">("idle");
-  const calibratedValidation = calibratedValidationByDate[props.date];
+  const calibratedValidation = calibratedValidationByDate[reviewKey];
   const [selectedId, setSelectedId] = useState<string | null>(
     requestedFixtureId && workspace.matches.some((match) => match.fixture_id === requestedFixtureId)
       ? requestedFixtureId
@@ -1216,14 +1226,15 @@ export function IntelligenceConsole(props: Props) {
         : defaultFullFixtureId,
     );
     setTab("matches");
+    setReviewOffset(0);
   }, [defaultFullFixtureId, requestedFixtureId, workspace.matches, workspace.request_id]);
 
   useEffect(() => {
     if (!legacyValidation) return;
     const { history_replay: historyReplay, ...validation } = legacyValidation;
-    setValidationByDate((current) => current[props.date] ? current : {
+    setValidationByDate((current) => current[`${props.date}:0`] ? current : {
       ...current,
-      [props.date]: {
+      [`${props.date}:0`]: {
         request_id: `${workspace.request_id}:validation`,
         schema_version: "w2.dashboard-intelligence-validation.v1",
         generated_at: workspace.generated_at,
@@ -1246,13 +1257,13 @@ export function IntelligenceConsole(props: Props) {
   }, [legacyValidation, props.date, workspace]);
 
   useEffect(() => {
-    if (tab === "matches" || (tab === "validation" && validationByDate[props.date]) || (tab === "validation-calibrated" && calibratedValidationByDate[props.date]) || (tab === "replay" && replayByDate[props.date])) return;
+    if (tab === "matches" || (tab === "validation" && validationByDate[reviewKey]) || (tab === "validation-calibrated" && calibratedValidationByDate[reviewKey]) || (tab === "replay" && replayByDate[props.date])) return;
     const controller = new AbortController();
     setTabState("loading");
-    const request = tab === "validation" ? fetchIntelligenceValidation(props.date, controller.signal) : tab === "validation-calibrated" ? fetchIntelligenceCalibratedValidation(props.date, controller.signal) : fetchIntelligenceReplay(props.date, controller.signal);
+    const request = tab === "validation" ? fetchIntelligenceValidation(props.date, controller.signal, { days: 7, limit: 50, offset: reviewOffset }) : tab === "validation-calibrated" ? fetchIntelligenceCalibratedValidation(props.date, controller.signal, { days: 7, limit: 50, offset: reviewOffset }) : fetchIntelligenceReplay(props.date, controller.signal);
     request.then((payload) => {
-      if (tab === "validation") setValidationByDate((current) => ({ ...current, [props.date]: payload as IntelligenceValidationResponse }));
-      else if (tab === "validation-calibrated") setCalibratedValidationByDate((current) => ({ ...current, [props.date]: payload as IntelligenceCalibratedValidationResponse }));
+      if (tab === "validation") setValidationByDate((current) => ({ ...current, [reviewKey]: payload as IntelligenceValidationResponse }));
+      else if (tab === "validation-calibrated") setCalibratedValidationByDate((current) => ({ ...current, [reviewKey]: payload as IntelligenceCalibratedValidationResponse }));
       else setReplayByDate((current) => ({ ...current, [props.date]: payload as IntelligenceReplayResponse }));
       setTabState("idle");
     }).catch((error: unknown) => {
@@ -1260,7 +1271,7 @@ export function IntelligenceConsole(props: Props) {
       setTabState("error");
     });
     return () => controller.abort();
-  }, [props.date, tab, replayByDate, validationByDate, calibratedValidationByDate]);
+  }, [props.date, tab, reviewOffset, reviewKey, replayByDate, validationByDate, calibratedValidationByDate, requestAttempt]);
 
   useEffect(() => {
     if (detailWorkspaceRequest.current === workspace.request_id) return;
@@ -1317,15 +1328,17 @@ export function IntelligenceConsole(props: Props) {
   );
   const selected = selectedId ? details[selectedId] || (selectedItem && !isProjectionError(selectedItem) && !isSummaryMatch(selectedItem) ? selectedItem : null) : null;
 
-  const validation = validationByDate[props.date];
+  const validation = validationByDate[reviewKey];
   const replay = replayByDate[props.date];
   const selectTab = (next: WorkspaceTab) => {
     setTab(next);
+    setReviewOffset(0);
     setTabState("idle");
   };
   return (
     <main aria-label="W2 INTELLIGENCE" className="dashboard-v41" data-public-cause={selectedDaySemantics(workspace).cause || "NONE"} data-intelligence-vocabulary="MODEL_MARKET_DISAGREEMENT" data-schema-version={workspace.schema_version} id="top">
       <Header {...props} tab={tab} onTabChange={selectTab} validationCount={validation?.validation.model_forecast.official_recommendations.length} />
+      <DesignV1Overview workspace={workspace} activeTab={tab} onTabChange={selectTab} />
       <RecentDateNav date={props.date} onDateChange={props.onDateChange} workspace={workspace} />
       {tab === "matches" ? <>
         <TodaySummary workspace={workspace} />
@@ -1336,7 +1349,7 @@ export function IntelligenceConsole(props: Props) {
         </div>
         <QualityRail workspace={workspace} />
         <SecondaryViews workspace={workspace} />
-      </> : tabState === "loading" ? <section className="v41-validation-center"><p className="v41-validation-context">正在按需读取{tab === "validation" ? "赛后验证" : tab === "validation-calibrated" ? "赛后验证（校准版）" : "回放记录"}…</p></section> : tabState === "error" ? <section className="v41-validation-center"><p className="v41-validation-warning">该视图暂不可用，请点击 Tab 重试。</p><button type="button" onClick={() => { if (tab === "validation") setValidationByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); else if (tab === "validation-calibrated") setCalibratedValidationByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); else setReplayByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); }}>重试</button></section> : tab === "validation" && validation ? <ValidationCenter response={validation} /> : tab === "validation-calibrated" && calibratedValidation ? <CalibratedValidationCenter response={calibratedValidation} /> : tab === "replay" && replay ? <ReplayCenter response={replay} /> : null}
+      </> : tabState === "loading" ? <section className="v41-validation-center"><p className="v41-validation-context">正在按需读取{tab === "validation" ? "赛后验证" : tab === "validation-calibrated" ? "赛后验证（校准版）" : "回放记录"}…</p></section> : tabState === "error" ? <section className="v41-validation-center"><p className="v41-validation-warning">该视图暂不可用，请点击 Tab 重试。</p><button type="button" onClick={() => { if (tab === "validation") setValidationByDate((current) => { const next = { ...current }; delete next[reviewKey]; return next; }); else if (tab === "validation-calibrated") setCalibratedValidationByDate((current) => { const next = { ...current }; delete next[reviewKey]; return next; }); else setReplayByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); setTabState("idle"); setRequestAttempt((value) => value + 1); }}>重试</button></section> : tab === "validation" && validation ? <Suspense fallback={<section className="design-v1-review"><p className="design-v1-skeleton">正在加载战绩复盘模块…</p></section>}><DesignV1ValidationView response={validation} onPageChange={setReviewOffset} /><ValidationCenter response={validation} /></Suspense> : tab === "validation-calibrated" && calibratedValidation ? <Suspense fallback={<section className="design-v1-review"><p className="design-v1-skeleton">正在加载校准复盘模块…</p></section>}><DesignV1CalibratedValidationView response={calibratedValidation} onPageChange={setReviewOffset} /><CalibratedValidationCenter response={calibratedValidation} /></Suspense> : tab === "replay" && replay ? <Suspense fallback={<section className="design-v1-review"><p className="design-v1-skeleton">正在加载回放模块…</p></section>}><DesignV1ReplayView response={replay} /><ReplayCenter response={replay} /></Suspense> : null}
     </main>
   );
 }

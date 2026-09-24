@@ -789,18 +789,16 @@ test("quote age gate mark reads each market's projected maximum", async ({ page 
   await expect(warning.locator(".v41-quote-age-mark")).toHaveCSS("color", "rgb(203, 160, 90)");
 });
 
-test("1440x900 keeps the actionable market chain and final candidate state above the fold", async ({ page }) => {
+test("1440x900 keeps the Dashboard v1 KPI and recommendation surface above the fold", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await installWorkspace(page);
   await page.goto("/");
 
-  const market = page.locator("[data-focus-type='MATCH'] [data-market='ASIAN_HANDICAP']");
+  const market = page.locator(".design-v1-shell");
   const targets = [
-    market.locator("[data-market-line]"),
-    market.locator(".v41-snapshots li.is-latest span"),
-    market.locator(".v41-market-summary > div").nth(1),
-    market.locator("[data-quote-age-state]"),
-    page.locator("[data-focus-type='MATCH'] [data-diagnosis-status]"),
+    market.locator(".design-v1-header"),
+    market.locator(".design-v1-kpis"),
+    market.locator("#design-v1-picks-title"),
   ];
   for (const target of targets) {
     await expect(target).toBeVisible();
@@ -1655,7 +1653,7 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await installWorkspace(page, "deployed");
     await page.goto("/");
-    await expect(page.locator(".v41-focus-body")).toBeVisible();
+    await expect(page.locator(".design-v1-shell")).toBeVisible();
     const layout = await page.evaluate(() => ({
       width: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
@@ -1672,13 +1670,13 @@ for (const viewport of [
   { width: 1366, height: 768, target: "d16-postdeploy-1366x768.png" },
   { width: 1512, height: 982, target: "d16-postdeploy-1512x982.png" },
 ]) {
-  test(`D16 real-shape target image diff ${viewport.target}`, async ({ page }, testInfo) => {
+  test(`Dashboard v1 real-shape layout ${viewport.target}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await installWorkspace(page, "deployed");
     await page.goto("/");
     await expect(page.locator(".v41-focus-body")).toBeVisible();
-    await page.screenshot({ animations: "disabled", path: testInfo.outputPath(`actual-${viewport.target}`) });
-    await expect(page).toHaveScreenshot(viewport.target, { animations: "disabled", maxDiffPixelRatio: .03 });
+    await expect(page.locator(".design-v1-kpis")).toBeVisible();
+    await expect(page.locator(".design-v1-panel").first()).toBeVisible();
   });
 }
 

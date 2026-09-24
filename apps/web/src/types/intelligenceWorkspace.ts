@@ -666,7 +666,20 @@ export interface IntelligenceValidationResponse {
   schema_version: "w2.dashboard-intelligence-validation.v1";
   generated_at: string | null;
   validation: WorkspaceValidationWithoutReplay;
+  samples?: ValidationReviewSample[];
+  pagination?: { days: number | null; limit: number | null; offset: number; total: number };
   read_contract: IntelligenceWorkspace["read_contract"];
+}
+
+export interface ValidationReviewSample {
+  fixture_id: string;
+  date: string | null;
+  league: string | null;
+  match: string | null;
+  recommendation: string | null;
+  odds: number | string | null;
+  result: string | null;
+  profit_units?: number | null;
 }
 
 export type CalibratedFilterDecision = "KEPT" | "FILTERED";
@@ -695,6 +708,13 @@ export interface CalibratedValidationSample {
   param_version: string;
   warmup: boolean;
   forward: boolean;
+  date?: string | null;
+  league?: string | null;
+  match?: string | null;
+  recommendation?: string | null;
+  result?: string | null;
+  calibration_decision?: string | null;
+  calibrated_ev?: number | null;
 }
 
 export interface IntelligenceCalibratedValidationResponse {
@@ -714,6 +734,7 @@ export interface IntelligenceCalibratedValidationResponse {
     non_warmup_filtered: number;
   };
   decision_contract: Record<string, unknown>;
+  pagination?: { days: number | null; limit: number | null; offset: number; total: number };
   read_contract: IntelligenceWorkspace["read_contract"];
 }
 
@@ -729,6 +750,11 @@ export interface WorkspaceReplayMatch {
   public_semantics: PublicStatusSemantics;
   status: string | null;
   outcome: WorkspaceMatch["outcome"];
+  evaluation_count?: number;
+  final_recommendation?: string | null;
+  date?: string | null;
+  league?: string | null;
+  match?: string | null;
 }
 
 export interface IntelligenceReplayResponse {
@@ -838,4 +864,45 @@ export interface IntelligenceWorkspace {
 
 export type IntelligenceWorkspaceList = Omit<IntelligenceWorkspace, "validation" | "source"> & {
   source: "dashboard_day_view+summary_projection";
+  performance_summary?: PerformanceSummary;
+  today_recommendations?: TodayRecommendation[];
+  system_status?: { data?: string; recommendations?: string };
 };
+
+export interface PerformanceWindow {
+  match_count: number;
+  hit_rate: number | null;
+  profit_units: number;
+}
+
+export interface PerformanceSummary {
+  calibration_identity: string | null;
+  status: string;
+  last_7_days: PerformanceWindow;
+  last_30_days: PerformanceWindow;
+  daily_series: Array<{
+    date: string;
+    daily_profit_units: number;
+    cumulative_profit_units: number;
+  }>;
+}
+
+export interface TodayRecommendation {
+  fixture_id: string;
+  kickoff_utc: string | null;
+  competition_name_zh: string | null;
+  home: string | null;
+  away: string | null;
+  market: string | null;
+  selection: string | null;
+  line: string | number | null;
+  odds: number | string | null;
+  ev: number | null;
+  status: "settled" | "confirmed" | "candidate" | "withdrawn" | string;
+  withdraw_reason: string | null;
+  result?: string | null;
+  tier?: "重点" | "一般" | "观察" | "不推" | null;
+  fusion_ev?: number | null;
+  pinnacle_fair_line?: string | number | null;
+  channel_price_gap?: number | null;
+}
