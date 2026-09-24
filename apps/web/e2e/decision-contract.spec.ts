@@ -1735,3 +1735,96 @@ test("endpoint failure remains fail-closed without legacy fallback", async ({ pa
   await expect(page.locator(".workspace-load-state--error")).toContainText("统一情报工作台暂不可用");
   await expect(page.locator(".workspace-load-state--error")).toContainText("不会回退旧 Dashboard，也不会填充合成数据");
 });
+
+test("design v1 visual shell restores six required regions with real API-shaped rows", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const payload = workspace("normal") as IntelligenceWorkspace & Record<string, unknown>;
+  payload.performance_summary = {
+    calibration_identity: "candidate-eval.v2", status: "AVAILABLE",
+    last_7_days: { match_count: 7, hit_rate: 0.6, profit_units: 2.95 },
+    last_30_days: { match_count: 30, hit_rate: 0.57, profit_units: 3.4 },
+    daily_series: Array.from({ length: 30 }, (_, index) => ({ date: new Date(Date.UTC(2026, 6, 11 + index)).toISOString().slice(0, 10), daily_profit_units: index % 2 ? -0.2 : 0.3, cumulative_profit_units: index * 0.11 })),
+  };
+  payload.system_status = { data: "实时数据", recommendations: "推荐已开启" };
+  payload.today_recommendations = [
+    { fixture_id: "1571807", kickoff_utc: "2026-08-09T23:30:00Z", competition_name_zh: "巴甲", home: "弗拉门戈", away: "帕尔梅拉斯", market: "大小球", selection: "小", line: "2.25", odds: 1.96, ev: 0.06, fusion_ev: 0.06, tier: "重点", pinnacle_fair_line: "2.28", channel_price_gap: -0.02, status: "confirmed", withdraw_reason: null, result: null },
+    { fixture_id: "1571806", kickoff_utc: "2026-08-10T00:30:00Z", competition_name_zh: "美职联", home: "洛杉矶FC", away: "西雅图海湾人", market: "让球", selection: "主", line: "-0.5", odds: 1.88, ev: 0.03, fusion_ev: 0.03, tier: "一般", pinnacle_fair_line: "-0.5", channel_price_gap: -0.01, status: "candidate", withdraw_reason: null, result: null },
+  ];
+  let listCount = 0;
+  let otherCount = 0;
+  await page.route("**/v1/dashboard/intelligence-workspace/**", (route) => {
+    if (route.request().url().includes("/list?")) { listCount += 1; return route.fulfill({ status: 200, json: payload }); }
+    otherCount += 1;
+    return route.fulfill({ status: 200, json: {} });
+  });
+  await page.goto("/?date=2026-08-09");
+  await expect(page.locator(".w2-statusbar .w2-day")).toBeVisible();
+  await expect(page.locator(".w2-statusbar__meta")).toContainText("更新于");
+  await expect(page.locator(".w2-theme")).toBeVisible();
+  await expect(page.locator(".w2-chips .w2-chip")).toHaveCount(3);
+  await expect(page.locator(".w2-table th").filter({ hasText: "结果" }).first()).toBeVisible();
+  await expect(page.locator(".w2-upcoming li")).not.toHaveCount(0);
+  await expect(page.locator(".w2-chart__hero")).toBeVisible();
+  await expect(page.locator(".w2-chart__table summary")).toHaveText("查看每日数据");
+  await expect(page.locator(".w2-system summary")).toContainText("系统详情");
+  await expect(page.locator(".w2-kpi").nth(1).locator(".w2-kpi__foot")).toContainText("赢 · 0 输");
+  expect(listCount).toBe(1);
+  expect(otherCount).toBe(0);
+  await page.getByRole("button", { name: "巴甲" }).click();
+  await expect(page.locator(".w2-table tbody tr")).toHaveCount(1);
+  await page.getByRole("button", { name: "全部" }).click();
+  await expect(page.locator(".w2-table tbody tr")).toHaveCount(2);
+  await page.locator(".w2-chart__table summary").click();
+  await expect(page.locator(".w2-chart__table tbody tr")).toHaveCount(30);
+  await page.locator(".w2-system summary").click();
+  await expect(page.locator(".w2-system__block")).toHaveCount(3);
+  await page.getByRole("button", { name: "切换深浅色" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.getByRole("button", { name: "切换深浅色" }).click();
+  await page.screenshot({ path: testInfo.outputPath("dashboard-v1-implementation.png"), fullPage: true });
+});
+
+test("design v1 review and replay tabs load their API only when opened", async ({ page }) => {
+  const payload = workspace("normal") as IntelligenceWorkspace & Record<string, unknown>;
+  const { history_replay: historyReplay, ...validation } = payload.validation;
+  delete (payload as Partial<IntelligenceWorkspace>).validation;
+  let validationRequests = 0;
+  let calibratedRequests = 0;
+  let replayRequests = 0;
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/validation?**", (route) => {
+    validationRequests += 1;
+    return route.fulfill({ status: 200, json: { request_id: "validation-1", schema_version: "w2.dashboard-intelligence-validation.v1", generated_at: payload.generated_at, validation, samples: [], pagination: { days: 7, limit: 50, offset: 0, total: 0 }, read_contract: payload.read_contract } });
+  });
+  await page.route("**/v1/dashboard/intelligence-workspace/validation-calibrated?**", (route) => {
+    calibratedRequests += 1;
+    return route.fulfill({ status: 200, json: { request_id: "calibrated-1", schema_version: "w2.dashboard-intelligence-validation-calibrated.v1", generated_at: payload.generated_at, date: payload.date, forward_start: null, forward_progress: { kept: 0, target: 300 }, samples: [], counts: { total: 0, kept: 0, filtered: 0, warmup_kept: 0, non_warmup_kept: 0, non_warmup_filtered: 0 }, decision_contract: {}, pagination: { days: 7, limit: 50, offset: 0, total: 0 }, read_contract: payload.read_contract } });
+  });
+  await page.route("**/v1/dashboard/intelligence-workspace/replay?**", (route) => {
+    replayRequests += 1;
+    return route.fulfill({ status: 200, json: { request_id: "replay-1", schema_version: "w2.dashboard-intelligence-replay.v1", generated_at: payload.generated_at, date: payload.date, matches: payload.matches, history_replay: historyReplay, read_contract: payload.read_contract } });
+  });
+  await page.goto("/?date=2026-08-09");
+  expect([validationRequests, calibratedRequests, replayRequests]).toEqual([0, 0, 0]);
+  await page.getByRole("tab", { name: "战绩复盘" }).click();
+  await expect(page.locator("[data-design-v1-review]")).toBeVisible();
+  expect([validationRequests, calibratedRequests, replayRequests]).toEqual([1, 0, 0]);
+  await page.getByRole("button", { name: "校准", exact: true }).click();
+  await expect(page.locator("[data-design-v1-calibrated-review]")).toBeVisible();
+  expect([validationRequests, calibratedRequests, replayRequests]).toEqual([1, 1, 0]);
+  await page.getByRole("tab", { name: "回放记录" }).click();
+  await expect(page.locator("[data-design-v1-replay]")).toBeVisible();
+  expect([validationRequests, calibratedRequests, replayRequests]).toEqual([1, 1, 1]);
+});
+
+test("design v1 mobile cards and bottom navigation fit the viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const payload = workspace("normal") as IntelligenceWorkspace & Record<string, unknown>;
+  payload.today_recommendations = [{ fixture_id: "1571807", kickoff_utc: "2026-08-09T23:30:00Z", competition_name_zh: "巴甲", home: "弗拉门戈", away: "帕尔梅拉斯", market: "大小球", selection: "小", line: "2.25", odds: 1.96, ev: 0.06, status: "confirmed", withdraw_reason: null, result: null }];
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/?date=2026-08-09");
+  await expect(page.locator(".w2-cards .w2-card")).toBeVisible();
+  await expect(page.locator(".w2-bottomnav")).toBeVisible();
+  const widths = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }));
+  expect(widths.content).toBeLessThanOrEqual(widths.viewport);
+});

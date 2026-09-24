@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { footballDayShanghai, translateCompetition, translateReason } from "../lib/formatters";
-import { fetchIntelligenceCalibratedValidation, fetchIntelligenceMatch, fetchIntelligenceReplay, fetchIntelligenceValidation } from "../lib/intelligenceWorkspaceApi";
+import { fetchIntelligenceCalibratedValidation, fetchIntelligenceReplay, fetchIntelligenceValidation } from "../lib/intelligenceWorkspaceApi";
 import { PUBLIC_ENUM_LABELS, PUBLIC_REASON_LABELS } from "../lib/labels";
 import { ahRecommendationTeamLabel, formatAhMarketHandicap, formatAhRecommendationHandicap } from "../lib/pricingDisplay";
 import { publicPresentation } from "../lib/publicPresentation";
@@ -1283,44 +1283,7 @@ export function IntelligenceConsole(props: Props) {
     setDetailLoadingIds(new Set());
   }, [workspace.request_id]);
 
-  useEffect(() => {
-    if (!selectedId) return;
-    const item = workspace.matches.find((match) => match.fixture_id === selectedId);
-    if (!item || !isSummaryMatch(item) || details[selectedId] || detailControllers.current.has(selectedId)) return;
-    const controller = new AbortController();
-    const requestId = workspace.request_id;
-    detailControllers.current.set(selectedId, controller);
-    setDetailLoadingIds((current) => new Set(current).add(selectedId));
-    setDetailErrors((current) => {
-      const next = { ...current };
-      delete next[selectedId];
-      return next;
-    });
-    fetchIntelligenceMatch(selectedId, controller.signal)
-      .then((match) => {
-        if (detailWorkspaceRequest.current === requestId) {
-          setDetails((current) => ({ ...current, [selectedId]: match }));
-        }
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        if (detailWorkspaceRequest.current === requestId) {
-          setDetailErrors((current) => ({ ...current, [selectedId]: "完整证据暂时无法读取，请稍后重试。" }));
-        }
-      })
-      .finally(() => {
-        if (detailControllers.current.get(selectedId) === controller) {
-          detailControllers.current.delete(selectedId);
-        }
-        if (detailWorkspaceRequest.current === requestId) {
-          setDetailLoadingIds((current) => {
-            const next = new Set(current);
-            next.delete(selectedId);
-            return next;
-          });
-        }
-      });
-  }, [details, selectedId, workspace.matches, workspace.request_id]);
+
 
   const selectedItem = useMemo(
     () => workspace.matches.find((match) => match.fixture_id === selectedId) || null,
@@ -1335,21 +1298,11 @@ export function IntelligenceConsole(props: Props) {
     setReviewOffset(0);
     setTabState("idle");
   };
-  return (
-    <main aria-label="W2 INTELLIGENCE" className="dashboard-v41" data-public-cause={selectedDaySemantics(workspace).cause || "NONE"} data-intelligence-vocabulary="MODEL_MARKET_DISAGREEMENT" data-schema-version={workspace.schema_version} id="top">
-      <Header {...props} tab={tab} onTabChange={selectTab} validationCount={validation?.validation.model_forecast.official_recommendations.length} />
-      <DesignV1Overview workspace={workspace} activeTab={tab} onTabChange={selectTab} />
-      <RecentDateNav date={props.date} onDateChange={props.onDateChange} workspace={workspace} />
-      {tab === "matches" ? <>
-        <TodaySummary workspace={workspace} />
-        <CapabilityStatus workspace={workspace} />
-        <div className="v41-main">
-          <PriorityShortlist key={workspace.request_id} workspace={workspace} onSelect={setSelectedId} selectedId={selectedId} />
-          {selected ? <MatchFocus generatedAt={workspace.generated_at} match={selected} /> : selectedItem && isProjectionError(selectedItem) ? <ProjectionErrorFocus match={selectedItem} /> : selectedItem && isSummaryMatch(selectedItem) ? <DetailLoadingFocus fixtureId={selectedItem.fixture_id} loading={detailLoadingIds.has(selectedItem.fixture_id)} error={detailErrors[selectedItem.fixture_id] || null} /> : <GlobalFocus date={props.date} onDateChange={props.onDateChange} workspace={workspace} />}
-        </div>
-        <QualityRail workspace={workspace} />
-        <SecondaryViews workspace={workspace} />
-      </> : tabState === "loading" ? <section className="v41-validation-center"><p className="v41-validation-context">正在按需读取{tab === "validation" ? "赛后验证" : tab === "validation-calibrated" ? "赛后验证（校准版）" : "回放记录"}…</p></section> : tabState === "error" ? <section className="v41-validation-center"><p className="v41-validation-warning">该视图暂不可用，请点击 Tab 重试。</p><button type="button" onClick={() => { if (tab === "validation") setValidationByDate((current) => { const next = { ...current }; delete next[reviewKey]; return next; }); else if (tab === "validation-calibrated") setCalibratedValidationByDate((current) => { const next = { ...current }; delete next[reviewKey]; return next; }); else setReplayByDate((current) => { const next = { ...current }; delete next[props.date]; return next; }); setTabState("idle"); setRequestAttempt((value) => value + 1); }}>重试</button></section> : tab === "validation" && validation ? <Suspense fallback={<section className="design-v1-review"><p className="design-v1-skeleton">正在加载战绩复盘模块…</p></section>}><DesignV1ValidationView response={validation} onPageChange={setReviewOffset} /><ValidationCenter response={validation} /></Suspense> : tab === "validation-calibrated" && calibratedValidation ? <Suspense fallback={<section className="design-v1-review"><p className="design-v1-skeleton">正在加载校准复盘模块…</p></section>}><DesignV1CalibratedValidationView response={calibratedValidation} onPageChange={setReviewOffset} /><CalibratedValidationCenter response={calibratedValidation} /></Suspense> : tab === "replay" && replay ? <Suspense fallback={<section className="design-v1-review"><p className="design-v1-skeleton">正在加载回放模块…</p></section>}><DesignV1ReplayView response={replay} /><ReplayCenter response={replay} /></Suspense> : null}
-    </main>
-  );
+  const tabContent = tabState === "loading" ? <p className="w2-pending">正在按需读取…</p>
+    : tabState === "error" ? <p className="w2-pending">该视图暂不可用。<button type="button" className="w2-link" onClick={() => { setTabState("idle"); setRequestAttempt((value) => value + 1); }}>重试</button></p>
+    : tab === "validation" && validation ? <Suspense fallback={<p className="w2-pending">正在加载战绩复盘…</p>}><DesignV1ValidationView response={validation} onPageChange={setReviewOffset} /></Suspense>
+    : tab === "validation-calibrated" && calibratedValidation ? <Suspense fallback={<p className="w2-pending">正在加载校准复盘…</p>}><DesignV1CalibratedValidationView response={calibratedValidation} onPageChange={setReviewOffset} /></Suspense>
+    : tab === "replay" && replay ? <Suspense fallback={<p className="w2-pending">正在加载回放记录…</p>}><DesignV1ReplayView response={replay} /></Suspense>
+    : null;
+  return <DesignV1Overview workspace={workspace} date={props.date} onDateChange={props.onDateChange} activeTab={tab} onTabChange={selectTab} tabContent={tabContent} />;
 }
