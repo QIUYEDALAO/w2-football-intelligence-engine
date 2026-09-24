@@ -2919,6 +2919,57 @@ class ReadModelService:
     ) -> dict[str, dict[str, Any]]:
         return self.repository.dashboard_model_forecasts_for_fixtures(fixture_ids)
 
+    def dashboard_upcoming_football_days(
+        self,
+        *,
+        now_utc: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """未来 4 个足球日的评估预览（只读投影）。
+
+        与足球日切换器同口径：北京 12:00 切分。窗口 = 今天足球日 + 未来 3 个
+        足球日（共 4 个，含空日）。match_count 为该窗口 kickoff 的
+        api_football fixture 去重数；evaluated_count 为这些 fixture 中在
+        dynamic_prematch_evaluations 里有记录的 fixture 去重数。
+        """
+        now = now_utc or datetime.now(UTC)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=UTC)
+        today = default_football_day(now)
+        days: list[dict[str, Any]] = []
+        with Session(self.repository._database_engine()) as session:
+            for offset in range(4):
+                day = today + timedelta(days=offset)
+                start, end = football_day_window(day)
+                match_count, evaluated_count = session.execute(
+                    select(
+                        func.count(
+                            func.distinct(MatchdayFixtureIdentityModel.fixture_id)
+                        ),
+                        func.count(
+                            func.distinct(DynamicPrematchEvaluationModel.fixture_id)
+                        ),
+                    )
+                    .select_from(MatchdayFixtureIdentityModel)
+                    .outerjoin(
+                        DynamicPrematchEvaluationModel,
+                        DynamicPrematchEvaluationModel.fixture_id
+                        == MatchdayFixtureIdentityModel.provider_fixture_id,
+                    )
+                    .where(
+                        MatchdayFixtureIdentityModel.provider == "api_football",
+                        MatchdayFixtureIdentityModel.kickoff_utc >= start,
+                        MatchdayFixtureIdentityModel.kickoff_utc < end,
+                    )
+                ).one()
+                days.append(
+                    {
+                        "date": day.isoformat(),
+                        "match_count": int(match_count or 0),
+                        "evaluated_count": int(evaluated_count or 0),
+                    }
+                )
+        return days
+
     def dashboard_design_v1_facts(self, *, anchor: date) -> dict[str, Any]:
         """Read persisted validation facts for the Dashboard design projection."""
         start, _ = football_day_window(anchor - timedelta(days=29))

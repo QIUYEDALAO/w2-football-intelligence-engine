@@ -237,6 +237,27 @@ h2, h3 { margin: 0; text-wrap: balance; }
 .w2-kpi--next .w2-kpi__value { font-size: 22px; }
 .w2-kpis-note { font-size: 12px; color: var(--v41-ink-3); margin-top: 8px; }
 
+/* ===== 未来赛程（四个框） ===== */
+.w2-upcoming-days-title { font-size: 15px; font-weight: 600; margin: 18px 0 10px; }
+.w2-upcoming-days {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.w2-upcoming-day {
+  background: var(--v41-panel);
+  border: 1px solid var(--v41-line-soft);
+  border-radius: var(--radius);
+  padding: 14px 16px 12px;
+  display: grid; gap: 4px;
+  min-width: 0;
+}
+.w2-upcoming-day__date { font-size: 12px; color: var(--v41-ink-3); letter-spacing: 0.04em; }
+.w2-upcoming-day__count { font-size: 26px; font-weight: 600; line-height: 1.15; }
+.w2-upcoming-day__count small { font-size: 13px; font-weight: 500; color: var(--v41-ink-2); margin-left: 4px; }
+.w2-upcoming-day__foot { font-size: 12.5px; color: var(--v41-ink-2); }
+.w2-upcoming-day__foot b { font-weight: 600; color: var(--v41-ink); }
+
 /* ===== 主区网格 ===== */
 .w2-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
 .w2-panel {
@@ -510,6 +531,7 @@ h2, h3 { margin: 0; text-wrap: balance; }
   .w2-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .w2-side .w2-panel--filter { display: none; }
   .w2-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .w2-upcoming-days { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .col-ev { display: none; }
   .w2-fixture { grid-template-columns: 56px 64px minmax(0, 1fr) 132px 132px; }
   .w2-fixture .w2-tag { display: none; }
@@ -530,6 +552,8 @@ h2, h3 { margin: 0; text-wrap: balance; }
   .w2-kpis { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 62%; scroll-snap-type: x mandatory; }
   .w2-kpi { scroll-snap-align: start; }
   .w2-kpi__value { font-size: 22px; }
+  .w2-upcoming-days { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .w2-upcoming-day__count { font-size: 22px; }
 
   .w2-table-wrap { display: none; }
   .w2-cards { display: grid; }

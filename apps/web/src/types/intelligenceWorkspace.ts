@@ -862,11 +862,18 @@ export interface IntelligenceWorkspace {
   };
 }
 
+export interface UpcomingFootballDay {
+  date: string;
+  match_count: number;
+  evaluated_count: number;
+}
+
 export type IntelligenceWorkspaceList = Omit<IntelligenceWorkspace, "validation" | "source"> & {
   source: "dashboard_day_view+summary_projection";
   performance_summary?: PerformanceSummary;
   today_recommendations?: TodayRecommendation[];
   system_status?: { data?: string; recommendations?: string };
+  upcoming_football_days?: UpcomingFootballDay[];
 };
 
 export interface PerformanceWindow {

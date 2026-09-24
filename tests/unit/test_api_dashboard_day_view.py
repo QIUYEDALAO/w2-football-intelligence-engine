@@ -651,3 +651,91 @@ def test_day_view_keeps_identity_mismatched_dynamic_evidence_not_ready(
     assert payload["counts"]["not_ready"] == 1
     assert payload["cards"][0]["decision_tier"] == "NOT_READY"
     assert "decision_projection" not in payload["cards"][0]
+
+
+def test_dashboard_upcoming_football_days_window_and_counts() -> None:
+    from datetime import UTC, datetime
+
+    from sqlalchemy import create_engine
+    from w2.api.repository import ReadModelRepository, ReadModelService
+    from w2.infrastructure.database import Base
+    from w2.infrastructure.persistence.dynamic_prematch_models import (
+        DynamicPrematchEvaluationModel,
+    )
+    from w2.infrastructure.persistence.matchday_intake_models import (
+        MatchdayFixtureIdentityModel,
+    )
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+
+    def fixture(fid: str, kickoff: datetime) -> dict[str, object]:
+        return {
+            "fixture_id": f"api_football:{fid}",
+            "provider": "api_football",
+            "provider_fixture_id": fid,
+            "competition_id": "england_premier_league",
+            "provider_league_id": "39",
+            "season": "2026",
+            "kickoff_utc": kickoff,
+            "fixture_status": "NS",
+            "home_provider_team_id": "1",
+            "away_provider_team_id": "2",
+            "team_identity_status": "RESOLVED",
+            "raw_payload_sha256": f"raw{fid}".ljust(64, "0"),
+            "captured_at": kickoff,
+            "identity_hash": f"idf{fid}".ljust(64, "0"),
+            "payload": {},
+        }
+
+    def evaluation(eid: str, fid: str, evaluated_at: datetime) -> dict[str, object]:
+        return {
+            "evaluation_id": eid,
+            "identity_hash": f"ide{eid}".ljust(64, "0"),
+            "fixture_id": fid,
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME",
+            "checkpoint": "T15_ODDS",
+            "evaluated_at": evaluated_at,
+            "original_state": "EVALUATED",
+            "payload": {},
+        }
+
+    # 北京 9/24 20:00 → 今天足球日 = 9/24。
+    now = datetime(2026, 9, 24, 12, 0, tzinfo=UTC)
+    day25 = datetime(2026, 9, 25, 18, 30, tzinfo=UTC)
+    day26 = datetime(2026, 9, 26, 12, 0, tzinfo=UTC)
+    day27 = datetime(2026, 9, 27, 12, 0, tzinfo=UTC)
+
+    fixtures = [
+        fixture("101", day25),
+        fixture("102", day25),
+        fixture("201", day26),
+        fixture("202", day26),
+        fixture("203", day26),
+        fixture("301", day27),
+    ]
+    evaluations = [
+        evaluation("e101", "101", day25),
+        evaluation("e102", "102", day25),
+        evaluation("e201", "201", day26),
+        evaluation("e202", "202", day26),
+        evaluation("e301", "301", day27),
+    ]
+
+    with engine.begin() as connection:
+        connection.execute(MatchdayFixtureIdentityModel.__table__.insert(), fixtures)
+        connection.execute(DynamicPrematchEvaluationModel.__table__.insert(), evaluations)
+
+    service = ReadModelService(ReadModelRepository(engine=engine))
+    days = service.dashboard_upcoming_football_days(now_utc=now)
+
+    assert [day["date"] for day in days] == [
+        "2026-09-24",
+        "2026-09-25",
+        "2026-09-26",
+        "2026-09-27",
+    ]
+    # 空足球日也返回（9/24 无比赛）。
+    assert [day["match_count"] for day in days] == [0, 2, 3, 1]
+    assert [day["evaluated_count"] for day in days] == [0, 2, 2, 1]

@@ -45,6 +45,11 @@ function dayLabel(value: string): string {
   const date = new Date(`${value}T12:00:00+08:00`);
   return new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", weekday: "short" }).format(date);
 }
+function upcomingDayLabel(value: string, isToday: boolean): string {
+  const date = new Date(`${value}T12:00:00+08:00`);
+  const label = new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", month: "numeric", day: "numeric" }).format(date);
+  return isToday ? `${label}·今天` : label;
+}
 function tierFor(ev: number | null | undefined): "重点" | "一般" | "观察" | "不推" | "待融合" {
   if (ev === null || ev === undefined || !Number.isFinite(ev)) return "待融合";
   if (ev >= 0.05) return "重点";
@@ -217,6 +222,21 @@ export function DesignV1Overview({ workspace, date, onDateChange, activeTab, onT
           <article className="w2-kpi"><span className="w2-kpi__label">近 30 天</span><span className="w2-kpi__value num">{summary.status === "AVAILABLE" ? signed(summary.last_30_days.profit_units) : "—"}<small>单位</small></span><span className="w2-kpi__foot"><b className="num">{summary.status === "AVAILABLE" ? summary.last_30_days.match_count : "—"}</b> 场 · 命中 <b className="num">{percent(summary.last_30_days.hit_rate)}</b></span></article>
         </div></div>
         <p className="w2-kpis-note">战绩统计口径：当前模型版本{summary.calibration_identity ? ` · ${summary.calibration_identity}` : ""}</p>
+      </section>
+      <section data-mviews="picks" aria-label="未来赛程">
+        <h2 className="w2-upcoming-days-title">未来赛程</h2>
+        <div className="w2-upcoming-days">
+          {(workspace.upcoming_football_days || []).map((day, index) => {
+            const pending = Math.max(0, day.match_count - day.evaluated_count);
+            return (
+              <article className="w2-upcoming-day" key={day.date}>
+                <span className="w2-upcoming-day__date">{upcomingDayLabel(day.date, index === 0)}</span>
+                <span className="w2-upcoming-day__count num">{day.match_count}<small>场</small></span>
+                <span className="w2-upcoming-day__foot">已评估 <b className="num">{day.evaluated_count}</b> · 待评估 <b className="num">{pending}</b></span>
+              </article>
+            );
+          })}
+        </div>
       </section>
       <div className="w2-grid">
         <section className="w2-panel" data-mviews="picks" aria-labelledby="picksTitle">

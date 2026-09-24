@@ -522,6 +522,10 @@ def dashboard_intelligence_workspace_list(
             else "推荐未开启"
         ),
     }
+    upcoming_reader = getattr(service, "dashboard_upcoming_football_days", None)
+    workspace["upcoming_football_days"] = (
+        upcoming_reader() if callable(upcoming_reader) else []
+    )
     return {"request_id": request_id(request), **workspace}
 
 
