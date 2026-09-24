@@ -569,6 +569,7 @@ h2, h3 { margin: 0; text-wrap: balance; }
   .w2-upcoming-day__count { font-size: 22px; }
 
   .w2-table-wrap { display: none; }
+  .w2-table-wrap--review { display: block; overflow-x: auto; }
   .w2-cards { display: grid; }
   .w2-panel__head .w2-chips { width: 100%; overflow-x: auto; flex-wrap: nowrap; }
   .w2-panel__head .w2-chips::-webkit-scrollbar { display: none; }
