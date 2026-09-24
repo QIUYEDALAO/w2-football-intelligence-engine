@@ -32,6 +32,9 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchOpportunityModel,
 )
 from w2.markets.market_candidate import build_market_candidates
+from w2.prematch.candidate_notifications import (
+    VALIDATION_SAMPLE_CONFIRMED,
+)
 from w2.prematch.lifecycle import (
     CHECKPOINT_OPPORTUNITY_SCOPE,
     MODEL_FORECAST_DENOMINATOR_SCOPE,
@@ -42,11 +45,6 @@ from w2.prematch.lifecycle import (
     bind_evaluation_opportunity,
     classify_evaluation,
     opportunity_identity_hash,
-)
-from w2.prematch.candidate_notifications import (
-    CANDIDATE_FORMED,
-    CANDIDATE_WITHDRAWN,
-    VALIDATION_SAMPLE_CONFIRMED,
 )
 from w2.prematch.read_model_projection import _dynamic_evaluations
 from w2.prematch.repository import DynamicPrematchRepository
@@ -453,15 +451,7 @@ def test_e_downgrade_updates_opportunity_without_unfrozen_notification() -> None
     assert opportunities[0].state == OpportunityState.BLOCKED_BY_GATE.value
     assert opportunities[0].opportunity_identity_hash == formed.opportunity_identity_hash
 
-    # The downgrade must not leave a candidate standing quietly: the Owner is
-    # told the candidate formed and then told it was withdrawn. The card-level
-    # V4 gate silenced both until 2026-09-15. NOTIF-04 additionally confirms the
-    # validation sample the moment the T15 candidate forms.
-    assert [event.event_type for event in outbox] == [
-        CANDIDATE_FORMED,
-        VALIDATION_SAMPLE_CONFIRMED,
-        CANDIDATE_WITHDRAWN,
-    ]
+    assert [event.event_type for event in outbox] == [VALIDATION_SAMPLE_CONFIRMED]
 
 
 def test_e_upgrade_on_the_same_opportunity_is_its_own_attempt() -> None:
@@ -581,10 +571,7 @@ def test_f_notification_comes_from_the_frozen_attempt_not_the_card() -> None:
     engine = _engine()
     DynamicPrematchRepository(engine).append_evaluation(_attempt("PRODUCTION_VALIDATED"))
     events = _outbox(engine)
-    assert [event.event_type for event in events] == [
-        CANDIDATE_FORMED,
-        VALIDATION_SAMPLE_CONFIRMED,
-    ]
+    assert [event.event_type for event in events] == [VALIDATION_SAMPLE_CONFIRMED]
 
 
 # --- (h) EV_SE and EV minus SE are different numbers -------------------------

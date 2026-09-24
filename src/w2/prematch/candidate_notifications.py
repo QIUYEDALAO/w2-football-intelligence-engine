@@ -20,7 +20,6 @@ from w2.dashboard.date_window import (
     football_day_for_kickoff,
     football_day_window,
 )
-from w2.dashboard.results import normalize_match_status
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
@@ -35,39 +34,29 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchOpportunityModel,
     ValidationSampleModel,
 )
+from w2.infrastructure.persistence.league_models import LeagueSeasonModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
-from w2.infrastructure.persistence.league_models import LeagueSeasonModel
 from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
 from w2.infrastructure.persistence.models import ResultModel
-from w2.matchday.timezone import BeijingOperationalDayPolicy
 from w2.prematch.evaluation_slots import evaluation_slots
-from w2.prematch.official_funnel import (
-    official_funnel_recommendations,
-    public_team_labels_for_fixtures,
-)
 from w2.prematch.lifecycle import (
     CHECKPOINT_OPPORTUNITY_SCOPE,
     CHECKPOINT_OPPORTUNITY_SEMANTICS,
     DynamicEvaluationState,
     DynamicEvaluationVersion,
     OpportunityState,
-    evaluated_attempt_identities,
-    final_official_opportunities,
 )
-from w2.settlement.settle import WIN_UNITS
+from w2.prematch.official_funnel import (
+    official_funnel_recommendations,
+    public_team_labels_for_fixtures,
+)
 
-CANDIDATE_FORMED = "CANDIDATE_FORMED"
-CANDIDATE_MATERIAL_CHANGE = "CANDIDATE_MATERIAL_CHANGE"
-CANDIDATE_WITHDRAWN = "CANDIDATE_WITHDRAWN"
-CANDIDATE_T30_CONFIRMED = "CANDIDATE_T30_CONFIRMED"
-PLAN_SUMMARY = "PREMATCH_PLAN_SUMMARY"
-DAY_CLOSEOUT_SUMMARY = "FOOTBALL_DAY_CLOSEOUT_SUMMARY"
 TEST_MESSAGE = "TEST_MESSAGE"
-# NOTIF-04: the only three notification types that reach the phone.
+# NOTIF-04: the three business push types plus the test message.
 DAILY_CANDIDATE_LIST = "DAILY_CANDIDATE_LIST"
 VALIDATION_SAMPLE_CONFIRMED = "VALIDATION_SAMPLE_CONFIRMED"
 DAILY_SETTLEMENT = "DAILY_SETTLEMENT"
@@ -76,23 +65,14 @@ PENDING = "PENDING"
 RETRY_PENDING = "RETRY_PENDING"
 DELIVERED = "DELIVERED"
 FAILED = "FAILED"
-# Routed to the periodic brewing digest instead of an individual push, then
-# marked DIGESTED once a digest carrying it has been enqueued.
-DIGEST_PENDING = "DIGEST_PENDING"
-DIGESTED = "DIGESTED"
 # Recorded in the outbox for audit but deliberately not pushed.
 SUPPRESSED = "SUPPRESSED"
-
-CANDIDATE_BREWING_DIGEST = "CANDIDATE_BREWING_DIGEST"
-BREWING_DIGEST_PERIOD_SECONDS = 24 * 60 * 60
 
 BARK_CHANNEL = "bark"
 AT_LEAST_ONCE = "AT_LEAST_ONCE"
 MAX_DELIVERY_ATTEMPTS = 4
 RETRY_BACKOFF_SECONDS = (5, 10, 20)
 DELIVERY_TIMEOUT_SECONDS = 8
-CLOSEOUT_RESULT_GRACE_SECONDS = 300
-
 QUOTE_MAX_AGE_SECONDS = 1800
 PRICE_CHANGE_THRESHOLD_RATIO = 0.02
 # Notification noise threshold only. It does not change the Decision V4 gate.
@@ -108,24 +88,9 @@ DAILY_CANDIDATE_LIST_ADVANCE_MINUTES = 30
 DAILY_SETTLEMENT_HOUR = 11
 DAILY_SETTLEMENT_MINUTE = 30
 VALIDATION_SAMPLE_FALLBACK_MINUTES_BEFORE_KICKOFF = 5
-# ② fallback 只补推当天（北京 12:00~次日 12:00）且开球未过 30 分钟的比赛，
-# 避免调度延迟把历史样本一次性全推出去。
+# ② fallback 只补推当天（北京 12:00~次日 12:00）且开球未过 30 分钟的比赛。
 VALIDATION_SAMPLE_MAX_AFTER_KICKOFF_MINUTES = 30
 T15_SLOT = "T15_ODDS"
-
-# Owner-ordered notification types that stay in the outbox for audit but are
-# never delivered.  Only ① ② ③ (and TEST_MESSAGE) reach the phone.
-OWNER_STOPPED_EVENT_TYPES = frozenset(
-    {
-        CANDIDATE_FORMED,
-        CANDIDATE_MATERIAL_CHANGE,
-        CANDIDATE_WITHDRAWN,
-        CANDIDATE_T30_CONFIRMED,
-        CANDIDATE_BREWING_DIGEST,
-        PLAN_SUMMARY,
-        DAY_CLOSEOUT_SUMMARY,
-    }
-)
 
 def enqueue_attempt_notification_in_session(
     session: Session,
@@ -133,229 +98,30 @@ def enqueue_attempt_notification_in_session(
     *,
     recommendation_decision_v4: Mapping[str, Any] | None = None,
 ) -> list[str]:
-    """Create attempt-backed events in the evaluation transaction.
-
-    This consumes the immutable attempt being appended. It never polls the
-    mutable opportunity projection to discover a candidate transition.
-    """
-
-    if not _official(version) or version.attempt_identity_hash is None:
-        return []
-    # The card-level V4 is a cross-check, not the source of the recommendation:
-    # this version already carries the frozen market, selection, line, odds,
-    # bookmaker and capture the attempt was made on. Production cards never carry
-    # a usable V4 candidate (measured 2026-09-15: 1219/1219 are NOT_READY with
-    # selected_candidate null, because the card lacks the decision inputs), so
-    # requiring one silenced every candidate push from 2026-09-04 onward. Use the
-    # cross-check when it is available, and fall back to the attempt when not.
-    selected = _v4_candidate_for_attempt(version, recommendation_decision_v4)
-    if selected is None:
-        selected = _attempt_selection(version)
-    previous_rows = list(
-        session.scalars(
-            select(DynamicPrematchEvaluationModel)
-            .where(
-                DynamicPrematchEvaluationModel.fixture_id == version.fixture_id,
-                DynamicPrematchEvaluationModel.market == version.market,
-                DynamicPrematchEvaluationModel.model_forecast_capture_identity_hash
-                == version.model_forecast_capture_identity_hash,
-                DynamicPrematchEvaluationModel.evaluation_policy_version
-                == version.evaluation_policy_version,
-                DynamicPrematchEvaluationModel.official_funnel_eligible.is_(True),
-                DynamicPrematchEvaluationModel.measurement_semantics
-                == CHECKPOINT_OPPORTUNITY_SEMANTICS,
-                DynamicPrematchEvaluationModel.attempt_identity_hash
-                != version.attempt_identity_hash,
-            )
-            .order_by(
-                DynamicPrematchEvaluationModel.recorded_at.desc(),
-                DynamicPrematchEvaluationModel.evaluated_at.desc(),
-                DynamicPrematchEvaluationModel.evaluation_id.desc(),
-            )
-        )
-    )
-    authorized_attempts = set(
-        session.scalars(
-            select(CandidateNotificationOutboxModel.attempt_identity_hash).where(
-                CandidateNotificationOutboxModel.event_type.in_(
-                    {CANDIDATE_FORMED, CANDIDATE_MATERIAL_CHANGE, CANDIDATE_T30_CONFIRMED}
-                )
-            )
-        )
-    )
-    previous = previous_rows[0] if previous_rows else None
-    previous_candidate = next(
-        (
-            row
-            for row in previous_rows
-            if _opportunity_state(row) == "EVALUATED_CANDIDATE"
-            and row.attempt_identity_hash in authorized_attempts
-        ),
-        None,
-    )
-    current_state = version.opportunity_state
-    if current_state is None:
-        return []
-    previous_opportunity = session.scalar(
-        select(DynamicPrematchOpportunityModel)
-        .where(
-            DynamicPrematchOpportunityModel.fixture_id == version.fixture_id,
-            DynamicPrematchOpportunityModel.market == version.market,
-            DynamicPrematchOpportunityModel.model_forecast_capture_identity_hash
-            == version.model_forecast_capture_identity_hash,
-            DynamicPrematchOpportunityModel.evaluation_policy_version
-            == version.evaluation_policy_version,
-            DynamicPrematchOpportunityModel.scheduled_checkpoint_at
-            < version.scheduled_checkpoint_at,
-            DynamicPrematchOpportunityModel.opportunity_identity_hash
-            != version.opportunity_identity_hash,
-        )
-        .order_by(
-            DynamicPrematchOpportunityModel.scheduled_checkpoint_at.desc(),
-            DynamicPrematchOpportunityModel.recorded_at.desc(),
-            DynamicPrematchOpportunityModel.opportunity_identity_hash.desc(),
-        )
-        .limit(1)
-    )
-    previous_state = (
-        previous_opportunity.state
-        if previous_opportunity is not None
-        else _opportunity_state(previous)
-    )
-
-    events: list[tuple[str, DynamicPrematchEvaluationModel | None, str | None]] = []
-    if current_state == OpportunityState.EVALUATED_CANDIDATE and selected is not None:
-        if previous_candidate is None:
-            events.append((CANDIDATE_FORMED, None, previous_state))
-        elif previous_state != "EVALUATED_CANDIDATE":
-            events.append((CANDIDATE_MATERIAL_CHANGE, previous_candidate, previous_state))
-        elif previous is not None and _materially_changed(previous.payload, version.as_dict()):
-            events.append((CANDIDATE_MATERIAL_CHANGE, previous, previous_state))
-        if version.evaluation_slot_id == T30_SLOT and previous_candidate is not None:
-            events.append((CANDIDATE_T30_CONFIRMED, previous_candidate, previous_state))
-    elif previous_state == "EVALUATED_CANDIDATE" and previous_candidate is not None:
-        events.append((CANDIDATE_WITHDRAWN, previous_candidate, previous_state))
-
-    inserted: list[str] = []
-    for event_type, comparison, event_previous_state in events:
-        outbox_created_at = datetime.now(UTC)
-        payload = _attempt_payload(
-            session,
-            version,
-            selected_candidate=selected,
-            decision_hash=(
-                str(recommendation_decision_v4.get("decision_hash"))
-                if recommendation_decision_v4 is not None
-                else None
-            ),
-            event_type=event_type,
-            comparison=(comparison.payload if comparison is not None else None),
-            outbox_created_at=outbox_created_at,
-        )
-        if (
-            event_type == CANDIDATE_MATERIAL_CHANGE
-            and event_previous_state
-            and event_previous_state != "EVALUATED_CANDIDATE"
-        ):
-            payload["reformed_after_state"] = event_previous_state
-        event_id = _event_id(version.attempt_identity_hash, event_type)
-        if _insert(
-            session,
-            event_id=event_id,
-            opportunity_identity_hash=version.opportunity_identity_hash,
-            attempt_identity_hash=version.attempt_identity_hash,
-            event_type=event_type,
-            previous_state=event_previous_state,
-            current_state=current_state.value,
-            payload=payload,
-            created_at=outbox_created_at,
-        ):
-            inserted.append(event_id)
-    # ②: a completed T15_ODDS evaluation finalises the validation sample for
-    # this fixture x market when it is still a candidate.
-    if version.evaluation_slot_id == T15_SLOT:
-        confirmation = enqueue_validation_sample_confirmed_in_session(
-            session,
-            fixture_id=version.fixture_id,
-            market=version.market,
-            now=datetime.now(UTC),
-        )
-        if confirmation:
-            inserted.append(confirmation)
-    return inserted
-
-
-def enqueue_closeout_withdrawal_in_session(
-    session: Session,
-    *,
-    fixture_id: str,
-    market: str,
-    opportunity_identity_hash: str,
-    model_forecast_capture_identity_hash: str,
-    evaluation_policy_version: str,
-    evaluation_slot_id: str,
-    scheduled_checkpoint_at: datetime,
-    current_state: OpportunityState,
-    recorded_at: datetime,
-    blocker: str,
-) -> str | None:
-    """Create a withdrawal directly from an immutable no-attempt closeout."""
-
-    previous = session.scalar(
-        select(DynamicPrematchEvaluationModel)
-        .where(
-            DynamicPrematchEvaluationModel.fixture_id == fixture_id,
-            DynamicPrematchEvaluationModel.market == market,
-            DynamicPrematchEvaluationModel.model_forecast_capture_identity_hash
-            == model_forecast_capture_identity_hash,
-            DynamicPrematchEvaluationModel.evaluation_policy_version == evaluation_policy_version,
-            DynamicPrematchEvaluationModel.official_funnel_eligible.is_(True),
-            DynamicPrematchEvaluationModel.measurement_semantics
-            == CHECKPOINT_OPPORTUNITY_SEMANTICS,
-        )
-        .order_by(
-            DynamicPrematchEvaluationModel.recorded_at.desc(),
-            DynamicPrematchEvaluationModel.evaluated_at.desc(),
-            DynamicPrematchEvaluationModel.evaluation_id.desc(),
-        )
-        .limit(1)
-    )
-    if previous is None or _opportunity_state(previous) != "EVALUATED_CANDIDATE":
-        return None
-    event_id = _event_id(opportunity_identity_hash, CANDIDATE_WITHDRAWN)
-    previous_payload = dict(previous.payload)
-    payload = _payload_from_mapping(
-        session,
-        previous_payload,
-        event_type=CANDIDATE_WITHDRAWN,
-        created_at=recorded_at,
-    )
-    payload.update(
-        {
-            "candidate_status": current_state.value,
-            "slot": evaluation_slot_id,
-            "scheduled_checkpoint_at": _iso(scheduled_checkpoint_at),
-            "withdrawal_reason": blocker,
-            "source_kind": "OPPORTUNITY_CLOSEOUT_WITHOUT_ATTEMPT",
-        }
-    )
-    if not _insert(
-        session,
-        event_id=event_id,
-        opportunity_identity_hash=opportunity_identity_hash,
-        attempt_identity_hash=None,
-        event_type=CANDIDATE_WITHDRAWN,
-        previous_state="EVALUATED_CANDIDATE",
-        current_state=current_state.value,
-        payload=payload,
-        created_at=recorded_at,
+    """Enqueue only the T15 final validation recommendation confirmation."""
+    if (
+        not _official(version)
+        or version.attempt_identity_hash is None
     ):
-        return None
-    return event_id
+        return []
+    # Keep the existing attempt/V4 identity guard on every official evaluation.
+    _v4_candidate_for_attempt(version, recommendation_decision_v4)
+    if version.evaluation_slot_id != T15_SLOT:
+        return []
+    confirmation = enqueue_validation_sample_confirmed_in_session(
+        session, fixture_id=version.fixture_id, market=version.market, now=datetime.now(UTC)
+    )
+    return [confirmation] if confirmation else []
 
 
 def notification_health_in_session(session: Session, *, now: datetime) -> dict[str, Any]:
-    rows = list(session.scalars(select(CandidateNotificationOutboxModel)))
+    rows = list(
+        session.scalars(
+            select(CandidateNotificationOutboxModel).where(
+                CandidateNotificationOutboxModel.event_type.in_(_ALWAYS_PUSH)
+            )
+        )
+    )
     delivered = [row for row in rows if row.delivery_status == DELIVERED]
     pending = [row for row in rows if row.delivery_status in {PENDING, RETRY_PENDING}]
     failed = [row for row in rows if row.delivery_status == FAILED]
@@ -448,7 +214,13 @@ def record_delivery_result_in_session(
     payload = dict(row.payload or {})
     delivery = dict(payload.get("_delivery") or {})
     previous_failures = _consecutive_failure_count(
-        list(session.scalars(select(CandidateNotificationOutboxModel)))
+        list(
+            session.scalars(
+                select(CandidateNotificationOutboxModel).where(
+                    CandidateNotificationOutboxModel.event_type.in_(_ALWAYS_PUSH)
+                )
+            )
+        )
     )
     delivery["last_attempted_at"] = _iso(attempted_at)
     if delivered:
@@ -480,88 +252,16 @@ def _aware(moment: datetime) -> datetime:
     return moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
 
 
-def _fixture_market_key(payload: Mapping[str, Any] | None) -> tuple[str, str] | None:
-    if not isinstance(payload, Mapping):
-        return None
-    fixture_id = str(payload.get("fixture_id") or "").removeprefix("api_football:")
-    market = str(payload.get("market") or "")
-    if not fixture_id or not market:
-        return None
-    return fixture_id, market
-
-
-def _confirmed_at_by_key(session: Session) -> dict[tuple[str, str], datetime]:
-    """Earliest T-30m confirmation per fixture and market."""
-
-    confirmed: dict[tuple[str, str], datetime] = {}
-    for row in session.scalars(
-        select(CandidateNotificationOutboxModel).where(
-            CandidateNotificationOutboxModel.event_type == CANDIDATE_T30_CONFIRMED,
-            CandidateNotificationOutboxModel.delivery_status == DELIVERED,
-        )
-    ):
-        key = _fixture_market_key(row.payload)
-        if key is None:
-            continue
-        seen = confirmed.get(key)
-        created_at = _aware(row.created_at)
-        if seen is None or created_at < seen:
-            confirmed[key] = created_at
-    return confirmed
-
-
-def _withdrawals_already_pushed(session: Session) -> set[tuple[str, str]]:
-    pushed: set[tuple[str, str]] = set()
-    for row in session.scalars(
-        select(CandidateNotificationOutboxModel).where(
-            CandidateNotificationOutboxModel.event_type == CANDIDATE_WITHDRAWN,
-            CandidateNotificationOutboxModel.delivery_status == DELIVERED,
-        )
-    ):
-        key = _fixture_market_key(row.payload)
-        if key is not None:
-            pushed.add(key)
-    return pushed
-
-
 _ALWAYS_PUSH = frozenset(
-    {
-        DAILY_CANDIDATE_LIST,
-        VALIDATION_SAMPLE_CONFIRMED,
-        DAILY_SETTLEMENT,
-        TEST_MESSAGE,
-    }
+    {DAILY_CANDIDATE_LIST, VALIDATION_SAMPLE_CONFIRMED, DAILY_SETTLEMENT, TEST_MESSAGE}
 )
 
 
-def delivery_route(
-    row: CandidateNotificationOutboxModel,
-    *,
-    confirmed_at: Mapping[tuple[str, str], datetime],
-    withdrawals_pushed: set[tuple[str, str]],
-) -> tuple[str, str]:
-    """Decide whether an outbox row reaches the phone.
-
-    Every event stays in the outbox for audit; this only governs delivery.
-    NOTIF-04 keeps exactly three push types -- ① 每日候选名单, ② 验证样本最终确认,
-    ③ 每日结算 -- plus the test message.  Every legacy candidate/summary type
-    stays in the outbox but is never delivered (``OWNER_DECISION_STOP``).
-    """
-
-    event_type = str(row.event_type)
-    if event_type in OWNER_STOPPED_EVENT_TYPES:
-        return "SUPPRESS", "OWNER_DECISION_STOP"
-    if event_type in _ALWAYS_PUSH:
+def delivery_route(row: CandidateNotificationOutboxModel) -> tuple[str, str]:
+    """Only the four approved event types reach the phone."""
+    if str(row.event_type) in _ALWAYS_PUSH:
         return "SEND", "ACTIONABLE"
-    key = _fixture_market_key(row.payload)
-    if key is None:
-        return "SEND", "UNKEYED_EVENT"
-    locked_at = confirmed_at.get(key)
-    if locked_at is None or _aware(row.created_at) < locked_at:
-        return "SUPPRESS", "NO_LOCK_PUSHED_FOR_THIS_MARKET"
-    if event_type == CANDIDATE_WITHDRAWN and key in withdrawals_pushed:
-        return "SUPPRESS", "WITHDRAWAL_ALREADY_PUSHED"
-    return "SEND", "AFTER_LOCK"
+    return "SUPPRESS", "EVENT_TYPE_RETIRED"
 
 
 def deliver_pending_notifications(
@@ -585,7 +285,6 @@ def deliver_pending_notifications(
     send = sender or _send_bark
     delivered_count = 0
     failed_count = 0
-    digest_pending_count = 0
     suppressed_count = 0
     with Session(engine or create_engine()) as session:
         rows = list(
@@ -597,22 +296,13 @@ def deliver_pending_notifications(
                 .order_by(CandidateNotificationOutboxModel.created_at)
             )
         )
-        confirmed_at = _confirmed_at_by_key(session)
-        withdrawals_pushed = _withdrawals_already_pushed(session)
         due_rows = [row for row in rows if _delivery_due(row, resolved_now)][: max(limit, 1)]
         for row in due_rows:
-            route, reason = delivery_route(
-                row,
-                confirmed_at=confirmed_at,
-                withdrawals_pushed=withdrawals_pushed,
-            )
+            route, reason = delivery_route(row)
             if route != "SEND":
-                row.delivery_status = DIGEST_PENDING if route == "DIGEST" else SUPPRESSED
+                row.delivery_status = SUPPRESSED
                 row.last_error = reason[:512]
-                if route == "DIGEST":
-                    digest_pending_count += 1
-                else:
-                    suppressed_count += 1
+                suppressed_count += 1
                 session.commit()
                 continue
             try:
@@ -628,16 +318,6 @@ def deliver_pending_notifications(
                 )
             else:
                 delivered_count += 1
-                key = _fixture_market_key(row.payload)
-                event_type = str(row.event_type)
-                if key is not None:
-                    if event_type == CANDIDATE_T30_CONFIRMED:
-                        confirmed_at[key] = min(
-                            confirmed_at.get(key, _aware(row.created_at)),
-                            _aware(row.created_at),
-                        )
-                    elif event_type == CANDIDATE_WITHDRAWN:
-                        withdrawals_pushed.add(key)
                 record_delivery_result_in_session(
                     session,
                     notification_event_id=row.notification_event_id,
@@ -651,131 +331,13 @@ def deliver_pending_notifications(
         else "RETRY_SCHEDULED"
         if failed_count
         else "ROUTED"
-        if digest_pending_count or suppressed_count
+        if suppressed_count
         else "IDLE",
         "channel": BARK_CHANNEL,
         "delivered": delivered_count,
         "failed_attempts": failed_count,
-        "digest_pending": digest_pending_count,
         "suppressed": suppressed_count,
     }
-
-
-def _brewing_bucket_start(moment: datetime) -> datetime:
-    local = moment.astimezone(BEIJING)
-    period_hours = BREWING_DIGEST_PERIOD_SECONDS // 3600
-    floored = local.replace(
-        hour=(local.hour // period_hours) * period_hours,
-        minute=0,
-        second=0,
-        microsecond=0,
-    )
-    return floored.astimezone(UTC)
-
-
-def enqueue_brewing_digest_in_session(session: Session, *, now: datetime) -> list[str]:
-    """Fold candidates that formed during the last closed window into one push.
-
-    The digest is emitted only after its window has closed, so a candidate
-    forming early in a window still waits for the rest of that window rather
-    than arriving alone. A candidate reaches the phone at most one period
-    after it forms; the T-30m lock is never routed here and stays immediate.
-    """
-
-    current_start = _brewing_bucket_start(now)
-    window_start = current_start - timedelta(seconds=BREWING_DIGEST_PERIOD_SECONDS)
-    rows = [
-        row
-        for row in session.scalars(
-            select(CandidateNotificationOutboxModel)
-            .where(CandidateNotificationOutboxModel.delivery_status == DIGEST_PENDING)
-            .order_by(CandidateNotificationOutboxModel.created_at)
-        )
-        if _aware(row.created_at) < current_start
-    ]
-    if not rows:
-        return []
-    event_id = _event_id(window_start.isoformat(), CANDIDATE_BREWING_DIGEST)
-
-    fixtures: dict[str, dict[str, Any]] = {}
-    for row in rows:
-        payload = row.payload if isinstance(row.payload, Mapping) else {}
-        fixture_id = str(payload.get("fixture_id") or "").removeprefix("api_football:")
-        if not fixture_id:
-            continue
-        match = _as_mapping(payload.get("match"))
-        competition_id = payload.get("competition_id")
-        if not competition_id:
-            identity = _fixture_identity(session, fixture_id)
-            competition_id = identity.competition_id if identity else None
-        entry = fixtures.setdefault(
-            fixture_id,
-            {
-                "fixture_id": fixture_id,
-                "competition_id": competition_id,
-                "competition": _competition_zh_name(competition_id),
-                "home": str(match.get("home") or "主队"),
-                "away": str(match.get("away") or "客队"),
-                "kickoff_local": payload.get("kickoff_local"),
-                "markets": [],
-            },
-        )
-        if not entry.get("competition_id") and competition_id:
-            entry["competition_id"] = competition_id
-            entry["competition"] = _competition_zh_name(competition_id)
-        entry["markets"].append(
-            {
-                "market": payload.get("market"),
-                "line": payload.get("line"),
-                "direction": payload.get("direction"),
-                "decimal_odds": payload.get("decimal_odds"),
-                "current_ev": payload.get("current_ev"),
-            }
-        )
-
-    ordered = sorted(
-        fixtures.values(),
-        key=lambda item: (str(item.get("kickoff_local") or ""), item["fixture_id"]),
-    )
-    inserted = _insert(
-        session,
-        event_id=event_id,
-        opportunity_identity_hash=None,
-        attempt_identity_hash=None,
-        event_type=CANDIDATE_BREWING_DIGEST,
-        previous_state=None,
-        current_state="BREWING",
-        payload={
-            "event_type": CANDIDATE_BREWING_DIGEST,
-            "schema_version": "w2.candidate_notification.v1",
-            "window_start": window_start.isoformat().replace("+00:00", "Z"),
-            "window_end": current_start.isoformat().replace("+00:00", "Z"),
-            "fixture_count": len(ordered),
-            "candidate_count": sum(len(item["markets"]) for item in ordered),
-            "fixtures": ordered,
-            "dashboard_url": _dashboard_day_url(
-                football_day_for_kickoff(current_start).isoformat()
-            ),
-        },
-        created_at=now,
-    )
-    if not inserted:
-        return []
-    for row in rows:
-        row.delivery_status = DIGESTED
-        row.delivered_at = now
-    session.flush()
-    return [event_id]
-
-
-def enqueue_brewing_digest(
-    *, now: datetime | None = None, engine: Engine | None = None
-) -> list[str]:
-    resolved_now = now or datetime.now(UTC)
-    with Session(engine or create_engine()) as session:
-        inserted = enqueue_brewing_digest_in_session(session, now=resolved_now)
-        session.commit()
-    return inserted
 
 
 def enqueue_test_message_in_session(
@@ -823,277 +385,6 @@ def enqueue_test_message(
     return event_id
 
 
-def enqueue_operational_summaries_in_session(
-    session: Session,
-    *,
-    now: datetime,
-) -> list[str]:
-    """Enqueue the two operational-football-day summaries idempotently."""
-
-    window = BeijingOperationalDayPolicy().current_window(now_utc=now)
-    identities = list(
-        session.scalars(
-            select(MatchdayFixtureIdentityModel)
-            .where(
-                MatchdayFixtureIdentityModel.kickoff_utc >= window.start_utc,
-                MatchdayFixtureIdentityModel.kickoff_utc < window.end_utc,
-            )
-            .order_by(MatchdayFixtureIdentityModel.kickoff_utc)
-        )
-    )
-    if not identities:
-        return []
-    canonical_ids = {row.fixture_id for row in identities}
-    bare_ids = {row.provider_fixture_id for row in identities}
-    fixture_aliases = canonical_ids | bare_ids
-    plans = list(
-        session.scalars(
-            select(MatchdayCheckpointPlanModel)
-            .where(MatchdayCheckpointPlanModel.fixture_id.in_(fixture_aliases))
-            .order_by(MatchdayCheckpointPlanModel.scheduled_at)
-        )
-    )
-    registered_slots = set(evaluation_slots())
-    evaluation_plans = [
-        row
-        for row in plans
-        if row.checkpoint in registered_slots and "odds" in list(row.endpoints or [])
-    ]
-    tracks = list(
-        session.scalars(
-            select(ModelForecastCaptureModel).where(
-                ModelForecastCaptureModel.fixture_id.in_(fixture_aliases)
-            )
-        )
-    )
-    track_fixture_ids = {row.fixture_id.removeprefix("api_football:") for row in tracks}
-    track_count_by_fixture: dict[str, int] = {}
-    for row in tracks:
-        fixture_id = row.fixture_id.removeprefix("api_football:")
-        track_count_by_fixture[fixture_id] = track_count_by_fixture.get(fixture_id, 0) + 1
-    plan_fixture_ids = {row.fixture_id.removeprefix("api_football:") for row in evaluation_plans}
-    candidate_track_fixture_ids = track_fixture_ids & plan_fixture_ids
-    candidate_track_matches = [
-        _summary_fixture(identity)
-        for identity in identities
-        if identity.provider_fixture_id in candidate_track_fixture_ids
-    ]
-
-    inserted: list[str] = []
-    if evaluation_plans:
-        first_kickoff = min(_utc(row.kickoff_utc) for row in identities)
-        plan_summary_due_at = first_kickoff - timedelta(hours=2)
-        event_id = _event_id(window.operational_day_key, PLAN_SUMMARY)
-        planned_opportunities = sum(
-            2
-            * track_count_by_fixture.get(
-                row.fixture_id.removeprefix("api_football:"),
-                0,
-            )
-            for row in evaluation_plans
-        )
-        # Same reasoning as the closeout below: `window` is the current
-        # operational day only, and the event id is
-        # (operational_day_key, PLAN_SUMMARY), so this cannot backfill history
-        # and cannot fire twice. The old five-minute forward-only window meant a
-        # scheduler that did not tick inside it lost the day's plan summary
-        # entirely, which is indistinguishable from "no fixtures today".
-        if plan_summary_due_at <= now and _insert(
-            session,
-            event_id=event_id,
-            opportunity_identity_hash=None,
-            attempt_identity_hash=None,
-            event_type=PLAN_SUMMARY,
-            previous_state=None,
-            current_state="PLANNED",
-            payload={
-                "schema_version": "w2.candidate_notification.v1",
-                "event_type": PLAN_SUMMARY,
-                "operational_football_day": window.operational_day_key,
-                "heartbeat": True,
-                "summary_timing": "TWO_HOURS_BEFORE_FIRST_KICKOFF",
-                "summary_due_at": _iso(plan_summary_due_at),
-                "monitoring_fixture_count": len(identities),
-                "model_track_ready_fixture_count": len(track_fixture_ids),
-                "candidate_track_fixture_count": len(candidate_track_fixture_ids),
-                "candidate_track_matches": candidate_track_matches,
-                "planned_evaluation_opportunity_count": planned_opportunities,
-                "first_evaluation_at": _iso(min(_utc(row.scheduled_at) for row in evaluation_plans))
-                if evaluation_plans
-                else None,
-                "last_evaluation_at": _iso(max(_utc(row.scheduled_at) for row in evaluation_plans))
-                if evaluation_plans
-                else None,
-                "dashboard_url": _dashboard_day_url(window.operational_day_key),
-                "created_at": _iso(now),
-            },
-            created_at=now,
-        ):
-            inserted.append(event_id)
-
-    results = list(
-        session.scalars(select(ResultModel).where(ResultModel.fixture_id.in_(fixture_aliases)))
-    )
-    results_by_fixture = {row.fixture_id.removeprefix("api_football:"): row for row in results}
-    closed_evidence = [
-        _fixture_closeout_time(identity, results_by_fixture.get(identity.provider_fixture_id))
-        for identity in identities
-    ]
-    closeout_due_at = max((value for value in closed_evidence if value), default=None)
-    # `window` is the current operational day only, so `closeout_due_at` always
-    # belongs to today; this can never backfill history. The outbox identity is
-    # (operational_day_key, DAY_CLOSEOUT_SUMMARY), so at most one closeout is
-    # written per football day however often this runs. That makes the old
-    # five-minute forward-only window unnecessary and harmful: it tolerated a
-    # restart only inside those five minutes, and a scheduler that came back a
-    # minute later silently lost the whole day (2026-09-13 was lost that way).
-    if (
-        closeout_due_at is not None
-        and all(value is not None for value in closed_evidence)
-        and closeout_due_at <= now
-    ):
-        opportunities = list(
-            session.scalars(
-                select(DynamicPrematchOpportunityModel).where(
-                    DynamicPrematchOpportunityModel.fixture_id.in_(fixture_aliases)
-                )
-            )
-        )
-        attempts = list(
-            session.scalars(
-                select(DynamicPrematchEvaluationModel).where(
-                    DynamicPrematchEvaluationModel.fixture_id.in_(fixture_aliases),
-                    DynamicPrematchEvaluationModel.official_funnel_eligible.is_(True),
-                    DynamicPrematchEvaluationModel.measurement_semantics
-                    == CHECKPOINT_OPPORTUNITY_SEMANTICS,
-                )
-            )
-        )
-        states = {state.value: 0 for state in OpportunityState}
-        invalid = 0
-        for opportunity in opportunities:
-            if (
-                not opportunity.opportunity_identity_hash
-                or opportunity.state not in states
-                or not opportunity.evaluation_slot_id
-                or not opportunity.market
-            ):
-                invalid += 1
-                continue
-            states[opportunity.state] += 1
-        reason_by_market = _zero_candidate_reasons(opportunities, attempts)
-        all_recommendations = _closeout_recommendations(session)
-        recommendations = [item for item in all_recommendations if item["fixture_id"] in bare_ids]
-        daily_settled = [item for item in recommendations if item["profit_units"] is not None]
-        cumulative_settled = [
-            item for item in all_recommendations if item["profit_units"] is not None
-        ]
-        event_id = _event_id(window.operational_day_key, DAY_CLOSEOUT_SUMMARY)
-        if _insert(
-            session,
-            event_id=event_id,
-            opportunity_identity_hash=None,
-            attempt_identity_hash=None,
-            event_type=DAY_CLOSEOUT_SUMMARY,
-            previous_state=None,
-            current_state="CLOSED",
-            payload={
-                "schema_version": "w2.candidate_notification.v1",
-                "event_type": DAY_CLOSEOUT_SUMMARY,
-                "operational_football_day": window.operational_day_key,
-                "closeout_trigger_at": _iso(closeout_due_at),
-                "formal_opportunity_count": len(opportunities),
-                "complete_evaluation_count": states["EVALUATED_NO_EDGE"]
-                + states["EVALUATED_CANDIDATE"],
-                "blocked_by_gate_count": states["BLOCKED_BY_GATE"],
-                "evaluation_error_count": states["EVALUATION_ERROR"],
-                "missed_checkpoint_count": states["MISSED_CHECKPOINT"],
-                "no_edge_count": states["EVALUATED_NO_EDGE"],
-                "candidate_count": states["EVALUATED_CANDIDATE"],
-                "invalid_count": invalid,
-                "recommendations": recommendations,
-                "daily_recommendation_count": len(recommendations),
-                "daily_settled_count": len(daily_settled),
-                "daily_profit_units": round(
-                    sum(float(item["profit_units"]) for item in daily_settled), 3
-                ),
-                "cumulative_recommendation_count": len(all_recommendations),
-                "cumulative_settled_count": len(cumulative_settled),
-                "cumulative_profit_units": round(
-                    sum(float(item["profit_units"]) for item in cumulative_settled), 3
-                ),
-                "zero_candidate_reason_by_market": reason_by_market,
-                "zero_candidate_is_not_delivery_health": True,
-                "dashboard_url": _dashboard_day_url(window.operational_day_key),
-                "created_at": _iso(now),
-            },
-            created_at=now,
-        ):
-            inserted.append(event_id)
-    return inserted
-
-
-def enqueue_operational_summaries(
-    *,
-    now: datetime | None = None,
-    engine: Engine | None = None,
-) -> list[str]:
-    resolved_now = now or datetime.now(UTC)
-    with Session(engine or create_engine()) as session:
-        inserted = enqueue_operational_summaries_in_session(session, now=resolved_now)
-        session.commit()
-    return inserted
-
-
-def _zero_candidate_reasons(
-    opportunities: list[DynamicPrematchOpportunityModel],
-    attempts: list[DynamicPrematchEvaluationModel],
-) -> dict[str, dict[str, Any]]:
-    attempts_by_opportunity = {
-        row.opportunity_identity_hash: row for row in attempts if row.opportunity_identity_hash
-    }
-    result: dict[str, dict[str, Any]] = {}
-    for market in ("ASIAN_HANDICAP", "TOTALS"):
-        rows = [row for row in opportunities if row.market == market]
-        candidates = sum(row.state == "EVALUATED_CANDIDATE" for row in rows)
-        reason_counts: dict[str, int] = {}
-        for row in rows:
-            attempt = attempts_by_opportunity.get(row.opportunity_identity_hash)
-            reason = (
-                f"BLOCKED_BY_GATE:{attempt.first_failed_gate}"
-                if row.state == "BLOCKED_BY_GATE" and attempt and attempt.first_failed_gate
-                else row.state
-            )
-            reason_counts[reason] = reason_counts.get(reason, 0) + 1
-        result[market] = {
-            "candidate_count": candidates,
-            "reason_counts": dict(sorted(reason_counts.items())),
-            "summary": (
-                "CANDIDATE_PRESENT"
-                if candidates
-                else max(reason_counts, key=lambda key: reason_counts[key])
-                if reason_counts
-                else "NO_OFFICIAL_OPPORTUNITY_RECORDED"
-            ),
-        }
-    return result
-
-
-def _summary_fixture(identity: MatchdayFixtureIdentityModel) -> dict[str, Any]:
-    kickoff = _utc(identity.kickoff_utc)
-    fixture_id = identity.provider_fixture_id
-    return {
-        "fixture_id": fixture_id,
-        "competition_id": identity.competition_id,
-        "competition": _competition_zh_name(identity.competition_id),
-        "home": _team_name(identity, "home"),
-        "away": _team_name(identity, "away"),
-        "kickoff_local": kickoff.astimezone(BEIJING).isoformat(),
-        "kickoff_local_hm": kickoff.astimezone(BEIJING).strftime("%m-%d %H:%M"),
-        "dashboard_url": _dashboard_fixture_url(fixture_id, kickoff),
-    }
-
-
 def _team_name(identity: MatchdayFixtureIdentityModel, side: str) -> str:
     w2_team_id = str(getattr(identity, f"{side}_w2_team_id") or "")
     reviewed = reviewed_public_team_labels().get(w2_team_id)
@@ -1111,126 +402,6 @@ def _team_name(identity: MatchdayFixtureIdentityModel, side: str) -> str:
         return raw_name
     provider_id = str(getattr(identity, f"{side}_provider_team_id") or "").strip()
     return f"球队ID {provider_id}（身份未解析）" if provider_id else "球队身份未解析"
-
-
-def _fixture_closeout_time(
-    identity: MatchdayFixtureIdentityModel,
-    result: ResultModel | None,
-) -> datetime | None:
-    if result is not None:
-        return _utc(result.confirmed_at)
-    if normalize_match_status(identity.fixture_status) in {
-        "FINISHED",
-        "CANCELLED",
-        "POSTPONED",
-    }:
-        return _utc(identity.captured_at) + timedelta(seconds=CLOSEOUT_RESULT_GRACE_SECONDS)
-    return None
-
-
-def _closeout_recommendations(
-    session: Session,
-) -> list[dict[str, Any]]:
-    evaluations = list(
-        session.scalars(
-            select(DynamicPrematchEvaluationModel).where(
-                DynamicPrematchEvaluationModel.official_funnel_eligible.is_(True),
-                DynamicPrematchEvaluationModel.measurement_semantics
-                == CHECKPOINT_OPPORTUNITY_SEMANTICS,
-            )
-        )
-    )
-    opportunities = list(session.scalars(select(DynamicPrematchOpportunityModel)))
-    final = final_official_opportunities(
-        opportunities,
-        evaluated_attempts=evaluated_attempt_identities(evaluations),
-    )
-    latest: dict[tuple[str, str], DynamicPrematchEvaluationModel] = {}
-    for row in evaluations:
-        payload = row.payload if isinstance(row.payload, dict) else {}
-        key = (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
-        opportunity = final.get(key)
-        if (
-            payload.get("state") != DynamicEvaluationState.ANALYSIS_PICK_ACTIVE.value
-            or opportunity is None
-            or opportunity.state != OpportunityState.EVALUATED_CANDIDATE.value
-            or row.opportunity_identity_hash != opportunity.opportunity_identity_hash
-            or row.attempt_identity_hash != opportunity.latest_attempt_identity_hash
-        ):
-            continue
-        previous = latest.get(key)
-        if previous is None or (row.evaluated_at, row.evaluation_id) > (
-            previous.evaluated_at,
-            previous.evaluation_id,
-        ):
-            latest[key] = row
-
-    fixture_ids = {fixture_id for fixture_id, _market in latest}
-    identities = {
-        row.provider_fixture_id: row
-        for row in session.scalars(
-            select(MatchdayFixtureIdentityModel).where(
-                MatchdayFixtureIdentityModel.provider_fixture_id.in_(fixture_ids)
-            )
-        )
-    }
-    canonical_ids = fixture_ids | {f"api_football:{fixture_id}" for fixture_id in fixture_ids}
-    results = {
-        row.fixture_id.removeprefix("api_football:"): row
-        for row in session.scalars(
-            select(ResultModel).where(ResultModel.fixture_id.in_(canonical_ids))
-        )
-    }
-
-    recommendations: list[dict[str, Any]] = []
-    for (fixture_id, market), row in sorted(latest.items()):
-        signal = row.payload if isinstance(row.payload, dict) else {}
-        identity = identities.get(fixture_id)
-        result = results.get(fixture_id)
-        settlement = "RESULT_NOT_COLLECTED"
-        score = None
-        profit_units = None
-        if result is not None:
-            score = f"{result.home_goals}-{result.away_goals}"
-            try:
-                settlement = _settle_candidate(
-                    market=market,
-                    selection=row.selection,
-                    line=signal.get("exact_line"),
-                    home_goals=result.home_goals,
-                    away_goals=result.away_goals,
-                )
-                units = WIN_UNITS[settlement]
-                odds = Decimal(str(signal.get("decimal_odds")))
-                profit_units = units * (odds - 1) if units > 0 else units
-            except ValueError:
-                settlement = "SETTLEMENT_ERROR"
-        recommendations.append(
-            {
-                "fixture_id": fixture_id,
-                "competition_id": identity.competition_id if identity else None,
-                "competition": (
-                    _competition_zh_name(identity.competition_id) if identity else "未知联赛"
-                ),
-                "home": _team_name(identity, "home") if identity else "主队（身份未解析）",
-                "away": _team_name(identity, "away") if identity else "客队（身份未解析）",
-                "market": market,
-                "direction": row.selection,
-                "line": signal.get("exact_line"),
-                "decimal_odds": signal.get("decimal_odds"),
-                "slot": row.evaluation_slot_id,
-                "final_candidate_status": OpportunityState.EVALUATED_CANDIDATE.value,
-                "score": score,
-                "settlement": settlement,
-                "profit_units": float(profit_units) if profit_units is not None else None,
-                "dashboard_url": (
-                    _dashboard_fixture_url(fixture_id, _utc(identity.kickoff_utc))
-                    if identity
-                    else None
-                ),
-            }
-        )
-    return recommendations
 
 
 # === NOTIF-04: ① 每日候选名单 / ② 验证样本最终确认 / ③ 每日结算 ===
@@ -1606,9 +777,8 @@ def _candidate_track_fixture_ids(
 ) -> tuple[set[str], list[MatchdayFixtureIdentityModel]]:
     """Candidate-track fixtures for a football-day window.
 
-    Same 口径 as the retired ``PREMATCH_PLAN_SUMMARY``: a fixture is on the
-    candidate track when it has both a model-forecast capture and at least one
-    registered odds evaluation plan.
+    A fixture is on the candidate track when it has both a model-forecast
+    capture and at least one registered odds evaluation plan.
     """
 
     identities = list(
@@ -1710,7 +880,9 @@ def enqueue_daily_candidate_list_in_session(session: Session, *, now: datetime) 
     matches = [
         {
             "fixture_id": str(identity.provider_fixture_id),
-            "kickoff_local_hm": _utc(identity.kickoff_utc).astimezone(BEIJING).strftime("%m-%d %H:%M"),
+            "kickoff_local_hm": _utc(identity.kickoff_utc)
+            .astimezone(BEIJING)
+            .strftime("%m-%d %H:%M"),
             "competition": _competition_zh_name(identity.competition_id),
             "home": _team_name(identity, "home"),
             "away": _team_name(identity, "away"),
@@ -1793,7 +965,9 @@ def enqueue_validation_sample_confirmed_in_session(
             "away": _team_display_name(row["away_team_label"], "客队"),
         },
         "kickoff_local": kickoff.astimezone(BEIJING).isoformat() if kickoff else None,
-        "kickoff_local_hm": kickoff.astimezone(BEIJING).strftime("%m-%d %H:%M") if kickoff else "--:--",
+        "kickoff_local_hm": (
+            kickoff.astimezone(BEIJING).strftime("%m-%d %H:%M") if kickoff else "--:--"
+        ),
         "market": market,
         "direction": row["selection"],
         "line": row["exact_line"],
@@ -2260,69 +1434,12 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
     match = _as_mapping(payload.get("match"))
     home = str(match.get("home") or "主队")
     away = str(match.get("away") or "客队")
-    teams = f"{home} vs {away}"
-    market = _market_label(payload.get("market"))
     line = _format_line(payload.get("line"))
     direction = _direction_label(payload.get("direction"))
     odds = _format_odds(payload.get("decimal_odds"))
     kickoff = _parse_time(payload.get("kickoff_local"))
-    kickoff_hm = kickoff.astimezone(BEIJING).strftime("%m-%d %H:%M") if kickoff else "--:--"
-    ev = _format_ev(payload.get("current_ev"))
 
-    if event_type == CANDIDATE_FORMED:
-        title = f"[酝酿] {teams} {kickoff_hm} {market}{line} {direction} @{odds}"
-    elif event_type == CANDIDATE_MATERIAL_CHANGE:
-        if payload.get("reformed_after_state"):
-            title = f"[恢复] {teams} {market}{line} {direction} @{odds}"
-        else:
-            change = _as_mapping(payload.get("change"))
-            previous = _as_mapping(change.get("previous"))
-            current = _as_mapping(change.get("current"))
-            material_fields = set(change.get("material_fields") or [])
-            old_line = _format_line(previous.get("exact_line"))
-            new_line = _format_line(current.get("exact_line"))
-            if "exact_line" in material_fields or old_line != new_line:
-                detail = f"{market} {old_line} → {new_line}"
-            elif "selection" in material_fields:
-                detail = (
-                    f"{market} {_direction_label(previous.get('selection'))} → "
-                    f"{_direction_label(current.get('selection'))}"
-                )
-            elif "bookmaker_id" in material_fields:
-                detail = (
-                    f"{market} 机构 {previous.get('bookmaker_id') or '?'} → "
-                    f"{current.get('bookmaker_id') or '?'}"
-                )
-            elif "current_ev" in material_fields:
-                detail = (
-                    f"{market} EV{_format_ev(previous.get('current_ev'))} → "
-                    f"EV{_format_ev(current.get('current_ev'))}"
-                )
-            else:
-                old_odds = _format_odds(previous.get("decimal_odds"))
-                new_odds = _format_odds(current.get("decimal_odds"))
-                detail = f"{market} @{old_odds} → @{new_odds}"
-            title = f"[变盘] {teams} {detail}"
-    elif event_type == CANDIDATE_WITHDRAWN:
-        title = f"[撤回] {teams} {market} 原因：{_withdrawal_reason(payload)}"
-    elif event_type == CANDIDATE_T30_CONFIRMED:
-        title = f"[确认] {teams} T-30m 锁定 {market}{line} {direction} @{odds} EV{ev}"
-    elif event_type == PLAN_SUMMARY:
-        title = (
-            f"[赛前计划] {payload.get('operational_football_day') or ''} "
-            f"候选轨道 {len(list(payload.get('candidate_track_matches') or []))} 场"
-        )
-    elif event_type == DAY_CLOSEOUT_SUMMARY:
-        title = (
-            f"[当日收官] {payload.get('operational_football_day') or ''} "
-            f"推荐 {len(list(payload.get('recommendations') or []))} 条"
-        )
-    elif event_type == CANDIDATE_BREWING_DIGEST:
-        title = (
-            f"[酝酿] {payload.get('fixture_count', 0)} 场 "
-            f"{payload.get('candidate_count', 0)} 个候选"
-        )
-    elif event_type == DAILY_CANDIDATE_LIST:
+    if event_type == DAILY_CANDIDATE_LIST:
         day_str = str(payload.get("football_day") or "")
         count = int(payload.get("match_count") or 0)
         try:
@@ -2354,7 +1471,7 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
     elif event_type == TEST_MESSAGE:
         title = "[测试] W2 Bark 通道"
     else:
-        title = "[W2] 候选通知"
+        raise ValueError("NOTIFICATION_EVENT_TYPE_RETIRED")
 
     body = _message_body(payload)
     result = {"title": title, "body": body}
@@ -2453,74 +1570,6 @@ def _safe_error(error: str | None) -> str:
 
 def _message_body(payload: Mapping[str, Any]) -> str:
     event_type = str(payload.get("event_type") or "")
-    if event_type == CANDIDATE_BREWING_DIGEST:
-        lines: list[str] = []
-        for item in payload.get("fixtures") or []:
-            if not isinstance(item, Mapping):
-                continue
-            kickoff = _parse_time(item.get("kickoff_local"))
-            hm = kickoff.astimezone(BEIJING).strftime("%m-%d %H:%M") if kickoff else "--:--"
-            legs = " / ".join(
-                "{market}{line} {direction} @{odds}".format(
-                    market=_market_label(leg.get("market")),
-                    line=_format_line(leg.get("line")),
-                    direction=_direction_label(leg.get("direction")),
-                    odds=_format_odds(leg.get("decimal_odds")),
-                )
-                for leg in item.get("markets") or []
-                if isinstance(leg, Mapping)
-            )
-            lines.append(
-                f"{hm} {item.get('competition', '未知联赛')} "
-                f"{item.get('home', '主队')} vs {item.get('away', '客队')}  {legs}"
-            )
-        lines.append("尚未锁定，T-30m 确认后单独推送")
-        return "\n".join(lines)
-    if event_type == PLAN_SUMMARY:
-        matches = list(payload.get("candidate_track_matches") or [])
-        lines = [
-            "{time} {competition} {home} vs {away}".format(
-                time=item.get("kickoff_local_hm", "--:--"),
-                competition=item.get("competition", "未知联赛"),
-                home=item.get("home", "主队"),
-                away=item.get("away", "客队"),
-            )
-            for item in matches
-            if isinstance(item, Mapping)
-        ]
-        return "\n".join(lines) or "当日无已就绪候选轨道比赛"
-    if event_type == DAY_CLOSEOUT_SUMMARY:
-        recommendations = list(payload.get("recommendations") or [])
-        audit = (
-            f"正式机会 {payload.get('formal_opportunity_count', 0)}；"
-            f"完整评估 {payload.get('complete_evaluation_count', 0)}；"
-            f"门禁阻断 {payload.get('blocked_by_gate_count', 0)}；"
-            f"评估错误 {payload.get('evaluation_error_count', 0)}；"
-            f"检查点错过 {payload.get('missed_checkpoint_count', 0)}；"
-            f"NO_EDGE {payload.get('no_edge_count', 0)}；"
-            f"候选 {payload.get('candidate_count', 0)}；"
-            f"INVALID {payload.get('invalid_count', 0)}"
-        )
-        lines = [
-            f"当日推荐 {payload.get('daily_recommendation_count', len(recommendations))} 注；"
-            f"已结算 {payload.get('daily_settled_count', 0)} 注；"
-            f"当日 {_format_units(payload.get('daily_profit_units'))} 单位"
-        ] + [
-            _closeout_recommendation_line(item)
-            for item in recommendations
-            if isinstance(item, Mapping)
-        ]
-        if not recommendations:
-            lines.append("当日无正式漏斗推荐")
-        lines.extend(
-            (
-                f"累计推荐 {payload.get('cumulative_recommendation_count', 0)} 注；"
-                f"已结算 {payload.get('cumulative_settled_count', 0)} 注；"
-                f"累计 {_format_units(payload.get('cumulative_profit_units'))} 单位",
-                f"漏斗审计：{audit}",
-            )
-        )
-        return "\n".join(lines)
     if event_type == DAILY_CANDIDATE_LIST:
         lines = [
             "以下比赛将在开球前 3 小时起评估，开球前 15 分钟确定的推荐会逐条推送"
@@ -2580,24 +1629,7 @@ def _message_body(payload: Mapping[str, Any]) -> str:
         return "\n".join(lines)
     if event_type == TEST_MESSAGE:
         return "W2 Bark 外发通道测试消息"
-    bookmaker = _as_mapping(payload.get("bookmaker"))
-    quote_age = _format_duration(payload.get("quote_age_seconds"))
-    next_review = payload.get("next_review_at")
-    review_line = (
-        f"下次复核：{next_review}"
-        if next_review
-        else f"有效至：{payload.get('valid_until') or '未知'}"
-    )
-    fields = [
-        f"机构：{bookmaker.get('name') or bookmaker.get('id') or '未知'}",
-        f"报价时间：{payload.get('quote_captured_at') or '未知'}",
-        f"报价年龄：{quote_age}",
-        f"档位：{payload.get('slot') or '未知'}",
-        f"状态：{_opportunity_state_label(payload.get('candidate_status'))}",
-        review_line,
-    ]
-    return "\n".join(fields)
-
+    raise ValueError("NOTIFICATION_EVENT_TYPE_RETIRED")
 
 def _market_label(value: Any) -> str:
     return {"ASIAN_HANDICAP": "让球", "TOTALS": "大小球"}.get(str(value), str(value or "盘口"))

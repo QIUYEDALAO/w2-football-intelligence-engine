@@ -654,20 +654,16 @@ def candidate_notification_schedule(self: object) -> dict[str, object]:
 
     del self  # 未使用
     from w2.prematch.candidate_notifications import (
-        enqueue_brewing_digest,
-        enqueue_operational_summaries,
         enqueue_scheduled_notifications,
     )
 
-    inserted = enqueue_operational_summaries()
-    digest = enqueue_brewing_digest()
     scheduled = enqueue_scheduled_notifications()
     return {
-        "status": "ENQUEUED" if inserted or digest or scheduled else "NO_SUMMARY_DUE",
-        "outbox_event_ids": inserted + digest + scheduled,
-        "brewing_digest_ids": digest,
+        "status": "ENQUEUED" if scheduled else "NO_SUMMARY_DUE",
+        "outbox_event_ids": scheduled,
+        "brewing_digest_ids": [],
         "scheduled_notification_ids": scheduled,
-        "db_writes": len(inserted) + len(digest) + len(scheduled),
+        "db_writes": len(scheduled),
         "provider_calls": 0,
     }
 

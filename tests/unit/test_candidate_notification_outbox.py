@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from copy import deepcopy
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
@@ -28,17 +30,10 @@ from w2.infrastructure.persistence.model_forecast_models import ModelForecastCap
 from w2.infrastructure.persistence.models import ResultModel
 from w2.prematch import candidate_notifications
 from w2.prematch.candidate_notifications import (
-    CANDIDATE_FORMED,
-    CANDIDATE_MATERIAL_CHANGE,
-    CANDIDATE_T30_CONFIRMED,
-    CANDIDATE_WITHDRAWN,
-    DAY_CLOSEOUT_SUMMARY,
     DELIVERED,
     FAILED,
-    PLAN_SUMMARY,
     RETRY_PENDING,
     deliver_pending_notifications,
-    enqueue_operational_summaries,
     enqueue_test_message,
     notification_health_in_session,
     record_delivery_result_in_session,
@@ -230,96 +225,9 @@ def _materialize_validation_samples(engine, *, now: datetime | None = None) -> N
         session.commit()
 
 
-def test_candidate_event_uses_the_frozen_attempt_and_fails_closed_on_a_bad_v4() -> None:
-    engine = _engine()
-    repository = DynamicPrematchRepository(engine)
-    attempt = _attempt("T3_ODDS", "v4-gate")
-
-    # The attempt carries its own frozen market, line and price, so it is enough
-    # on its own. Production cards never carry a usable V4 candidate (measured
-    # 2026-09-15: 1219/1219 are NOT_READY with selected_candidate null), and
-    # requiring one silenced every candidate push from 2026-09-04 to 2026-09-15.
-    repository.append_evaluation(attempt)
-    assert [event.event_type for event in _events(engine)] == [CANDIDATE_FORMED]
-    api_card = _apply_repository_v4_authority(
-        {
-            "fixture_id": attempt.fixture_id,
-            "competition_id": "chinese_super_league",
-            "kickoff_utc": "2026-08-21T12:00:00Z",
-        }
-    )
-    legacy_pick = {
-        "decision_tier": "ANALYSIS_PICK",
-        "data_status": "READY",
-        "lifecycle_status": "DRAFT",
-        "outcome_tracked": True,
-        "lock_eligible": False,
-        "recommendation_id": None,
-        "lineup_requirement": "ADVISORY",
-        "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
-        "pick": {
-            "market": attempt.market,
-            "selection": attempt.selection,
-            "line": attempt.exact_line,
-            "odds": attempt.decimal_odds,
-        },
-        "non_pick": None,
-    }
-    dashboard_card = build_dashboard_day_view(
-        {
-            "generated_at": NOW.isoformat(),
-            "date": "2026-08-20",
-            "selected_football_day": "2026-08-20",
-            "all": [
-                {
-                    "fixture_id": attempt.fixture_id,
-                    "competition_id": "chinese_super_league",
-                    "kickoff_utc": "2026-08-21T12:00:00Z",
-                    "decision_contract": legacy_pick,
-                }
-            ],
-        },
-        environment="staging",
-    )["cards"][0]
-    assert api_card["decision_tier"] == dashboard_card["decision_tier"] == "NOT_READY"
-    assert api_card["pick"] is dashboard_card["pick"] is None
-    _append(repository, _attempt("T60_ODDS_LINEUPS", "v4-ready"))
-    assert [event.event_type for event in _events(engine)] == [CANDIDATE_FORMED]
-
-    engine = _engine()
-    repository = DynamicPrematchRepository(engine)
-    mismatched = _attempt("T3_ODDS", "other", line=-0.5)
-    try:
-        repository.append_evaluation(
-            mismatched,
-            recommendation_decision_v4=_v4(attempt),
-        )
-    except ValueError as exc:
-        assert str(exc).startswith("CANDIDATE_NOTIFICATION_V4_ATTEMPT_IDENTITY_MISMATCH:")
-    else:
-        raise AssertionError("mismatched V4 identity must fail closed")
-
-    engine = _engine()
-    repository = DynamicPrematchRepository(engine)
-    invalid = _v4(_attempt("T3_ODDS", "invalid"))
-    invalid["decision_hash"] = "0" * 64
-    try:
-        repository.append_evaluation(
-            _attempt("T3_ODDS", "invalid"),
-            recommendation_decision_v4=invalid,
-        )
-    except ValueError as exc:
-        assert str(exc) == "CANDIDATE_NOTIFICATION_V4_INVALID"
-    else:
-        raise AssertionError("invalid V4 identity must fail closed")
-
-    with Session(engine) as session:
-        assert session.scalar(select(DynamicPrematchEvaluationModel)) is None
-
-
 def test_same_frozen_v4_pick_reaches_api_dashboard_and_notification() -> None:
     engine = _engine()
-    attempt = _attempt("T3_ODDS", "three-exits", line=-0.5, odds=1.95)
+    attempt = _attempt("T15_ODDS", "three-exits", line=-0.5, odds=1.95)
     decision = _v4(attempt)
 
     api_card = _apply_repository_v4_authority(
@@ -378,109 +286,21 @@ def test_same_frozen_v4_pick_reaches_api_dashboard_and_notification() -> None:
         dashboard["pick"]["selection"],
         dashboard["pick"]["line"],
         dashboard["pick"]["odds"],
-    ) == (
-        notification["market"],
-        notification["direction"],
-        notification["line"],
-        notification["decimal_odds"],
     )
-    assert notification["recommendation_decision_v4_hash"] == decision["decision_hash"]
-    assert notification["recommendation_authority"] == "IMMUTABLE_EVALUATION_ATTEMPT"
-
-
-def test_attempt_events_are_transactional_idempotent_and_capture_transient_candidate() -> None:
-    engine = _engine()
-    repository = DynamicPrematchRepository(engine)
-
-    formed = _attempt("T3_ODDS", "a")
-    _append(repository, formed)
-    _append(repository, formed)
-    _append(repository, _attempt("T60_ODDS_LINEUPS", "b"))
-    _append(repository, _attempt("T45_ODDS", "c", ev=-0.01))
-
-    events = _events(engine)
-    assert [event.event_type for event in events] == [CANDIDATE_FORMED, CANDIDATE_WITHDRAWN]
-    assert events[0].attempt_identity_hash == formed.attempt_identity_hash
-    assert events[0].payload["decimal_odds"] == "1.91"
-    assert events[0].payload["signal_semantics"].startswith("EARLY_SHADOW")
-    assert events[1].previous_state == "EVALUATED_CANDIDATE"
-    assert events[1].current_state == "EVALUATED_NO_EDGE"
-
-
-def test_material_change_and_t30_confirmation_are_distinct_events() -> None:
-    engine = _engine()
-    repository = DynamicPrematchRepository(engine)
-    _append(repository, _attempt("T3_ODDS", "a"))
-    _append(repository, _attempt("T60_ODDS_LINEUPS", "b", line=-0.5))
-    _append(repository, _attempt("T-30m_VALIDATION_LOCK", "d", line=-0.5))
-
-    events = _events(engine)
-    assert [event.event_type for event in events] == [
-        CANDIDATE_FORMED,
-        CANDIDATE_MATERIAL_CHANGE,
-        CANDIDATE_T30_CONFIRMED,
-    ]
-    assert events[1].payload["change"]["material_fields"] == ["exact_line"]
-    assert events[2].payload["signal_semantics"] == "T30_VALIDATED_SHADOW_CANDIDATE"
-
-
-def test_missed_closeout_withdrawal_uses_opportunity_identity_without_fake_attempt() -> None:
-    engine = _engine()
-    repository = DynamicPrematchRepository(engine)
-    _append(repository, _attempt("T3_ODDS", "a"))
-    context = _context("T60_ODDS_LINEUPS", "missed")
-
-    assert repository.record_opportunity_without_attempt(
-        fixture_id="1523202",
-        market="ASIAN_HANDICAP",
-        context=context,
-        state=OpportunityState.MISSED_CHECKPOINT,
-        recorded_at=NOW + timedelta(hours=2),
-        blocker="CHECKPOINT_WINDOW_MISSED",
+    assert notification["market"] == api_card["pick"]["market"]
+    assert (
+        str(notification["direction"]).removesuffix("_AH")
+        == api_card["pick"]["selection"]
     )
+    assert float(notification["line"]) == float(api_card["pick"]["line"])
+    assert float(notification["decimal_odds"]) == float(api_card["pick"]["odds"])
 
-    event = next(row for row in _events(engine) if row.event_type == CANDIDATE_WITHDRAWN)
-    assert event.event_type == CANDIDATE_WITHDRAWN
-    assert event.attempt_identity_hash is None
-    assert event.current_state == "MISSED_CHECKPOINT"
-    assert event.payload["source_kind"] == "OPPORTUNITY_CLOSEOUT_WITHOUT_ATTEMPT"
-
-
-def test_candidate_reformed_after_missed_closeout_is_not_silenced() -> None:
-    engine = _engine()
-    repository = DynamicPrematchRepository(engine)
-    _append(repository, _attempt("T3_ODDS", "a"))
-    context = _context("T-30m_VALIDATION_LOCK", "missed")
-    repository.record_opportunity_without_attempt(
-        fixture_id="1523202",
-        market="ASIAN_HANDICAP",
-        context=context,
-        state=OpportunityState.MISSED_CHECKPOINT,
-        recorded_at=NOW + timedelta(minutes=6),
-        blocker="CHECKPOINT_WINDOW_MISSED",
-    )
-
-    _append(repository, _attempt("T15_ODDS", "laterlater"))
-
-    events = _events(engine)
-    assert sorted(event.event_type for event in events) == sorted(
-        [
-            CANDIDATE_FORMED,
-            CANDIDATE_WITHDRAWN,
-            CANDIDATE_MATERIAL_CHANGE,
-            candidate_notifications.VALIDATION_SAMPLE_CONFIRMED,
-        ]
-    )
-    reformed = next(event for event in events if event.event_type == CANDIDATE_MATERIAL_CHANGE)
-    assert reformed.previous_state == "MISSED_CHECKPOINT"
-    assert reformed.payload["reformed_after_state"] == "MISSED_CHECKPOINT"
-    assert render_bark_message(reformed.payload)["title"].startswith("[恢复]")
 
 
 def test_delivery_health_keeps_failure_distinct_from_zero_candidates() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
-    _append(repository, _attempt("T3_ODDS", "a"))
+    _append(repository, _attempt("T15_ODDS", "a"))
     event = _events(engine)[0]
 
     with Session(engine) as session:
@@ -519,7 +339,7 @@ def test_outbox_write_rolls_back_with_evaluation_transaction(monkeypatch) -> Non
 
     monkeypatch.setattr("w2.prematch.candidate_notifications._insert", fail)
     try:
-        _append(repository, _attempt("T3_ODDS", "a"))
+        _append(repository, _attempt("T15_ODDS", "a"))
     except RuntimeError as exc:
         assert str(exc) == "OUTBOX_WRITE_FAILED"
     else:
@@ -531,179 +351,75 @@ def test_outbox_write_rolls_back_with_evaluation_transaction(monkeypatch) -> Non
         assert session.scalar(select(CandidateNotificationOutboxModel)) is None
 
 
-def test_operational_summaries_use_football_day_and_split_zero_candidate_reasons() -> None:
+def test_non_t15_attempts_do_not_enqueue_push_events() -> None:
     engine = _engine()
-    kickoff = datetime(2026, 8, 20, 12, 0, tzinfo=UTC)
+    repository = DynamicPrematchRepository(engine)
+
+    _append(repository, _attempt("T3_ODDS", "early"))
+    _append(repository, _attempt("T-30m_VALIDATION_LOCK", "lock"))
+
+    assert _events(engine) == []
+
+
+def test_v4_attempt_identity_guard_still_rolls_back_evaluation() -> None:
+    engine = _engine()
+    version = _attempt("T3_ODDS", "mismatch", line=-0.5)
+    decision = _v4(_attempt("T3_ODDS", "different", line=-0.25))
+
+    with pytest.raises(ValueError, match="CANDIDATE_NOTIFICATION_V4_ATTEMPT_IDENTITY_MISMATCH"):
+        DynamicPrematchRepository(engine).append_evaluation(
+            version, recommendation_decision_v4=decision
+        )
+
     with Session(engine) as session:
-        session.add(
-            MatchdayFixtureIdentityModel(
-                fixture_id="api_football:1523202",
-                provider="api_football",
-                provider_fixture_id="1523202",
-                competition_id="chinese_super_league",
-                provider_league_id="169",
-                season="2026",
-                kickoff_utc=kickoff,
-                fixture_status="NS",
-                home_provider_team_id="1",
-                away_provider_team_id="2",
-                home_w2_team_id=None,
-                away_w2_team_id=None,
-                team_identity_status="PROVIDER_ONLY",
-                raw_payload_sha256="3" * 64,
-                endpoint_capture_id=None,
-                captured_at=kickoff - timedelta(days=1),
-                identity_hash="4" * 64,
-                payload={"home_team_name": "上海海港", "away_team_name": "大连英博"},
-            )
-        )
-        session.add(
-            ModelForecastCaptureModel(
-                capture_identity_hash="7" * 64,
-                fixture_id="api_football:1523202",
-                competition_id="chinese_super_league",
-                kickoff_utc=kickoff,
-                captured_at=kickoff - timedelta(hours=4),
-                lead_time_seconds=4 * 60 * 60,
-                lead_time_bucket="T3_PLUS",
-                model_family="test",
-                model_version="test.v1",
-                capture_policy="FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
-                horizon_id="NONE",
-                model_input_manifest_hash="8" * 64,
-                four_field_xg_identity_hash="9" * 64,
-                score_matrix_hash="a" * 64,
-                payload={},
-                payload_sha256="b" * 64,
-                inserted_at=kickoff - timedelta(hours=4),
-            )
-        )
-        for checkpoint, scheduled, window_end in (
-            ("T3_ODDS", kickoff - timedelta(hours=3), kickoff - timedelta(hours=2, minutes=55)),
-            ("T15_ODDS", kickoff - timedelta(minutes=15), kickoff - timedelta(minutes=10)),
-        ):
+        assert session.scalar(select(DynamicPrematchEvaluationModel)) is None
+
+
+def test_retired_events_are_suppressed_and_excluded_from_health(monkeypatch) -> None:
+    engine = _engine()
+    retired = (
+        "CANDIDATE_FORMED",
+        "CANDIDATE_MATERIAL_CHANGE",
+        "CANDIDATE_WITHDRAWN",
+        "CANDIDATE_T30_CONFIRMED",
+        "PREMATCH_PLAN_SUMMARY",
+        "FOOTBALL_DAY_CLOSEOUT_SUMMARY",
+        "CANDIDATE_BREWING_DIGEST",
+    )
+    with Session(engine) as session:
+        for index, event_type in enumerate(retired):
             session.add(
-                MatchdayCheckpointPlanModel(
-                    plan_id=f"plan-{checkpoint}",
-                    fixture_id="api_football:1523202",
-                    competition_id="chinese_super_league",
-                    season="2026",
-                    policy_version="w2.matchday_intake_policy.v2",
-                    checkpoint=checkpoint,
-                    kickoff_utc=kickoff,
-                    scheduled_at=scheduled,
-                    window_start=scheduled,
-                    window_end=window_end,
-                    endpoints=["odds"],
-                    status="PLANNED",
-                    attempt_count=0,
-                    test_only=False,
-                    blockers=[],
-                    plan_hash=("5" if checkpoint == "T3_ODDS" else "6") * 64,
+                CandidateNotificationOutboxModel(
+                    notification_event_id=f"retired-{index}",
+                    opportunity_identity_hash=None,
+                    attempt_identity_hash=None,
+                    event_type=event_type,
+                    previous_state=None,
+                    current_state="HISTORICAL",
+                    payload={"event_type": event_type},
+                    created_at=NOW,
+                    delivered_at=None,
+                    delivery_status="PENDING",
+                    delivery_attempt_count=0,
+                    last_error=None,
                 )
             )
         session.commit()
+        health = notification_health_in_session(session, now=NOW)
+    assert health["outbox_event_count"] == 0
 
-    plan_due = kickoff - timedelta(hours=2)
-    inserted = enqueue_operational_summaries(now=plan_due, engine=engine)
-    assert len(inserted) == 1
-    assert _events(engine)[0].event_type == PLAN_SUMMARY
-    assert _events(engine)[0].payload["summary_timing"] == "TWO_HOURS_BEFORE_FIRST_KICKOFF"
-    assert _events(engine)[0].payload["candidate_track_fixture_count"] == 1
-    assert _events(engine)[0].payload["candidate_track_matches"][0]["home"] == "上海海港"
-    assert _events(engine)[0].payload["candidate_track_matches"][0]["competition"] == "中超"
-    assert "中超 上海海港 vs 大连英博" in render_bark_message(_events(engine)[0].payload)[
-        "body"
-    ]
+    monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app")
+    monkeypatch.setenv("W2_BARK_DEVICE_KEY", "owner-device-test-key")
+    sent: list[Mapping[str, object]] = []
+    result = deliver_pending_notifications(now=NOW, engine=engine, sender=sent.append)
+    assert result["delivered"] == 0
+    assert result["suppressed"] == len(retired)
+    assert sent == []
+    assert all(row.delivery_status == candidate_notifications.SUPPRESSED for row in _events(engine))
 
-    repository = DynamicPrematchRepository(engine)
-    _append(repository, _attempt("T3_ODDS", "a", depth=0))
-    _append(repository, _attempt("T3_ODDS", "b", market="TOTALS", ev=-0.01))
-    result_confirmed_at = kickoff + timedelta(hours=2)
-    with Session(engine) as session:
-        session.add(
-            ResultModel(
-                id="result-1523202",
-                fixture_id="api_football:1523202",
-                home_goals=2,
-                away_goals=1,
-                result_status="FT",
-                confirmed_at=result_confirmed_at,
-                source_payload_sha256="c" * 64,
-                source_capture_id=None,
-                result_hash="d" * 64,
-            )
-        )
-        session.commit()
-    inserted = enqueue_operational_summaries(
-        now=result_confirmed_at,
-        engine=engine,
-    )
-    assert len(inserted) == 1
-    closeout = next(event for event in _events(engine) if event.event_type == DAY_CLOSEOUT_SUMMARY)
-    assert closeout.payload["candidate_count"] == 0
-    assert closeout.payload["blocked_by_gate_count"] == 1
-    assert closeout.payload["no_edge_count"] == 1
-    assert (
-        closeout.payload["zero_candidate_reason_by_market"]["ASIAN_HANDICAP"]["summary"]
-        == "BLOCKED_BY_GATE:BOOKMAKER_DEPTH"
-    )
-    assert (
-        closeout.payload["zero_candidate_reason_by_market"]["TOTALS"]["summary"]
-        == "EVALUATED_NO_EDGE"
-    )
-
-
-def test_bark_titles_are_executable_and_keep_fixture_deep_link() -> None:
-    base = {
-        "match": {"home": "上海海港", "away": "大连英博"},
-        "kickoff_local": "2026-08-20T20:30:00+08:00",
-        "market": "ASIAN_HANDICAP",
-        "direction": "HOME_AH",
-        "line": -0.5,
-        "decimal_odds": 1.92,
-        "current_ev": 0.069,
-        "dashboard_url": "https://w2.example/?date=2026-08-20&fixture_id=1523202",
-        "bookmaker": {"name": "Bet365"},
-        "quote_captured_at": "2026-08-20T12:20:00Z",
-        "quote_age_seconds": 60,
-        "slot": "T60_ODDS_LINEUPS",
-        "candidate_status": "EVALUATED_CANDIDATE",
-        "valid_until": "2026-08-20T12:50:00Z",
-        "next_review_at": "2026-08-20T12:45:00Z",
-    }
-
-    formed = render_bark_message({**base, "event_type": CANDIDATE_FORMED})
-    assert formed["title"] == "[酝酿] 上海海港 vs 大连英博 08-20 20:30 让球-0.5 主 @1.92"
-    assert formed["url"].endswith("fixture_id=1523202")
-    assert formed["url"] not in formed["body"]
-    assert "报价年龄：1 分 0 秒" in formed["body"]
-    assert "状态：已形成候选" in formed["body"]
-    assert formed["body"].count("2026-08-20T12:45:00Z") == 1
-    assert "有效期" not in formed["body"]
-
-    changed = render_bark_message(
-        {
-            **base,
-            "event_type": CANDIDATE_MATERIAL_CHANGE,
-            "line": -0.75,
-            "change": {
-                "previous": {"exact_line": -0.5, "decimal_odds": 1.92},
-                "current": {"exact_line": -0.75, "decimal_odds": 1.91},
-            },
-        }
-    )
-    assert changed["title"] == "[变盘] 上海海港 vs 大连英博 让球 -0.5 → -0.75"
-
-    withdrawn = render_bark_message(
-        {**base, "event_type": CANDIDATE_WITHDRAWN, "first_failed_gate": "QUOTE_FRESHNESS"}
-    )
-    assert withdrawn["title"] == "[撤回] 上海海港 vs 大连英博 让球 原因：报价过期"
-
-    confirmed = render_bark_message({**base, "event_type": CANDIDATE_T30_CONFIRMED})
-    assert confirmed["title"] == (
-        "[确认] 上海海港 vs 大连英博 T-30m 锁定 让球-0.5 主 @1.92 EV+6.9%"
-    )
+    for event_type in retired:
+        with pytest.raises(ValueError, match="NOTIFICATION_EVENT_TYPE_RETIRED"):
+            render_bark_message({"event_type": event_type})
 
 
 def test_unconfigured_bark_keeps_outbox_pending(monkeypatch) -> None:
@@ -824,152 +540,6 @@ def test_bark_sender_posts_device_key_in_json_not_url(monkeypatch) -> None:
     assert observed["json"]["url"].endswith("fixture_id=1523202")
 
 
-def test_closeout_settles_candidate_direction_without_writing_settlement() -> None:
-    engine = _engine()
-    with Session(engine) as session:
-        _insert_fixture_identity(session, kickoff_utc=NOW + timedelta(hours=2))
-        session.commit()
-    DynamicPrematchRepository(engine).append_evaluation(_attempt("T3_ODDS", "candidate"))
-    result = ResultModel(
-        id="result-candidate",
-        fixture_id="api_football:1523202",
-        home_goals=2,
-        away_goals=1,
-        result_status="FT",
-        confirmed_at=NOW + timedelta(hours=4),
-        source_payload_sha256="e" * 64,
-        source_capture_id=None,
-        result_hash="f" * 64,
-    )
-    with Session(engine) as session:
-        session.add(result)
-        session.commit()
-        recommendations = candidate_notifications._closeout_recommendations(session)
-
-    assert len(recommendations) == 1
-    assert recommendations[0]["competition"] == "中超"
-    assert recommendations[0]["direction"] == "HOME_AH"
-    assert recommendations[0]["score"] == "2-1"
-    assert recommendations[0]["settlement"] == "WIN"
-    assert recommendations[0]["profit_units"] == 0.91
-
-
-def test_closeout_uses_last_real_evaluation_not_no_attempt_withdrawal() -> None:
-    engine = _engine()
-    repository = DynamicPrematchRepository(engine)
-    _append(repository, _attempt("T-30m_VALIDATION_LOCK", "candidate"))
-    repository.record_opportunity_without_attempt(
-        fixture_id="1523202",
-        market="ASIAN_HANDICAP",
-        context=_context("T15_ODDS", "missed-later"),
-        state=OpportunityState.MISSED_CHECKPOINT,
-        recorded_at=NOW + timedelta(hours=2),
-        blocker="CHECKPOINT_WINDOW_MISSED",
-    )
-    with Session(engine) as session:
-        recommendations = candidate_notifications._closeout_recommendations(session)
-
-    assert len(recommendations) == 1
-    assert recommendations[0]["final_candidate_status"] == "EVALUATED_CANDIDATE"
-
-
-def test_closeout_excludes_candidate_when_later_real_evaluation_is_no_edge() -> None:
-    engine = _engine()
-    repository = DynamicPrematchRepository(engine)
-    _append(repository, _attempt("T-30m_VALIDATION_LOCK", "candidate"))
-    _append(repository, _attempt("T15_ODDS", "later-no-edge", ev=-0.01))
-    with Session(engine) as session:
-        recommendations = candidate_notifications._closeout_recommendations(session)
-
-    assert recommendations == []
-
-
-def test_notification_names_use_reviewed_chinese_then_mark_unresolved_provider_id() -> None:
-    identity = MatchdayFixtureIdentityModel(
-        fixture_id="api_football:1570351",
-        provider="api_football",
-        provider_fixture_id="1570351",
-        competition_id="la_liga",
-        provider_league_id="140",
-        season="2026",
-        kickoff_utc=NOW,
-        fixture_status="NS",
-        home_provider_team_id="728",
-        away_provider_team_id="542",
-        home_w2_team_id="w2:team:api_football:728",
-        away_w2_team_id="w2:team:api_football:542",
-        team_identity_status="CANONICAL",
-        raw_payload_sha256="1" * 64,
-        endpoint_capture_id=None,
-        captured_at=NOW,
-        identity_hash="2" * 64,
-        payload={
-            "teams": {
-                "home": {"name": "Rayo Vallecano"},
-                "away": {"name": "Alaves"},
-            }
-        },
-    )
-    assert candidate_notifications._summary_fixture(identity)["home"] == "巴列卡诺"
-    assert candidate_notifications._summary_fixture(identity)["competition"] == "西甲"
-    identity.home_w2_team_id = None
-    identity.payload = {}
-    assert candidate_notifications._summary_fixture(identity)["home"] == (
-        "球队ID 728（身份未解析）"
-    )
-
-
-def test_closeout_waits_for_result_materialization_after_terminal_fixture() -> None:
-    identity = SimpleNamespace(fixture_status="FT", captured_at=NOW)
-    result = SimpleNamespace(confirmed_at=NOW + timedelta(seconds=2))
-
-    assert candidate_notifications._fixture_closeout_time(identity, None) == (
-        NOW + timedelta(seconds=candidate_notifications.CLOSEOUT_RESULT_GRACE_SECONDS)
-    )
-    assert candidate_notifications._fixture_closeout_time(identity, result) == (result.confirmed_at)
-
-
-def test_closeout_copy_prioritizes_recommendations_and_marks_missing_result() -> None:
-    rendered = render_bark_message(
-        {
-            "event_type": DAY_CLOSEOUT_SUMMARY,
-            "operational_football_day": "2026-08-20",
-            "daily_recommendation_count": 1,
-            "daily_settled_count": 0,
-            "daily_profit_units": 0,
-            "cumulative_recommendation_count": 15,
-            "cumulative_settled_count": 14,
-            "cumulative_profit_units": 2.995,
-            "recommendations": [
-                {
-                    "competition": "西甲",
-                    "home": "巴列卡诺",
-                    "away": "阿拉维斯",
-                    "market": "TOTALS",
-                    "line": 2.0,
-                    "direction": "OVER",
-                    "decimal_odds": 1.82,
-                    "score": None,
-                    "settlement": "RESULT_NOT_COLLECTED",
-                    "profit_units": None,
-                }
-            ],
-            "formal_opportunity_count": 10,
-            "complete_evaluation_count": 8,
-            "blocked_by_gate_count": 0,
-            "evaluation_error_count": 0,
-            "missed_checkpoint_count": 2,
-            "no_edge_count": 4,
-            "candidate_count": 4,
-            "invalid_count": 0,
-        }
-    )
-    assert rendered["body"].splitlines()[0] == "当日推荐 1 注；已结算 0 注；当日 0.000 单位"
-    assert "西甲 巴列卡诺 vs 阿拉维斯 大小球2 大 @1.82：赛果未采集" in rendered["body"]
-    assert "待结算" not in rendered["body"]
-    assert rendered["body"].splitlines()[-1].startswith("漏斗审计：")
-
-
 def test_notification_raw_values_are_humanized() -> None:
     assert candidate_notifications._format_duration(2024.05) == "33 分钟"
     assert candidate_notifications._format_duration(149.112) == "2 分 29 秒"
@@ -991,98 +561,6 @@ def _routing_row(
     )
 
 
-def test_owner_stopped_types_are_suppressed_but_new_types_reach_the_phone() -> None:
-    lock_at = datetime(2026, 8, 22, 16, 7, tzinfo=UTC)
-    confirmed = {("1550092", "ASIAN_HANDICAP"): lock_at}
-
-    def route(event_type: str, *, offset_minutes: int) -> tuple[str, str]:
-        return candidate_notifications.delivery_route(
-            _routing_row(event_type, created_at=lock_at + timedelta(minutes=offset_minutes)),
-            confirmed_at=confirmed,
-            withdrawals_pushed=set(),
-        )
-
-    # NOTIF-04: every legacy candidate/summary type is written for audit but
-    # never delivered.
-    for event_type in (
-        CANDIDATE_FORMED,
-        CANDIDATE_MATERIAL_CHANGE,
-        CANDIDATE_WITHDRAWN,
-        CANDIDATE_T30_CONFIRMED,
-        PLAN_SUMMARY,
-        DAY_CLOSEOUT_SUMMARY,
-        candidate_notifications.CANDIDATE_BREWING_DIGEST,
-    ):
-        assert route(event_type, offset_minutes=0) == ("SUPPRESS", "OWNER_DECISION_STOP")
-    # The three NOTIF-04 types still reach the phone.
-    for event_type in (
-        candidate_notifications.DAILY_CANDIDATE_LIST,
-        candidate_notifications.VALIDATION_SAMPLE_CONFIRMED,
-        candidate_notifications.DAILY_SETTLEMENT,
-    ):
-        assert route(event_type, offset_minutes=0) == ("SEND", "ACTIONABLE")
-
-
-def test_owner_stopped_type_is_written_for_audit_but_not_delivered(monkeypatch) -> None:
-    engine = _engine()
-    monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app")
-    monkeypatch.setenv("W2_BARK_DEVICE_KEY", "owner-device-test-key")
-    with Session(engine) as session:
-        session.add(
-            CandidateNotificationOutboxModel(
-                notification_event_id="formed-immediate",
-                opportunity_identity_hash="a" * 64,
-                attempt_identity_hash="b" * 64,
-                event_type=CANDIDATE_FORMED,
-                previous_state=None,
-                current_state="EVALUATED_CANDIDATE",
-                payload={
-                    "event_type": CANDIDATE_FORMED,
-                    "fixture_id": "1550092",
-                    "market": "ASIAN_HANDICAP",
-                    "match": {"home": "国际米兰", "away": "蒙扎"},
-                    "kickoff_local": "2026-08-23T00:30:00+08:00",
-                    "line": 0.25,
-                    "direction": "HOME",
-                    "decimal_odds": 1.92,
-                },
-                created_at=NOW,
-                delivered_at=None,
-                delivery_status=candidate_notifications.PENDING,
-                delivery_attempt_count=0,
-                last_error=None,
-            )
-        )
-        session.commit()
-
-    sent: list[dict[str, object]] = []
-    result = deliver_pending_notifications(now=NOW, engine=engine, sender=sent.append)
-
-    assert result["delivered"] == 0
-    assert result["suppressed"] == 1
-    assert sent == []
-    assert _events(engine)[0].delivery_status == candidate_notifications.SUPPRESSED
-    assert _events(engine)[0].last_error == "OWNER_DECISION_STOP"
-
-
-def test_withdrawals_are_owner_stopped_regardless_of_lock_state() -> None:
-    lock_at = datetime(2026, 8, 22, 16, 7, tzinfo=UTC)
-    confirmed = {("1550092", "ASIAN_HANDICAP"): lock_at}
-    assert candidate_notifications.delivery_route(
-        _routing_row(CANDIDATE_WITHDRAWN, created_at=lock_at + timedelta(minutes=20)),
-        confirmed_at=confirmed,
-        withdrawals_pushed={("1550092", "ASIAN_HANDICAP")},
-    ) == ("SUPPRESS", "OWNER_DECISION_STOP")
-    # Even a different market on the same fixture is stopped the same way.
-    assert candidate_notifications.delivery_route(
-        _routing_row(
-            CANDIDATE_WITHDRAWN, market="TOTALS", created_at=lock_at + timedelta(minutes=5)
-        ),
-        confirmed_at=confirmed,
-        withdrawals_pushed=set(),
-    ) == ("SUPPRESS", "OWNER_DECISION_STOP")
-
-
 def _lock_then_change(engine) -> None:  # type: ignore[no-untyped-def]
     repository = DynamicPrematchRepository(engine)
     _append(repository, _attempt("T3_ODDS", "a"))
@@ -1091,116 +569,9 @@ def _lock_then_change(engine) -> None:  # type: ignore[no-untyped-def]
     _append(repository, _attempt("T15_ODDS", "eeee", line=-0.75))
 
 
-def test_legacy_candidate_events_are_suppressed_and_only_validation_sample_delivered(
-    monkeypatch,
+def _insert_enabled_competition(
+    session: Session, competition_id: str = "chinese_super_league"
 ) -> None:
-    engine = _engine()
-    _lock_then_change(engine)
-    monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app")
-    monkeypatch.setenv("W2_BARK_DEVICE_KEY", "owner-device-test-key")
-    sent: list[str] = []
-
-    deliver_pending_notifications(
-        now=NOW + timedelta(minutes=10),
-        engine=engine,
-        sender=lambda payload: sent.append(str(payload["event_type"])),
-    )
-
-    # NOTIF-04: only ② reaches the phone; every legacy candidate event stays in
-    # the outbox for audit and is never delivered.
-    assert sent == [candidate_notifications.VALIDATION_SAMPLE_CONFIRMED]
-    events = _events(engine)
-    legacy = [
-        row
-        for row in events
-        if row.event_type != candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
-    ]
-    assert legacy and all(
-        row.delivery_status == candidate_notifications.SUPPRESSED for row in legacy
-    )
-    confirmation = next(
-        row
-        for row in events
-        if row.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
-    )
-    assert confirmation.delivery_status == DELIVERED
-
-
-def test_daily_brewing_digest_waits_for_its_day_to_close() -> None:
-    engine = create_engine("sqlite+pysqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    formed_at = datetime(2026, 8, 22, 16, 30, tzinfo=UTC)
-    with Session(engine) as session:
-        for index, market in enumerate(("ASIAN_HANDICAP", "TOTALS")):
-            session.add(
-                CandidateNotificationOutboxModel(
-                    notification_event_id=f"formed-{index}",
-                    opportunity_identity_hash=None,
-                    attempt_identity_hash=None,
-                    event_type=CANDIDATE_FORMED,
-                    previous_state=None,
-                    current_state="EVALUATED_CANDIDATE",
-                    payload={
-                        "fixture_id": "1550092",
-                        "competition_id": "serie_a",
-                        "market": market,
-                        "event_type": CANDIDATE_FORMED,
-                        "match": {"home": "国际米兰", "away": "蒙扎"},
-                        "kickoff_local": "2026-08-23T00:30:00+08:00",
-                        "line": 2.0,
-                        "direction": "AWAY",
-                        "decimal_odds": 1.92,
-                    },
-                    created_at=formed_at,
-                    delivered_at=None,
-                    delivery_status=candidate_notifications.DIGEST_PENDING,
-                    delivery_attempt_count=0,
-                    last_error=None,
-                )
-            )
-        session.commit()
-
-        # Still inside the Beijing day the candidates formed in: nothing is
-        # emitted, so the Owner gets one "candidates formed" push per day rather
-        # than one per candidate.
-        assert (
-            candidate_notifications.enqueue_brewing_digest_in_session(
-                session, now=formed_at + timedelta(minutes=30)
-            )
-            == []
-        )
-
-        emitted = candidate_notifications.enqueue_brewing_digest_in_session(
-            session, now=formed_at + timedelta(hours=24)
-        )
-        session.commit()
-        assert len(emitted) == 1
-
-        digest = session.get(CandidateNotificationOutboxModel, emitted[0])
-        assert digest is not None
-        # Both markets of one fixture arrive as a single line, not two pushes.
-        assert digest.payload["fixture_count"] == 1
-        assert digest.payload["candidate_count"] == 2
-        assert all(
-            session.get(CandidateNotificationOutboxModel, f"formed-{index}").delivery_status
-            == candidate_notifications.DIGESTED
-            for index in range(2)
-        )
-
-        rendered = candidate_notifications.render_bark_message(digest.payload)
-        assert rendered["title"] == "[酝酿] 1 场 2 个候选"
-        assert "意甲 国际米兰 vs 蒙扎" in rendered["body"]
-
-        # A second call in the same window must not re-emit the digest.
-        assert (
-            candidate_notifications.enqueue_brewing_digest_in_session(
-                session, now=formed_at + timedelta(hours=2, minutes=10)
-            )
-            == []
-        )
-
-
-def _insert_enabled_competition(session: Session, competition_id: str = "chinese_super_league") -> None:
     session.add(
         LeagueSeasonModel(
             competition_id=competition_id,
@@ -1236,19 +607,6 @@ def _insert_fixture_identity(
             payload={"home_team_name": "上海海港", "away_team_name": "大连英博"},
         )
     )
-
-
-def test_candidate_payload_transmits_competition_for_brewing_digest() -> None:
-    engine = _engine()
-    with Session(engine) as session:
-        _insert_fixture_identity(session, kickoff_utc=NOW + timedelta(hours=2))
-        session.commit()
-
-    _append(DynamicPrematchRepository(engine), _attempt("T3_ODDS", "competition"))
-
-    formed = _events(engine)[0]
-    assert formed.payload["competition_id"] == "chinese_super_league"
-    assert formed.payload["competition"] == "中超"
 
 
 def _insert_model_track(
@@ -1525,7 +883,9 @@ def test_daily_settlement_settles_and_marks_pending() -> None:
     # Before Beijing 12:00, nothing is emitted.
     before = datetime(2026, 8, 20, 11, 0, tzinfo=candidate_notifications.BEIJING)
     with Session(engine) as session:
-        assert candidate_notifications.enqueue_daily_settlement_in_session(session, now=before) is None
+        assert (
+            candidate_notifications.enqueue_daily_settlement_in_session(session, now=before) is None
+        )
 
     # No result yet → 待结算.
     now = datetime(2026, 8, 20, 12, 0, tzinfo=candidate_notifications.BEIJING)
@@ -1562,7 +922,9 @@ def test_daily_settlement_settles_and_marks_pending() -> None:
 
     next_day = datetime(2026, 8, 21, 12, 0, tzinfo=candidate_notifications.BEIJING)
     with Session(engine) as session:
-        event_id = candidate_notifications.enqueue_daily_settlement_in_session(session, now=next_day)
+        event_id = candidate_notifications.enqueue_daily_settlement_in_session(
+            session, now=next_day
+        )
         assert event_id is not None
         event = session.get(CandidateNotificationOutboxModel, event_id)
         assert event.payload["item_count"] == 1
@@ -1668,7 +1030,9 @@ def test_validation_sample_fallback_skips_after_kickoff_past_30min() -> None:
 
 
 def test_notif04_titles_and_bodies_render() -> None:
-    beijing = candidate_notifications.BEIJING
+    test_message = render_bark_message({"event_type": candidate_notifications.TEST_MESSAGE})
+    assert test_message["title"] == "[测试] W2 Bark 通道"
+
     candidate_list = render_bark_message(
         {
             "event_type": candidate_notifications.DAILY_CANDIDATE_LIST,
@@ -1738,7 +1102,10 @@ def test_notif04_titles_and_bodies_render() -> None:
     )
     assert settlement["title"] == "[结算] 8月19日 1场 1赢 0输 +0.91单位"
     assert "累计：1 注 +0.91 单位" in settlement["body"]
-    assert "中超 上海海港 vs 大连英博　推荐 主队 -0.25 @1.91　比分 2-1　赢 +0.91" in settlement["body"]
+    assert (
+        "中超 上海海港 vs 大连英博　推荐 主队 -0.25 @1.91　比分 2-1　赢 +0.91"
+        in settlement["body"]
+    )
     assert "当天：1 注　赢 1 / 走水 0 / 输 0　+0.91 单位" in settlement["body"]
 
 

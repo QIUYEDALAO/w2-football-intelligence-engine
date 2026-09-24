@@ -33,7 +33,6 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 )
 from w2.prematch.candidate_notifications import (
     enqueue_attempt_notification_in_session,
-    enqueue_closeout_withdrawal_in_session,
 )
 from w2.prematch.lifecycle import (
     AH_MARKET,
@@ -399,21 +398,6 @@ class DynamicPrematchRepository:
             )
         )
         session.flush()
-        enqueue_closeout_withdrawal_in_session(
-            session,
-            fixture_id=fixture_id,
-            market=market,
-            opportunity_identity_hash=identity,
-            model_forecast_capture_identity_hash=(
-                context.model_forecast_capture_identity_hash
-            ),
-            evaluation_policy_version=context.evaluation_policy_version,
-            evaluation_slot_id=context.evaluation_slot_id,
-            scheduled_checkpoint_at=context.scheduled_checkpoint_at,
-            current_state=state,
-            recorded_at=recorded_at,
-            blocker=blocker,
-        )
         return True
 
     def append_lineup_event(

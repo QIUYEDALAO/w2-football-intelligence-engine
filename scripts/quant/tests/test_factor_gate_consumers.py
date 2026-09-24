@@ -27,7 +27,6 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayFixtureIdentityModel,
 )
-from w2.prematch.candidate_notifications import CANDIDATE_FORMED
 from w2.prematch.lifecycle import (
     CHECKPOINT_OPPORTUNITY_SCOPE,
     DynamicEvaluationInput,
@@ -242,15 +241,10 @@ def test_matrix_7_blocked_ah_emits_no_candidate_notification() -> None:
     with Session(engine) as session:
         events = list(session.scalars(select(CandidateNotificationOutboxModel)))
 
-    # the outbox keys events by opportunity, so match them back to the two attempts
-    by_opportunity = {event.opportunity_identity_hash: event for event in events}
-    assert admitted.opportunity_identity_hash in by_opportunity
-    assert by_opportunity[admitted.opportunity_identity_hash].event_type == CANDIDATE_FORMED
-    assert vetoed.opportunity_identity_hash not in by_opportunity
-    assert not [
-        event for event in events if event.event_type == CANDIDATE_FORMED
-        and event.opportunity_identity_hash != admitted.opportunity_identity_hash
-    ]
+    assert admitted.opportunity_identity_hash != vetoed.opportunity_identity_hash
+    assert [event.event_type for event in events] == ["VALIDATION_SAMPLE_CONFIRMED"]
+    assert events[0].payload["fixture_id"] == admitted.fixture_id
+    assert events[0].attempt_identity_hash is None
 
 
 # --- matrix 8: a blocked AH contributes no profit-and-loss row --------------
