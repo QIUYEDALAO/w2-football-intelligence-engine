@@ -1013,7 +1013,7 @@ def test_daily_settlement_settles_and_marks_pending() -> None:
         assert item["profit_units"] == 0.91
         assert event.payload["win_count"] == 1
         assert event.payload["total_profit_units"] == 0.91
-        assert event.payload["total_profit_units_with_rebate"] == 0.935
+        assert event.payload["total_profit_units_with_rebate"] == 0.93275
         session.commit()
 
 
@@ -1182,13 +1182,13 @@ def test_notif04_titles_and_bodies_render() -> None:
     )
     assert settlement["title"] == "[结算] 8月19日 1场 1赢 0输"
     assert "累计：1 注 +0.91 单位" in settlement["body"]
-    assert "纯盈亏 +0.91 · 含返水 +0.94 单位" in settlement["body"]
+    assert "纯盈亏 +0.91 · 含返水 未知 单位" in settlement["body"]
     assert (
         "中超 上海海港 vs 大连英博　推荐 主队 -0.25 @1.91　比分 2-1　赢 +0.91"
         in settlement["body"]
     )
     assert (
-        "当天：1 注　赢 1 / 走水 0 / 输 0　纯盈亏 +0.91 · 含返水 +0.94 单位"
+        "当天：1 注　赢 1 / 走水 0 / 输 0　纯盈亏 +0.91 · 含返水 +0.93 单位"
         in settlement["body"]
     )
 

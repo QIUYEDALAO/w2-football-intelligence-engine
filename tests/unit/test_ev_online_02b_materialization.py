@@ -242,14 +242,17 @@ def test_original_profit_summary_ignores_pagination_and_pending() -> None:
     assert all_total == len(all_rows) == 3  # v2 only, including one pending
     assert service.dashboard_validation_cumulative_profit_units() == -0.05
     assert service.dashboard_validation_profit_summary() == {
-        "profit_units": -0.05, "profit_units_with_rebate": 0.0,
+        "profit_units": -0.05, "profit_units_with_rebate": -0.001,
     }
     facts = service.dashboard_design_v1_facts(anchor=datetime(2026, 9, 23, tzinfo=UTC).date())
     assert facts["rows"] == []  # the 30-day list remains unchanged
     assert facts["current_calibration_identity"] == "v2"
     assert facts["total_profit_units"] == -0.05  # includes settled rows before 30 days
-    assert facts["total_settled_count"] == 2
-    assert service.dashboard_validation_profit_summary()["profit_units"] == facts["total_profit_units"]
+    assert facts["total_absolute_profit_units"] == 1.95
+    assert (
+        service.dashboard_validation_profit_summary()["profit_units"]
+        == facts["total_profit_units"]
+    )
 
 
 def test_calibrated_profit_summary_uses_full_history_before_pagination(monkeypatch) -> None:
@@ -287,5 +290,5 @@ def test_calibrated_profit_summary_uses_full_history_before_pagination(monkeypat
     assert response["pagination"]["total"] == 1
     assert response["kept_profit_units"] == 0.9
     assert response["filtered_profit_units"] == -1.0
-    assert response["kept_profit_units_with_rebate"] == 0.925
+    assert response["kept_profit_units_with_rebate"] == 0.922
     assert response["filtered_profit_units_with_rebate"] == -0.975

@@ -21,7 +21,7 @@ from w2.dashboard.date_window import (
     football_day_window,
 )
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
-from w2.domain.profit import profit_units_with_rebate
+from w2.domain.profit import REBATE_FORMULA_VERSION, profit_units_with_rebate
 from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
     validate_decision_v4_identity,
@@ -1132,6 +1132,10 @@ def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> s
         for row in today_samples
         if row["profit_units"] is None
     ]
+    settled_item_profits = [
+        item["profit_units"] for item in items if item["profit_units"] is not None
+    ]
+    cumulative_profits = [row["profit_units"] for row in cumulative_settled]
     payload = {
         "schema_version": "w2.candidate_notification.v1",
         "event_type": DAILY_SETTLEMENT,
@@ -1141,16 +1145,16 @@ def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> s
         "push_count": push,
         "loss_count": loss,
         "total_profit_units": float(total),
-        "total_profit_units_with_rebate": float(profit_units_with_rebate(total, win + push + loss)),
+        "rebate_formula_version": REBATE_FORMULA_VERSION,
+        "total_profit_units_with_rebate": float(
+            profit_units_with_rebate(settled_item_profits)
+        ),
         "cumulative_settled_count": len(cumulative_settled),
         "cumulative_profit_units": float(
-            sum(Decimal(str(row["profit_units"])) for row in cumulative_settled)
+            sum((Decimal(str(value)) for value in cumulative_profits), Decimal("0"))
         ),
         "cumulative_profit_units_with_rebate": float(
-            profit_units_with_rebate(
-                sum(Decimal(str(row["profit_units"])) for row in cumulative_settled),
-                len(cumulative_settled),
-            )
+            profit_units_with_rebate(cumulative_profits)
         ),
         "items": items,
         "pending": pending,
@@ -1634,21 +1638,25 @@ def _message_body(payload: Mapping[str, Any]) -> str:
         )
     if event_type == DAILY_SETTLEMENT:
         cumulative_pure = payload.get("cumulative_profit_units") or 0
-        cumulative_with_rebate = payload.get("cumulative_profit_units_with_rebate")
-        if cumulative_with_rebate is None:
-            cumulative_with_rebate = profit_units_with_rebate(
-                cumulative_pure, int(payload.get("cumulative_settled_count") or 0)
-            )
+        current_formula = payload.get("rebate_formula_version") == REBATE_FORMULA_VERSION
+        cumulative_with_rebate = (
+            payload.get("cumulative_profit_units_with_rebate") if current_formula else None
+        )
         total_pure = payload.get("total_profit_units") or 0
-        total_with_rebate = payload.get("total_profit_units_with_rebate")
+        total_with_rebate = (
+            payload.get("total_profit_units_with_rebate") if current_formula else None
+        )
         if total_with_rebate is None:
-            total_with_rebate = profit_units_with_rebate(
-                total_pure,
-                sum(
-                    int(payload.get(key) or 0)
-                    for key in ("win_count", "push_count", "loss_count")
-                ),
+            item_profits = [
+                item["profit_units"] for item in payload.get("items") or []
+                if isinstance(item, Mapping) and item.get("profit_units") is not None
+            ]
+            settled_count = sum(
+                int(payload.get(key) or 0)
+                for key in ("win_count", "push_count", "loss_count")
             )
+            if len(item_profits) == settled_count:
+                total_with_rebate = profit_units_with_rebate(item_profits)
         lines = [
             f"累计：{payload.get('cumulative_settled_count', 0)} 注 "
             f"{_format_settlement_units(cumulative_pure)} 单位"

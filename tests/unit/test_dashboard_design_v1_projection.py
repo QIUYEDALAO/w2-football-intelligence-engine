@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 
 from w2.dashboard.design_v1_projection import (
     performance_summary,
@@ -6,6 +7,7 @@ from w2.dashboard.design_v1_projection import (
     review_row,
     today_recommendations,
 )
+from w2.domain.profit import rebate_units
 
 
 def _row(identity: str, day: str, settlement: str, profit: float) -> dict:
@@ -41,8 +43,17 @@ def test_performance_summary_never_mixes_old_calibration_identity() -> None:
     assert summary["last_30_days"]["match_count"] == 2
     assert summary["last_30_days"]["hit_rate"] == 0.5
     assert summary["total_profit_units"] == 0.4
-    assert summary["total_profit_units_with_rebate"] == 0.475
+    assert summary["total_profit_units_with_rebate"] == 0.46
     assert summary["calibration_identity"] == "v2"
+
+
+def test_rebate_uses_absolute_profit_per_settled_bet() -> None:
+    assert rebate_units([1.0]) == Decimal("0.025")  # WIN
+    assert rebate_units([-1.0]) == Decimal("0.025")  # LOSS
+    assert rebate_units([0.0]) == Decimal("0")  # PUSH
+    assert rebate_units([0.45]) == Decimal("0.01125")  # HALF_WIN
+    assert rebate_units([-0.5]) == Decimal("0.0125")  # HALF_LOSS
+    assert rebate_units([1.0, -1.0, 0.0, 0.45, -0.5]) == Decimal("0.07375")
 
 
 def test_review_row_exposes_design_columns_and_calibration_columns() -> None:

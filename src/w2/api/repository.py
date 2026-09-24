@@ -57,7 +57,7 @@ from w2.dashboard.performance import dashboard_performance
 from w2.dashboard.results import FINISHED_STATUSES, normalize_match_status
 from w2.dashboard.validation_summary import validation_summary
 from w2.domain.decision_card import compute_card_hash
-from w2.domain.profit import profit_units_with_rebate
+from w2.domain.profit import profit_units_with_rebate_from_sums
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
@@ -3013,10 +3013,10 @@ class ReadModelService:
                 )
                 .limit(1)
             )
-            total_profit_units, total_settled_count = session.execute(
+            total_profit_units, total_absolute_profit_units = session.execute(
                 select(
                     func.sum(ValidationSampleModel.profit_units),
-                    func.count(ValidationSampleModel.profit_units),
+                    func.sum(func.abs(ValidationSampleModel.profit_units)),
                 ).where(
                     ValidationSampleModel.calibration_identity == current_identity,
                     ValidationSampleModel.settlement.in_(
@@ -3024,7 +3024,7 @@ class ReadModelService:
                     ),
                     ValidationSampleModel.profit_units.is_not(None),
                 )
-            ).one() if current_identity is not None else (None, 0)
+            ).one() if current_identity is not None else (None, None)
             rows = list(session.scalars(
                 select(ValidationSampleModel).where(
                     ValidationSampleModel.kickoff_utc >= start,
@@ -3056,7 +3056,7 @@ class ReadModelService:
                 current_identity
             ),
             "total_profit_units": round(float(total_profit_units or 0), 3),
-            "total_settled_count": int(total_settled_count or 0),
+            "total_absolute_profit_units": float(total_absolute_profit_units or 0),
         }
 
     def dashboard_validation_samples(
@@ -3128,9 +3128,9 @@ class ReadModelService:
             )
             if current_identity is None:
                 return {"profit_units": 0.0, "profit_units_with_rebate": 0.0}
-            amount, count = session.execute(select(
+            amount, absolute_amount = session.execute(select(
                 func.sum(ValidationSampleModel.profit_units),
-                func.count(ValidationSampleModel.profit_units),
+                func.sum(func.abs(ValidationSampleModel.profit_units)),
             ).where(
                 ValidationSampleModel.calibration_identity == current_identity,
                 ValidationSampleModel.settlement.in_(
@@ -3142,7 +3142,7 @@ class ReadModelService:
         return {
             "profit_units": round(pure, 3),
             "profit_units_with_rebate": round(
-                float(profit_units_with_rebate(pure, int(count or 0))), 3
+                float(profit_units_with_rebate_from_sums(pure, absolute_amount or 0)), 3
             ),
         }
 

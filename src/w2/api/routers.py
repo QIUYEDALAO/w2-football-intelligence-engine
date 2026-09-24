@@ -502,7 +502,7 @@ def dashboard_intelligence_workspace_list(
         facts["rows"], anchor=anchor,
         calibration_identity=facts["current_calibration_identity"],
         total_profit_units=facts.get("total_profit_units"),
-        total_settled_count=facts.get("total_settled_count"),
+        total_absolute_profit_units=facts.get("total_absolute_profit_units"),
     )
     workspace["today_recommendations"] = today_recommendations(
         workspace["matches"], facts["rows"], anchor=anchor,
@@ -631,14 +631,16 @@ def dashboard_intelligence_validation_calibrated(
         if row["filter_decision"] == "FILTERED" and row["settlement"] in SETTLED_STATES
         and row["profit_units"] is not None
     ), 3)
-    kept_count = sum(
-        row["filter_decision"] == "KEPT" and row["settlement"] in SETTLED_STATES
-        and row["profit_units"] is not None for row in all_rows
-    )
-    filtered_count = sum(
-        row["filter_decision"] == "FILTERED" and row["settlement"] in SETTLED_STATES
-        and row["profit_units"] is not None for row in all_rows
-    )
+    kept_profits = [
+        row["profit_units"] for row in all_rows
+        if row["filter_decision"] == "KEPT" and row["settlement"] in SETTLED_STATES
+        and row["profit_units"] is not None
+    ]
+    filtered_profits = [
+        row["profit_units"] for row in all_rows
+        if row["filter_decision"] == "FILTERED" and row["settlement"] in SETTLED_STATES
+        and row["profit_units"] is not None
+    ]
     rows = all_rows
     if date and days is None:
         try:
@@ -711,10 +713,10 @@ def dashboard_intelligence_validation_calibrated(
         "kept_profit_units": kept_profit_units,
         "filtered_profit_units": filtered_profit_units,
         "kept_profit_units_with_rebate": round(
-            float(profit_units_with_rebate(kept_profit_units, kept_count)), 3
+            float(profit_units_with_rebate(kept_profits)), 3
         ),
         "filtered_profit_units_with_rebate": round(
-            float(profit_units_with_rebate(filtered_profit_units, filtered_count)), 3
+            float(profit_units_with_rebate(filtered_profits)), 3
         ),
         "pagination": {"days": days, "limit": limit, "offset": offset, "total": total_before_page},
         "counts": {

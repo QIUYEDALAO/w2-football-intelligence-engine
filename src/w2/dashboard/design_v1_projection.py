@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any
 
 from w2.dashboard.date_window import football_day_for_kickoff
-from w2.domain.profit import profit_units_with_rebate
+from w2.domain.profit import profit_units_with_rebate, profit_units_with_rebate_from_sums
 from w2.identity.public_competition_labels import public_competition_labels
 
 SETTLED = frozenset({"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"})
@@ -44,7 +44,8 @@ def _day(row: Mapping[str, Any]) -> date | None:
 
 def performance_summary(
     rows: Sequence[Mapping[str, Any]], *, anchor: date, calibration_identity: str | None,
-    total_profit_units: float | None = None, total_settled_count: int | None = None,
+    total_profit_units: float | None = None,
+    total_absolute_profit_units: float | None = None,
 ) -> dict[str, Any]:
     """One calibration identity only; a missing identity never selects legacy rows."""
     current = [
@@ -85,14 +86,18 @@ def performance_summary(
         ),
         Decimal("0"),
     )
-    settled_count = total_settled_count if total_settled_count is not None else len(current)
+    with_rebate = (
+        profit_units_with_rebate_from_sums(pure_total, total_absolute_profit_units)
+        if total_absolute_profit_units is not None
+        else profit_units_with_rebate(
+            row["profit_units"] for row in current if row.get("profit_units") is not None
+        )
+    )
     return {
         "calibration_identity": calibration_identity,
         "status": "AVAILABLE" if calibration_identity else "CURRENT_MODEL_IDENTITY_UNAVAILABLE",
         "total_profit_units": round(float(pure_total), 3),
-        "total_profit_units_with_rebate": round(
-            float(profit_units_with_rebate(pure_total, settled_count)), 3
-        ),
+        "total_profit_units_with_rebate": round(float(with_rebate), 3),
         "last_7_days": window(7), "last_30_days": window(30), "daily_series": daily,
     }
 
