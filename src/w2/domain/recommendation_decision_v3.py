@@ -39,16 +39,6 @@ def validate_decision_v3_identity(decision: Mapping[str, Any]) -> str:
     return expected
 
 
-def validate_decision_v3_card_parity(
-    decision: Mapping[str, Any],
-    *,
-    card_hash: object,
-    decision_contract_card_hash: object,
-) -> None:
-    audit_refs = _mapping(decision.get("audit_refs"))
-    v3_card_hash = _text(audit_refs.get("v2_card_hash"))
-    if _text(card_hash) != _text(decision_contract_card_hash) or _text(card_hash) != v3_card_hash:
-        raise ValueError("DECISION_V3_CARD_HASH_PARITY_CONFLICT")
 
 
 def _candidate_quote_identity_for_hash(

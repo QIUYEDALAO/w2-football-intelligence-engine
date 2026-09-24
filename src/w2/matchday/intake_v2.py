@@ -228,18 +228,8 @@ def competition_policies(payload: Mapping[str, Any]) -> dict[str, MatchdayCompet
     return output
 
 
-def require_competition_policy(
-    policies: Mapping[str, MatchdayCompetitionPolicy],
-    competition_id: str,
-) -> MatchdayCompetitionPolicy:
-    policy = policies.get(competition_id)
-    if policy is None or not policy.enabled:
-        raise ValueError("MATCHDAY_POLICY_NOT_AVAILABLE")
-    return policy
 
 
-def policy_fingerprint(registry: CompetitionRegistry | None = None) -> str:
-    return stable_hash(load_matchday_policy(registry))
 
 
 def build_checkpoint_plans(

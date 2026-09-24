@@ -6,7 +6,7 @@ import json
 import re
 from collections import Counter
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -647,8 +647,6 @@ def ah_walk_forward(observations: list[MarketObservation]) -> dict[str, Any]:
     }
 
 
-def observations_to_json(observations: Iterable[MarketObservation]) -> list[dict[str, Any]]:
-    return [asdict(obs) for obs in deterministic_dedup(observations)]
 
 
 def validate_observations(observations: list[MarketObservation]) -> dict[str, Any]:

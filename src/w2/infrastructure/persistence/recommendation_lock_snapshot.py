@@ -6,8 +6,6 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from sqlalchemy.orm import Session
-
 from w2.domain.recommendation_decision_v4 import validate_decision_v4_identity
 from w2.infrastructure.persistence.models import RecommendationLockModel
 
@@ -171,24 +169,6 @@ def build_recommendation_lock_snapshot(
     )
 
 
-def persist_recommendation_lock_snapshot(
-    session: Session,
-    *,
-    recommendation_id: str,
-    card: dict[str, Any],
-    locked_at: datetime,
-    reason: str,
-    release_sha: str | None,
-) -> RecommendationLockModel:
-    lock = build_recommendation_lock_snapshot(
-        recommendation_id=recommendation_id,
-        card=card,
-        locked_at=locked_at,
-        reason=reason,
-        release_sha=release_sha,
-    )
-    session.add(lock)
-    return lock
 
 
 def _require_formal_ah_recommendation(

@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 from w2.matchday.timezone import (
-    BeijingOperationalDayPolicy,
     FixtureOperationalDateResolver,
     OperationalDayWindow,
 )
@@ -145,29 +144,3 @@ class MatchdayCoverageReconciler:
         if parsed.tzinfo is None:
             raise ValueError("kickoff_utc must be timezone-aware")
         return parsed.astimezone(UTC)
-
-
-class MatchdayCoverageAudit:
-    def __init__(self, *, policy: BeijingOperationalDayPolicy | None = None) -> None:
-        self.policy = policy or BeijingOperationalDayPolicy()
-        self.reconciler = MatchdayCoverageReconciler()
-
-    def audit(
-        self,
-        *,
-        local_date: str,
-        authoritative_fixtures: list[dict[str, Any]],
-        cards: list[dict[str, Any]],
-        read_model_fixtures: list[dict[str, Any]],
-        displayed_fixtures: list[dict[str, Any]] | None = None,
-        now_utc: datetime | None = None,
-    ) -> dict[str, Any]:
-        window = self.policy.window_for_date(datetime.fromisoformat(local_date).date())
-        return self.reconciler.reconcile(
-            window=window,
-            authoritative_fixtures=authoritative_fixtures,
-            cards=cards,
-            read_model_fixtures=read_model_fixtures,
-            displayed_fixtures=displayed_fixtures,
-            now_utc=now_utc,
-        )

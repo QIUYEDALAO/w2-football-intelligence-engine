@@ -78,8 +78,6 @@ class FutureRefreshError(RuntimeError):
     pass
 
 
-class RefreshLockError(RuntimeError):
-    pass
 
 
 _FULL_GIT_SHA = re.compile(r"^[0-9a-f]{40}$")

@@ -3,11 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
-from typing import Any
 
 from w2.domain.time import require_utc
 from w2.models.forward_automation import ForwardCircuitBreaker, NoOverlapLock
-from w2.models.independent import artifact_hash
 
 
 class ForwardRuntimeEnvironment(StrEnum):
@@ -108,7 +106,3 @@ class ForwardRuntimeGuard:
 
     def release(self) -> None:
         self.lock.release()
-
-
-def scheduler_checkpoint_hash(payload: dict[str, Any]) -> str:
-    return artifact_hash(payload)

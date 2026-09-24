@@ -217,13 +217,3 @@ def provider_task_key_gate(
         ttl_seconds=ttl,
         backend="redis",
     )
-
-
-def provider_scheduler_skip_payload(reason: str = PROVIDER_SCHEDULER_DISABLED) -> dict[str, object]:
-    return {
-        "status": reason,
-        "blockers": [reason],
-        "candidate": False,
-        "formal_recommendation": False,
-        "provider_calls": 0,
-    }

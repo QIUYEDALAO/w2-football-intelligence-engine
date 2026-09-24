@@ -130,16 +130,6 @@ def decimal_to_hong_kong(value: Decimal) -> Decimal:
     return (value - Decimal("1")).quantize(Decimal("0.0001"))
 
 
-def infer_decimal_odds(raw: Decimal, raw_format: OddsFormat | None) -> Decimal:
-    if raw_format is None:
-        raise ValueError("odds format is required")
-    if raw_format == OddsFormat.DECIMAL:
-        if raw <= 1:
-            raise ValueError("decimal odds must be greater than 1")
-        return raw
-    if raw_format == OddsFormat.HONG_KONG:
-        return hong_kong_to_decimal(raw)
-    raise ValueError(f"unsupported odds format: {raw_format}")
 
 
 def settlement_distribution_ah(
@@ -348,11 +338,3 @@ class MarketValueEngine:
         if probability is None:
             raise ValueError(f"missing independent probability for {key}")
         return binary_distribution(probability)
-
-
-class AsianHandicapLadderEvaluator(MarketValueEngine):
-    pass
-
-
-class TotalsLadderEvaluator(MarketValueEngine):
-    pass

@@ -3,8 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
-from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 FORMAL_AH_READINESS_SCHEMA = "w2.formal_ah_readiness.v1"
 FORMAL_AH_APPROVAL_SCHEMA = "w2.formal_ah_approval_manifest.v1"
@@ -117,10 +116,6 @@ def validate_formal_ah_readiness(payload: Mapping[str, Any]) -> dict[str, Any]:
     return dict(payload)
 
 
-def load_approval_manifest(path: Path) -> dict[str, Any]:
-    if not path.is_file():
-        return {"approved": False, "accepted_hashes": {}, "manifest_status": "MISSING"}
-    return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
 def _gate(payload: Mapping[str, Any], required: str, reason: str) -> dict[str, Any]:

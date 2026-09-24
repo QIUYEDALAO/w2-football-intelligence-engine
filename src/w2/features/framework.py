@@ -145,24 +145,3 @@ def coverage_available(profile: CoverageProfile, key: str) -> bool:
     if any(marker in value for marker in unavailable_markers):
         return False
     return value.startswith(ACTIVE_COVERAGE_PREFIXES)
-
-
-def coverage_or_unavailable(
-    *,
-    profile: CoverageProfile,
-    key: str,
-    feature_id: str,
-    label: str,
-    weight: float,
-) -> FeatureContribution | None:
-    if coverage_available(profile, key):
-        return None
-    value = profile.as_dict().get(key, "UNKNOWN")
-    return unavailable_contribution(
-        feature_id=feature_id,
-        label=label,
-        reason=f"COVERAGE_UNAVAILABLE:{key}",
-        weight=weight,
-        coverage_key=key,
-        diagnostics=(value,),
-    )
