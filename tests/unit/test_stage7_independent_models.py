@@ -13,6 +13,7 @@ from w2.models.independent import (
     ModelFamily,
     artifact_hash,
     assert_feature_allowlist,
+    normalized_score_matrix,
     predict_from_features,
 )
 from w2.models.residuals import independent_minus_market, residual_blend_research_only
@@ -135,3 +136,37 @@ def test_paired_bootstrap_and_deterministic_artifact_hash() -> None:
     interval = paired_bootstrap_delta([0.9, 1.0, 1.1], [1.0, 1.1, 1.2], samples=40)
     assert interval["ci_high"] < 0
     assert artifact_hash({"b": 2, "a": 1}) == artifact_hash({"a": 1, "b": 2})
+
+
+def test_calibration_and_evaluation_reject_empty_samples() -> None:
+    from w2.models.evaluation import brier, ece, log_loss, metrics, reliability, rps
+
+    with pytest.raises(ValueError, match="non-empty"):
+        fit_calibration([], CalibrationMethod.PLATT, fitted_on="validation")
+    for scorer in (log_loss, brier, rps, reliability, ece, metrics):
+        with pytest.raises(ValueError, match="non-empty"):
+            scorer([])
+    with pytest.raises(ValueError, match="non-empty"):
+        paired_bootstrap_delta([], [])
+    with pytest.raises(ValueError, match="positive sample count"):
+        paired_bootstrap_delta([0.1], [0.2], samples=0)
+
+
+def test_calibration_rejects_zero_probability_mass() -> None:
+    rows = [({"HOME": 0.5, "DRAW": 0.25, "AWAY": 0.25}, "HOME")]
+    artifact = fit_calibration(rows, CalibrationMethod.PLATT, fitted_on="validation")
+    with pytest.raises(ValueError, match="positive probability mass"):
+        apply_calibration({"HOME": 0.0, "DRAW": 0.0, "AWAY": 0.0}, artifact)
+    with pytest.raises(ValueError, match="positive probability mass"):
+        residual_blend_research_only(
+            {"HOME": 0.0, "DRAW": 0.0, "AWAY": 0.0},
+            {"HOME": 0.0, "DRAW": 0.0, "AWAY": 0.0},
+            0.5,
+        )
+
+
+def test_independent_score_matrix_rejects_empty_or_zero_mass() -> None:
+    with pytest.raises(ValueError, match="max_goals"):
+        normalized_score_matrix(1.0, 1.0, max_goals=-1)
+    with pytest.raises(ValueError, match="positive probability mass"):
+        normalized_score_matrix(1e300, 1e300, max_goals=0)

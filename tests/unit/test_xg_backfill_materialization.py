@@ -14,7 +14,6 @@ from w2.ingestion.xg_backfill import (
     ProStatisticsBackfillConfig,
     ProStatisticsBackfillService,
     XgBackfillConfig,
-    XgBackfillError,
     XgHistoryBackfillService,
     run_xg_history_backfill,
 )
@@ -108,6 +107,15 @@ def test_rolling_xg_materialization_is_strictly_as_of() -> None:
     assert snapshot.match_count == 4
     assert snapshot.rolling_xg_for < 9.9
     assert snapshot.as_feature_snapshot().observed_at == NOW - timedelta(hours=1)
+
+
+@pytest.mark.parametrize("window,min_matches", [(0, 1), (5, 0)])
+def test_rolling_xg_rejects_zero_size_window(window: int, min_matches: int) -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        materialize_rolling_xg(
+            team_id="10", as_of_fixture_id="target", as_of_time=NOW,
+            matches=[], window=window, min_matches=min_matches,
+        )
 
 
 def test_rolling_xg_visibility_uses_latest_component_availability() -> None:

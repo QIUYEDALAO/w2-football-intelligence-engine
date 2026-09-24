@@ -96,6 +96,10 @@ def _log_loss(probability: float, outcome: int) -> float:
 
 
 def _bootstrap_mean_interval(values: list[float], *, samples: int) -> tuple[float, float]:
+    if not values:
+        raise ValueError("bootstrap requires non-empty values")
+    if samples <= 0:
+        raise ValueError("bootstrap requires positive sample count")
     randomizer = random.Random(20260719)  # noqa: S311 - deterministic bootstrap, not security
     means = []
     for _ in range(samples):

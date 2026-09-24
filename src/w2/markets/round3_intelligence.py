@@ -635,6 +635,8 @@ def _settlement_distribution(
         )
         totals[outcome.value] += Decimal(str(probability))
     total = sum(totals.values(), Decimal("0"))
+    if total <= 0:
+        raise ValueError("round3 settlement distribution has zero probability")
     return {
         outcome: float((value / total).quantize(Decimal("0.000001")))
         for outcome, value in totals.items()

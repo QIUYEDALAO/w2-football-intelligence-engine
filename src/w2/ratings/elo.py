@@ -12,6 +12,8 @@ def rating_from_history(
     as_of: datetime,
     min_matches: int = 2,
 ) -> TeamRatingSnapshot | None:
+    if min_matches < 1:
+        raise ValueError("min_matches must be positive")
     rows = [row for row in history if row.team_id == team_id and row.kickoff_at <= as_of]
     if len(rows) < min_matches:
         return None

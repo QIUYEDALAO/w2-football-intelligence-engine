@@ -22,6 +22,7 @@ class HardGateReason(StrEnum):
     MARKET_LIVE = "MARKET_LIVE"
     SETTLEMENT_RULE_UNKNOWN = "SETTLEMENT_RULE_UNKNOWN"
     KICKOFF_PASSED = "KICKOFF_PASSED"
+    KICKOFF_TIME_INVALID = "KICKOFF_TIME_INVALID"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -115,8 +116,13 @@ def hard_gate_reasons(
         reasons.append(HardGateReason.CORE_MARKET_MISSING)
 
     kickoff_value = fixture.get("kickoff_utc") or fixture.get("fixture", {}).get("date")
-    if kickoff_value is not None and parse_utc(kickoff_value) <= as_of:
-        reasons.append(HardGateReason.KICKOFF_PASSED)
+    try:
+        kickoff = parse_utc(kickoff_value)
+    except (TypeError, ValueError):
+        reasons.append(HardGateReason.KICKOFF_TIME_INVALID)
+    else:
+        if kickoff <= as_of:
+            reasons.append(HardGateReason.KICKOFF_PASSED)
 
     bookmaker_ids = {_bookmaker(row) for row in valid_observations if _bookmaker(row)}
     if len(bookmaker_ids) < resolved_policy.min_bookmakers:

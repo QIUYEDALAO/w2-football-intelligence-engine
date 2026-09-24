@@ -204,4 +204,6 @@ def one_x_two_from_matrix(matrix: ScoreMatrix) -> dict[str, float]:
         "AWAY": sum(probability for (home, away), probability in matrix.items() if home < away),
     }
     total = sum(probabilities.values())
+    if total <= 0:
+        raise ValueError("one-x-two matrix requires positive probability mass")
     return {key: value / total for key, value in probabilities.items()}

@@ -25,7 +25,9 @@ def fit_calibration(
     fitted_on: str,
 ) -> CalibrationArtifact:
     if not rows:
-        return CalibrationArtifact(method=method, fitted_on=fitted_on, parameters={"strength": 1.0})
+        raise ValueError("calibration requires non-empty training rows")
+    if any(not probabilities for probabilities, _ in rows):
+        raise ValueError("calibration requires non-empty probability distributions")
     avg_confidence = sum(max(probabilities.values()) for probabilities, _ in rows) / len(rows)
     accuracy = sum(
         1.0
@@ -55,4 +57,6 @@ def apply_calibration(
     strength = artifact.parameters["strength"]
     adjusted = {key: value**strength for key, value in probabilities.items()}
     total = sum(adjusted.values())
+    if total <= 0:
+        raise ValueError("calibration requires positive probability mass")
     return {key: value / total for key, value in adjusted.items()}

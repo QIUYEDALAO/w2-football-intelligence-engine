@@ -282,6 +282,8 @@ def _market_probabilities(
             probability = _poisson(home_lambda, home) * _poisson(away_lambda, away)
             matrix[(home, away)] = Decimal(str(probability))
     total = sum(matrix.values())
+    if total <= 0:
+        raise ValueError("market score matrix has no positive probability")
     normalized = {score: value / total for score, value in matrix.items()}
     home_prob = sum(value for (h, a), value in normalized.items() if h > a)
     draw = sum(value for (h, a), value in normalized.items() if h == a)

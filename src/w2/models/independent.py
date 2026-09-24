@@ -136,12 +136,16 @@ def normalized_score_matrix(
     away_mu: float,
     max_goals: int = 10,
 ) -> dict[tuple[int, int], float]:
+    if max_goals < 0:
+        raise ValueError("max_goals must be non-negative")
     matrix = {
         (home, away): poisson_pmf(home_mu, home) * poisson_pmf(away_mu, away)
         for home in range(max_goals + 1)
         for away in range(max_goals + 1)
     }
     total = sum(matrix.values())
+    if total <= 0:
+        raise ValueError("score matrix requires positive probability mass")
     return {score: probability / total for score, probability in matrix.items()}
 
 

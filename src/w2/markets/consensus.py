@@ -96,7 +96,10 @@ class MarketConsensusBuilder:
             if quote.suspended or quote.live:
                 diagnostics.append(f"UNUSABLE_QUOTE:{quote.bookmaker}")
                 continue
-            age = max((as_of - quote.provider_updated_at).total_seconds(), 0.0)
+            age = (as_of - quote.provider_updated_at).total_seconds()
+            if age < 0:
+                diagnostics.append(f"FUTURE_QUOTE_TIMESTAMP:{quote.bookmaker}")
+                continue
             base_weight = (self.config.bookmaker_weights or {}).get(quote.bookmaker, 1.0)
             is_stale = quote.stale or age > self.config.max_staleness_seconds
             staleness_weight = 0.5 if is_stale else 1.0

@@ -45,6 +45,17 @@ def test_consensus_outlier_staleness_and_single_bookmaker_guard() -> None:
     assert consensus.status in {"READY", "WATCH_ONLY"}
 
 
+def test_consensus_excludes_future_provider_timestamp() -> None:
+    future = quote("future", "2.00", minutes_old=-1)
+    consensus = MarketConsensusBuilder().build(
+        [future, quote("valid", "2.02")], as_of_time=NOW
+    )
+
+    assert consensus.status == "INSUFFICIENT_INPUT"
+    assert consensus.effective_bookmakers == 1
+    assert "FUTURE_QUOTE_TIMESTAMP:future" in consensus.diagnostics
+
+
 def test_devig_methods_sum_to_one_and_handle_extreme_odds() -> None:
     odds = {"HOME": Decimal("1.01"), "DRAW": Decimal("34"), "AWAY": Decimal("99")}
     for method in DevigMethod:

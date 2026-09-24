@@ -48,3 +48,8 @@ def test_fit_dixon_coles_outputs_normalized_prediction_matrix() -> None:
     assert -0.2 <= params.rho <= 0.2
     assert sum(matrix.values()) == pytest.approx(1.0)
     assert sum(one_x_two.values()) == pytest.approx(1.0)
+
+
+def test_one_x_two_rejects_empty_score_matrix() -> None:
+    with pytest.raises(ValueError, match="positive probability mass"):
+        one_x_two_from_matrix({})

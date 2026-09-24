@@ -163,6 +163,19 @@ def test_skip_when_fixture_already_kicked_off() -> None:
     assert HardGateReason.KICKOFF_PASSED.value in reasons(candidate.as_dict()["hard_gate_reasons"])
 
 
+@pytest.mark.parametrize("kickoff", [None, "not-a-time", "2026-06-25T12:00:00"])
+def test_invalid_kickoff_skips_without_exception(kickoff: str | None) -> None:
+    invalid_fixture = fixture()
+    invalid_fixture["kickoff_utc"] = kickoff
+
+    candidate = generate_candidate(
+        fixture=invalid_fixture, observations=complete_observations(), as_of=NOW
+    )
+
+    assert candidate.decision == "SKIP"
+    assert HardGateReason.KICKOFF_TIME_INVALID in candidate.hard_gate_reasons
+
+
 @pytest.mark.parametrize("captured_at", [None, "not-a-time"])
 def test_missing_or_invalid_capture_time_skips(captured_at: str | None) -> None:
     observations = complete_observations()

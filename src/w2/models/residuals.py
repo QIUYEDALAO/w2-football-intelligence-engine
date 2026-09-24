@@ -19,4 +19,6 @@ def residual_blend_research_only(
         for key in ("HOME", "DRAW", "AWAY")
     }
     total = sum(blended.values())
+    if total <= 0:
+        raise ValueError("residual blend requires positive probability mass")
     return {key: value / total for key, value in blended.items()}

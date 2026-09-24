@@ -16,10 +16,14 @@ class EvaluationRow:
 
 
 def log_loss(rows: list[EvaluationRow]) -> float:
+    if not rows:
+        raise ValueError("log loss requires non-empty evaluation rows")
     return sum(-math.log(max(row.probabilities[row.actual], 1e-12)) for row in rows) / len(rows)
 
 
 def brier(rows: list[EvaluationRow]) -> float:
+    if not rows:
+        raise ValueError("Brier score requires non-empty evaluation rows")
     return sum(
         sum(
             (row.probabilities[key] - (1.0 if row.actual == key else 0.0)) ** 2
@@ -30,6 +34,8 @@ def brier(rows: list[EvaluationRow]) -> float:
 
 
 def rps(rows: list[EvaluationRow]) -> float:
+    if not rows:
+        raise ValueError("RPS requires non-empty evaluation rows")
     order = ("HOME", "DRAW", "AWAY")
     total = 0.0
     for row in rows:
@@ -45,6 +51,10 @@ def rps(rows: list[EvaluationRow]) -> float:
 
 
 def reliability(rows: list[EvaluationRow], bins: int = 10) -> list[dict[str, float]]:
+    if not rows:
+        raise ValueError("reliability requires non-empty evaluation rows")
+    if bins <= 0:
+        raise ValueError("reliability requires positive bin count")
     buckets: list[list[tuple[float, bool]]] = [[] for _ in range(bins)]
     for row in rows:
         prediction, confidence = max(row.probabilities.items(), key=lambda item: item[1])
@@ -67,6 +77,8 @@ def reliability(rows: list[EvaluationRow], bins: int = 10) -> list[dict[str, flo
 
 
 def ece(rows: list[EvaluationRow]) -> float:
+    if not rows:
+        raise ValueError("ECE requires non-empty evaluation rows")
     return sum(
         item["weight"] * abs(item["accuracy"] - item["confidence"])
         for item in reliability(rows)
@@ -91,6 +103,10 @@ def paired_bootstrap_delta(
 ) -> dict[str, float]:
     if len(candidate_losses) != len(baseline_losses):
         raise ValueError("paired bootstrap requires aligned rows")
+    if not candidate_losses:
+        raise ValueError("paired bootstrap requires non-empty paired rows")
+    if samples <= 0:
+        raise ValueError("paired bootstrap requires positive sample count")
     rng = random.Random(seed)  # noqa: S311 - deterministic evaluation bootstrap, not security.
     n = len(candidate_losses)
     deltas = []

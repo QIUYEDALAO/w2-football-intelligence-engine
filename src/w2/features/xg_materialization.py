@@ -134,6 +134,8 @@ def materialize_rolling_xg(
     components.  The persisted snapshot timestamp is the latest time at which
     every selected component was knowable.
     """
+    if window < 1 or min_matches < 1:
+        raise ValueError("window and min_matches must be positive")
     cutoff = as_of_time.astimezone(UTC)
     eligible = [
         row

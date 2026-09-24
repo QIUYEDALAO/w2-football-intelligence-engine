@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -9,6 +10,7 @@ from apps.api.main import app
 from fastapi.testclient import TestClient
 
 from w2.api import routers
+from w2.operations.observability import default_metric_registry
 from w2.prematch.analysis_calculator import ReadModelService, _next_future_evaluation
 
 
@@ -531,6 +533,28 @@ def test_dashboard_invalidates_cache_when_quote_confirmation_advances() -> None:
     assert repository.fixture_payload_calls == 2
     assert refreshed["odds_last_confirmed_at"] == "2026-06-26T09:50:00Z"
     assert refreshed["generated_at"] > first["generated_at"]
+
+
+def test_dashboard_refresh_reader_failure_requires_refresh_and_warns(caplog) -> None:
+    repository = MutableRefreshStatusRepository()
+    service = ReadModelService(repository=cast(Any, repository))
+    payload = {
+        "all": [{"fixture_id": "9001"}],
+        "odds_last_confirmed_at": repository.odds_last_confirmed_at,
+        "next_refresh_tick": "2026-06-26T09:55:00Z",
+    }
+
+    def fail_refresh_status(_fixture_ids: list[str]) -> dict[str, str | None]:
+        raise RuntimeError("reader unavailable")
+
+    repository.public_market_refresh_status = fail_refresh_status  # type: ignore[method-assign]
+    metric = "w2_dashboard_market_refresh_read_errors_total"
+    before = default_metric_registry().counters.get(metric, 0)
+    with caplog.at_level(logging.ERROR):
+        assert service._dashboard_cache_matches_market_refresh(payload) is False
+
+    assert default_metric_registry().counters[metric] == before + 1
+    assert "Dashboard market refresh status read failed" in caplog.text
 
 
 def test_unbounded_warm_cache_does_not_pollute_public_dashboard() -> None:

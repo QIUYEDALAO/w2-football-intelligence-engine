@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import statistics
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
@@ -14,7 +13,7 @@ from w2.domain.five_state_pricing import (
     validate_ev_inputs,
 )
 from w2.matchday.legacy_ev import adapt_legacy_value_row
-from w2.matchday.temporal import TemporalStatus, parse_utc, temporal_context_from_manifest
+from w2.matchday.temporal import TemporalStatus, temporal_context_from_manifest
 
 RANKED_MARKETS = ("ONE_X_TWO", "ASIAN_HANDICAP", "TOTALS", "BTTS")
 
@@ -338,55 +337,3 @@ class ResearchCardBuilder:
             ranking[i] for i in sorted(exact_risk, key=exact_risk.__getitem__, reverse=True)
         ]
         return ranked + [row for i, row in enumerate(ranking) if i not in exact_risk]
-
-
-class DailyFixtureDiscoveryService:
-    def discover_from_snapshots(self, snapshot_root: Path, *, target_date: date) -> list[Path]:
-        candidates = []
-        for path in sorted(snapshot_root.glob("*/manifest.json")):
-            manifest = _load_json(path, {})
-            kickoff = parse_utc(str(manifest.get("kickoff_utc")))
-            if kickoff.date() == target_date:
-                candidates.append(path.parent)
-        latest: dict[str, Path] = {}
-        for snapshot in candidates:
-            manifest = _load_json(snapshot / "manifest.json", {})
-            fixture_id = str(manifest.get("fixture_id"))
-            previous = latest.get(fixture_id)
-            if previous is None:
-                latest[fixture_id] = snapshot
-                continue
-            if str(manifest.get("captured_at_utc")) > str(
-                _load_json(previous / "manifest.json", {}).get("captured_at_utc")
-            ):
-                latest[fixture_id] = snapshot
-        return list(latest.values())
-
-
-class MatchdayEligibilityService:
-    def classify(self, *, kickoff_utc: datetime, now: datetime, has_prematch_snapshot: bool) -> str:
-        if kickoff_utc <= now and not has_prematch_snapshot:
-            return "MISSED_PREMATCH_WINDOW"
-        if kickoff_utc <= now:
-            return "SETTLEMENT_PENDING"
-        if has_prematch_snapshot:
-            return "PREMATCH_LOCKED"
-        return "UPCOMING_ELIGIBLE"
-
-
-class MatchdayPhasePlanner:
-    def __init__(self, schedule_path: Path) -> None:
-        self.schedule = _load_json(schedule_path, {})
-
-    def plan(self, kickoff_utc: datetime) -> list[dict[str, str | bool]]:
-        output = []
-        for phase in self.schedule.get("phases", []):
-            scheduled = kickoff_utc + timedelta(minutes=int(phase["offset_minutes"]))
-            output.append(
-                {
-                    "phase": phase["phase"],
-                    "scheduled_at": scheduled.isoformat(),
-                    "prematch": bool(phase["prematch"]),
-                }
-            )
-        return output

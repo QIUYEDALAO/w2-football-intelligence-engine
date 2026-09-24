@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import os
 from collections.abc import Mapping
@@ -1925,7 +1926,9 @@ class ReadModelService:
         try:
             current = cast(dict[str, str | None], reader(fixture_ids))
         except Exception:
-            return True
+            default_metric_registry().inc("w2_dashboard_market_refresh_read_errors_total")
+            logging.getLogger(__name__).exception("Dashboard market refresh status read failed")
+            return False
         return payload.get("odds_last_confirmed_at") == current.get(
             "odds_last_confirmed_at"
         ) and payload.get("next_refresh_tick") == current.get("next_refresh_tick")
