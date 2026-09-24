@@ -667,6 +667,7 @@ export interface IntelligenceValidationResponse {
   generated_at: string | null;
   validation: WorkspaceValidationWithoutReplay;
   samples?: ValidationReviewSample[];
+  cumulative_profit_units: number;
   pagination?: { days: number | null; limit: number | null; offset: number; total: number };
   read_contract: IntelligenceWorkspace["read_contract"];
 }
@@ -725,6 +726,8 @@ export interface IntelligenceCalibratedValidationResponse {
   forward_start: string | null;
   forward_progress: Record<string, unknown>;
   samples: CalibratedValidationSample[];
+  kept_profit_units: number;
+  filtered_profit_units: number;
   counts: {
     total: number;
     kept: number;
@@ -885,6 +888,7 @@ export interface PerformanceWindow {
 export interface PerformanceSummary {
   calibration_identity: string | null;
   status: string;
+  total_profit_units: number;
   last_7_days: PerformanceWindow;
   last_30_days: PerformanceWindow;
   daily_series: Array<{

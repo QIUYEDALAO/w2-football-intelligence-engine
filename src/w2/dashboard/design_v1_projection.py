@@ -41,7 +41,8 @@ def _day(row: Mapping[str, Any]) -> date | None:
 
 
 def performance_summary(
-    rows: Sequence[Mapping[str, Any]], *, anchor: date, calibration_identity: str | None
+    rows: Sequence[Mapping[str, Any]], *, anchor: date, calibration_identity: str | None,
+    total_profit_units: float | None = None,
 ) -> dict[str, Any]:
     """One calibration identity only; a missing identity never selects legacy rows."""
     current = [
@@ -77,6 +78,11 @@ def performance_summary(
     return {
         "calibration_identity": calibration_identity,
         "status": "AVAILABLE" if calibration_identity else "CURRENT_MODEL_IDENTITY_UNAVAILABLE",
+        "total_profit_units": (
+            round(total_profit_units, 3) if total_profit_units is not None
+            else round(sum(float(row["profit_units"]) for row in current
+                           if row.get("profit_units") is not None), 3)
+        ),
         "last_7_days": window(7), "last_30_days": window(30), "daily_series": daily,
     }
 

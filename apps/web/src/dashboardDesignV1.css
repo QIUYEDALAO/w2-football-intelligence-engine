@@ -231,7 +231,7 @@ h2, h3 { margin: 0; text-wrap: balance; }
 .w2-kpis-wrap::-webkit-scrollbar { display: none; }
 .w2-kpis {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
 }
 .w2-kpi {

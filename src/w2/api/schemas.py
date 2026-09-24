@@ -1881,6 +1881,7 @@ class DashboardIntelligenceValidationResponse(BaseModel):
     validation: WorkspaceValidationWithoutReplay
     read_contract: WorkspaceReadContract
     samples: list[dict[str, Any]] = Field(default_factory=list)
+    cumulative_profit_units: float
     pagination: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -1929,6 +1930,8 @@ class DashboardIntelligenceCalibratedValidationResponse(BaseModel):
     forward_start: datetime | str | None = None
     forward_progress: dict[str, Any] = Field(default_factory=dict)
     samples: list[CalibratedValidationSample]
+    kept_profit_units: float
+    filtered_profit_units: float
     counts: dict[str, int]
     decision_contract: dict[str, Any]
     read_contract: WorkspaceReadContract

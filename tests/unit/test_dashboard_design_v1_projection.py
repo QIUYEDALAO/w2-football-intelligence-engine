@@ -30,6 +30,8 @@ def test_performance_summary_never_mixes_old_calibration_identity() -> None:
         _row("v2", "2026-09-23", "WIN", 0.9),
         _row("v1", "2026-09-22", "WIN", 0.9),
         _row("v2", "2026-09-01", "LOSS", -1.0),
+        _row("v2", "2026-08-01", "WIN", 0.5),
+        _row("v2", "2026-08-02", "PENDING", 12.0),
     ]
     summary = performance_summary(rows, anchor=date(2026, 9, 23), calibration_identity="v2")
     assert summary["status"] == "AVAILABLE"
@@ -38,6 +40,7 @@ def test_performance_summary_never_mixes_old_calibration_identity() -> None:
     }
     assert summary["last_30_days"]["match_count"] == 2
     assert summary["last_30_days"]["hit_rate"] == 0.5
+    assert summary["total_profit_units"] == 0.4
     assert summary["calibration_identity"] == "v2"
 
 

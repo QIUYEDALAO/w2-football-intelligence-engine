@@ -1239,6 +1239,7 @@ export function IntelligenceConsole(props: Props) {
         schema_version: "w2.dashboard-intelligence-validation.v1",
         generated_at: workspace.generated_at,
         validation,
+        cumulative_profit_units: 0,
         read_contract: workspace.read_contract,
       },
     });

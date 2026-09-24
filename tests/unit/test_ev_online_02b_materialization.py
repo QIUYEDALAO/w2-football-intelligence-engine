@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from starlette.requests import Request
 
 from w2.api.routers import _calibrated_sample_projection
+from w2.api.repository import ReadModelService
 from w2.api.schemas import CalibratedValidationSample
 from w2.domain.ev_online_contract import FORWARD_START_UTC
 from w2.infrastructure.database import Base
@@ -205,3 +206,73 @@ def test_c2_date_filters_samples_but_forward_progress_uses_all_days(monkeypatch)
     )
     assert response["forward_progress"]["kept"] == 2
     assert len(response["samples"]) == 1
+
+
+def test_original_profit_summary_ignores_pagination_and_pending() -> None:
+    engine = _session()
+    with Session(engine) as session:
+        for index, (settlement, profit) in enumerate(
+            (("WIN", 0.95), ("LOSS", -1.0), ("PENDING", None))
+        ):
+            session.add(ValidationSampleModel(
+                fixture_id=f"profit-{index}", market="TOTALS", selection="OVER",
+                exact_line="2.5", decimal_odds=1.95, evaluation_id=f"profit-e-{index}",
+                settlement=settlement, profit_units=profit,
+                calibration_identity="v2",
+                projected_at=datetime(2026, 8, index + 1, tzinfo=UTC),
+                kickoff_utc=datetime(2026, 8, index + 1, 16, tzinfo=UTC),
+            ))
+        session.add(ValidationSampleModel(
+            fixture_id="old-model", market="TOTALS", selection="UNDER", exact_line="2.5",
+            decimal_odds=2.0, evaluation_id="old-e", settlement="WIN",
+            profit_units=1.0, calibration_identity="v1",
+            projected_at=datetime(2026, 7, 1, tzinfo=UTC),
+            kickoff_utc=datetime(2026, 7, 1, 16, tzinfo=UTC),
+        ))
+        session.commit()
+    class Repo:
+        def _database_engine(self):
+            return engine
+    service = ReadModelService(repository=Repo())
+    rows, total = service.dashboard_validation_samples(
+        anchor=datetime(2026, 8, 3, tzinfo=UTC).date(), days=1, limit=1,
+    )
+    assert total == len(rows) == 1
+    assert service.dashboard_validation_cumulative_profit_units() == 0.95
+    facts = service.dashboard_design_v1_facts(anchor=datetime(2026, 9, 23, tzinfo=UTC).date())
+    assert facts["rows"] == []  # the 30-day list remains unchanged
+    assert facts["current_calibration_identity"] == "v2"
+    assert facts["total_profit_units"] == -0.05  # includes settled rows before 30 days
+
+
+def test_calibrated_profit_summary_uses_full_history_before_pagination(monkeypatch) -> None:
+    engine = _session()
+    start = FORWARD_START_UTC + timedelta(days=1)
+    with Session(engine) as session:
+        for index, (decision, settlement, profit) in enumerate((
+            ("KEPT", "WIN", 0.9), ("FILTERED", "LOSS", -1.0),
+            ("KEPT", "PENDING", None),
+        )):
+            evaluated = start + timedelta(days=index)
+            session.add(CalibratedValidationSampleModel(
+                fixture_id=f"summary-{index}", market="ASIAN_HANDICAP", selection="HOME",
+                exact_line="-0.5", decimal_odds=1.9, evaluation_id=f"summary-e-{index}",
+                settlement=settlement, profit_units=profit, projected_at=evaluated,
+                evaluated_at=evaluated, kickoff_utc=evaluated + timedelta(hours=1),
+                filter_decision=decision, param_version=PARAM_VERSION, warmup=False,
+            ))
+        session.commit()
+    class Repo:
+        def _database_engine(self):
+            return engine
+    class Service:
+        repository = Repo()
+    import w2.api.routers as routers
+    monkeypatch.setattr(routers, "service", Service())
+    response = routers.dashboard_intelligence_validation_calibrated(
+        Request({"type": "http", "method": "GET", "path": "/", "headers": []}),
+        date=start.astimezone(ZoneInfo("Asia/Shanghai")).date().isoformat(),
+    )
+    assert response["pagination"]["total"] == 1
+    assert response["kept_profit_units"] == 0.9
+    assert response["filtered_profit_units"] == -1.0

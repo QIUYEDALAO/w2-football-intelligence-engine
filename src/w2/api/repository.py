@@ -2985,6 +2985,15 @@ class ReadModelService:
                 )
                 .limit(1)
             )
+            total_profit_units = session.scalar(
+                select(func.sum(ValidationSampleModel.profit_units)).where(
+                    ValidationSampleModel.calibration_identity == current.calibration_identity,
+                    ValidationSampleModel.settlement.in_(
+                        ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
+                    ),
+                    ValidationSampleModel.profit_units.is_not(None),
+                )
+            ) if current is not None else None
             rows = list(session.scalars(
                 select(ValidationSampleModel).where(
                     ValidationSampleModel.kickoff_utc >= start,
@@ -3015,6 +3024,7 @@ class ReadModelService:
             "current_calibration_identity": (
                 current.calibration_identity if current is not None else None
             ),
+            "total_profit_units": round(float(total_profit_units or 0), 3),
         }
 
     def dashboard_validation_samples(
@@ -3056,6 +3066,17 @@ class ReadModelService:
             }
             for row in rows
         ], total
+
+    def dashboard_validation_cumulative_profit_units(self) -> float:
+        """Sum settled recommendation units across all dates and pages."""
+        with Session(self.repository._database_engine()) as session:
+            amount = session.scalar(select(func.sum(ValidationSampleModel.profit_units)).where(
+                ValidationSampleModel.settlement.in_(
+                    ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
+                ),
+                ValidationSampleModel.profit_units.is_not(None),
+            ))
+        return round(float(amount or 0), 3)
 
     def dashboard_dynamic_evaluations_for_fixtures(
         self,

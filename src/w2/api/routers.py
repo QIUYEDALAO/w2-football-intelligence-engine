@@ -500,6 +500,7 @@ def dashboard_intelligence_workspace_list(
     workspace["performance_summary"] = performance_summary(
         facts["rows"], anchor=anchor,
         calibration_identity=facts["current_calibration_identity"],
+        total_profit_units=facts.get("total_profit_units"),
     )
     workspace["today_recommendations"] = today_recommendations(
         workspace["matches"], facts["rows"], anchor=anchor,
@@ -564,12 +565,14 @@ def dashboard_intelligence_validation(
             days=days, limit=limit, offset=offset,
         ) if callable(sample_reader) else ([], 0)
     )
+    profit_reader = getattr(service, "dashboard_validation_cumulative_profit_units", None)
     return {
         "request_id": request_id(request),
         "schema_version": "w2.dashboard-intelligence-validation.v1",
         "generated_at": day_view.get("generated_at"),
         "validation": validation,
         "samples": [review_row(row) for row in samples],
+        "cumulative_profit_units": profit_reader() if callable(profit_reader) else 0.0,
         "pagination": {"days": days, "limit": limit, "offset": offset, "total": total},
         "read_contract": {
             "provider_calls": int(day_view.get("provider_calls") or 0),
@@ -604,6 +607,16 @@ def dashboard_intelligence_validation_calibrated(
             _calibrated_sample_projection(row)
             for row in session.scalars(select(CalibratedValidationSampleModel))
         ]
+    kept_profit_units = round(sum(
+        float(row["profit_units"]) for row in all_rows
+        if row["filter_decision"] == "KEPT" and row["settlement"] in SETTLED_STATES
+        and row["profit_units"] is not None
+    ), 3)
+    filtered_profit_units = round(sum(
+        float(row["profit_units"]) for row in all_rows
+        if row["filter_decision"] == "FILTERED" and row["settlement"] in SETTLED_STATES
+        and row["profit_units"] is not None
+    ), 3)
     rows = all_rows
     if date and days is None:
         try:
@@ -668,6 +681,8 @@ def dashboard_intelligence_validation_calibrated(
             "ratio": min(1.0, forward_kept / FAST_CRITERIA_MINIMUM_KEPT),
         },
         "samples": rows,
+        "kept_profit_units": kept_profit_units,
+        "filtered_profit_units": filtered_profit_units,
         "pagination": {"days": days, "limit": limit, "offset": offset, "total": total_before_page},
         "counts": {
             "total": len(rows),
