@@ -9,6 +9,7 @@ from statistics import median
 from typing import Any
 
 from w2.markets.asian_handicap_scope import is_full_time_totals_observation
+from w2.markets.devig import devig_balance_distance
 
 CANONICAL_TOTALS_MAINLINE_POLICY = "canonical_bookmaker_mainline_consensus_v1"
 BALANCED_MAINLINE_MAX_DISTANCE = 0.06
@@ -286,7 +287,7 @@ def _complete_pairs(
                 },
                 "over_price": prices[0],
                 "under_price": prices[1],
-                "balance_distance": _devig_balance_distance(prices),
+                "balance_distance": devig_balance_distance(prices),
                 "price_gap": round(abs(prices[0] - prices[1]), 6),
                 "mid_distance": round(abs((sum(prices) / 2) - 1.90), 6),
                 "implied_sum": round(sum(1 / value for value in prices), 6),
@@ -428,12 +429,6 @@ def _valid_price_pair(prices: list[float]) -> bool:
         return False
     implied_sum = sum(1 / price for price in prices)
     return 0.98 <= implied_sum <= 1.30
-
-
-def _devig_balance_distance(prices: list[float]) -> float:
-    implied = [1 / value for value in prices]
-    total = sum(implied)
-    return round(abs((implied[0] / total) - 0.5), 6)
 
 
 def _normalize_side(value: Any) -> str:

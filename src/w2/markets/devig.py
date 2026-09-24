@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -19,6 +20,15 @@ class DevigResult:
     probabilities: dict[str, float]
     overround: float
     diagnostics: tuple[str, ...] = ()
+
+
+def devig_balance_distance(prices: Sequence[float]) -> float:
+    """Distance of the first side's proportional no-vig probability from 50%."""
+    if len(prices) != 2 or any(price <= 0 for price in prices):
+        return 999.0
+    implied = [1 / price for price in prices]
+    total = sum(implied)
+    return round(abs((implied[0] / total) - 0.5), 6) if total > 0 else 999.0
 
 
 def _validate_decimal_odds(odds: dict[str, Decimal]) -> dict[str, float]:

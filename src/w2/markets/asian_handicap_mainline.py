@@ -7,6 +7,7 @@ from statistics import median
 from typing import Any
 
 from w2.markets.asian_handicap_scope import is_full_time_asian_handicap_observation
+from w2.markets.devig import devig_balance_distance
 
 CANONICAL_AH_MAINLINE_POLICY = "canonical_bookmaker_mainline_majority_v1"
 
@@ -269,7 +270,7 @@ def _bookmaker_mainline_votes(rows: list[dict[str, Any]]) -> list[dict[str, Any]
                         "home_price": prices[0],
                         "away_price": prices[1],
                         "price_gap": round(abs(prices[0] - prices[1]), 6),
-                        "balance_distance": _devig_balance_distance(prices),
+                        "balance_distance": devig_balance_distance(prices),
                         "mid_distance": round(abs((sum(prices) / 2) - 1.90), 6),
                         "implied_sum": round(sum(1 / value for value in prices), 6),
                         "provider": home_row.get("provider")
@@ -326,16 +327,6 @@ def _valid_price_pair(prices: list[float]) -> bool:
         return False
     implied_sum = sum(1 / price for price in prices)
     return 0.98 <= implied_sum <= 1.30
-
-
-def _devig_balance_distance(values: list[float]) -> float:
-    if len(values) != 2:
-        return 999.0
-    implied = [1 / value for value in values if value > 0]
-    total = sum(implied)
-    if len(implied) != 2 or total <= 0:
-        return 999.0
-    return round(abs((implied[0] / total) - 0.5), 6)
 
 
 def _normalize_side(value: Any) -> str:

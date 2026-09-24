@@ -15,6 +15,7 @@ from w2.markets.asian_handicap_scope import (
     is_full_time_asian_handicap_observation,
     is_full_time_totals_observation,
 )
+from w2.markets.devig import devig_balance_distance
 from w2.markets.totals_mainline import (
     CANONICAL_TOTALS_MAINLINE_POLICY,
     select_canonical_totals_mainline,
@@ -516,7 +517,11 @@ def _market_groups(
         ):
             group["bookmaker_count"] = len(group["bookmakers"]) or 1
             group["balance_gap"] = _price_balance_gap(group["sides"], required)
-            group["balance_distance"] = _devig_balance_distance(group["sides"], required)
+            values = [
+                float(group["sides"][side]["decimal_odds"])
+                for side in sorted(required)
+            ]
+            group["balance_distance"] = devig_balance_distance(values)
             group["mid_distance"] = _price_mid_distance(group["sides"], required)
             group["implied_sum"] = _implied_sum(group["sides"], required)
             complete.append(group)
@@ -737,24 +742,6 @@ def _price_balance_gap(
         if side in sides and _float_or_none(sides[side].get("decimal_odds")) is not None
     ]
     return round(max(values) - min(values), 6) if values else 999.0
-
-
-def _devig_balance_distance(
-    sides: dict[str, dict[str, Any]],
-    required: set[str],
-) -> float:
-    values = [
-        float(sides[side]["decimal_odds"])
-        for side in sorted(required)
-        if side in sides and _float_or_none(sides[side].get("decimal_odds")) is not None
-    ]
-    if len(values) != 2:
-        return 999.0
-    implied = [1 / value for value in values if value > 0]
-    total = sum(implied)
-    if len(implied) != 2 or total <= 0:
-        return 999.0
-    return round(abs((implied[0] / total) - 0.5), 6)
 
 
 def _price_mid_distance(

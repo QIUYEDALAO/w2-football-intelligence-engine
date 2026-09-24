@@ -101,6 +101,7 @@ from w2.markets.asian_handicap_mainline import (
 from w2.markets.asian_handicap_scope import (
     is_full_time_totals_observation,
 )
+from w2.markets.devig import devig_balance_distance
 from w2.markets.market_candidate import (
     build_market_candidates,
     select_authoritative_market_candidate,
@@ -3800,7 +3801,7 @@ class ReadModelService:
                 "rejected_lines": selected_totals.rejected_lines or [],
                 "side_prices": selected_totals.side_prices or {},
                 "side_lines": selected_totals.side_lines or {},
-                "balance_distance": self._devig_balance_distance([over_price, under_price]),
+                "balance_distance": devig_balance_distance([over_price, under_price]),
                 "balance_gap": round(abs(over_price - under_price), 4),
                 "mid_price": round((over_price + under_price) / 2, 4),
                 "min_price": min(over_price, under_price),
@@ -3901,15 +3902,6 @@ class ReadModelService:
             payload["decision"] = "WATCH"
         else:
             payload["decision"] = "SKIP"
-
-    def _devig_balance_distance(self, values: list[float]) -> float:
-        if len(values) != 2:
-            return 999.0
-        implied = [1 / value for value in values if value > 0]
-        total = sum(implied)
-        if len(implied) != 2 or total <= 0:
-            return 999.0
-        return round(abs((implied[0] / total) - 0.5), 4)
 
     def _market_tendency_side(self, market: str, row: dict[str, Any]) -> str | None:
         tendency = str(row.get("tendency") or "")
