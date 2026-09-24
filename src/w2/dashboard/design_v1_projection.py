@@ -93,7 +93,7 @@ def review_row(row: Mapping[str, Any], *, calibrated: bool = False) -> dict[str,
             f"{SIDE_ZH.get(str(row.get('selection')), '')} {row.get('exact_line')}"
         ).strip(),
         "market": MARKET_ZH.get(str(row.get("market"))),
-        "odds": row.get("decimal_odds"),
+        "decimal_odds": row.get("decimal_odds"),
         "result": row.get("settlement"),
         "profit_units": row.get("profit_units"),
         **({"calibration_decision": row.get("filter_decision"),

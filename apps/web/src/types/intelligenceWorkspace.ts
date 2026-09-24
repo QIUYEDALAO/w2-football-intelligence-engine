@@ -677,7 +677,7 @@ export interface ValidationReviewSample {
   league: string | null;
   match: string | null;
   recommendation: string | null;
-  odds: number | string | null;
+  decimal_odds: number | string | null;
   result: string | null;
   profit_units?: number | null;
 }

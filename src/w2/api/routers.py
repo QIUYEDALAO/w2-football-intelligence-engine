@@ -124,7 +124,22 @@ def _calibrated_sample_projection(row: CalibratedValidationSampleModel) -> dict[
         "warmup": row.warmup,
         "forward": is_forward(row.evaluated_at),
     }
-    return {**raw, **review_row(raw, calibrated=True)}
+    display = review_row(raw, calibrated=True)
+    return {
+        **raw,
+        **{
+            field: display[field]
+            for field in (
+                "date",
+                "league",
+                "match",
+                "recommendation",
+                "result",
+                "calibration_decision",
+                "calibrated_ev",
+            )
+        },
+    }
 
 
 def request_id(request: Request) -> str:

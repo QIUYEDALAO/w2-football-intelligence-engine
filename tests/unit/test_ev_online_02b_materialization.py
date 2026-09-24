@@ -5,6 +5,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from starlette.requests import Request
 
+from w2.api.routers import _calibrated_sample_projection
+from w2.api.schemas import CalibratedValidationSample
 from w2.domain.ev_online_contract import FORWARD_START_UTC
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.dynamic_prematch_models import (
@@ -88,6 +90,21 @@ def test_b3_orphan_is_deleted_and_counted():
         report = materialize_calibrated_validation_samples(session)
         assert report["deleted"] == 1
         assert session.scalar(select(CalibratedValidationSampleModel)) is None
+
+
+def test_calibrated_projection_matches_strict_response_contract():
+    engine = _session()
+    with Session(engine) as session:
+        _seed(session, settlement="WIN", profit=1.0, score="1-0")
+        materialize_calibrated_validation_samples(session)
+        row = session.scalar(select(CalibratedValidationSampleModel))
+        projected = _calibrated_sample_projection(row)
+
+    assert "odds" not in projected
+    assert projected["market"] == "ASIAN_HANDICAP"
+    assert projected["decimal_odds"] == 2.0
+    validated = CalibratedValidationSample.model_validate(projected)
+    assert validated.decimal_odds == 2.0
 
 
 def _seed_forward_batch(session, *, bad_filtered_gap=False):
