@@ -540,6 +540,84 @@ def test_bark_sender_posts_device_key_in_json_not_url(monkeypatch) -> None:
     assert observed["json"]["url"].endswith("fixture_id=1523202")
 
 
+def test_bark_configuration_parses_multiple_trimmed_device_keys(monkeypatch) -> None:
+    monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app")
+    monkeypatch.setenv("W2_BARK_DEVICE_KEY", " first-key , second-key ")
+    assert candidate_notifications._bark_configuration() == (["first-key", "second-key"], None)
+
+    monkeypatch.setenv("W2_BARK_DEVICE_KEY", "first-key, ,second-key")
+    assert candidate_notifications._bark_configuration() == ([], "BARK_DEVICE_KEY_INVALID")
+
+
+def test_bark_single_key_keeps_original_failure_code(monkeypatch) -> None:
+    monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app")
+    monkeypatch.setenv("W2_BARK_DEVICE_KEY", "single-key")
+
+    class Response:
+        status = 200
+
+        def __enter__(self):  # type: ignore[no-untyped-def]
+            return self
+
+        def __exit__(self, *_args):  # type: ignore[no-untyped-def]
+            return None
+
+        def read(self, _limit: int) -> bytes:
+            return b'{"code":500}'
+
+    monkeypatch.setattr(candidate_notifications, "urlopen", lambda *_args, **_kwargs: Response())
+    with pytest.raises(RuntimeError, match="^BARK_REJECTED$"):
+        candidate_notifications._send_bark({"event_type": candidate_notifications.TEST_MESSAGE})
+
+
+def test_bark_partial_failure_attempts_every_device_and_records_outbox_error(monkeypatch) -> None:
+    engine = _engine()
+    monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app")
+    monkeypatch.setenv("W2_BARK_DEVICE_KEY", " first-key, broken-key, last-key ")
+    attempted: list[str] = []
+    broken = {"value": True}
+
+    class Response:
+        status = 200
+
+        def __init__(self, code: int) -> None:
+            self.code = code
+
+        def __enter__(self):  # type: ignore[no-untyped-def]
+            return self
+
+        def __exit__(self, *_args):  # type: ignore[no-untyped-def]
+            return None
+
+        def read(self, _limit: int) -> bytes:
+            return json.dumps({"code": self.code}).encode()
+
+    def open_request(request, *, timeout):  # type: ignore[no-untyped-def]
+        assert timeout == candidate_notifications.DELIVERY_TIMEOUT_SECONDS
+        key = json.loads(request.data)["device_key"]
+        attempted.append(key)
+        return Response(500 if broken["value"] and key == "broken-key" else 200)
+
+    monkeypatch.setattr(candidate_notifications, "urlopen", open_request)
+    enqueue_test_message(request_id="multi-device", created_at=NOW, engine=engine)
+
+    result = deliver_pending_notifications(now=NOW, engine=engine)
+
+    assert attempted == ["first-key", "broken-key", "last-key"]
+    assert result["delivered"] == 0
+    assert result["failed_attempts"] == 1
+    event = _events(engine)[0]
+    assert event.delivery_status == RETRY_PENDING
+    assert event.last_error.startswith("BARK_DEVICE_DELIVERY_FAILED:1/3:BARK_REJECTED")
+    assert all(key not in event.last_error for key in attempted)
+
+    broken["value"] = False
+    attempted.clear()
+    retry = deliver_pending_notifications(now=NOW + timedelta(seconds=5), engine=engine)
+    assert retry["delivered"] == 1
+    assert attempted == ["broken-key"]
+
+
 def test_notification_raw_values_are_humanized() -> None:
     assert candidate_notifications._format_duration(2024.05) == "33 分钟"
     assert candidate_notifications._format_duration(149.112) == "2 分 29 秒"

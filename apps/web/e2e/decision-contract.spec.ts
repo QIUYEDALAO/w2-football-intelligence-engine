@@ -475,16 +475,16 @@ test("dashboard tabs lazy-load validation and replay once per selected date", as
   expect(replayRequests).toBe(0);
   expect(detailRequests).toBe(0);
 
-  await page.getByRole("tab", { name: "赛后验证" }).click();
-  await expect(page.locator("#secondary-validation")).toBeVisible();
+  await page.getByRole("tab", { name: "战绩复盘" }).click();
+  await expect(page.locator("[data-design-v1-review]")).toBeVisible();
   expect(validationRequests).toBe(1);
   await page.getByRole("tab", { name: "比赛列表" }).click();
-  await page.getByRole("tab", { name: /赛后验证/ }).click();
-  await expect(page.locator("#secondary-validation")).toBeVisible();
+  await page.getByRole("tab", { name: "战绩复盘" }).click();
+  await expect(page.locator("[data-design-v1-review]")).toBeVisible();
   expect(validationRequests).toBe(1);
 
   await page.getByRole("tab", { name: "回放记录" }).click();
-  await expect(page.locator("#history")).toBeVisible();
+  await expect(page.locator("[data-design-v1-replay]")).toBeVisible();
   expect(replayRequests).toBe(1);
 });
 

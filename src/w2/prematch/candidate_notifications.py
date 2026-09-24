@@ -127,7 +127,7 @@ def notification_health_in_session(session: Session, *, now: datetime) -> dict[s
     failed = [row for row in rows if row.delivery_status == FAILED]
     last_success = max((row.delivered_at for row in delivered if row.delivered_at), default=None)
     oldest_pending = min((row.created_at for row in pending), default=None)
-    configured, configuration_error = _bark_configuration()
+    device_keys, configuration_error = _bark_configuration()
     consecutive_failures = _consecutive_failure_count(rows)
     delivery_latencies = sorted(
         max(_seconds(_utc(row.delivered_at) - _utc(row.created_at)), 0.0)
@@ -142,7 +142,7 @@ def notification_health_in_session(session: Session, *, now: datetime) -> dict[s
     pending_over_target = [row for row in pending if _seconds(now - _utc(row.created_at)) > 30]
     status = (
         "CHANNEL_NOT_CONFIGURED"
-        if not configured and configuration_error is None
+        if not device_keys and configuration_error is None
         else "DEGRADED"
         if configuration_error
         or failed
@@ -274,8 +274,8 @@ def deliver_pending_notifications(
     """Deliver due outbox rows; an absent Bark setting performs no writes."""
 
     resolved_now = now or datetime.now(UTC)
-    configured, configuration_error = _bark_configuration()
-    if not configured:
+    device_keys, configuration_error = _bark_configuration()
+    if not device_keys:
         return {
             "status": "CHANNEL_NOT_CONFIGURED" if configuration_error is None else "DEGRADED",
             "channel": BARK_CHANNEL,
@@ -1484,13 +1484,12 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
 
 
 def _send_bark(payload: Mapping[str, Any]) -> None:
-    configured, configuration_error = _bark_configuration()
-    if not configured:
+    device_keys, configuration_error = _bark_configuration()
+    if not device_keys:
         raise RuntimeError(configuration_error or "CHANNEL_NOT_CONFIGURED")
     endpoint = os.environ["W2_BARK_ENDPOINT"].rstrip("/")
     message = render_bark_message(payload)
-    request_payload = {
-        "device_key": os.environ["W2_BARK_DEVICE_KEY"],
+    request_payload: dict[str, Any] = {
         "title": message["title"],
         "body": message["body"],
         "group": "W2候选",
@@ -1498,6 +1497,34 @@ def _send_bark(payload: Mapping[str, Any]) -> None:
     }
     if message.get("url"):
         request_payload["url"] = message["url"]
+    if len(device_keys) == 1:
+        _post_bark_device(endpoint, {**request_payload, "device_key": device_keys[0]})
+        return
+    delivery = dict(_as_mapping(payload.get("_delivery")))
+    successful_key_hashes = set(delivery.get("successful_device_key_hashes") or [])
+    failures: list[str] = []
+    for device_key in device_keys:
+        key_hash = hashlib.sha256(device_key.encode("utf-8")).hexdigest()
+        if key_hash in successful_key_hashes:
+            continue
+        try:
+            _post_bark_device(endpoint, {**request_payload, "device_key": device_key})
+        except Exception as exc:  # attempt every device before failing the outbox delivery
+            failures.append(_delivery_exception_name(exc))
+        else:
+            successful_key_hashes.add(key_hash)
+    if isinstance(payload, dict):
+        payload["_delivery"] = {
+            **delivery,
+            "successful_device_key_hashes": sorted(successful_key_hashes),
+        }
+    if failures:
+        raise RuntimeError(
+            f"BARK_DEVICE_DELIVERY_FAILED:{len(failures)}/{len(device_keys)}:{failures[0]}"
+        )
+
+
+def _post_bark_device(endpoint: str, request_payload: Mapping[str, Any]) -> None:
     request = Request(  # noqa: S310 - endpoint is restricted to validated HTTPS
         f"{endpoint}/push",
         data=json.dumps(request_payload, ensure_ascii=False).encode("utf-8"),
@@ -1520,11 +1547,14 @@ def _send_bark(payload: Mapping[str, Any]) -> None:
         raise RuntimeError("BARK_REJECTED")
 
 
-def _bark_configuration() -> tuple[bool, str | None]:
+def _bark_configuration() -> tuple[list[str], str | None]:
     endpoint = os.environ.get("W2_BARK_ENDPOINT", "").strip()
-    device_key = os.environ.get("W2_BARK_DEVICE_KEY", "").strip()
-    if not endpoint or not device_key:
-        return False, None
+    device_keys_raw = os.environ.get("W2_BARK_DEVICE_KEY", "")
+    if not endpoint or not device_keys_raw.strip():
+        return [], None
+    device_keys = [key.strip() for key in device_keys_raw.split(",")]
+    if any(not key for key in device_keys):
+        return [], "BARK_DEVICE_KEY_INVALID"
     parsed = urlsplit(endpoint)
     if (
         parsed.scheme != "https"
@@ -1534,8 +1564,8 @@ def _bark_configuration() -> tuple[bool, str | None]:
         or parsed.query
         or parsed.fragment
     ):
-        return False, "BARK_ENDPOINT_INVALID"
-    return True, None
+        return [], "BARK_ENDPOINT_INVALID"
+    return device_keys, None
 
 
 def _delivery_due(row: CandidateNotificationOutboxModel, now: datetime) -> bool:

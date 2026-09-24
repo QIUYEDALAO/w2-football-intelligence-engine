@@ -19,19 +19,21 @@ def test_dashboard_uses_only_the_unified_intelligence_workspace() -> None:
     assert "/dashboard/intelligence-workspace/replay" in workspace_api
     assert 'projection: "full"' not in workspace_api
     assert "/dashboard/intelligence-workspace/matches/" in workspace_api
-    assert "fetchIntelligenceMatch(selectedId" in console
-    assert "details[selectedId]" in console
+    assert "fetchIntelligenceMatch(selectedId" not in console
+    assert 'const DesignV1ValidationView = lazy' in console
+    assert 'const DesignV1ReplayView = lazy' in console
+    assert 'tab === "matches"' in console
     assert 'useState<WorkspaceTab>("matches")' in console
     assert 'tab === "validation" ? fetchIntelligenceValidation' in console
     assert "fetchIntelligenceReplay(props.date" in console
     assert "/dashboard/day-view" not in workspace_api
     assert "IntelligenceConsole" in page
-    assert "W2 INTELLIGENCE" in console
+    assert "情报工作台" in console
     assert "关注情报" in console
     assert "selectedDayNoun" in console
     assert '"今日" | "所选比赛日"' in console
     assert "数据与系统" in console
-    assert "MODEL_MARKET_DISAGREEMENT" in console
+    assert 'data-ui="attention-feed"' in console
     assert "不会回退旧 Dashboard，也不会填充合成数据" in page
 
 
