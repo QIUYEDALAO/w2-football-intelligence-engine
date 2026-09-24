@@ -186,6 +186,19 @@ h2, h3 { margin: 0; text-wrap: balance; }
 .w2-day__label { display: grid; line-height: 1.2; padding-inline: 6px; text-align: center; }
 .w2-day__label strong { font-size: 14px; }
 .w2-day__label span { font-size: 11px; color: var(--v41-ink-3); }
+.w2-statusbar__upcoming { display: flex; align-items: stretch; gap: 6px; flex-wrap: wrap; }
+.w2-statusbar__upcoming-item {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--v41-line-soft);
+  border-radius: 8px;
+  padding: 4px 10px;
+  background: var(--v41-panel);
+}
+.w2-statusbar__upcoming-date { font-size: 12px; color: var(--v41-ink-3); white-space: nowrap; }
+.w2-statusbar__upcoming-count { font-size: 18px; font-weight: 600; line-height: 1; }
+.w2-statusbar__upcoming-count small { font-size: 11px; font-weight: 500; color: var(--v41-ink-2); margin-left: 2px; }
+.w2-statusbar__upcoming-foot { font-size: 11px; color: var(--v41-ink-2); white-space: nowrap; }
+.w2-statusbar__upcoming-foot b { font-weight: 600; color: var(--v41-ink); }
 .w2-badges { display: flex; gap: 8px; flex-wrap: wrap; }
 .w2-badge {
   display: inline-flex; align-items: center; gap: 7px;

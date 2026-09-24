@@ -205,6 +205,18 @@ export function DesignV1Overview({ workspace, date, onDateChange, activeTab, onT
           <div className="w2-day__label"><strong>{dayLabel(date)}</strong><span>足球日 12:00 至次日 12:00</span></div>
           <button type="button" aria-label="后一个足球日" onClick={() => onDateChange(isoDateShift(date, 1))}>›</button>
         </div>
+        <div className="w2-statusbar__upcoming" aria-label="未来赛程">
+          {(workspace.upcoming_football_days || []).map((day, index) => {
+            const pending = Math.max(0, day.match_count - day.evaluated_count);
+            return (
+              <div className="w2-statusbar__upcoming-item" key={day.date}>
+                <span className="w2-statusbar__upcoming-date">{upcomingDayLabel(day.date, index === 0)}</span>
+                <span className="w2-statusbar__upcoming-count num">{day.match_count}<small>场</small></span>
+                <span className="w2-statusbar__upcoming-foot">已评估 <b className="num">{day.evaluated_count}</b> · 待 <b className="num">{pending}</b></span>
+              </div>
+            );
+          })}
+        </div>
         <div className="w2-badges" data-component="StatusBadge">
           <span className="w2-badge" title={workspace.generated_at ? `更新于 ${localDate(workspace.generated_at, { hour: "2-digit", minute: "2-digit", hour12: false })}` : undefined}><span className="w2-badge__dot" aria-hidden="true" />{workspace.system_status?.data || "数据未就绪"}</span>
           <span className="w2-badge"><span aria-hidden="true">✓</span>{workspace.system_status?.recommendations || "推荐未开启"}</span>
@@ -213,21 +225,6 @@ export function DesignV1Overview({ workspace, date, onDateChange, activeTab, onT
       </div>
     </header>
     <main className="w2-main">
-      <section data-mviews="picks" aria-label="未来赛程">
-        <h2 className="w2-upcoming-days-title">未来赛程</h2>
-        <div className="w2-upcoming-days">
-          {(workspace.upcoming_football_days || []).map((day, index) => {
-            const pending = Math.max(0, day.match_count - day.evaluated_count);
-            return (
-              <article className="w2-upcoming-day" key={day.date}>
-                <span className="w2-upcoming-day__date">{upcomingDayLabel(day.date, index === 0)}</span>
-                <span className="w2-upcoming-day__count num">{day.match_count}<small>场</small></span>
-                <span className="w2-upcoming-day__foot">已评估 <b className="num">{day.evaluated_count}</b> · 待评估 <b className="num">{pending}</b></span>
-              </article>
-            );
-          })}
-        </div>
-      </section>
       <section data-mviews="picks" aria-label="核心指标">
         <div className="w2-kpis-wrap"><div className="w2-kpis">
           <article className="w2-kpi"><span className="w2-kpi__label">今日推荐</span><span className="w2-kpi__value num">{picks.length}<small>条</small></span><span className="w2-kpi__foot">已结算 <b className="num">{settled.length}</b> · 待开赛 <b className="num">{picks.filter((pick) => pick.status === "confirmed" || pick.status === "candidate").length}</b> · 撤回 <b className="num">{picks.filter((pick) => pick.status === "withdrawn").length}</b></span></article>
