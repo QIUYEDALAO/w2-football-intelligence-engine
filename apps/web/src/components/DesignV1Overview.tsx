@@ -130,17 +130,17 @@ function FixtureList({ workspace, onSelect }: { workspace: IntelligenceWorkspace
   return <ul className="w2-fixtures">{matches.length ? matches.map((match) => {
     const [home, away] = matchTeams(match);
     const item = match as unknown as Record<string, unknown>;
-    const markets = item.market_radar && typeof item.market_radar === "object" && "markets" in item.market_radar ? item.market_radar.markets as Record<string, Record<string, unknown>> : {};
-    const ah = markets.ASIAN_HANDICAP || {};
-    const totals = markets.TOTALS || {};
+    const radar = "market_radar" in match ? match.market_radar : null;
+    const ah = radar?.markets?.ASIAN_HANDICAP;
+    const totals = radar?.markets?.TOTALS;
     const pick = item.pick && typeof item.pick === "object" ? item.pick as Record<string, unknown> : null;
     const hasPick = Boolean(pick?.market);
     return <li className="w2-fixture" data-fixture-id={match.fixture_id} key={match.fixture_id} onClick={() => onSelect(match.fixture_id)} onKeyDown={(event) => { if (event.key === "Enter") onSelect(match.fixture_id); }} role="button" tabIndex={0}>
       <span className="num">{localTime(match.kickoff_utc)}</span>
       <span className="w2-fixture__league"><span className="w2-league">{String(match.competition_name || match.competition_id || "赛事待确认")}</span></span>
       <div className="w2-fixture__teams"><span>{home}</span><span className="faint">vs</span><span>{away}</span></div>
-      <div className="w2-market"><span>让球 <span className="num">{String(ah.main_line || "—")}</span></span><span className="num">{ah.status === "READY" ? "市场已就绪" : "数据待补"}</span></div>
-      <div className="w2-market"><span>大小 <span className="num">{String(totals.main_line || "—")}</span></span><span className="num">{totals.status === "READY" ? "市场已就绪" : "数据待补"}</span></div>
+      <div className="w2-market"><span>让球 <span className="num">{ah?.main_line ?? "—"}</span></span><span className="num">{ah?.status === "READY" ? "市场已就绪" : "数据待补"}</span></div>
+      <div className="w2-market"><span>大小 <span className="num">{totals?.main_line ?? "—"}</span></span><span className="num">{totals?.status === "READY" ? "市场已就绪" : "数据待补"}</span></div>
       <span className={`w2-tag${hasPick ? " w2-tag--pick" : ""}`}>{hasPick ? "有推荐" : "—"}</span>
     </li>;
   }) : <li className="w2-empty-row">当前足球日没有持久化比赛。</li>}</ul>;

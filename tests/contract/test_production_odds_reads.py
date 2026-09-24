@@ -14,7 +14,7 @@ from sqlalchemy.pool import StaticPool
 
 from w2.api import repository as api_repository
 from w2.dashboard.date_window import football_day_window
-from w2.dashboard.day_view import build_dashboard_day_view
+from w2.dashboard.day_view import _summary_day_view_card, build_dashboard_day_view
 from w2.dashboard.workspace import build_dashboard_intelligence_workspace
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
@@ -918,7 +918,6 @@ def test_dashboard_summary_projection_never_materializes_full_analysis_cards() -
         "pricing_shadow",
         "dynamic_prematch",
         "simulation",
-        "market_radar",
         "decision_contract",
     ):
         assert prohibited not in payload["all"][0]
@@ -937,15 +936,37 @@ def test_dashboard_summary_sql_projects_named_json_scalars_only() -> None:
     assert 'column("reason_code", String)' in source
     assert '"reason_code": row.reason_code or "DETAIL_NOT_LOADED"' in source
     assert 'column("outcome_tracked", Boolean)' in source
+    assert '.as_string().label("ah_main_line")' in source
+    assert '.as_string().label("totals_main_line")' in source
+    assert 'column("market_radar", JSON)' not in source
     for prohibited in (
         'analysis_card["markets"]',
         'analysis_card["market_candidates"]',
         'analysis_card["pricing_shadow"]',
         'analysis_card["dynamic_prematch"]',
         'analysis_card["simulation"]',
-        'analysis_card["market_radar"]',
     ):
         assert prohibited not in source
+
+
+def test_dashboard_summary_card_exposes_only_two_market_lines() -> None:
+    card = _summary_day_view_card({
+        "fixture_id": "1569939",
+        "competition_id": "140",
+        "kickoff_utc": "2026-09-26T16:00:00Z",
+        "_market_summary": {
+            "ASIAN_HANDICAP": {"status": "READY", "main_line": "-0.25"},
+            "TOTALS": {"status": "READY", "main_line": "2.75"},
+        },
+    })
+    assert card["market_radar"] == {
+        "schema_version": "w2.market-radar.summary.v1",
+        "markets": {
+            "ASIAN_HANDICAP": {"status": "READY", "main_line": "-0.25"},
+            "TOTALS": {"status": "READY", "main_line": "2.75"},
+        },
+    }
+    assert card["current_odds"] == {}
 
 
 def test_api_dashboard_card_keeps_historical_v3_identity_immutable() -> None:

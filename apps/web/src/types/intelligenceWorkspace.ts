@@ -487,6 +487,13 @@ export interface WorkspaceMatchSummary {
   reason_code: string | null;
   action: string | null;
   next_eval_at: string | null;
+  market_radar?: {
+    schema_version: "w2.market-radar.summary.v1";
+    markets: Record<"ASIAN_HANDICAP" | "TOTALS", {
+      status: "READY" | "INSUFFICIENT";
+      main_line: string | null;
+    }>;
+  } | null;
 }
 
 export type WorkspaceMatchItem = WorkspaceMatch | WorkspaceMatchSummary | WorkspaceMatchProjectionError;

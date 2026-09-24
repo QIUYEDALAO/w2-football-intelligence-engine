@@ -1612,6 +1612,14 @@ class ReadModelRepository:
                 selected_summary.c.exact_line.label("selected_line"),
                 selected_summary.c.decimal_odds.label("selected_odds"),
                 selected_summary.c.expected_value.label("selected_ev"),
+                analysis_card["market_radar"]["markets"]["ASIAN_HANDICAP"]["status"]
+                .as_string().label("ah_status"),
+                analysis_card["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"]
+                ["canonical_line"].as_string().label("ah_main_line"),
+                analysis_card["market_radar"]["markets"]["TOTALS"]["status"]
+                .as_string().label("totals_status"),
+                analysis_card["market_radar"]["markets"]["TOTALS"]["current"]
+                ["canonical_line"].as_string().label("totals_main_line"),
             )
             .outerjoin(
                 ReadModelCheckpointModel,
@@ -1729,6 +1737,16 @@ class ReadModelRepository:
                     ),
                     "formal_recommendation": False,
                     "candidate": False,
+                    "_market_summary": {
+                        "ASIAN_HANDICAP": {
+                            "status": row.ah_status or "INSUFFICIENT",
+                            "main_line": row.ah_main_line,
+                        },
+                        "TOTALS": {
+                            "status": row.totals_status or "INSUFFICIENT",
+                            "main_line": row.totals_main_line,
+                        },
+                    },
                 }
             )
         return summaries

@@ -843,7 +843,10 @@ def test_summary_and_on_demand_detail_preserve_decision_tier() -> None:
     assert summary["matches"][2]["projection_scope"] == "SUMMARY"
     assert summary["matches"][2]["decision_tier"] == "WATCH"
     assert detail["w2_analysis"]["decision_tier"] == summary["matches"][2]["decision_tier"]
-    assert "market_radar" not in summary["matches"][2]
+    assert summary["matches"][2]["market_radar"]["schema_version"] in {
+        "w2.market-radar.v1",
+        "w2.market-radar.summary.v1",
+    }
     assert detail["market_radar"]["markets"]["ASIAN_HANDICAP"]["snapshot_count"] == 2
 
 

@@ -313,6 +313,7 @@ def build_dashboard_intelligence_workspace_summary(
             "action": _optional_text(card.get("action")),
             "next_eval_at": card.get("next_eval_at"),
             "pick": _mapping(card.get("pick")) or None,
+            "market_radar": _mapping(card.get("market_radar")) or None,
             "market": (_mapping(card.get("pick")).get("market")
                         if _mapping(card.get("pick")) else None),
             "selection": (_mapping(card.get("pick")).get("selection")

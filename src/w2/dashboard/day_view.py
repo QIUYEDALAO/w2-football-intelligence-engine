@@ -173,7 +173,10 @@ def _summary_day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
         "current_odds": {},
         "market_candidates": {},
         "market_probabilities": {},
-        "market_radar": {},
+        "market_radar": {
+            "schema_version": "w2.market-radar.summary.v1",
+            "markets": _mapping_copy(card.get("_market_summary")),
+        },
         "model_lab": {},
         "data_refresh": {},
         "simulation": {"status": "UNAVAILABLE", "simulation": None},

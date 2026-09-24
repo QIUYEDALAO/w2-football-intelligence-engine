@@ -1155,6 +1155,7 @@ class WorkspaceMatchSummary(BaseModel):
     action: str | None
     next_eval_at: datetime | str | None
     pick: dict[str, Any] | None = None
+    market_radar: dict[str, Any] | None = None
     market: str | None = None
     selection: str | None = None
     line: str | float | None = None
