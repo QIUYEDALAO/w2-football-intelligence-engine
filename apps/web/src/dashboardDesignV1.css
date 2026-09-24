@@ -554,9 +554,10 @@ h2, h3 { margin: 0; text-wrap: balance; }
 /* ===== 手机 <768 ===== */
 @media (max-width: 767px) {
   .w2-main { padding-inline: 16px; padding-block: 14px calc(84px + env(safe-area-inset-bottom, 0px)); gap: 16px; }
+  .w2-statusbar { position: static; }
   .w2-statusbar__inner { padding-inline: 16px; padding-block: 8px; gap: 10px; }
-  .w2-brand__name, .w2-statusbar__meta .w2-updated-label { display: none; }
-  .w2-statusbar__meta { gap: 8px; }
+  .w2-brand__name, .w2-statusbar__meta > span { display: none; }
+  .w2-statusbar__meta { gap: 8px; margin-left: auto; }
   .w2-day__label span { display: none; }
   .w2-badges { order: 5; width: 100%; }
   .w2-badge { height: 26px; font-size: 12.5px; }
