@@ -94,7 +94,7 @@ disable_error_code = ["untyped-decorator"]
 
 [tool.pytest.ini_options]
 addopts = "-ra"
-testpaths = ["tests"]
+testpaths = ["tests", "scripts/quant/tests"]
 asyncio_mode = "auto"
 pythonpath = [".", "src"]
 markers = [

@@ -282,8 +282,8 @@ def isolated_replay(batch: list[Any]) -> dict[str, Any]:
         pre_migration_tables = int(prepare.stdout.strip())
 
         stamped = _alembic(url, "stamp", PRE_MIGRATION_REVISION)
-        upgraded = _alembic(url, "upgrade", "head")
-        repeat_upgrade = _alembic(url, "upgrade", "head")
+        upgraded = _alembic(url, "upgrade", F1R_C_MIGRATION_REVISION)
+        repeat_upgrade = _alembic(url, "upgrade", F1R_C_MIGRATION_REVISION)
 
         engine = sa.create_engine(url)
         inspector = sa.inspect(engine)
