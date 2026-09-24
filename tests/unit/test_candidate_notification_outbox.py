@@ -1356,7 +1356,7 @@ def test_daily_candidate_list_enqueues_and_renders_n0() -> None:
         event = session.get(CandidateNotificationOutboxModel, event_id)
         assert event.payload["match_count"] == 0
         rendered = render_bark_message(event.payload)
-        assert rendered["title"] == "[今日评估] 比赛日 08-20 今天没有可评估的比赛"
+        assert rendered["title"] == "[今日候选] 8月20日 共 0 场待评估"
         session.commit()
 
     # Idempotent: a second call in the same day does not re-enqueue.
@@ -1608,7 +1608,7 @@ def test_daily_settlement_zero_note_day() -> None:
         assert event_id is not None
         event = session.get(CandidateNotificationOutboxModel, event_id)
         rendered = render_bark_message(event.payload)
-        assert rendered["title"] == "[结算] 08-19 当天无验证样本"
+        assert rendered["title"] == "[结算] 8月19日 当天无推荐"
         assert "累计：0 注 +0.00 单位" in rendered["body"]
         session.commit()
 
@@ -1684,15 +1684,15 @@ def test_notif04_titles_and_bodies_render() -> None:
             ],
         }
     )
-    assert candidate_list["title"] == (
-        "[今日评估] 比赛日 08-20 共 1 场（北京 08-20 12:00 – 08-21 12:00）"
-    )
+    assert candidate_list["title"] == "[今日候选] 8月20日 共 1 场待评估"
     assert "开球前 3 小时" in candidate_list["body"]
+    assert "推荐会逐条推送" in candidate_list["body"]
     assert "08-20 20:30 中超 上海海港 vs 大连英博" in candidate_list["body"]
 
     confirmed = render_bark_message(
         {
             "event_type": candidate_notifications.VALIDATION_SAMPLE_CONFIRMED,
+            "competition": "中超",
             "match": {"home": "上海海港", "away": "大连英博"},
             "kickoff_local": "2026-08-20T20:30:00+08:00",
             "market": "ASIAN_HANDICAP",
@@ -1704,9 +1704,9 @@ def test_notif04_titles_and_bodies_render() -> None:
             "current_ev": 0.069,
         }
     )
-    assert confirmed["title"] == "[验证样本] 上海海港 vs 大连英博 08-20 20:30 让球-0.5 主 @1.92"
+    assert confirmed["title"] == "[推荐] 中超 上海海港vs大连英博 20:30 主-0.5 @1.92"
     assert "机构：Bet365" in confirmed["body"]
-    assert "EV：+6.9%" in confirmed["body"]
+    assert "推荐 让球 -0.5 · 主 / 赔率 1.92 · EV +6.9%" in confirmed["body"]
 
     settlement = render_bark_message(
         {
@@ -1736,7 +1736,7 @@ def test_notif04_titles_and_bodies_render() -> None:
             ],
         }
     )
-    assert settlement["title"] == "[结算] 08-19 当天 +0.91 单位"
+    assert settlement["title"] == "[结算] 8月19日 1场 1赢 0输 +0.91单位"
     assert "累计：1 注 +0.91 单位" in settlement["body"]
     assert "中超 上海海港 vs 大连英博　推荐 主队 -0.25 @1.91　比分 2-1　赢 +0.91" in settlement["body"]
     assert "当天：1 注　赢 1 / 走水 0 / 输 0　+0.91 单位" in settlement["body"]

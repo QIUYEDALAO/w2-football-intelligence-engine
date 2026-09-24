@@ -2324,29 +2324,32 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
         )
     elif event_type == DAILY_CANDIDATE_LIST:
         day_str = str(payload.get("football_day") or "")
-        mm_dd = _mm_dd(day_str)
         count = int(payload.get("match_count") or 0)
         try:
             day = date.fromisoformat(day_str)
-            next_day = day + timedelta(days=1)
-            window = f"{day.strftime('%m-%d')} 12:00 – {next_day.strftime('%m-%d')} 12:00"
+            day_label = f"{day.month}月{day.day}日"
         except ValueError:
-            window = "12:00 – 次日 12:00"
-        title = (
-            f"[今日评估] 比赛日 {mm_dd} 共 {count} 场（北京 {window}）"
-            if count
-            else f"[今日评估] 比赛日 {mm_dd} 今天没有可评估的比赛"
-        )
+            day_label = day_str or "未知日期"
+        title = f"[今日候选] {day_label} 共 {count} 场待评估"
     elif event_type == VALIDATION_SAMPLE_CONFIRMED:
-        title = f"[验证样本] {teams} {kickoff_hm} {market}{line} {direction} @{odds}"
+        competition = str(payload.get("competition") or payload.get("league") or "未知联赛")
+        kickoff_time = kickoff.astimezone(BEIJING).strftime("%H:%M") if kickoff else "--:--"
+        title = f"[推荐] {competition} {home}vs{away} {kickoff_time} {direction}{line} @{odds}"
     elif event_type == DAILY_SETTLEMENT:
-        mm_dd = _mm_dd(str(payload.get("football_day") or ""))
+        day_str = str(payload.get("football_day") or "")
+        try:
+            settled_day = date.fromisoformat(day_str)
+            day_label = f"{settled_day.month}月{settled_day.day}日"
+        except ValueError:
+            day_label = day_str or "未知日期"
         if int(payload.get("item_count", 0) or 0) == 0:
-            title = f"[结算] {mm_dd} 当天无验证样本"
+            title = f"[结算] {day_label} 当天无推荐"
         else:
             title = (
-                f"[结算] {mm_dd} 当天 "
-                f"{_format_settlement_units(payload.get('total_profit_units'))} 单位"
+                f"[结算] {day_label} {int(payload.get('item_count') or 0)}场 "
+                f"{int(payload.get('win_count') or 0)}赢 "
+                f"{int(payload.get('loss_count') or 0)}输 "
+                f"{_format_settlement_units(payload.get('total_profit_units'))}单位"
             )
     elif event_type == TEST_MESSAGE:
         title = "[测试] W2 Bark 通道"
@@ -2520,7 +2523,7 @@ def _message_body(payload: Mapping[str, Any]) -> str:
         return "\n".join(lines)
     if event_type == DAILY_CANDIDATE_LIST:
         lines = [
-            "以下比赛将在开球前 3 小时起评估，开球前 15 分钟确定的验证样本会逐条推送"
+            "以下比赛将在开球前 3 小时起评估，开球前 15 分钟确定的推荐会逐条推送"
         ]
         for item in payload.get("matches") or []:
             if not isinstance(item, Mapping):
@@ -2534,9 +2537,13 @@ def _message_body(payload: Mapping[str, Any]) -> str:
         bookmaker = _as_mapping(payload.get("bookmaker"))
         return "\n".join(
             (
+                f"推荐 {_market_label(payload.get('market'))} "
+                f"{_format_line(payload.get('line'))} · "
+                f"{_direction_label(payload.get('direction'))} / "
+                f"赔率 {_format_odds(payload.get('decimal_odds'))} · "
+                f"EV {_format_ev(payload.get('current_ev'))}",
                 f"机构：{bookmaker.get('name') or bookmaker.get('id') or '未知'}",
                 f"报价时间：{payload.get('quote_captured_at') or '未知'}",
-                f"EV：{_format_ev(payload.get('current_ev'))}",
             )
         )
     if event_type == DAILY_SETTLEMENT:

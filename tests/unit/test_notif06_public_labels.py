@@ -38,7 +38,7 @@ def test_reviewed_team_labels_include_bayern_and_union() -> None:
     assert labels.get("w2:team:api_football:182") == "柏林联合"
 
 
-def test_daily_candidate_list_title_has_mm_dd_and_beijing_window() -> None:
+def test_daily_candidate_list_title_uses_design_copy() -> None:
     payload = {
         "event_type": DAILY_CANDIDATE_LIST,
         "football_day": "2026-09-18",
@@ -47,6 +47,4 @@ def test_daily_candidate_list_title_has_mm_dd_and_beijing_window() -> None:
         "dashboard_url": "",
     }
     rendered = render_bark_message(payload)
-    assert rendered["title"] == (
-        "[今日评估] 比赛日 09-18 共 28 场（北京 09-18 12:00 – 09-19 12:00）"
-    )
+    assert rendered["title"] == "[今日候选] 9月18日 共 28 场待评估"
