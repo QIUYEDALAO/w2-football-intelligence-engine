@@ -5,8 +5,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from starlette.requests import Request
 
-from w2.api.routers import _calibrated_sample_projection
 from w2.api.repository import ReadModelService
+from w2.api.routers import _calibrated_sample_projection
 from w2.api.schemas import CalibratedValidationSample
 from w2.domain.ev_online_contract import FORWARD_START_UTC
 from w2.infrastructure.database import Base
@@ -238,11 +238,18 @@ def test_original_profit_summary_ignores_pagination_and_pending() -> None:
         anchor=datetime(2026, 8, 3, tzinfo=UTC).date(), days=1, limit=1,
     )
     assert total == len(rows) == 1
-    assert service.dashboard_validation_cumulative_profit_units() == 0.95
+    all_rows, all_total = service.dashboard_validation_samples(limit=50)
+    assert all_total == len(all_rows) == 3  # v2 only, including one pending
+    assert service.dashboard_validation_cumulative_profit_units() == -0.05
+    assert service.dashboard_validation_profit_summary() == {
+        "profit_units": -0.05, "profit_units_with_rebate": 0.0,
+    }
     facts = service.dashboard_design_v1_facts(anchor=datetime(2026, 9, 23, tzinfo=UTC).date())
     assert facts["rows"] == []  # the 30-day list remains unchanged
     assert facts["current_calibration_identity"] == "v2"
     assert facts["total_profit_units"] == -0.05  # includes settled rows before 30 days
+    assert facts["total_settled_count"] == 2
+    assert service.dashboard_validation_profit_summary()["profit_units"] == facts["total_profit_units"]
 
 
 def test_calibrated_profit_summary_uses_full_history_before_pagination(monkeypatch) -> None:
@@ -259,7 +266,8 @@ def test_calibrated_profit_summary_uses_full_history_before_pagination(monkeypat
                 exact_line="-0.5", decimal_odds=1.9, evaluation_id=f"summary-e-{index}",
                 settlement=settlement, profit_units=profit, projected_at=evaluated,
                 evaluated_at=evaluated, kickoff_utc=evaluated + timedelta(hours=1),
-                filter_decision=decision, param_version=PARAM_VERSION, warmup=False,
+                calibration_identity="v2", filter_decision=decision,
+                param_version=PARAM_VERSION, warmup=False,
             ))
         session.commit()
     class Repo:
@@ -267,6 +275,9 @@ def test_calibrated_profit_summary_uses_full_history_before_pagination(monkeypat
             return engine
     class Service:
         repository = Repo()
+        @staticmethod
+        def dashboard_current_calibration_identity():
+            return "v2"
     import w2.api.routers as routers
     monkeypatch.setattr(routers, "service", Service())
     response = routers.dashboard_intelligence_validation_calibrated(
@@ -276,3 +287,5 @@ def test_calibrated_profit_summary_uses_full_history_before_pagination(monkeypat
     assert response["pagination"]["total"] == 1
     assert response["kept_profit_units"] == 0.9
     assert response["filtered_profit_units"] == -1.0
+    assert response["kept_profit_units_with_rebate"] == 0.925
+    assert response["filtered_profit_units_with_rebate"] == -0.975

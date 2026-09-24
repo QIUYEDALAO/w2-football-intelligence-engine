@@ -21,6 +21,7 @@ from w2.dashboard.date_window import (
     football_day_window,
 )
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
+from w2.domain.profit import profit_units_with_rebate
 from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
     validate_decision_v4_identity,
@@ -1140,9 +1141,16 @@ def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> s
         "push_count": push,
         "loss_count": loss,
         "total_profit_units": float(total),
+        "total_profit_units_with_rebate": float(profit_units_with_rebate(total, win + push + loss)),
         "cumulative_settled_count": len(cumulative_settled),
         "cumulative_profit_units": float(
             sum(Decimal(str(row["profit_units"])) for row in cumulative_settled)
+        ),
+        "cumulative_profit_units_with_rebate": float(
+            profit_units_with_rebate(
+                sum(Decimal(str(row["profit_units"])) for row in cumulative_settled),
+                len(cumulative_settled),
+            )
         ),
         "items": items,
         "pending": pending,
@@ -1465,8 +1473,7 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
             title = (
                 f"[结算] {day_label} {int(payload.get('item_count') or 0)}场 "
                 f"{int(payload.get('win_count') or 0)}赢 "
-                f"{int(payload.get('loss_count') or 0)}输 "
-                f"{_format_settlement_units(payload.get('total_profit_units'))}单位"
+                f"{int(payload.get('loss_count') or 0)}输"
             )
     elif event_type == TEST_MESSAGE:
         title = "[测试] W2 Bark 通道"
@@ -1626,10 +1633,30 @@ def _message_body(payload: Mapping[str, Any]) -> str:
             )
         )
     if event_type == DAILY_SETTLEMENT:
+        cumulative_pure = payload.get("cumulative_profit_units") or 0
+        cumulative_with_rebate = payload.get("cumulative_profit_units_with_rebate")
+        if cumulative_with_rebate is None:
+            cumulative_with_rebate = profit_units_with_rebate(
+                cumulative_pure, int(payload.get("cumulative_settled_count") or 0)
+            )
+        total_pure = payload.get("total_profit_units") or 0
+        total_with_rebate = payload.get("total_profit_units_with_rebate")
+        if total_with_rebate is None:
+            total_with_rebate = profit_units_with_rebate(
+                total_pure,
+                sum(
+                    int(payload.get(key) or 0)
+                    for key in ("win_count", "push_count", "loss_count")
+                ),
+            )
         lines = [
             f"累计：{payload.get('cumulative_settled_count', 0)} 注 "
-            f"{_format_settlement_units(payload.get('cumulative_profit_units'))} 单位"
+            f"{_format_settlement_units(cumulative_pure)} 单位"
         ]
+        lines.append(
+            f"纯盈亏 {_format_settlement_units(cumulative_pure)} · 含返水 "
+            f"{_format_settlement_units(cumulative_with_rebate)} 单位"
+        )
         for item in payload.get("items") or []:
             if not isinstance(item, Mapping):
                 continue
@@ -1654,7 +1681,8 @@ def _message_body(payload: Mapping[str, Any]) -> str:
             f"当天：{payload.get('item_count', 0)} 注　"
             f"赢 {payload.get('win_count', 0)} / 走水 {payload.get('push_count', 0)} / "
             f"输 {payload.get('loss_count', 0)}　"
-            f"{_format_settlement_units(payload.get('total_profit_units'))} 单位"
+            f"纯盈亏 {_format_settlement_units(total_pure)} · "
+            f"含返水 {_format_settlement_units(total_with_rebate)} 单位"
         )
         return "\n".join(lines)
     if event_type == TEST_MESSAGE:

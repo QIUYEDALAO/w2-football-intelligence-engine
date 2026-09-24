@@ -18,7 +18,20 @@ from time import monotonic
 from typing import Any, Literal, cast
 
 from pydantic import ValidationError
-from sqlalchemy import JSON, Boolean, String, and_, case, column, exists, func, literal, or_, select
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    String,
+    and_,
+    case,
+    column,
+    exists,
+    false,
+    func,
+    literal,
+    or_,
+    select,
+)
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, load_only
@@ -44,6 +57,7 @@ from w2.dashboard.performance import dashboard_performance
 from w2.dashboard.results import FINISHED_STATUSES, normalize_match_status
 from w2.dashboard.validation_summary import validation_summary
 from w2.domain.decision_card import compute_card_hash
+from w2.domain.profit import profit_units_with_rebate
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
@@ -2907,6 +2921,20 @@ class ReadModelService:
         kwargs.setdefault("include_details", False)
         return self.dashboard_summary(**kwargs)
 
+    def dashboard_current_calibration_identity(self) -> str | None:
+        """Return the latest persisted calibration identity for read projections."""
+        with Session(self.repository._database_engine()) as session:
+            return session.scalar(
+                select(ValidationSampleModel.calibration_identity)
+                .where(ValidationSampleModel.calibration_identity.is_not(None))
+                .order_by(
+                    ValidationSampleModel.evaluated_at.desc().nullslast(),
+                    ValidationSampleModel.projected_at.desc(),
+                    ValidationSampleModel.fixture_id.desc(),
+                )
+                .limit(1)
+            )
+
     def dashboard_outcomes_for_fixtures(
         self,
         fixture_ids: Sequence[str],
@@ -2975,8 +3003,8 @@ class ReadModelService:
         start, _ = football_day_window(anchor - timedelta(days=29))
         end, _ = football_day_window(anchor + timedelta(days=1))
         with Session(self.repository._database_engine()) as session:
-            current = session.scalar(
-                select(ValidationSampleModel)
+            current_identity = session.scalar(
+                select(ValidationSampleModel.calibration_identity)
                 .where(ValidationSampleModel.calibration_identity.is_not(None))
                 .order_by(
                     ValidationSampleModel.evaluated_at.desc().nullslast(),
@@ -2985,15 +3013,18 @@ class ReadModelService:
                 )
                 .limit(1)
             )
-            total_profit_units = session.scalar(
-                select(func.sum(ValidationSampleModel.profit_units)).where(
-                    ValidationSampleModel.calibration_identity == current.calibration_identity,
+            total_profit_units, total_settled_count = session.execute(
+                select(
+                    func.sum(ValidationSampleModel.profit_units),
+                    func.count(ValidationSampleModel.profit_units),
+                ).where(
+                    ValidationSampleModel.calibration_identity == current_identity,
                     ValidationSampleModel.settlement.in_(
                         ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
                     ),
                     ValidationSampleModel.profit_units.is_not(None),
                 )
-            ) if current is not None else None
+            ).one() if current_identity is not None else (None, 0)
             rows = list(session.scalars(
                 select(ValidationSampleModel).where(
                     ValidationSampleModel.kickoff_utc >= start,
@@ -3022,9 +3053,10 @@ class ReadModelService:
         return {
             "rows": projected,
             "current_calibration_identity": (
-                current.calibration_identity if current is not None else None
+                current_identity
             ),
             "total_profit_units": round(float(total_profit_units or 0), 3),
+            "total_settled_count": int(total_settled_count or 0),
         }
 
     def dashboard_validation_samples(
@@ -3036,6 +3068,20 @@ class ReadModelService:
             stmt = select(ValidationSampleModel).order_by(
                 ValidationSampleModel.kickoff_utc.desc().nullslast(),
                 ValidationSampleModel.fixture_id.desc(),
+            )
+            current_identity = session.scalar(
+                select(ValidationSampleModel.calibration_identity)
+                .where(ValidationSampleModel.calibration_identity.is_not(None))
+                .order_by(
+                    ValidationSampleModel.evaluated_at.desc().nullslast(),
+                    ValidationSampleModel.projected_at.desc(),
+                    ValidationSampleModel.fixture_id.desc(),
+                )
+                .limit(1)
+            )
+            stmt = stmt.where(
+                ValidationSampleModel.calibration_identity == current_identity
+                if current_identity is not None else false()
             )
             rows = list(session.scalars(stmt))
         if days is not None and anchor is not None:
@@ -3067,16 +3113,42 @@ class ReadModelService:
             for row in rows
         ], total
 
-    def dashboard_validation_cumulative_profit_units(self) -> float:
+    def dashboard_validation_profit_summary(self) -> dict[str, float]:
         """Sum settled recommendation units across all dates and pages."""
         with Session(self.repository._database_engine()) as session:
-            amount = session.scalar(select(func.sum(ValidationSampleModel.profit_units)).where(
+            current_identity = session.scalar(
+                select(ValidationSampleModel.calibration_identity)
+                .where(ValidationSampleModel.calibration_identity.is_not(None))
+                .order_by(
+                    ValidationSampleModel.evaluated_at.desc().nullslast(),
+                    ValidationSampleModel.projected_at.desc(),
+                    ValidationSampleModel.fixture_id.desc(),
+                )
+                .limit(1)
+            )
+            if current_identity is None:
+                return {"profit_units": 0.0, "profit_units_with_rebate": 0.0}
+            amount, count = session.execute(select(
+                func.sum(ValidationSampleModel.profit_units),
+                func.count(ValidationSampleModel.profit_units),
+            ).where(
+                ValidationSampleModel.calibration_identity == current_identity,
                 ValidationSampleModel.settlement.in_(
                     ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
                 ),
                 ValidationSampleModel.profit_units.is_not(None),
-            ))
-        return round(float(amount or 0), 3)
+            )).one()
+        pure = float(amount or 0)
+        return {
+            "profit_units": round(pure, 3),
+            "profit_units_with_rebate": round(
+                float(profit_units_with_rebate(pure, int(count or 0))), 3
+            ),
+        }
+
+    def dashboard_validation_cumulative_profit_units(self) -> float:
+        """Compatibility projection for callers that only need pure units."""
+        return self.dashboard_validation_profit_summary()["profit_units"]
 
     def dashboard_dynamic_evaluations_for_fixtures(
         self,

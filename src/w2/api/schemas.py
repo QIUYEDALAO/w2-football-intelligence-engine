@@ -1882,6 +1882,7 @@ class DashboardIntelligenceValidationResponse(BaseModel):
     read_contract: WorkspaceReadContract
     samples: list[dict[str, Any]] = Field(default_factory=list)
     cumulative_profit_units: float
+    cumulative_profit_units_with_rebate: float
     pagination: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -1932,6 +1933,8 @@ class DashboardIntelligenceCalibratedValidationResponse(BaseModel):
     samples: list[CalibratedValidationSample]
     kept_profit_units: float
     filtered_profit_units: float
+    kept_profit_units_with_rebate: float
+    filtered_profit_units_with_rebate: float
     counts: dict[str, int]
     decision_contract: dict[str, Any]
     read_contract: WorkspaceReadContract

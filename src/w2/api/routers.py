@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from w2.api.cache import read_cache
@@ -81,6 +81,7 @@ from w2.domain.ev_online_contract import (
     SETTLED_STATES,
     is_forward,
 )
+from w2.domain.profit import profit_units_with_rebate
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.infrastructure.persistence.dynamic_prematch_models import CalibratedValidationSampleModel
 from w2.monitoring.health import HealthPayload, build_health_payload
@@ -501,6 +502,7 @@ def dashboard_intelligence_workspace_list(
         facts["rows"], anchor=anchor,
         calibration_identity=facts["current_calibration_identity"],
         total_profit_units=facts.get("total_profit_units"),
+        total_settled_count=facts.get("total_settled_count"),
     )
     workspace["today_recommendations"] = today_recommendations(
         workspace["matches"], facts["rows"], anchor=anchor,
@@ -565,14 +567,18 @@ def dashboard_intelligence_validation(
             days=days, limit=limit, offset=offset,
         ) if callable(sample_reader) else ([], 0)
     )
-    profit_reader = getattr(service, "dashboard_validation_cumulative_profit_units", None)
+    profit_reader = getattr(service, "dashboard_validation_profit_summary", None)
+    profit_summary = profit_reader() if callable(profit_reader) else {
+        "profit_units": 0.0, "profit_units_with_rebate": 0.0
+    }
     return {
         "request_id": request_id(request),
         "schema_version": "w2.dashboard-intelligence-validation.v1",
         "generated_at": day_view.get("generated_at"),
         "validation": validation,
         "samples": [review_row(row) for row in samples],
-        "cumulative_profit_units": profit_reader() if callable(profit_reader) else 0.0,
+        "cumulative_profit_units": profit_summary["profit_units"],
+        "cumulative_profit_units_with_rebate": profit_summary["profit_units_with_rebate"],
         "pagination": {"days": days, "limit": limit, "offset": offset, "total": total},
         "read_contract": {
             "provider_calls": int(day_view.get("provider_calls") or 0),
@@ -602,10 +608,18 @@ def dashboard_intelligence_validation_calibrated(
         CalibratedValidationSampleModel.kickoff_utc.desc().nullslast(),
         CalibratedValidationSampleModel.fixture_id.desc(),
     )
+    identity_reader = getattr(service, "dashboard_current_calibration_identity", None)
+    current_identity = identity_reader() if callable(identity_reader) else None
     with Session(service.repository._database_engine()) as session:
+        calibrated_stmt = select(CalibratedValidationSampleModel)
+        if callable(identity_reader):
+            calibrated_stmt = calibrated_stmt.where(
+                CalibratedValidationSampleModel.calibration_identity == current_identity
+                if current_identity is not None else false()
+            )
         all_rows = [
             _calibrated_sample_projection(row)
-            for row in session.scalars(select(CalibratedValidationSampleModel))
+            for row in session.scalars(calibrated_stmt)
         ]
     kept_profit_units = round(sum(
         float(row["profit_units"]) for row in all_rows
@@ -617,6 +631,14 @@ def dashboard_intelligence_validation_calibrated(
         if row["filter_decision"] == "FILTERED" and row["settlement"] in SETTLED_STATES
         and row["profit_units"] is not None
     ), 3)
+    kept_count = sum(
+        row["filter_decision"] == "KEPT" and row["settlement"] in SETTLED_STATES
+        and row["profit_units"] is not None for row in all_rows
+    )
+    filtered_count = sum(
+        row["filter_decision"] == "FILTERED" and row["settlement"] in SETTLED_STATES
+        and row["profit_units"] is not None for row in all_rows
+    )
     rows = all_rows
     if date and days is None:
         try:
@@ -629,6 +651,11 @@ def dashboard_intelligence_validation_calibrated(
                 CalibratedValidationSampleModel.kickoff_utc >= start,
                 CalibratedValidationSampleModel.kickoff_utc < start + timedelta(days=1),
             )
+            if callable(identity_reader):
+                stmt = stmt.where(
+                    (CalibratedValidationSampleModel.calibration_identity == current_identity)
+                    if current_identity is not None else false()
+                )
         except (ValueError, ZoneInfoNotFoundError):
             raise HTTPException(status_code=400, detail="invalid date") from None
         with Session(service.repository._database_engine()) as session:
@@ -683,6 +710,12 @@ def dashboard_intelligence_validation_calibrated(
         "samples": rows,
         "kept_profit_units": kept_profit_units,
         "filtered_profit_units": filtered_profit_units,
+        "kept_profit_units_with_rebate": round(
+            float(profit_units_with_rebate(kept_profit_units, kept_count)), 3
+        ),
+        "filtered_profit_units_with_rebate": round(
+            float(profit_units_with_rebate(filtered_profit_units, filtered_count)), 3
+        ),
         "pagination": {"days": days, "limit": limit, "offset": offset, "total": total_before_page},
         "counts": {
             "total": len(rows),

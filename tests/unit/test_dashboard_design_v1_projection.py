@@ -41,6 +41,7 @@ def test_performance_summary_never_mixes_old_calibration_identity() -> None:
     assert summary["last_30_days"]["match_count"] == 2
     assert summary["last_30_days"]["hit_rate"] == 0.5
     assert summary["total_profit_units"] == 0.4
+    assert summary["total_profit_units_with_rebate"] == 0.475
     assert summary["calibration_identity"] == "v2"
 
 

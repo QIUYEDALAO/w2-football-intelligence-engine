@@ -16,6 +16,7 @@ const EMPTY_PERFORMANCE: PerformanceSummary = {
   calibration_identity: null,
   status: "UNAVAILABLE",
   total_profit_units: 0,
+  total_profit_units_with_rebate: 0,
   last_7_days: { match_count: 0, hit_rate: null, profit_units: 0 },
   last_30_days: { match_count: 0, hit_rate: null, profit_units: 0 },
   daily_series: [],
@@ -231,7 +232,7 @@ export function DesignV1Overview({ workspace, date, onDateChange, activeTab, onT
           <article className="w2-kpi"><span className="w2-kpi__label">今日推荐</span><span className="w2-kpi__value num">{picks.length}<small>条</small></span><span className="w2-kpi__foot">已结算 <b className="num">{settled.length}</b> · 待开赛 <b className="num">{picks.filter((pick) => pick.status === "confirmed" || pick.status === "candidate").length}</b> · 撤回 <b className="num">{picks.filter((pick) => pick.status === "withdrawn").length}</b></span></article>
           <article className="w2-kpi"><span className="w2-kpi__label">今日结算</span><span className="w2-kpi__value num">{summary.status === "AVAILABLE" ? signed(todayProfit) : "—"}<small>单位</small></span><span className="w2-kpi__foot">{settled.filter((pick) => pick.result === "WIN" || pick.result === "HALF_WIN").length} 赢 · {settled.filter((pick) => pick.result === "LOSS" || pick.result === "HALF_LOSS").length} 输</span></article>
           <article className="w2-kpi w2-kpi--next"><span className="w2-kpi__label">下一场推荐</span><span className="w2-kpi__value num">{nextPick ? localTime(nextPick.kickoff_utc) : "—"}<small>{nextPick ? "开赛" : "暂无"}</small></span><span className="w2-kpi__foot">{nextPick ? `${nextPick.competition_name_zh || "赛事待确认"} · ${nextPick.home || "主队待确认"} vs ${nextPick.away || "客队待确认"}` : "暂无待开赛推荐"}</span></article>
-          <article className="w2-kpi"><span className="w2-kpi__label">总盈亏</span><span className="w2-kpi__value num">{summary.status === "AVAILABLE" ? signed(summary.total_profit_units) : "—"}<small>单位</small></span><span className="w2-kpi__foot">当前模型版本 · 全历史</span></article>
+          <article className="w2-kpi"><span className="w2-kpi__label">总盈亏</span><span className="w2-kpi__value num">{summary.status === "AVAILABLE" ? signed(summary.total_profit_units) : "—"}<small>单位</small></span><span className="w2-kpi__foot">含返水 <b className="num">{summary.status === "AVAILABLE" ? signed(summary.total_profit_units_with_rebate) : "—"}</b> · 当前模型版本 · 全历史</span></article>
           <article className="w2-kpi"><span className="w2-kpi__label">近 7 天</span><span className="w2-kpi__value num">{summary.status === "AVAILABLE" ? signed(summary.last_7_days.profit_units) : "—"}<small>单位</small></span><span className="w2-kpi__foot"><b className="num">{summary.status === "AVAILABLE" ? summary.last_7_days.match_count : "—"}</b> 场 · 命中 <b className="num">{percent(summary.last_7_days.hit_rate)}</b></span></article>
           <article className="w2-kpi"><span className="w2-kpi__label">近 30 天</span><span className="w2-kpi__value num">{summary.status === "AVAILABLE" ? signed(summary.last_30_days.profit_units) : "—"}<small>单位</small></span><span className="w2-kpi__foot"><b className="num">{summary.status === "AVAILABLE" ? summary.last_30_days.match_count : "—"}</b> 场 · 命中 <b className="num">{percent(summary.last_30_days.hit_rate)}</b></span></article>
         </div></div>

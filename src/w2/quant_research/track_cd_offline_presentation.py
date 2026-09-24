@@ -9,6 +9,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from math import isfinite
 
+from w2.domain.profit import REBATE_RATE
 from w2.quant_research.track_b_lambda_level_fusion import (
     five_state_cashflow,
     fuse_lambda_level,
@@ -16,7 +17,7 @@ from w2.quant_research.track_b_lambda_level_fusion import (
 
 FROZEN_TOTAL_SCALE = 1.0
 FROZEN_FADE_DELTA = 0.05
-FROZEN_REBATE = 0.025
+FROZEN_REBATE = float(REBATE_RATE)
 TIER_PRIORITY = 0.05
 TIER_GENERAL = 0.02
 TIER_OBSERVE = 0.0

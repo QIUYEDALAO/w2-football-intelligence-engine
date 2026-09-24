@@ -1240,6 +1240,7 @@ export function IntelligenceConsole(props: Props) {
         generated_at: workspace.generated_at,
         validation,
         cumulative_profit_units: 0,
+        cumulative_profit_units_with_rebate: 0,
         read_contract: workspace.read_contract,
       },
     });
@@ -1261,7 +1262,7 @@ export function IntelligenceConsole(props: Props) {
     if (tab === "matches" || (tab === "validation" && validationByDate[reviewKey]) || (tab === "validation-calibrated" && calibratedValidationByDate[reviewKey]) || (tab === "replay" && replayByDate[props.date])) return;
     const controller = new AbortController();
     setTabState("loading");
-    const request = tab === "validation" ? fetchIntelligenceValidation(props.date, controller.signal, { days: 7, limit: 50, offset: reviewOffset }) : tab === "validation-calibrated" ? fetchIntelligenceCalibratedValidation(props.date, controller.signal, { days: 7, limit: 50, offset: reviewOffset }) : fetchIntelligenceReplay(props.date, controller.signal);
+    const request = tab === "validation" ? fetchIntelligenceValidation(props.date, controller.signal, { limit: 50, offset: reviewOffset }) : tab === "validation-calibrated" ? fetchIntelligenceCalibratedValidation(props.date, controller.signal, { limit: 50, offset: reviewOffset }) : fetchIntelligenceReplay(props.date, controller.signal);
     request.then((payload) => {
       if (tab === "validation") setValidationByDate((current) => ({ ...current, [reviewKey]: payload as IntelligenceValidationResponse }));
       else if (tab === "validation-calibrated") setCalibratedValidationByDate((current) => ({ ...current, [reviewKey]: payload as IntelligenceCalibratedValidationResponse }));

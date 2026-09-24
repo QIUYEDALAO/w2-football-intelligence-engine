@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from w2.dashboard.date_window import football_day_for_kickoff
+from w2.domain.profit import profit_units_with_rebate
 from w2.identity.public_competition_labels import public_competition_labels
 
 SETTLED = frozenset({"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"})
@@ -42,7 +44,7 @@ def _day(row: Mapping[str, Any]) -> date | None:
 
 def performance_summary(
     rows: Sequence[Mapping[str, Any]], *, anchor: date, calibration_identity: str | None,
-    total_profit_units: float | None = None,
+    total_profit_units: float | None = None, total_settled_count: int | None = None,
 ) -> dict[str, Any]:
     """One calibration identity only; a missing identity never selects legacy rows."""
     current = [
@@ -75,13 +77,21 @@ def performance_summary(
         cumulative += daily_units
         daily.append({"date": day.isoformat(), "daily_profit_units": round(daily_units, 3),
                       "cumulative_profit_units": round(cumulative, 3)})
+    pure_total = Decimal(str(total_profit_units)) if total_profit_units is not None else sum(
+        (
+            Decimal(str(row["profit_units"]))
+            for row in current
+            if row.get("profit_units") is not None
+        ),
+        Decimal("0"),
+    )
+    settled_count = total_settled_count if total_settled_count is not None else len(current)
     return {
         "calibration_identity": calibration_identity,
         "status": "AVAILABLE" if calibration_identity else "CURRENT_MODEL_IDENTITY_UNAVAILABLE",
-        "total_profit_units": (
-            round(total_profit_units, 3) if total_profit_units is not None
-            else round(sum(float(row["profit_units"]) for row in current
-                           if row.get("profit_units") is not None), 3)
+        "total_profit_units": round(float(pure_total), 3),
+        "total_profit_units_with_rebate": round(
+            float(profit_units_with_rebate(pure_total, settled_count)), 3
         ),
         "last_7_days": window(7), "last_30_days": window(30), "daily_series": daily,
     }

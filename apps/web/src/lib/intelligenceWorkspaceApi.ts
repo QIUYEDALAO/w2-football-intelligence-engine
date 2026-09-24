@@ -31,8 +31,11 @@ export async function fetchIntelligenceValidation(
   signal?: AbortSignal,
   options: { days?: number; limit?: number; offset?: number } = {},
 ): Promise<IntelligenceValidationResponse> {
-  const query = new URLSearchParams({ date, window: "today", timezone: "Asia/Shanghai" });
-  if (options.days !== undefined) query.set("days", String(options.days));
+  const query = new URLSearchParams({ window: "today", timezone: "Asia/Shanghai" });
+  if (options.days !== undefined) {
+    query.set("date", date);
+    query.set("days", String(options.days));
+  }
   if (options.limit !== undefined) query.set("limit", String(options.limit));
   if (options.offset !== undefined) query.set("offset", String(options.offset));
   const response = await fetch(
@@ -48,8 +51,11 @@ export async function fetchIntelligenceCalibratedValidation(
   signal?: AbortSignal,
   options: { days?: number; limit?: number; offset?: number } = {},
 ): Promise<IntelligenceCalibratedValidationResponse> {
-  const query = new URLSearchParams({ date, window: "today", timezone: "Asia/Shanghai" });
-  if (options.days !== undefined) query.set("days", String(options.days));
+  const query = new URLSearchParams({ window: "today", timezone: "Asia/Shanghai" });
+  if (options.days !== undefined) {
+    query.set("date", date);
+    query.set("days", String(options.days));
+  }
   if (options.limit !== undefined) query.set("limit", String(options.limit));
   if (options.offset !== undefined) query.set("offset", String(options.offset));
   const response = await fetch(
