@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
+
+import pytest
 
 from w2.strategy.candidate import (
     CandidatePolicy,
@@ -158,3 +161,53 @@ def test_skip_when_fixture_already_kicked_off() -> None:
 
     assert candidate.decision == "SKIP"
     assert HardGateReason.KICKOFF_PASSED.value in reasons(candidate.as_dict()["hard_gate_reasons"])
+
+
+@pytest.mark.parametrize("captured_at", [None, "not-a-time"])
+def test_missing_or_invalid_capture_time_skips(captured_at: str | None) -> None:
+    observations = complete_observations()
+    if captured_at is None:
+        observations[0].pop("captured_at")
+    else:
+        observations[0]["captured_at"] = captured_at
+
+    candidate = generate_candidate(fixture=fixture(), observations=observations, as_of=NOW)
+
+    assert candidate.decision == "SKIP"
+    assert HardGateReason.ODDS_CAPTURE_TIME_MISSING in candidate.hard_gate_reasons
+
+
+@pytest.mark.parametrize("bad_odds", ["N/A", None, "NaN", "Infinity", "0"])
+def test_invalid_odds_row_is_filtered_before_best_quote(bad_odds: object) -> None:
+    observations = complete_observations()
+    observations[0]["decimal_odds"] = bad_odds
+
+    candidate = generate_candidate(fixture=fixture(), observations=observations, as_of=NOW)
+
+    assert candidate.decision == "SKIP"  # A core market has no executable quote.
+    assert HardGateReason.CORE_MARKET_MISSING in candidate.hard_gate_reasons
+    assert candidate.decimal_odds is None
+
+
+def test_invalid_quote_is_not_selected_when_valid_quote_remains() -> None:
+    observations = complete_observations()
+    observations.append(row("TOTALS", bookmaker_id="bad-book"))
+    observations[-1]["decimal_odds"] = "N/A"
+
+    candidate = generate_candidate(fixture=fixture(), observations=observations, as_of=NOW)
+
+    assert candidate.decision == "WATCH"
+    assert candidate.decimal_odds == Decimal("2.05")
+    assert candidate.hard_gate_reasons == ()
+
+
+def test_all_invalid_odds_skip_without_watch() -> None:
+    observations = complete_observations()
+    for observation, bad_odds in zip(observations, ("N/A", None, "NaN"), strict=True):
+        observation["decimal_odds"] = bad_odds
+
+    candidate = generate_candidate(fixture=fixture(), observations=observations, as_of=NOW)
+
+    assert candidate.decision == "SKIP"
+    assert HardGateReason.ODDS_INVALID in candidate.hard_gate_reasons
+    assert candidate.decimal_odds is None

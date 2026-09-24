@@ -15,15 +15,16 @@ does not read.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from w2.domain.odds import settle_asian_handicap, settle_total_goals
+from w2.domain.odds import settle_asian_handicap, settle_total_goals, split_quarter_line
 from w2.identity.public_team_labels import (
     pending_public_team_labels,
     reviewed_public_team_labels,
@@ -41,6 +42,8 @@ from w2.prematch.lifecycle import (
     final_official_opportunities,
 )
 from w2.settlement.settle import WIN_UNITS
+
+logger = logging.getLogger(__name__)
 
 CHECKPOINT_LABELS = {
     "T3_ODDS": "T-3h",
@@ -132,8 +135,28 @@ def official_funnel_recommendations(
             str(getattr(final, "evaluation_slot_id", "UNKNOWN_CHECKPOINT")),
         )
         first_checkpoint = first_checkpoint_state.get((fixture_id, market), (None, None))[1]
-        line = str(payload["exact_line"])
-        decimal_odds = Decimal(str(payload["decimal_odds"]))
+        try:
+            exact_line = Decimal(str(payload.get("exact_line")))
+            if not exact_line.is_finite():
+                raise ValueError("non-finite line")
+            split_quarter_line(exact_line)
+        except (InvalidOperation, TypeError, ValueError):
+            logger.warning(
+                "PROJECTION_SKIPPED_INVALID_LINE evaluation_id=%s fixture_id=%s market=%s",
+                row.evaluation_id, fixture_id, market,
+            )
+            continue
+        try:
+            decimal_odds = Decimal(str(payload.get("decimal_odds")))
+            if not decimal_odds.is_finite() or decimal_odds <= 1:
+                raise ValueError("non-executable odds")
+        except (InvalidOperation, TypeError, ValueError):
+            logger.warning(
+                "PROJECTION_SKIPPED_INVALID_ODDS evaluation_id=%s fixture_id=%s market=%s",
+                row.evaluation_id, fixture_id, market,
+            )
+            continue
+        line = str(payload.get("exact_line"))
         outcome = None
         profit_units = None
         if result is not None:

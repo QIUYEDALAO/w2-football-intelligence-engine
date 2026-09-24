@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from typing import Any, Literal
 
@@ -15,6 +15,8 @@ KNOWN_SETTLEMENT_MARKETS = CORE_MARKETS | frozenset({"BTTS"})
 class HardGateReason(StrEnum):
     CORE_MARKET_MISSING = "CORE_MARKET_MISSING"
     ODDS_STALE = "ODDS_STALE"
+    ODDS_CAPTURE_TIME_MISSING = "ODDS_CAPTURE_TIME_MISSING"
+    ODDS_INVALID = "ODDS_INVALID"
     BOOKMAKER_MIN_NOT_MET = "BOOKMAKER_MIN_NOT_MET"
     MARKET_SUSPENDED = "MARKET_SUSPENDED"
     MARKET_LIVE = "MARKET_LIVE"
@@ -77,8 +79,11 @@ def _bookmaker(row: dict[str, Any]) -> str:
     return str(row.get("bookmaker_id") or row.get("bookmaker") or row.get("bookmaker_name") or "")
 
 
-def _captured_at(row: dict[str, Any]) -> datetime:
-    return parse_utc(row.get("captured_at_utc") or row.get("captured_at"))
+def _captured_at(row: dict[str, Any]) -> datetime | None:
+    try:
+        return parse_utc(row.get("captured_at_utc") or row.get("captured_at"))
+    except (TypeError, ValueError):
+        return None
 
 
 def _decimal_odds(row: dict[str, Any]) -> Decimal | None:
@@ -87,7 +92,11 @@ def _decimal_odds(row: dict[str, Any]) -> Decimal | None:
         value = row.get("odds_value")
     if value is None:
         return None
-    return Decimal(str(value))
+    try:
+        odds = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    return odds if odds.is_finite() and odds > 1 else None
 
 
 def hard_gate_reasons(
@@ -99,7 +108,8 @@ def hard_gate_reasons(
 ) -> tuple[HardGateReason, ...]:
     resolved_policy = policy or CandidatePolicy()
     reasons: list[HardGateReason] = []
-    markets = {_market(row) for row in observations}
+    valid_observations = [row for row in observations if _decimal_odds(row) is not None]
+    markets = {_market(row) for row in valid_observations}
     missing = resolved_policy.core_markets - markets
     if missing:
         reasons.append(HardGateReason.CORE_MARKET_MISSING)
@@ -108,7 +118,7 @@ def hard_gate_reasons(
     if kickoff_value is not None and parse_utc(kickoff_value) <= as_of:
         reasons.append(HardGateReason.KICKOFF_PASSED)
 
-    bookmaker_ids = {_bookmaker(row) for row in observations if _bookmaker(row)}
+    bookmaker_ids = {_bookmaker(row) for row in valid_observations if _bookmaker(row)}
     if len(bookmaker_ids) < resolved_policy.min_bookmakers:
         reasons.append(HardGateReason.BOOKMAKER_MIN_NOT_MET)
 
@@ -125,9 +135,11 @@ def hard_gate_reasons(
             reasons.append(HardGateReason.SETTLEMENT_RULE_UNKNOWN)
             break
     for row in observations:
-        if (as_of - _captured_at(row)).total_seconds() > resolved_policy.max_odds_age_seconds:
+        captured_at = _captured_at(row)
+        if captured_at is None:
+            reasons.append(HardGateReason.ODDS_CAPTURE_TIME_MISSING)
+        elif (as_of - captured_at).total_seconds() > resolved_policy.max_odds_age_seconds:
             reasons.append(HardGateReason.ODDS_STALE)
-            break
 
     return tuple(dict.fromkeys(reasons))
 
@@ -144,13 +156,18 @@ def generate_candidate(
         or fixture.get("id")
         or fixture.get("fixture", {}).get("id")
     )
-    reasons = hard_gate_reasons(
-        fixture=fixture,
-        observations=observations,
-        as_of=as_of,
-        policy=policy,
+    valid_observations = [row for row in observations if _decimal_odds(row) is not None]
+    reasons = list(
+        hard_gate_reasons(
+            fixture=fixture,
+            observations=observations,
+            as_of=as_of,
+            policy=policy,
+        )
     )
-    bookmaker_count = len({_bookmaker(row) for row in observations if _bookmaker(row)})
+    if not valid_observations:
+        reasons.append(HardGateReason.ODDS_INVALID)
+    bookmaker_count = len({_bookmaker(row) for row in valid_observations if _bookmaker(row)})
     if reasons:
         return GeneratedCandidate(
             fixture_id=fixture_id,
@@ -160,11 +177,11 @@ def generate_candidate(
             line=None,
             decimal_odds=None,
             bookmaker_count=bookmaker_count,
-            hard_gate_reasons=reasons,
+            hard_gate_reasons=tuple(reasons),
         )
 
     best = max(
-        observations,
+        valid_observations,
         key=lambda row: (
             _decimal_odds(row) or Decimal("0"),
             _market(row),

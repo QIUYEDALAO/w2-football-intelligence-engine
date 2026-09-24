@@ -222,6 +222,70 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
     )
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "reason"),
+    [
+        ("decimal_odds", None, "PROJECTION_SKIPPED_INVALID_ODDS"),
+        ("decimal_odds", "N/A", "PROJECTION_SKIPPED_INVALID_ODDS"),
+        ("decimal_odds", "NaN", "PROJECTION_SKIPPED_INVALID_ODDS"),
+        ("decimal_odds", "0", "PROJECTION_SKIPPED_INVALID_ODDS"),
+        ("exact_line", None, "PROJECTION_SKIPPED_INVALID_LINE"),
+        ("exact_line", "N/A", "PROJECTION_SKIPPED_INVALID_LINE"),
+        ("exact_line", "Infinity", "PROJECTION_SKIPPED_INVALID_LINE"),
+        ("exact_line", "2.3", "PROJECTION_SKIPPED_INVALID_LINE"),
+    ],
+)
+def test_official_funnel_skips_invalid_row_and_keeps_other_rows(
+    field: str,
+    value: str | None,
+    reason: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    now = datetime(2026, 8, 20, tzinfo=UTC)
+    evaluations = []
+    opportunities = []
+    for fixture_id in ("bad", "good"):
+        payload = {"state": "ANALYSIS_PICK_ACTIVE", "exact_line": "2.5", "decimal_odds": "1.90"}
+        if fixture_id == "bad":
+            if value is None:
+                payload.pop(field)
+            else:
+                payload[field] = value
+        evaluations.append(
+            SimpleNamespace(
+                evaluation_id=f"eval-{fixture_id}",
+                fixture_id=fixture_id,
+                market="TOTALS",
+                selection="OVER",
+                evaluated_at=now,
+                official_funnel_eligible=True,
+                opportunity_identity_hash=f"opp-{fixture_id}",
+                attempt_identity_hash=f"attempt-{fixture_id}",
+                payload=payload,
+            )
+        )
+        opportunities.append(
+            SimpleNamespace(
+                opportunity_identity_hash=f"opp-{fixture_id}",
+                fixture_id=fixture_id,
+                market="TOTALS",
+                state="EVALUATED_CANDIDATE",
+                evaluation_slot_id="T45_ODDS",
+                scheduled_checkpoint_at=now,
+                recorded_at=now,
+                latest_attempt_identity_hash=f"attempt-{fixture_id}",
+            )
+        )
+
+    rows = repository_module._official_funnel_recommendations(
+        evaluations, opportunities, {}, {}, {}
+    )
+
+    assert [row["fixture_id"] for row in rows] == ["good"]
+    assert reason in caplog.text
+    assert "evaluation_id=eval-bad" in caplog.text
+
+
 def test_official_funnel_recommendations_ordered_latest_first_with_ah_before_totals() -> None:
     base = datetime(2026, 8, 20, tzinfo=UTC)
 

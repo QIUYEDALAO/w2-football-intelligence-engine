@@ -755,6 +755,27 @@ def test_simulation_insufficient_returns_watch() -> None:
     assert "SIMULATION_NOT_READY" in result.blockers
 
 
+def test_simulation_none_returns_watch() -> None:
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=None,
+        current_odds={"ah": {"home_line": 0.5, "home_price": 1.95, "away_price": 1.95}},
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=0.5,
+            home_price=1.95,
+            away_price=1.95,
+        ),
+        pricing_shadow=ready_shadow(),
+        analysis_readiness=ready_analysis(),
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert result.decision_tier == "WATCH"
+    assert "SIMULATION_NOT_READY" in result.blockers
+
+
 def test_market_missing_returns_watch() -> None:
     result = build_formal_recommendation(
         fixture_status="UPCOMING",

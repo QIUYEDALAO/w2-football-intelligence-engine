@@ -148,7 +148,8 @@ def build_formal_recommendation(
             blockers=blockers,
             canonical_ah_market=ah.as_dict() if ah else None,
         )
-    assert simulation is not None
+    if simulation is None:
+        return _watch("SIMULATION_NOT_READY", canonical_ah_market=ah)
     if ah is None or ah.validation_status != "READY":
         return _watch((ah.blocker if ah else None) or "MISSING_AH_MARKET", canonical_ah_market=ah)
     if not _lambda_uncertainty_validated(simulation):
