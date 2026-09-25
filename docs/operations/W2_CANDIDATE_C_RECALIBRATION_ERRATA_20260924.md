@@ -74,4 +74,18 @@ bug 说明：初版脚本 UNDER x.75 的 WIN 区间错位一档（误用 ple(ib�
 
 ---
 
+## 勘误 ⑤（追加）— TOTAL_INFER_V1 的 UNDER x.25 半态方向错误 + AH 反解误差量化闭环（2026-09-25，kimi 二次验收发现）
+
+**问题 1：V1 公式一处方向错误。** V1 冻结版将 UNDER x.25 在 total = ib 时的半态写为 HALF_LOSS；按标准亚盘 quarter-line 规则应为 **HALF_WIN**（押 x.0 走盘 + 押 x.5 赢）。实锤：v3-only UNDER x.25 共 54 行，V1 映射反推 54/54 行 SSE>0.01，修正映射 54/54 行 SSE=0。V1 中「x.25 行 SSE>0.01 疑 Dixon-Coles ρ 调整」归因作废（真因=映射错误）。
+
+**影响**：v3-only 模型 total 均值 2.8230 → 2.8194（−0.004 球），scale 1.020 → 1.021。**主结论不变**（total 无系统性低估、Track A 关闭决策不受影响）。
+
+**处置**：已按变更规则新起 `W2_TOTAL_INFER_V2.md`（DRAFT 待 Owner 冻结；仅改此一处，其余继承 V1）。V1 的 UNDER x.25 半态定义作废，V2 冻结前 V1 仍为名⽬现⾏但该行结果按修正值使用。
+
+**问题 2：AH DC/Skellam 反解误差 NOT_ESTIMABLE → 已量化闭环。** kimi 参数化扫描（140 点 × 3 线型，rho ≤ 0.15）：DC 矩阵二分反解 vs Skellam 逐字反解的 delta 偏差 **≤ 0.091 球（P90 ≤ 0.070）**，对 success 概率影响 ≤ ~3pp。声明：生产统一以 DC 矩阵反解为唯一定义（与生产五态生成同源），Skellam 仅作交叉验证。原「NOT_ESTIMABLE」标注由本量化声明取代。
+
+**对 Codex 两处标注的评价**：不伪造结果、不擅改冻结文件、不假装闭环——处理合规且专业；其中 NOT_ESTIMABLE 一项经参数化扫描证明可估，已闭环。
+
+---
+
 签署：kimi（REL-CALIB-02 收尾交付）。本文件落盘后，v5 + ERRATA + TOTAL_INFER_V1 三者构成当前唯一有效口径集。
