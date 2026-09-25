@@ -11,6 +11,9 @@ from math import isfinite
 
 from w2.domain.profit import REBATE_FORMULA_VERSION, REBATE_RATE
 from w2.quant_research.track_b_lambda_level_fusion import (
+    _distribution,
+    _score_matrix,
+    _validate_ah_quote_pair,
     five_state_cashflow,
     fuse_lambda_level,
 )
@@ -24,6 +27,8 @@ TIER_GENERAL = 0.02
 TIER_OBSERVE = 0.0
 DISPLAY_STATES = frozenset({"ANALYSIS_PICK_ACTIVE", "NO_EDGE_CURRENT"})
 FUSION_MARKET_MISSING = "FUSION_MARKET_MISSING"
+QUOTE_PAIR_MISMATCH = "QUOTE_PAIR_MISMATCH"
+NO_MARKET_ANCHOR_LABEL = "无市场锚·不参与档位"
 
 
 @dataclass(frozen=True)
@@ -52,6 +57,7 @@ class Evaluation:
     model_lambda_away: float
     channel_odds: float | None
     pinnacle_odds: Mapping[str, float] | None
+    pinnacle_quote_pair: Mapping[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -67,6 +73,8 @@ class DisplayCandidate:
     channel_odds: float | None
     channel_price_gap: float | None
     marker: str | None = None
+    pure_model_probability: float | None = None
+    market_anchor_note: str | None = None
 
 
 def _price(value: float) -> float:
@@ -117,15 +125,42 @@ def _display(
     marker: str | None = None,
 ) -> DisplayCandidate:
     fair_odds = None
-    if evaluation.pinnacle_odds is not None:
+    if evaluation.market == "ASIAN_HANDICAP":
+        if evaluation.pinnacle_quote_pair is not None:
+            try:
+                pair = _validate_ah_quote_pair(
+                    evaluation.pinnacle_quote_pair,
+                    selection=selection,
+                    line=evaluation.line,
+                )
+                implied = {side: 1.0 / price for side, price in pair.items()}
+                fair_odds = sum(implied.values()) / implied[selection]
+            except ValueError:
+                marker = QUOTE_PAIR_MISMATCH
+                ev = None
+    elif evaluation.pinnacle_odds is not None:
         try:
             fair_odds = 1.0 / _fair_probability(evaluation.pinnacle_odds, selection)
         except (KeyError, ValueError):
             marker = FUSION_MARKET_MISSING
             ev = None
     if fair_odds is None:
-        marker = FUSION_MARKET_MISSING
+        marker = marker or FUSION_MARKET_MISSING
         ev = None
+    model_probability = None
+    try:
+        model_matrix = _score_matrix(
+            evaluation.model_lambda_home,
+            evaluation.model_lambda_away,
+            rho=0.0,
+            max_goals=12,
+        )
+        model_distribution = _distribution(
+            model_matrix, evaluation.market, selection, evaluation.line
+        )
+        model_probability = model_distribution["WIN"] + 0.5 * model_distribution["HALF_WIN"]
+    except ValueError:
+        pass
     return DisplayCandidate(
         fixture_id=evaluation.fixture_id,
         market=evaluation.market,
@@ -138,6 +173,8 @@ def _display(
         channel_odds=odds,
         channel_price_gap=None if fair_odds is None or odds is None else odds - fair_odds,
         marker=marker,
+        pure_model_probability=model_probability if marker is not None else None,
+        market_anchor_note=NO_MARKET_ANCHOR_LABEL if marker is not None else None,
     )
 
 
@@ -175,23 +212,32 @@ def present_offline(
             raise ValueError("invalid selection")
         original_odds = _price(e.channel_odds) if e.channel_odds is not None else None
         original_ev: float | None = None
-        if e.pinnacle_odds is not None and original_odds is not None:
+        has_market = (
+            e.pinnacle_quote_pair is not None if e.market == "ASIAN_HANDICAP"
+            else e.pinnacle_odds is not None
+        )
+        original_marker: str | None = None
+        if has_market and original_odds is not None:
             try:
                 fused = fuse_lambda_level(
                     market=e.market, selection=e.selection, line=e.line,
                     model_lambda_home=e.model_lambda_home * FROZEN_TOTAL_SCALE,
                     model_lambda_away=e.model_lambda_away * FROZEN_TOTAL_SCALE,
-                    market_odds=e.pinnacle_odds,
+                    market_odds=(
+                        e.pinnacle_quote_pair if e.market == "ASIAN_HANDICAP"
+                        else e.pinnacle_odds
+                    ),
                 )
-                original_ev = five_state_cashflow(
-                    fused.distribution, original_odds
-                )
-            except (KeyError, ValueError):
-                pass
+                original_marker = fused.marker
+                if original_marker is None:
+                    original_ev = five_state_cashflow(fused.distribution, original_odds)
+            except ValueError as exc:
+                if "QUOTE_PAIR_MISMATCH" in str(exc):
+                    original_marker = QUOTE_PAIR_MISMATCH
         displayed.append(_display(
             e, selection=e.selection, source="TRACK_B", ev=original_ev,
             odds=original_odds,
-            marker=FUSION_MARKET_MISSING if original_ev is None else None,
+            marker=original_marker or (FUSION_MARKET_MISSING if original_ev is None else None),
         ))
 
         if e.market != "TOTALS" or e.selection != "UNDER":

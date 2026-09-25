@@ -8,6 +8,7 @@ import pytest
 
 from w2.quant_research.track_b_lambda_level_fusion import (
     _distribution,
+    _market_under_probability,
     expected_rebate_units,
     five_state_cashflow,
     fuse_lambda_level,
@@ -56,12 +57,12 @@ def test_market_under_inverse_matches_independent_poisson_formula(line: float) -
     }[line]
     # The audited matrix truncates at 12 goals and renormalizes the tail.
     assert isclose(result.effective_probability, expected, abs_tol=1e-8)
-    assert isclose(result.effective_probability, 0.5, abs_tol=1e-9)
+    assert isclose(_market_under_probability(mean, line), 0.5, abs_tol=1e-6)
 
 
 def test_push_and_quarter_lines_do_not_match_both_devig_sides() -> None:
-    # The inverse fits UNDER only.  At integer/quarter lines some mass is push
-    # or half settled, so both effective probabilities cannot sum to one.
+    # The inverse fits normalized executable exposure; raw effective probabilities
+    # still cannot both equal de-vig when push/half states exist.
     for line in (2.0, 2.25, 2.75):
         under = fuse_lambda_level(
             market="TOTALS", selection="UNDER", line=line,
@@ -73,8 +74,14 @@ def test_push_and_quarter_lines_do_not_match_both_devig_sides() -> None:
             model_lambda_home=1.4, model_lambda_away=1.1,
             market_odds={"OVER": 2.0, "UNDER": 2.0},
         )
-        assert isclose(under.effective_probability, 0.5, abs_tol=1e-9)
-        assert over.effective_probability < 0.5
+        assert isclose(
+            _market_under_probability(under.lambda_total_market, line), 0.5,
+            abs_tol=1e-6,
+        )
+        assert isclose(
+            _market_under_probability(over.lambda_total_market, line), 0.5,
+            abs_tol=1e-6,
+        )
 
 
 def test_zero_probability_states_and_independent_five_state_cashflow() -> None:
@@ -102,12 +109,13 @@ def test_invalid_or_nonfinite_odds_fail_closed(bad: float) -> None:
         )
 
 
-def test_extreme_valid_odds_expose_fixed_inverse_bracket() -> None:
+def test_extreme_valid_odds_explicitly_fall_back_to_model() -> None:
     odds = {"OVER": 1.01, "UNDER": 1000.0}
     target_under = (1 / odds["UNDER"]) / (1 / odds["OVER"] + 1 / odds["UNDER"])
     result = fuse_lambda_level(
         market="TOTALS", selection="UNDER", line=2.5,
         model_lambda_home=1.4, model_lambda_away=1.1, market_odds=odds,
     )
-    assert isclose(result.lambda_total_market, 10.0, abs_tol=1e-12)
+    assert result.marker == "MARKET_TOTAL_INFER_NO_SOLUTION"
+    assert isclose(result.lambda_total_market, result.lambda_total_model)
     assert abs(result.effective_probability - target_under) > 0.001

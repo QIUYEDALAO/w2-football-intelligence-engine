@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from math import exp, isfinite, log
+from math import exp, factorial, floor, isfinite, log
 
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.domain.profit import REBATE_FORMULA_VERSION, REBATE_RATE
@@ -18,6 +18,10 @@ OUTCOME_ORDER = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
 FROZEN_W_AH = 0.9
 FROZEN_W_TOTALS = 0.0
 _MIN_LAMBDA = 0.05
+MARKET_TOTAL_INFER_V1_VERSION = "w2.market_total_infer.v1"
+MARKET_TOTAL_INFER_LOWER = 0.5
+MARKET_TOTAL_INFER_UPPER = 6.0
+MARKET_TOTAL_INFER_TOLERANCE = 1e-6
 
 
 @dataclass(frozen=True)
@@ -32,6 +36,7 @@ class FusionResult:
     delta_model: float
     delta_market: float
     distribution: dict[str, float]
+    marker: str | None = None
 
     @property
     def effective_probability(self) -> float:
@@ -111,7 +116,7 @@ def fuse_lambda_level(
     line: float,
     model_lambda_home: float,
     model_lambda_away: float,
-    market_odds: Mapping[str, float],
+    market_odds: Mapping[str, object],
     rho: float = 0.0,
     max_goals: int = 12,
 ) -> FusionResult:
@@ -132,19 +137,22 @@ def fuse_lambda_level(
         rho,
         max_goals,
     )
-    probabilities = _proportional_devig(market_odds, market_key, selection_key)
+    probabilities = _proportional_devig(market_odds, market_key, selection_key, line)
     model_total = model_lambda_home + model_lambda_away
     model_delta = model_lambda_home - model_lambda_away
 
     if market_key == "TOTALS":
-        market_total = _solve_total_lambda(
+        market_total = _solve_market_total_lambda_v1(
             line=line,
             target_under=probabilities["UNDER"],
-            delta=model_delta,
-            rho=rho,
-            max_goals=max_goals,
         )
-        fused_total = _geometric_mix(model_total, market_total, FROZEN_W_TOTALS)
+        marker = None
+        if market_total is None:
+            market_total = model_total
+            fused_total = model_total
+            marker = "MARKET_TOTAL_INFER_NO_SOLUTION"
+        else:
+            fused_total = _geometric_mix(model_total, market_total, FROZEN_W_TOTALS)
         fused_delta = model_delta
     elif market_key == "ASIAN_HANDICAP":
         market_delta = _solve_handicap_delta(
@@ -158,6 +166,7 @@ def fuse_lambda_level(
         fused_total = model_total
         fused_delta = FROZEN_W_AH * model_delta + (1.0 - FROZEN_W_AH) * market_delta
         market_total = model_total
+        marker = None
     else:
         raise ValueError(f"unsupported market: {market!r}")
 
@@ -175,6 +184,7 @@ def fuse_lambda_level(
         delta_model=model_delta,
         delta_market=(model_delta if market_key == "TOTALS" else market_delta),
         distribution=distribution,
+        marker=marker,
     )
 
 
@@ -200,13 +210,16 @@ def _validate_inputs(
 
 
 def _proportional_devig(
-    odds: Mapping[str, float], market: str, selection: str
+    odds: Mapping[str, object], market: str, selection: str, line: float
 ) -> dict[str, float]:
     required = ("OVER", "UNDER") if market == "TOTALS" else ("HOME", "AWAY")
-    try:
-        prices = {side: float(odds[side]) for side in required}
-    except KeyError as exc:
-        raise ValueError("both market sides are required") from exc
+    if market == "ASIAN_HANDICAP":
+        prices = _validate_ah_quote_pair(odds, selection=selection, line=line)
+    else:
+        try:
+            prices = {side: float(odds[side]) for side in required}
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("both market sides are required") from exc
     if any(not isfinite(price) or price <= 1.0 for price in prices.values()):
         raise ValueError("decimal odds must be finite and greater than 1")
     implied = {side: 1.0 / price for side, price in prices.items()}
@@ -291,26 +304,123 @@ def _effective_probability(
     return distribution["WIN"] + 0.5 * distribution["HALF_WIN"]
 
 
-def _solve_total_lambda(
-    *, line: float, target_under: float, delta: float, rho: float, max_goals: int
-) -> float:
-    # The market total is inferred from the UNDER effective probability.  The same
-    # score matrix and quarter-line settlement semantics are used for inversion.
-    lo, hi = _MIN_LAMBDA * 2.0, 10.0
-    for _ in range(80):
+def _validate_ah_quote_pair(
+    odds: Mapping[str, object],
+    *,
+    selection: str,
+    line: float,
+) -> dict[str, float]:
+    """Validate a paired AH quote before any probability is computed.
+
+    The quote identity is a pair identity, not a side observation id.  Both sides
+    must therefore carry the same bookmaker, capture and pair identity while their
+    canonical lines are opposites.
+    """
+    try:
+        home = odds["HOME"]
+        away = odds["AWAY"]
+        if not isinstance(home, Mapping) or not isinstance(away, Mapping):
+            raise TypeError("AH quote sides must be mappings")
+        home_line = float(home["line"])
+        away_line = float(away["line"])
+        home_price = float(home["price"])
+        away_price = float(away["price"])
+        home_identity = home["quote_identity"]
+        away_identity = away["quote_identity"]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("QUOTE_PAIR_MISMATCH: malformed AH quote pair") from exc
+    expected_home_line = line if selection == "HOME" else -line
+    if (
+        not isfinite(home_line)
+        or not isfinite(away_line)
+        or abs(home_line + away_line) > 0.01
+        or abs(home_line - expected_home_line) > 0.01
+        or not isfinite(home_price)
+        or not isfinite(away_price)
+        or home_price <= 1.0
+        or away_price <= 1.0
+        or not isinstance(home_identity, Mapping)
+        or not isinstance(away_identity, Mapping)
+    ):
+        raise ValueError("QUOTE_PAIR_MISMATCH: line or quote identity invalid")
+    identity_fields = ("provider_fixture_id", "bookmaker_id", "capture_id")
+    if any(
+        not home_identity.get(field)
+        or not away_identity.get(field)
+        or home_identity.get(field) != away_identity.get(field)
+        for field in identity_fields
+    ):
+        raise ValueError("QUOTE_PAIR_MISMATCH: quote identity differs")
+    for side, quote, identity, side_line in (
+        ("HOME", home, home_identity, home_line),
+        ("AWAY", away, away_identity, away_line),
+    ):
+        try:
+            identity_line = float(identity["line"])
+            identity_price = float(identity["price"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("QUOTE_PAIR_MISMATCH: side identity incomplete") from exc
+        if (
+            identity.get("selection") != side
+            or identity.get("market") != "ASIAN_HANDICAP"
+            or not identity.get("observation_id")
+            or abs(identity_line - side_line) > 0.01
+            or identity_price != float(quote["price"])
+        ):
+            raise ValueError("QUOTE_PAIR_MISMATCH: side identity inconsistent")
+    return {"HOME": home_price, "AWAY": away_price}
+
+
+def _solve_market_total_lambda_v1(
+    *, line: float, target_under: float
+) -> float | None:
+    """Infer market total under the separately versioned MARKET_TOTAL_INFER_V1.
+
+    This is the market quote inversion used by Track B; it is intentionally named
+    separately from TOTAL_INFER_V1, which is the frozen model-total audit formula.
+    If a target is outside the finite bracket, return no solution so the caller
+    can label the model-total fallback explicitly.
+    """
+    lo, hi = MARKET_TOTAL_INFER_LOWER, MARKET_TOTAL_INFER_UPPER
+    lo_value = _market_under_probability(lo, line)
+    hi_value = _market_under_probability(hi, line)
+    if not hi_value <= target_under <= lo_value:
+        return None
+    while hi - lo > MARKET_TOTAL_INFER_TOLERANCE:
         mid = (lo + hi) / 2.0
-        home, away = _split_total_delta(mid, delta)
-        value = _effective_probability(
-            _score_matrix(home, away, rho=rho, max_goals=max_goals),
-            "TOTALS",
-            "UNDER",
-            line,
-        )
+        value = _market_under_probability(mid, line)
         if value > target_under:
             lo = mid
         else:
             hi = mid
     return (lo + hi) / 2.0
+
+
+def _market_under_probability(total: float, line: float) -> float:
+    """Poisson market inverse; condition only integer pushes away.
+
+    Quarter-line targets retain the pre-existing effective-win convention.
+    Changing their target would be a distinct formula change requiring registration.
+    """
+    n = floor(line)
+
+    def cdf(k: int) -> float:
+        return sum(exp(-total) * total**goals / factorial(goals) for goals in range(k + 1))
+
+    p_below = cdf(n - 1)
+    p_at = exp(-total) * total**n / factorial(n) if n >= 0 else 0.0
+    fraction = round((line - n) * 4)
+    if fraction == 0:
+        non_push = p_below + max(0.0, 1.0 - cdf(n))
+        if non_push <= 0:
+            raise ValueError("market total has no executable probability")
+        return p_below / non_push
+    elif fraction == 1:
+        return p_below + 0.5 * p_at
+    elif fraction == 2:
+        return cdf(n)
+    else:
+        return cdf(n)
 
 
 def _solve_handicap_delta(

@@ -3,6 +3,8 @@ from __future__ import annotations
 import inspect
 from math import isclose
 
+import pytest
+
 from w2.quant_research.track_b_lambda_level_fusion import (
     FROZEN_W_AH,
     FROZEN_W_TOTALS,
@@ -14,6 +16,22 @@ from w2.quant_research.track_b_lambda_level_fusion import (
 from w2.quant_research.track_cd_offline_presentation import single_probability_cashflow
 
 
+def _ah_pair(home_line: float = 0.25) -> dict[str, dict[str, object]]:
+    return {
+        side: {
+            "line": side_line,
+            "price": 1.9,
+            "quote_identity": {
+                "provider_fixture_id": "123", "bookmaker_id": "4",
+                "capture_id": "capture-1", "market": "ASIAN_HANDICAP",
+                "selection": side, "line": side_line, "price": 1.9,
+                "observation_id": f"observation-{side.lower()}",
+            },
+        }
+        for side, side_line in (("HOME", home_line), ("AWAY", -home_line))
+    }
+
+
 def test_five_state_distribution_sums_to_one_for_ah_and_totals() -> None:
     ah = fuse_lambda_level(
         market="ASIAN_HANDICAP",
@@ -21,7 +39,7 @@ def test_five_state_distribution_sums_to_one_for_ah_and_totals() -> None:
         line=0.25,
         model_lambda_home=1.55,
         model_lambda_away=1.05,
-        market_odds={"HOME": 1.90, "AWAY": 1.90},
+        market_odds=_ah_pair(),
     )
     totals = fuse_lambda_level(
         market="TOTALS",
@@ -107,7 +125,7 @@ def test_totals_zero_weight_uses_market_total_probability_only() -> None:
     )
     market_under = (1 / 2.20) / ((1 / 1.80) + (1 / 2.20))
     assert FROZEN_W_TOTALS == 0.0
-    assert isclose(result.effective_probability, market_under, abs_tol=1e-9)
+    assert isclose(result.effective_probability, market_under, abs_tol=1e-6)
     assert not isclose(result.lambda_total_market, result.lambda_total_model, abs_tol=1e-9)
 
 
@@ -115,3 +133,25 @@ def test_weights_are_frozen_constants() -> None:
     assert FROZEN_W_AH == 0.9
     assert FROZEN_W_TOTALS == 0.0
     assert "weight" not in inspect.signature(fuse_lambda_level).parameters
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda q: q["AWAY"].update(line=0.25),
+        lambda q: q["AWAY"]["quote_identity"].update(bookmaker_id="9"),
+        lambda q: q["AWAY"]["quote_identity"].update(capture_id="other"),
+        lambda q: q["AWAY"]["quote_identity"].update(line=0.25),
+        lambda q: q["AWAY"]["quote_identity"].update(selection="HOME"),
+        lambda q: q["HOME"].update(price=2.1),
+    ],
+)
+def test_ah_quote_pair_mismatch_rejected(mutate: object) -> None:
+    pair = _ah_pair()
+    mutate(pair)
+    with pytest.raises(ValueError, match="QUOTE_PAIR_MISMATCH"):
+        fuse_lambda_level(
+            market="ASIAN_HANDICAP", selection="HOME", line=0.25,
+            model_lambda_home=1.55, model_lambda_away=1.05,
+            market_odds=pair,
+        )

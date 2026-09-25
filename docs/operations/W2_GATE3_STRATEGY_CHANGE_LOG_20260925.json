@@ -1,0 +1,25 @@
+{
+  "schema_version": "w2.gate3.offline_strategy_change_log.v1",
+  "scope": "OFFLINE_SHADOW_ONLY",
+  "production_effective_at": null,
+  "entries": [
+    {
+      "change_id": "gate3-track-bcd-reference-20260925",
+      "preregistration_id": "W2_CANDIDATE_C_RECALIBRATION_PREREGISTRATION_20260923_v5+ERRATA_20260924",
+      "status": "OFFLINE_REFERENCE_NOT_PRODUCTION",
+      "previous_values": null,
+      "new_values": {
+        "total_scale": 1.0,
+        "w_ah": 0.9,
+        "w_totals": 0.0,
+        "fade_delta": 0.05,
+        "tier_boundaries": [0.05, 0.02, 0.0],
+        "rebate_formula_version": "ABS_PROFIT_V2"
+      },
+      "effective_at": null,
+      "t_plus_7_descriptive_metrics": null,
+      "t_plus_30_descriptive_metrics": null,
+      "paired_shadow_decision": "PENDING"
+    }
+  ]
+}
