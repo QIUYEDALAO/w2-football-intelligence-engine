@@ -7,9 +7,11 @@ from w2.quant_research.track_b_lambda_level_fusion import (
     FROZEN_W_AH,
     FROZEN_W_TOTALS,
     _distribution,
+    expected_rebate_units,
     five_state_cashflow,
     fuse_lambda_level,
 )
+from w2.quant_research.track_cd_offline_presentation import single_probability_cashflow
 
 
 def test_five_state_distribution_sums_to_one_for_ah_and_totals() -> None:
@@ -54,7 +56,30 @@ def test_five_state_cashflow_applies_half_win_push_half_loss_and_loss() -> None:
         "HALF_LOSS": 0.15,
         "LOSS": 0.25,
     }
-    assert isclose(five_state_cashflow(distribution, 2.0), 0.075, abs_tol=1e-12)
+    # Pure cashflow is 0.075; ABS_PROFIT_V2 expected rebate is 0.018125.
+    assert isclose(expected_rebate_units(distribution, 2.0), 0.018125, abs_tol=1e-12)
+    assert isclose(five_state_cashflow(distribution, 2.0), 0.093125, abs_tol=1e-12)
+
+
+def test_abs_profit_v2_rebate_covers_each_five_state() -> None:
+    odds = 2.0
+    cases = {
+        "WIN": 0.025,
+        "HALF_WIN": 0.0125,
+        "PUSH": 0.0,
+        "HALF_LOSS": 0.0125,
+        "LOSS": 0.025,
+    }
+    for state, expected in cases.items():
+        distribution = {key: float(key == state) for key in (
+            "WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"
+        )}
+        assert isclose(expected_rebate_units(distribution, odds), expected, abs_tol=1e-12)
+
+
+def test_single_probability_track_d_is_explicit_binary_approximation() -> None:
+    # p=0.4, odds=2.5: pure=-0.0, rebate=.025*(.6+.6)=.03.
+    assert isclose(single_probability_cashflow(0.4, 2.5), 0.03, abs_tol=1e-12)
 
 
 def test_no_push_lambda_probability_matches_scalar_success_probability() -> None:

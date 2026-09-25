@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from math import exp, isfinite, log
 
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
+from w2.domain.profit import REBATE_FORMULA_VERSION, REBATE_RATE
 from w2.models.dixon_coles import poisson_pmf, tau_correction
 
 OUTCOME_ORDER = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
@@ -47,14 +48,51 @@ class FusionResult:
         return (FROZEN_W_TOTALS, 1.0 - FROZEN_W_TOTALS)
 
 
-def five_state_cashflow(
-    distribution: Mapping[str, float], decimal_odds: float, *, rebate: float = 0.0
+def expected_rebate_units(
+    distribution: Mapping[str, float], decimal_odds: float
 ) -> float:
-    """Return expected unit cashflow using the canonical five-state settlement map."""
+    """Return expected ABS_PROFIT_V2 rebate for a five-state distribution.
+
+    The rebate is earned on the absolute realized unit profit of each state:
+    wins rebate net profit, losses rebate the staked unit, and PUSH earns zero.
+    """
+    _validate_distribution(distribution, decimal_odds)
+    winning_exposure = float(distribution["WIN"]) + 0.5 * float(
+        distribution["HALF_WIN"]
+    )
+    losing_exposure = float(distribution["LOSS"]) + 0.5 * float(
+        distribution["HALF_LOSS"]
+    )
+    return float(REBATE_RATE) * (
+        (decimal_odds - 1.0) * winning_exposure + losing_exposure
+    )
+
+
+def five_state_cashflow(
+    distribution: Mapping[str, float], decimal_odds: float
+) -> float:
+    """Return expected cashflow using the canonical five-state settlement map.
+
+    ``REBATE_FORMULA_VERSION`` is deliberately fixed to ``ABS_PROFIT_V2``;
+    callers cannot inject a second rebate convention at runtime.
+    """
+    if REBATE_FORMULA_VERSION != "ABS_PROFIT_V2":
+        raise RuntimeError("unsupported rebate formula version")
+    _validate_distribution(distribution, decimal_odds)
+    return (
+        (decimal_odds - 1.0)
+        * (float(distribution["WIN"]) + 0.5 * float(distribution["HALF_WIN"]))
+        - float(distribution["LOSS"])
+        - 0.5 * float(distribution["HALF_LOSS"])
+        + expected_rebate_units(distribution, decimal_odds)
+    )
+
+
+def _validate_distribution(
+    distribution: Mapping[str, float], decimal_odds: float
+) -> None:
     if not isfinite(decimal_odds) or decimal_odds <= 1.0:
         raise ValueError("decimal_odds must be finite and greater than 1")
-    if not isfinite(rebate):
-        raise ValueError("rebate must be finite")
     if set(distribution) != set(OUTCOME_ORDER):
         raise ValueError("complete five-state distribution is required")
     if any(
@@ -64,13 +102,6 @@ def five_state_cashflow(
         raise ValueError("distribution probabilities must be finite and non-negative")
     if abs(sum(float(distribution[key]) for key in OUTCOME_ORDER) - 1.0) > 1e-9:
         raise ValueError("distribution probabilities must sum to one")
-    return (
-        (decimal_odds - 1.0)
-        * (float(distribution["WIN"]) + 0.5 * float(distribution["HALF_WIN"]))
-        - float(distribution["LOSS"])
-        - 0.5 * float(distribution["HALF_LOSS"])
-        + rebate
-    )
 
 
 def fuse_lambda_level(

@@ -17,6 +17,7 @@ from w2.quant_research.track_cd_offline_presentation import (
     Evaluation,
     _tier,
     present_offline,
+    single_probability_cashflow,
 )
 
 
@@ -69,7 +70,7 @@ def test_under_fade_uses_same_snapshot_provider_fixture_bookmaker_and_line() -> 
     assert original.source == "TRACK_B"
     assert faded.source == "TRACK_D"
     assert faded.selection == "OVER"
-    assert isclose(faded.fusion_ev, 0.05 * 2.0 + FROZEN_REBATE)
+    assert isclose(faded.fusion_ev, single_probability_cashflow(0.55, 2.0))
     assert faded.tier == "重点"
     assert isclose(faded.pinnacle_fair_odds, 2.0)
     assert isclose(faded.channel_price_gap, 0.0)
