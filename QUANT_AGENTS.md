@@ -1,5 +1,7 @@
 # W2 Quant Research Agent Instructions
 
+2026-09-25 Candidate C R0 前向时钟已按 Owner 单独授权启动，实际时点 `2026-09-25T09:43:11.620864Z`。下方 Freeze A0 stop line 是独立 quant 平台历史约束；Candidate C R0 的当前状态以 `NEXT_ACTION.md`、`QUANT_PROJECT_STATE.yaml` 和数据库 `forward_clock_registry` 为准。Freeze A1 Provider 采集仍未授权。
+
 Before changing the quant-research program, read in order:
 
 1. `QUANT_PROJECT_STATE.yaml`

@@ -23,7 +23,7 @@ W2 now has two explicit tracks.
 - sidecar/port integration rather than in-place V4 modification;
 - Freeze A0 offline engineering approved;
 - Freeze A1 live collection deferred to owner/API/licensing;
-- Track 1 clock not started;
+- Candidate C R0 operational forward evidence clock started at `2026-09-25T09:43:11.620864Z`; the separate quant Freeze A1 live collector remains disabled;
 - strategy, Shadow, risk, portfolio, 2×1 and real money not authorised.
 
 Quant authorities:
@@ -41,10 +41,10 @@ ACTIVE_NEXT_ACTION = W2_QUANT_L1_OFFLINE_FOUNDATION
 CURRENT_WORKSTREAM = W2_QUANT_CONTEXT_FREEZE_A0
 CURRENT_PHASE = QUANT_CONTEXT_CLOSURE
 CURRENT_MAIN_SHA = 75159bfd71bb7492eece86da29cdb32e6f25d9c6
-DEPLOYED_SOURCE_SHA = f1718ec4d74e3038fd6240429df6efca42d0a520
+DEPLOYED_SOURCE_SHA = d4ef36edebe66e4e3c7f279adbf37c9b51d947a9
 FREEZE_A0 = APPROVED_WITH_BINDING_ERRATA_A
 FREEZE_A1 = DEFERRED_OWNER_API_AND_LICENSE
-TRACK1_FORWARD_CLOCK = NOT_STARTED
+TRACK1_FORWARD_CLOCK = STARTED
 LIVE_CAPTURE_ENABLED = false
 DELIVERY_MODEL = RELEASE_CANDIDATE_PROMOTION_V1
 ```

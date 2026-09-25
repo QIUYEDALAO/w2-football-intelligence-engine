@@ -97,6 +97,10 @@ function recommendations(workspace: IntelligenceWorkspaceList): TodayRecommendat
   return workspace.today_recommendations || [];
 }
 
+function dataSourceStatusLabel(status: string): string {
+  return ({ AVAILABLE: "数据源可用", NOT_AVAILABLE: "当前数据源不可用", STALE: "数据源已过期", INCOMPLETE: "数据源待补" } as Record<string, string>)[status] || "数据源状态待核实";
+}
+
 function ForwardWaitMonitor({ value }: { value?: ForwardWaitMonitorData }) {
   if (!value?.clock || !value.sample_progress || !value.data_source || !value.exclusions || !value.shadow || !value.capture_completeness || !value.bias_drift) {
     return <details className="w2-forward-monitor"><summary>前向等待期监测 <span>只读 · 不自动调参</span></summary><p className="w2-forward-monitor__empty">监测证据尚未接入。</p></details>;
@@ -107,7 +111,7 @@ function ForwardWaitMonitor({ value }: { value?: ForwardWaitMonitorData }) {
     { label: "Shadow 运行", detail: value.shadow.status === "F1_RUN_NOT_REGISTERED" ? "尚无 F1 运行登记" : value.shadow.status, alert: false },
     { label: "采集字段落库率", detail: value.capture_completeness.rate === null ? "证据不足" : `${value.capture_completeness.complete}/${value.capture_completeness.total} · ${percent(value.capture_completeness.rate)}`, alert: value.capture_completeness.status === "ANOMALY" },
     { label: "bias 漂移", detail: value.bias_drift.status === "INSUFFICIENT_FORWARD_SETTLEMENTS" ? "前向结算样本不足，暂无 7/30 天 bias" : `7 天 ${percent(value.bias_drift.bias_7d)} · 30 天 ${percent(value.bias_drift.bias_30d)}`, alert: false },
-    { label: "数据源状态", detail: value.data_source.status === "AVAILABLE" ? "可用 · 页面读取不调用 Provider" : value.data_source.status, alert: value.data_source.status !== "AVAILABLE" },
+    { label: "数据源状态", detail: `${dataSourceStatusLabel(value.data_source.status)} · 页面读取不调用 Provider`, alert: value.data_source.status !== "AVAILABLE" },
   ] : [];
   return <details className="w2-forward-monitor"><summary>前向等待期监测 <span>只读 · 不自动调参</span></summary>{value ? <div className="w2-forward-monitor__grid"><p className="w2-forward-monitor__clock">前向时钟：{value.clock.status === "STARTED" ? `已启动 ${localDate(value.clock.started_at, { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : "未启动"}</p>{items.map((item) => <div className={`w2-forward-monitor__item${item.alert ? " is-alert" : ""}`} key={item.label}><strong>{item.label}</strong><span>{item.detail}</span></div>)}</div> : <p className="w2-forward-monitor__empty">监测证据尚未接入。</p>}</details>;
 }

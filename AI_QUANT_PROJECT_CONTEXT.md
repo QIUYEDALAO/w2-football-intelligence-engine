@@ -1,5 +1,7 @@
 # W2 Quant Research AI Context
 
+2026-09-25 Owner 单独授权 Candidate C R0 operational 证据时钟启动（`2026-09-25T09:43:11.620864Z`）；以下 Freeze A0 结束条件保留其历史含义，不撤销独立 quant 平台的 Freeze A1 Provider 禁令。实际实现 revision 与输入身份见 `NEXT_ACTION.md`。
+
 > Read this file together with `QUANT_PROJECT_STATE.yaml`, the Freeze A0 binding and the quant
 > master checklist before changing the quant-research bounded context. The existing
 > `AI_PROJECT_CONTEXT.md` and `PROJECT_STATE.yaml` remain the operational W2 history and runtime
@@ -14,7 +16,7 @@ CURRENT_PHASE = QUANT_CONTEXT_CLOSURE
 PROTOCOL_VERSION = v2.3.1
 FREEZE_A0 = APPROVED_WITH_BINDING_ERRATA_A
 FREEZE_A1 = DEFERRED_OWNER_API_AND_LICENSE
-TRACK1_FORWARD_CLOCK = NOT_STARTED
+TRACK1_FORWARD_CLOCK = STARTED
 ```
 
 Authorities:
@@ -76,7 +78,7 @@ The deployed W2 operational system continues independently:
 
 ```text
 BASE_MAIN_SHA = 75159bfd71bb7492eece86da29cdb32e6f25d9c6
-DEPLOYED_SOURCE_SHA = f1718ec4d74e3038fd6240429df6efca42d0a520
+DEPLOYED_SOURCE_SHA = d4ef36edebe66e4e3c7f279adbf37c9b51d947a9
 PERSISTENT_SCHEDULER = ON_CONTROLLED
 CANDIDATE = OFF
 FORMAL = OFF

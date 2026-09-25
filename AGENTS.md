@@ -1,5 +1,7 @@
 # W2 Repository Agent Instructions
 
+2026-09-25 Owner 后续授权已使 Candidate C R0 前向时钟启动：`2026-09-25T09:43:11.620864Z`，生产实现 `d4ef36edebe66e4e3c7f279adbf37c9b51d947a9`，只开放 R1 追加证据与 Dashboard 只读监测。下方 Freeze A0 限制保留为独立 quant 平台的历史边界；不得据此误判该已登记时钟为未启动，也不得推论 Freeze A1 Provider 实时采集已获授权。
+
 Before any W2 change, read:
 
 - `NEXT_ACTION.md`
@@ -21,16 +23,15 @@ ACTIVE_NEXT_ACTION = W2_QUANT_L1_OFFLINE_FOUNDATION
 CURRENT_WORKSTREAM = W2_QUANT_CONTEXT_FREEZE_A0
 CURRENT_PHASE = QUANT_CONTEXT_CLOSURE
 CURRENT_MAIN_SHA = 75159bfd71bb7492eece86da29cdb32e6f25d9c6
-DEPLOYED_SOURCE_SHA = f1718ec4d74e3038fd6240429df6efca42d0a520
+DEPLOYED_SOURCE_SHA = d4ef36edebe66e4e3c7f279adbf37c9b51d947a9
 FREEZE_A0 = APPROVED_WITH_BINDING_ERRATA_A
 FREEZE_A1 = DEFERRED_OWNER_API_AND_LICENSE
-TRACK1_FORWARD_CLOCK = NOT_STARTED
+TRACK1_FORWARD_CLOCK = STARTED
 LIVE_CAPTURE_ENABLED = false
 DELIVERY_MODEL = RELEASE_CANDIDATE_PROMOTION_V1
 ```
 
-The only newly authorised code objective after this context PR is merged is
-`W2_QUANT_L1_OFFLINE_FOUNDATION`.
+该 context PR 合并时唯一授权的独立量化代码目标为 `W2_QUANT_L1_OFFLINE_FOUNDATION`；后续 Candidate C R0 的具体授权以文件顶部及 `NEXT_ACTION.md` 为准。
 
 ## Quant code boundary
 

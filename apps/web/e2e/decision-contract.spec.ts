@@ -1838,7 +1838,7 @@ test("forward waiting monitor stays collapsed and shows six read-only signals", 
     shadow: { status: "F1_RUN_NOT_REGISTERED", last_run_at: null, r1_last_event_at: null },
     capture_completeness: { complete: 12, total: 14, rate: 12 / 14, status: "ANOMALY" },
     bias_drift: { status: "INSUFFICIENT_FORWARD_SETTLEMENTS", n: 0, bias_7d: null, bias_30d: null },
-    data_source: { status: "AVAILABLE", provider_calls_on_read: 0 },
+    data_source: { status: "NOT_AVAILABLE", provider_calls_on_read: 0 },
   };
   let listCount = 0;
   await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => {
@@ -1852,7 +1852,8 @@ test("forward waiting monitor stays collapsed and shows six read-only signals", 
   await expect(monitor).not.toHaveAttribute("open", "");
   await monitor.locator(":scope > summary").click();
   await expect(monitor.locator(".w2-forward-monitor__item")).toHaveCount(6);
-  await expect(monitor.locator(".is-alert")).toHaveCount(2);
+  await expect(monitor.locator(".is-alert")).toHaveCount(3);
+  await expect(monitor).toContainText("当前数据源不可用");
   await expect(monitor).toContainText("密封验证 0/2500");
   await expect(monitor).toContainText("PIT 不可证明 2");
   expect(listCount).toBe(1);

@@ -1,8 +1,27 @@
 # NEXT ACTION
 
-当前唯一新代码动作：`W2_QUANT_L1_OFFLINE_FOUNDATION`。
+当前 Candidate C R0 前向证据时钟已启动；原 `W2_QUANT_L1_OFFLINE_FOUNDATION` 仍是独立量化平台的历史 Freeze A0 工作项。
 
-W2 采用双轨架构：现有 V4 / Dashboard / 受控 Scheduler 继续运行；新的竞彩足球量化能力在同一仓库的独立 `quant_research` bounded context 中旁路建设。当前只批准 Freeze A0 离线工程，不批准任何实时 API、策略、Shadow、组合或真钱执行。
+W2 采用双轨架构。2026-09-25 Owner 单独授权 Candidate C R0 前向时钟、R1 追加证据写入与 Dashboard 只读监测；这是现有 operational 评估链的旁路证据授权，不开放独立 quant 平台的 Freeze A1 Provider 采集、策略、组合或真钱执行。
+
+## Candidate C R0 当前前向状态（覆盖下方历史 Freeze A0 时钟字段）
+
+```text
+TRACK1_FORWARD_CLOCK = STARTED
+forward_clock_started_at = 2026-09-25T09:43:11.620864Z
+T0_utc = 2026-09-25T08:46:32Z
+implementation_revision = d4ef36edebe66e4e3c7f279adbf37c9b51d947a9
+input_version = w2.forward_evidence_input.v1
+model_identity = candidate-eval.v2
+preregistration_sha256 = 13b897871a37011b3647f860b819a9299a76f81d5af00be5eb2acf2142671a0f
+database_schema = 0076_forward_review_evidence
+ledger_events_at_start = 0
+sealed_validation_at_start = 0
+sealed_test_at_start = 0
+LIVE_QUANT_PROVIDER_CAPTURE_ENABLED = false
+```
+
+数据库 `forward_clock_registry` 的一次性登记是实际启动证据；详见 [激活回执](docs/operations/W2_CANDIDATE_C_R0_FORWARD_CLOCK_ACTIVATION_20260925.md)。T0 至启动时点的评估不追认。
 
 ## Current authority
 
@@ -26,7 +45,7 @@ DELIVERY_MODEL = RELEASE_CANDIDATE_PROMOTION_V1
 
 FREEZE_A0_OFFLINE_ENGINEERING = APPROVED_WITH_BINDING_ERRATA_A
 FREEZE_A1_LIVE_COLLECTION = DEFERRED_OWNER_API_AND_LICENSE
-TRACK1_FORWARD_CLOCK = NOT_STARTED
+TRACK1_FORWARD_CLOCK = STARTED
 LIVE_CAPTURE_ENABLED = false
 
 PERSISTENT_SCHEDULER = ON_CONTROLLED
@@ -36,7 +55,7 @@ LOCK = OFF
 PRODUCTION = OFF
 ```
 
-## Allowed next scope
+## Historical Freeze A0 allowed scope
 
 `W2_QUANT_L1_OFFLINE_FOUNDATION` may implement only:
 
@@ -47,7 +66,7 @@ PRODUCTION = OFF
 - deterministic offline replay;
 - Track 1 data-quality engine and read-only research queries.
 
-## Stop lines
+## Historical Freeze A0 stop lines（Candidate C R0 已获上述单独授权）
 
 The next task must not:
 

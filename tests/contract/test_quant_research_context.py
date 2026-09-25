@@ -31,7 +31,13 @@ def test_quant_freeze_a0_machine_state_is_bounded() -> None:
         "APPROVED_WITH_BINDING_ERRATA_A"
     )
     assert state["freeze_a1_live_collection"] == "DEFERRED_OWNER_API_AND_LICENSE"
-    assert state["track1_forward_clock"] == "NOT_STARTED"
+    assert state["track1_forward_clock"] == "STARTED"
+    assert state["forward_clock_started_at"] == "2026-09-25T09:43:11.620864Z"
+    assert state["forward_clock_implementation_revision"] == (
+        "d4ef36edebe66e4e3c7f279adbf37c9b51d947a9"
+    )
+    assert state["forward_clock_model_identity"] == "candidate-eval.v2"
+    assert state["forward_clock_scope"] == "CANDIDATE_C_R0_OPERATIONAL_EVIDENCE_ONLY"
     assert state["live_capture_enabled"] is False
     assert state["quant_provider_calls"] == 0
     assert state["quant_deployment"] == "NOT_AUTHORIZED"
@@ -108,7 +114,9 @@ def test_next_action_prioritises_offline_quant_without_runtime_authority() -> No
     assert "ACTIVE_NEXT_ACTION = W2_QUANT_L1_OFFLINE_FOUNDATION" in next_action
     assert "FREEZE_A0_OFFLINE_ENGINEERING = APPROVED_WITH_BINDING_ERRATA_A" in next_action
     assert "FREEZE_A1_LIVE_COLLECTION = DEFERRED_OWNER_API_AND_LICENSE" in next_action
-    assert "TRACK1_FORWARD_CLOCK = NOT_STARTED" in next_action
+    assert "TRACK1_FORWARD_CLOCK = STARTED" in next_action
+    assert "forward_clock_started_at = 2026-09-25T09:43:11.620864Z" in next_action
+    assert "database_schema = 0076_forward_review_evidence" in next_action
     assert "LIVE_CAPTURE_ENABLED = false" in next_action
     assert "RUNTIME_CODE_CHANGED = false" in next_action
     assert "DATABASE_MIGRATION_CREATED = false" in next_action
