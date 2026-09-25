@@ -510,7 +510,53 @@ def test_f5_rejects_raw_payload_provenance_spoof() -> None:
     )
 
     assert factor.status.value == "INSUFFICIENT_DATA"
-    assert factor.reason == "MISSING_AH_EVIDENCE"
+    assert factor.reason == "F5_TEAM_INSUFFICIENT"
+    assert factor.absence_lifecycle == "DATA_PIPELINE_SUSPECT"
+
+
+def test_f5_absence_splits_league_cold_start_from_team_insufficient() -> None:
+    def context() -> FeatureContext:
+        return FeatureContext(
+            fixture_id="future",
+            competition_id="allsvenskan",
+            home_team_id="home",
+            away_team_id="away",
+            kickoff_at=datetime(2026, 7, 21, tzinfo=UTC),
+            as_of=AS_OF,
+        )
+
+    cold_profile = CoverageProfile(
+        xg="API_FOOTBALL_STATISTICS",
+        lineups_injuries="API_FOOTBALL_LINEUPS",
+        squad_value="TRANSFERMARKT_REVIEWED_STATIC_MAPPING",
+        bookmaker_depth="API_FOOTBALL_ODDS",
+        h2h="API_FOOTBALL_FIXTURES",
+        settled_ah="NOT_AUDITED_STAGE14_REQUIRED",
+    )
+    cold = recent_ah_cover_factor(
+        context=context(), profile=cold_profile, home_history=[], away_history=[],
+    )
+    assert cold.status.value == "INSUFFICIENT_DATA"
+    assert cold.reason == "F5_LEAGUE_COLDSTART"
+    assert cold.absence_lifecycle == "COLDSTART_EXPECTED"
+
+    active_profile = CoverageProfile(
+        xg="API_FOOTBALL_STATISTICS",
+        lineups_injuries="API_FOOTBALL_LINEUPS",
+        squad_value="TRANSFERMARKT_REVIEWED_STATIC_MAPPING",
+        bookmaker_depth="API_FOOTBALL_ODDS",
+        h2h="API_FOOTBALL_FIXTURES",
+        settled_ah="API_FOOTBALL_SETTLED_AH_AUDITED_STAGING",
+    )
+    team_gap = recent_ah_cover_factor(
+        context=context(),
+        profile=active_profile,
+        home_history=[_history("h1", "WIN")],
+        away_history=[],
+    )
+    assert team_gap.status.value == "INSUFFICIENT_DATA"
+    assert team_gap.reason == "F5_TEAM_INSUFFICIENT"
+    assert team_gap.absence_lifecycle == "DATA_PIPELINE_SUSPECT"
 
 
 def test_missing_crosswalk_and_conflicting_crosswalk() -> None:

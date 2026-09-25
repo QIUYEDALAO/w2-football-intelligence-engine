@@ -579,6 +579,21 @@ def dashboard_intelligence_validation(
     profit_summary = profit_reader() if callable(profit_reader) else {
         "profit_units": 0.0, "profit_units_with_rebate": 0.0
     }
+    validation_signal_reader = getattr(service, "dashboard_track_d_validation_signals", None)
+    validation_signals = (
+        validation_signal_reader() if callable(validation_signal_reader) else {
+            "watermark": "验证期信号 · 非正式推荐 · 不计入档位",
+            "candidate_kind": "TRACK_D_FADE",
+            "display_state": "VALIDATION_SIGNAL",
+            "count": 0,
+            "settled_count": 0,
+            "hit_rate": None,
+            "profit_units_channel": 0.0,
+            "rebate_rate": 0.025,
+            "rows": [],
+            "small_sample_leagues": [],
+        }
+    )
     return {
         "request_id": request_id(request),
         "schema_version": "w2.dashboard-intelligence-validation.v1",
@@ -587,6 +602,7 @@ def dashboard_intelligence_validation(
         "samples": [review_row(row) for row in samples],
         "cumulative_profit_units": profit_summary["profit_units"],
         "cumulative_profit_units_with_rebate": profit_summary["profit_units_with_rebate"],
+        "validation_signals": validation_signals,
         "pagination": {"days": days, "limit": limit, "offset": offset, "total": total},
         "read_contract": {
             "provider_calls": int(day_view.get("provider_calls") or 0),

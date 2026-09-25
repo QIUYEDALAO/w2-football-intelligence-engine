@@ -21,7 +21,6 @@ VALID_LIFECYCLES = frozenset({"ACTIVE", "SHADOW", "EXPLANATION_ONLY", "GATE_ONLY
 ALLOWED_INDEPENDENT_FACTORS = frozenset(
     {
         "F3_REST_FITNESS",
-        "F4_MATCH_IMPORTANCE",
         "F5_RECENT_AH_COVER",
         "F6_H2H",
         "F9_TRUE_XG",

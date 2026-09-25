@@ -678,6 +678,20 @@ export interface IntelligenceValidationResponse {
   cumulative_profit_units_with_rebate: number;
   pagination?: { days: number | null; limit: number | null; offset: number; total: number };
   read_contract: IntelligenceWorkspace["read_contract"];
+  validation_signals?: ValidationSignalsProjection;
+}
+
+export interface ValidationSignalsProjection {
+  watermark: string;
+  candidate_kind: "TRACK_D_FADE";
+  display_state: "VALIDATION_SIGNAL";
+  count: number;
+  settled_count: number;
+  hit_rate: number | null;
+  profit_units_channel: number;
+  rebate_rate: number;
+  rows: Array<Record<string, unknown>>;
+  small_sample_leagues: string[];
 }
 
 export interface ValidationReviewSample {
@@ -749,6 +763,20 @@ export interface IntelligenceCalibratedValidationResponse {
   decision_contract: Record<string, unknown>;
   pagination?: { days: number | null; limit: number | null; offset: number; total: number };
   read_contract: IntelligenceWorkspace["read_contract"];
+  validation_signals?: ValidationSignalsProjection;
+}
+
+export interface ValidationSignalsProjection {
+  watermark: string;
+  candidate_kind: "TRACK_D_FADE";
+  display_state: "VALIDATION_SIGNAL";
+  count: number;
+  settled_count: number;
+  hit_rate: number | null;
+  profit_units_channel: number;
+  rebate_rate: number;
+  rows: Array<Record<string, unknown>>;
+  small_sample_leagues: string[];
 }
 
 export interface WorkspaceReplayMatch {
@@ -778,6 +806,20 @@ export interface IntelligenceReplayResponse {
   matches: WorkspaceReplayMatch[];
   history_replay: WorkspaceValidation["history_replay"];
   read_contract: IntelligenceWorkspace["read_contract"];
+  validation_signals?: ValidationSignalsProjection;
+}
+
+export interface ValidationSignalsProjection {
+  watermark: string;
+  candidate_kind: "TRACK_D_FADE";
+  display_state: "VALIDATION_SIGNAL";
+  count: number;
+  settled_count: number;
+  hit_rate: number | null;
+  profit_units_channel: number;
+  rebate_rate: number;
+  rows: Array<Record<string, unknown>>;
+  small_sample_leagues: string[];
 }
 
 export interface IntelligenceWorkspace {

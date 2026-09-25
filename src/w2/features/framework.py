@@ -68,6 +68,10 @@ class FeatureContribution:
     is_independent_signal: bool = False
     proxy_of: str | None = None
     collection_status: str = "NOT_COLLECTED"
+    # Lifecycle annotation carried on an absent/intercepted factor so read-only
+    # consumers can tell "self-healing cold start" from "needs investigation"
+    # without re-deriving the policy. Values: COLDSTART_EXPECTED / DATA_PIPELINE_SUSPECT.
+    absence_lifecycle: str | None = None
     candidate: bool = False
     formal_recommendation: bool = False
 

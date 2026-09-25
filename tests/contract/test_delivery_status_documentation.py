@@ -279,6 +279,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert set(re.findall(r"\b[0-9a-f]{40}\b", next_action)) == {
         "dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6",
         "8c6086e37ba62c138bdf059997ca760accef7067",
+        "d4ef36edebe66e4e3c7f279adbf37c9b51d947a9",
     }
     assert not re.search(r"CI:\s*\d+", next_action)
     assert "`PROJECT_STATE.yaml` 是 W2 **唯一当前机器可读状态快照**" in checklist

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from w2.domain.factor_registry import factor_policy
 from w2.features.framework import FeatureSet, FeatureStatus, TeamSide
 from w2.pricing.team_score import (
     ALLOWED_INDEPENDENT_FACTORS,
@@ -85,7 +86,10 @@ def build_factor_score(feature_set: FeatureSet) -> FactorScore:
     # Only report absence for factors that are candidates for scoring at all
     # (the code-level allowlist); factors outside it (e.g. F1/F2 before they
     # are added to the allowlist, F4) are not "missing evidence", they are
-    # simply not part of this scoring family yet.
+    # simply not part of this scoring family yet.  EXPLANATION_ONLY factors are
+    # additionally excluded at the policy level so they can never surface as a
+    # "missing evidence" absence even if a stale entry ever re-enters the
+    # allowlist.
     absent = tuple(
         FactorAbsence(
             feature_id=item.feature_id,
@@ -96,6 +100,7 @@ def build_factor_score(feature_set: FeatureSet) -> FactorScore:
         for item in feature_set.contributions
         if item.feature_id in ALLOWED_INDEPENDENT_FACTORS
         and item.feature_id not in participating_ids
+        and factor_policy(item.feature_id).get("lifecycle") != "EXPLANATION_ONLY"
     )
 
     home_score = float(team_scores["home_score"])

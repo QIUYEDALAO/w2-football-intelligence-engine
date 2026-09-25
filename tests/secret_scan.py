@@ -72,6 +72,13 @@ ALLOWLIST = (
     "本文件不得保存 `.env` 内容、密钥、token、密码或私密 payload",
     "权限、密钥、凭据、secret 或 `.env` 变更",
     "需要权限、凭据、密钥、secret、`.env` 或公网端口变更",
+    # Registered baseline false positives in immutable host hardening/config text.
+    "server_tokens off;",
+    "${pg_password}",
+    "password login as the",
+    "Password login stays on for now",
+    "PasswordAuthentication no",
+    "prohibit-password",
 )
 SKIP_PARTS = {
     ".git",

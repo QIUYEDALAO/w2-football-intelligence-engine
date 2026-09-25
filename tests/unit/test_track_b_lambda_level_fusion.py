@@ -9,8 +9,10 @@ from pathlib import Path
 import pytest
 
 from w2.quant_research.track_b_lambda_level_fusion import (
+    AH_QUOTE_CAPTURE_MAX_SKEW_SECONDS,
     FROZEN_W_AH,
     FROZEN_W_TOTALS,
+    AhQuoteSideMissing,
     _distribution,
     _market_under_probability,
     _poisson_total_five_state,
@@ -30,6 +32,7 @@ def _ah_pair(home_line: float = 0.25) -> dict[str, dict[str, object]]:
                 "provider_fixture_id": "123", "bookmaker_id": "4",
                 "capture_id": "capture-1", "market": "ASIAN_HANDICAP",
                 "selection": side, "line": side_line, "price": 1.9,
+                "captured_at": "2026-09-25T09:00:00Z",
                 "observation_id": f"observation-{side.lower()}",
             },
         }
@@ -245,6 +248,75 @@ def test_ah_quote_pair_mismatch_rejected(mutate: object) -> None:
     pair = _ah_pair()
     mutate(pair)
     with pytest.raises(ValueError, match="QUOTE_PAIR_MISMATCH"):
+        fuse_lambda_level(
+            market="ASIAN_HANDICAP", selection="HOME", line=0.25,
+            model_lambda_home=1.55, model_lambda_away=1.05,
+            market_odds=pair,
+        )
+
+
+@pytest.mark.parametrize("captured_at", [
+    "2026-09-26T09:00:00Z", "2026-09-24T09:00:00Z",
+    "2026-09-25T09:30:00.000001Z", "2026-09-25T08:29:59.999999Z",
+])
+def test_ah_quote_pair_rejects_same_capture_with_excess_time_skew(
+    captured_at: str,
+) -> None:
+    pair = _ah_pair()
+    pair["AWAY"]["quote_identity"]["captured_at"] = captured_at
+
+    with pytest.raises(ValueError, match="QUOTE_PAIR_MISMATCH.*captured_at"):
+        fuse_lambda_level(
+            market="ASIAN_HANDICAP", selection="HOME", line=0.25,
+            model_lambda_home=1.55, model_lambda_away=1.05,
+            market_odds=pair,
+        )
+
+
+@pytest.mark.parametrize("captured_at", [
+    "2026-09-25T09:29:59Z", "2026-09-25T09:30:00Z", "2026-09-25T08:30:00Z",
+    "2026-09-25T17:00:00+08:00",
+])
+def test_ah_quote_pair_allows_capture_skew_at_most_30_minutes(captured_at: str) -> None:
+    assert AH_QUOTE_CAPTURE_MAX_SKEW_SECONDS == 1800
+    pair = _ah_pair()
+    pair["AWAY"]["quote_identity"]["captured_at"] = captured_at
+
+    result = fuse_lambda_level(
+        market="ASIAN_HANDICAP", selection="HOME", line=0.25,
+        model_lambda_home=1.55, model_lambda_away=1.05,
+        market_odds=pair,
+    )
+
+    assert result.marker is None
+
+
+@pytest.mark.parametrize("captured_at", [
+    "MISSING", None, "not-a-timestamp", "2026-09-25T09:00:00", 123, {}, "",
+])
+def test_ah_quote_pair_rejects_missing_or_uncomparable_capture_time(
+    captured_at: object,
+) -> None:
+    pair = _ah_pair()
+    if captured_at == "MISSING":
+        del pair["AWAY"]["quote_identity"]["captured_at"]
+    else:
+        pair["AWAY"]["quote_identity"]["captured_at"] = captured_at
+
+    with pytest.raises(ValueError, match="QUOTE_PAIR_MISMATCH"):
+        fuse_lambda_level(
+            market="ASIAN_HANDICAP", selection="HOME", line=0.25,
+            model_lambda_home=1.55, model_lambda_away=1.05,
+            market_odds=pair,
+        )
+
+
+@pytest.mark.parametrize("missing", ["HOME", "AWAY"])
+def test_ah_quote_pair_missing_side_is_distinct_from_mismatch(missing: str) -> None:
+    pair = _ah_pair()
+    del pair[missing]
+
+    with pytest.raises(AhQuoteSideMissing, match="missing HOME or AWAY"):
         fuse_lambda_level(
             market="ASIAN_HANDICAP", selection="HOME", line=0.25,
             model_lambda_home=1.55, model_lambda_away=1.05,

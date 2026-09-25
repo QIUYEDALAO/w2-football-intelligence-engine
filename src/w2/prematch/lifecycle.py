@@ -191,6 +191,7 @@ class DynamicEvaluationInput:
     factor_input_identity: str | None = None
     factor_input_identity_hash: str | None = None
     factor_evidence_digest: Mapping[str, Any] | None = None
+    track_d_validation_signal: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -271,6 +272,7 @@ class DynamicEvaluationVersion:
     factor_veto_code: str | None = None
     factor_input_identity_hash: str | None = None
     factor_evidence_digest: dict[str, Any] | None = None
+    track_d_validation_signal: dict[str, Any] | None = None
 
     def as_dict(
         self,
@@ -843,6 +845,10 @@ def classify_evaluation(
         factor_evidence_digest=(
             dict(value.factor_evidence_digest)
             if value.factor_evidence_digest else None
+        ),
+        track_d_validation_signal=(
+            dict(value.track_d_validation_signal)
+            if value.track_d_validation_signal else None
         ),
         fixture_id=str(value.fixture_id),
         market=str(value.market),

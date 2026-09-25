@@ -1886,6 +1886,7 @@ class DashboardIntelligenceValidationResponse(BaseModel):
     cumulative_profit_units: float
     cumulative_profit_units_with_rebate: float
     pagination: dict[str, Any] = Field(default_factory=dict)
+    validation_signals: dict[str, Any] = Field(default_factory=dict)
 
 
 class CalibratedValidationSample(BaseModel):

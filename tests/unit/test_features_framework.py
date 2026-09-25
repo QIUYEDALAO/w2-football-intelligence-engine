@@ -77,7 +77,7 @@ def test_unaudited_coverage_is_diagnostic_only_for_six_factors() -> None:
     assert {item.reason for item in factors} == {
         "INSUFFICIENT_MARKET_SNAPSHOTS",
         "INSUFFICIENT_BOOKMAKERS",
-        "MISSING_AH_EVIDENCE",
+        "F5_LEAGUE_COLDSTART",
         "NO_H2H_HISTORY",
         "VALUE_DATA_UNAVAILABLE",
         "XG_DATA_UNAVAILABLE",

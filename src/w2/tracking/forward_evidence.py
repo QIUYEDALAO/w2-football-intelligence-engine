@@ -22,6 +22,11 @@ from w2.infrastructure.persistence.forward_evidence_models import (
 )
 from w2.infrastructure.persistence.matchday_intake_models import MatchdayMarketObservationModel
 from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
+from w2.domain.profit import REBATE_FORMULA_VERSION, REBATE_RATE
+
+TRACK_D_FADE = "TRACK_D_FADE"
+VALIDATION_SIGNAL = "VALIDATION_SIGNAL"
+VALIDATION_SIGNAL_WATERMARK = "验证期信号 · 非正式推荐 · 不计入档位"
 
 CLOCK_ID = "candidate-c-r0-forward-v1"
 T0 = datetime(2026, 9, 25, 8, 46, 32, tzinfo=UTC)
@@ -204,6 +209,9 @@ def append_forward_evidence_in_session(
         "quote_pair_identity": quote_pair_identity,
         "quote_observation_ids": quote_ids,
         "candidate_kind": (
+            TRACK_D_FADE
+            if getattr(version, "track_d_validation_signal", None)
+            else
             "OFFICIAL_RECOMMENDATION"
             if version.state.value == "ANALYSIS_PICK_ACTIVE"
             else "NO_EDGE_DISPLAY"
@@ -213,7 +221,16 @@ def append_forward_evidence_in_session(
             else "EVALUATION_ONLY"
         ),
         "original_selection": version.selection,
-        "display_state": version.state.value,
+        "display_state": (
+            VALIDATION_SIGNAL if getattr(version, "track_d_validation_signal", None) else version.state.value
+        ),
+        "watermark": (
+            VALIDATION_SIGNAL_WATERMARK if getattr(version, "track_d_validation_signal", None) else None
+        ),
+        "official_recommendation": False if getattr(version, "track_d_validation_signal", None) else (
+            version.state.value == "ANALYSIS_PICK_ACTIVE"
+        ),
+        "track_d_validation_signal": getattr(version, "track_d_validation_signal", None),
         "factor_gate_state": version.factor_decision_status,
         "fixture_id": version.fixture_id,
         "market": version.market,
@@ -272,3 +289,59 @@ def record_shadow_evidence_in_session(session: Session, version: Any) -> None:
             append_forward_evidence_in_session(session, version)
     except Exception:
         _LOG.exception("FORWARD_EVIDENCE_WRITE_FAILED evaluation_id=%s", version.evaluation_id)
+
+
+def append_validation_signal_settlement_in_session(
+    session: Session,
+    *,
+    evaluation_id: str,
+    settlement: str,
+    profit_units_channel: float,
+    settled_at: datetime,
+    home_goals: int | None = None,
+    away_goals: int | None = None,
+) -> RecommendationReviewLedgerModel:
+    """Append settlement facts for a fade signal using channel price + rebate."""
+    original = session.scalar(
+        select(RecommendationReviewLedgerModel).where(
+            RecommendationReviewLedgerModel.evaluation_id == evaluation_id,
+            RecommendationReviewLedgerModel.event_type == "EVALUATION_SNAPSHOT",
+        )
+    )
+    if original is None or (original.payload or {}).get("candidate_kind") != TRACK_D_FADE:
+        raise ValueError("TRACK_D_SETTLEMENT_SOURCE_NOT_FOUND")
+    rebate = abs(float(profit_units_channel)) * float(REBATE_RATE)
+    payload = {
+        "schema_version": "w2.recommendation_review_ledger.settlement.v1",
+        "event_type": "SETTLEMENT_OBSERVED",
+        "evaluation_id": evaluation_id,
+        "derived_from_evaluation_id": evaluation_id,
+        "candidate_kind": TRACK_D_FADE,
+        "display_state": VALIDATION_SIGNAL,
+        "watermark": VALIDATION_SIGNAL_WATERMARK,
+        "settlement": settlement,
+        "home_goals": home_goals,
+        "away_goals": away_goals,
+        "profit_units_channel": profit_units_channel,
+        "rebate_units_channel": rebate,
+        "profit_units_channel_with_rebate": profit_units_channel + rebate,
+        "rebate_formula_version": REBATE_FORMULA_VERSION,
+        "settlement_observed_at": settled_at.isoformat(),
+    }
+    digest = canonical_sha256(payload, domain=HashDomain.PREMATCH_READ_MODEL_GENERIC)
+    existing = session.get(RecommendationReviewLedgerModel, digest)
+    if existing is not None:
+        return existing
+    row = RecommendationReviewLedgerModel(
+        review_event_id=digest,
+        evaluation_id=evaluation_id,
+        event_type="SETTLEMENT_OBSERVED",
+        evaluated_at=settled_at,
+        pit_status="PROVABLE",
+        payload=payload,
+        payload_sha256=digest,
+        created_at=datetime.now(UTC),
+    )
+    session.add(row)
+    session.flush()
+    return row

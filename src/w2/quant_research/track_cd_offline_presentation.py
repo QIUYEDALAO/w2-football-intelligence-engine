@@ -11,6 +11,7 @@ from math import isfinite
 
 from w2.domain.profit import REBATE_FORMULA_VERSION, REBATE_RATE
 from w2.quant_research.track_b_lambda_level_fusion import (
+    AhQuoteSideMissing,
     _distribution,
     _score_matrix,
     _validate_ah_quote_pair,
@@ -29,6 +30,14 @@ DISPLAY_STATES = frozenset({"ANALYSIS_PICK_ACTIVE", "NO_EDGE_CURRENT"})
 FUSION_MARKET_MISSING = "FUSION_MARKET_MISSING"
 QUOTE_PAIR_MISMATCH = "QUOTE_PAIR_MISMATCH"
 NO_MARKET_ANCHOR_LABEL = "无市场锚·不参与档位"
+# Candidate-kind taxonomy.  The Track D reversal candidate is an independent
+# fade path (Pinnacle de-vig + FROZEN_FADE_DELTA) and is mutually exclusive with
+# the OU intent gate: it must never re-enter the intent-signal threshold.  The
+# Track B candidate is the factor-gate fusion path.
+TRACK_B_FUSION = "TRACK_B_FUSION"
+TRACK_D_FADE = "TRACK_D_FADE"
+VALIDATION_SIGNAL = "VALIDATION_SIGNAL"
+VALIDATION_SIGNAL_WATERMARK = "验证期信号 · 非正式推荐 · 不计入档位"
 
 
 @dataclass(frozen=True)
@@ -75,10 +84,17 @@ class DisplayCandidate:
     marker: str | None = None
     pure_model_probability: float | None = None
     market_anchor_note: str | None = None
+    candidate_kind: str | None = None
+    display_state: str = "ANALYSIS_PICK_ACTIVE"
+    watermark: str | None = None
+    official_recommendation: bool = False
 
 
 def _price(value: float) -> float:
-    result = float(value)
+    try:
+        result = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("odds must be numeric") from exc
     if not isfinite(result) or result <= 1.0:
         raise ValueError("odds must be finite and greater than 1")
     return result
@@ -135,13 +151,16 @@ def _display(
                 )
                 implied = {side: 1.0 / price for side, price in pair.items()}
                 fair_odds = sum(implied.values()) / implied[selection]
+            except AhQuoteSideMissing:
+                marker = FUSION_MARKET_MISSING
+                ev = None
             except ValueError:
                 marker = QUOTE_PAIR_MISMATCH
                 ev = None
     elif evaluation.pinnacle_odds is not None:
         try:
             fair_odds = 1.0 / _fair_probability(evaluation.pinnacle_odds, selection)
-        except (KeyError, ValueError):
+        except (KeyError, TypeError, ValueError):
             marker = FUSION_MARKET_MISSING
             ev = None
     if fair_odds is None:
@@ -163,13 +182,16 @@ def _display(
         model_probability = model_distribution["WIN"] + 0.5 * model_distribution["HALF_WIN"]
     except ValueError:
         pass
+    is_fade = source == "TRACK_D"
+    is_validation = is_fade and ev is not None and marker is None and odds is not None
     return DisplayCandidate(
         fixture_id=evaluation.fixture_id,
         market=evaluation.market,
         selection=selection,
         line=evaluation.line,
         source=source,
-        tier=_tier(ev),
+        # Validation signals never enter the official three-tier ladder.
+        tier="不推" if is_fade else _tier(ev),
         fusion_ev=ev,
         pinnacle_fair_odds=fair_odds,
         channel_odds=odds,
@@ -177,7 +199,24 @@ def _display(
         marker=marker,
         pure_model_probability=model_probability if marker is not None else None,
         market_anchor_note=NO_MARKET_ANCHOR_LABEL if marker is not None else None,
+        candidate_kind=TRACK_D_FADE if is_fade else TRACK_B_FUSION,
+        display_state=VALIDATION_SIGNAL if is_validation else "ANALYSIS_PICK_ACTIVE",
+        watermark=VALIDATION_SIGNAL_WATERMARK if is_validation else None,
+        official_recommendation=False,
     )
+
+
+def assert_track_d_fade_exclusive(
+    *,
+    fade_triggered: bool,
+    ou_intent_gate_passed: bool,
+    totals_positive_recommendations: int,
+) -> None:
+    """Guard the R2 contract: fade is independent and OU emits zero picks."""
+    if fade_triggered and ou_intent_gate_passed:
+        raise AssertionError("TRACK_D_FADE_MUST_NOT_PASS_OU_INTENT_GATE")
+    if totals_positive_recommendations != 0:
+        raise AssertionError("TOTALS_INTENT_GATE_MUST_EMIT_ZERO_POSITIVE_RECOMMENDATIONS")
 
 
 def _reverse_quote(e: Evaluation, observations: Sequence[CapturedQuote]) -> CapturedQuote | None:
@@ -232,7 +271,11 @@ def present_offline(
                 )
                 original_marker = fused.marker
                 if original_marker is None:
-                    original_ev = five_state_cashflow(fused.distribution, original_odds)
+                    # Keep Decimal arithmetic through the offline cashflow calculation;
+                    # the display DTO remains float-based for its existing API contract.
+                    original_ev = float(five_state_cashflow(fused.distribution, original_odds))
+            except AhQuoteSideMissing:
+                original_marker = FUSION_MARKET_MISSING
             except ValueError as exc:
                 if "QUOTE_PAIR_MISMATCH" in str(exc):
                     original_marker = QUOTE_PAIR_MISMATCH
@@ -252,7 +295,7 @@ def present_offline(
                 p_over = _fair_probability(e.pinnacle_odds, "OVER")
                 p_fade = min(0.99, max(0.01, p_over + FROZEN_FADE_DELTA))
                 fade_ev = single_probability_cashflow(p_fade, reverse_odds)
-            except (KeyError, ValueError):
+            except (KeyError, TypeError, ValueError):
                 pass
         displayed.append(_display(
             e, selection="OVER", source="TRACK_D", ev=fade_ev,

@@ -623,3 +623,6 @@ h2, h3 { margin: 0; text-wrap: balance; }
 .w2-tier--观察, .w2-tier--待融合 { color: var(--v41-warn-ink); border-color: var(--v41-warning-line); background: var(--v41-warning-bg); }
 .w2-tier--不推 { color: var(--v41-critical); border-color: var(--v41-critical-line); background: var(--v41-critical-bg); }
 .w2-chart__empty, .w2-empty-row { padding: 20px 16px; }
+.w2-validation-signals { margin: 12px 0 16px; padding: 14px 16px; border: 1px solid var(--v41-warning-line); border-left: 4px solid var(--v41-warning-ink); background: var(--v41-warning-bg); }
+.w2-validation-signals h3 { margin: 0 0 6px; color: var(--v41-warning-ink); font-size: 14px; }
+.w2-validation-signals p, .w2-validation-signals small { color: var(--v41-ink-2); font-size: 12px; }

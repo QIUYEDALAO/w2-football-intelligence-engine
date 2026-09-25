@@ -117,7 +117,7 @@ def test_half_goal_model_contract_supports_only_first_half_point_five() -> None:
         )
 
 
-def test_four_markets_emit_analysis_pick_with_explainable_reasons() -> None:
+def test_totals_market_view_does_not_emit_positive_pick() -> None:
     card = build_multi_market_analysis(fixture_id="1489404", inputs=complete_inputs())
 
     assert card.decision == AnalysisDecision.ANALYSIS_PICK
@@ -127,7 +127,22 @@ def test_four_markets_emit_analysis_pick_with_explainable_reasons() -> None:
         AnalysisMarket.FIRST_HALF_GOALS,
         AnalysisMarket.SCORE,
     }
-    assert all(market.decision == AnalysisDecision.ANALYSIS_PICK for market in card.markets)
+    assert all(
+        market.decision == AnalysisDecision.ANALYSIS_PICK
+        for market in card.markets if market.market != AnalysisMarket.TOTALS
+    )
+    totals = next(market for market in card.markets if market.market == AnalysisMarket.TOTALS)
+    assert totals.decision == AnalysisDecision.NO_EDGE
+    assert totals.tendency is None
+    assert "不作投注建议" in totals.reasons[0]
+
+
+def test_ou_intent_gate_never_produces_positive_totals_recommendation() -> None:
+    card = build_multi_market_analysis(fixture_id="1489404", inputs=complete_inputs())
+    totals = next(market for market in card.markets if market.market == AnalysisMarket.TOTALS)
+    assert totals.decision is AnalysisDecision.NO_EDGE
+    assert totals.tendency is None
+    assert totals.signal_strength == 0.0
     assert all(market.reasons for market in card.markets)
     assert card.candidate is False
     assert card.formal_recommendation is False

@@ -11,7 +11,23 @@ from w2.features.framework import (
     FeatureContribution,
     FeatureStatus,
     TeamSide,
+    coverage_available,
 )
+
+# F5 absence is split into two distinct causes (Owner-approved factor-gate
+# adjudication): a whole-league cold start (no settled AH history for *any*
+# team) versus an individual-team gap when the league already has settled AH
+# coverage.  The lifecycle annotation tells monitoring whether the absence is
+# expected to self-heal with more rounds or is a pipeline fault to investigate.
+F5_ABSENCE_LIFECYCLE_COLDSTART_EXPECTED = "COLDSTART_EXPECTED"
+F5_ABSENCE_LIFECYCLE_DATA_PIPELINE_SUSPECT = "DATA_PIPELINE_SUSPECT"
+
+# Monitoring thresholds: only alert when a league that has been enabled for this
+# grace period still blocks more than this fraction of its AH matches through
+# the factor gate.  Inside the grace period a high interception rate is the
+# expected cold-start behaviour and is not alerted.
+F5_COLDSTART_GRACE_SECONDS = 8 * 7 * 24 * 3600  # 8 weeks
+F5_AH_INTERCEPTION_ALERT_THRESHOLD = 0.90
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -178,19 +194,26 @@ def recent_ah_cover_factor(
     if not home or not away:
         home_status = _history_collection_status(home_history)
         away_status = _history_collection_status(away_history)
+        if _settled_ah_available(profile):
+            reason = "F5_TEAM_INSUFFICIENT"
+            absence_lifecycle = F5_ABSENCE_LIFECYCLE_DATA_PIPELINE_SUSPECT
+        else:
+            reason = "F5_LEAGUE_COLDSTART"
+            absence_lifecycle = F5_ABSENCE_LIFECYCLE_COLDSTART_EXPECTED
         return FeatureContribution(
             feature_id="F5_RECENT_AH_COVER",
             label="近期赢盘率",
             status=FeatureStatus.INSUFFICIENT_DATA,
             score=None,
             weight=weight,
-            reason="MISSING_AH_EVIDENCE",
+            reason=reason,
             coverage_key="settled_ah",
             coverage_profile_status=coverage_profile_status,
             source="team_fixture_history",
             source_group="team_fixture_history",
             is_independent_signal=False,
-            collection_status=home_status if home_status == away_status else "MISSING_AH_EVIDENCE",
+            collection_status=home_status if home_status == away_status else reason,
+            absence_lifecycle=absence_lifecycle,
         )
     home_rate = sum(1 for row in home if row.ah_result == "COVER") / len(home)
     away_rate = sum(1 for row in away if row.ah_result == "COVER") / len(away)
@@ -536,3 +559,17 @@ def _history_collection_status(history: list[TeamMatchHistory]) -> str:
     if any(row.collection_status == "QUOTA_BLOCKED" for row in history):
         return "QUOTA_BLOCKED"
     return "MISSING_AH_EVIDENCE"
+
+
+def _settled_ah_available(profile: CoverageProfile) -> bool:
+    """Whether the league already has settled AH history available at all.
+
+    A league whose ``settled_ah`` coverage marker is still ``...REQUIRED`` or
+    ``NOT_AUDITED`` has no audited settled AH history for *any* team, so an F5
+    absence there is the expected whole-league cold start.  When the league is
+    audited/active but a single team still lacks rows, that is a per-team gap.
+    """
+    value = profile.as_dict().get("settled_ah", "")
+    if "REQUIRED" in value or "NOT_AUDITED" in value:
+        return False
+    return coverage_available(profile, "settled_ah")

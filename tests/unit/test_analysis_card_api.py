@@ -250,7 +250,7 @@ def test_existing_xg_history_is_wired_into_feature_inputs_without_faking_market_
     factors = {item["id"]: item for item in card["pricing_shadow"]["factors"]}
     assert "F7_STRENGTH_FORM" not in factors
     assert "F8_SQUAD_VALUE" not in factors
-    assert {"F3_REST_FITNESS", "F4_MATCH_IMPORTANCE", "F9_TRUE_XG"}.issubset(
+    assert {"F3_REST_FITNESS", "F9_TRUE_XG"}.issubset(
         factors
     )
     assert factors["F3_REST_FITNESS"]["status"] == "READY"

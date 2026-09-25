@@ -3221,6 +3221,38 @@ class ReadModelService:
             ),
         }
 
+    def dashboard_track_d_validation_signals(self) -> dict[str, Any]:
+        """Project Track D fade rows separately from official validation samples."""
+        with Session(self.repository._database_engine()) as session:
+            rows = list(session.scalars(
+                select(RecommendationReviewLedgerModel).where(
+                    RecommendationReviewLedgerModel.event_type.in_(("EVALUATION_SNAPSHOT", "SETTLEMENT_OBSERVED"))
+                ).order_by(RecommendationReviewLedgerModel.evaluated_at.asc())
+            ))
+        signals_by_id: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            payload = row.payload if isinstance(row.payload, dict) else {}
+            if payload.get("candidate_kind") != "TRACK_D_FADE":
+                continue
+            item = signals_by_id.setdefault(str(row.evaluation_id), {})
+            item.update(payload)
+        signals = list(signals_by_id.values())
+        settled = [row for row in signals if row.get("settlement") in {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}]
+        wins = sum(row.get("settlement") in {"WIN", "HALF_WIN"} for row in settled)
+        profit = sum(float(row.get("profit_units_channel") or 0) for row in settled)
+        return {
+            "watermark": "验证期信号 · 非正式推荐 · 不计入档位",
+            "candidate_kind": "TRACK_D_FADE",
+            "display_state": "VALIDATION_SIGNAL",
+            "count": len(signals),
+            "settled_count": len(settled),
+            "hit_rate": (wins / len(settled)) if settled else None,
+            "profit_units_channel": profit,
+            "rebate_rate": 0.025,
+            "rows": signals,
+            "small_sample_leagues": sorted({str(row.get("competition_id")) for row in signals if row.get("competition_id")}),
+        }
+
     def dashboard_validation_cumulative_profit_units(self) -> float:
         """Compatibility projection for callers that only need pure units."""
         return self.dashboard_validation_profit_summary()["profit_units"]

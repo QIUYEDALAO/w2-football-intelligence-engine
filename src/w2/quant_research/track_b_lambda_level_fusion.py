@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from decimal import Decimal
 from math import exp, factorial, floor, isfinite, log
 
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
@@ -22,6 +24,16 @@ MARKET_TOTAL_INFER_V1_VERSION = "w2.market_total_infer.v1"
 MARKET_TOTAL_INFER_LOWER = 0.5
 MARKET_TOTAL_INFER_UPPER = 6.0
 MARKET_TOTAL_INFER_TOLERANCE = 1e-6
+# 宁偏松防误杀，只拦 capture_id 复用/时间戳漂移类硬异常。
+AH_QUOTE_CAPTURE_MAX_SKEW_SECONDS = 1800
+
+
+class AhQuoteSideMissing(ValueError):
+    """One side (HOME or AWAY) of an AH quote pair is absent.
+
+    Deliberately distinct from ``QUOTE_PAIR_MISMATCH``: a missing side is a market
+    availability signal, whereas a mismatch is a data integrity failure.
+    """
 
 
 @dataclass(frozen=True)
@@ -55,27 +67,29 @@ class FusionResult:
 
 def expected_rebate_units(
     distribution: Mapping[str, float], decimal_odds: float
-) -> float:
+) -> Decimal:
     """Return expected ABS_PROFIT_V2 rebate for a five-state distribution.
 
     The rebate is earned on the absolute realized unit profit of each state:
     wins rebate net profit, losses rebate the staked unit, and PUSH earns zero.
     """
     _validate_distribution(distribution, decimal_odds)
-    winning_exposure = float(distribution["WIN"]) + 0.5 * float(
-        distribution["HALF_WIN"]
+    odds = Decimal(str(decimal_odds))
+    half = Decimal("0.5")
+    winning_exposure = Decimal(str(distribution["WIN"])) + half * Decimal(
+        str(distribution["HALF_WIN"])
     )
-    losing_exposure = float(distribution["LOSS"]) + 0.5 * float(
-        distribution["HALF_LOSS"]
+    losing_exposure = Decimal(str(distribution["LOSS"])) + half * Decimal(
+        str(distribution["HALF_LOSS"])
     )
-    return float(REBATE_RATE) * (
-        (decimal_odds - 1.0) * winning_exposure + losing_exposure
+    return REBATE_RATE * (
+        (odds - Decimal("1")) * winning_exposure + losing_exposure
     )
 
 
 def five_state_cashflow(
     distribution: Mapping[str, float], decimal_odds: float
-) -> float:
+) -> Decimal:
     """Return expected cashflow using the canonical five-state settlement map.
 
     ``REBATE_FORMULA_VERSION`` is deliberately fixed to ``ABS_PROFIT_V2``;
@@ -84,12 +98,16 @@ def five_state_cashflow(
     if REBATE_FORMULA_VERSION != "ABS_PROFIT_V2":
         raise RuntimeError("unsupported rebate formula version")
     _validate_distribution(distribution, decimal_odds)
-    return (
-        (decimal_odds - 1.0)
-        * (float(distribution["WIN"]) + 0.5 * float(distribution["HALF_WIN"]))
-        - float(distribution["LOSS"])
-        - 0.5 * float(distribution["HALF_LOSS"])
-        + expected_rebate_units(distribution, decimal_odds)
+    odds = Decimal(str(decimal_odds))
+    half = Decimal("0.5")
+    pure_cashflow = (
+        (odds - Decimal("1"))
+        * (Decimal(str(distribution["WIN"])) + half * Decimal(str(distribution["HALF_WIN"])))
+        - Decimal(str(distribution["LOSS"]))
+        - half * Decimal(str(distribution["HALF_LOSS"]))
+    )
+    return pure_cashflow + expected_rebate_units(
+        distribution, decimal_odds
     )
 
 
@@ -316,6 +334,10 @@ def _validate_ah_quote_pair(
     must therefore carry the same bookmaker, capture and pair identity while their
     canonical lines are opposites.
     """
+    if not isinstance(odds, Mapping):
+        raise ValueError("QUOTE_PAIR_MISMATCH: malformed AH quote pair")
+    if "HOME" not in odds or "AWAY" not in odds:
+        raise AhQuoteSideMissing("AH quote pair is missing HOME or AWAY side")
     try:
         home = odds["HOME"]
         away = odds["AWAY"]
@@ -351,6 +373,21 @@ def _validate_ah_quote_pair(
         for field in identity_fields
     ):
         raise ValueError("QUOTE_PAIR_MISMATCH: quote identity differs")
+    try:
+        captured_at = {}
+        for side, identity in (("HOME", home_identity), ("AWAY", away_identity)):
+            value = identity["captured_at"]
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                raise ValueError("captured_at must be timezone-aware")
+            captured_at[side] = parsed.astimezone(UTC)
+    except (KeyError, TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("QUOTE_PAIR_MISMATCH: captured_at missing or invalid") from exc
+    if (
+        abs((captured_at["HOME"] - captured_at["AWAY"]).total_seconds())
+        > AH_QUOTE_CAPTURE_MAX_SKEW_SECONDS
+    ):
+        raise ValueError("QUOTE_PAIR_MISMATCH: captured_at skew exceeds threshold")
     for side, quote, identity, side_line in (
         ("HOME", home, home_identity, home_line),
         ("AWAY", away, away_identity, away_line),

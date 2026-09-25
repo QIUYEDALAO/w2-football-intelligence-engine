@@ -50,7 +50,7 @@ def test_xg_proxy_factors_do_not_inflate_isc() -> None:
         current_odds={"ah": {"home_line": "0"}},
     )
 
-    assert shadow["coverage"] == 0.6
+    assert shadow["coverage"] == 0.5
     assert shadow["independent_signal_count"] == 1
     assert shadow["independent_signal_groups"] == ["xg"]
     assert shadow["xg_derived_factor_count"] == 2

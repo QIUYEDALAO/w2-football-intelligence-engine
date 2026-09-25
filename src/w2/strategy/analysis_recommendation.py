@@ -1,3 +1,22 @@
+"""Offline multi-market analysis recommendation assembly.
+
+The admission gates are deliberately asymmetric between markets:
+
+* ``ASIAN_HANDICAP`` is gated by the **factor gate** (``factor_score``): F9_TRUE_XG
+  must actually participate in the weighted score AND at least
+  ``MIN_PARTICIPATING_FACTORS`` factors must participate in total.  Bookmaker
+  intent is attached only as reference and does not drive direction or admission.
+  No strength threshold is layered on top of an admitted score.
+* ``TOTALS`` is a market view only.  OU intent never admits a recommendation.
+
+The asymmetry is structural, not a bug: the home/away weighted strength axis is
+the one question ``team_score``'s aggregation was built to answer, whereas
+over/under total goals is a different question that no factor's HOME/AWAY side
+encodes.  TOTALS therefore keeps its own, independent intent-signal readiness
+gate.  The two paths never share a gate, so a candidate can never be double
+blocked or double admitted by both.
+"""
+
 from __future__ import annotations
 
 import math
@@ -13,7 +32,6 @@ from w2.strategy.score_scenarios import Direction, ScoreMatrix
 
 DISCLAIMER = "分析参考·非稳赢"
 BANNED_OUTPUT_TERMS = ("稳赢", "必中", "保证")
-MIN_INTENT_SIGNAL_STRENGTH_FOR_PICK = 0.55
 MIN_HALF_GOAL_PROBABILITY_EDGE = 0.08
 MIN_SCORE_SCENARIO_PROBABILITY = 0.18
 
@@ -173,22 +191,14 @@ def _ou_market(inputs: AnalysisBuildInputs) -> MarketAnalysis:
         return _skip(AnalysisMarket.TOTALS, "OU_DATA_UNAVAILABLE")
     if inputs.ou_intent.intent in {IntentSignal.LEAKAGE_BLOCKED, IntentSignal.INSUFFICIENT_DATA}:
         return _skip(AnalysisMarket.TOTALS, inputs.ou_intent.intent.value)
-    if inputs.ou_intent.signal_strength < MIN_INTENT_SIGNAL_STRENGTH_FOR_PICK:
-        return _no_edge(
-            AnalysisMarket.TOTALS,
-            "OU_EDGE_INSUFFICIENT",
-            signal_strength=inputs.ou_intent.signal_strength,
-        )
-    tendency = "OVER" if inputs.ou_intent.intent == IntentSignal.OVER_LEAN else "UNDER"
     return MarketAnalysis(
         market=AnalysisMarket.TOTALS,
-        decision=AnalysisDecision.ANALYSIS_PICK,
-        tendency=tendency,
-        signal_strength=_signal_strength(inputs.ou_intent.signal_strength, inputs.feature_set),
-        reasons=_feature_reasons(inputs.feature_set)
-        + (f"大小球意图: {inputs.ou_intent.intent.value}",),
-        risks=inputs.base_risks + ("天气、红牌、早球会改变节奏。",),
-        invalidation_conditions=("总进球盘口大幅跳线", "赛前 xG/阵容数据缺失"),
+        decision=AnalysisDecision.NO_EDGE,
+        tendency=None,
+        signal_strength=0.0,
+        reasons=("市场观点展示 · 不作投注建议",),
+        risks=inputs.base_risks,
+        invalidation_conditions=("市场线或水位变化后重新查看",),
     )
 
 

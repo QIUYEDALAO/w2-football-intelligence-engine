@@ -125,7 +125,6 @@ def test_independent_f3_to_f9_contributions_drive_s1_shadow_only() -> None:
     assert shadow["edge_ou"] is None
     assert {factor["id"] for factor in shadow["factors"]} == {
         "F3_REST_FITNESS",
-        "F4_MATCH_IMPORTANCE",
         "F5_RECENT_AH_COVER",
         "F6_H2H",
         "F9_TRUE_XG",
@@ -206,7 +205,6 @@ def test_coverage_below_half_watches_without_promotion() -> None:
     shadow = build_pricing_shadow(
         fixture_id="fixture-4",
         feature_contributions=[
-            contribution("F3_REST_FITNESS", side="HOME", score=0.75),
             contribution("F9_TRUE_XG", side="HOME", score=0.90, source_group="xg"),
         ],
         current_odds={"ah": {"home_line": "-0.25"}, "ou": {"line": "2.5"}},

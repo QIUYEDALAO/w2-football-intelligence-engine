@@ -20,6 +20,22 @@
       "t_plus_7_descriptive_metrics": null,
       "t_plus_30_descriptive_metrics": null,
       "paired_shadow_decision": "PENDING"
+    },
+    {
+      "change_id": "gate3-intent-signal-threshold-0.55-20260926",
+      "preregistration_id": "UNREGISTERED_OWNER_REVIEW_REQUIRED",
+      "status": "NOT_OWNER_APPROVED_ITERATION_REGISTERED",
+      "previous_values": null,
+      "new_values": {
+        "min_intent_signal_strength_for_pick": 0.55,
+        "market": "TOTALS",
+        "gate": "OU_INTENT_SIGNAL"
+      },
+      "effective_at": null,
+      "t_plus_7_descriptive_metrics": null,
+      "t_plus_30_descriptive_metrics": null,
+      "paired_shadow_decision": "PENDING",
+      "notes": "MIN_INTENT_SIGNAL_STRENGTH_FOR_PICK=0.55 has NOT been verified as an Owner-approved threshold; it must be bucket-verified for bias under the R2/R3 review discipline before any production change."
     }
   ]
 }

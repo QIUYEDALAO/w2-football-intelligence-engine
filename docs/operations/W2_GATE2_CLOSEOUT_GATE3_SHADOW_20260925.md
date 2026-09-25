@@ -59,6 +59,7 @@
 * R2 固定排序：样本量（降序）→绝对 bias（降序）→logloss（降序）→盘口、方向、联赛、档位、edge 桶、赔率带、移动方向的字典序。每格输出 `n`、唯一 fixture、缺失率；`n < 20` 显示“证据不足”，不做结论。`gate3_readonly_diagnostics.py:attribution_top3()` 只从证据充足格取 Top 3。
 * R3 只计算 7/30 日 rolling bias、Platt 观测斜率、logloss vs 市场和 CUSUM；窗口、阈值、最小样本量冻结在报告配置中，告警只读、只提示人工，不拟合、不调参、不发 Bark。
 * R4 的离线登记文件为 `W2_GATE3_STRATEGY_CHANGE_LOG_20260925.json`，列出策略版本、旧值、新值、预注册 ID、生效时间和 T+7/T+30 描述性对照。尚未生产生效的字段保持 `null`；不得把前后对照当因果证据。三项均未创建生产表或写入生产。
+* OU 意图门阈值 `MIN_INTENT_SIGNAL_STRENGTH_FOR_PICK = 0.55` 尚未被 Owner 批准，已登记进 R4 迭代登记处（`change_id: gate3-intent-signal-threshold-0.55-20260926`）。R2/R3 复盘纪律要求按 0.55 上下分桶验证 TOTALS 意图门两侧的 bias；未通过前不得把 0.55 当作生产阈值。
 
 ## 测试
 

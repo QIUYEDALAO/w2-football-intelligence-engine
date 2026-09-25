@@ -60,6 +60,8 @@ TEST_MESSAGE = "TEST_MESSAGE"
 # NOTIF-04: the three business push types plus the test message.
 DAILY_CANDIDATE_LIST = "DAILY_CANDIDATE_LIST"
 VALIDATION_SAMPLE_CONFIRMED = "VALIDATION_SAMPLE_CONFIRMED"
+VALIDATION_SIGNAL = "VALIDATION_SIGNAL"
+VALIDATION_SIGNAL_WATERMARK = "验证期信号 · 非正式推荐 · 不计入档位"
 DAILY_SETTLEMENT = "DAILY_SETTLEMENT"
 
 PENDING = "PENDING"
@@ -254,7 +256,7 @@ def _aware(moment: datetime) -> datetime:
 
 
 _ALWAYS_PUSH = frozenset(
-    {DAILY_CANDIDATE_LIST, VALIDATION_SAMPLE_CONFIRMED, DAILY_SETTLEMENT, TEST_MESSAGE}
+    {DAILY_CANDIDATE_LIST, VALIDATION_SAMPLE_CONFIRMED, VALIDATION_SIGNAL, DAILY_SETTLEMENT, TEST_MESSAGE}
 )
 
 
@@ -1013,6 +1015,62 @@ def enqueue_validation_sample_confirmed_in_session(
     return None
 
 
+def enqueue_validation_signal_in_session(
+    session: Session,
+    *,
+    signal: Mapping[str, Any],
+    now: datetime,
+) -> str | None:
+    """Append one Track D fade signal to the push outbox.
+
+    The caller supplies the already captured quote/model/PIT payload. This
+    writer never turns a signal into an official recommendation and is
+    idempotent on the immutable source evaluation identity.
+    """
+    if str(signal.get("candidate_kind")) != "TRACK_D_FADE":
+        raise ValueError("VALIDATION_SIGNAL_REQUIRES_TRACK_D_FADE")
+    event_id = _event_id(
+        str(signal.get("evaluation_id") or signal.get("fixture_id") or "unknown"),
+        VALIDATION_SIGNAL,
+    )
+    if session.get(CandidateNotificationOutboxModel, event_id) is not None:
+        return None
+    payload = {
+        "schema_version": "w2.validation_signal_notification.v1",
+        "event_type": VALIDATION_SIGNAL,
+        "candidate_kind": "TRACK_D_FADE",
+        "display_state": "VALIDATION_SIGNAL",
+        "watermark": VALIDATION_SIGNAL_WATERMARK,
+        "official_recommendation": False,
+        "fixture_id": signal.get("fixture_id"),
+        "match": signal.get("match") or {},
+        "competition": signal.get("competition") or signal.get("league"),
+        "direction": "OVER",
+        "line": signal.get("line"),
+        "decimal_odds": signal.get("channel_odds") or signal.get("decimal_odds"),
+        "channel_reference_price": signal.get("channel_odds") or signal.get("decimal_odds"),
+        "pinnacle_reference_price": signal.get("pinnacle_odds") or signal.get("pinnacle_fair_odds"),
+        "model_reference_probability": signal.get("model_probability") or signal.get("pure_model_probability"),
+        "quote_captured_at": signal.get("quote_captured_at"),
+        "evaluated_at": signal.get("evaluated_at"),
+        "kickoff_utc": signal.get("kickoff_utc"),
+        "created_at": _iso(now),
+    }
+    if _insert(
+        session,
+        event_id=event_id,
+        opportunity_identity_hash=None,
+        attempt_identity_hash=None,
+        event_type=VALIDATION_SIGNAL,
+        previous_state=None,
+        current_state="VALIDATION_SIGNAL",
+        payload=payload,
+        created_at=now,
+    ):
+        return event_id
+    return None
+
+
 def enqueue_validation_sample_fallbacks_in_session(
     session: Session, *, now: datetime
 ) -> list[str]:
@@ -1487,6 +1545,9 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
         competition = str(payload.get("competition") or payload.get("league") or "未知联赛")
         kickoff_time = kickoff.astimezone(BEIJING).strftime("%H:%M") if kickoff else "--:--"
         title = f"[推荐] {competition} {home}vs{away} {kickoff_time} {direction}{line} @{odds}"
+    elif event_type == VALIDATION_SIGNAL:
+        competition = str(payload.get("competition") or "未知联赛")
+        title = f"[验证信号] {competition} {home}vs{away} OVER{line} @{odds}"
     elif event_type == DAILY_SETTLEMENT:
         day_str = str(payload.get("football_day") or "")
         try:
@@ -1651,6 +1712,17 @@ def _message_body(payload: Mapping[str, Any]) -> str:
                 f"赔率 {_format_odds(payload.get('decimal_odds'))} · "
                 f"EV {_format_ev(payload.get('current_ev'))}",
                 f"机构：{bookmaker.get('name') or bookmaker.get('id') or '未知'}",
+                f"报价时间：{payload.get('quote_captured_at') or '未知'}",
+            )
+        )
+    if event_type == VALIDATION_SIGNAL:
+        return "\n".join(
+            (
+                str(payload.get("watermark") or VALIDATION_SIGNAL_WATERMARK),
+                f"方向 OVER {_format_line(payload.get('line'))} · 渠道参考价 "
+                f"{_format_odds(payload.get('channel_reference_price') or payload.get('decimal_odds'))}",
+                f"模型参考概率 {payload.get('model_reference_probability') or '—'} · "
+                f"Pinnacle 仅作市场锚 {payload.get('pinnacle_reference_price') or '—'}",
                 f"报价时间：{payload.get('quote_captured_at') or '未知'}",
             )
         )
