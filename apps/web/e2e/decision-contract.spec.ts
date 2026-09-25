@@ -419,6 +419,22 @@ test("summary first paint waits for an explicit match selection before loading d
   );
 });
 
+test("competition names use the canonical Chinese label in list and detail", async ({ page }) => {
+  const payload = workspace("normal");
+  const matchPayload = payload.matches.find((item) => item.fixture_id === "1571806") as WorkspaceMatch;
+  matchPayload.competition_id = "spain_segunda_division";
+  matchPayload.competition_name = null;
+  const detailPayload = { ...matchPayload, competition_name: "Segunda División" };
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/matches/*", (route) => route.fulfill({ status: 200, json: detailPayload }));
+
+  await page.goto("/?date=2026-08-09");
+  const fixture = page.locator('[data-fixture-id="1571806"]');
+  await expect(fixture.locator(".w2-fixture__league")).toHaveText("西乙");
+  await fixture.click();
+  await expect(page.locator(".w2-drawer__head .w2-league")).toHaveText("西乙");
+});
+
 test("dashboard tabs lazy-load validation and replay once per selected date", async ({ page }) => {
   const payload = workspace("normal");
   const full = payload.matches[0] as WorkspaceMatch;
