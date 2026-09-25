@@ -20,6 +20,7 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
     CandidateNotificationOutboxModel,
     DynamicPrematchEvaluationModel,
     DynamicPrematchOpportunityModel,
+    ValidationSampleModel,
 )
 from w2.infrastructure.persistence.league_models import LeagueSeasonModel
 from w2.infrastructure.persistence.matchday_intake_models import (
@@ -537,7 +538,8 @@ def test_bark_sender_posts_device_key_in_json_not_url(monkeypatch) -> None:
     assert observed["json"]["device_key"] == "owner-device-test-key"
     assert observed["json"]["group"] == "W2候选"
     assert observed["json"]["level"] == "timeSensitive"
-    assert observed["json"]["url"].endswith("fixture_id=1523202")
+    assert "url" not in observed["json"]
+    assert "w2.example" not in observed["json"]["body"]
 
 
 def test_bark_configuration_parses_multiple_trimmed_device_keys(monkeypatch) -> None:
@@ -1055,6 +1057,51 @@ def test_daily_settlement_zero_note_day() -> None:
         session.commit()
 
 
+def test_daily_settlement_cumulative_matches_dashboard_current_model() -> None:
+    engine = _engine()
+    with Session(engine) as session:
+        for fixture_id, identity, evaluated_day, settlement, profit in (
+            ("old-win", "v1", 1, "WIN", 2.0),
+            ("new-win", "v2", 2, "WIN", 0.9),
+            ("new-loss", "v2", 3, "LOSS", -1.0),
+            ("new-pending", "v2", 4, "PENDING", None),
+        ):
+            session.add(ValidationSampleModel(
+                fixture_id=fixture_id, market="TOTALS", selection="OVER",
+                exact_line="2.5", decimal_odds=1.9,
+                evaluation_id=f"evaluation-{fixture_id}",
+                calibration_identity=identity, settlement=settlement, profit_units=profit,
+                evaluated_at=datetime(2026, 8, evaluated_day, tzinfo=UTC),
+                projected_at=datetime(
+                    2026, 8, 10 if identity == "v1" else evaluated_day, tzinfo=UTC
+                ),
+                kickoff_utc=datetime(2026, 8, evaluated_day, 16, tzinfo=UTC),
+            ))
+        session.commit()
+
+        event_id = candidate_notifications.enqueue_daily_settlement_in_session(
+            session, now=datetime(2026, 8, 20, 11, 30, tzinfo=candidate_notifications.BEIJING)
+        )
+        assert event_id is not None
+        payload = session.get(CandidateNotificationOutboxModel, event_id).payload
+        assert candidate_notifications.current_validation_calibration_identity(session) == "v2"
+        assert payload["cumulative_settled_count"] == 3  # includes the pending v2 bet
+        assert payload["cumulative_profit_units"] == pytest.approx(-0.1)
+        assert payload["cumulative_profit_units_with_rebate"] == pytest.approx(-0.0525)
+
+    class Repo:
+        def _database_engine(self):  # type: ignore[no-untyped-def]
+            return engine
+
+    from w2.api.repository import ReadModelService
+
+    summary = ReadModelService(repository=Repo()).dashboard_validation_profit_summary()
+    assert payload["cumulative_profit_units"] == pytest.approx(summary["profit_units"])
+    assert round(payload["cumulative_profit_units_with_rebate"], 3) == (
+        summary["profit_units_with_rebate"]
+    )
+
+
 def test_validation_sample_fallback_skips_out_of_day_samples() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
@@ -1163,6 +1210,7 @@ def test_notif04_titles_and_bodies_render() -> None:
             "total_profit_units": 0.91,
             "cumulative_settled_count": 1,
             "cumulative_profit_units": 0.91,
+            "dashboard_url": "https://w2.ai138.top/?date=2026-08-19",
             "items": [
                 {
                     "competition": "中超",
@@ -1183,6 +1231,8 @@ def test_notif04_titles_and_bodies_render() -> None:
     assert settlement["title"] == "[结算] 8月19日 1场 1赢 0输"
     assert "累计：1 注 +0.91 单位" in settlement["body"]
     assert "纯盈亏 +0.91 · 含返水 未知 单位" in settlement["body"]
+    assert "w2.ai138.top" not in settlement["body"]
+    assert "url" not in settlement
     assert (
         "中超 上海海港 vs 大连英博　推荐 主队 -0.25 @1.91　比分 2-1　赢 +0.91"
         in settlement["body"]

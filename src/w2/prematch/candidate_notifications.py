@@ -723,6 +723,20 @@ def validation_samples_snapshot(
     return [_sample_row_to_projection(row) for row in rows]
 
 
+def current_validation_calibration_identity(session: Session) -> str | None:
+    """Use the Dashboard's latest persisted validation identity for read projections."""
+    return session.scalar(
+        select(ValidationSampleModel.calibration_identity)
+        .where(ValidationSampleModel.calibration_identity.is_not(None))
+        .order_by(
+            ValidationSampleModel.evaluated_at.desc().nullslast(),
+            ValidationSampleModel.projected_at.desc(),
+            ValidationSampleModel.fixture_id.desc(),
+        )
+        .limit(1)
+    )
+
+
 def validation_sample_totals(
     session: Session,
     *,
@@ -1086,8 +1100,13 @@ def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> s
                 supplementary.append(settled)
     supplementary.sort(key=lambda row: str(row.get("kickoff_utc") or ""))
 
-    # 累计 = 推荐表全部已结算样本（不限日期窗口）的注数与单位合计。
-    cumulative_settled = [row for row in recommendations if row["profit_units"] is not None]
+    # 累计与 Dashboard 同口径：当前模型版本的全历史推荐行；盈亏只累加已结算行。
+    current_identity = current_validation_calibration_identity(session)
+    cumulative_current_rows = [
+        row for row in validation_samples_snapshot(session)
+        if current_identity is not None
+        and row.get("calibration_identity") == current_identity
+    ]
 
     win = push = loss = 0
     total = Decimal("0")
@@ -1135,7 +1154,11 @@ def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> s
     settled_item_profits = [
         item["profit_units"] for item in items if item["profit_units"] is not None
     ]
-    cumulative_profits = [row["profit_units"] for row in cumulative_settled]
+    cumulative_profits = [
+        row["profit_units"] for row in cumulative_current_rows
+        if row["profit_units"] is not None
+        and row["settlement"] in {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}
+    ]
     payload = {
         "schema_version": "w2.candidate_notification.v1",
         "event_type": DAILY_SETTLEMENT,
@@ -1149,7 +1172,7 @@ def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> s
         "total_profit_units_with_rebate": float(
             profit_units_with_rebate(settled_item_profits)
         ),
-        "cumulative_settled_count": len(cumulative_settled),
+        "cumulative_settled_count": len(cumulative_current_rows),
         "cumulative_profit_units": float(
             sum((Decimal(str(value)) for value in cumulative_profits), Decimal("0"))
         ),
@@ -1486,11 +1509,6 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
 
     body = _message_body(payload)
     result = {"title": title, "body": body}
-    dashboard_url = str(payload.get("dashboard_url") or "")
-    if dashboard_url.startswith(("https://", "http://")):
-        result["url"] = dashboard_url
-    elif dashboard_url:
-        result["body"] = f"{body}\n{dashboard_url}" if body else dashboard_url
     return result
 
 

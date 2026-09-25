@@ -105,7 +105,10 @@ from w2.matchday.timezone import (
 )
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.release_evidence import build_release_identity
-from w2.prematch.candidate_notifications import validation_samples_snapshot
+from w2.prematch.candidate_notifications import (
+    current_validation_calibration_identity,
+    validation_samples_snapshot,
+)
 from w2.prematch.evaluation_slots import EvaluationSlotError, is_evaluation_slot
 from w2.prematch.official_funnel import (
     official_funnel_recommendations,
@@ -2942,16 +2945,7 @@ class ReadModelService:
     def dashboard_current_calibration_identity(self) -> str | None:
         """Return the latest persisted calibration identity for read projections."""
         with Session(self.repository._database_engine()) as session:
-            return session.scalar(
-                select(ValidationSampleModel.calibration_identity)
-                .where(ValidationSampleModel.calibration_identity.is_not(None))
-                .order_by(
-                    ValidationSampleModel.evaluated_at.desc().nullslast(),
-                    ValidationSampleModel.projected_at.desc(),
-                    ValidationSampleModel.fixture_id.desc(),
-                )
-                .limit(1)
-            )
+            return current_validation_calibration_identity(session)
 
     def dashboard_outcomes_for_fixtures(
         self,
@@ -3021,16 +3015,7 @@ class ReadModelService:
         start, _ = football_day_window(anchor - timedelta(days=29))
         end, _ = football_day_window(anchor + timedelta(days=1))
         with Session(self.repository._database_engine()) as session:
-            current_identity = session.scalar(
-                select(ValidationSampleModel.calibration_identity)
-                .where(ValidationSampleModel.calibration_identity.is_not(None))
-                .order_by(
-                    ValidationSampleModel.evaluated_at.desc().nullslast(),
-                    ValidationSampleModel.projected_at.desc(),
-                    ValidationSampleModel.fixture_id.desc(),
-                )
-                .limit(1)
-            )
+            current_identity = current_validation_calibration_identity(session)
             total_profit_units, total_absolute_profit_units = session.execute(
                 select(
                     func.sum(ValidationSampleModel.profit_units),
@@ -3087,16 +3072,7 @@ class ReadModelService:
                 ValidationSampleModel.kickoff_utc.desc().nullslast(),
                 ValidationSampleModel.fixture_id.desc(),
             )
-            current_identity = session.scalar(
-                select(ValidationSampleModel.calibration_identity)
-                .where(ValidationSampleModel.calibration_identity.is_not(None))
-                .order_by(
-                    ValidationSampleModel.evaluated_at.desc().nullslast(),
-                    ValidationSampleModel.projected_at.desc(),
-                    ValidationSampleModel.fixture_id.desc(),
-                )
-                .limit(1)
-            )
+            current_identity = current_validation_calibration_identity(session)
             stmt = stmt.where(
                 ValidationSampleModel.calibration_identity == current_identity
                 if current_identity is not None else false()
@@ -3134,16 +3110,7 @@ class ReadModelService:
     def dashboard_validation_profit_summary(self) -> dict[str, float]:
         """Sum settled recommendation units across all dates and pages."""
         with Session(self.repository._database_engine()) as session:
-            current_identity = session.scalar(
-                select(ValidationSampleModel.calibration_identity)
-                .where(ValidationSampleModel.calibration_identity.is_not(None))
-                .order_by(
-                    ValidationSampleModel.evaluated_at.desc().nullslast(),
-                    ValidationSampleModel.projected_at.desc(),
-                    ValidationSampleModel.fixture_id.desc(),
-                )
-                .limit(1)
-            )
+            current_identity = current_validation_calibration_identity(session)
             if current_identity is None:
                 return {"profit_units": 0.0, "profit_units_with_rebate": 0.0}
             amount, absolute_amount = session.execute(select(
