@@ -435,6 +435,35 @@ test("competition names use the canonical Chinese label in list and detail", asy
   await expect(page.locator(".w2-drawer__head .w2-league")).toHaveText("西乙");
 });
 
+test("detail drawer translates the final evaluation status", async ({ page }) => {
+  const payload = workspace("normal");
+  const detail = payload.matches.find((item) => item.fixture_id === "1571806") as WorkspaceMatch;
+  const detailResponse = {
+    ...detail,
+    evaluation_execution: { ...detail.evaluation_execution, status: "UNASSESSED" },
+  };
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/matches/*", (route) => route.fulfill({ status: 200, json: detailResponse }));
+
+  await page.goto("/?date=2026-08-09");
+  const status = page.locator(".w2-stat").filter({ hasText: "最终状态" });
+  for (const [raw, translated] of [
+    ["UNASSESSED", "未评估"],
+    ["GATE_BLOCKED", "门禁阻断"],
+    ["CANDIDATE_ACTIVE", "候选活跃"],
+    ["CHECKPOINT_MISSED", "检查点错过"],
+    ["PROVIDER_EMPTY", "数据缺失"],
+    ["EVALUATION_ERROR", "评估错误"],
+    ["NO_EDGE", "无优势"],
+    ["FUTURE_STATUS", "FUTURE_STATUS"],
+  ]) {
+    detailResponse.evaluation_execution.status = raw;
+    await page.locator('[data-fixture-id="1571806"]').click();
+    await expect(status.locator("strong")).toHaveText(translated);
+    await page.getByRole("button", { name: "关闭" }).click();
+  }
+});
+
 test("dashboard tabs lazy-load validation and replay once per selected date", async ({ page }) => {
   const payload = workspace("normal");
   const full = payload.matches[0] as WorkspaceMatch;
