@@ -414,7 +414,7 @@ test("summary first paint waits for an explicit match selection before loading d
   expect(detailRequests).toBe(0);
   await page.locator(`[data-fixture-id="${summary.fixture_id}"]`).first().click();
   await expect.poll(() => detailRequests).toBe(1);
-  await expect(page.locator(".v41-focus-header h1")).toHaveText(
+  await expect(page.locator(".w2-drawer__teams")).toHaveText(
     `${detail.home_team_label.display_name} vs ${detail.away_team_label.display_name}`,
   );
 });
@@ -1811,7 +1811,7 @@ test("design v1 visual shell restores six required regions with real API-shaped 
   await expect(page.locator(".w2-upcoming li")).not.toHaveCount(0);
   await expect(page.locator(".w2-chart__hero")).toBeVisible();
   await expect(page.locator(".w2-chart__table summary")).toHaveText("查看每日数据");
-  await expect(page.locator(".w2-system summary")).toContainText("系统详情");
+  await expect(page.locator(".w2-system > summary")).toContainText("系统详情");
   await expect(page.locator(".w2-kpi").nth(1).locator(".w2-kpi__foot")).toContainText("赢 · 0 输");
   expect(listCount).toBe(1);
   expect(otherCount).toBe(0);
@@ -1821,12 +1821,42 @@ test("design v1 visual shell restores six required regions with real API-shaped 
   await expect(page.locator(".w2-table tbody tr")).toHaveCount(2);
   await page.locator(".w2-chart__table summary").click();
   await expect(page.locator(".w2-chart__table tbody tr")).toHaveCount(30);
-  await page.locator(".w2-system summary").click();
+  await page.locator(".w2-system > summary").click();
   await expect(page.locator(".w2-system__block")).toHaveCount(3);
   await page.getByRole("button", { name: "切换深浅色" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await page.getByRole("button", { name: "切换深浅色" }).click();
   await page.screenshot({ path: testInfo.outputPath("dashboard-v1-implementation.png"), fullPage: true });
+});
+
+test("forward waiting monitor stays collapsed and shows six read-only signals", async ({ page }, testInfo) => {
+  const payload = workspace("normal") as IntelligenceWorkspace & Record<string, unknown>;
+  payload.forward_wait_monitor = {
+    clock: { status: "STARTED", started_at: "2026-09-25T10:00:00Z", code_revision: "a".repeat(40), model_identity: "candidate-eval.v2" },
+    sample_progress: { status: "SEALED_MANIFEST_NOT_STARTED", pit_provable_evaluations: 12, sealed_validation: 0, sealed_test: 0, target_each: 2500 },
+    exclusions: { pit_unprovable: 2, write_gap_count: 0, status: "ANOMALY" },
+    shadow: { status: "F1_RUN_NOT_REGISTERED", last_run_at: null, r1_last_event_at: null },
+    capture_completeness: { complete: 12, total: 14, rate: 12 / 14, status: "ANOMALY" },
+    bias_drift: { status: "INSUFFICIENT_FORWARD_SETTLEMENTS", n: 0, bias_7d: null, bias_30d: null },
+    data_source: { status: "AVAILABLE", provider_calls_on_read: 0 },
+  };
+  let listCount = 0;
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => {
+    listCount += 1;
+    return route.fulfill({ status: 200, json: payload });
+  });
+  await page.goto("/?date=2026-08-09");
+  const details = page.locator(".w2-system");
+  await details.locator(":scope > summary").click();
+  const monitor = page.locator(".w2-forward-monitor");
+  await expect(monitor).not.toHaveAttribute("open", "");
+  await monitor.locator(":scope > summary").click();
+  await expect(monitor.locator(".w2-forward-monitor__item")).toHaveCount(6);
+  await expect(monitor.locator(".is-alert")).toHaveCount(2);
+  await expect(monitor).toContainText("密封验证 0/2500");
+  await expect(monitor).toContainText("PIT 不可证明 2");
+  expect(listCount).toBe(1);
+  await page.screenshot({ path: testInfo.outputPath("forward-wait-monitor-expanded.png"), fullPage: true });
 });
 
 test("design v1 review and replay tabs load their API only when opened", async ({ page }) => {

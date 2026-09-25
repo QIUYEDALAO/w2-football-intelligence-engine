@@ -464,6 +464,17 @@ h2, h3 { margin: 0; text-wrap: balance; }
 .w2-kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: 13px; }
 .w2-kv dt { color: var(--v41-ink-2); }
 .w2-kv dd { margin: 0; text-align: right; }
+.w2-forward-monitor { border-top: 1px solid var(--v41-line-faint); }
+.w2-forward-monitor > summary { cursor: pointer; padding: 14px 16px; font-size: 13px; font-weight: 600; }
+.w2-forward-monitor > summary span { margin-left: 8px; color: var(--v41-ink-3); font-weight: 400; }
+.w2-forward-monitor__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 0 16px 16px; }
+.w2-forward-monitor__clock { grid-column: 1 / -1; color: var(--v41-ink-2); margin: 0; font-size: 12px; }
+.w2-forward-monitor__item { display: flex; flex-direction: column; gap: 5px; padding: 12px; background: var(--v41-well-bg); border: 1px solid var(--v41-line-faint); border-radius: 8px; font-size: 12px; }
+.w2-forward-monitor__item strong { color: var(--v41-ink-2); }
+.w2-forward-monitor__item.is-alert { border-color: #c64444; color: #c64444; }
+.w2-forward-monitor__item.is-alert strong { color: #c64444; }
+.w2-forward-monitor__empty { padding: 0 16px 16px; color: var(--v41-ink-3); }
+@media (max-width: 767px) { .w2-forward-monitor__grid { grid-template-columns: 1fr; } }
 
 /* ===== 详情抽屉 ===== */
 .w2-scrim { position: fixed; inset: 0; background: var(--w2-overlay); z-index: 40; }

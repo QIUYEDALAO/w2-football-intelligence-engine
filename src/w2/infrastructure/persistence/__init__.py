@@ -16,6 +16,10 @@ from w2.infrastructure.persistence.factor_model_models import (
     ProviderTeamIdentityCrosswalkModel,
     TeamRatingSnapshotModel,
 )
+from w2.infrastructure.persistence.forward_evidence_models import (
+    ForwardClockModel,
+    RecommendationReviewLedgerModel,
+)
 from w2.infrastructure.persistence.forward_factor_models import (
     FORWARD_AH_FACTOR_OBSERVATION_SCHEMA,
     ForwardAhFactorObservationModel,
@@ -92,6 +96,8 @@ from w2.infrastructure.persistence.stage7i_lifecycle_models import (
 )
 
 __all__ = [
+    "ForwardClockModel",
+    "RecommendationReviewLedgerModel",
     "CandidateNotificationOutboxModel",
     "CalibratedValidationSampleModel",
     "CanonicalHistoricalAhFactModel",

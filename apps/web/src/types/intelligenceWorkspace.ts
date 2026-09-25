@@ -887,7 +887,18 @@ export type IntelligenceWorkspaceList = Omit<IntelligenceWorkspace, "validation"
   today_recommendations?: TodayRecommendation[];
   system_status?: { data?: string; recommendations?: string };
   upcoming_football_days?: UpcomingFootballDay[];
+  forward_wait_monitor?: ForwardWaitMonitor;
 };
+
+export interface ForwardWaitMonitor {
+  clock: { status: string; started_at: string | null; code_revision: string | null; model_identity: string | null };
+  sample_progress: { status: string; pit_provable_evaluations: number; sealed_validation: number; sealed_test: number; target_each: number };
+  exclusions: { pit_unprovable: number; write_gap_count: number; status: string };
+  shadow: { status: string; last_run_at: string | null; r1_last_event_at: string | null };
+  capture_completeness: { complete: number; total: number; rate: number | null; status: string };
+  bias_drift: { status: string; n: number; bias_7d: number | null; bias_30d: number | null };
+  data_source: { status: string; provider_calls_on_read: number };
+}
 
 export interface PerformanceWindow {
   match_count: number;

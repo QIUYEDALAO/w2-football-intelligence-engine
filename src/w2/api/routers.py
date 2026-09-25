@@ -529,6 +529,14 @@ def dashboard_intelligence_workspace_list(
     workspace["upcoming_football_days"] = (
         upcoming_reader() if callable(upcoming_reader) else []
     )
+    forward_reader = getattr(service, "dashboard_forward_wait_monitor", None)
+    forward_monitor = forward_reader() if callable(forward_reader) else {}
+    odds_status = workspace["freshness"]["domains"]["odds_prematch"]["status"]
+    forward_monitor["data_source"] = {
+        "status": odds_status,
+        "provider_calls_on_read": 0,
+    }
+    workspace["forward_wait_monitor"] = forward_monitor
     return {"request_id": request_id(request), **workspace}
 
 

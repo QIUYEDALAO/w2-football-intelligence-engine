@@ -50,6 +50,7 @@ from w2.prematch.lifecycle import (
     OpportunityState,
     opportunity_identity_hash,
 )
+from w2.tracking.forward_evidence import record_shadow_evidence_in_session
 
 PAIR_PROJECTOR_SCHEMA = "w2.eval_02b_exact_pair_projection.v2"
 _PAIR_MARKETS = {MarketType.ASIAN_HANDICAP.value, MarketType.TOTALS.value}
@@ -218,6 +219,7 @@ class DynamicPrematchRepository:
             )
         )
         session.flush()
+        record_shadow_evidence_in_session(session, persisted)
         if persisted.denominator_scope == CHECKPOINT_OPPORTUNITY_SCOPE:
             self._upsert_opportunity_in_session(session, persisted)
             enqueue_attempt_notification_in_session(

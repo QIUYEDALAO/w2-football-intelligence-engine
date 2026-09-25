@@ -1860,6 +1860,7 @@ class DashboardIntelligenceWorkspaceListResponse(BaseModel):
     today_recommendations: list[dict[str, Any]] = Field(default_factory=list)
     system_status: dict[str, str] = Field(default_factory=dict)
     upcoming_football_days: list[dict[str, Any]] = Field(default_factory=list)
+    forward_wait_monitor: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def list_counts_are_exact(self) -> DashboardIntelligenceWorkspaceListResponse:

@@ -53,6 +53,7 @@ from w2.dashboard.date_window import (
     football_day_window,
 )
 from w2.dashboard.factor_checklist import MIN_XG_MATCHES
+from w2.dashboard.forward_wait_monitor import forward_bias_windows
 from w2.dashboard.performance import dashboard_performance
 from w2.dashboard.results import FINISHED_STATUSES, normalize_match_status
 from w2.dashboard.validation_summary import validation_summary
@@ -77,6 +78,10 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
 )
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamModel,
+)
+from w2.infrastructure.persistence.forward_evidence_models import (
+    ForwardClockModel,
+    RecommendationReviewLedgerModel,
 )
 from w2.infrastructure.persistence.future_refresh_models import TeamXgMatchModel
 from w2.infrastructure.persistence.league_models import LeagueSeasonModel
@@ -122,6 +127,7 @@ from w2.prematch.read_model_projection import (
     validate_frozen_analysis_payload,
 )
 from w2.providers.quota import api_football_quota_policy, parse_int
+from w2.tracking.forward_evidence import CLOCK_ID
 from w2.tracking.forward_ledger_performance import (
     MIN_DECISIVE_SAMPLES_FOR_RATE,
     SAMPLE_TARGET,
@@ -2958,6 +2964,90 @@ class ReadModelService:
         fixture_ids: Sequence[str],
     ) -> dict[str, dict[str, Any]]:
         return self.repository.dashboard_model_forecasts_for_fixtures(fixture_ids)
+
+    def dashboard_forward_wait_monitor(self) -> dict[str, Any]:
+        """Read only forward evidence; a PIT row is not a sealed sample."""
+        now = datetime.now(UTC)
+        with Session(self.repository._database_engine()) as session:
+            clock = session.get(ForwardClockModel, CLOCK_ID)
+            counts = dict(session.execute(
+                select(RecommendationReviewLedgerModel.pit_status, func.count())
+                .group_by(RecommendationReviewLedgerModel.pit_status)
+            ).all())
+            last_event_at = session.scalar(
+                select(func.max(RecommendationReviewLedgerModel.created_at))
+            )
+            write_gap_count = 0
+            bias_rows = []
+            if clock is not None:
+                write_gap_count = int(session.scalar(
+                    select(func.count())
+                    .select_from(DynamicPrematchEvaluationModel)
+                    .outerjoin(
+                        RecommendationReviewLedgerModel,
+                        RecommendationReviewLedgerModel.evaluation_id
+                        == DynamicPrematchEvaluationModel.evaluation_id,
+                    )
+                    .where(
+                        DynamicPrematchEvaluationModel.evaluated_at >= clock.started_at,
+                        DynamicPrematchEvaluationModel.evaluation_policy_version
+                        == clock.model_identity,
+                        RecommendationReviewLedgerModel.review_event_id.is_(None),
+                    )
+                ) or 0)
+                current_identity = current_validation_calibration_identity(session)
+                if current_identity is not None:
+                    bias_rows = session.execute(
+                        select(
+                            DynamicPrematchEvaluationModel.evaluated_at,
+                            DynamicPrematchEvaluationModel.payload,
+                            ValidationSampleModel.settlement,
+                        )
+                        .join(
+                            ValidationSampleModel,
+                            ValidationSampleModel.evaluation_id
+                            == DynamicPrematchEvaluationModel.evaluation_id,
+                        )
+                        .where(
+                            DynamicPrematchEvaluationModel.evaluated_at >= clock.started_at,
+                            DynamicPrematchEvaluationModel.evaluated_at >= now - timedelta(days=30),
+                            DynamicPrematchEvaluationModel.evaluation_policy_version
+                            == clock.model_identity,
+                            ValidationSampleModel.calibration_identity == current_identity,
+                        )
+                    ).all()
+        total = sum(int(value) for value in counts.values()) + write_gap_count
+        provable = int(counts.get("PROVABLE", 0))
+        unprovable = int(counts.get("PIT_UNPROVABLE", 0))
+        return {
+            "clock": {
+                "status": "STARTED" if clock else "NOT_STARTED",
+                "started_at": clock.started_at.isoformat() if clock else None,
+                "code_revision": clock.code_revision if clock else None,
+                "model_identity": clock.model_identity if clock else None,
+            },
+            "sample_progress": {
+                "status": "SEALED_MANIFEST_NOT_STARTED",
+                "pit_provable_evaluations": provable,
+                "sealed_validation": 0, "sealed_test": 0, "target_each": 2500,
+            },
+            "exclusions": {
+                "pit_unprovable": unprovable,
+                "write_gap_count": write_gap_count,
+                "status": "ANOMALY" if unprovable or write_gap_count else "CLEAR",
+            },
+            "shadow": {"status": "F1_RUN_NOT_REGISTERED", "last_run_at": None,
+                       "r1_last_event_at": last_event_at.isoformat() if last_event_at else None},
+            "capture_completeness": {
+                "complete": provable, "total": total,
+                "rate": provable / total if total else None,
+                "status": (
+                    "ANOMALY" if unprovable or write_gap_count
+                    else "NO_DATA" if not total else "COMPLETE"
+                ),
+            },
+            "bias_drift": forward_bias_windows(bias_rows, as_of=now),
+        }
 
     def dashboard_upcoming_football_days(
         self,

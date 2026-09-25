@@ -237,7 +237,8 @@ def test_intelligence_workspace_summary_requests_bounded_projection(
     payload = response.json()
     assert include_details == [False]
     assert payload["matches"][0]["projection_scope"] == "SUMMARY"
-    assert "market_radar" not in payload["matches"][0]
+    radar = payload["matches"][0]["market_radar"]
+    assert radar is None or radar["schema_version"] == "w2.market-radar.summary.v1"
     assert "simulation" not in payload["matches"][0]
     assert payload["selected_fixture_id"] == "fixture-1"
 
@@ -274,10 +275,11 @@ def test_intelligence_workspace_list_is_first_paint_only(
         "pricing_shadow",
         "dynamic_prematch",
         "simulation",
-        "market_radar",
         "model_lab",
     ):
         assert large_field not in payload["matches"][0]
+    radar = payload["matches"][0]["market_radar"]
+    assert radar is None or radar["schema_version"] == "w2.market-radar.summary.v1"
 
 
 def test_intelligence_workspace_validation_is_lazy_and_excludes_replay(
@@ -657,6 +659,7 @@ def test_dashboard_upcoming_football_days_window_and_counts() -> None:
     from datetime import UTC, datetime
 
     from sqlalchemy import create_engine
+
     from w2.api.repository import ReadModelRepository, ReadModelService
     from w2.infrastructure.database import Base
     from w2.infrastructure.persistence.dynamic_prematch_models import (
