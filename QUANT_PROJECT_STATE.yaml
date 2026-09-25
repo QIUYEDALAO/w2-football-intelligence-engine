@@ -3,7 +3,7 @@ program: W2_SPORTTERY_QUANT_RESEARCH_PLATFORM
 updated_at: "2026-09-25"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 base_main_sha: 75159bfd71bb7492eece86da29cdb32e6f25d9c6
-deployed_source_sha: d4ef36edebe66e4e3c7f279adbf37c9b51d947a9
+deployed_source_sha: b5fb9ece6aa4c45696442dd7c9dd3cad8067f370
 protocol_version: v2.3.1
 protocol_path: docs/architecture/W2_SPORTTERY_QUANT_RESEARCH_PROTOCOL_V2_3_1.md
 binding_path: docs/operations/W2_QUANT_FREEZE_A0_BINDING_20260805.md

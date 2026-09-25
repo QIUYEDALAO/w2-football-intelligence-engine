@@ -44,3 +44,7 @@ candidate-c-r0-forward-v1 2026-09-25T09:43:11.620864+00:00 d4ef36edebe66e4e3c7f2
 R1 的新 `EVALUATION_SNAPSHOT` 事件在评估落库后经 savepoint 追加，字段包括：`evaluation_id/evaluated_at`，forecast capture identity 与 `captured_at`，同 capture/bookmaker/line 的双侧 quote observation identity 与各自 `captured_at`，`kickoff_utc`，模型 `lambda_home/lambda_away/rho`、simulation input hash 与 manifest hash，原选边、候选/展示/因子门状态及校准身份。缺证据保留事件并标 `PIT_UNPROVABLE`；写入异常记日志 `FORWARD_EVIDENCE_WRITE_FAILED`，Dashboard 计数缺口。当前没有新评估事件，因此字段**结构已部署、逐笔真实样本待首个新增事件核验**。
 
 回退仅切回上一已知健康应用镜像以停 R1 writer；clock 和已追加 ledger 不删除、不覆盖，schema 在非空时拒绝 downgrade。停写区间不补入密封样本。`validation_samples` 保持兼容事实投影，推荐、结算、EV 与因子门逻辑未改。
+
+## Dashboard 监测展示收尾
+
+只读展示修正以 `b5fb9ece6aa4c45696442dd7c9dd3cad8067f370` 发布，未修改 schema 或上述一次性时钟登记。发布回读 a–h 全部 PASS，七个常驻容器 healthy，`/ready=200`，API/Web SHA 与 release_id 一致；远端该提交 SHA 一致。`/list` 六类监测回读：密封 validation/test 各 `0/2500`、PIT 可证明评估 `0`、排除与写入缺口 `0`、F1 尚无运行登记、字段落库率无新增样本、bias 前向结算样本不足、数据源 `NOT_AVAILABLE` 且读取时 Provider 调用 `0`。展开截图：`~/Desktop/W2文档/W2_前向等待期监测_20260925_已发布.png`（SHA-256 `8bb047130803e763a1cb88660e915730a9633015bbd5685cb22755fade2e8028`）。

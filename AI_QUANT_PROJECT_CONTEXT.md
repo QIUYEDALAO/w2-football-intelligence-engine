@@ -78,7 +78,7 @@ The deployed W2 operational system continues independently:
 
 ```text
 BASE_MAIN_SHA = 75159bfd71bb7492eece86da29cdb32e6f25d9c6
-DEPLOYED_SOURCE_SHA = d4ef36edebe66e4e3c7f279adbf37c9b51d947a9
+DEPLOYED_SOURCE_SHA = b5fb9ece6aa4c45696442dd7c9dd3cad8067f370
 PERSISTENT_SCHEDULER = ON_CONTROLLED
 CANDIDATE = OFF
 FORMAL = OFF
