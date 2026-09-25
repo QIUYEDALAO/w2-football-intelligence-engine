@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from math import isclose
+from math import exp, isclose
 
 import pytest
 
@@ -99,3 +99,14 @@ def test_missing_pinnacle_or_channel_remains_visible_but_not_priority() -> None:
 def test_ambiguous_reverse_quote_fails_closed() -> None:
     with pytest.raises(ValueError, match="ambiguous"):
         present_offline([_evaluation()], [_quote(), _quote(decimal_odds=2.05)])
+
+
+def test_missing_market_under_x25_displays_half_win_model_probability() -> None:
+    row = present_offline(
+        [_evaluation(line=2.25, pinnacle_odds=None)], []
+    )[0]
+    total = 1.4 + 1.1
+    expected = exp(-total) * (1.0 + total + 0.5 * total**2 / 2.0)
+    assert row.marker == "FUSION_MARKET_MISSING"
+    assert row.tier == "不推"
+    assert isclose(row.pure_model_probability, expected, abs_tol=1e-8)

@@ -155,6 +155,8 @@ def _display(
             rho=0.0,
             max_goals=12,
         )
+        # Shared five-state settlement follows TOTAL_INFER_V2 (DRAFT): at an
+        # integer total, UNDER x.25 is HALF_WIN and OVER x.25 is HALF_LOSS.
         model_distribution = _distribution(
             model_matrix, evaluation.market, selection, evaluation.line
         )

@@ -397,10 +397,28 @@ def _solve_market_total_lambda_v1(
 
 
 def _market_under_probability(total: float, line: float) -> float:
-    """Poisson market inverse; condition only integer pushes away.
+    """Poisson market inverse using the TOTAL_INFER_V2 draft settlement map.
 
-    Quarter-line targets retain the pre-existing effective-win convention.
-    Changing their target would be a distinct formula change requiring registration.
+    This is still the separately registered market-quote inverse, not the
+    historical TOTAL_INFER_V1 model-total grid fit.  Only integer pushes are
+    conditioned away; fractional lines use effective wins.
+    """
+    distribution = _poisson_total_five_state(total, "UNDER", line)
+    if line == floor(line):
+        non_push = distribution["WIN"] + distribution["LOSS"]
+        if non_push <= 0:
+            raise ValueError("market total has no executable probability")
+        return distribution["WIN"] / non_push
+    return distribution["WIN"] + 0.5 * distribution["HALF_WIN"]
+
+
+def _poisson_total_five_state(
+    total: float, selection: str, line: float
+) -> dict[str, float]:
+    """Analytic Poisson five states from W2_TOTAL_INFER_V2 (DRAFT), section 1.
+
+    In particular, UNDER x.25 at its integer boundary is HALF_WIN; OVER x.25
+    at that boundary is HALF_LOSS.  The frozen V1 text is retained as history.
     """
     n = floor(line)
 
@@ -411,16 +429,23 @@ def _market_under_probability(total: float, line: float) -> float:
     p_at = exp(-total) * total**n / factorial(n) if n >= 0 else 0.0
     fraction = round((line - n) * 4)
     if fraction == 0:
-        non_push = p_below + max(0.0, 1.0 - cdf(n))
-        if non_push <= 0:
-            raise ValueError("market total has no executable probability")
-        return p_below / non_push
+        under = (p_below, 0.0, p_at, 0.0, 1.0 - cdf(n))
+        over = (1.0 - cdf(n), 0.0, p_at, 0.0, p_below)
     elif fraction == 1:
-        return p_below + 0.5 * p_at
+        under = (p_below, p_at, 0.0, 0.0, 1.0 - cdf(n))
+        over = (1.0 - cdf(n), 0.0, 0.0, p_at, p_below)
     elif fraction == 2:
-        return cdf(n)
+        under = (cdf(n), 0.0, 0.0, 0.0, 1.0 - cdf(n))
+        over = (1.0 - cdf(n), 0.0, 0.0, 0.0, cdf(n))
+    elif fraction == 3:
+        p_next = exp(-total) * total ** (n + 1) / factorial(n + 1) if n + 1 >= 0 else 0.0
+        under = (cdf(n), 0.0, 0.0, p_next, 1.0 - cdf(n + 1))
+        over = (1.0 - cdf(n + 1), p_next, 0.0, 0.0, cdf(n))
     else:
-        return cdf(n)
+        raise ValueError("line must be a quarter-line increment")
+    if selection not in {"UNDER", "OVER"}:
+        raise ValueError("TOTALS selection must be OVER or UNDER")
+    return dict(zip(OUTCOME_ORDER, under if selection == "UNDER" else over, strict=True))
 
 
 def _solve_handicap_delta(

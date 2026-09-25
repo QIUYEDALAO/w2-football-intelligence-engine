@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import csv
+import hashlib
 import inspect
-from math import isclose
+from math import exp, factorial, isclose
+from pathlib import Path
 
 import pytest
 
@@ -9,6 +12,8 @@ from w2.quant_research.track_b_lambda_level_fusion import (
     FROZEN_W_AH,
     FROZEN_W_TOTALS,
     _distribution,
+    _market_under_probability,
+    _poisson_total_five_state,
     expected_rebate_units,
     five_state_cashflow,
     fuse_lambda_level,
@@ -64,6 +69,96 @@ def test_quarter_line_cashflow_maps_half_states_exactly() -> None:
     assert _distribution({(0, 1): 1.0}, "TOTALS", "UNDER", 2.25)["WIN"] == 1.0
     assert _distribution({(1, 1): 1.0}, "TOTALS", "UNDER", 2.0)["PUSH"] == 1.0
     assert _distribution({(1, 2): 1.0}, "TOTALS", "UNDER", 2.75)["HALF_LOSS"] == 1.0
+
+
+@pytest.mark.parametrize(
+    ("line", "total_goals", "under_state", "over_state"),
+    [
+        (2.0, 1, "WIN", "LOSS"), (2.0, 2, "PUSH", "PUSH"),
+        (2.0, 3, "LOSS", "WIN"),
+        (2.25, 1, "WIN", "LOSS"), (2.25, 2, "HALF_WIN", "HALF_LOSS"),
+        (2.25, 3, "LOSS", "WIN"),
+        (2.5, 2, "WIN", "LOSS"), (2.5, 3, "LOSS", "WIN"),
+        (2.75, 2, "WIN", "LOSS"), (2.75, 3, "HALF_LOSS", "HALF_WIN"),
+        (2.75, 4, "LOSS", "WIN"),
+    ],
+)
+def test_total_infer_v2_draft_all_line_settlement_boundaries(
+    line: float, total_goals: int, under_state: str, over_state: str
+) -> None:
+    # The expected states are the V2 draft's eight-row table, independent of
+    # the production settlement helper used inside _distribution.
+    matrix = {(total_goals, 0): 1.0}
+    assert _distribution(matrix, "TOTALS", "UNDER", line)[under_state] == 1.0
+    assert _distribution(matrix, "TOTALS", "OVER", line)[over_state] == 1.0
+
+
+@pytest.mark.parametrize("line", [2.0, 2.25, 2.5, 2.75])
+@pytest.mark.parametrize("selection", ["UNDER", "OVER"])
+def test_total_infer_v2_draft_analytic_five_states_match_independent_enumeration(
+    line: float, selection: str
+) -> None:
+    # Independent Poisson enumeration uses the table's result for each integer
+    # total, with the omitted tail bounded below 1e-12 at lambda=2.6.
+    total = 2.6
+    expected = {state: 0.0 for state in ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")}
+    for goals in range(25):
+        if line == 2.0:
+            under = "WIN" if goals < 2 else "PUSH" if goals == 2 else "LOSS"
+        elif line == 2.25:
+            under = "WIN" if goals < 2 else "HALF_WIN" if goals == 2 else "LOSS"
+        elif line == 2.5:
+            under = "WIN" if goals <= 2 else "LOSS"
+        else:
+            under = "WIN" if goals <= 2 else "HALF_LOSS" if goals == 3 else "LOSS"
+        over = {"WIN": "LOSS", "HALF_WIN": "HALF_LOSS", "PUSH": "PUSH",
+                "HALF_LOSS": "HALF_WIN", "LOSS": "WIN"}[under]
+        expected[under if selection == "UNDER" else over] += (
+            exp(-total) * total**goals / factorial(goals)
+        )
+    actual = _poisson_total_five_state(total, selection, line)
+    assert all(abs(actual[state] - expected[state]) < 1e-12 for state in expected)
+    if selection == "UNDER":
+        target = actual["WIN"] + (0.5 * actual["HALF_WIN"] if line != 2.0 else 0.0)
+        if line == 2.0:
+            target /= 1.0 - actual["PUSH"]
+        assert isclose(_market_under_probability(total, line), target, abs_tol=1e-12)
+
+
+def test_total_infer_v2_draft_real_54_under_x25_rows_have_zero_sse() -> None:
+    fixture = Path(__file__).parents[1] / "fixtures/total_infer_v2_under_x25_v3.csv"
+    assert hashlib.sha256(fixture.read_bytes()).hexdigest() == (
+        "3365af13f7cee7ae29116ada7e82c6095424ba4dcdd8b88377eeecae438fcdb5"
+    )
+    with fixture.open(newline="") as source:
+        rows = list(csv.DictReader(source))
+    # Minimal columns extracted from the 1150-row 2026-09-23 historical CSV,
+    # source SHA-256 c62207eb587dceb6a47ea1e6582d2556d5fc469c898fff25d2fecb4adc1f2f55.
+    assert len(rows) == len({row["fixture_id"] for row in rows}) == 54
+    assert {row["selection"] for row in rows} == {"UNDER"}
+    for row in rows:
+        line = float(row["exact_line"])
+        boundary = int(line)
+        assert line - boundary == 0.25
+        observed = {state: float(row[column]) for state, column in (
+            ("WIN", "p_win"), ("HALF_WIN", "p_half_win"),
+            ("PUSH", "p_push"), ("HALF_LOSS", "p_half_loss"),
+            ("LOSS", "p_loss"),
+        )}
+        # Solve lambda from P(T < boundary), independently of the code under test.
+        lo, hi = 0.5, 6.0
+        for _ in range(60):
+            midpoint = (lo + hi) / 2.0
+            p_below = sum(exp(-midpoint) * midpoint**k / factorial(k) for k in range(boundary))
+            if p_below > observed["WIN"]:
+                lo = midpoint
+            else:
+                hi = midpoint
+        actual = _poisson_total_five_state((lo + hi) / 2.0, "UNDER", line)
+        sse_v2 = sum((actual[state] - observed[state]) ** 2 for state in observed)
+        assert sse_v2 < 1e-12, (row["fixture_id"], sse_v2)
+        # V1 placed the boundary mass in HALF_LOSS, leaving HALF_WIN at zero.
+        assert observed["HALF_WIN"] ** 2 > 0.01, row["fixture_id"]
 
 
 def test_five_state_cashflow_applies_half_win_push_half_loss_and_loss() -> None:
