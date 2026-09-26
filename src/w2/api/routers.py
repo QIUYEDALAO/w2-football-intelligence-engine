@@ -136,6 +136,8 @@ def _calibrated_sample_projection(row: CalibratedValidationSampleModel) -> dict[
                 "match",
                 "recommendation",
                 "result",
+                "display_state",
+                "display_notice",
                 "calibration_decision",
                 "calibrated_ev",
             )

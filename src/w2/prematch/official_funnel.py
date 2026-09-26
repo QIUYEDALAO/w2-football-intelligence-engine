@@ -53,6 +53,14 @@ CHECKPOINT_LABELS = {
     "T15_ODDS": "T-15m",
 }
 
+# Historical TOTALS rows remain in the append-only validation corpus, but they
+# are evidence-only market views.  Keep this state explicit at the shared
+# projection boundary so Dashboard and notification consumers cannot
+# accidentally style them as recommendations.
+MARKET_VIEW_DISPLAY_STATE = "MARKET_VIEW"
+RECOMMENDATION_DISPLAY_STATE = "RECOMMENDATION"
+TOTALS_DISPLAY_NOTICE = "市场观点展示 · 不作投注建议"
+
 
 def official_funnel_recommendations(
     evaluations: Sequence[DynamicPrematchEvaluationModel],
@@ -206,6 +214,14 @@ def official_funnel_recommendations(
                 "evaluated_at": _iso_or_none(row.evaluated_at),
                 "kickoff_utc": _iso_or_none(fixture.kickoff_utc) if fixture else None,
                 "market": market,
+                "display_state": (
+                    MARKET_VIEW_DISPLAY_STATE
+                    if market == "TOTALS"
+                    else RECOMMENDATION_DISPLAY_STATE
+                ),
+                "display_notice": (
+                    TOTALS_DISPLAY_NOTICE if market == "TOTALS" else None
+                ),
                 "selection": str(row.selection),
                 "exact_line": line,
                 "decimal_odds": float(decimal_odds),

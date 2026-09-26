@@ -599,6 +599,8 @@ export interface WorkspaceValidation {
       evaluated_at: string | null;
       kickoff_utc: string | null;
       market: "ASIAN_HANDICAP" | "TOTALS";
+      display_state?: "RECOMMENDATION" | "MARKET_VIEW";
+      display_notice?: string | null;
       selection: "HOME" | "AWAY" | "OVER" | "UNDER";
       exact_line: string;
       decimal_odds: number;
@@ -700,6 +702,9 @@ export interface ValidationReviewSample {
   league: string | null;
   match: string | null;
   recommendation: string | null;
+  market?: string | null;
+  display_state?: "RECOMMENDATION" | "MARKET_VIEW";
+  display_notice?: string | null;
   decimal_odds: number | string | null;
   result: string | null;
   profit_units?: number | null;
@@ -731,6 +736,8 @@ export interface CalibratedValidationSample {
   param_version: string;
   warmup: boolean;
   forward: boolean;
+  display_state?: "RECOMMENDATION" | "MARKET_VIEW";
+  display_notice?: string | null;
   date?: string | null;
   league?: string | null;
   match?: string | null;
@@ -793,6 +800,8 @@ export interface WorkspaceReplayMatch {
   outcome: WorkspaceMatch["outcome"];
   evaluation_count?: number;
   final_recommendation?: string | null;
+  final_display_state?: "RECOMMENDATION" | "MARKET_VIEW" | null;
+  display_notice?: string | null;
   date?: string | null;
   league?: string | null;
   match?: string | null;
@@ -969,6 +978,8 @@ export interface TodayRecommendation {
   home: string | null;
   away: string | null;
   market: string | null;
+  display_state?: "RECOMMENDATION" | "MARKET_VIEW";
+  display_notice?: string | null;
   selection: string | null;
   line: string | number | null;
   odds: number | string | null;

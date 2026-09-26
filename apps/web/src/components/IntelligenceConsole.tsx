@@ -1093,6 +1093,7 @@ function ValidationCenter({ response }: { response: IntelligenceValidationRespon
           const recommendation = row.market === "ASIAN_HANDICAP"
             ? `让球 ${ahRecommendationTeamLabel(row.selection, row.home_team_label?.display_name, row.away_team_label?.display_name)}${formatAhRecommendationHandicap(row.selection, row.exact_line) || row.exact_line} · 推荐${SELECTION_LABELS[row.selection]}`
             : `${SELECTION_LABELS[row.selection]} ${row.exact_line}`;
+          const marketView = row.display_state === "MARKET_VIEW" || row.market === "TOTALS";
           return <li key={`${row.fixture_id}-${row.market}`} data-fixture-id={row.fixture_id} data-market={row.market} data-settlement={row.settlement}>
             <div className="v41-match-card__head">
               <span className="v41-match-card__meta"><span className="v41-league-tag">{translateCompetition(row.competition_id || "赛事待确认", row.competition_id)}</span><time>{localDateTime(row.kickoff_utc)}</time></span>
@@ -1100,7 +1101,7 @@ function ValidationCenter({ response }: { response: IntelligenceValidationRespon
             </div>
             <strong className="v41-match-card__teams"><span className="v41-match-name"><TeamLabel team={row.home_team_label} /><span className="v41-versus"> vs </span><TeamLabel team={row.away_team_label} /></span></strong>
             <div className="v41-match-card__detail">
-              <span className="v41-match-card__pick">{recommendation}{row.lifecycle_note_zh ? <small>{row.lifecycle_note_zh}</small> : null}<span className="v41-match-card__odds">@{row.decimal_odds.toFixed(2)}</span></span>
+              <span className="v41-match-card__pick">{marketView ? (row.display_notice || "市场观点展示 · 不作投注建议") : recommendation}{row.lifecycle_note_zh ? <small>{row.lifecycle_note_zh}</small> : null}<span className="v41-match-card__odds">@{row.decimal_odds.toFixed(2)}</span></span>
               <span className="v41-match-card__score-group"><span className="v41-match-card__score">{row.score ?? "待结算"}</span><em className="v41-match-card__profit">{row.profit_units === null ? "待结算" : `${row.profit_units > 0 ? "+" : ""}${row.profit_units.toFixed(3)}`}</em></span>
             </div>
           </li>;

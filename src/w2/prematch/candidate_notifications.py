@@ -664,12 +664,15 @@ def _iso_or_none(value: datetime | None) -> str | None:
 
 
 def _sample_row_to_projection(row: ValidationSampleModel) -> dict[str, Any]:
+    market = str(row.market)
     return {
         "evaluation_id": row.evaluation_id,
         "fixture_id": row.fixture_id,
         "evaluated_at": _iso_or_none(row.evaluated_at),
         "kickoff_utc": _iso_or_none(row.kickoff_utc),
-        "market": row.market,
+        "market": market,
+        "display_state": "MARKET_VIEW" if market == "TOTALS" else "RECOMMENDATION",
+        "display_notice": "市场观点展示 · 不作投注建议" if market == "TOTALS" else None,
         "selection": row.selection,
         "exact_line": row.exact_line,
         "decimal_odds": row.decimal_odds,

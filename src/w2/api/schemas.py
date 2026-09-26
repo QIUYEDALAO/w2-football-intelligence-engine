@@ -1540,6 +1540,8 @@ class WorkspaceOfficialRecommendation(BaseModel):
     evaluated_at: datetime | str | None
     kickoff_utc: datetime | str | None
     market: Literal["ASIAN_HANDICAP", "TOTALS"]
+    display_state: Literal["RECOMMENDATION", "MARKET_VIEW"] = "RECOMMENDATION"
+    display_notice: str | None = None
     selection: Literal["HOME", "AWAY", "OVER", "UNDER"]
     exact_line: str = Field(min_length=1)
     decimal_odds: float = Field(gt=1)
@@ -1915,6 +1917,8 @@ class CalibratedValidationSample(BaseModel):
     param_version: str
     warmup: bool
     forward: bool = False
+    display_state: Literal["RECOMMENDATION", "MARKET_VIEW"] = "RECOMMENDATION"
+    display_notice: str | None = None
     date: str | None = None
     league: str | None = None
     match: str | None = None
@@ -1960,6 +1964,8 @@ class WorkspaceReplayMatch(BaseModel):
     outcome: WorkspaceMatchOutcome
     evaluation_count: int = 0
     final_recommendation: str | None = None
+    final_display_state: Literal["RECOMMENDATION", "MARKET_VIEW"] | None = None
+    display_notice: str | None = None
     date: str | None = None
     league: str | None = None
     match: str | None = None

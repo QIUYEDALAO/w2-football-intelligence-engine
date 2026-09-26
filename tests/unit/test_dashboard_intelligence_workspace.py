@@ -187,6 +187,8 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
         1.87,
     )
     assert (portland["settlement"], portland["profit_units"]) == ("LOSS", -1.0)
+    assert portland["display_state"] == "MARKET_VIEW"
+    assert portland["display_notice"] == "市场观点展示 · 不作投注建议"
     assert (minnesota["settlement"], minnesota["profit_units"]) == ("PUSH", 0.0)
     assert minnesota["confirmed_checkpoint"] == "T-30m"
     restored = {

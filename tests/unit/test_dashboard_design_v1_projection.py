@@ -67,6 +67,29 @@ def test_review_row_exposes_design_columns_and_calibration_columns() -> None:
     assert projected["result"] == "HALF_WIN"
     assert projected["calibration_decision"] == "KEPT"
     assert projected["calibrated_ev"] == 0.031
+    assert projected["display_state"] == "RECOMMENDATION"
+
+
+def test_totals_review_row_is_market_view_with_disclaimer() -> None:
+    row = _row("v2", "2026-09-23", "WIN", 0.9)
+    row.update({"market": "TOTALS", "selection": "OVER", "exact_line": "2.5"})
+
+    projected = review_row(row)
+
+    assert projected["display_state"] == "MARKET_VIEW"
+    assert projected["display_notice"] == "市场观点展示 · 不作投注建议"
+
+
+def test_today_recommendations_excludes_historical_totals_rows() -> None:
+    totals = _row("v2", "2026-09-23", "WIN", 0.9)
+    totals.update({"market": "TOTALS", "selection": "OVER", "exact_line": "2.5"})
+    ah = _row("v2", "2026-09-23", "WIN", 0.9)
+    rows = today_recommendations(
+        [], [totals, ah], anchor=date(2026, 9, 23), calibration_identity="v2"
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["market"] == "让球"
 
 
 def test_today_recommendations_keep_persisted_settlement_and_quote() -> None:
@@ -109,3 +132,15 @@ def test_replay_display_counts_unique_evaluation_timepoints() -> None:
 
     assert row["evaluation_count"] == 2
     assert row["final_recommendation"] == "大小球 大 2.5 @1.93"
+
+
+def test_replay_totals_is_market_view_with_disclaimer() -> None:
+    row = replay_display_row(
+        {"competition_id": "140", "home_team_name": "主队", "away_team_name": "客队"},
+        [{"evaluated_at": "2026-09-23T11:00:00Z", "state": "ANALYSIS_PICK_ACTIVE",
+          "market": "TOTALS", "selection": "OVER", "exact_line": "2.5",
+          "decimal_odds": 1.93}],
+    )
+
+    assert row["final_display_state"] == "MARKET_VIEW"
+    assert row["display_notice"] == "市场观点展示 · 不作投注建议"

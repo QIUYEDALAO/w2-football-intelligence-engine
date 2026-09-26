@@ -266,6 +266,12 @@ def _apply_v4_authority(projected: dict[str, Any]) -> dict[str, Any]:
     if tier is None:
         raise ProjectionCardContractViolation("RECOMMENDATION_DECISION_V4_OUTCOME_INVALID")
     selected = decision.get("selected_candidate")
+    totals_market_view = (
+        isinstance(selected, Mapping)
+        and str(selected.get("market") or "") == "TOTALS"
+    )
+    if totals_market_view:
+        tier = "SKIP"
     pick = (
         {
             "market": selected.get("market"),
@@ -285,6 +291,8 @@ def _apply_v4_authority(projected: dict[str, Any]) -> dict[str, Any]:
     reason_code = (
         "CURRENT_V4_AUTHORITY_MISSING"
         if authority_missing
+        else "TOTALS_MARKET_VIEW_ONLY"
+        if totals_market_view
         else str(reason.get("code") or "NOT_READY")
     )
     projected.update(
@@ -299,7 +307,11 @@ def _apply_v4_authority(projected: dict[str, Any]) -> dict[str, Any]:
             if pick is not None
             else {
                 "reason_code": reason_code,
-                "reason_human": str(reason.get("message") or "当前推荐缺少 V4 权威身份"),
+                "reason_human": (
+                    "市场观点展示 · 不作投注建议"
+                    if totals_market_view
+                    else str(reason.get("message") or "当前推荐缺少 V4 权威身份")
+                ),
                 "action": "等待下一次权威证据刷新",
                 "next_eval_at": None,
             },

@@ -547,6 +547,16 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
                 "evaluated_at": _optional_text(row.get("evaluated_at")),
                 "kickoff_utc": _optional_text(row.get("kickoff_utc")),
                 "market": _text(row.get("market")),
+                "display_state": (
+                    "MARKET_VIEW"
+                    if _text(row.get("market")) == "TOTALS"
+                    else "RECOMMENDATION"
+                ),
+                "display_notice": (
+                    "市场观点展示 · 不作投注建议"
+                    if _text(row.get("market")) == "TOTALS"
+                    else None
+                ),
                 "selection": _text(row.get("selection")),
                 "exact_line": _text(row.get("exact_line")),
                 "decimal_odds": _number(row.get("decimal_odds")),

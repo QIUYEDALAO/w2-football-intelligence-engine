@@ -755,6 +755,12 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
     if tier is None:
         raise SystemDegradedError("RECOMMENDATION_DECISION_V4_OUTCOME_INVALID")
     selected = decision.get("selected_candidate")
+    totals_market_view = (
+        isinstance(selected, dict)
+        and str(selected.get("market") or "") == "TOTALS"
+    )
+    if totals_market_view:
+        tier = "SKIP"
     pick = (
         {
             "market": selected.get("market"),
@@ -778,10 +784,18 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
     reason_value = decision.get("reason")
     reason = reason_value if isinstance(reason_value, dict) else {}
     projected_reason_code = (
-        fallback_reason_code if authority_missing else str(reason.get("code") or "")
+        "TOTALS_MARKET_VIEW_ONLY"
+        if totals_market_view
+        else fallback_reason_code if authority_missing else str(reason.get("code") or "")
     )
     projected_reason_human = (
-        fallback_reason_human if authority_missing else str(reason.get("message") or "证据尚未就绪")
+        "市场观点展示 · 不作投注建议"
+        if totals_market_view
+        else (
+            fallback_reason_human
+            if authority_missing
+            else str(reason.get("message") or "证据尚未就绪")
+        )
     )
     projected_non_pick = (
         None

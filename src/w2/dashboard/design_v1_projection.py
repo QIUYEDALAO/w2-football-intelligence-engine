@@ -15,6 +15,8 @@ DECISIVE = frozenset({"WIN", "HALF_WIN", "HALF_LOSS", "LOSS"})
 WINNING = frozenset({"WIN", "HALF_WIN"})
 MARKET_ZH = {"ASIAN_HANDICAP": "让球", "TOTALS": "大小球"}
 SIDE_ZH = {"HOME": "主", "AWAY": "客", "OVER": "大", "UNDER": "小"}
+TOTALS_DISPLAY_STATE = "MARKET_VIEW"
+TOTALS_DISPLAY_NOTICE = "市场观点展示 · 不作投注建议"
 
 
 def _label(value: Any) -> str | None:
@@ -105,6 +107,8 @@ def performance_summary(
 def review_row(row: Mapping[str, Any], *, calibrated: bool = False) -> dict[str, Any]:
     home = _label(row.get("home_team_label"))
     away = _label(row.get("away_team_label"))
+    market = str(row.get("market") or "")
+    totals_market_view = market == "TOTALS"
     return {
         "fixture_id": str(row["fixture_id"]),
         "date": _day(row).isoformat() if _day(row) else None,
@@ -113,7 +117,9 @@ def review_row(row: Mapping[str, Any], *, calibrated: bool = False) -> dict[str,
         "recommendation": (
             f"{SIDE_ZH.get(str(row.get('selection')), '')} {row.get('exact_line')}"
         ).strip(),
-        "market": MARKET_ZH.get(str(row.get("market"))),
+        "market": MARKET_ZH.get(market),
+        "display_state": TOTALS_DISPLAY_STATE if totals_market_view else "RECOMMENDATION",
+        "display_notice": TOTALS_DISPLAY_NOTICE if totals_market_view else None,
         "decimal_odds": row.get("decimal_odds"),
         "result": row.get("settlement"),
         "profit_units": row.get("profit_units"),
@@ -140,6 +146,10 @@ def today_recommendations(
     for sample in by_fixture.values():
         fixture_id = str(sample["fixture_id"])
         market = str(sample["market"])
+        # Historical TOTALS candidates remain available in the validation
+        # ledger, but must never enter the public "今日推荐" surface.
+        if market == "TOTALS":
+            continue
         match = next((item for item in matches if str(item.get("fixture_id")) == fixture_id), {})
         home = _label(sample.get("home_team_label")) or _label(match.get("home_team_label"))
         away = _label(sample.get("away_team_label")) or _label(match.get("away_team_label"))
@@ -170,6 +180,8 @@ def today_recommendations(
             continue
         fixture_id = str(match.get("fixture_id"))
         market = str(pick["market"])
+        if market == "TOTALS":
+            continue
         if (fixture_id, market) in seen:
             continue
         lifecycle = str(match.get("lifecycle_status") or "")
@@ -204,7 +216,12 @@ def replay_display_row(
     away = _label(match.get("away_team_label")) or _label(match.get("away_team_name"))
     last = max(versions, key=lambda row: str(row.get("evaluated_at") or ""), default=None)
     final = None
+    final_display_state = "RECOMMENDATION"
+    display_notice = None
     if last and last.get("state") == "ANALYSIS_PICK_ACTIVE":
+        if str(last.get("market")) == "TOTALS":
+            final_display_state = TOTALS_DISPLAY_STATE
+            display_notice = TOTALS_DISPLAY_NOTICE
         final = (
             f"{MARKET_ZH.get(str(last.get('market')), last.get('market'))} "
             f"{SIDE_ZH.get(str(last.get('selection')), last.get('selection'))} "
@@ -217,4 +234,6 @@ def replay_display_row(
             str(row["evaluated_at"]) for row in versions if row.get("evaluated_at")
         }),
         "final_recommendation": final,
+        "final_display_state": final_display_state if final is not None else None,
+        "display_notice": display_notice,
     }
