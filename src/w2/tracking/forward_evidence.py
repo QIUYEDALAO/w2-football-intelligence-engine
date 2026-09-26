@@ -17,7 +17,7 @@ from w2.domain.canonical_serialization import (
     HashDomain,
     canonical_sha256,
 )
-from w2.domain.odds import settle_total_goals
+from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.domain.profit import (
     FROZEN_FADE_DELTA,
     REBATE_FORMULA_VERSION,
@@ -32,6 +32,8 @@ from w2.infrastructure.persistence.forward_evidence_models import (
 from w2.infrastructure.persistence.matchday_intake_models import MatchdayMarketObservationModel
 from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
 from w2.infrastructure.persistence.models import ResultModel
+from w2.prematch.lifecycle import SETTLEMENT_STATE_ORDER
+from w2.tracking.model_forecast_ledger import MODEL_FAMILY
 
 TRACK_D_FADE = "TRACK_D_FADE"
 VALIDATION_SIGNAL = "VALIDATION_SIGNAL"
@@ -83,6 +85,57 @@ def _finite(value: Any) -> float | None:
 
 def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
+
+
+def _score_matrix_from_payload(payload: dict[str, Any] | None) -> dict[tuple[int, int], float]:
+    """从 capture payload 的 score_matrix_distribution 还原原始 score matrix。"""
+    distribution = (payload or {}).get("score_matrix_distribution") or []
+    if not isinstance(distribution, list):
+        return {}
+    matrix: dict[tuple[int, int], float] = {}
+    for row in distribution:
+        if not isinstance(row, dict):
+            continue
+        try:
+            home = int(row["home_goals"])
+            away = int(row["away_goals"])
+            probability = float(row["probability"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        matrix[(home, away)] = probability
+    return matrix
+
+
+def _five_state_from_score_matrix(
+    matrix: dict[tuple[int, int], float],
+    market: str,
+    selection: str,
+    line: Decimal,
+) -> dict[str, float] | None:
+    """从原始 score matrix 独立重算该 market/selection/line 的五态分布。"""
+    if market not in {"ASIAN_HANDICAP", "TOTALS"}:
+        return None
+    values = {state: 0.0 for state in SETTLEMENT_STATE_ORDER}
+    for (home, away), probability in matrix.items():
+        outcome = (
+            settle_asian_handicap(home, away, selection, line).value
+            if market == "ASIAN_HANDICAP"
+            else settle_total_goals(home + away, selection, line).value
+        )
+        values[outcome] += probability
+    return {state: round(values[state], 12) for state in SETTLEMENT_STATE_ORDER}
+
+
+def _five_state_close(left: dict[str, float], right: dict[str, float]) -> bool:
+    """五态一致性（1e-9 精度），独立 oracle 不与写入侧共用实现。"""
+    if set(left) != set(right) or set(left) != set(SETTLEMENT_STATE_ORDER):
+        return False
+    return all(
+        math.isfinite(left[state])
+        and math.isfinite(right[state])
+        and abs(left[state] - right[state]) <= 1e-9
+        for state in SETTLEMENT_STATE_ORDER
+    )
 
 
 def _pair(
@@ -373,6 +426,27 @@ def append_forward_evidence_in_session(
         or not version.calibration_identity
     ):
         reasons.append("MODEL_IDENTITY_UNPROVABLE")
+    if capture is not None:
+        if capture.model_family != MODEL_FAMILY:
+            reasons.append("MODEL_FAMILY_MISMATCH")
+        if getattr(version, "model_input_hash", None) != capture.model_input_manifest_hash:
+            reasons.append("MODEL_INPUT_MANIFEST_MISMATCH")
+        if not fade_requested and version.model_settlement_distribution:
+            try:
+                line = Decimal(str(version.exact_line))
+            except (InvalidOperation, TypeError, ValueError):
+                line = None
+            if line is not None:
+                expected = _five_state_from_score_matrix(
+                    _score_matrix_from_payload(capture.payload),
+                    version.market,
+                    version.selection,
+                    line,
+                )
+                if expected is not None and not _five_state_close(
+                    version.model_settlement_distribution, expected
+                ):
+                    reasons.append("SETTLEMENT_DISTRIBUTION_MISMATCH")
     quote_ids = (
         fade["pinnacle_quote_observation_ids"]
         if fade is not None else [row.observation_id for row in quotes]

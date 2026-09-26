@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 from dataclasses import make_dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -79,6 +80,17 @@ class _Session:
         return nullcontext()
 
 
+_SCORE_MATRIX_ROWS = [
+    {"home_goals": 0, "away_goals": 0, "probability": 0.25},
+    {"home_goals": 2, "away_goals": 1, "probability": 0.5},
+    {"home_goals": 3, "away_goals": 0, "probability": 0.25},
+]
+# TOTALS OVER 2.5 从 _SCORE_MATRIX_ROWS 独立重算的五态（独立 oracle）。
+_SETTLED_DISTRIBUTION = {
+    "WIN": 0.75, "HALF_WIN": 0.0, "PUSH": 0.0, "HALF_LOSS": 0.0, "LOSS": 0.25,
+}
+
+
 def _version(at: datetime) -> SimpleNamespace:
     return SimpleNamespace(
         evaluation_id="e",
@@ -96,7 +108,8 @@ def _version(at: datetime) -> SimpleNamespace:
         evaluated_at=at,
         evaluation_policy_version="candidate-eval.v2",
         calibration_identity="candidate-eval.v2",
-        model_settlement_distribution={"WIN": 0.5},
+        model_input_hash="m" * 64,
+        model_settlement_distribution=dict(_SETTLED_DISTRIBUTION),
         state=SimpleNamespace(value="NO_EDGE_CURRENT"),
         factor_decision_status="ADMITTED",
     )
@@ -107,8 +120,11 @@ def _capture(at: datetime) -> SimpleNamespace:
         fixture_id="api_football:123",
         captured_at=at - timedelta(minutes=3),
         kickoff_utc=at + timedelta(hours=2),
+        model_family="EXACT_DC_POISSON",
+        model_version="v1",
         model_input_manifest_hash="m" * 64,
         payload={
+            "score_matrix_distribution": _SCORE_MATRIX_ROWS,
             "simulation_replay": {
                 "simulation": {
                     "lambda_home": 1.2,
@@ -179,6 +195,52 @@ def test_missing_or_mismatched_evidence_is_kept_but_not_pit_provable() -> None:
     assert row is not None and row.pit_status == "PIT_UNPROVABLE"
     assert "QUOTE_PAIR_MISMATCH" in row.payload["exclusion_reasons"]
     assert row.payload["quote_pair_identity"] is None
+
+
+def test_forecast_capture_semantic_rejections() -> None:
+    """M05/M06/M09：错比赛、错模型 family、错输入 manifest、错分布各自拒绝，不 PROVABLE。"""
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+
+    def evidence_for(capture, version=None):
+        session = _Session(capture=capture, quotes=_quotes(at))
+        register_forward_clock(session, started_at=T0, code_revision="a" * 40)
+        return append_forward_evidence_in_session(session, version or _version(at))
+
+    wrong_fixture = _capture(at)
+    wrong_fixture.fixture_id = "api_football:999"
+    row = evidence_for(wrong_fixture)
+    assert "MODEL_IDENTITY_UNPROVABLE" in row.payload["exclusion_reasons"]
+
+    wrong_family = _capture(at)
+    wrong_family.model_family = "OTHER_FAMILY"
+    assert "MODEL_FAMILY_MISMATCH" in evidence_for(wrong_family).payload["exclusion_reasons"]
+
+    wrong_manifest = _capture(at)
+    wrong_manifest.model_input_manifest_hash = "z" * 64
+    assert "MODEL_INPUT_MANIFEST_MISMATCH" in evidence_for(
+        wrong_manifest
+    ).payload["exclusion_reasons"]
+
+    wrong_dist = _version(at)
+    wrong_dist.model_settlement_distribution = {
+        "WIN": 0.0, "HALF_WIN": 0.0, "PUSH": 0.0, "HALF_LOSS": 0.0, "LOSS": 1.0,
+    }
+    assert "SETTLEMENT_DISTRIBUTION_MISMATCH" in evidence_for(
+        _capture(at), wrong_dist
+    ).payload["exclusion_reasons"]
+
+
+def test_five_state_independent_oracle_recomputes_from_score_matrix() -> None:
+    """M03：独立 oracle 用 settle_total_goals 重算五态，不依赖实现的校验函数。"""
+    from w2.domain.odds import settle_total_goals
+
+    values = {"WIN": 0.0, "HALF_WIN": 0.0, "PUSH": 0.0, "HALF_LOSS": 0.0, "LOSS": 0.0}
+    for (home, away), probability in {
+        (0, 0): 0.25, (2, 1): 0.5, (3, 0): 0.25,
+    }.items():
+        outcome = settle_total_goals(home + away, "OVER", Decimal("2.5")).value
+        values[outcome] += probability
+    assert values == _SETTLED_DISTRIBUTION
 
 
 def test_pre_clock_evaluations_are_never_backfilled() -> None:

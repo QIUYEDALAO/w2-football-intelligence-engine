@@ -575,7 +575,7 @@ def test_db_lifecycle_is_append_only_and_t30_freezes_once() -> None:
     assert not repository.freeze_t30_snapshot("fixture-1", lock)
 
 
-def test_append_evaluation_binds_forecast_capture_and_fails_closed() -> None:
+def test_append_evaluation_never_guesses_forecast_capture() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     with Session(engine) as session:
@@ -603,7 +603,9 @@ def test_append_evaluation_binds_forecast_capture_and_fails_closed() -> None:
     assert bound.model_forecast_capture_identity_hash is None
     persisted, inserted = repository.append_evaluation(bound)
     assert inserted
-    assert persisted.model_forecast_capture_identity_hash == "c" * 64
+    # P0-MFC-SEMANTIC：不再按"同 fixture 唯一 capture"猜绑；无实际来源 → UNRESOLVED。
+    assert persisted.model_forecast_capture_identity_hash is None
+    assert "MODEL_FORECAST_CAPTURE_UNRESOLVED" in persisted.blockers
 
     missing = classify_evaluation(
         _ah_evaluation(capture_id="c2", ev=0.08, delta=0.06, ev_se=0.02, fixture_id="fixture-none")
