@@ -52,6 +52,7 @@ MARKET_DEPTH_ASYMMETRY_REASON = "MARKET_DEPTH_ASYMMETRY"
 _EVALUATED_OPPORTUNITY_STATES = frozenset(
     {"EVALUATED_CANDIDATE", "EVALUATED_NO_EDGE", "BLOCKED_BY_GATE"}
 )
+_SETTLED = frozenset({"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"})
 RISK_REASON_LABELS = {
     "DATA_FIELD_STALE": "数据字段已超过新鲜度边界",
     "DATA_IDENTITY_NOT_READY": "比赛或盘口身份尚未完成",
@@ -550,11 +551,13 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
                 "display_state": (
                     "MARKET_VIEW"
                     if _text(row.get("market")) == "TOTALS"
+                    and _text(row.get("settlement")) not in _SETTLED
                     else "RECOMMENDATION"
                 ),
                 "display_notice": (
                     "市场观点展示 · 不作投注建议"
                     if _text(row.get("market")) == "TOTALS"
+                    and _text(row.get("settlement")) not in _SETTLED
                     else None
                 ),
                 "selection": _text(row.get("selection")),

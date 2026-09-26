@@ -1093,7 +1093,7 @@ function ValidationCenter({ response }: { response: IntelligenceValidationRespon
           const recommendation = row.market === "ASIAN_HANDICAP"
             ? `让球 ${ahRecommendationTeamLabel(row.selection, row.home_team_label?.display_name, row.away_team_label?.display_name)}${formatAhRecommendationHandicap(row.selection, row.exact_line) || row.exact_line} · 推荐${SELECTION_LABELS[row.selection]}`
             : `${SELECTION_LABELS[row.selection]} ${row.exact_line}`;
-          const marketView = row.display_state === "MARKET_VIEW" || row.market === "TOTALS";
+          const marketView = row.display_state === "MARKET_VIEW";
           return <li key={`${row.fixture_id}-${row.market}`} data-fixture-id={row.fixture_id} data-market={row.market} data-settlement={row.settlement}>
             <div className="v41-match-card__head">
               <span className="v41-match-card__meta"><span className="v41-league-tag">{translateCompetition(row.competition_id || "赛事待确认", row.competition_id)}</span><time>{localDateTime(row.kickoff_utc)}</time></span>

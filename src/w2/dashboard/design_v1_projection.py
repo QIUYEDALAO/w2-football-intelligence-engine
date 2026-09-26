@@ -108,7 +108,9 @@ def review_row(row: Mapping[str, Any], *, calibrated: bool = False) -> dict[str,
     home = _label(row.get("home_team_label"))
     away = _label(row.get("away_team_label"))
     market = str(row.get("market") or "")
-    totals_market_view = market == "TOTALS"
+    # T1 裁决后 TOTALS 只作「市场观点」仅覆盖今日/未来新产出；历史已结算行保留
+    # 原始方向/盘口，不得再覆盖为「市场观点展示 · 不作投注建议」。
+    totals_market_view = market == "TOTALS" and row.get("settlement") not in SETTLED
     return {
         "fixture_id": str(row["fixture_id"]),
         "date": _day(row).isoformat() if _day(row) else None,
@@ -219,9 +221,6 @@ def replay_display_row(
     final_display_state = "RECOMMENDATION"
     display_notice = None
     if last and last.get("state") == "ANALYSIS_PICK_ACTIVE":
-        if str(last.get("market")) == "TOTALS":
-            final_display_state = TOTALS_DISPLAY_STATE
-            display_notice = TOTALS_DISPLAY_NOTICE
         final = (
             f"{MARKET_ZH.get(str(last.get('market')), last.get('market'))} "
             f"{SIDE_ZH.get(str(last.get('selection')), last.get('selection'))} "

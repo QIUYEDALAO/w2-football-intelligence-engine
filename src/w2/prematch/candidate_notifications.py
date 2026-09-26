@@ -83,6 +83,7 @@ PRICE_CHANGE_THRESHOLD_RATIO = 0.02
 EV_CHANGE_THRESHOLD = 0.01
 T30_SLOT = "T-30m_VALIDATION_LOCK"
 BEIJING = ZoneInfo("Asia/Shanghai")
+_SETTLED = frozenset({"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"})
 
 # NOTIF-04 timing anchors (all Beijing time).
 DAILY_CANDIDATE_LIST_DEFAULT_HOUR = 14
@@ -672,14 +673,15 @@ def _iso_or_none(value: datetime | None) -> str | None:
 
 def _sample_row_to_projection(row: ValidationSampleModel) -> dict[str, Any]:
     market = str(row.market)
+    totals_market_view = market == "TOTALS" and row.settlement not in _SETTLED
     return {
         "evaluation_id": row.evaluation_id,
         "fixture_id": row.fixture_id,
         "evaluated_at": _iso_or_none(row.evaluated_at),
         "kickoff_utc": _iso_or_none(row.kickoff_utc),
         "market": market,
-        "display_state": "MARKET_VIEW" if market == "TOTALS" else "RECOMMENDATION",
-        "display_notice": "市场观点展示 · 不作投注建议" if market == "TOTALS" else None,
+        "display_state": "MARKET_VIEW" if totals_market_view else "RECOMMENDATION",
+        "display_notice": "市场观点展示 · 不作投注建议" if totals_market_view else None,
         "selection": row.selection,
         "exact_line": row.exact_line,
         "decimal_odds": row.decimal_odds,
@@ -965,6 +967,11 @@ def enqueue_validation_sample_confirmed_in_session(
 ) -> str | None:
     """② 验证样本最终确认.  Idempotent per fixture x market."""
 
+    # T1 裁决后 TOTALS 只作市场观点、不再产生正向推荐；验证样本确认通道只推 AH
+    # 推荐（fade 验证信号走独立 VALIDATION_SIGNAL 通道）。历史 TOTALS 正向候选
+    # 残留也不得再以「验证样本确认/推荐」形式推送。
+    if str(market) == "TOTALS":
+        return None
     bare_fixture = str(fixture_id).removeprefix("api_football:")
     event_id = _event_id(f"{bare_fixture}|{market}", VALIDATION_SAMPLE_CONFIRMED)
     if session.get(CandidateNotificationOutboxModel, event_id) is not None:
@@ -987,6 +994,7 @@ def enqueue_validation_sample_confirmed_in_session(
         "schema_version": "w2.candidate_notification.v1",
         "event_type": VALIDATION_SAMPLE_CONFIRMED,
         "fixture_id": bare_fixture,
+        "competition": _competition_zh_name(identity.competition_id) if identity else "未知联赛",
         "match": {
             "home": _team_display_name(row["home_team_label"], "主队"),
             "away": _team_display_name(row["away_team_label"], "客队"),

@@ -70,12 +70,25 @@ def test_review_row_exposes_design_columns_and_calibration_columns() -> None:
     assert projected["display_state"] == "RECOMMENDATION"
 
 
-def test_totals_review_row_is_market_view_with_disclaimer() -> None:
+def test_settled_totals_review_row_preserves_original_recommendation() -> None:
     row = _row("v2", "2026-09-23", "WIN", 0.9)
     row.update({"market": "TOTALS", "selection": "OVER", "exact_line": "2.5"})
 
     projected = review_row(row)
 
+    # 历史已结算 TOTALS 行保留原始方向/盘口，不再覆盖为市场观点。
+    assert projected["display_state"] == "RECOMMENDATION"
+    assert projected["display_notice"] is None
+    assert projected["recommendation"] == "大 2.5"
+
+
+def test_pending_totals_review_row_is_market_view() -> None:
+    row = _row("v2", "2026-09-23", "PENDING", 0.0)
+    row.update({"market": "TOTALS", "selection": "OVER", "exact_line": "2.5"})
+
+    projected = review_row(row)
+
+    # 今日/未来新产出（未结算）的 TOTALS 仍是市场观点。
     assert projected["display_state"] == "MARKET_VIEW"
     assert projected["display_notice"] == "市场观点展示 · 不作投注建议"
 
@@ -134,7 +147,7 @@ def test_replay_display_counts_unique_evaluation_timepoints() -> None:
     assert row["final_recommendation"] == "大小球 大 2.5 @1.93"
 
 
-def test_replay_totals_is_market_view_with_disclaimer() -> None:
+def test_replay_totals_keeps_original_final_recommendation() -> None:
     row = replay_display_row(
         {"competition_id": "140", "home_team_name": "主队", "away_team_name": "客队"},
         [{"evaluated_at": "2026-09-23T11:00:00Z", "state": "ANALYSIS_PICK_ACTIVE",
@@ -142,5 +155,7 @@ def test_replay_totals_is_market_view_with_disclaimer() -> None:
           "decimal_odds": 1.93}],
     )
 
-    assert row["final_display_state"] == "MARKET_VIEW"
-    assert row["display_notice"] == "市场观点展示 · 不作投注建议"
+    # 历史 TOTALS 候选（裁决 T1 前）保留原始方向/盘口，不再是市场观点。
+    assert row["final_display_state"] == "RECOMMENDATION"
+    assert row["display_notice"] is None
+    assert row["final_recommendation"] == "大小球 大 2.5 @1.93"
