@@ -170,7 +170,7 @@ def test_old_totals_payload_needs_no_verdict() -> None:
     rebuilt = _version_from_payload(payload)
 
     assert rebuilt.factor_decision_status is None
-    assert rebuilt.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
+    assert rebuilt.state is DynamicEvaluationState.NO_EDGE_CURRENT
     assert factor_blocker(totals) is None
 
 

@@ -119,7 +119,7 @@ def test_a_ready_is_not_a_validation_verdict() -> None:
 def test_b_validated_calibration_still_admits(status: str) -> None:
     """The fix must be an authority, not a blanket denial."""
     version = classify_evaluation(_evaluation(calibration_status=status))
-    assert version.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
+    assert version.state is DynamicEvaluationState.NO_EDGE_CURRENT
     assert calibration_authority.RECOMMENDATION_BLOCKER not in version.blockers
 
 
@@ -137,7 +137,7 @@ def test_b_validated_calibration_still_answers_to_the_ev_gates() -> None:
         _evaluation(calibration_status="PRODUCTION_VALIDATED", ev=-0.01, delta=0.20)
     )
     assert version.state is DynamicEvaluationState.NO_EDGE_CURRENT
-    assert "EV_NOT_POSITIVE" in version.blockers
+    assert "TOTALS_POSITIVE_DISABLED" in version.blockers
 
 
 # --- (c) EV formula, direction, odds format and five-state binding intact -----
@@ -199,7 +199,7 @@ def test_d_fixture_1570340_uses_the_shipped_approved_calibration() -> None:
             delta=RECORDED_DELTA,
         )
     )
-    assert version.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
+    assert version.state is DynamicEvaluationState.NO_EDGE_CURRENT
     assert calibration_authority.RECOMMENDATION_BLOCKER not in version.blockers
     # the EV that was reported is still recorded, unmodified and uncapped
     assert version.current_ev == pytest.approx(RECORDED_EV)
@@ -214,7 +214,7 @@ def test_d_the_same_fixture_would_admit_once_the_model_is_validated() -> None:
             delta=RECORDED_DELTA,
         )
     )
-    assert version.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
+    assert version.state is DynamicEvaluationState.NO_EDGE_CURRENT
 
 
 # --- (e) analysis evidence survives intact -----------------------------------
@@ -283,4 +283,4 @@ def test_e_no_ev_cap_was_introduced() -> None:
         _evaluation(calibration_status="PRODUCTION_VALIDATED", ev=9.99, delta=0.9)
     )
     assert version.current_ev == pytest.approx(9.99)
-    assert version.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
+    assert version.state is DynamicEvaluationState.NO_EDGE_CURRENT

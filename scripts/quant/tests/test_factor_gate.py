@@ -78,7 +78,7 @@ def test_totals_is_not_gated_by_the_factor():
                   factor_direction=None, ev_direction=None,
                   factor_input_identity=None,
                   factor_input_identity_hash=None) is (
-        DynamicEvaluationState.ANALYSIS_PICK_ACTIVE)
+        DynamicEvaluationState.NO_EDGE_CURRENT)
 
 
 # 9: a blocked AH stays in the official funnel denominator as BLOCKED_BY_GATE.
