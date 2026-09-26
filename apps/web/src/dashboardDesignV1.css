@@ -315,6 +315,7 @@ h2, h3 { margin: 0; text-wrap: balance; }
 .w2-league { display: inline-block; font-size: 12px; color: var(--v41-ink-2); background: var(--v41-well-bg); border: 1px solid var(--v41-line-faint); border-radius: 4px; padding: 1px 7px; }
 .w2-pick { font-weight: 600; }
 .w2-pick .num { font-weight: 500; }
+.w2-pick-note { display: block; font-size: 11px; font-weight: 400; color: var(--v41-ink-3); }
 .is-withdrawn td { color: var(--v41-ink-3); }
 .is-withdrawn .w2-pick, .is-withdrawn .w2-match strong { text-decoration: line-through; text-decoration-color: var(--v41-ink-3); }
 
