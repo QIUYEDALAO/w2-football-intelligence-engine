@@ -135,6 +135,30 @@ def _evaluation(
     return DynamicEvaluationInput(**values)  # type: ignore[arg-type]
 
 
+def _ah_evaluation(
+    *,
+    capture_id: str,
+    ev: float,
+    delta: float,
+    ev_se: float,
+    **overrides: object,
+) -> DynamicEvaluationInput:
+    """AH 正向评估：因子门已通过，用于测「经济门槛 → ACTIVE」的既有行为。"""
+    return _evaluation(
+        capture_id=capture_id,
+        ev=ev,
+        delta=delta,
+        ev_se=ev_se,
+        market="ASIAN_HANDICAP",
+        selection="HOME",
+        factor_decision_status="ADMITTED",
+        factor_direction="HOME",
+        factor_input_identity="a" * 64,
+        factor_input_identity_hash="a" * 64,
+        **overrides,
+    )
+
+
 def _lineup_event(**overrides: object) -> LineupConfirmedEvent:
     values = {
         "fixture_id": "fixture-1",
@@ -155,10 +179,10 @@ def _lineup_event(**overrides: object) -> LineupConfirmedEvent:
 
 def test_new_capture_supersedes_old_and_same_capture_is_idempotent() -> None:
     ledger = DynamicEvaluationLedger()
-    first = ledger.append(_evaluation(capture_id="c1", ev=0.08, delta=0.06, ev_se=0.02))
+    first = ledger.append(_ah_evaluation(capture_id="c1", ev=0.08, delta=0.06, ev_se=0.02))
     assert first.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
-    assert ledger.append(_evaluation(capture_id="c1", ev=0.08, delta=0.06, ev_se=0.02)) == first
-    second = ledger.append(_evaluation(capture_id="c2", ev=0.01, delta=0.02, ev_se=0.03))
+    assert ledger.append(_ah_evaluation(capture_id="c1", ev=0.08, delta=0.06, ev_se=0.02)) == first
+    second = ledger.append(_ah_evaluation(capture_id="c2", ev=0.01, delta=0.02, ev_se=0.03))
     assert second.state is DynamicEvaluationState.NO_EDGE_CURRENT
     payload = ledger.as_dict()
     assert len(payload["versions"]) == 2
@@ -168,11 +192,11 @@ def test_new_capture_supersedes_old_and_same_capture_is_idempotent() -> None:
 
 def test_no_edge_can_upgrade_and_active_can_become_stale() -> None:
     low = classify_evaluation(
-        _evaluation(capture_id="c1", ev=0.02, delta=0.03, ev_se=0.01, cashflow_price_edge=0.10)
+        _ah_evaluation(capture_id="c1", ev=0.02, delta=0.03, ev_se=0.01, cashflow_price_edge=0.10)
     )
-    high = classify_evaluation(_evaluation(capture_id="c2", ev=0.08, delta=0.07, ev_se=0.02))
+    high = classify_evaluation(_ah_evaluation(capture_id="c2", ev=0.08, delta=0.07, ev_se=0.02))
     stale = classify_evaluation(
-        _evaluation(capture_id="c3", ev=0.08, delta=0.07, ev_se=0.02, quote_fresh=False)
+        _ah_evaluation(capture_id="c3", ev=0.08, delta=0.07, ev_se=0.02, quote_fresh=False)
     )
     assert low.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
     assert low.shortfall["delta"] == 0.0
@@ -196,7 +220,7 @@ def test_active_admission_requires_all_three_robust_gates(
     blocker: str,
 ) -> None:
     version = classify_evaluation(
-        _evaluation(
+        _ah_evaluation(
             capture_id=blocker,
             ev=ev,
             delta=delta,
@@ -206,6 +230,23 @@ def test_active_admission_requires_all_three_robust_gates(
     )
     assert version.state is DynamicEvaluationState.NO_EDGE_CURRENT
     assert blocker in version.blockers
+
+
+def test_totals_positive_edge_never_activates() -> None:
+    """裁决 T1：TOTALS 经济达标也改判 NO_EDGE，不产出 ANALYSIS_PICK_ACTIVE。"""
+    version = classify_evaluation(
+        _evaluation(capture_id="totals-edge", ev=0.08, delta=0.06, ev_se=0.02)
+    )
+    assert version.state is DynamicEvaluationState.NO_EDGE_CURRENT
+    assert "TOTALS_POSITIVE_DISABLED" in version.blockers
+
+
+def test_ah_positive_edge_still_activates() -> None:
+    """AH 因子门通过 + 经济达标仍产出 ANALYSIS_PICK_ACTIVE。"""
+    version = classify_evaluation(
+        _ah_evaluation(capture_id="ah-edge", ev=0.08, delta=0.06, ev_se=0.02)
+    )
+    assert version.state is DynamicEvaluationState.ANALYSIS_PICK_ACTIVE
 
 
 @pytest.mark.parametrize(
@@ -504,8 +545,8 @@ def test_db_lifecycle_is_append_only_and_t30_freezes_once() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     repository = DynamicPrematchRepository(engine)
-    first = classify_evaluation(_evaluation(capture_id="c1", ev=0.08, delta=0.06, ev_se=0.02))
-    second = classify_evaluation(_evaluation(capture_id="c2", ev=0.01, delta=0.02, ev_se=0.03))
+    first = classify_evaluation(_ah_evaluation(capture_id="c1", ev=0.08, delta=0.06, ev_se=0.02))
+    second = classify_evaluation(_ah_evaluation(capture_id="c2", ev=0.01, delta=0.02, ev_se=0.03))
     assert repository.append_evaluation(first)[1]
     assert not repository.append_evaluation(first)[1]
     assert repository.append_evaluation(second)[1]

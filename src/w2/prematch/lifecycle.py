@@ -676,6 +676,12 @@ def classify_evaluation(
         # overwrite a factor refusal.
         state = DynamicEvaluationState.BLOCKED_BY_FACTOR
         blockers.append(factor_block)
+    elif value.market != AH_MARKET:
+        # 裁决 T1：TOTALS 不产出正向推荐。经济准入通过也改判 NO_EDGE_CURRENT，
+        # 防止动态评估路径绕开 PR-1 只停了分析卡路径的缺口。
+        # fade 验证信号仍从 NO_EDGE_CURRENT 行的 selection/五态派生，不受影响。
+        state = DynamicEvaluationState.NO_EDGE_CURRENT
+        blockers.append("TOTALS_POSITIVE_DISABLED")
     elif economic_admission_pass(
         expected_value=ev,
         ev_minus_se=ev_minus_se,

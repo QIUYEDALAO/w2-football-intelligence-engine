@@ -1444,11 +1444,8 @@ def test_single_event_shadow_matches_post_write_current_read_with_lifecycle(
         assert evaluation.payload["season"] == "2026"
         assert evaluation.payload["provider"] == "api_football"
         assert evaluation.payload["lineup_input_hash"] is None
-        assert evaluation.payload["state"] == "ANALYSIS_PICK_ACTIVE"
-        assert (
-            evaluation.payload["scoreline_reference"]["scoreline_projection"]["status"] == "READY"
-        )
-        assert len(evaluation.payload["scoreline_reference"]["scoreline_projection"]["top3"]) == 3
+        assert evaluation.payload["state"] == "NO_EDGE_CURRENT"
+        assert evaluation.payload["scoreline_reference"] is None
         assert evaluation.payload["model_settlement_distribution"] == {
             "WIN": 0.48,
             "HALF_WIN": 0.10,
@@ -1582,11 +1579,11 @@ def test_same_source_event_replay_adds_scoreline_contract_as_new_immutable_evalu
         )
         assert len(evaluations) == 2
         assert evaluations[0].identity_hash != evaluations[1].identity_hash
-        assert sum(row.payload.get("scoreline_reference") is not None for row in evaluations) == 1
+        assert sum(row.payload.get("scoreline_reference") is not None for row in evaluations) == 0
         assert session.query(DynamicPrematchSupersessionModel).count() == 1
     current = persisted.payload["analysis_card"]["dynamic_prematch"]["current"]
     assert len(current) == 1
-    assert current[0]["scoreline_reference"]["scoreline_projection"]["status"] == "READY"
+    assert current[0]["scoreline_reference"] is None
 
 
 def test_lineup_source_event_binding_fails_closed(

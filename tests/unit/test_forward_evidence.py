@@ -265,6 +265,53 @@ def test_under_evaluation_creates_separate_pit_fade_decision_and_channel_settlem
     assert settled.payload["profit_units_channel_with_rebate"] == pytest.approx(0.943)
 
 
+def test_t1_totals_no_edge_reclassify_keeps_fade_derivation() -> None:
+    """裁决 T1 把 TOTALS 改判 NO_EDGE_CURRENT 后，fade 仍从 UNDER 评估派生。
+
+    锁死关键依赖：fade 派生的允许状态集合必须含 NO_EDGE_CURRENT；
+    修 T1 若引入不在集合里的新状态会弄断 fade，此测试即失败。
+    """
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+    source = _version(at)
+    source.selection = "UNDER"
+    source.bookmaker_id = "36"
+    source.decimal_odds = 1.98
+    source.state = SimpleNamespace(value="NO_EDGE_CURRENT")
+    source.track_d_validation_signal = None
+    source.model_settlement_distribution = {
+        "WIN": 0.45, "HALF_WIN": 0.0, "PUSH": 0.0,
+        "HALF_LOSS": 0.0, "LOSS": 0.55,
+    }
+    version_type = make_dataclass("T1NoEdgeUnder", [(key, object) for key in vars(source)])
+    version = version_type(**vars(source))
+    quotes = [
+        SimpleNamespace(
+            observation_id=f"{bookmaker}-{side}",
+            provider_fixture_id="123",
+            capture_id="c",
+            canonical_market="TOTALS",
+            canonical_selection=side,
+            bookmaker_id=bookmaker,
+            line="2.5",
+            decimal_odds=price,
+            captured_at=at - timedelta(minutes=1),
+        )
+        for bookmaker, side, price in (
+            ("36", "UNDER", "1.98"), ("36", "OVER", "1.92"),
+            ("4", "UNDER", "1.90"), ("4", "OVER", "1.93"),
+        )
+    ]
+    session = _Session(capture=_capture(at), quotes=quotes)
+    register_forward_clock(session, started_at=T0, code_revision="a" * 40)
+
+    fade = record_shadow_evidence_in_session(session, version)
+
+    assert fade is not None
+    assert fade.payload["candidate_kind"] == TRACK_D_FADE
+    assert fade.payload["display_state"] == VALIDATION_SIGNAL
+    assert fade.payload["selection"] == "OVER"
+
+
 def test_pinnacle_cannot_be_used_as_fade_channel_price() -> None:
     at = datetime(2026, 9, 26, 8, tzinfo=UTC)
     version = _version(at)
