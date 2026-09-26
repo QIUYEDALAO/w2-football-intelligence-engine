@@ -15,7 +15,10 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchEvaluationModel,
     ValidationSampleModel,
 )
-from w2.infrastructure.persistence.matchday_intake_models import MatchdayEndpointCaptureModel
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayEndpointCaptureModel,
+    MatchdayFixtureIdentityModel,
+)
 from w2.infrastructure.persistence.models import ResultModel
 from w2.strategy.online_calibration_filter import (
     LEGAL_STATE,
@@ -240,6 +243,7 @@ def test_original_profit_summary_ignores_pagination_and_pending() -> None:
     assert total == len(rows) == 1
     all_rows, all_total = service.dashboard_validation_samples(limit=50)
     assert all_total == len(all_rows) == 3  # v2 only, including one pending
+    assert [row["fixture_id"] for row in all_rows] == ["profit-2", "profit-1", "profit-0"]
     assert service.dashboard_validation_cumulative_profit_units() == -0.05
     assert service.dashboard_validation_profit_summary() == {
         "profit_units": -0.05, "profit_units_with_rebate": -0.001,
@@ -255,6 +259,39 @@ def test_original_profit_summary_ignores_pagination_and_pending() -> None:
     )
 
 
+def test_original_review_falls_back_to_fixture_identity_kickoff_before_pagination() -> None:
+    engine = _session()
+    kickoff = datetime(2026, 9, 26, 12, tzinfo=UTC)
+    with Session(engine) as session:
+        for fixture_id, sample_kickoff in (
+            ("older", datetime(2026, 9, 20, 12, tzinfo=UTC)),
+            ("api_football:newer", None),
+        ):
+            session.add(ValidationSampleModel(
+                fixture_id=fixture_id, market="ASIAN_HANDICAP", selection="HOME",
+                exact_line="-0.5", decimal_odds=1.9, evaluation_id=fixture_id,
+                settlement="WIN", calibration_identity="v2", projected_at=kickoff,
+                kickoff_utc=sample_kickoff,
+            ))
+        session.add(MatchdayFixtureIdentityModel(
+            fixture_id="api_football:newer", provider="api_football",
+            provider_fixture_id="newer", competition_id="140", provider_league_id="140",
+            season="2026", kickoff_utc=kickoff, fixture_status="NS",
+            home_provider_team_id="1", away_provider_team_id="2",
+            team_identity_status="PROVIDER_ONLY", raw_payload_sha256="3" * 64,
+            captured_at=kickoff - timedelta(days=1), identity_hash="4" * 64,
+            payload={},
+        ))
+        session.commit()
+    class Repo:
+        def _database_engine(self):
+            return engine
+    rows, total = ReadModelService(repository=Repo()).dashboard_validation_samples(limit=1)
+    assert total == 2
+    assert rows[0]["fixture_id"] == "api_football:newer"
+    assert rows[0]["kickoff_utc"].replace(tzinfo=UTC) == kickoff
+
+
 def test_calibrated_profit_summary_uses_full_history_before_pagination(monkeypatch) -> None:
     engine = _session()
     start = FORWARD_START_UTC + timedelta(days=1)
@@ -268,10 +305,21 @@ def test_calibrated_profit_summary_uses_full_history_before_pagination(monkeypat
                 fixture_id=f"summary-{index}", market="ASIAN_HANDICAP", selection="HOME",
                 exact_line="-0.5", decimal_odds=1.9, evaluation_id=f"summary-e-{index}",
                 settlement=settlement, profit_units=profit, projected_at=evaluated,
-                evaluated_at=evaluated, kickoff_utc=evaluated + timedelta(hours=1),
+                evaluated_at=evaluated,
+                kickoff_utc=None if index == 2 else evaluated + timedelta(hours=1),
                 calibration_identity="v2", filter_decision=decision,
                 param_version=PARAM_VERSION, warmup=False,
             ))
+            if index == 2:
+                session.add(MatchdayFixtureIdentityModel(
+                    fixture_id=f"summary-{index}", provider="api_football",
+                    provider_fixture_id=f"summary-{index}", competition_id="140",
+                    provider_league_id="140", season="2026",
+                    kickoff_utc=evaluated + timedelta(hours=1), fixture_status="NS",
+                    home_provider_team_id="1", away_provider_team_id="2",
+                    team_identity_status="PROVIDER_ONLY", raw_payload_sha256="3" * 64,
+                    captured_at=evaluated, identity_hash="4" * 64, payload={},
+                ))
         session.commit()
     class Repo:
         def _database_engine(self):
@@ -292,3 +340,10 @@ def test_calibrated_profit_summary_uses_full_history_before_pagination(monkeypat
     assert response["filtered_profit_units"] == -1.0
     assert response["kept_profit_units_with_rebate"] == 0.922
     assert response["filtered_profit_units_with_rebate"] == -0.975
+    latest = routers.dashboard_intelligence_validation_calibrated(
+        Request({"type": "http", "method": "GET", "path": "/", "headers": []}),
+        limit=2,
+    )
+    assert latest["pagination"]["total"] == 3
+    assert [row["fixture_id"] for row in latest["samples"]] == ["summary-2", "summary-1"]
+    assert latest["samples"][0]["kickoff_utc"] is not None

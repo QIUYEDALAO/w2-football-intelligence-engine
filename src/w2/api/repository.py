@@ -3172,8 +3172,14 @@ class ReadModelService:
     ) -> tuple[list[dict[str, Any]], int]:
         """Read the existing validation projection; never recompute settlement."""
         with Session(self.repository._database_engine()) as session:
-            stmt = select(ValidationSampleModel).order_by(
-                ValidationSampleModel.kickoff_utc.desc().nullslast(),
+            kickoff = func.coalesce(
+                ValidationSampleModel.kickoff_utc, MatchdayFixtureIdentityModel.kickoff_utc
+            )
+            stmt = select(ValidationSampleModel, kickoff).outerjoin(
+                MatchdayFixtureIdentityModel,
+                MatchdayFixtureIdentityModel.fixture_id == ValidationSampleModel.fixture_id,
+            ).order_by(
+                kickoff.desc().nullslast(),
                 ValidationSampleModel.fixture_id.desc(),
             )
             current_identity = current_validation_calibration_identity(session)
@@ -3181,15 +3187,15 @@ class ReadModelService:
                 ValidationSampleModel.calibration_identity == current_identity
                 if current_identity is not None else false()
             )
-            rows = list(session.scalars(stmt))
+            rows = list(session.execute(stmt))
         if days is not None and anchor is not None:
             start = anchor - timedelta(days=max(1, days) - 1)
             rows = [
-                row for row in rows
-                if row.kickoff_utc is not None
+                (row, kickoff_utc) for row, kickoff_utc in rows
+                if kickoff_utc is not None
                 and start <= football_day_for_kickoff(
-                    row.kickoff_utc if row.kickoff_utc.tzinfo
-                    else row.kickoff_utc.replace(tzinfo=UTC)
+                    kickoff_utc if kickoff_utc.tzinfo
+                    else kickoff_utc.replace(tzinfo=UTC)
                 ) <= anchor
             ]
         total = len(rows)
@@ -3200,7 +3206,7 @@ class ReadModelService:
         return [
             {
                 "fixture_id": row.fixture_id, "competition_id": row.competition_id,
-                "kickoff_utc": row.kickoff_utc, "market": row.market,
+                "kickoff_utc": kickoff_utc, "market": row.market,
                 "selection": row.selection, "exact_line": row.exact_line,
                 "decimal_odds": row.decimal_odds, "settlement": row.settlement,
                 "profit_units": row.profit_units, "calibration_identity": row.calibration_identity,
@@ -3208,7 +3214,7 @@ class ReadModelService:
                 "away_team_label": row.away_team_label or {},
                 "current_ev": row.current_ev, "evaluation_id": row.evaluation_id,
             }
-            for row in rows
+            for row, kickoff_utc in rows
         ], total
 
     def dashboard_validation_profit_summary(self) -> dict[str, float]:

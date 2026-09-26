@@ -698,6 +698,7 @@ export interface ValidationSignalsProjection {
 
 export interface ValidationReviewSample {
   fixture_id: string;
+  kickoff_utc: string | null;
   date: string | null;
   league: string | null;
   match: string | null;

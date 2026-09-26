@@ -113,6 +113,7 @@ def review_row(row: Mapping[str, Any], *, calibrated: bool = False) -> dict[str,
     totals_market_view = market == "TOTALS" and row.get("settlement") not in SETTLED
     return {
         "fixture_id": str(row["fixture_id"]),
+        "kickoff_utc": row.get("kickoff_utc"),
         "date": _day(row).isoformat() if _day(row) else None,
         "league": _league(row.get("competition_id")),
         "match": f"{home} vs {away}" if home and away else None,

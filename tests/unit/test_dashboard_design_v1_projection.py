@@ -61,6 +61,7 @@ def test_review_row_exposes_design_columns_and_calibration_columns() -> None:
     row.update({"filter_decision": "KEPT", "ev_corrected": 0.031, "forward": True, "warmup": False})
     projected = review_row(row, calibrated=True)
     assert projected["date"] == "2026-09-23"  # football day starts at Beijing noon
+    assert projected["kickoff_utc"] == row["kickoff_utc"]
     assert projected["league"]
     assert projected["match"] == "主队 vs 客队"
     assert projected["recommendation"] == "主 -0.25"

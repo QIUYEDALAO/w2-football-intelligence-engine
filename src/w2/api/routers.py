@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
-from sqlalchemy import false, select
+from sqlalchemy import false, func, select
 from sqlalchemy.orm import Session
 
 from w2.api.cache import read_cache
@@ -84,6 +84,7 @@ from w2.domain.ev_online_contract import (
 from w2.domain.profit import profit_units_with_rebate
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.infrastructure.persistence.dynamic_prematch_models import CalibratedValidationSampleModel
+from w2.infrastructure.persistence.matchday_intake_models import MatchdayFixtureIdentityModel
 from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
 from w2.prematch.candidate_notifications import notification_health
@@ -97,14 +98,16 @@ logger = logging.getLogger(__name__)
 DASHBOARD_WINDOWS = {"today", "next36", "future", "results", "all"}
 
 
-def _calibrated_sample_projection(row: CalibratedValidationSampleModel) -> dict[str, Any]:
+def _calibrated_sample_projection(
+    row: CalibratedValidationSampleModel, kickoff_utc: datetime | None = None
+) -> dict[str, Any]:
     """Serialize the already-materialized parallel row; no calibration here."""
 
     raw = {
         "fixture_id": row.fixture_id,
         "market": row.market,
         "competition_id": row.competition_id,
-        "kickoff_utc": row.kickoff_utc,
+        "kickoff_utc": row.kickoff_utc or kickoff_utc,
         "selection": row.selection,
         "exact_line": row.exact_line,
         "decimal_odds": row.decimal_odds,
@@ -630,22 +633,26 @@ def dashboard_intelligence_validation_calibrated(
 ) -> dict[str, Any]:
     """Read the EV-ONLINE-01 parallel projection; never recompute old validation."""
 
-    stmt = select(CalibratedValidationSampleModel).order_by(
-        CalibratedValidationSampleModel.kickoff_utc.desc().nullslast(),
-        CalibratedValidationSampleModel.fixture_id.desc(),
+    kickoff = func.coalesce(
+        CalibratedValidationSampleModel.kickoff_utc,
+        MatchdayFixtureIdentityModel.kickoff_utc,
     )
+    stmt = select(CalibratedValidationSampleModel, kickoff).outerjoin(
+        MatchdayFixtureIdentityModel,
+        MatchdayFixtureIdentityModel.fixture_id == CalibratedValidationSampleModel.fixture_id,
+    ).order_by(kickoff.desc().nullslast(), CalibratedValidationSampleModel.fixture_id.desc())
     identity_reader = getattr(service, "dashboard_current_calibration_identity", None)
     current_identity = identity_reader() if callable(identity_reader) else None
     with Session(service.repository._database_engine()) as session:
-        calibrated_stmt = select(CalibratedValidationSampleModel)
+        calibrated_stmt = stmt
         if callable(identity_reader):
             calibrated_stmt = calibrated_stmt.where(
                 CalibratedValidationSampleModel.calibration_identity == current_identity
                 if current_identity is not None else false()
             )
         all_rows = [
-            _calibrated_sample_projection(row)
-            for row in session.scalars(calibrated_stmt)
+            _calibrated_sample_projection(row, row_kickoff)
+            for row, row_kickoff in session.execute(calibrated_stmt)
         ]
     kept_profit_units = round(sum(
         float(row["profit_units"]) for row in all_rows
@@ -675,19 +682,16 @@ def dashboard_intelligence_validation_calibrated(
                 datetime.fromisoformat(date).date(), time.min, tzinfo=local_zone
             )
             start = local_start.astimezone(UTC)
-            stmt = stmt.where(
-                CalibratedValidationSampleModel.kickoff_utc >= start,
-                CalibratedValidationSampleModel.kickoff_utc < start + timedelta(days=1),
-            )
-            if callable(identity_reader):
-                stmt = stmt.where(
-                    (CalibratedValidationSampleModel.calibration_identity == current_identity)
-                    if current_identity is not None else false()
-                )
+            rows = [
+                row for row in all_rows
+                if row["kickoff_utc"] is not None
+                and start <= (
+                    row["kickoff_utc"] if row["kickoff_utc"].tzinfo
+                    else row["kickoff_utc"].replace(tzinfo=UTC)
+                ) < start + timedelta(days=1)
+            ]
         except (ValueError, ZoneInfoNotFoundError):
             raise HTTPException(status_code=400, detail="invalid date") from None
-        with Session(service.repository._database_engine()) as session:
-            rows = [_calibrated_sample_projection(row) for row in session.scalars(stmt)]
     if days is not None:
         try:
             anchor = (
