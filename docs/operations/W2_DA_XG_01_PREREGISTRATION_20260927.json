@@ -1,0 +1,144 @@
+{
+  "preregistration_id": "W2-DA-XG-01-PREREG-01",
+  "title": "DA-XG-01 动态攻防 xG 模型 v1 首版模型合同（按日衰减）",
+  "status": "DRAFT_AWAITING_OWNER_FREEZE",
+  "drafted_at": "2026-09-27T02:45:00+08:00",
+  "frozen_at": null,
+  "frozen_by": null,
+  "project_name": "DA-XG-01",
+  "sync_note": "本文件是计划书 W2-REMODEL-PLAN-20260927-v3.2（FINAL DRAFT）DA-XG-01 线的正式模型合同，公式、窗口、衰减、攻防组合、评分对象、功效与停止规则与 v3.2 第 4/5/6 节逐条同步。不同版本不得同时充当执行权威；本文件取代此前同名未对齐草案（按场 0.85^i 版，已废弃）。",
+
+  "authority_boundary": {
+    "authorized_now": "preregistration review only",
+    "not_authorized": ["parameter fitting on production data", "production code changes", "lambda formula replacement", "recommendation enable", "deployment", "Provider calls beyond existing allowlist"],
+    "next_gate": "OWNER_EXPLICIT_AUTHORIZATION_TO_FREEZE_AND_BEGIN_FIT"
+  },
+
+  "scope": {
+    "description": "时变攻防统计估计候选，首版仅一个确认性模型：对手强度校正 + 按日时间衰减 + 小样本收缩。不宣称已证明能提高准确率。不做伤停/阵容/天气/新 Provider 采集。",
+    "decay_choice": "按日指数衰减（取代 v3.1 按场 0.85^i）：休赛期间历史权重随天数自然减少，且避免不同赛程密度对应不同日历记忆长度。本版不同时搜索两套衰减再按结果选优。"
+  },
+
+  "candidate_parameters": {
+    "time_half_life_days": 90,
+    "team_window": "最近 20 场，且 kickoff 位于查询时点前 365 天内",
+    "league_scope": "同 canonical competition；当前及紧邻上一赛季",
+    "prev_season_weight_c": 0.5,
+    "current_season_weight": 1,
+    "shrinkage_k": 4,
+    "weight_scale": "权重尺度固定，不再归一后用于收缩",
+    "league_baseline": "同联赛最近 100 场合格比赛、365 天内，至少 20 场",
+    "min_team_history": "双方各至少 3 场可校正的合格历史；不足输出研究不可用标记",
+    "home_term": "0.30 球差分项（非中立场）；已证实中立场为 0；中立场未知按现有已验证合同处理，不偷偷假定",
+    "lambda_clamps": "total 预投影区间 [1.35, 4.40]；单队最终区间 [0.15, 4.25]",
+    "identity_note": "窗口与跨赛季系数均进入候选身份；改变任何值是模型改版，不能在确认性数据上挑选"
+  },
+
+  "formula": {
+    "time_convention": "预测信息截点 u；历史比赛 i 开球时间 t_i。全部 UTC，天数按秒差/86400。目标球队历史事实必须在 u 前已完成并可见；用于校正该历史场次的对手能力与联赛基线必须在 t_i 前已可见，且严格排除该场及以后比赛（更强历史赛前约束）。",
+
+    "league_baseline": {
+      "m_l(u)": "sum_over_fixtures(xGF_home + xGF_away) / (2 * fixture_count)",
+      "rule": "按窗口/赛季/PIT 条件选择，比赛等权、每场只计一次；主客共用中性基线，主场影响仅在最终差分项施加",
+      "unavailable": "历史不足或基线非有限/非正时输出 LEAGUE_BASELINE_UNAVAILABLE；不借用未来完整赛季均值或未登记常数"
+    },
+
+    "opponent_prematch_ability_nonrecursive": {
+      "w_j(t)": "c_j(t) * 2^(-(t - kickoff_j) / 90 days)",
+      "W_O(t)": "sum_j w_j(t)",
+      "opp_attack_O(t)": "[sum_j w_j(t) * xGF_j + 4 * m_l(t)] / [W_O(t) + 4]",
+      "opp_defweak_O(t)": "[sum_j w_j(t) * xGA_j + 4 * m_l(t)] / [W_O(t) + 4]",
+      "semantics": "defweak = 防守薄弱程度，数值大表示允许对手创造更多机会。使用原始攻防历史的收缩估计，不调用校正后的球队强度，避免循环依赖与隐式迭代",
+      "prior_only": "对手无历史但联赛基线有效时 W=0，两项回到联赛均值，校正退化为中性，记录 OPPONENT_PRIOR_ONLY；不等于缺失 xG 填零"
+    },
+
+    "per_match_correction": {
+      "a_i": "xGF_T,i / opp_defweak_Oi(t_i)",
+      "d_i": "xGA_T,i / opp_attack_Oi(t_i)",
+      "semantics": "无量纲相对强度，联赛先验为 1；等价于先做联赛归一校正，再除以该历史时点联赛均值"
+    },
+
+    "team_strength": {
+      "W_T(u)": "sum_i w_i(u)，称折扣历史量（非统计有效样本量；Kish (Σw)^2/Σ(w^2) 仅作权重集中度诊断，不作检验功效样本量）",
+      "A_T(u)": "[sum_i w_i(u) * a_i + 4] / [W_T(u) + 4]（收缩后进攻强度）",
+      "D_T(u)": "[sum_i w_i(u) * d_i + 4] / [W_T(u) + 4]（收缩后防守薄弱度）",
+      "rule": "最终预测只使用这两个收缩结果，不得绕回原始 rolling xGA"
+    },
+
+    "combine_and_clamp": {
+      "b_home": "m_l(u) * A_home(u) * D_away(u)",
+      "b_away": "m_l(u) * A_away(u) * D_home(u)",
+      "S": "clip(b_home + b_away, 1.35, 4.40)",
+      "d": "b_home - b_away + h",
+      "h": "0.30（非中立场）/ 0（已证实中立场）",
+      "lambda_home": "clip((S + d)/2, 0.15, 4.25)",
+      "lambda_away": "clip((S - d)/2, 0.15, 4.25)",
+      "clamp_recording": "单队 clamp 后实际 λ 和可能不再等于 S；必须记录实际值、clamp 原因与频率，不把中间变量 S 冒充最终总均值"
+    },
+
+    "unchanged_parts": "首版只改变均值输入。比分分布核、截断、rho、λ 不确定性处理及参数沿用冻结比较基线；baseline 与 challenger 使用同一证据绑定的既有 sigma 数值。这是控制变量的实验约束，不宣称原 sigma 已对新均值完成校准；若需重估另立候选。",
+
+    "cross_season": {
+      "long_gap": "长间隔降低所有旧比赛绝对权重，强度逐步向 1 收缩；换赛季再按 c=0.5 降低上一赛季权重",
+      "promoted_teams": "升降级球队不直接搬用不同联赛能力数值；缺少本级历史时保留先验与不可用状态，达最低历史要求后进入主样本",
+      "season_phase": "按 competition × season 实际赛历登记，不使用统一冬歇日期；转会窗口只作阶段标签（本版无球员信息，不声称已纠正阵容重建）"
+    }
+  },
+
+  "evaluation_contract": {
+    "snapshot": {
+      "window": "赛前 T30：kickoff-35min <= evaluated_at <= kickoff-30min；每场只选窗口内截至窗口结束已存在的最后一次合格评估，按 evaluated_at、evaluation_id 定稳定次序；开球前固化，不按赛果选择",
+      "quote_rule": "报价必须在 evaluated_at 前已捕获；首版最大报价年龄 10 分钟；同一报价对两侧必须同比赛、bookmaker、capture、盘口与时点，不用跨时点单边补另一边",
+      "replays": "无法证明旧线上 capture 对应此输入时可按固定代码重放 baseline，但标记为重放比较，不冒称当时真实发布"
+    },
+    "research_metric": {
+      "object": "九类总进球分布 {0,1,2,3,4,5,6,7,8+}，从双方完整比分分布聚合；末类保留高比分质量",
+      "primary": "逐场 categorical log loss（自然对数）；两模型各格概率下限 1e-12 后重新归一，记录触发次数",
+      "auxiliary": "该有序分布 RPS、Brier、总均值误差、各进球桶校准、预测覆盖率；辅助指标不用于事后换主指标或挑联赛；均值更准本身不构成研究通过",
+      "dataset": "研究集 E_R 需严格 PIT 历史、双方模型输出及可见最终赛果；不强制有 Pinnacle 报价；baseline-only / challenger-only / 共同可评分数量均报告，主比较仅用事先定义的共同集"
+    },
+    "market_metric": {
+      "dataset": "市场用途集 E_M = E_R 与同期合格 Pinnacle 双侧主线报价交集，且 exact line 小数部分为 0.5（半球线）；主线选择器及版本预注册绑定，不按结果挑线",
+      "Y": "1{总进球 > L}",
+      "p_market": "(1/o_over) / [(1/o_over) + (1/o_under)]（比例去水，声明过的市场基准假设，不等于已知真实概率）",
+      "p_model": "sum_score P_model(score) * 1{home_goals + away_goals > L}",
+      "scoring": "双方对同一 Y 计算 binary log loss；概率按 [1e-12, 1-1e-12] 同口径截断",
+      "scope_limit": "本版不从单一盘口两赔率无假设恢复完整进球分布，也不以半球线结论授予整数/四分之一线用途资格；其他线保留研究记录与五态结果，纳入概率确认性比较须另行冻结可识别对象或市场分布构造假设"
+    },
+    "usage_ev_cashflow": {
+      "EV_pure": "(o-1)*(p_WIN + 0.5*p_HALF_WIN) - p_LOSS - 0.5*p_HALF_LOSS",
+      "E_rebate": "0.025 * [(o-1)*(p_WIN + 0.5*p_HALF_WIN) + p_LOSS + 0.5*p_HALF_LOSS]",
+      "EV_net": "EV_pure + E_rebate - verified_cost",
+      "rules": "返水仅在该渠道确实适用 ABS_PROFIT_V2 时使用，否则按已核实合同计算；未知不填零冒充无成本；报告纯盈亏、返水、成本、净盈亏及覆盖率，不能用含返水收益宣称概率更准确；未定义执行策略或缺可用渠道价时只能得到预测研究结论；首版用途范围最多为已验证的半球线与适用联赛，不自动进入现有三档"
+    }
+  },
+
+  "statistical_protocol": {
+    "data_roles": ["开发/可行性集（已查看历史，估方差/消融，不冒充确认证据）", "离线时间外推集（rolling-origin 配对预测，各时点可见输入；若曾用于选方案则报告为历史外推诊断）", "前向确认集（协议及 identity 固化、实际生成预测后的新比赛；预测与选择须在赛果可见前固化；新协议不追认旧已看样本）"],
+    "dedup": "每场只属于一个数据角色；同场 AH/TOTALS、多盘口、不同模型输出不是独立比赛",
+    "two_gates": {
+      "RESEARCH_PASS": "研究差值 Δ_R = mean(loss_new - loss_baseline) 的有效上界 < -δ_R（δ_R>0 预定最小有意义改善）",
+      "MARKET_INCREMENT_PASS": "冻结用途样本上 Δ_M = mean(loss_new - loss_market) 的有效上界 < -δ_M",
+      "USAGE_PASS": "对应预测门通过，且冻结执行策略净收益有效下界 > δ_E，并满足数据/行为合同",
+      "identity_warning": "(L_new - L_market) - (L_old - L_market) = L_new - L_old 恒等：'对市场差距缩小'仅是胜过旧模型的另一表述，不能充当市场增量门。研究门用总进球分布，市场门用半球线二元概率，分别评估并报告各自样本；纯模型仅在总进球分布进步而未证明市场增量，可保留研究成果，不能据此启用推荐"
+    },
+    "power_design": "开发集时间外推配对损失估方差与相关结构；冻结 δ_R/δ_M/δ_E 实际意义、设计备择（大于 δ，不放检验边界）、目标功效 80%、每轨 N_max、截止日期、可用联赛；数量以独立比赛为基础，采用保留同场记录与时间相关性的分块模拟估算；不用球队权重 W 或 Kish 数直接当作检验样本量；504、167 等旧数字不得直接代入",
+    "confirmatory_looks": {
+      "count": "最多两次预定确认性分析，分别在每轨约 50% N_max 与 100% N_max 时执行",
+      "error_budget": "整体两轨误判预算 0.05：DA-XG-01 与 DA-FADE-02 各 0.025；每轨两次查看各使用 0.0125 单侧错误预算，未使用不事后挪用；每次分析使用相应 98.75% 单侧上/下界；主门交集判定；不允许多盘口/联赛/候选择一显著宣布通过",
+      "blocks": "配对不确定性按预冻结日历时间块处理，块内保留完整 fixture/联赛/模型配对；块长和方法只在开发数据确定；误判预算只能处理重复查看，不能修复无效单次区间；分块假设或小样本近似不可信时不得硬报确认性通过",
+      "stop_rules": "首次查看未通过按原计划继续；数据身份错误立即停止判证据无效；不设置数据驱动扩样，不添加临时第三看；期末跨零并非自动继续理由，结论依据与 -δ 的关系及区间精度；预定截止先到则以届时样本为终点并关闭后续查看机会，不延长到显著为止"
+    },
+    "monthly_monitoring": "月度描述性监测（快照 UTC 每月 1 日 00:00 固化），按 kickoff 的 UTC 月份归属，同时报告已结算/未结算/迟到结果与修正数量；晚到结果以追加版本进入原月份修订快照，保留原稿不覆盖；监测不执行临时显著性筛选、不授予升档资格；漂移只触发预定人工调查与保守处置；工程数据错误立即停止相关路径不等月底"
+  },
+
+  "identity_isolation": {
+    "calibration_identity": "公式版本 + 全部候选参数快照（H=90、20 场/365 天、c=0.5、k=4、窗口、衰减、组合、clamp）入 calibration_identity；任何变更产生新 identity，旧授权不前向继承",
+    "shared_lambda_impact": "shadow 输出不写共享运行时 λ；若替换共享 λ，AH 策略输入已变化，即使 w_AH=0.9 不变也需新模型身份、AH 回归与用途核验，不能沿用旧 AH 授权自动发布",
+    "old_evidence_rule": "DA-XG-01 上线后，旧 fade 证据保留为旧版本历史，不得转用于新模型"
+  },
+
+  "explicitly_not_in_scope": ["伤停/阵容（砍）", "天气（候补不承诺）", "isotonic/Platt/温度缩放", "delta 路径与主场优势 0.30 的修改", "任何生产推荐启用/部署", "从消融胜者中挑选确认性模型（消融仅解释候选；换模型须新候选版本并在新协议生效后的未查看样本验证）"],
+
+  "safety_invariants": ["不碰 Provider allowlist/配额/并发/重试", "不碰推荐/结算/因子安全门", "不改生产，零 enable/零部署", "raw payload/header/key 不提交", "提交一律 git -C 权威 worktree"]
+}
