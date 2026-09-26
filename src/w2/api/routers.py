@@ -85,6 +85,7 @@ from w2.domain.profit import profit_units_with_rebate
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.infrastructure.persistence.dynamic_prematch_models import CalibratedValidationSampleModel
 from w2.infrastructure.persistence.matchday_intake_models import MatchdayFixtureIdentityModel
+from w2.infrastructure.persistence.models import ResultModel
 from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
 from w2.prematch.candidate_notifications import notification_health
@@ -99,7 +100,9 @@ DASHBOARD_WINDOWS = {"today", "next36", "future", "results", "all"}
 
 
 def _calibrated_sample_projection(
-    row: CalibratedValidationSampleModel, kickoff_utc: datetime | None = None
+    row: CalibratedValidationSampleModel,
+    kickoff_utc: datetime | None = None,
+    score_map: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Serialize the already-materialized parallel row; no calibration here."""
 
@@ -114,7 +117,7 @@ def _calibrated_sample_projection(
         "evaluation_id": row.evaluation_id,
         "settlement": row.settlement,
         "profit_units": row.profit_units,
-        "score": row.score,
+        "score": row.score or (score_map or {}).get(row.fixture_id),
         "settled_at": row.settled_at,
         "evaluated_at": row.evaluated_at,
         "home_team_label": row.home_team_label or {},
@@ -138,6 +141,7 @@ def _calibrated_sample_projection(
                 "league",
                 "match",
                 "recommendation",
+                "score",
                 "result",
                 "display_state",
                 "calibration_decision",
@@ -649,9 +653,22 @@ def dashboard_intelligence_validation_calibrated(
                 CalibratedValidationSampleModel.calibration_identity == current_identity
                 if current_identity is not None else false()
             )
+        executed = list(session.execute(calibrated_stmt))
+        score_map = {
+            str(fixture_id.removeprefix("api_football:")): f"{home_goals}-{away_goals}"
+            for fixture_id, home_goals, away_goals in session.execute(
+                select(
+                    ResultModel.fixture_id,
+                    ResultModel.home_goals,
+                    ResultModel.away_goals,
+                ).where(ResultModel.fixture_id.in_([
+                    f"api_football:{row.fixture_id}" for row, _ in executed
+                ]))
+            ).all()
+        }
         all_rows = [
-            _calibrated_sample_projection(row, row_kickoff)
-            for row, row_kickoff in session.execute(calibrated_stmt)
+            _calibrated_sample_projection(row, row_kickoff, score_map=score_map)
+            for row, row_kickoff in executed
         ]
     kept_profit_units = round(sum(
         float(row["profit_units"]) for row in all_rows

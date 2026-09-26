@@ -71,6 +71,16 @@ def test_review_row_exposes_design_columns_and_calibration_columns() -> None:
     assert projected["display_state"] == "RECOMMENDATION"
 
 
+def test_review_row_projects_scoreline_and_none_when_unsettled() -> None:
+    settled = _row("v2", "2026-09-23", "WIN", 0.9)
+    settled["score"] = "2-1"
+    assert review_row(settled)["score"] == "2:1"
+
+    pending = _row("v2", "2026-09-23", "PENDING", 0.0)
+    pending["score"] = None
+    assert review_row(pending)["score"] is None
+
+
 def test_settled_totals_review_row_preserves_original_recommendation() -> None:
     row = _row("v2", "2026-09-23", "WIN", 0.9)
     row.update({"market": "TOTALS", "selection": "OVER", "exact_line": "2.5"})

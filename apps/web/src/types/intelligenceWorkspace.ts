@@ -705,6 +705,7 @@ export interface ValidationReviewSample {
   market?: string | null;
   display_state?: "RECOMMENDATION" | "MARKET_VIEW";
   decimal_odds: number | string | null;
+  score: string | null;
   result: string | null;
   profit_units?: number | null;
 }

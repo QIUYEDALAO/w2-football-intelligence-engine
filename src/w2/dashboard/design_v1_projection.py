@@ -31,6 +31,17 @@ def _league(competition_id: Any, fallback: Any = None) -> str | None:
     )
 
 
+def _score(value: Any) -> str | None:
+    """Project a settled ``home-away`` scoreline to ``主:客`` (e.g. ``2:1``).
+
+    Unsettled rows carry no score and render ``None`` so the client shows ``—``.
+    """
+    text = str(value or "").strip()
+    if not text:
+        return None
+    return text.replace("-", ":", 1)
+
+
 def _day(row: Mapping[str, Any]) -> date | None:
     value = row.get("kickoff_utc")
     if isinstance(value, str):
@@ -122,6 +133,7 @@ def review_row(row: Mapping[str, Any], *, calibrated: bool = False) -> dict[str,
         "market": MARKET_ZH.get(market),
         "display_state": TOTALS_DISPLAY_STATE if totals_market_view else "RECOMMENDATION",
         "decimal_odds": row.get("decimal_odds"),
+        "score": _score(row.get("score")),
         "result": row.get("settlement"),
         "profit_units": row.get("profit_units"),
         **({"calibration_decision": row.get("filter_decision"),

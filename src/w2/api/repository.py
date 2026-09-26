@@ -3188,6 +3188,19 @@ class ReadModelService:
                 if current_identity is not None else false()
             )
             rows = list(session.execute(stmt))
+            # 缺则从赛果源补比分：results 表按 api_football 前缀 join，去掉前缀作 key。
+            score_map = {
+                str(fixture_id.removeprefix("api_football:")): f"{home_goals}-{away_goals}"
+                for fixture_id, home_goals, away_goals in session.execute(
+                    select(
+                        ResultModel.fixture_id,
+                        ResultModel.home_goals,
+                        ResultModel.away_goals,
+                    ).where(ResultModel.fixture_id.in_([
+                        f"api_football:{row.fixture_id}" for row, _ in rows
+                    ]))
+                ).all()
+            }
         if days is not None and anchor is not None:
             start = anchor - timedelta(days=max(1, days) - 1)
             rows = [
@@ -3213,6 +3226,7 @@ class ReadModelService:
                 "home_team_label": row.home_team_label or {},
                 "away_team_label": row.away_team_label or {},
                 "current_ev": row.current_ev, "evaluation_id": row.evaluation_id,
+                "score": row.score or score_map.get(row.fixture_id),
             }
             for row, kickoff_utc in rows
         ], total
