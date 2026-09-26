@@ -104,6 +104,61 @@ def test_needs_backup_no(tmp_path: Path) -> None:
     assert r.stdout.strip() == "no"
 
 
+def _readback_retry_with_fake_ssh(
+    tmp_path: Path, *, recover: bool
+) -> tuple[subprocess.CompletedProcess[str], list[str], list[str]]:
+    count_file = tmp_path / "ssh-count"
+    sleep_log = tmp_path / "sleep.log"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    ssh = bin_dir / "fake-ssh"
+    ssh.write_text(
+        f"""#!/usr/bin/env bash
+count=0
+[ -f "{count_file}" ] && count=$(cat "{count_file}")
+count=$((count + 1))
+printf '%s\\n' "$count" > "{count_file}"
+if [ "$count" -eq 1 ]; then
+  echo '{{"release_id":""}}'
+elif [ "$count" -eq 2 ]; then
+  exit 7
+elif [ "{'1' if recover else '0'}" = "1" ]; then
+  echo '{{"release_id":"{FAKE_ONLINE}"}}'
+else
+  echo '{{"release_id":null}}'
+fi
+""",
+        encoding="utf-8",
+    )
+    sleep = bin_dir / "sleep"
+    sleep.write_text(
+        f'#!/usr/bin/env bash\necho "$*" >> "{sleep_log}"\n', encoding="utf-8"
+    )
+    ssh.chmod(0o755)
+    sleep.chmod(0o755)
+    env = {**os.environ, "W2_RELEASE_SSH_CMD": str(ssh), "PATH": f"{bin_dir}:{os.environ['PATH']}"}
+    result = _bash(f'source "{SCRIPT}"; read_release_id_with_retry', env=env)
+    attempts = count_file.read_text(encoding="utf-8").splitlines()
+    waits = sleep_log.read_text(encoding="utf-8").splitlines() if sleep_log.exists() else []
+    return result, attempts, waits
+
+
+def test_push_readback_retries_empty_and_failed_version_response(tmp_path: Path) -> None:
+    result, attempts, waits = _readback_retry_with_fake_ssh(tmp_path, recover=True)
+    assert result.returncode == 0
+    assert result.stdout.strip() == FAKE_ONLINE
+    assert attempts == ["3"]
+    assert waits == ["3", "3"]
+
+
+def test_push_readback_fails_after_three_empty_or_failed_attempts(tmp_path: Path) -> None:
+    result, attempts, waits = _readback_retry_with_fake_ssh(tmp_path, recover=False)
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert attempts == ["3"]
+    assert waits == ["3", "3"]
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 测试 3：回读某项失败时不推送、不轮转
 # ─────────────────────────────────────────────────────────────────────────────

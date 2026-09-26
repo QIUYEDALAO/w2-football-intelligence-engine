@@ -2359,6 +2359,43 @@ def test_candidate_execution_can_precede_current_shadow_candidate_readiness() ->
     assert validated.matches[0].shadow_candidate.status == "NOT_READY"
 
 
+def test_evaluation_summary_uses_postmatch_recommendation_wording() -> None:
+    candidate = {
+        "market": "ASIAN_HANDICAP",
+        "state": "ANALYSIS_PICK_ACTIVE",
+        "evaluated_at": "2026-08-10T09:15:00Z",
+        "evaluation_slot_id": "T45_ODDS",
+        "official_funnel_eligible": True,
+        "measurement_semantics": "CHECKPOINT_EVALUATION_OPPORTUNITY",
+        "opportunity_identity_hash": "candidate",
+        "attempt_identity_hash": "candidate-attempt",
+    }
+    blocked = {
+        **candidate,
+        "state": "NOT_READY_QUOTE_INCOMPLETE",
+        "evaluated_at": "2026-08-10T09:45:00Z",
+        "evaluation_slot_id": "T15_ODDS",
+        "opportunity_identity_hash": "blocked",
+        "attempt_identity_hash": "blocked-attempt",
+    }
+    candidate_card = {"dynamic_prematch": {"versions": [candidate]}}
+    blocked_card = {"dynamic_prematch": {"versions": [candidate, blocked], "opportunities": [{
+        "market": "ASIAN_HANDICAP",
+        "state": "BLOCKED_BY_GATE",
+        "evaluation_slot_id": "T15_ODDS",
+        "scheduled_checkpoint_at": "2026-08-10T09:45:00Z",
+        "recorded_at": "2026-08-10T09:45:00Z",
+        "opportunity_identity_hash": "blocked",
+        "latest_attempt_identity_hash": "blocked-attempt",
+    }]}}
+
+    candidate_summary = workspace_module._evaluation_execution(candidate_card, {})["summary_zh"]
+    blocked_summary = workspace_module._evaluation_execution(blocked_card, {})["summary_zh"]
+    assert "计入赛后推荐统计" in candidate_summary
+    assert "不计入赛后推荐统计" in blocked_summary
+    assert "验证样本" not in candidate_summary + blocked_summary
+
+
 def test_finished_match_keeps_final_candidate_state_and_kickoff_quote_age() -> None:
     day_view = _day_view()
     day_view["generated_at"] = "2026-08-10T20:00:00Z"

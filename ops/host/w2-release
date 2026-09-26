@@ -79,6 +79,26 @@ vps() {
   $SSH_CMD "$SSH_HOST" "$@"
 }
 
+# 容器切换后 /v1/version 可能短暂不可读；仅对空值或读取失败重试。
+# 首次读到非空 release_id 即返回，由调用方核对目标 SHA。
+read_release_id_with_retry() {
+  local attempt response release_id
+  for attempt in 1 2 3; do
+    release_id=""
+    if response="$(vps "curl -fsS --max-time 10 http://127.0.0.1:${API_PORT}/v1/version" 2>/dev/null)"; then
+      release_id="$(printf '%s' "$response" | python3 -c 'import json,sys; value=json.load(sys.stdin).get("release_id"); print(value.strip() if isinstance(value,str) else "")' 2>/dev/null || true)"
+    fi
+    if [ -n "$release_id" ]; then
+      printf '%s\n' "$release_id"
+      return 0
+    fi
+    if [ "$attempt" -lt 3 ]; then
+      sleep 3
+    fi
+  done
+  return 1
+}
+
 # 拷贝文件到 VPS
 scp_to_vps() {
   $SCP_CMD "$@"
@@ -1058,7 +1078,7 @@ window_start="$(TZ=Asia/Shanghai date -d "${bj_day} 12:00:00" -u +%Y-%m-%dT%H:%M
 g_n="$(Q "SELECT count(*) FROM candidate_notification_outbox WHERE event_type='VALIDATION_SAMPLE_CONFIRMED' AND created_at >= '${deploy_done}'::timestamptz AND (payload->>'kickoff_local')::timestamptz < '${window_start}'::timestamptz;")"
 g_ok=1
 [ "$g_n" = "0" ] || g_ok=0
-rb "g" "$g_ok" "新增验证样本推送中开球早于当日比赛日(${window_start})的条数=$g_n"
+rb "g" "$g_ok" "新增推荐推送中开球早于当日比赛日(${window_start})的条数=$g_n"
 
 # h. 最长 10 分钟确认排空在推进：N1 < N0；若切换前 N0=0 则直接通过。
 h_ok=1
@@ -1142,9 +1162,7 @@ fi
 log ""
 log "== 5c. 推送前独立回读 /v1/version =="
 verify_rid=""
-if vps "curl -fsS --max-time 10 http://127.0.0.1:${API_PORT}/v1/version" > /tmp/w2-release-verify.json 2>/dev/null; then
-  verify_rid="$(python3 -c 'import json,sys; print(json.load(open("/tmp/w2-release-verify.json")).get("release_id",""))' 2>/dev/null || echo "")"
-fi
+verify_rid="$(read_release_id_with_retry || true)"
 if [ "$verify_rid" != "$TARGET" ]; then
   fail_release "线上 release_id 与目标不符：线上=${verify_rid} 期望=${TARGET}"
 fi

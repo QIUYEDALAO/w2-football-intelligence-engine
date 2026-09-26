@@ -1088,7 +1088,7 @@ def _evaluation_execution(
         summary = "本场未形成候选；期间有检查点错过，但不影响该结论。"
     elif status == "BLOCKED":
         summary = (
-            "曾形成候选，最后官方状态已被门禁阻断，不计入赛后验证样本。"
+            "曾形成候选，最后官方状态已被门禁阻断，不计入赛后推荐统计。"
             if ever_formed_candidate
             else "最后官方状态被门禁阻断，未形成有效候选。"
         )
@@ -1098,7 +1098,7 @@ def _evaluation_execution(
             "两个市场均为 NO_EDGE —— 模型与市场看法一致，无可利用价差。"
             if status == "NO_EDGE"
             and all({"ASIAN_HANDICAP", "TOTALS"} <= markets for markets in checkpoints.values())
-            else "最后官方状态仍为候选，计入赛后验证样本。"
+            else "最后官方状态仍为候选，计入赛后推荐统计。"
             if status == "CANDIDATE"
             else "已完成市场评估。"
         )
