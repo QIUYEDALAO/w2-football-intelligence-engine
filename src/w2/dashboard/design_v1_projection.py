@@ -16,7 +16,6 @@ WINNING = frozenset({"WIN", "HALF_WIN"})
 MARKET_ZH = {"ASIAN_HANDICAP": "让球", "TOTALS": "大小球"}
 SIDE_ZH = {"HOME": "主", "AWAY": "客", "OVER": "大", "UNDER": "小"}
 TOTALS_DISPLAY_STATE = "MARKET_VIEW"
-TOTALS_DISPLAY_NOTICE = "市场观点展示 · 不作投注建议"
 
 
 def _label(value: Any) -> str | None:
@@ -108,8 +107,8 @@ def review_row(row: Mapping[str, Any], *, calibrated: bool = False) -> dict[str,
     home = _label(row.get("home_team_label"))
     away = _label(row.get("away_team_label"))
     market = str(row.get("market") or "")
-    # T1 裁决后 TOTALS 只作「市场观点」仅覆盖今日/未来新产出；历史已结算行保留
-    # 原始方向/盘口，不得再覆盖为「市场观点展示 · 不作投注建议」。
+    # Keep the internal state for pending TOTALS while showing the same line and
+    # direction for both pending and settled rows.
     totals_market_view = market == "TOTALS" and row.get("settlement") not in SETTLED
     return {
         "fixture_id": str(row["fixture_id"]),
@@ -122,7 +121,6 @@ def review_row(row: Mapping[str, Any], *, calibrated: bool = False) -> dict[str,
         ).strip(),
         "market": MARKET_ZH.get(market),
         "display_state": TOTALS_DISPLAY_STATE if totals_market_view else "RECOMMENDATION",
-        "display_notice": TOTALS_DISPLAY_NOTICE if totals_market_view else None,
         "decimal_odds": row.get("decimal_odds"),
         "result": row.get("settlement"),
         "profit_units": row.get("profit_units"),
@@ -220,7 +218,6 @@ def replay_display_row(
     last = max(versions, key=lambda row: str(row.get("evaluated_at") or ""), default=None)
     final = None
     final_display_state = "RECOMMENDATION"
-    display_notice = None
     if last and last.get("state") == "ANALYSIS_PICK_ACTIVE":
         final = (
             f"{MARKET_ZH.get(str(last.get('market')), last.get('market'))} "
@@ -235,5 +232,4 @@ def replay_display_row(
         }),
         "final_recommendation": final,
         "final_display_state": final_display_state if final is not None else None,
-        "display_notice": display_notice,
     }

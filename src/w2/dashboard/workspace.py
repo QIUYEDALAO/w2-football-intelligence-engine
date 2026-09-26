@@ -554,12 +554,6 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
                     and _text(row.get("settlement")) not in _SETTLED
                     else "RECOMMENDATION"
                 ),
-                "display_notice": (
-                    "市场观点展示 · 不作投注建议"
-                    if _text(row.get("market")) == "TOTALS"
-                    and _text(row.get("settlement")) not in _SETTLED
-                    else None
-                ),
                 "selection": _text(row.get("selection")),
                 "exact_line": _text(row.get("exact_line")),
                 "decimal_odds": _number(row.get("decimal_odds")),

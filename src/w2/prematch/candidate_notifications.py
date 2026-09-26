@@ -681,7 +681,6 @@ def _sample_row_to_projection(row: ValidationSampleModel) -> dict[str, Any]:
         "kickoff_utc": _iso_or_none(row.kickoff_utc),
         "market": market,
         "display_state": "MARKET_VIEW" if totals_market_view else "RECOMMENDATION",
-        "display_notice": "市场观点展示 · 不作投注建议" if totals_market_view else None,
         "selection": row.selection,
         "exact_line": row.exact_line,
         "decimal_odds": row.decimal_odds,

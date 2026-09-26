@@ -59,7 +59,6 @@ CHECKPOINT_LABELS = {
 # accidentally style them as recommendations.
 MARKET_VIEW_DISPLAY_STATE = "MARKET_VIEW"
 RECOMMENDATION_DISPLAY_STATE = "RECOMMENDATION"
-TOTALS_DISPLAY_NOTICE = "市场观点展示 · 不作投注建议"
 
 
 def official_funnel_recommendations(
@@ -218,9 +217,6 @@ def official_funnel_recommendations(
                     MARKET_VIEW_DISPLAY_STATE
                     if market == "TOTALS"
                     else RECOMMENDATION_DISPLAY_STATE
-                ),
-                "display_notice": (
-                    TOTALS_DISPLAY_NOTICE if market == "TOTALS" else None
                 ),
                 "selection": str(row.selection),
                 "exact_line": line,

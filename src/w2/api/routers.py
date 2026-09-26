@@ -140,7 +140,6 @@ def _calibrated_sample_projection(
                 "recommendation",
                 "result",
                 "display_state",
-                "display_notice",
                 "calibration_decision",
                 "calibrated_ev",
             )

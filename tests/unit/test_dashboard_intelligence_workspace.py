@@ -188,7 +188,7 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
     )
     assert (portland["settlement"], portland["profit_units"]) == ("LOSS", -1.0)
     assert portland["display_state"] == "MARKET_VIEW"
-    assert portland["display_notice"] == "市场观点展示 · 不作投注建议"
+    assert "display_notice" not in portland
     assert (minnesota["settlement"], minnesota["profit_units"]) == ("PUSH", 0.0)
     assert minnesota["confirmed_checkpoint"] == "T-30m"
     restored = {
@@ -217,11 +217,11 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
     assert pending_vancouver["settlement"] == "PENDING"
     assert pending_vancouver["score"] is None
     assert pending_vancouver["profit_units"] is None
-    WorkspaceModelForecastProgress.model_validate(
-        workspace_module._model_forecast_progress(
-            {"official_recommendations": [rows[0], pending_vancouver]}
-        )
+    progress = workspace_module._model_forecast_progress(
+        {"official_recommendations": [rows[0], pending_vancouver]}
     )
+    assert all("display_notice" not in row for row in progress["official_recommendations"])
+    WorkspaceModelForecastProgress.model_validate(progress)
 
 
 @pytest.mark.parametrize(

@@ -79,7 +79,7 @@ def test_settled_totals_review_row_preserves_original_recommendation() -> None:
 
     # 历史已结算 TOTALS 行保留原始方向/盘口，不再覆盖为市场观点。
     assert projected["display_state"] == "RECOMMENDATION"
-    assert projected["display_notice"] is None
+    assert "display_notice" not in projected
     assert projected["recommendation"] == "大 2.5"
 
 
@@ -91,7 +91,8 @@ def test_pending_totals_review_row_is_market_view() -> None:
 
     # 今日/未来新产出（未结算）的 TOTALS 仍是市场观点。
     assert projected["display_state"] == "MARKET_VIEW"
-    assert projected["display_notice"] == "市场观点展示 · 不作投注建议"
+    assert "display_notice" not in projected
+    assert projected["recommendation"] == "大 2.5"
 
 
 def test_today_recommendations_excludes_historical_totals_rows() -> None:
@@ -158,5 +159,5 @@ def test_replay_totals_keeps_original_final_recommendation() -> None:
 
     # 历史 TOTALS 候选（裁决 T1 前）保留原始方向/盘口，不再是市场观点。
     assert row["final_display_state"] == "RECOMMENDATION"
-    assert row["display_notice"] is None
+    assert "display_notice" not in row
     assert row["final_recommendation"] == "大小球 大 2.5 @1.93"

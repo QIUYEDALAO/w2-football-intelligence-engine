@@ -1864,9 +1864,9 @@ test("design v1 review and replay tabs load their API only when opened", async (
   const payload = workspace("normal") as IntelligenceWorkspace & Record<string, unknown>;
   const { history_replay: historyReplay, ...validation } = payload.validation;
   const reviewRows = [
-    { fixture_id: "older", kickoff_utc: "2026-09-20T12:00:00Z", date: "2026-09-26", match: "旧场 vs 客队" },
-    { fixture_id: "latest", kickoff_utc: "2026-09-26T12:00:00Z", date: "2026-09-20", match: "新场 vs 客队" },
-    { fixture_id: "middle", kickoff_utc: "2026-09-26T08:30:00Z", date: "2026-09-20", match: "中场 vs 客队" },
+    { fixture_id: "older", kickoff_utc: "2026-09-20T12:00:00Z", date: "2026-09-26", match: "旧场 vs 客队", recommendation: "小 2.75", display_state: "RECOMMENDATION", display_notice: null },
+    { fixture_id: "latest", kickoff_utc: "2026-09-26T12:00:00Z", date: "2026-09-20", match: "新场 vs 客队", recommendation: "大 2.5", display_state: "MARKET_VIEW", display_notice: "市场观点展示 · 不作投注建议" },
+    { fixture_id: "middle", kickoff_utc: "2026-09-26T08:30:00Z", date: "2026-09-20", match: "中场 vs 客队", recommendation: "主 -0.25", display_state: "RECOMMENDATION", display_notice: null },
   ];
   delete (payload as Partial<IntelligenceWorkspace>).validation;
   let validationRequests = 0;
@@ -1879,7 +1879,7 @@ test("design v1 review and replay tabs load their API only when opened", async (
   });
   await page.route("**/v1/dashboard/intelligence-workspace/validation-calibrated?**", (route) => {
     calibratedRequests += 1;
-    return route.fulfill({ status: 200, json: { request_id: "calibrated-1", schema_version: "w2.dashboard-intelligence-validation-calibrated.v1", generated_at: payload.generated_at, date: payload.date, forward_start: null, forward_progress: { kept: 0, target: 300 }, samples: reviewRows.map((row) => ({ ...row, market: "ASIAN_HANDICAP", selection: "HOME", exact_line: "-0.5", decimal_odds: 1.9, filter_decision: "KEPT", settlement: "WIN", profit_units: 0.9, calibrated_ev: 0.03, warmup: false, forward: false })), counts: { total: 3, kept: 3, filtered: 0, warmup_kept: 0, non_warmup_kept: 0, non_warmup_filtered: 0 }, decision_contract: {}, pagination: { days: 7, limit: 50, offset: 0, total: 3 }, read_contract: payload.read_contract } });
+    return route.fulfill({ status: 200, json: { request_id: "calibrated-1", schema_version: "w2.dashboard-intelligence-validation-calibrated.v1", generated_at: payload.generated_at, date: payload.date, forward_start: null, forward_progress: { kept: 0, target: 300 }, samples: reviewRows.map((row) => ({ ...row, market: "TOTALS", selection: "OVER", exact_line: "2.5", decimal_odds: 1.9, filter_decision: "KEPT", settlement: row.fixture_id === "latest" ? "PENDING" : "WIN", profit_units: row.fixture_id === "latest" ? null : 0.9, calibrated_ev: 0.03, warmup: false, forward: false })), counts: { total: 3, kept: 3, filtered: 0, warmup_kept: 0, non_warmup_kept: 0, non_warmup_filtered: 0 }, decision_contract: {}, pagination: { days: 7, limit: 50, offset: 0, total: 3 }, read_contract: payload.read_contract } });
   });
   await page.route("**/v1/dashboard/intelligence-workspace/replay?**", (route) => {
     replayRequests += 1;
@@ -1890,10 +1890,14 @@ test("design v1 review and replay tabs load their API only when opened", async (
   await page.getByRole("tab", { name: "战绩复盘" }).click();
   await expect(page.locator("[data-design-v1-review]")).toBeVisible();
   await expect(page.locator("[data-design-v1-review] tbody tr td:first-child")).toHaveText(["09-26 20:00", "09-26 16:30", "09-20 20:00"]);
+  await expect(page.locator("[data-design-v1-review] tbody tr td:nth-child(4)")).toHaveText(["大 2.5", "主 -0.25", "小 2.75"]);
+  await expect(page.locator("[data-design-v1-review]")).not.toContainText("市场观点展示");
   expect([validationRequests, calibratedRequests, replayRequests]).toEqual([1, 0, 0]);
   await page.getByRole("button", { name: "校准", exact: true }).click();
   await expect(page.locator("[data-design-v1-calibrated-review]")).toBeVisible();
   await expect(page.locator("[data-design-v1-calibrated-review] tbody tr td:first-child")).toHaveText(["09-26 20:00", "09-26 16:30", "09-20 20:00"]);
+  await expect(page.locator("[data-design-v1-calibrated-review] tbody tr td:nth-child(4)")).toHaveText(["大 2.5", "主 -0.25", "小 2.75"]);
+  await expect(page.locator("[data-design-v1-calibrated-review]")).not.toContainText("市场观点展示");
   expect([validationRequests, calibratedRequests, replayRequests]).toEqual([1, 1, 0]);
   await page.getByRole("tab", { name: "回放记录" }).click();
   await expect(page.locator("[data-design-v1-replay]")).toBeVisible();
