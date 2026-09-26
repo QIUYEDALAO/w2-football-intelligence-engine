@@ -3240,7 +3240,9 @@ class ReadModelService:
         with Session(self.repository._database_engine()) as session:
             rows = list(session.scalars(
                 select(RecommendationReviewLedgerModel).where(
-                    RecommendationReviewLedgerModel.event_type.in_(("EVALUATION_SNAPSHOT", "SETTLEMENT_OBSERVED"))
+                    RecommendationReviewLedgerModel.event_type.in_(
+                        ("DECISION_SNAPSHOT", "SETTLEMENT_OBSERVED")
+                    )
                 ).order_by(RecommendationReviewLedgerModel.evaluated_at.asc())
             ))
         signals_by_id: dict[str, dict[str, Any]] = {}
@@ -3251,7 +3253,10 @@ class ReadModelService:
             item = signals_by_id.setdefault(str(row.evaluation_id), {})
             item.update(payload)
         signals = list(signals_by_id.values())
-        settled = [row for row in signals if row.get("settlement") in {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}]
+        settled = [
+            row for row in signals
+            if row.get("settlement") in {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}
+        ]
         wins = sum(row.get("settlement") in {"WIN", "HALF_WIN"} for row in settled)
         profit = sum(float(row.get("profit_units_channel") or 0) for row in settled)
         return {
@@ -3264,7 +3269,10 @@ class ReadModelService:
             "profit_units_channel": profit,
             "rebate_rate": 0.025,
             "rows": signals,
-            "small_sample_leagues": sorted({str(row.get("competition_id")) for row in signals if row.get("competition_id")}),
+            "small_sample_leagues": sorted({
+                str(row.get("competition_id"))
+                for row in signals if row.get("competition_id")
+            }),
         }
 
     def dashboard_validation_cumulative_profit_units(self) -> float:

@@ -1028,6 +1028,21 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
             "unresolved_fixture_ids": [],
         }
     )
+    try:
+        from sqlalchemy.orm import Session as _OrmSession
+
+        from w2.tracking.forward_evidence import (
+            settle_track_d_validation_signals_in_session,
+        )
+
+        with _OrmSession(repository.engine) as _fade_session:
+            track_d_settlement = settle_track_d_validation_signals_in_session(
+                _fade_session, now=evaluated_at
+            )
+            _fade_session.commit()
+    except Exception as _exc:  # pragma: no cover - writer must not block refresh
+        logger.exception("TRACK_D_SETTLEMENT_PROJECTION_FAILED")
+        track_d_settlement = {"error": f"{type(_exc).__name__}: {_exc}"}
     # F1R-C: the same natural writer, on the other natural result-materialisation
     # path. Materialsing results without materialising the facts they prove would
     # leave this branch with fewer facts than the refresh branch, for no reason a
@@ -1100,6 +1115,7 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         },
         "result_materialization": materialization,
         "outcome_settlement": settlement,
+        "track_d_validation_settlement": track_d_settlement,
         "runtime_ah_settlement_facts": ah_fact_report,
         "validation_samples": validation_sample_report,
     }

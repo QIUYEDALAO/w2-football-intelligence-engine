@@ -9,7 +9,15 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from math import isfinite
 
-from w2.domain.profit import REBATE_FORMULA_VERSION, REBATE_RATE
+from w2.domain.profit import (
+    FROZEN_FADE_DELTA,
+    REBATE_RATE,
+    track_d_binary_cashflow,
+    track_d_fair_probability,
+)
+from w2.domain.profit import (
+    REBATE_FORMULA_VERSION as REBATE_FORMULA_VERSION,
+)
 from w2.quant_research.track_b_lambda_level_fusion import (
     AhQuoteSideMissing,
     _distribution,
@@ -20,7 +28,6 @@ from w2.quant_research.track_b_lambda_level_fusion import (
 )
 
 FROZEN_TOTAL_SCALE = 1.0
-FROZEN_FADE_DELTA = 0.05
 FROZEN_REBATE = float(REBATE_RATE)
 TRACK_D_APPROX_FORMULA_VERSION = "w2.track_d.binary_abs_profit_v2.v1"
 TIER_PRIORITY = 0.05
@@ -102,21 +109,11 @@ def _price(value: float) -> float:
 
 def single_probability_cashflow(probability: float, decimal_odds: float) -> float:
     """Track D's registered binary approximation, not a five-state EV."""
-    if not isfinite(probability) or not 0.0 <= probability <= 1.0:
-        raise ValueError("probability must be between 0 and 1")
-    price = _price(decimal_odds)
-    if REBATE_FORMULA_VERSION != "ABS_PROFIT_V2":
-        raise RuntimeError("unsupported rebate formula version")
-    binary_rebate = FROZEN_REBATE * (
-        (price - 1.0) * probability + (1.0 - probability)
-    )
-    return probability * price - 1.0 + binary_rebate
+    return track_d_binary_cashflow(probability, decimal_odds)
 
 
 def _fair_probability(odds: Mapping[str, float], selection: str) -> float:
-    sides = ("OVER", "UNDER") if selection in {"OVER", "UNDER"} else ("HOME", "AWAY")
-    implied = {side: 1.0 / _price(odds[side]) for side in sides}
-    return implied[selection] / sum(implied.values())
+    return track_d_fair_probability(odds, selection)
 
 
 def _tier(ev: float | None) -> str:
