@@ -8,9 +8,11 @@ type LoadState = "loading" | "ready" | "error";
 
 function initialQuery() {
   const query = new URLSearchParams(window.location.search);
-  const date = query.get("date");
+  // 默认日期永远解析为「今天（足球日）」。URL 里可能残留用户上次
+  // 手动切换后浏览器缓存的 `date` 参数，但它不得覆盖默认行为——只有
+  // 用户在页面里手动切换日期时才改变当前日期（经 onDateChange 更新 state）。
   return {
-    date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : footballDayShanghai(),
+    date: footballDayShanghai(),
     fixtureId: query.get("fixture_id"),
   };
 }
