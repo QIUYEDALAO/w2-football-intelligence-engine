@@ -32,6 +32,10 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayFixtureIdentityModel,
 )
+from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureModel,
+    model_forecast_fixture_aliases,
+)
 from w2.prematch.candidate_notifications import (
     enqueue_attempt_notification_in_session,
     enqueue_validation_signal_in_session,
@@ -53,8 +57,35 @@ from w2.prematch.lifecycle import (
     opportunity_identity_hash,
 )
 from w2.tracking.forward_evidence import record_shadow_evidence_in_session
+from w2.tracking.model_forecast_ledger import T30_CAPTURE_POLICY
 
 _LOG = logging.getLogger(__name__)
+
+_MODEL_FORECAST_CAPTURE_UNRESOLVED = "MODEL_FORECAST_CAPTURE_UNRESOLVED"
+
+
+def _bind_forecast_capture(
+    session: Session,
+    version: DynamicEvaluationVersion,
+) -> DynamicEvaluationVersion:
+    """补绑 forecast capture 身份；无唯一 capture 时 fail-closed 记录 blocker。"""
+    if version.model_forecast_capture_identity_hash:
+        return version
+    hashes = session.scalars(
+        select(ModelForecastCaptureModel.capture_identity_hash)
+        .where(
+            ModelForecastCaptureModel.fixture_id.in_(
+                model_forecast_fixture_aliases(version.fixture_id)
+            )
+        )
+        .where(ModelForecastCaptureModel.capture_policy != T30_CAPTURE_POLICY)
+    ).all()
+    if len(hashes) == 1:
+        return replace(version, model_forecast_capture_identity_hash=str(hashes[0]))
+    return replace(
+        version,
+        blockers=version.blockers + (_MODEL_FORECAST_CAPTURE_UNRESOLVED,),
+    )
 
 PAIR_PROJECTOR_SCHEMA = "w2.eval_02b_exact_pair_projection.v2"
 _PAIR_MARKETS = {MarketType.ASIAN_HANDICAP.value, MarketType.TOTALS.value}
@@ -151,6 +182,7 @@ class DynamicPrematchRepository:
         recommendation_decision_v4: Mapping[str, Any] | None = None,
     ) -> tuple[DynamicEvaluationVersion, bool]:
         """Append evaluation and supersession without owning the transaction."""
+        version = _bind_forecast_capture(session, version)
         existing = session.scalar(
             select(DynamicPrematchEvaluationModel).where(
                 DynamicPrematchEvaluationModel.identity_hash == version.identity_hash

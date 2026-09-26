@@ -18,6 +18,7 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
 )
+from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
 from w2.operations.observability import default_metric_registry
 from w2.prematch.analysis_calculator import ReadModelService
 from w2.prematch.lifecycle import (
@@ -330,6 +331,7 @@ def _engine(*, dynamic: bool = False):  # type: ignore[no-untyped-def]
         DynamicPrematchSupersessionModel.__table__.create(engine)
         LineupConfirmedEventModel.__table__.create(engine)
         MatchdayCheckpointPlanModel.__table__.create(engine)
+        ModelForecastCaptureModel.__table__.create(engine)
     return engine
 
 

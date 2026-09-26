@@ -18,6 +18,7 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
     LineupConfirmedEventModel,
 )
 from w2.infrastructure.persistence.matchday_intake_models import MatchdayFixtureIdentityModel
+from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
 from w2.prematch.lifecycle import (
     DYNAMIC_EVALUATION_V2_SCHEMA,
     DYNAMIC_EVALUATION_V3_SCHEMA,
@@ -572,6 +573,44 @@ def test_db_lifecycle_is_append_only_and_t30_freezes_once() -> None:
     )
     assert repository.freeze_t30_snapshot("fixture-1", lock)
     assert not repository.freeze_t30_snapshot("fixture-1", lock)
+
+
+def test_append_evaluation_binds_forecast_capture_and_fails_closed() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add(ModelForecastCaptureModel(
+            capture_identity_hash="c" * 64,
+            fixture_id="fixture-1",
+            competition_id="league",
+            kickoff_utc=NOW,
+            captured_at=NOW,
+            lead_time_seconds=0,
+            lead_time_bucket="GT_3D",
+            model_family="EXACT_DC_POISSON",
+            model_version="v1",
+            model_input_manifest_hash="m" * 64,
+            four_field_xg_identity_hash="x" * 64,
+            score_matrix_hash="s" * 64,
+            payload={},
+            payload_sha256="p" * 64,
+            inserted_at=NOW,
+        ))
+        session.commit()
+    repository = DynamicPrematchRepository(engine)
+
+    bound = classify_evaluation(_ah_evaluation(capture_id="c1", ev=0.08, delta=0.06, ev_se=0.02))
+    assert bound.model_forecast_capture_identity_hash is None
+    persisted, inserted = repository.append_evaluation(bound)
+    assert inserted
+    assert persisted.model_forecast_capture_identity_hash == "c" * 64
+
+    missing = classify_evaluation(
+        _ah_evaluation(capture_id="c2", ev=0.08, delta=0.06, ev_se=0.02, fixture_id="fixture-none")
+    )
+    persisted_missing, _ = repository.append_evaluation(missing)
+    assert persisted_missing.model_forecast_capture_identity_hash is None
+    assert "MODEL_FORECAST_CAPTURE_UNRESOLVED" in persisted_missing.blockers
 
 
 def _pair_engine():
