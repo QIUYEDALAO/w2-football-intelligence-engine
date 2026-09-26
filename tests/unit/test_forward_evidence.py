@@ -230,11 +230,12 @@ def test_under_evaluation_creates_separate_pit_fade_decision_and_channel_settlem
     session = _Session(capture=_capture(at), quotes=quotes)
     register_forward_clock(session, started_at=T0, code_revision="a" * 40)
 
-    record_shadow_evidence_in_session(session, version)
+    fade_returned = record_shadow_evidence_in_session(session, version)
 
     rows = list(session.events.values())
     assert len(rows) == 2
     fade = next(row for row in rows if row.event_type == "DECISION_SNAPSHOT")
+    assert fade_returned is fade
     assert fade.pit_status == "PROVABLE"
     assert fade.payload["candidate_kind"] == TRACK_D_FADE
     assert fade.payload["display_state"] == VALIDATION_SIGNAL

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
@@ -33,6 +34,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 )
 from w2.prematch.candidate_notifications import (
     enqueue_attempt_notification_in_session,
+    enqueue_validation_signal_in_session,
 )
 from w2.prematch.lifecycle import (
     AH_MARKET,
@@ -51,6 +53,8 @@ from w2.prematch.lifecycle import (
     opportunity_identity_hash,
 )
 from w2.tracking.forward_evidence import record_shadow_evidence_in_session
+
+_LOG = logging.getLogger(__name__)
 
 PAIR_PROJECTOR_SCHEMA = "w2.eval_02b_exact_pair_projection.v2"
 _PAIR_MARKETS = {MarketType.ASIAN_HANDICAP.value, MarketType.TOTALS.value}
@@ -219,7 +223,18 @@ class DynamicPrematchRepository:
             )
         )
         session.flush()
-        record_shadow_evidence_in_session(session, persisted)
+        fade_row = record_shadow_evidence_in_session(session, persisted)
+        if fade_row is not None:
+            try:
+                with session.begin_nested():
+                    enqueue_validation_signal_in_session(
+                        session, signal=fade_row.payload, now=datetime.now(UTC)
+                    )
+            except Exception:
+                _LOG.exception(
+                    "VALIDATION_SIGNAL_ENQUEUE_FAILED evaluation_id=%s",
+                    persisted.evaluation_id,
+                )
         if persisted.denominator_scope == CHECKPOINT_OPPORTUNITY_SCOPE:
             self._upsert_opportunity_in_session(session, persisted)
             enqueue_attempt_notification_in_session(

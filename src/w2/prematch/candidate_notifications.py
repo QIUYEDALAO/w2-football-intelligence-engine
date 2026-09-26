@@ -6,6 +6,7 @@ import os
 from collections.abc import Callable, Mapping
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
+from math import isfinite
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
@@ -256,7 +257,13 @@ def _aware(moment: datetime) -> datetime:
 
 
 _ALWAYS_PUSH = frozenset(
-    {DAILY_CANDIDATE_LIST, VALIDATION_SAMPLE_CONFIRMED, VALIDATION_SIGNAL, DAILY_SETTLEMENT, TEST_MESSAGE}
+    {
+        DAILY_CANDIDATE_LIST,
+        VALIDATION_SAMPLE_CONFIRMED,
+        VALIDATION_SIGNAL,
+        DAILY_SETTLEMENT,
+        TEST_MESSAGE,
+    }
 )
 
 
@@ -1032,10 +1039,52 @@ def enqueue_validation_signal_in_session(
     """
     if str(signal.get("candidate_kind")) != "TRACK_D_FADE":
         raise ValueError("VALIDATION_SIGNAL_REQUIRES_TRACK_D_FADE")
-    event_id = _event_id(
-        str(signal.get("evaluation_id") or signal.get("fixture_id") or "unknown"),
-        VALIDATION_SIGNAL,
+    if (
+        signal.get("display_state") != VALIDATION_SIGNAL
+        or signal.get("pit_status") != "PROVABLE"
+        or signal.get("market") != "TOTALS"
+        or signal.get("selection") != "OVER"
+        or signal.get("original_selection") != "UNDER"
+        or signal.get("official_recommendation") is not False
+        or signal.get("derived_from_evaluation_id") != signal.get("evaluation_id")
+    ):
+        raise ValueError("VALIDATION_SIGNAL_SOURCE_NOT_PROVABLE")
+    required = (
+        "evaluation_id", "fixture_id", "exact_line", "decimal_odds_channel",
+        "decimal_odds_pinnacle", "model_reference_probability", "channel_quote_identity",
+        "market_quote_identity", "captured_at", "evaluated_at", "kickoff_utc",
     )
+    if any(signal.get(key) is None for key in required):
+        raise ValueError("VALIDATION_SIGNAL_SOURCE_INCOMPLETE")
+    captured = _parse_time(signal["captured_at"])
+    evaluated = _parse_time(signal["evaluated_at"])
+    kickoff = _parse_time(signal["kickoff_utc"])
+    if (
+        captured is None or evaluated is None or kickoff is None
+        or not captured <= evaluated < kickoff or not now < kickoff
+    ):
+        raise ValueError("VALIDATION_SIGNAL_PIT_INVALID")
+    prices = (
+        _float(signal["decimal_odds_channel"]),
+        _float(signal["decimal_odds_pinnacle"]),
+    )
+    model_probability = _float(signal["model_reference_probability"])
+    if (
+        any(price is None or not isfinite(price) or price <= 1 for price in prices)
+        or model_probability is None
+        or not isfinite(model_probability)
+        or not 0 <= model_probability <= 1
+    ):
+        raise ValueError("VALIDATION_SIGNAL_PRICE_OR_MODEL_INVALID")
+    bookmaker_id = str(signal.get("channel_bookmaker_id") or "")
+    if not bookmaker_id or bookmaker_id == "4":
+        raise ValueError("VALIDATION_SIGNAL_CHANNEL_PRICE_INVALID")
+    bare_fixture = str(signal["fixture_id"]).removeprefix("api_football:")
+    fixture = _fixture_identity(session, bare_fixture)
+    if fixture is None:
+        raise ValueError("VALIDATION_SIGNAL_FIXTURE_IDENTITY_MISSING")
+    labels = public_team_labels_for_fixtures(session, [fixture])[bare_fixture]
+    event_id = _event_id(str(signal["evaluation_id"]), VALIDATION_SIGNAL)
     if session.get(CandidateNotificationOutboxModel, event_id) is not None:
         return None
     payload = {
@@ -1045,16 +1094,27 @@ def enqueue_validation_signal_in_session(
         "display_state": "VALIDATION_SIGNAL",
         "watermark": VALIDATION_SIGNAL_WATERMARK,
         "official_recommendation": False,
-        "fixture_id": signal.get("fixture_id"),
-        "match": signal.get("match") or {},
-        "competition": signal.get("competition") or signal.get("league"),
+        "evaluation_id": signal["evaluation_id"],
+        "derived_from_evaluation_id": signal.get("derived_from_evaluation_id"),
+        "fixture_id": bare_fixture,
+        "match": {
+            "home": _team_display_name(labels["home"], "主队"),
+            "away": _team_display_name(labels["away"], "客队"),
+        },
+        "competition": _competition_zh_name(fixture.competition_id),
         "direction": "OVER",
-        "line": signal.get("line"),
-        "decimal_odds": signal.get("channel_odds") or signal.get("decimal_odds"),
-        "channel_reference_price": signal.get("channel_odds") or signal.get("decimal_odds"),
-        "pinnacle_reference_price": signal.get("pinnacle_odds") or signal.get("pinnacle_fair_odds"),
-        "model_reference_probability": signal.get("model_probability") or signal.get("pure_model_probability"),
-        "quote_captured_at": signal.get("quote_captured_at"),
+        "line": signal["exact_line"],
+        "decimal_odds": signal["decimal_odds_channel"],
+        "channel_reference_price": signal["decimal_odds_channel"],
+        "channel_bookmaker": {
+            "id": bookmaker_id,
+            "name": _bookmaker_name(session, bare_fixture, bookmaker_id),
+        },
+        "market_reference_price": signal["decimal_odds_pinnacle"],
+        "model_reference_probability": signal["model_reference_probability"],
+        "channel_quote_identity": signal["channel_quote_identity"],
+        "market_quote_identity": signal["market_quote_identity"],
+        "quote_captured_at": signal["captured_at"],
         "evaluated_at": signal.get("evaluated_at"),
         "kickoff_utc": signal.get("kickoff_utc"),
         "created_at": _iso(now),
@@ -1585,8 +1645,8 @@ def _send_bark(payload: Mapping[str, Any]) -> None:
     request_payload: dict[str, Any] = {
         "title": message["title"],
         "body": message["body"],
-        "group": "W2候选",
-        "level": "timeSensitive",
+        "group": "W2验证信号" if payload.get("event_type") == VALIDATION_SIGNAL else "W2候选",
+        "level": "active" if payload.get("event_type") == VALIDATION_SIGNAL else "timeSensitive",
     }
     if message.get("url"):
         request_payload["url"] = message["url"]
@@ -1719,13 +1779,15 @@ def _message_body(payload: Mapping[str, Any]) -> str:
             )
         )
     if event_type == VALIDATION_SIGNAL:
+        bookmaker = _as_mapping(payload.get("channel_bookmaker"))
         return "\n".join(
             (
                 str(payload.get("watermark") or VALIDATION_SIGNAL_WATERMARK),
-                f"方向 OVER {_format_line(payload.get('line'))} · 渠道参考价 "
-                f"{_format_odds(payload.get('channel_reference_price') or payload.get('decimal_odds'))}",
-                f"模型参考概率 {payload.get('model_reference_probability') or '—'} · "
-                f"Pinnacle 仅作市场锚 {payload.get('pinnacle_reference_price') or '—'}",
+                f"方向 OVER · 市场线 {_format_line(payload.get('line'))} · "
+                f"市场水位 {_format_odds(payload.get('market_reference_price'))}（Pinnacle 参考）",
+                f"模型参考概率 {_format_probability(payload.get('model_reference_probability'))}",
+                f"渠道参考价 {_format_odds(payload.get('channel_reference_price'))} · "
+                f"{bookmaker.get('name') or bookmaker.get('id') or '未知渠道'}",
                 f"报价时间：{payload.get('quote_captured_at') or '未知'}",
             )
         )
@@ -1967,6 +2029,11 @@ def _format_odds(value: Any) -> str:
 def _format_ev(value: Any) -> str:
     number = _float(value)
     return f"{number * 100:+.1f}%" if number is not None else "?"
+
+
+def _format_probability(value: Any) -> str:
+    number = _float(value)
+    return f"{number * 100:.1f}%" if number is not None else "?"
 
 
 def _withdrawal_reason(payload: Mapping[str, Any]) -> str:

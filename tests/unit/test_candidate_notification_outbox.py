@@ -689,6 +689,99 @@ def _insert_fixture_identity(
     )
 
 
+def _track_d_signal(at: datetime = NOW) -> dict[str, object]:
+    return {
+        "candidate_kind": "TRACK_D_FADE",
+        "display_state": "VALIDATION_SIGNAL",
+        "pit_status": "PROVABLE",
+        "market": "TOTALS",
+        "selection": "OVER",
+        "original_selection": "UNDER",
+        "official_recommendation": False,
+        "evaluation_id": "fade-evaluation-1",
+        "derived_from_evaluation_id": "fade-evaluation-1",
+        "fixture_id": "api_football:1523202",
+        "exact_line": "2.5",
+        "decimal_odds_channel": 1.92,
+        "decimal_odds_pinnacle": 1.93,
+        "model_reference_probability": 0.55,
+        "channel_bookmaker_id": "36",
+        "channel_quote_identity": "channel-over",
+        "market_quote_identity": "pinnacle-pair",
+        "captured_at": at.isoformat(),
+        "evaluated_at": at.isoformat(),
+        "kickoff_utc": (at + timedelta(hours=3)).isoformat(),
+    }
+
+
+def test_track_d_validation_signal_uses_separate_bark_group_and_channel_price(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = _engine()
+    signal = _track_d_signal()
+    with Session(engine) as session:
+        _insert_fixture_identity(session, kickoff_utc=NOW + timedelta(hours=3))
+        session.flush()
+        event_id = candidate_notifications.enqueue_validation_signal_in_session(
+            session, signal=signal, now=NOW
+        )
+        assert event_id is not None
+        event = session.get(CandidateNotificationOutboxModel, event_id)
+        assert event.event_type == candidate_notifications.VALIDATION_SIGNAL
+        assert event.delivery_status == candidate_notifications.PENDING
+        assert event.payload["candidate_kind"] == "TRACK_D_FADE"
+        assert event.payload["official_recommendation"] is False
+        rendered = render_bark_message(event.payload)
+        assert rendered["title"].startswith("[验证信号] 中超 上海海港vs大连英博 OVER2.5")
+        assert "验证期信号 · 非正式推荐 · 不计入档位" in rendered["body"]
+        assert "市场水位 1.93（Pinnacle 参考）" in rendered["body"]
+        assert "模型参考概率 55.0%" in rendered["body"]
+        assert "渠道参考价 1.92" in rendered["body"]
+        assert "重点" not in rendered["body"]
+        assert candidate_notifications.enqueue_validation_signal_in_session(
+            session, signal=signal, now=NOW
+        ) is None
+        invalid = {**signal, "pit_status": "PIT_UNPROVABLE"}
+        with pytest.raises(ValueError, match="VALIDATION_SIGNAL_SOURCE_NOT_PROVABLE"):
+            candidate_notifications.enqueue_validation_signal_in_session(
+                session, signal=invalid, now=NOW
+            )
+        payload = event.payload
+        session.commit()
+
+    sent: list[dict[str, object]] = []
+    monkeypatch.setenv("W2_BARK_ENDPOINT", "https://example.test")
+    monkeypatch.setenv("W2_BARK_DEVICE_KEY", "test-device")
+    monkeypatch.setattr(
+        candidate_notifications, "_post_bark_device",
+        lambda _endpoint, request: sent.append(dict(request)),
+    )
+    candidate_notifications._send_bark(payload)
+    assert sent[0]["group"] == "W2验证信号"
+    assert sent[0]["level"] == "active"
+
+
+def test_new_evaluation_enqueues_track_d_signal_in_the_same_transaction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = _engine()
+    at = datetime.now(UTC)
+    with Session(engine) as session:
+        _insert_fixture_identity(session, kickoff_utc=at + timedelta(hours=3))
+        session.commit()
+    monkeypatch.setattr(
+        "w2.prematch.repository.record_shadow_evidence_in_session",
+        lambda _session, _version: SimpleNamespace(payload=_track_d_signal(at)),
+    )
+
+    _append(DynamicPrematchRepository(engine), _attempt("T3_ODDS", "fade"))
+
+    events = _events(engine)
+    assert len(events) == 1
+    assert events[0].event_type == candidate_notifications.VALIDATION_SIGNAL
+    assert events[0].payload["evaluation_id"] == "fade-evaluation-1"
+
+
 def _insert_model_track(
     session: Session, *, fixture_id: str = "1523202", kickoff_utc: datetime
 ) -> None:

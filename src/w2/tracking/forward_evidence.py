@@ -469,7 +469,9 @@ def append_forward_evidence_in_session(
     return row
 
 
-def record_shadow_evidence_in_session(session: Session, version: Any) -> None:
+def record_shadow_evidence_in_session(
+    session: Session, version: Any,
+) -> RecommendationReviewLedgerModel | None:
     """Keep the shadow writer outside recommendation transaction correctness.
 
     A savepoint rolls back a writer failure without removing the original
@@ -477,6 +479,7 @@ def record_shadow_evidence_in_session(session: Session, version: Any) -> None:
     the exception is logged with the evaluation identity for investigation.
     """
     original_written = False
+    fade_row: RecommendationReviewLedgerModel | None = None
     try:
         with session.begin_nested():
             append_forward_evidence_in_session(session, version)
@@ -498,11 +501,14 @@ def record_shadow_evidence_in_session(session: Session, version: Any) -> None:
                         "source_selection": "UNDER",
                     },
                 )
-                append_forward_evidence_in_session(
+                fade_row = append_forward_evidence_in_session(
                     session, fade_version, _event_type="DECISION_SNAPSHOT"
                 )
         except Exception:
             _LOG.exception("TRACK_D_EVIDENCE_WRITE_FAILED evaluation_id=%s", version.evaluation_id)
+    if fade_row is not None and fade_row.payload.get("candidate_kind") == TRACK_D_FADE:
+        return fade_row
+    return None
 
 
 def append_validation_signal_settlement_in_session(
