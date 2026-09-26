@@ -343,3 +343,21 @@ def test_result_materialization_settles_fade_at_frozen_channel_price() -> None:
         assert settle_track_d_validation_signals_in_session(
             session, now=at + timedelta(hours=4)
         ) == {"signals": 0, "settled": 0}
+
+
+def test_track_d_fade_tripwire_enforces_pinnacle_anchor() -> None:
+    from w2.domain.profit import FROZEN_FADE_DELTA, track_d_fair_probability
+    from w2.tracking.forward_evidence import _assert_track_d_fade_not_intent_gated
+
+    odds = {"OVER": 1.9, "UNDER": 2.0}
+    p_over = track_d_fair_probability(odds, "OVER")
+    p_fade = min(0.99, max(0.01, p_over + FROZEN_FADE_DELTA))
+
+    # A correct Pinnacle-anchored fade passes the tripwire.
+    _assert_track_d_fade_not_intent_gated(odds, p_fade)
+
+    # Any other probability source (e.g. an intent-gate output) is forbidden.
+    with pytest.raises(
+        AssertionError, match="TRACK_D_FADE_MUST_USE_PINNACLE_ANCHOR"
+    ):
+        _assert_track_d_fade_not_intent_gated(odds, 0.5)

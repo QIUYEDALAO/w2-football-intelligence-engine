@@ -14,6 +14,10 @@ ATTRIBUTION_FIELDS = (
     "market", "selection", "competition_id", "tier", "edge_bucket", "odds_band",
     "line_movement_direction",
 )
+# 8 weeks: mirrors F5_COLDSTART_GRACE_SECONDS (the factor-gate cold-start grace
+# period). A competition whose settled-history span is below this is still a
+# "new league" in cold start; at or above it is a "mature league".
+LEAGUE_MATURITY_MIN_HISTORY_DAYS = 56
 ATTRIBUTION_MIN_N = 20
 DRIFT_MIN_N = 20
 DRIFT_WINDOWS_DAYS = (7, 30)
@@ -40,12 +44,47 @@ def _scored(row: Mapping[str, Any]) -> tuple[float, float, float] | None:
     return predicted - realized, loss, predicted
 
 
+def _league_maturity_by_competition(rows: Sequence[Mapping[str, Any]]) -> dict[str, str]:
+    """Classify each competition as ``NEW_LEAGUE`` or ``MATURE_LEAGUE``.
+
+    Maturity is the observed settled-history span (earliest -> latest
+    ``evaluated_at``) for a competition within the cohort.  A span under
+    ``LEAGUE_MATURITY_MIN_HISTORY_DAYS`` is still in cold start (new league);
+    at or above it the league is mature.  Missing competitions stay "MISSING".
+    """
+    spans: dict[str, list[datetime]] = {}
+    for row in rows:
+        competition_id = str(row.get("competition_id") or "MISSING")
+        try:
+            at = _dated(row)
+        except (KeyError, ValueError):
+            continue
+        if competition_id not in spans:
+            spans[competition_id] = [at, at]
+        else:
+            spans[competition_id][0] = min(spans[competition_id][0], at)
+            spans[competition_id][1] = max(spans[competition_id][1], at)
+    return {
+        competition_id: (
+            "MATURE_LEAGUE"
+            if (last - first).days >= LEAGUE_MATURITY_MIN_HISTORY_DAYS
+            else "NEW_LEAGUE"
+        )
+        for competition_id, (first, last) in spans.items()
+    }
+
+
 def attribution(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    """Rank seven independent one-dimensional slices, never 7-way sparse cells."""
+    """Rank the independent one-dimensional slices, never N-way sparse cells."""
+    maturity = _league_maturity_by_competition(rows)
     groups: dict[tuple[str, str], list[Mapping[str, Any]]] = defaultdict(list)
     for row in rows:
         for field in ATTRIBUTION_FIELDS:
             groups[(field, str(row.get(field) or "MISSING"))].append(row)
+        groups[(
+            "league_maturity",
+            maturity.get(str(row.get("competition_id") or "MISSING"), "MISSING"),
+        )].append(row)
     result = []
     for (field, value), group in groups.items():
         scored = [metric for row in group if (metric := _scored(row)) is not None]

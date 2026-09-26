@@ -81,6 +81,10 @@ def _finite(value: Any) -> float | None:
     return parsed if math.isfinite(parsed) else None
 
 
+def _iso(value: datetime | None) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
 def _pair(
     session: Session,
     version: Any,
@@ -256,6 +260,7 @@ def build_track_d_validation_signal_in_session(
     if loss is None or half_loss is None:
         return None
     model_over_probability = loss + 0.5 * half_loss
+    _assert_track_d_fade_not_intent_gated(market_odds, p_fade)
     return {
         "selection": "OVER",
         "line": str(line),
@@ -280,6 +285,24 @@ def build_track_d_validation_signal_in_session(
         "fade_delta": FROZEN_FADE_DELTA,
         "fade_ev_channel_with_rebate": fade_ev,
     }
+
+
+def _assert_track_d_fade_not_intent_gated(
+    pinnacle_odds: dict[str, float], fade_probability: float,
+) -> None:
+    """Production-path tripwire (PR-4): the Track D fade is Pinnacle-anchored.
+
+    The fade probability must be the frozen Pinnacle de-vig plus
+    ``FROZEN_FADE_DELTA`` formula.  Any other probability source (in particular
+    the OU intent gate, which emits zero positive recommendations) is forbidden;
+    this keeps the fade path mutually exclusive with the intent gate.
+    """
+    expected = min(
+        0.99,
+        max(0.01, track_d_fair_probability(pinnacle_odds, "OVER") + FROZEN_FADE_DELTA),
+    )
+    if fade_probability != expected:
+        raise AssertionError("TRACK_D_FADE_MUST_USE_PINNACLE_ANCHOR_NOT_INTENT_GATE")
 
 
 def append_forward_evidence_in_session(
@@ -373,7 +396,9 @@ def append_forward_evidence_in_session(
         "decision_version": version.evaluation_policy_version,
         "calibration_identity": version.calibration_identity,
         "market_quote_identity": (
-            fade["pinnacle_quote_identity"] if fade_valid else version.quote_identity_hash
+            fade["pinnacle_quote_identity"]
+            if (fade is not None and fade_valid)
+            else version.quote_identity_hash
         ),
         "source_quote_identity": version.quote_identity_hash,
         "quote_pair_identity": quote_pair_identity,
@@ -406,12 +431,12 @@ def append_forward_evidence_in_session(
         "competition_id": getattr(version, "competition_id", None),
         "market": version.market,
         "evaluated_at": version.evaluated_at.isoformat(),
-        "captured_at": quote_at.isoformat() if quote_at else None,
-        "channel_quote_captured_at": quote_at.isoformat() if fade else None,
-        "pinnacle_quote_captured_at": market_quote_at.isoformat() if fade else None,
-        "forecast_captured_at": forecast_at.isoformat() if forecast_at else None,
-        "first_quote_captured_at": market_quote_at.isoformat() if quote_ids else None,
-        "second_quote_captured_at": market_quote_at.isoformat() if quote_ids else None,
+        "captured_at": _iso(quote_at),
+        "channel_quote_captured_at": _iso(quote_at) if fade else None,
+        "pinnacle_quote_captured_at": _iso(market_quote_at) if fade else None,
+        "forecast_captured_at": _iso(forecast_at),
+        "first_quote_captured_at": _iso(market_quote_at) if quote_ids else None,
+        "second_quote_captured_at": _iso(market_quote_at) if quote_ids else None,
         "first_quote_selection": (
             "OVER" if fade is not None
             else quotes[0].canonical_selection if quotes else None

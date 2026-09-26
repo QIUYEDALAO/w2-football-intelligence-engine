@@ -126,9 +126,11 @@ def build_multi_market_analysis(
     # question that no factor's HOME/AWAY side encodes; they keep their own
     # existing, independent readiness gates untouched.
     factor_score = build_factor_score(inputs.feature_set)
+    ou_market = _ou_market(inputs)
+    _assert_ou_intent_emits_no_positive_recommendation(ou_market)
     markets = (
         _ah_market(inputs, factor_score=factor_score),
-        _ou_market(inputs),
+        ou_market,
         _half_goal_market(inputs),
         _score_market(inputs),
     )
@@ -200,6 +202,20 @@ def _ou_market(inputs: AnalysisBuildInputs) -> MarketAnalysis:
         risks=inputs.base_risks,
         invalidation_conditions=("市场线或水位变化后重新查看",),
     )
+
+
+def _assert_ou_intent_emits_no_positive_recommendation(market: MarketAnalysis) -> None:
+    """Production-path tripwire (PR-4): the OU intent gate must never admit a pick.
+
+    TOTALS is a market view only, so any ``ANALYSIS_PICK`` emitted for TOTALS
+    means the intent gate has been re-enabled.  Fail closed rather than let a
+    positive TOTALS recommendation escape the intent gate again.
+    """
+    if (
+        market.market == AnalysisMarket.TOTALS
+        and market.decision == AnalysisDecision.ANALYSIS_PICK
+    ):
+        raise AssertionError("OU_INTENT_GATE_POSITIVE_RECOMMENDATION_FORBIDDEN")
 
 
 def _half_goal_market(inputs: AnalysisBuildInputs) -> MarketAnalysis:

@@ -36,3 +36,22 @@ def test_drift_observation_has_no_automatic_decision_or_market_imputation() -> N
     assert [item["window_days"] for item in result] == [7, 30]
     assert all(item["market_delta"] is None for item in result)
     assert all(item["decision"] == "HUMAN_REVIEW_ONLY" for item in result)
+
+
+def test_attribution_distinguishes_new_league_from_mature_league() -> None:
+    new_league = [
+        {**_row("1", "2026-09-01T00:00:00+00:00"), "competition_id": "new_league"},
+        {**_row("2", "2026-09-02T00:00:00+00:00"), "competition_id": "new_league"},
+    ]
+    mature_league = [
+        {**_row("3", "2026-06-01T00:00:00+00:00"), "competition_id": "mature_league"},
+        {**_row("4", "2026-08-01T00:00:00+00:00"), "competition_id": "mature_league"},
+    ]
+    groups = attribution([*new_league, *mature_league])
+    maturity = {
+        item["value"]: item
+        for item in groups if item["dimension"] == "league_maturity"
+    }
+    assert set(maturity) == {"NEW_LEAGUE", "MATURE_LEAGUE"}
+    assert maturity["NEW_LEAGUE"]["n"] == 2
+    assert maturity["MATURE_LEAGUE"]["n"] == 2

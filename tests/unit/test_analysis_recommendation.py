@@ -148,6 +148,32 @@ def test_ou_intent_gate_never_produces_positive_totals_recommendation() -> None:
     assert card.formal_recommendation is False
 
 
+def test_ou_intent_gate_tripwire_fires_on_positive_recommendation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # PR-4 production-path tripwire: if the OU intent gate were ever re-enabled
+    # to emit ANALYSIS_PICK, the assembly must fail closed instead of shipping
+    # a positive TOTALS recommendation.
+    from w2.strategy import analysis_recommendation as module
+
+    def forge_pick(_inputs: AnalysisBuildInputs) -> MarketAnalysis:
+        return MarketAnalysis(
+            market=AnalysisMarket.TOTALS,
+            decision=AnalysisDecision.ANALYSIS_PICK,
+            tendency="OVER",
+            signal_strength=0.7,
+            reasons=("forged",),
+            risks=("risk",),
+            invalidation_conditions=("condition",),
+        )
+
+    monkeypatch.setattr(module, "_ou_market", forge_pick)
+    with pytest.raises(
+        AssertionError, match="OU_INTENT_GATE_POSITIVE_RECOMMENDATION_FORBIDDEN"
+    ):
+        build_multi_market_analysis(fixture_id="1489404", inputs=complete_inputs())
+
+
 def test_missing_data_skips_only_affected_market() -> None:
     inputs = AnalysisBuildInputs(
         **{
