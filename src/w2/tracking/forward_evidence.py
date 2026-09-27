@@ -15,8 +15,10 @@ from sqlalchemy.orm import Session
 from w2.domain.canonical_serialization import (
     CURRENT_SERIALIZER_VERSION,
     HashDomain,
+    SerializerVersion,
     _canonical_hash,
     canonical_sha256,
+    canonical_sha256 as serialize_canonical_sha256,
 )
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.domain.profit import (
@@ -26,6 +28,7 @@ from w2.domain.profit import (
     track_d_binary_cashflow,
     track_d_fair_probability,
 )
+from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.forward_evidence_models import (
     ForwardClockModel,
     RecommendationReviewLedgerModel,
@@ -102,12 +105,23 @@ def _parse_utc(value: Any) -> datetime | None:
     return parsed if parsed.tzinfo is not None else None
 
 
+def _aware_dt(value: datetime | None) -> datetime | None:
+    """Restore UTC on SQLite read-back; production PostgreSQL already returns aware."""
+    if value is None:
+        return None
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+
 def _xg_as_of_upper_bound(capture: Any) -> datetime | None:
     """Newest xG snapshot observation time the capture actually consumed.
 
     The producer's ``model_input_available_at`` must equal this upper bound of
     the four-field xG identities it bound into the capture -- the verifiable
     source reference for "model input was available no later than forecast".
+
+    R5-01: BOTH sides must carry a legal source object with a legal timezone-aware
+    ``as_of``. Missing one side or an unparseable/naive time is a source failure,
+    never a silent fallback to the surviving side's max.
     """
     xg_identity = (capture.payload or {}).get("four_field_xg_identity")
     if not isinstance(xg_identity, dict):
@@ -115,11 +129,13 @@ def _xg_as_of_upper_bound(capture: Any) -> datetime | None:
     observed: list[datetime] = []
     for side in ("home", "away"):
         side_identity = xg_identity.get(side)
-        if isinstance(side_identity, dict):
-            parsed = _parse_utc(side_identity.get("as_of"))
-            if parsed is not None:
-                observed.append(parsed)
-    return max(observed) if observed else None
+        if not isinstance(side_identity, dict):
+            return None
+        parsed = _parse_utc(side_identity.get("as_of"))
+        if parsed is None:
+            return None
+        observed.append(parsed)
+    return max(observed)
 
 
 def _score_matrix_from_payload(
@@ -260,7 +276,7 @@ def _pair(
     if (
         selected_quote is None
         or not version.quote_identity_hash
-        or version.capture_at != selected_quote.captured_at
+        or version.capture_at != _aware_dt(selected_quote.captured_at)
         or _finite(version.decimal_odds) != _finite(selected_quote.decimal_odds)
     ):
         return [], "QUOTE_PAIR_MISMATCH"
@@ -437,6 +453,10 @@ def append_forward_evidence_in_session(
     time or coefficient. This function has no recommendation output.
     """
     clock = session.get(ForwardClockModel, CLOCK_ID)
+    # SQLite drops tzinfo on read; production PostgreSQL keeps it aware. Restore
+    # UTC before any aware/naive comparison so the same check holds on both.
+    if clock is not None and clock.started_at.tzinfo is None:
+        clock.started_at = clock.started_at.replace(tzinfo=UTC)
     if clock is None or version.evaluated_at < clock.started_at:
         return None
     if version.evaluation_policy_version != clock.model_identity:
@@ -462,9 +482,13 @@ def append_forward_evidence_in_session(
     input_hash = calibration.get("simulation_input_hash") if isinstance(calibration, dict) else None
     kickoff = capture.kickoff_utc if capture else None
     forecast_at = capture.captured_at if capture else None
+    if kickoff is not None and kickoff.tzinfo is None:
+        kickoff = kickoff.replace(tzinfo=UTC)
+    if forecast_at is not None and forecast_at.tzinfo is None:
+        forecast_at = forecast_at.replace(tzinfo=UTC)
     quote_at = (
         datetime.fromisoformat(fade["channel_quote_captured_at"])
-        if fade is not None else quotes[0].captured_at if quotes else None
+        if fade is not None else _aware_dt(quotes[0].captured_at) if quotes else None
     )
     market_quote_at = (
         datetime.fromisoformat(fade["pinnacle_quote_captured_at"])
@@ -585,8 +609,15 @@ def append_forward_evidence_in_session(
             isinstance(provenance, dict)
             and provenance.get("schema_version") == PRODUCER_INPUT_PROVENANCE_SCHEMA
         ):
-            if provenance.get("simulation_digest") != canonical_sha256(
-                simulation, domain=HashDomain.PREMATCH_READ_MODEL_SIMULATION
+            # R5: the producer's simulation digest is computed by the frozen
+            # materializer through read_model_projection.canonical_sha256, which
+            # serializes under LEGACY_V1 (the frozen artifact identity contract).
+            # Recompute the capture's simulation under the same version so the two
+            # agree; V2 serialization would falsely reject every real chain.
+            if provenance.get("simulation_digest") != serialize_canonical_sha256(
+                simulation,
+                domain=HashDomain.PREMATCH_READ_MODEL_SIMULATION,
+                version=SerializerVersion.LEGACY_V1,
             ):
                 reasons.append("PRODUCER_SIMULATION_MISMATCH")
             # R4-03: the provenance lineup identity must agree with the evaluation's
@@ -595,19 +626,31 @@ def append_forward_evidence_in_session(
                 version, "lineup_input_hash", None
             ):
                 reasons.append("PRODUCER_LINEUP_MISMATCH")
-            # R4-03: analysis_evidence is verified against the frozen input manifest
-            # the capture bound (the immutable reference whose content the frozen
-            # reader recomputed), not a self-reported digest alone.
-            frozen_manifest = (payload.get("model_input_manifest") or {}).get(
-                "frozen_input_manifest"
-            )
-            frozen_analysis_evidence = (
-                frozen_manifest.get("analysis_evidence_sha256")
-                if isinstance(frozen_manifest, dict)
-                else None
-            )
-            if provenance.get("analysis_evidence_digest") != frozen_analysis_evidence:
-                reasons.append("PRODUCER_ANALYSIS_EVIDENCE_MISMATCH")
+            # R5-02: the analysis evidence digest is the CURRENT quote's analysis
+            # digest, and must be a legal 64-hex (null / fabricated / equal-empty
+            # strings never pass). It is verified against the evaluation's own
+            # frozen artifact (shadow checkpoint), not against the capture's older
+            # frozen manifest, so a legal later-quote update (P03) is not falsely
+            # rejected. Model evidence stays cross-checked against the capture.
+            analysis_digest = provenance.get("analysis_evidence_digest")
+            if not _is_hex64(analysis_digest):
+                reasons.append("INVALID_PRODUCER_ANALYSIS_EVIDENCE_DIGEST")
+            else:
+                shadow_row = session.scalar(
+                    select(ReadModelCheckpointModel).where(
+                        ReadModelCheckpointModel.checkpoint_key
+                        == f"analysis-card:shadow:v1:{version.fixture_id}"
+                    )
+                )
+                shadow_analysis = (
+                    ((shadow_row.payload or {}).get("input_manifest") or {}).get(
+                        "analysis_evidence_sha256"
+                    )
+                    if shadow_row is not None and isinstance(shadow_row.payload, dict)
+                    else None
+                )
+                if analysis_digest != shadow_analysis:
+                    reasons.append("PRODUCER_ANALYSIS_EVIDENCE_MISMATCH")
             model_input_at = _parse_utc(provenance.get("model_input_available_at"))
             quote_available_at = _parse_utc(provenance.get("quote_available_at"))
             if (

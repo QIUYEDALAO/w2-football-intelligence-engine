@@ -11,8 +11,14 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from w2.domain.canonical_serialization import HashDomain, canonical_sha256
+from w2.domain.canonical_serialization import (
+    HashDomain,
+    SerializerVersion,
+    canonical_sha256,
+    canonical_sha256 as serialize_canonical_sha256,
+)
 from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.forward_evidence_models import (
     ForwardClockModel,
     RecommendationReviewLedgerModel,
@@ -20,6 +26,7 @@ from w2.infrastructure.persistence.forward_evidence_models import (
 from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
 from w2.infrastructure.persistence.models import ResultModel
 from w2.prematch.lifecycle import PRODUCER_INPUT_PROVENANCE_SCHEMA
+from w2.prematch.read_model_projection import _analysis_evidence
 from w2.strategy.simulate import _canonical_hash
 from w2.tracking.forward_evidence import (
     CLOCK_ID,
@@ -48,12 +55,19 @@ class _Rows:
 
 class _Session:
     def __init__(
-        self, *, capture: SimpleNamespace | None = None, quotes: list[SimpleNamespace] | None = None
+        self,
+        *,
+        capture: SimpleNamespace | None = None,
+        quotes: list[SimpleNamespace] | None = None,
+        shadow_analysis: str | None = None,
     ) -> None:
         self.clock: ForwardClockModel | None = None
         self.capture = capture
         self.quotes = quotes or []
         self.events: dict[str, RecommendationReviewLedgerModel] = {}
+        self.shadow_analysis = (
+            shadow_analysis if shadow_analysis is not None else _ANALYSIS_EVIDENCE_DIGEST
+        )
 
     def get(self, model: type, key: str):
         if model is ForwardClockModel:
@@ -62,12 +76,24 @@ class _Session:
             return self.capture if key == "f" else None
         if model is RecommendationReviewLedgerModel:
             return self.events.get(key)
+        if model is ReadModelCheckpointModel:
+            return SimpleNamespace(
+                payload={"input_manifest": {"analysis_evidence_sha256": self.shadow_analysis}}
+            )
         raise AssertionError(model)
 
     def scalars(self, _query: object) -> _Rows:
         return _Rows(self.quotes)
 
     def scalar(self, _query: object):
+        descriptions = getattr(_query, "column_descriptions", None)
+        entity = descriptions[0].get("entity") if descriptions else None
+        # forward reads the evaluation's own frozen artifact (shadow checkpoint)
+        # via a select(ReadModelCheckpointModel); return the bound analysis digest.
+        if entity is ReadModelCheckpointModel:
+            return SimpleNamespace(
+                payload={"input_manifest": {"analysis_evidence_sha256": self.shadow_analysis}}
+            )
         return next(
             (row for row in self.events.values() if row.event_type == "DECISION_SNAPSHOT"),
             None,
@@ -107,8 +133,14 @@ _SIMULATION = {
         "simulation_input_hash": "e" * 64,
     },
 }
-_SIMULATION_DIGEST = canonical_sha256(
-    _SIMULATION, domain=HashDomain.PREMATCH_READ_MODEL_SIMULATION
+# R5: producer_input_provenance.simulation_digest is produced by the frozen
+# materializer under LEGACY_V1 (read_model_projection.canonical_sha256), so the
+# synthetic fixture must match that serialization or the forward cross-check
+# rejects every real chain it is meant to model.
+_SIMULATION_DIGEST = serialize_canonical_sha256(
+    _SIMULATION,
+    domain=HashDomain.PREMATCH_READ_MODEL_SIMULATION,
+    version=SerializerVersion.LEGACY_V1,
 )
 _ANALYSIS_EVIDENCE_DIGEST = canonical_sha256(
     {}, domain=HashDomain.PREMATCH_READ_MODEL_ANALYSIS_EVIDENCE
@@ -412,6 +444,81 @@ def test_ar4_analysis_evidence_reference_rejected() -> None:
     row = _evidence_for(at, _capture(at), version)
     assert row.pit_status == "PIT_UNPROVABLE"
     assert "PRODUCER_ANALYSIS_EVIDENCE_MISMATCH" in row.payload["exclusion_reasons"]
+
+
+def test_ar5_null_analysis_digest_rejected() -> None:
+    """R5-02：analysis digest 为 null 必须拒绝，不能两端 null 相等放行。"""
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+    version = _version(at)
+    version.producer_input_provenance = dict(version.producer_input_provenance)
+    version.producer_input_provenance["analysis_evidence_digest"] = None
+    _rehash_provenance(version)
+    row = _evidence_for(at, _capture(at), version)
+    assert row.pit_status == "PIT_UNPROVABLE"
+    assert "INVALID_PRODUCER_ANALYSIS_EVIDENCE_DIGEST" in row.payload["exclusion_reasons"]
+
+
+def test_ar5_legal_later_quote_update_not_rejected() -> None:
+    """R5-02/P03：模型不变 + 较晚合法报价更新，不因新旧 analysis 摘要不同误拒。
+
+    模型证据（simulation/版本/矩阵）仍与 capture 交叉一致；报价证据（analysis
+    digest）从本次 evaluation 自己的 frozen artifact 重算，所以新报价摘要合法
+    通过，capture 内旧报价摘要不参与该项核验。
+    """
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+    old = {
+        "market_candidates": {
+            "ou": {
+                "analysis_evidence": {
+                    "quote_identity": {
+                        "captured_at": "2026-09-26T07:56:00Z",
+                        "decimal_odds": "1.88",
+                    }
+                }
+            }
+        }
+    }
+    new = deepcopy(old)
+    new["market_candidates"]["ou"]["analysis_evidence"]["quote_identity"] = {
+        "captured_at": "2026-09-26T07:59:00Z",
+        "decimal_odds": "1.90",
+    }
+
+    def digest(card: dict) -> str:
+        return canonical_sha256(
+            _analysis_evidence(card), domain=HashDomain.PREMATCH_READ_MODEL_ANALYSIS_EVIDENCE
+        )
+
+    old_digest = digest(old)
+    new_digest = digest(new)
+
+    capture = _capture(at)
+    capture.payload["model_input_manifest"]["frozen_input_manifest"][
+        "analysis_evidence_sha256"
+    ] = old_digest
+    capture.model_input_manifest_hash = canonical_sha256(
+        capture.payload["model_input_manifest"], domain=MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN
+    )
+    identity = {
+        key: value for key, value in capture.payload.items() if key != "capture_identity_hash"
+    }
+    capture.capture_identity_hash = canonical_sha256(
+        identity, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
+    )
+    capture.payload["capture_identity_hash"] = capture.capture_identity_hash
+    capture.payload_sha256 = canonical_sha256(
+        capture.payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
+    )
+
+    version = _version(at)
+    version.producer_input_provenance = dict(version.producer_input_provenance)
+    version.producer_input_provenance["analysis_evidence_digest"] = new_digest
+    _rehash_provenance(version)
+
+    session = _Session(capture=capture, quotes=_quotes(at), shadow_analysis=new_digest)
+    register_forward_clock(session, started_at=T0, code_revision="a" * 40)
+    row = append_forward_evidence_in_session(session, version)
+    assert row.pit_status == "PROVABLE", row.payload["exclusion_reasons"]
 
 
 def test_ar4_input_source_time_backdate_rejected() -> None:
