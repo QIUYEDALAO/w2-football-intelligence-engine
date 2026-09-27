@@ -138,17 +138,22 @@ def _xg_as_of_upper_bound(capture: Any) -> datetime | None:
 
 
 def _xg_component_upper_bound(capture: Any) -> datetime | None:
-    """Newest xG component observation time the capture actually consumed.
+    """Newest xG component availability time the capture actually consumed.
 
-    R6-03: a snapshot's self-reported ``as_of`` is not enough. Each component's
-    ``captured_at`` must be at-or-before the snapshot ``as_of`` (snapshot
-    self-consistency), and the returned upper bound is the newest component time
-    so the caller can prove every component was available before the forecast.
-    A missing side, missing component set, or an unparseable/naive component
-    time fails closed with ``None``.
+    R7-01: the snapshot self-reported ``as_of`` is not enough. Each side's
+    components must be complete source objects -- legal identity, fixture
+    relation, raw statistics digest, numeric values -- whose count matches the
+    snapshot ``match_count``, whose aggregates reproduce the side ``xg_for`` /
+    ``xg_against`` (and the four_fields / model input), and whose availability
+    time is ``max(kickoff_at, captured_at)`` at-or-before the snapshot ``as_of``
+    (matching the snapshot builder). Any missing/duplicated/inconsistent
+    component or value fails closed with ``None``.
     """
     xg_identity = (capture.payload or {}).get("four_field_xg_identity")
     if not isinstance(xg_identity, dict):
+        return None
+    four_fields = xg_identity.get("four_fields")
+    if not isinstance(four_fields, dict):
         return None
     component_times: list[datetime] = []
     for side in ("home", "away"):
@@ -161,20 +166,66 @@ def _xg_component_upper_bound(capture: Any) -> datetime | None:
         components = side_identity.get("component_team_xg_matches")
         if not isinstance(components, list) or not components:
             return None
+        match_count = _finite(side_identity.get("match_count"))
+        if match_count is None or match_count != len(components):
+            return None
+        ids = [component.get("identity") if isinstance(component, dict) else None for component in components]
+        if any(not isinstance(value, str) or not value for value in ids) or len(set(ids)) != len(ids):
+            return None
+        xg_for_sum = 0.0
+        xg_against_sum = 0.0
         side_times: list[datetime] = []
         for component in components:
             if not isinstance(component, dict):
                 return None
-            captured_at = _parse_utc(component.get("captured_at"))
-            if captured_at is None:
+            if not isinstance(component.get("fixture_id"), str) or not component.get("fixture_id"):
                 return None
-            side_times.append(captured_at)
+            kickoff_at = _parse_utc(component.get("kickoff_at"))
+            captured_at = _parse_utc(component.get("captured_at"))
+            raw_hash = component.get("raw_statistics_sha256")
+            xg_for = _finite(component.get("xg_for"))
+            xg_against = _finite(component.get("xg_against"))
+            if (
+                kickoff_at is None
+                or captured_at is None
+                or not _is_hex64(raw_hash)
+                or xg_for is None
+                or xg_against is None
+            ):
+                return None
+            xg_for_sum += xg_for
+            xg_against_sum += xg_against
+            # Availability is max(kickoff_at, captured_at): a match that has not
+            # kicked off yet cannot have its xG observed (snapshot builder).
+            side_times.append(max(kickoff_at, captured_at))
         side_upper = max(side_times)
-        # The snapshot cannot claim an as_of earlier than the components it
-        # actually consumed -- that would be a self-inconsistent source.
         if side_upper > snapshot_as_of:
             return None
+        # Aggregate contract: component mean reproduces the side snapshot value.
+        side_xg_for = _finite(side_identity.get("xg_for"))
+        side_xg_against = _finite(side_identity.get("xg_against"))
+        if side_xg_for is None or side_xg_against is None:
+            return None
+        if abs(round(xg_for_sum / len(components), 4) - side_xg_for) >= 1e-9:
+            return None
+        if abs(round(xg_against_sum / len(components), 4) - side_xg_against) >= 1e-9:
+            return None
         component_times.append(side_upper)
+    # four_fields / model input must equal the side snapshot values.
+    for side, prefix in (("home", "home"), ("away", "away")):
+        side_xg_for = _finite(xg_identity[side].get("xg_for"))
+        side_xg_against = _finite(xg_identity[side].get("xg_against"))
+        four_for = _finite(four_fields.get(f"{prefix}_xg_for"))
+        four_against = _finite(four_fields.get(f"{prefix}_xg_against"))
+        if (
+            side_xg_for is None
+            or side_xg_against is None
+            or four_for is None
+            or four_against is None
+            or abs(four_for - side_xg_for) >= 1e-9
+            or abs(four_against - side_xg_against) >= 1e-9
+        ):
+            return None
     return max(component_times)
 
 

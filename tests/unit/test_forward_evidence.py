@@ -200,8 +200,8 @@ def _xg_as_of(at: datetime) -> str:
     return (at - timedelta(minutes=5)).astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _components(at: datetime) -> list[dict]:
-    """xG components available strictly before the snapshot as_of and forecast."""
+def _components(at: datetime, *, xg_for: float, xg_against: float) -> list[dict]:
+    """xG components whose mean reproduces the side snapshot value."""
     return [
         {
             "identity": "comp-1",
@@ -210,9 +210,9 @@ def _components(at: datetime) -> list[dict]:
             "captured_at": (at - timedelta(minutes=6)).astimezone(UTC).isoformat().replace(
                 "+00:00", "Z"
             ),
-            "xg_for": 0.9,
-            "xg_against": 0.8,
-            "raw_statistics_sha256": "s" * 64,
+            "xg_for": xg_for,
+            "xg_against": xg_against,
+            "raw_statistics_sha256": "a" * 64,
         }
     ]
 
@@ -237,15 +237,17 @@ def _capture(at: datetime) -> SimpleNamespace:
         "four_field_xg_identity": {
             "home": {
                 "as_of": _xg_as_of(at),
+                "match_count": 1,
                 "xg_for": 1.5,
                 "xg_against": 1.0,
-                "component_team_xg_matches": _components(at),
+                "component_team_xg_matches": _components(at, xg_for=1.5, xg_against=1.0),
             },
             "away": {
                 "as_of": _xg_as_of(at),
+                "match_count": 1,
                 "xg_for": 1.2,
                 "xg_against": 1.1,
-                "component_team_xg_matches": _components(at),
+                "component_team_xg_matches": _components(at, xg_for=1.2, xg_against=1.1),
             },
             "four_fields": {
                 "home_xg_for": 1.5,

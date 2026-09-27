@@ -25,6 +25,11 @@ DYNAMIC_EVALUATION_V1_SCHEMA = "w2.dynamic_quote_evaluation.v1"
 DYNAMIC_EVALUATION_V2_SCHEMA = "w2.dynamic_quote_evaluation.v2"
 DYNAMIC_EVALUATION_V3_SCHEMA = "w2.dynamic_quote_evaluation.v3"
 PRODUCER_INPUT_PROVENANCE_SCHEMA = "w2.producer_input_provenance.v1"
+# R7-02: a provenance carrying the actual analysis_evidence content (for forward
+# recompute) is a distinct profile from the digest-only pre-A-R6 provenance.
+# Historical artifacts without this marker are read back under their own contract
+# and never upgraded in place.
+PRODUCER_INPUT_PROVENANCE_CONTENT_PROFILE = "w2.producer_input_provenance_content.v1"
 MODEL_FORECAST_DENOMINATOR_SCOPE = "MODEL_FORECAST_CAPTURE_MARKET_V1"
 CHECKPOINT_OPPORTUNITY_SCOPE = "CHECKPOINT_EVALUATION_OPPORTUNITY_V2"
 CHECKPOINT_OPPORTUNITY_SEMANTICS = "CHECKPOINT_EVALUATION_OPPORTUNITY"

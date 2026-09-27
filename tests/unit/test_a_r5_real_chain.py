@@ -14,7 +14,7 @@ from typing import Any
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from w2.domain.canonical_serialization import _canonical_hash, canonical_sha256
+from w2.domain.canonical_serialization import HashDomain, _canonical_hash, canonical_sha256
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     CandidateNotificationOutboxModel,
@@ -49,7 +49,10 @@ from w2.prematch.lifecycle import (
 from w2.prematch.read_model_projection import (
     AnalysisCardCanaryMaterializer,
     ProjectionSourceEvent,
+    _projection_business_hash,
+    canonical_sha256 as rmp_canonical_sha256,
     read_frozen_analysis_artifact,
+    validate_frozen_analysis_payload,
     write_frozen_analysis_artifacts,
 )
 from w2.prematch.repository import DynamicPrematchRepository
@@ -451,18 +454,15 @@ def _run_chain(
         assert result["model_forecast_capture_count"] == 1
         capture = dict(result["captures"][0])
         mutate_capture_payload(capture)
+        # R7-00: reseal only the identity from the capture core. payload_sha256
+        # and model_input_manifest_hash are column values the real writer
+        # derives; stuffing them into the payload breaks the identity preimage
+        # and makes even a no-op mutation CAPTURE_IDENTITY_MISMATCH.
         identity = {
             key: value for key, value in capture.items() if key != "capture_identity_hash"
         }
         capture["capture_identity_hash"] = canonical_sha256(
             identity, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
-        )
-        capture["payload_sha256"] = canonical_sha256(
-            capture, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
-        )
-        capture["model_input_manifest_hash"] = canonical_sha256(
-            capture["model_input_manifest"],
-            domain=MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN,
         )
         with Session(engine) as session:
             session.add(_capture_model(capture, inserted_at=CAPTURED_AT))
@@ -519,6 +519,84 @@ def test_real_chain_provable() -> None:
     assert row.payload["exclusion_reasons"] == []
 
 
+def test_real_chain_noop_mutation_control_provable() -> None:
+    """R7-00: the mutation channel itself is legal -- a no-op reseal is PROVABLE."""
+    engine = _engine()
+    _seed_xg(engine)
+    _seed_quote_pair(engine)
+    materializer = _materializer()
+    evaluation = _run_chain(engine, materializer, mutate_capture_payload=lambda p: None)
+    row = _single_review(engine, evaluation)
+    assert row.pit_status == "PROVABLE", row.payload["exclusion_reasons"]
+    assert row.payload["exclusion_reasons"] == []
+
+
+def test_r7_02_historical_manifest_reads_back_without_content() -> None:
+    """R7-02: new manifest carries the content profile; a historical manifest
+    without the marker reads back under the digest-only contract (no field added,
+    same evaluation identity)."""
+    engine = _engine()
+    _seed_xg(engine)
+    _seed_quote_pair(engine)
+    materializer = _materializer()
+
+    artifact = materializer.build(FIXTURE_ID, evaluated_at=EVALUATED_AT, source_event=None)
+    write_frozen_analysis_artifacts(engine, [artifact])
+    reader = ReadModelService(repository=FrozenReaderRepository(engine))
+    card = reader.public_analysis_card_bounded(FIXTURE_ID, use_frozen_canary=True)
+    simulation = card.get("simulation") or {}
+    model_forecast_card = {
+        **card,
+        "simulation": {"status": simulation.get("status"), "simulation": simulation},
+    }
+    run_model_forecast_capture(
+        {"cards": [model_forecast_card]},
+        repository=ModelForecastLedgerRepository(engine),
+        captured_at=CAPTURED_AT,
+        dry_run=False,
+        write_db=True,
+    )
+    with Session(engine) as session:
+        capture = session.query(ModelForecastCaptureModel).one()
+        capture_hash = capture.capture_identity_hash
+        model_input_hash = capture.model_input_manifest_hash
+    context = EvaluationOpportunityContext(
+        model_forecast_capture_identity_hash=capture_hash,
+        model_input_hash=model_input_hash,
+        evaluation_policy_version=CURRENT_EVALUATION_POLICY,
+        evaluation_slot_id="T3_ODDS",
+        scheduled_checkpoint_at=EVALUATED_AT,
+        checkpoint_plan_identity="plan-1",
+        source_event_identity="event-1",
+    )
+    bound = materializer.build(
+        FIXTURE_ID, evaluated_at=EVALUATED_AT, source_event=_event((context,))
+    )
+
+    new_read = validate_frozen_analysis_payload(FIXTURE_ID, bound.payload)
+    assert new_read.evaluations
+    assert all("analysis_evidence" in ev.producer_input_provenance for ev in new_read.evaluations)
+
+    old_payload = deepcopy(bound.payload)
+    old_payload["input_manifest"] = {
+        key: value
+        for key, value in old_payload["input_manifest"].items()
+        if key != "producer_input_provenance_content_profile"
+    }
+    old_payload["projection_hash"] = _projection_business_hash(old_payload)
+    old_payload["artifact_hash"] = rmp_canonical_sha256(
+        {key: value for key, value in old_payload.items() if key != "artifact_hash"},
+        domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT,
+    )
+    old_read = validate_frozen_analysis_payload(FIXTURE_ID, old_payload)
+    assert old_read.evaluations
+    assert all("analysis_evidence" not in ev.producer_input_provenance for ev in old_read.evaluations)
+    # provenance is evidence-only: the evaluation identity is unchanged.
+    assert [ev.identity_hash for ev in new_read.evaluations] == [
+        ev.identity_hash for ev in old_read.evaluations
+    ]
+
+
 def test_real_chain_rejects_future_xg_component() -> None:
     engine = _engine()
     _seed_xg(engine, future_component=True)
@@ -532,6 +610,82 @@ def test_real_chain_rejects_future_xg_component() -> None:
         "PRODUCER_INPUT_COMPONENT_FUTURE" in reasons
         or "PRODUCER_INPUT_COMPONENT_SOURCE_MISMATCH" in reasons
     ), reasons
+
+
+def test_real_chain_rejects_component_stripped_to_time_only() -> None:
+    """R7-01: component keeps only captured_at -- identity/value/raw hash removed."""
+    engine = _engine()
+    _seed_xg(engine)
+    _seed_quote_pair(engine)
+    materializer = _materializer()
+
+    def mutate(payload: dict) -> None:
+        for side in ("home", "away"):
+            side_id = payload["four_field_xg_identity"][side]
+            side_id["component_team_xg_matches"] = [
+                {"captured_at": side_id["as_of"]} for _ in side_id["component_team_xg_matches"]
+            ]
+
+    evaluation = _run_chain(engine, materializer, mutate_capture_payload=mutate)
+    row = _single_review(engine, evaluation)
+    assert row.pit_status == "PIT_UNPROVABLE"
+    assert "PRODUCER_INPUT_COMPONENT_SOURCE_MISMATCH" in row.payload["exclusion_reasons"]
+
+
+def test_real_chain_rejects_tampered_component_xg() -> None:
+    """R7-01: one component xg_for changed while snapshot/aggregate stay unchanged."""
+    engine = _engine()
+    _seed_xg(engine)
+    _seed_quote_pair(engine)
+    materializer = _materializer()
+
+    def mutate(payload: dict) -> None:
+        payload["four_field_xg_identity"]["home"]["component_team_xg_matches"][0]["xg_for"] = 99.0
+
+    evaluation = _run_chain(engine, materializer, mutate_capture_payload=mutate)
+    row = _single_review(engine, evaluation)
+    assert row.pit_status == "PIT_UNPROVABLE"
+    assert "PRODUCER_INPUT_COMPONENT_SOURCE_MISMATCH" in row.payload["exclusion_reasons"]
+
+
+def test_real_chain_rejects_future_kickoff_component() -> None:
+    """R7-01: component kickoff moved after forecast while captured_at stays past."""
+    engine = _engine()
+    _seed_xg(engine)
+    _seed_quote_pair(engine)
+    materializer = _materializer()
+
+    def mutate(payload: dict) -> None:
+        comp = payload["four_field_xg_identity"]["home"]["component_team_xg_matches"][0]
+        comp["kickoff_at"] = (KICKOFF + timedelta(hours=1)).isoformat()
+
+    evaluation = _run_chain(engine, materializer, mutate_capture_payload=mutate)
+    row = _single_review(engine, evaluation)
+    assert row.pit_status == "PIT_UNPROVABLE"
+    reasons = row.payload["exclusion_reasons"]
+    assert (
+        "PRODUCER_INPUT_COMPONENT_SOURCE_MISMATCH" in reasons
+        or "PRODUCER_INPUT_COMPONENT_FUTURE" in reasons
+    ), reasons
+
+
+def test_real_chain_rejects_duplicate_component() -> None:
+    """R7-01: duplicate component identity keeps count/matching mean but breaks uniqueness."""
+    engine = _engine()
+    _seed_xg(engine)
+    _seed_quote_pair(engine)
+    materializer = _materializer()
+
+    def mutate(payload: dict) -> None:
+        for side in ("home", "away"):
+            side_id = payload["four_field_xg_identity"][side]
+            comp = side_id["component_team_xg_matches"][0]
+            side_id["component_team_xg_matches"] = [dict(comp), dict(comp)]
+
+    evaluation = _run_chain(engine, materializer, mutate_capture_payload=mutate)
+    row = _single_review(engine, evaluation)
+    assert row.pit_status == "PIT_UNPROVABLE"
+    assert "PRODUCER_INPUT_COMPONENT_SOURCE_MISMATCH" in row.payload["exclusion_reasons"]
 
 
 def test_real_chain_rejects_missing_away_xg_source() -> None:

@@ -36,6 +36,7 @@ from w2.prematch.lifecycle import (
     EVALUATION_IDENTITY_VERSION,
     LEGACY_EVALUATION_IDENTITY_VERSION,
     MODEL_FORECAST_DENOMINATOR_SCOPE,
+    PRODUCER_INPUT_PROVENANCE_CONTENT_PROFILE,
     PRODUCER_INPUT_PROVENANCE_SCHEMA,
     DynamicEvaluationInput,
     DynamicEvaluationVersion,
@@ -566,6 +567,12 @@ class AnalysisCardCanaryMaterializer:
             # change to how same-line evidence is projected must force a new
             # immutable public artifact rather than serving an old projection.
             "analysis_evidence_contract_version": ANALYSIS_EVIDENCE_CONTRACT_VERSION,
+            # R7-02: mark that this manifest freezes the content profile (analysis
+            # evidence content carried in provenance). Historical manifests lack
+            # this marker and are read back under the digest-only contract.
+            "producer_input_provenance_content_profile": (
+                PRODUCER_INPUT_PROVENANCE_CONTENT_PROFILE
+            ),
             "capability_manifest_sha256": load_recommendation_capability_manifest().sha256,
             "lineup_policy_version": str(
                 (card.get("lineup_provenance") or {}).get("policy_version")
@@ -1609,11 +1616,6 @@ def _dynamic_evaluations(
             "schema_version": PRODUCER_INPUT_PROVENANCE_SCHEMA,
             "simulation_digest": manifest.get("simulation_sha256"),
             "analysis_evidence_digest": manifest.get("analysis_evidence_sha256"),
-            # R6-01/R6-02: carry the actual analysis evidence content so the
-            # forward reader can recompute analysis_evidence_digest from real
-            # content instead of reading the shadow checkpoint (which is written
-            # after this evaluation and can be replaced by a later quote).
-            "analysis_evidence": _analysis_evidence(card),
             "lineup_input_hash": lineup_input_hash,
             # The model input availability is a source fact read from the frozen
             # manifest (xG snapshot observation time), not a capture-time guess,
@@ -1621,6 +1623,16 @@ def _dynamic_evaluations(
             "model_input_available_at": availability.get("model_input_available_at"),
             "quote_available_at": capture_at.isoformat() if capture_at else None,
         }
+        # R7-02: only the content profile (manifest-frozen marker) carries the
+        # actual analysis evidence content. Historical digest-only manifests are
+        # read back under their own contract -- never upgraded in place -- so a
+        # same-identity retry stays idempotent (created=false) instead of
+        # mutating the old provenance into a conflict.
+        if (
+            manifest.get("producer_input_provenance_content_profile")
+            == PRODUCER_INPUT_PROVENANCE_CONTENT_PROFILE
+        ):
+            producer_input_provenance["analysis_evidence"] = _analysis_evidence(card)
         if "scoreline_projection_contract_version" in manifest:
             producer_input_provenance["scoreline_projection_contract_version"] = manifest[
                 "scoreline_projection_contract_version"
