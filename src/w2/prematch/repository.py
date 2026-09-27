@@ -74,7 +74,7 @@ _IDENTITY_CONFLICT_FIELDS = (
     "capture_id", "quote_identity_hash", "model_input_hash",
     "model_forecast_capture_identity_hash", "model_version", "score_matrix_hash",
     "model_settlement_distribution", "calibration_identity",
-    "evaluation_policy_version", "checkpoint",
+    "evaluation_policy_version", "checkpoint", "producer_input_provenance",
 )
 
 

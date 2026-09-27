@@ -304,7 +304,48 @@ def test_ar2_producer_input_component_mismatch_rejected() -> None:
     assert "PRODUCER_INPUT_HASH_MISMATCH" in row2.payload["exclusion_reasons"]
 
 
-def test_ar2_payload_identity_and_matrix_real_recompute() -> None:
+def test_ar2_producer_simulation_cross_check_rejected() -> None:
+    """N02：组件自洽但来自另一模型计算 → simulation 交叉核验独立拒绝。"""
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+    tampered = _version(at)
+    tampered.producer_input_provenance = dict(tampered.producer_input_provenance)
+    wrong_digest = canonical_sha256(
+        {"model_version": "v9"}, domain=HashDomain.PREMATCH_READ_MODEL_SIMULATION
+    )
+    tampered.producer_input_provenance["simulation_digest"] = wrong_digest
+    # 组件自洽：model_input_hash 同步改为 wrong_digest 对应的复算值。
+    tampered.model_input_hash = canonical_sha256(
+        {
+            "simulation": wrong_digest,
+            "analysis_evidence": _ANALYSIS_EVIDENCE_DIGEST,
+            "lineup_input_hash": None,
+        },
+        domain=HashDomain.PREMATCH_READ_MODEL_DYNAMIC_EVALUATION,
+    )
+    row = _evidence_for(at, _capture(at), tampered)
+    assert row.pit_status == "PIT_UNPROVABLE"
+    assert "PRODUCER_SIMULATION_MISMATCH" in row.payload["exclusion_reasons"]
+    assert "PRODUCER_INPUT_HASH_MISMATCH" not in row.payload["exclusion_reasons"]
+
+
+def test_ar2_producer_provenance_missing_or_bad_time_rejected() -> None:
+    """N04：缺 profile / 输入时间缺或未来 → 独立拒绝。"""
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+
+    missing = _version(at)
+    missing.producer_input_provenance = None
+    row = _evidence_for(at, _capture(at), missing)
+    assert row.pit_status == "PIT_UNPROVABLE"
+    assert "MISSING_PRODUCER_INPUT_PROVENANCE" in row.payload["exclusion_reasons"]
+
+    bad_time = _version(at)
+    bad_time.producer_input_provenance = dict(bad_time.producer_input_provenance)
+    bad_time.producer_input_provenance["model_input_available_at"] = (
+        at + timedelta(hours=1)
+    ).isoformat()
+    row2 = _evidence_for(at, _capture(at), bad_time)
+    assert row2.pit_status == "PIT_UNPROVABLE"
+    assert "PRODUCER_INPUT_TIME_UNPROVABLE" in row2.payload["exclusion_reasons"]
     """B：payload / identity / 完整矩阵用现有 canonical 合同真实重算，任一不自洽拒绝。"""
     at = datetime(2026, 9, 26, 8, tzinfo=UTC)
 
