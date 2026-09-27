@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
+from copy import deepcopy
 from dataclasses import make_dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -10,6 +11,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from w2.domain.canonical_serialization import canonical_sha256
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.forward_evidence_models import (
     ForwardClockModel,
@@ -17,6 +19,7 @@ from w2.infrastructure.persistence.forward_evidence_models import (
 )
 from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
 from w2.infrastructure.persistence.models import ResultModel
+from w2.strategy.simulate import _canonical_hash
 from w2.tracking.forward_evidence import (
     CLOCK_ID,
     T0,
@@ -27,6 +30,10 @@ from w2.tracking.forward_evidence import (
     record_shadow_evidence_in_session,
     register_forward_clock,
     settle_track_d_validation_signals_in_session,
+)
+from w2.tracking.model_forecast_ledger import (
+    MODEL_FORECAST_CAPTURE_HASH_DOMAIN,
+    MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN,
 )
 
 
@@ -108,41 +115,56 @@ def _version(at: datetime) -> SimpleNamespace:
         evaluated_at=at,
         evaluation_policy_version="candidate-eval.v2",
         calibration_identity="candidate-eval.v2",
-        model_input_hash="m" * 64,
+        model_input_hash="d" * 64,
         model_settlement_distribution=dict(_SETTLED_DISTRIBUTION),
         model_version="v1",
-        score_matrix_hash="a" * 64,
+        score_matrix_hash=_canonical_hash(_SCORE_MATRIX_ROWS),
         state=SimpleNamespace(value="NO_EDGE_CURRENT"),
         factor_decision_status="ADMITTED",
     )
 
 
 def _capture(at: datetime) -> SimpleNamespace:
+    """真实 writer 语义：capture 各 hash 域可从 payload 重算，不用重复字母冒充。"""
+    manifest = {
+        "simulation_input_hash": "e" * 64,
+        "fixture_identity_hash": "f" * 64,
+    }
+    rows = deepcopy(_SCORE_MATRIX_ROWS)
+    core = {
+        "model_input_manifest": manifest,
+        "score_matrix_distribution": rows,
+        "simulation_replay": {
+            "simulation": {
+                "model_version": "v1",
+                "lambda_home": 1.2,
+                "lambda_away": 1.0,
+                "calibration": {
+                    "params": {"dixon_coles_rho": -0.08},
+                    "simulation_input_hash": "e" * 64,
+                },
+            }
+        },
+    }
+    capture_identity_hash = canonical_sha256(
+        core, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
+    )
+    payload = {**core, "capture_identity_hash": capture_identity_hash}
     return SimpleNamespace(
         fixture_id="api_football:123",
         captured_at=at - timedelta(minutes=3),
         kickoff_utc=at + timedelta(hours=2),
         model_family="EXACT_DC_POISSON",
         model_version="v1",
-        model_input_manifest_hash="m" * 64,
-        capture_identity_hash="c" * 64,
-        payload_sha256="a" * 64,
-        score_matrix_hash="a" * 64,
-        payload={
-            "model_input_manifest": {"nonempty": True},
-            "score_matrix_distribution": _SCORE_MATRIX_ROWS,
-            "simulation_replay": {
-                "simulation": {
-                    "model_version": "v1",
-                    "lambda_home": 1.2,
-                    "lambda_away": 1.0,
-                    "calibration": {
-                        "params": {"dixon_coles_rho": -0.08},
-                        "simulation_input_hash": "i" * 64,
-                    },
-                }
-            }
-        },
+        model_input_manifest_hash=canonical_sha256(
+            manifest, domain=MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN
+        ),
+        capture_identity_hash=capture_identity_hash,
+        payload_sha256=canonical_sha256(
+            payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
+        ),
+        score_matrix_hash=_canonical_hash(rows),
+        payload=payload,
     )
 
 
@@ -202,6 +224,105 @@ def test_missing_or_mismatched_evidence_is_kept_but_not_pit_provable() -> None:
     assert row is not None and row.pit_status == "PIT_UNPROVABLE"
     assert "QUOTE_PAIR_MISMATCH" in row.payload["exclusion_reasons"]
     assert row.payload["quote_pair_identity"] is None
+
+
+def _evidence_for(
+    at: datetime, capture: SimpleNamespace, version: SimpleNamespace | None = None
+):
+    session = _Session(capture=capture, quotes=_quotes(at))
+    register_forward_clock(session, started_at=T0, code_revision="a" * 40)
+    return append_forward_evidence_in_session(session, version or _version(at))
+
+
+def test_ar2_producer_input_and_manifest_mapping_rejections() -> None:
+    """A：producer 输入缺/错、capture manifest 错配 → 明确 UNPROVABLE，不删检查放行。"""
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+
+    missing = _version(at)
+    missing.model_input_hash = None
+    assert "MISSING_PRODUCER_INPUT" in _evidence_for(
+        at, _capture(at), missing
+    ).payload["exclusion_reasons"]
+
+    non_hex = _version(at)
+    non_hex.model_input_hash = "different-producer-input"
+    assert "INVALID_PRODUCER_INPUT_HASH" in _evidence_for(
+        at, _capture(at), non_hex
+    ).payload["exclusion_reasons"]
+
+    manifest_mismatch = _capture(at)
+    manifest_mismatch.model_input_manifest_hash = "e" * 64
+    assert "MANIFEST_HASH_MISMATCH" in _evidence_for(
+        at, manifest_mismatch
+    ).payload["exclusion_reasons"]
+
+
+def test_ar2_payload_identity_and_matrix_real_recompute() -> None:
+    """B：payload / identity / 完整矩阵用现有 canonical 合同真实重算，任一不自洽拒绝。"""
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+
+    payload_hash = _capture(at)
+    payload_hash.payload_sha256 = "e" * 64
+    assert "PAYLOAD_HASH_MISMATCH" in _evidence_for(
+        at, payload_hash
+    ).payload["exclusion_reasons"]
+
+    identity = _capture(at)
+    identity.capture_identity_hash = "e" * 64
+    assert "CAPTURE_IDENTITY_MISMATCH" in _evidence_for(
+        at, identity
+    ).payload["exclusion_reasons"]
+
+    version_conflict = _capture(at)
+    version_conflict.payload["simulation_replay"]["simulation"]["model_version"] = "other-model"
+    assert "MODEL_VERSION_MISMATCH" in _evidence_for(
+        at, version_conflict
+    ).payload["exclusion_reasons"]
+
+    # 原矩阵真实 hash 不变、完整矩阵内容改变 → 拒绝。
+    tampered = _capture(at)
+    digest = _canonical_hash(list(tampered.payload["score_matrix_distribution"]))
+    tampered.score_matrix_hash = digest
+    version = _version(at)
+    version.score_matrix_hash = digest
+    tampered.payload["score_matrix_distribution"] = [
+        {"home_goals": 0, "away_goals": 0, "probability": 0.25},
+        {"home_goals": 1, "away_goals": 2, "probability": 0.75},
+    ]
+    assert "CAPTURE_SCORE_MATRIX_HASH_MISMATCH" in _evidence_for(
+        at, tampered, version
+    ).payload["exclusion_reasons"]
+
+
+def test_ar2_matrix_rejected_before_parse() -> None:
+    """B：坏行、2.9 比分、重复格、非法概率在解析转换前整体拒绝，不静默修理。"""
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+
+    bad_row = _capture(at)
+    bad_row.payload["score_matrix_distribution"].append({"bad": "row"})
+    assert "INVALID_SCORE_MATRIX" in _evidence_for(
+        at, bad_row
+    ).payload["exclusion_reasons"]
+
+    fractional = _capture(at)
+    fractional.payload["score_matrix_distribution"][1]["home_goals"] = 2.9
+    assert "INVALID_SCORE_MATRIX" in _evidence_for(
+        at, fractional
+    ).payload["exclusion_reasons"]
+
+    duplicate = _capture(at)
+    duplicate.payload["score_matrix_distribution"].append(
+        dict(duplicate.payload["score_matrix_distribution"][0])
+    )
+    assert "INVALID_SCORE_MATRIX" in _evidence_for(
+        at, duplicate
+    ).payload["exclusion_reasons"]
+
+    bad_prob = _capture(at)
+    bad_prob.payload["score_matrix_distribution"][0]["probability"] = -0.1
+    assert "INVALID_SCORE_MATRIX" in _evidence_for(
+        at, bad_prob
+    ).payload["exclusion_reasons"]
 
 
 def test_forecast_capture_semantic_rejections() -> None:

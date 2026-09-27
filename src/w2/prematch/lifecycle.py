@@ -36,10 +36,15 @@ EVALUATION_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.identity.v2"
 FACTOR_VERDICT_SCHEMA = "w2.dynamic_quote_evaluation.factor_verdict.v1"
 LEGACY_EVALUATION_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.identity.v1"
 ATTEMPT_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v2"
-# v3 exists only for attempts that carry a factor verdict. A verdict-less attempt
-# -- every TOTALS attempt, and every row written before the verdict existed --
-# keeps the v2 preimage byte for byte, so its identity is exactly what it was.
-ATTEMPT_IDENTITY_FACTOR_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v3"
+# v2 hashed context.model_input_hash (the capture manifest hash), so two different
+# producer inputs over the same context folded into one attempt identity. v3 hashes
+# the producer's actual model input hash instead; historical v2 rows keep their
+# byte-for-byte identity and are never recomputed.
+ATTEMPT_IDENTITY_INPUT_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v3"
+# v4 exists only for attempts that carry a factor verdict, now also bound to the
+# producer input hash. A verdict-less attempt -- every TOTALS attempt, and every
+# row written before the verdict existed -- keeps the v3 preimage byte for byte.
+ATTEMPT_IDENTITY_FACTOR_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v4"
 EVAL_02B_DISTRIBUTION_TOLERANCE = 1e-9
 SOURCE_ABSENT_USER_MESSAGE = "当前采集窗口尚未取得完整盘口"
 SOURCE_ABSENT_NEXT_ACTION = "等待下一次受控采集"
@@ -311,10 +316,10 @@ def bind_evaluation_opportunity(
 
     opportunity_hash = opportunity_identity_hash(context, market=version.market)
     attempt_payload: dict[str, Any] = {
-        "attempt_identity_version": ATTEMPT_IDENTITY_VERSION,
+        "attempt_identity_version": ATTEMPT_IDENTITY_INPUT_VERSION,
         "opportunity_identity_hash": opportunity_hash,
         "quote_identity_hash": version.quote_identity_hash,
-        "model_input_hash": context.model_input_hash,
+        "model_input_hash": version.model_input_hash,
         "lineup_input_hash": version.lineup_input_hash,
         "source_event_identity": context.source_event_identity,
         # Same quote, same model input, different calibration is a different

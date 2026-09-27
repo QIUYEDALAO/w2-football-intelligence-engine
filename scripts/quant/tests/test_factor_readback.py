@@ -18,6 +18,7 @@ from sqlalchemy import create_engine
 from w2.infrastructure.database import Base
 from w2.prematch.lifecycle import (
     ATTEMPT_IDENTITY_FACTOR_VERSION,
+    ATTEMPT_IDENTITY_INPUT_VERSION,
     ATTEMPT_IDENTITY_VERSION,
     CHECKPOINT_OPPORTUNITY_SCOPE,
     FACTOR_VERDICT_SCHEMA,
@@ -174,13 +175,14 @@ def test_old_totals_payload_needs_no_verdict() -> None:
     assert factor_blocker(totals) is None
 
 
-# --- attempt identity: v2 for verdict-less, v3 only for factor-bearing ------
-# Derived by running this exact fixture against the unmodified production
-# baseline 3ac86c14 -- the commit this branch forked from -- and confirming the
-# same value here. If the verdict ever re-keys a verdict-less attempt, this is
-# the assertion that fails.
+# --- attempt identity: v3 for verdict-less (producer-input bound), v4 only for
+# factor-bearing. A-R2 bound the producer's actual model_input_hash into the
+# verdict-less attempt preimage (was context.model_input_hash) and bumped the
+# version, so the golden value below is the v3 verdict-less identity against this
+# fixture. Historical v2 rows keep their byte-for-byte identity and are never
+# recomputed.
 GOLDEN_VERDICTLESS_TOTALS_ATTEMPT = (
-    "72110414f0a80392e5b140daec873fe8a3466f332679d6ea3a7bb23c5bc1c9aa"
+    "f8c0dbdfed870710c167123411a0b5efee84839b55087baba02215b880c37abf"
 )
 
 
@@ -202,14 +204,15 @@ def test_verdictless_totals_attempt_keeps_its_pre_factor_identity() -> None:
     assert bound.identity_hash == GOLDEN_VERDICTLESS_TOTALS_ATTEMPT
 
 
-def test_a_verdict_bearing_attempt_uses_the_v3_preimage_and_a_different_identity() -> None:
+def test_a_verdict_bearing_attempt_uses_the_v4_preimage_and_a_different_identity() -> None:
     verdictless = _verdictless_totals_attempt()
     bearing = bind_evaluation_opportunity(
         classify_evaluation(_input(**VERDICT)), _context()
     )
 
     assert ATTEMPT_IDENTITY_VERSION.endswith(".v2")
-    assert ATTEMPT_IDENTITY_FACTOR_VERSION.endswith(".v3")
+    assert ATTEMPT_IDENTITY_INPUT_VERSION.endswith(".v3")
+    assert ATTEMPT_IDENTITY_FACTOR_VERSION.endswith(".v4")
     assert bearing.attempt_identity_hash != verdictless.attempt_identity_hash
 
 

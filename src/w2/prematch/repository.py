@@ -661,6 +661,10 @@ def _version_from_payload(payload: dict[str, Any]) -> DynamicEvaluationVersion:
         lineup_input_hash=str(payload["lineup_input_hash"])
         if payload.get("lineup_input_hash")
         else None,
+        model_version=str(payload["model_version"]) if payload.get("model_version") else None,
+        score_matrix_hash=str(payload["score_matrix_hash"])
+        if payload.get("score_matrix_hash")
+        else None,
         checkpoint=str(payload["checkpoint"]),
         evaluated_at=_parse_utc(payload["evaluated_at"]) or datetime.now(UTC),
         capture_at=_parse_utc(payload.get("capture_at")),

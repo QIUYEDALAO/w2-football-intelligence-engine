@@ -33,7 +33,12 @@ from w2.infrastructure.persistence.matchday_intake_models import MatchdayMarketO
 from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
 from w2.infrastructure.persistence.models import ResultModel
 from w2.prematch.lifecycle import SETTLEMENT_STATE_ORDER
-from w2.tracking.model_forecast_ledger import MODEL_FAMILY
+from w2.strategy.simulate import _canonical_hash
+from w2.tracking.model_forecast_ledger import (
+    MODEL_FAMILY,
+    MODEL_FORECAST_CAPTURE_HASH_DOMAIN,
+    MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN,
+)
 
 TRACK_D_FADE = "TRACK_D_FADE"
 VALIDATION_SIGNAL = "VALIDATION_SIGNAL"
@@ -87,21 +92,35 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
 
 
-def _score_matrix_from_payload(payload: dict[str, Any] | None) -> dict[tuple[int, int], float]:
-    """从 capture payload 的 score_matrix_distribution 还原原始 score matrix。"""
-    distribution = (payload or {}).get("score_matrix_distribution") or []
+def _score_matrix_from_payload(
+    payload: dict[str, Any] | None,
+) -> dict[tuple[int, int], float] | None:
+    """从 capture payload 的 score_matrix_distribution 还原原始 score matrix。
+
+    解析转换前拒绝坏行、重复格、非整数/负比分、非法概率，不 int 截断、
+    不跳过坏行、不覆盖重复格。任何一行不合法即整体拒绝（返回 None）。
+    """
+    distribution = (payload or {}).get("score_matrix_distribution")
     if not isinstance(distribution, list):
-        return {}
+        return None
     matrix: dict[tuple[int, int], float] = {}
     for row in distribution:
         if not isinstance(row, dict):
-            continue
-        try:
-            home = int(row["home_goals"])
-            away = int(row["away_goals"])
-            probability = float(row["probability"])
-        except (KeyError, TypeError, ValueError):
-            continue
+            return None
+        home = row.get("home_goals")
+        away = row.get("away_goals")
+        probability = row.get("probability")
+        if not isinstance(home, int) or isinstance(home, bool) or home < 0:
+            return None
+        if not isinstance(away, int) or isinstance(away, bool) or away < 0:
+            return None
+        if not isinstance(probability, (int, float)) or isinstance(probability, bool):
+            return None
+        probability = float(probability)
+        if not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
+            return None
+        if (home, away) in matrix:
+            return None
         matrix[(home, away)] = probability
     return matrix
 
@@ -438,6 +457,12 @@ def append_forward_evidence_in_session(
         reasons.append("TRACK_D_CHANNEL_OR_MARKET_QUOTE_UNPROVABLE")
     if any(value is None for value in (lambda_home, lambda_away, rho)) or not input_hash:
         reasons.append("MODEL_PARAMETER_UNPROVABLE")
+    # A：producer 实际输入证据 —— 必填且为合法 64hex；缺/错即 UNPROVABLE，
+    # 非空不等于正确。跨域不能直接比较字符串，但空或非法格式必须先拒。
+    if not getattr(version, "model_input_hash", None):
+        reasons.append("MISSING_PRODUCER_INPUT")
+    elif not _is_hex64(version.model_input_hash):
+        reasons.append("INVALID_PRODUCER_INPUT_HASH")
     if (
         capture is None
         or capture.fixture_id != version.fixture_id
@@ -453,16 +478,48 @@ def append_forward_evidence_in_session(
             reasons.append("MODEL_VERSION_MISMATCH")
         if getattr(version, "score_matrix_hash", None) != capture.score_matrix_hash:
             reasons.append("SCORE_MATRIX_HASH_MISMATCH")
-        # R3 完整性 fail-closed：坏 hash / 空 manifest / 缺分布 / 坏矩阵显式拒绝。
+        # R3 完整性：64hex 仅格式检查；用现有 canonical 合同真实重算 payload /
+        # identity / manifest / 完整矩阵，任一不自洽即显式拒绝。
+        payload = capture.payload if isinstance(capture.payload, dict) else {}
         if not _is_hex64(getattr(capture, "capture_identity_hash", None)):
             reasons.append("INVALID_CAPTURE_HASH")
+        else:
+            identity_payload = {
+                key: value for key, value in payload.items() if key != "capture_identity_hash"
+            }
+            if capture.capture_identity_hash != canonical_sha256(
+                identity_payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
+            ):
+                reasons.append("CAPTURE_IDENTITY_MISMATCH")
         if not _is_hex64(getattr(capture, "payload_sha256", None)):
             reasons.append("INVALID_PAYLOAD_HASH")
+        elif capture.payload_sha256 != canonical_sha256(
+            payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
+        ):
+            reasons.append("PAYLOAD_HASH_MISMATCH")
+        manifest = payload.get("model_input_manifest")
+        if not manifest:
+            reasons.append("MISSING_MODEL_INPUT_MANIFEST")
+        elif not _is_hex64(getattr(capture, "model_input_manifest_hash", None)):
+            reasons.append("INVALID_MANIFEST_HASH")
+        elif capture.model_input_manifest_hash != canonical_sha256(
+            manifest, domain=MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN
+        ):
+            reasons.append("MANIFEST_HASH_MISMATCH")
         if not _is_hex64(getattr(capture, "score_matrix_hash", None)):
             reasons.append("INVALID_SCORE_MATRIX_HASH")
-        if not (capture.payload or {}).get("model_input_manifest"):
-            reasons.append("MISSING_MODEL_INPUT_MANIFEST")
-        matrix = _score_matrix_from_payload(capture.payload)
+        elif capture.score_matrix_hash != _canonical_hash(
+            payload.get("score_matrix_distribution")
+        ):
+            reasons.append("CAPTURE_SCORE_MATRIX_HASH_MISMATCH")
+        simulation = (
+            (payload.get("simulation_replay") or {}).get("simulation") or {}
+            if isinstance(payload.get("simulation_replay"), dict)
+            else {}
+        )
+        if capture.model_version != simulation.get("model_version"):
+            reasons.append("MODEL_VERSION_MISMATCH")
+        matrix = _score_matrix_from_payload(payload)
         if version.model_settlement_distribution is None:
             reasons.append("MISSING_SETTLEMENT_DISTRIBUTION")
         elif not matrix or not _matrix_valid(matrix):

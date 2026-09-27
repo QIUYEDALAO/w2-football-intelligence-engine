@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -35,6 +36,7 @@ from w2.prematch.lifecycle import (
 )
 from w2.prematch.repository import (
     DynamicPrematchRepository,
+    _version_from_payload,
     project_exact_eval_02b_pairs,
 )
 
@@ -158,6 +160,56 @@ def _ah_evaluation(
         factor_input_identity_hash="a" * 64,
         **overrides,
     )
+
+
+def test_new_metadata_roundtrip_and_identical_retry() -> None:
+    """C：新字段写入→回读→完全相同重放：字段保留、幂等成功，无身份冲突。"""
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    version = classify_evaluation(
+        _ah_evaluation(
+            capture_id="retry",
+            ev=0.08,
+            delta=0.06,
+            ev_se=0.02,
+            model_version="producer-v1",
+            score_matrix_hash="a" * 64,
+        )
+    )
+    version = replace(version, model_forecast_capture_identity_hash="capture-A")
+    repo = DynamicPrematchRepository(engine)
+    persisted, inserted = repo.append_evaluation(version)
+    assert inserted is True
+
+    decoded = _version_from_payload(persisted.as_dict())
+    assert decoded.model_version == "producer-v1"
+    assert decoded.score_matrix_hash == "a" * 64
+
+    _, retried = repo.append_evaluation(version)
+    assert retried is False
+
+
+def test_totals_attempt_identity_distinguishes_producer_input() -> None:
+    """D：TOTALS 相同 context、不同真实 producer 输入 → 按新身份合同可区分。"""
+    context = EvaluationOpportunityContext(
+        model_forecast_capture_identity_hash="capture-A",
+        model_input_hash="capture-manifest-input",
+        evaluation_policy_version="candidate-eval.v2",
+        evaluation_slot_id="T3_ODDS",
+        scheduled_checkpoint_at=NOW,
+        checkpoint_plan_identity="plan",
+        source_event_identity="event",
+    )
+    plain = classify_evaluation(_evaluation(capture_id="ctx", ev=0.08, delta=0.06, ev_se=0.02))
+    a = bind_evaluation_opportunity(
+        replace(plain, model_input_hash="actual-input-A"), context
+    )
+    b = bind_evaluation_opportunity(
+        replace(plain, model_input_hash="actual-input-B"), context
+    )
+    assert a.identity_hash != b.identity_hash
+    assert a.model_input_hash == "actual-input-A"
+    assert b.model_input_hash == "actual-input-B"
 
 
 def _lineup_event(**overrides: object) -> LineupConfirmedEvent:
