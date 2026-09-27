@@ -1,6 +1,6 @@
 {
   "schema_version": "w2.canonical-serialization-oracle-vectors.v2",
-  "production_implementation_head": "ec646df3cf7562b3becd3dfa330cf5fd698fd12a",
+  "production_implementation_head": "6c6567d4752f430afac8e60577188362be0aebff",
   "production_implementation_path": "src/w2/domain/canonical_serialization.py",
   "production_implementation_sha256": "860083902cfb3e3c6ab71c16ad339813440c1f553dde9f1e3decb7512d2d35a7",
   "production_implementer": "xg3750150@gmail.com",
