@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from w2.domain.canonical_serialization import (
     CURRENT_SERIALIZER_VERSION,
     HashDomain,
+    _canonical_hash,
     canonical_sha256,
 )
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
@@ -33,7 +34,6 @@ from w2.infrastructure.persistence.matchday_intake_models import MatchdayMarketO
 from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
 from w2.infrastructure.persistence.models import ResultModel
 from w2.prematch.lifecycle import PRODUCER_INPUT_PROVENANCE_SCHEMA, SETTLEMENT_STATE_ORDER
-from w2.strategy.simulate import _canonical_hash
 from w2.tracking.model_forecast_ledger import (
     MODEL_FAMILY,
     MODEL_FORECAST_CAPTURE_HASH_DOMAIN,

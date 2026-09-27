@@ -667,7 +667,7 @@ Dockerfile、Compose、workflow、Runbook 和历史/恢复入口，避免把离�
 TOP_LEVEL_PACKAGE_COUNT = 41
 MAPPED_PACKAGE_COUNT = 41
 UNMAPPED_PACKAGE_COUNT = 0
-DEPENDENCY_EDGE_COUNT = 158
+DEPENDENCY_EDGE_COUNT = 157
 CYCLE_COUNT = 1
 RUNTIME_REACHABLE_PACKAGE_COUNT = 28
 OFFLINE_ONLY_PACKAGE_COUNT = 13
@@ -716,8 +716,8 @@ DELETED_PACKAGE_COUNT = 0
 | `security` | 2 | apps:0;scripts:1;migrations:0;tests:1 | - | operations | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;BACKUP_SECURITY_BASELINE |
 | `settlement` | 3 | apps:0;scripts:2;migrations:0;tests:2 | dashboard,prematch,tracking | domain,infrastructure | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `shadow` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | strategy | - | w2-shadow-comparison-import | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT;COMPARISON_IMPORT |
-| `strategy` | 15 | apps:1;scripts:4;migrations:0;tests:30 | dashboard,gates,markets,matchday,operations,prematch,pricing,shadow,tracking | competitions,domain,features,formal,infrastructure,markets,models,pricing | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `tracking` | 17 | apps:2;scripts:6;migrations:0;tests:26 | api,audit_export,domain,prematch,replay | domain,infrastructure,ingestion,markets,prematch,settlement,strategy | SCC-1 | w2-finished-match-scoring | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `strategy` | 15 | apps:1;scripts:4;migrations:0;tests:30 | dashboard,gates,markets,matchday,operations,prematch,pricing,shadow | competitions,domain,features,formal,infrastructure,markets,models,pricing | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `tracking` | 17 | apps:2;scripts:6;migrations:0;tests:26 | api,audit_export,domain,prematch,replay | domain,infrastructure,ingestion,markets,prematch,settlement | SCC-1 | w2-finished-match-scoring | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 
 ```text
 ROLE_COUNTS = RUNTIME_ENTRYPOINT:1;RUNTIME_LIBRARY:20;WRITE_SIDE_PROJECTION:6;PUBLIC_READ:2;OFFLINE_TOOL:10;MIGRATION_ONLY:1;AUDIT_EXPORT:1;DEAD:0

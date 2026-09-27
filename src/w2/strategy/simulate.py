@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import random
 from bisect import bisect_left
 from collections import Counter
@@ -11,6 +10,7 @@ from math import exp
 from typing import Any
 
 from w2.domain.calibration_validation_registry import calibration_identity
+from w2.domain.canonical_serialization import _canonical_hash
 from w2.domain.enums import SettlementOutcome
 from w2.domain.five_state_pricing import SettlementDistribution, expected_value, validate_ev_inputs
 from w2.domain.odds import settle_asian_handicap
@@ -744,12 +744,6 @@ def _distribution_value(distribution: dict[str, Any], outcome: SettlementOutcome
 def _seed(*parts: str) -> int:
     digest = hashlib.sha256(":".join(parts).encode()).hexdigest()
     return int(digest[:16], 16)
-
-
-def _canonical_hash(value: Any) -> str:
-    return hashlib.sha256(
-        json.dumps(value, ensure_ascii=False, sort_keys=True, default=str).encode()
-    ).hexdigest()
 
 
 def _required_float(value: float | None) -> float:

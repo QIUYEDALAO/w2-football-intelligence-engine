@@ -144,6 +144,19 @@ def canonical_sha256(
     return hashlib.sha256(canonical_bytes(value, domain=domain, version=version)).hexdigest()
 
 
+def _canonical_hash(value: Any) -> str:
+    """Historical domain-less score-matrix hash contract (strategy.simulate).
+
+    ``json.dumps(sort_keys=True, default=str)`` over UTF-8 bytes, SHA-256 hex.
+    Kept here (not under ``strategy``) so read-side consumers that must verify a
+    stored ``score_matrix_hash`` do not pull the read-time computation package
+    into the api transitive import graph.
+    """
+    return hashlib.sha256(
+        json.dumps(value, ensure_ascii=False, sort_keys=True, default=str).encode()
+    ).hexdigest()
+
+
 def verify_sha256(
     value: object,
     expected: str,
