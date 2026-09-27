@@ -429,6 +429,11 @@ def append_forward_evidence_in_session(
     if capture is not None:
         if capture.model_family != MODEL_FAMILY:
             reasons.append("MODEL_FAMILY_MISMATCH")
+        # model_version 对齐依据：评估实际使用的模型版本 = capture 绑定的预测的
+        # simulation.model_version（capture.model_version 列是其写入副本）。显式核对
+        # 列与 payload 两处记录一致，不依赖 identity_hash 回溯的隐含保证。
+        if capture.model_version != str((simulation or {}).get("model_version") or ""):
+            reasons.append("MODEL_VERSION_MISMATCH")
         if getattr(version, "model_input_hash", None) != capture.model_input_manifest_hash:
             reasons.append("MODEL_INPUT_MANIFEST_MISMATCH")
         if not fade_requested and version.model_settlement_distribution:

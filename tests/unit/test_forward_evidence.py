@@ -127,6 +127,7 @@ def _capture(at: datetime) -> SimpleNamespace:
             "score_matrix_distribution": _SCORE_MATRIX_ROWS,
             "simulation_replay": {
                 "simulation": {
+                    "model_version": "v1",
                     "lambda_home": 1.2,
                     "lambda_away": 1.0,
                     "calibration": {
@@ -214,6 +215,10 @@ def test_forecast_capture_semantic_rejections() -> None:
     wrong_family = _capture(at)
     wrong_family.model_family = "OTHER_FAMILY"
     assert "MODEL_FAMILY_MISMATCH" in evidence_for(wrong_family).payload["exclusion_reasons"]
+
+    wrong_version = _capture(at)
+    wrong_version.model_version = "v2"  # 列与 payload 的 simulation.model_version("v1") 不一致
+    assert "MODEL_VERSION_MISMATCH" in evidence_for(wrong_version).payload["exclusion_reasons"]
 
     wrong_manifest = _capture(at)
     wrong_manifest.model_input_manifest_hash = "z" * 64
