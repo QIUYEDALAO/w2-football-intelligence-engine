@@ -32,7 +32,7 @@ from w2.infrastructure.persistence.forward_evidence_models import (
 from w2.infrastructure.persistence.matchday_intake_models import MatchdayMarketObservationModel
 from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
 from w2.infrastructure.persistence.models import ResultModel
-from w2.prematch.lifecycle import SETTLEMENT_STATE_ORDER
+from w2.prematch.lifecycle import PRODUCER_INPUT_PROVENANCE_SCHEMA, SETTLEMENT_STATE_ORDER
 from w2.strategy.simulate import _canonical_hash
 from w2.tracking.model_forecast_ledger import (
     MODEL_FAMILY,
@@ -90,6 +90,16 @@ def _finite(value: Any) -> float | None:
 
 def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
+
+
+def _parse_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
 
 
 def _score_matrix_from_payload(
@@ -457,18 +467,34 @@ def append_forward_evidence_in_session(
         reasons.append("TRACK_D_CHANNEL_OR_MARKET_QUOTE_UNPROVABLE")
     if any(value is None for value in (lambda_home, lambda_away, rho)) or not input_hash:
         reasons.append("MODEL_PARAMETER_UNPROVABLE")
-    # A：producer 实际输入证据 —— 必填、合法 64hex，且必须能证明其内容与
-    # capture manifest 等价。非空不等于正确，"合法 64hex" 也不等于内容正确。
-    # 格式（缺/错）先拒；格式合法但无法证明内容等价（producer 未保存可重算的
-    # 原始输入组件 simulation_sha256 / analysis_evidence_sha256 / lineup_input_hash，
-    # 与 capture manifest 分属不同域且无跨域映射）同样显式拒绝。补齐跨域映射
-    # （另交最小 schema 设计，即整改选项②）之前一律 fail-closed。
+    # A：producer 实际输入证据 —— 必填合法 64hex，且版本化 provenance 可独立复算。
+    # 非空不等于正确，"合法 64hex" 也不等于内容正确；provenance 携带 model_input_hash
+    # 的 preimage 组件（simulation/analysis_evidence digest + lineup + scoreline contract），
+    # 据此复算 model_input_hash，任一不自洽即显式拒绝。
+    provenance = getattr(version, "producer_input_provenance", None)
     if not getattr(version, "model_input_hash", None):
         reasons.append("MISSING_PRODUCER_INPUT")
     elif not _is_hex64(version.model_input_hash):
         reasons.append("INVALID_PRODUCER_INPUT_HASH")
-    else:
-        reasons.append("PRODUCER_INPUT_UNPROVABLE")
+    if not isinstance(provenance, dict):
+        reasons.append("MISSING_PRODUCER_INPUT_PROVENANCE")
+    elif provenance.get("schema_version") != PRODUCER_INPUT_PROVENANCE_SCHEMA:
+        reasons.append("INVALID_PRODUCER_INPUT_PROVENANCE")
+    elif version.model_input_hash:
+        model_input_identity = {
+            "simulation": provenance.get("simulation_digest"),
+            "analysis_evidence": provenance.get("analysis_evidence_digest"),
+            "lineup_input_hash": provenance.get("lineup_input_hash"),
+        }
+        if provenance.get("scoreline_projection_contract_version") is not None:
+            model_input_identity["scoreline_projection_contract_version"] = provenance[
+                "scoreline_projection_contract_version"
+            ]
+        if canonical_sha256(
+            model_input_identity,
+            domain=HashDomain.PREMATCH_READ_MODEL_DYNAMIC_EVALUATION,
+        ) != version.model_input_hash:
+            reasons.append("PRODUCER_INPUT_HASH_MISMATCH")
     if (
         capture is None
         or capture.fixture_id != version.fixture_id
@@ -525,6 +551,26 @@ def append_forward_evidence_in_session(
         )
         if capture.model_version != simulation.get("model_version"):
             reasons.append("MODEL_VERSION_MISMATCH")
+        # 交叉核验（A-R3-01）：producer 的 simulation digest 必须等于 capture 的
+        # simulation 同域重算；producer 输入/报价时间逐项满足 PIT。
+        if (
+            isinstance(provenance, dict)
+            and provenance.get("schema_version") == PRODUCER_INPUT_PROVENANCE_SCHEMA
+        ):
+            if provenance.get("simulation_digest") != canonical_sha256(
+                simulation, domain=HashDomain.PREMATCH_READ_MODEL_SIMULATION
+            ):
+                reasons.append("PRODUCER_SIMULATION_MISMATCH")
+            model_input_at = _parse_utc(provenance.get("model_input_available_at"))
+            quote_available_at = _parse_utc(provenance.get("quote_available_at"))
+            if (
+                model_input_at is None
+                or quote_available_at is None
+                or forecast_at is None
+                or model_input_at > forecast_at
+                or quote_available_at > version.evaluated_at
+            ):
+                reasons.append("PRODUCER_INPUT_TIME_UNPROVABLE")
         matrix = _score_matrix_from_payload(payload)
         if version.model_settlement_distribution is None:
             reasons.append("MISSING_SETTLEMENT_DISTRIBUTION")

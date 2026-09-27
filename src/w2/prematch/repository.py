@@ -797,6 +797,9 @@ def _version_from_payload(payload: dict[str, Any]) -> DynamicEvaluationVersion:
         factor_evidence_digest=dict(payload["factor_evidence_digest"])
         if isinstance(payload.get("factor_evidence_digest"), dict)
         else None,
+        producer_input_provenance=dict(payload["producer_input_provenance"])
+        if isinstance(payload.get("producer_input_provenance"), dict)
+        else None,
     )
 
 

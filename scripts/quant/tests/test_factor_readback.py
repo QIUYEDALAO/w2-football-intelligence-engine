@@ -20,9 +20,11 @@ from w2.prematch.lifecycle import (
     ATTEMPT_IDENTITY_FACTOR_VERSION,
     ATTEMPT_IDENTITY_INPUT_VERSION,
     ATTEMPT_IDENTITY_VERSION,
+    ATTEMPT_PROFILE_LEGACY,
     CHECKPOINT_OPPORTUNITY_SCOPE,
     FACTOR_VERDICT_SCHEMA,
     HISTORICAL_NO_FACTOR_VERDICT,
+    LEGACY_ATTEMPT_IDENTITY_FACTOR_VERSION,
     DynamicEvaluationInput,
     DynamicEvaluationState,
     EvaluationOpportunityContext,
@@ -175,13 +177,15 @@ def test_old_totals_payload_needs_no_verdict() -> None:
     assert factor_blocker(totals) is None
 
 
-# --- attempt identity: v3 for verdict-less (producer-input bound), v4 only for
-# factor-bearing. A-R2 bound the producer's actual model_input_hash into the
-# verdict-less attempt preimage (was context.model_input_hash) and bumped the
-# version, so the golden value below is the v3 verdict-less identity against this
-# fixture. Historical v2 rows keep their byte-for-byte identity and are never
-# recomputed.
+# --- attempt identity: legacy verdict-less is v2 with context.model_input_hash;
+# current verdict-less is v3 with the producer input hash; current factor is v4.
+# A-R3 restores the historical v2 golden for the legacy fixture and adds a
+# separate golden for the current profile, so the old pre-factor identity guard
+# is not replaced by the new profile.
 GOLDEN_VERDICTLESS_TOTALS_ATTEMPT = (
+    "72110414f0a80392e5b140daec873fe8a3466f332679d6ea3a7bb23c5bc1c9aa"
+)
+GOLDEN_CURRENT_VERDICTLESS_TOTALS_ATTEMPT = (
     "f8c0dbdfed870710c167123411a0b5efee84839b55087baba02215b880c37abf"
 )
 
@@ -194,7 +198,9 @@ def _verdictless_totals_attempt():  # type: ignore[no-untyped-def]
         capture_id="capture-golden",
         calibration_status="PRODUCTION_VALIDATED",
     )
-    return bind_evaluation_opportunity(classify_evaluation(value), _context())
+    return bind_evaluation_opportunity(
+        classify_evaluation(value), _context(), attempt_profile=ATTEMPT_PROFILE_LEGACY
+    )
 
 
 def test_verdictless_totals_attempt_keeps_its_pre_factor_identity() -> None:
@@ -202,6 +208,19 @@ def test_verdictless_totals_attempt_keeps_its_pre_factor_identity() -> None:
 
     assert bound.attempt_identity_hash == GOLDEN_VERDICTLESS_TOTALS_ATTEMPT
     assert bound.identity_hash == GOLDEN_VERDICTLESS_TOTALS_ATTEMPT
+
+
+def test_current_verdictless_totals_attempt_uses_the_new_golden() -> None:
+    value = _input(
+        market="TOTALS",
+        selection="OVER",
+        exact_line=2.25,
+        capture_id="capture-golden",
+        calibration_status="PRODUCTION_VALIDATED",
+    )
+    bound = bind_evaluation_opportunity(classify_evaluation(value), _context())
+
+    assert bound.attempt_identity_hash == GOLDEN_CURRENT_VERDICTLESS_TOTALS_ATTEMPT
 
 
 def test_a_verdict_bearing_attempt_uses_the_v4_preimage_and_a_different_identity() -> None:
@@ -212,6 +231,7 @@ def test_a_verdict_bearing_attempt_uses_the_v4_preimage_and_a_different_identity
 
     assert ATTEMPT_IDENTITY_VERSION.endswith(".v2")
     assert ATTEMPT_IDENTITY_INPUT_VERSION.endswith(".v3")
+    assert LEGACY_ATTEMPT_IDENTITY_FACTOR_VERSION.endswith(".v3")
     assert ATTEMPT_IDENTITY_FACTOR_VERSION.endswith(".v4")
     assert bearing.attempt_identity_hash != verdictless.attempt_identity_hash
 

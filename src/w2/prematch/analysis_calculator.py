@@ -954,6 +954,20 @@ class ReadModelRepository:
         except SQLAlchemyError:
             return False
 
+    def model_forecast_capture_captured_at(self, fixture_id: str) -> datetime | None:
+        """Read-only: the model capture time (producer input availability upper bound)."""
+        aliases = model_forecast_fixture_aliases(fixture_id)
+        try:
+            with Session(create_engine()) as session:
+                return session.scalar(
+                    select(ModelForecastCaptureModel.captured_at)
+                    .where(ModelForecastCaptureModel.fixture_id.in_(aliases))
+                    .order_by(ModelForecastCaptureModel.captured_at.desc())
+                    .limit(1)
+                )
+        except SQLAlchemyError:
+            return None
+
     def dashboard_checkpoints(self, prefix: str = "dashboard:") -> list[dict[str, Any]]:
         try:
             engine = create_engine()

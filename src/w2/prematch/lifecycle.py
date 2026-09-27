@@ -24,6 +24,7 @@ T30_VALIDATION_CHECKPOINT = "T-30m_VALIDATION_LOCK"
 DYNAMIC_EVALUATION_V1_SCHEMA = "w2.dynamic_quote_evaluation.v1"
 DYNAMIC_EVALUATION_V2_SCHEMA = "w2.dynamic_quote_evaluation.v2"
 DYNAMIC_EVALUATION_V3_SCHEMA = "w2.dynamic_quote_evaluation.v3"
+PRODUCER_INPUT_PROVENANCE_SCHEMA = "w2.producer_input_provenance.v1"
 MODEL_FORECAST_DENOMINATOR_SCOPE = "MODEL_FORECAST_CAPTURE_MARKET_V1"
 CHECKPOINT_OPPORTUNITY_SCOPE = "CHECKPOINT_EVALUATION_OPPORTUNITY_V2"
 CHECKPOINT_OPPORTUNITY_SEMANTICS = "CHECKPOINT_EVALUATION_OPPORTUNITY"
@@ -41,10 +42,14 @@ ATTEMPT_IDENTITY_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v2"
 # the producer's actual model input hash instead; historical v2 rows keep their
 # byte-for-byte identity and are never recomputed.
 ATTEMPT_IDENTITY_INPUT_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v3"
+# The pre-A-R3 factor-bearing profile used v3 with context.model_input_hash.
+LEGACY_ATTEMPT_IDENTITY_FACTOR_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v3"
 # v4 exists only for attempts that carry a factor verdict, now also bound to the
 # producer input hash. A verdict-less attempt -- every TOTALS attempt, and every
 # row written before the verdict existed -- keeps the v3 preimage byte for byte.
 ATTEMPT_IDENTITY_FACTOR_VERSION = "w2.dynamic_quote_evaluation.attempt_identity.v4"
+ATTEMPT_PROFILE_CURRENT = "current"
+ATTEMPT_PROFILE_LEGACY = "legacy"
 EVAL_02B_DISTRIBUTION_TOLERANCE = 1e-9
 SOURCE_ABSENT_USER_MESSAGE = "当前采集窗口尚未取得完整盘口"
 SOURCE_ABSENT_NEXT_ACTION = "等待下一次受控采集"
@@ -199,6 +204,11 @@ class DynamicEvaluationInput:
     factor_input_identity_hash: str | None = None
     factor_evidence_digest: Mapping[str, Any] | None = None
     track_d_validation_signal: Mapping[str, Any] | None = None
+    # Producer input provenance (A-R3): the model_input_hash preimage components
+    # captured where the producer actually consumed card/simulation/analysis_evidence.
+    # Evidence-only -- it does not enter identity_payload, so evaluation/attempt
+    # identities stay stable and the payload never forms a provenance<->identity loop.
+    producer_input_provenance: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -282,6 +292,7 @@ class DynamicEvaluationVersion:
     factor_input_identity_hash: str | None = None
     factor_evidence_digest: dict[str, Any] | None = None
     track_d_validation_signal: dict[str, Any] | None = None
+    producer_input_provenance: dict[str, Any] | None = None
 
     def as_dict(
         self,
@@ -311,15 +322,24 @@ class DynamicEvaluationVersion:
 def bind_evaluation_opportunity(
     version: DynamicEvaluationVersion,
     context: EvaluationOpportunityContext,
+    *,
+    attempt_profile: str = ATTEMPT_PROFILE_CURRENT,
 ) -> DynamicEvaluationVersion:
-    """Bind a classified attempt to its pre-registered orchestration event."""
+    """Bind a classified attempt to its pre-registered orchestration event.
 
+    ``attempt_profile`` selects the preimage generation: ``current`` binds the
+    producer input hash (v3 verdict-less / v4 factor); ``legacy`` recomputes the
+    pre-A-R3 profile (v2 verdict-less / v3 factor, ``context.model_input_hash``).
+    """
+    legacy = attempt_profile == ATTEMPT_PROFILE_LEGACY
     opportunity_hash = opportunity_identity_hash(context, market=version.market)
     attempt_payload: dict[str, Any] = {
-        "attempt_identity_version": ATTEMPT_IDENTITY_INPUT_VERSION,
+        "attempt_identity_version": (
+            ATTEMPT_IDENTITY_VERSION if legacy else ATTEMPT_IDENTITY_INPUT_VERSION
+        ),
         "opportunity_identity_hash": opportunity_hash,
         "quote_identity_hash": version.quote_identity_hash,
-        "model_input_hash": version.model_input_hash,
+        "model_input_hash": context.model_input_hash if legacy else version.model_input_hash,
         "lineup_input_hash": version.lineup_input_hash,
         "source_event_identity": context.source_event_identity,
         # Same quote, same model input, different calibration is a different
@@ -331,13 +351,17 @@ def bind_evaluation_opportunity(
             version.calibration_recommendation_admissible
         ),
     }
-    # Only an attempt that actually carries a verdict moves to v3. Binding the
-    # evaluation identity unconditionally would have re-keyed every verdict-less
-    # TOTALS and historical attempt, which append-only forbids.
+    # Only an attempt that actually carries a verdict moves to the factor profile.
+    # Binding the evaluation identity unconditionally would have re-keyed every
+    # verdict-less TOTALS and historical attempt, which append-only forbids.
     if version.factor_input_identity_hash or version.factor_veto_code:
         attempt_payload.update(
             {
-                "attempt_identity_version": ATTEMPT_IDENTITY_FACTOR_VERSION,
+                "attempt_identity_version": (
+                    LEGACY_ATTEMPT_IDENTITY_FACTOR_VERSION
+                    if legacy
+                    else ATTEMPT_IDENTITY_FACTOR_VERSION
+                ),
                 "factor_verdict_schema": FACTOR_VERDICT_SCHEMA,
                 # The evaluation identity already binds the verdict; carrying it
                 # here makes the attempt differ whenever the evaluation does.
@@ -863,6 +887,10 @@ def classify_evaluation(
         track_d_validation_signal=(
             dict(value.track_d_validation_signal)
             if value.track_d_validation_signal else None
+        ),
+        producer_input_provenance=(
+            dict(value.producer_input_provenance)
+            if value.producer_input_provenance else None
         ),
         fixture_id=str(value.fixture_id),
         market=str(value.market),

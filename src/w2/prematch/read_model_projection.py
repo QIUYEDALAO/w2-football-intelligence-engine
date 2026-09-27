@@ -27,6 +27,8 @@ from w2.domain.recommendation_capabilities import load_recommendation_capability
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.operations.observability import default_metric_registry
 from w2.prematch.lifecycle import (
+    ATTEMPT_PROFILE_CURRENT,
+    ATTEMPT_PROFILE_LEGACY,
     CHECKPOINT_OPPORTUNITY_SCOPE,
     DYNAMIC_EVALUATION_V1_SCHEMA,
     DYNAMIC_EVALUATION_V2_SCHEMA,
@@ -34,6 +36,7 @@ from w2.prematch.lifecycle import (
     EVALUATION_IDENTITY_VERSION,
     LEGACY_EVALUATION_IDENTITY_VERSION,
     MODEL_FORECAST_DENOMINATOR_SCOPE,
+    PRODUCER_INPUT_PROVENANCE_SCHEMA,
     DynamicEvaluationInput,
     DynamicEvaluationVersion,
     EvaluationOpportunityContext,
@@ -171,13 +174,15 @@ CURRENT_IDENTITY_PROFILE = "current"
 LEGACY_IDENTITY_PROFILE = "legacy"
 
 #: Tried in order after ``current`` fails, each as (profile, identity version,
-#: whether the factor verdict is part of the preimage). Both identity versions are
-#: paired with a verdict-less preimage because the two generations overlap: a
-#: checkpoint may predate the factor verdict, the v2 identity, or both.
-_LEGACY_IDENTITY_PROFILES: tuple[tuple[str, str, bool], ...] = (
-    (LEGACY_IDENTITY_PROFILE, LEGACY_EVALUATION_IDENTITY_VERSION, True),
-    (LEGACY_IDENTITY_PROFILE, EVALUATION_IDENTITY_VERSION, False),
-    (LEGACY_IDENTITY_PROFILE, LEGACY_EVALUATION_IDENTITY_VERSION, False),
+#: whether the factor verdict is part of the preimage, attempt profile). Both
+#: identity versions are paired with a verdict-less preimage because the two
+#: generations overlap: a checkpoint may predate the factor verdict, the v2
+#: identity, or both. Attempt profile is ``legacy`` here so the pre-A-R3 attempt
+#: preimage (context.model_input_hash, v2/v3) is reproduced, not the current one.
+_LEGACY_IDENTITY_PROFILES: tuple[tuple[str, str, bool, str], ...] = (
+    (LEGACY_IDENTITY_PROFILE, LEGACY_EVALUATION_IDENTITY_VERSION, True, ATTEMPT_PROFILE_LEGACY),
+    (LEGACY_IDENTITY_PROFILE, EVALUATION_IDENTITY_VERSION, False, ATTEMPT_PROFILE_LEGACY),
+    (LEGACY_IDENTITY_PROFILE, LEGACY_EVALUATION_IDENTITY_VERSION, False, ATTEMPT_PROFILE_LEGACY),
 )
 
 
@@ -688,6 +693,12 @@ class AnalysisCardCanaryMaterializer:
                 }
                 for item in event.opportunity_contexts
             ]
+        capture_captured_at_reader = getattr(
+            self.repository, "model_forecast_capture_captured_at", None
+        )
+        capture_captured_at = (
+            capture_captured_at_reader(fixture_id) if callable(capture_captured_at_reader) else None
+        )
         evaluations = tuple(
             _dynamic_evaluations(
                 card,
@@ -696,6 +707,7 @@ class AnalysisCardCanaryMaterializer:
                 lineup_identity=dynamic_lineup_identity,
                 build_scoreline_reference=self.build_scoreline_reference,
                 opportunity_contexts=event.opportunity_contexts,
+                capture_captured_at=capture_captured_at,
             )
         )
         if not evaluations and card.get("pick") is not None:
@@ -915,7 +927,10 @@ def validate_frozen_analysis_payload(
         if lineup_identity is not None and not isinstance(lineup_identity, dict):
             raise FrozenAnalysisError("dynamic evaluation lineup identity invalid")
         def rebuild_evaluations(
-            identity_version: str, *, include_factor_verdict: bool
+            identity_version: str,
+            *,
+            include_factor_verdict: bool,
+            attempt_profile: str = ATTEMPT_PROFILE_CURRENT,
         ) -> tuple[DynamicEvaluationVersion, ...]:
             return tuple(
                 _dynamic_evaluations(
@@ -927,6 +942,7 @@ def validate_frozen_analysis_payload(
                     lineup_identity=cast(dict[str, str] | None, lineup_identity),
                     evaluation_identity_version=identity_version,
                     include_factor_verdict=include_factor_verdict,
+                    attempt_profile=attempt_profile,
                 )
             )
 
@@ -942,9 +958,16 @@ def validate_frozen_analysis_payload(
             # one on record. A profile is a different preimage, never a relaxed
             # check: nothing here trusts a hash it did not recompute, and a payload
             # matching no profile still fails closed below.
-            for profile, identity_version, with_verdict in _LEGACY_IDENTITY_PROFILES:
+            for (
+                profile,
+                identity_version,
+                with_verdict,
+                attempt_profile,
+            ) in _LEGACY_IDENTITY_PROFILES:
                 candidate_evaluations = rebuild_evaluations(
-                    identity_version, include_factor_verdict=with_verdict
+                    identity_version,
+                    include_factor_verdict=with_verdict,
+                    attempt_profile=attempt_profile,
                 )
                 if sorted(
                     item.identity_hash for item in candidate_evaluations
@@ -1410,6 +1433,8 @@ def _dynamic_evaluations(
     opportunity_contexts: tuple[EvaluationOpportunityContext, ...] = (),
     evaluation_identity_version: str = EVALUATION_IDENTITY_VERSION,
     include_factor_verdict: bool = True,
+    capture_captured_at: datetime | None = None,
+    attempt_profile: str = ATTEMPT_PROFILE_CURRENT,
 ) -> list[DynamicEvaluationVersion]:
     if not opportunity_contexts:
         raw_contexts = manifest.get("opportunity_contexts")
@@ -1575,6 +1600,20 @@ def _dynamic_evaluations(
             model_input_identity["scoreline_projection_contract_version"] = manifest[
                 "scoreline_projection_contract_version"
             ]
+        producer_input_provenance: dict[str, Any] = {
+            "schema_version": PRODUCER_INPUT_PROVENANCE_SCHEMA,
+            "simulation_digest": manifest.get("simulation_sha256"),
+            "analysis_evidence_digest": manifest.get("analysis_evidence_sha256"),
+            "lineup_input_hash": lineup_input_hash,
+            "model_input_available_at": (
+                capture_captured_at.isoformat() if capture_captured_at else None
+            ),
+            "quote_available_at": capture_at.isoformat() if capture_at else None,
+        }
+        if "scoreline_projection_contract_version" in manifest:
+            producer_input_provenance["scoreline_projection_contract_version"] = manifest[
+                "scoreline_projection_contract_version"
+            ]
         current_odds = card.get("current_odds")
         odds_market = current_odds.get(key) if isinstance(current_odds, dict) else {}
         odds_market = odds_market if isinstance(odds_market, dict) else {}
@@ -1709,6 +1748,7 @@ def _dynamic_evaluations(
                 else None
             ),
             one_x_two_probabilities=one_x_two_probabilities,
+            producer_input_provenance=producer_input_provenance,
         )
         version = classify_evaluation(value, identity_version=evaluation_identity_version)
         if version.state.value == "ANALYSIS_PICK_ACTIVE" and build_scoreline_reference:
@@ -1718,7 +1758,7 @@ def _dynamic_evaluations(
             )
         if opportunity_contexts:
             versions.extend(
-                bind_evaluation_opportunity(version, context)
+                bind_evaluation_opportunity(version, context, attempt_profile=attempt_profile)
                 for context in opportunity_contexts
             )
         else:
