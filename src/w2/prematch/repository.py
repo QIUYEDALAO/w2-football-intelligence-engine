@@ -646,6 +646,11 @@ def _version_from_payload(payload: dict[str, Any]) -> DynamicEvaluationVersion:
             calibration["calibration_recommendation_admissible"]
         ),
         calibration_authority=calibration["calibration_authority"],
+        # Evidence-only field: read it back so a same-identity retry compares equal
+        # instead of falsely reporting EVALUATION_IDENTITY_CONFLICT.
+        calibration_identity=str(payload["calibration_identity"])
+        if payload.get("calibration_identity")
+        else None,
         fixture_id=str(payload["fixture_id"]),
         market=str(payload["market"]),
         selection=str(payload["selection"]),

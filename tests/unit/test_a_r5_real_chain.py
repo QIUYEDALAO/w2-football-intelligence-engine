@@ -531,6 +531,56 @@ def test_real_chain_noop_mutation_control_provable() -> None:
     assert row.payload["exclusion_reasons"] == []
 
 
+def _historical_shadow_artifact(engine: Any, materializer: Any) -> Any:
+    """Build a shadow artifact, then strip the content-profile marker (rehashing
+    projection/artifact) to obtain the historical digest-only manifest form. This
+    is the real pre-A-R6 manifest shape: no marker, no analysis_evidence content."""
+    artifact = materializer.build(FIXTURE_ID, evaluated_at=EVALUATED_AT, source_event=None)
+    write_frozen_analysis_artifacts(engine, [artifact])
+    reader = ReadModelService(repository=FrozenReaderRepository(engine))
+    card = reader.public_analysis_card_bounded(FIXTURE_ID, use_frozen_canary=True)
+    simulation = card.get("simulation") or {}
+    model_forecast_card = {
+        **card,
+        "simulation": {"status": simulation.get("status"), "simulation": simulation},
+    }
+    run_model_forecast_capture(
+        {"cards": [model_forecast_card]},
+        repository=ModelForecastLedgerRepository(engine),
+        captured_at=CAPTURED_AT,
+        dry_run=False,
+        write_db=True,
+    )
+    with Session(engine) as session:
+        capture = session.query(ModelForecastCaptureModel).one()
+        capture_hash = capture.capture_identity_hash
+        model_input_hash = capture.model_input_manifest_hash
+    context = EvaluationOpportunityContext(
+        model_forecast_capture_identity_hash=capture_hash,
+        model_input_hash=model_input_hash,
+        evaluation_policy_version=CURRENT_EVALUATION_POLICY,
+        evaluation_slot_id="T3_ODDS",
+        scheduled_checkpoint_at=EVALUATED_AT,
+        checkpoint_plan_identity="plan-1",
+        source_event_identity="event-1",
+    )
+    bound = materializer.build(
+        FIXTURE_ID, evaluated_at=EVALUATED_AT, source_event=_event((context,))
+    )
+    old_payload = deepcopy(bound.payload)
+    old_payload["input_manifest"] = {
+        key: value
+        for key, value in old_payload["input_manifest"].items()
+        if key != "producer_input_provenance_content_profile"
+    }
+    old_payload["projection_hash"] = _projection_business_hash(old_payload)
+    old_payload["artifact_hash"] = rmp_canonical_sha256(
+        {key: value for key, value in old_payload.items() if key != "artifact_hash"},
+        domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT,
+    )
+    return validate_frozen_analysis_payload(FIXTURE_ID, old_payload)
+
+
 def test_r7_02_historical_manifest_reads_back_without_content() -> None:
     """R7-02: new manifest carries the content profile; a historical manifest
     without the marker reads back under the digest-only contract (no field added,
@@ -577,24 +627,38 @@ def test_r7_02_historical_manifest_reads_back_without_content() -> None:
     assert new_read.evaluations
     assert all("analysis_evidence" in ev.producer_input_provenance for ev in new_read.evaluations)
 
-    old_payload = deepcopy(bound.payload)
-    old_payload["input_manifest"] = {
-        key: value
-        for key, value in old_payload["input_manifest"].items()
-        if key != "producer_input_provenance_content_profile"
-    }
-    old_payload["projection_hash"] = _projection_business_hash(old_payload)
-    old_payload["artifact_hash"] = rmp_canonical_sha256(
-        {key: value for key, value in old_payload.items() if key != "artifact_hash"},
-        domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT,
-    )
-    old_read = validate_frozen_analysis_payload(FIXTURE_ID, old_payload)
+    old_read = _historical_shadow_artifact(engine, materializer)
     assert old_read.evaluations
     assert all("analysis_evidence" not in ev.producer_input_provenance for ev in old_read.evaluations)
     # provenance is evidence-only: the evaluation identity is unchanged.
     assert [ev.identity_hash for ev in new_read.evaluations] == [
         ev.identity_hash for ev in old_read.evaluations
     ]
+
+
+def test_r7_02_historical_manifest_same_identity_retry_idempotent() -> None:
+    """R7-02: a historical (marker-less) evaluation writes once, and a same-identity
+    retry is idempotent (created=false) without EVALUATION_IDENTITY_CONFLICT."""
+    engine = _engine()
+    _seed_xg(engine)
+    _seed_quote_pair(engine)
+    materializer = _materializer()
+    old_artifact = _historical_shadow_artifact(engine, materializer)
+    assert old_artifact.evaluations
+    evaluation = old_artifact.evaluations[0]
+    assert "analysis_evidence" not in evaluation.producer_input_provenance
+
+    repository = DynamicPrematchRepository(engine)
+    with Session(engine) as session:
+        _, created = repository.append_evaluation_in_session(session, evaluation)
+        session.commit()
+        assert created is True
+    # Same identity retry: no conflict, no second write.
+    with Session(engine) as session:
+        prior, created = repository.append_evaluation_in_session(session, evaluation)
+        session.commit()
+        assert created is False
+        assert prior.evaluation_id == evaluation.evaluation_id
 
 
 def test_real_chain_rejects_future_xg_component() -> None:
