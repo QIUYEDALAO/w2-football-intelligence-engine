@@ -954,20 +954,6 @@ class ReadModelRepository:
         except SQLAlchemyError:
             return False
 
-    def model_forecast_capture_captured_at(self, fixture_id: str) -> datetime | None:
-        """Read-only: the model capture time (producer input availability upper bound)."""
-        aliases = model_forecast_fixture_aliases(fixture_id)
-        try:
-            with Session(create_engine()) as session:
-                return session.scalar(
-                    select(ModelForecastCaptureModel.captured_at)
-                    .where(ModelForecastCaptureModel.fixture_id.in_(aliases))
-                    .order_by(ModelForecastCaptureModel.captured_at.desc())
-                    .limit(1)
-                )
-        except SQLAlchemyError:
-            return None
-
     def dashboard_checkpoints(self, prefix: str = "dashboard:") -> list[dict[str, Any]]:
         try:
             engine = create_engine()
@@ -5032,6 +5018,19 @@ class ReadModelService:
                 "bookmakers": len(bookmaker_ids),
                 "odds_snapshots": len(captured_points),
                 "xg": home_xg is not None and away_xg is not None,
+                # R4-01: the model input availability upper bound is the newest
+                # xG snapshot observation time the producer actually consumed --
+                # never the capture time. It is a source fact, not a computation
+                # time, and must be carried into the frozen manifest so the read
+                # path can reproduce it byte for byte.
+                "xg_observed_at": (
+                    max(home_xg.observed_at, away_xg.observed_at)
+                    .astimezone(UTC)
+                    .isoformat()
+                    .replace("+00:00", "Z")
+                    if home_xg is not None and away_xg is not None
+                    else None
+                ),
                 "xg_status": xg_status["status"],
                 "xg_home_match_count": xg_status["home_match_count"],
                 "xg_away_match_count": xg_status["away_match_count"],

@@ -141,12 +141,15 @@ def _version(at: datetime) -> SimpleNamespace:
         evaluation_policy_version="candidate-eval.v2",
         calibration_identity="candidate-eval.v2",
         model_input_hash=_MODEL_INPUT_HASH,
+        lineup_input_hash=None,
         producer_input_provenance={
             "schema_version": PRODUCER_INPUT_PROVENANCE_SCHEMA,
             "simulation_digest": _SIMULATION_DIGEST,
             "analysis_evidence_digest": _ANALYSIS_EVIDENCE_DIGEST,
             "lineup_input_hash": None,
-            "model_input_available_at": (at - timedelta(minutes=3)).isoformat(),
+            # The newest xG snapshot observation time (source fact), independent
+            # of the capture time. Must equal the capture's xG as-of upper bound.
+            "model_input_available_at": _xg_as_of(at),
             "quote_available_at": (at - timedelta(minutes=1)).isoformat(),
         },
         model_settlement_distribution=dict(_SETTLED_DISTRIBUTION),
@@ -157,17 +160,37 @@ def _version(at: datetime) -> SimpleNamespace:
     )
 
 
+def _xg_as_of(at: datetime) -> str:
+    return (at - timedelta(minutes=5)).astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
 def _capture(at: datetime) -> SimpleNamespace:
     """真实 writer 语义：capture 各 hash 域可从 payload 重算，不用重复字母冒充。"""
+    frozen_input_manifest = {
+        "analysis_evidence_sha256": _ANALYSIS_EVIDENCE_DIGEST,
+        "simulation_sha256": _SIMULATION_DIGEST,
+    }
     manifest = {
-        "simulation_input_hash": "e" * 64,
+        "frozen_input_manifest": frozen_input_manifest,
         "fixture_identity_hash": "f" * 64,
+        "simulation_input_hash": "e" * 64,
+        "four_field_xg_identity_hash": "x" * 64,
     }
     rows = deepcopy(_SCORE_MATRIX_ROWS)
     core = {
         "model_input_manifest": manifest,
         "score_matrix_distribution": rows,
         "simulation_replay": {"simulation": deepcopy(_SIMULATION)},
+        "four_field_xg_identity": {
+            "home": {"as_of": _xg_as_of(at), "xg_for": 1.5, "xg_against": 1.0},
+            "away": {"as_of": _xg_as_of(at), "xg_for": 1.2, "xg_against": 1.1},
+            "four_fields": {
+                "home_xg_for": 1.5,
+                "home_xg_against": 1.0,
+                "away_xg_for": 1.2,
+                "away_xg_against": 1.1,
+            },
+        },
     }
     capture_identity_hash = canonical_sha256(
         core, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
@@ -346,6 +369,63 @@ def test_ar2_producer_provenance_missing_or_bad_time_rejected() -> None:
     row2 = _evidence_for(at, _capture(at), bad_time)
     assert row2.pit_status == "PIT_UNPROVABLE"
     assert "PRODUCER_INPUT_TIME_UNPROVABLE" in row2.payload["exclusion_reasons"]
+
+
+def _rehash_provenance(version: SimpleNamespace) -> None:
+    """重算 model_input_hash，让 provenance 组件自洽（隔离验证交叉核验 guard）。"""
+    provenance = version.producer_input_provenance
+    body = {
+        "simulation": provenance["simulation_digest"],
+        "analysis_evidence": provenance["analysis_evidence_digest"],
+        "lineup_input_hash": provenance["lineup_input_hash"],
+    }
+    if provenance.get("scoreline_projection_contract_version") is not None:
+        body["scoreline_projection_contract_version"] = provenance[
+            "scoreline_projection_contract_version"
+        ]
+    version.model_input_hash = canonical_sha256(
+        body, domain=HashDomain.PREMATCH_READ_MODEL_DYNAMIC_EVALUATION
+    )
+
+
+def test_ar4_producer_lineup_mismatch_rejected() -> None:
+    """R4-03：provenance 与 evaluation 自身 lineup 身份错配 → 独立拒绝。"""
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+    version = _version(at)
+    version.lineup_input_hash = "actual-lineup-A"
+    version.producer_input_provenance = dict(version.producer_input_provenance)
+    version.producer_input_provenance["lineup_input_hash"] = "different-lineup-B"
+    _rehash_provenance(version)
+    row = _evidence_for(at, _capture(at), version)
+    assert row.pit_status == "PIT_UNPROVABLE"
+    assert "PRODUCER_LINEUP_MISMATCH" in row.payload["exclusion_reasons"]
+    assert "PRODUCER_INPUT_HASH_MISMATCH" not in row.payload["exclusion_reasons"]
+
+
+def test_ar4_analysis_evidence_reference_rejected() -> None:
+    """R4-03：任意 analysis digest（无对应 frozen 证据）→ 引用核验拒绝。"""
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+    version = _version(at)
+    version.producer_input_provenance = dict(version.producer_input_provenance)
+    version.producer_input_provenance["analysis_evidence_digest"] = "9" * 64
+    _rehash_provenance(version)
+    row = _evidence_for(at, _capture(at), version)
+    assert row.pit_status == "PIT_UNPROVABLE"
+    assert "PRODUCER_ANALYSIS_EVIDENCE_MISMATCH" in row.payload["exclusion_reasons"]
+
+
+def test_ar4_input_source_time_backdate_rejected() -> None:
+    """R4-01：无来源的早期 ISO 时间（与 capture xG as-of 不符）→ 来源拒绝。"""
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+    version = _version(at)
+    version.producer_input_provenance = dict(version.producer_input_provenance)
+    version.producer_input_provenance["model_input_available_at"] = "2000-01-01T00:00:00Z"
+    row = _evidence_for(at, _capture(at), version)
+    assert row.pit_status == "PIT_UNPROVABLE"
+    assert "PRODUCER_INPUT_SOURCE_MISMATCH" in row.payload["exclusion_reasons"]
+
+
+def test_ar2_payload_identity_and_matrix_real_recompute() -> None:
     """B：payload / identity / 完整矩阵用现有 canonical 合同真实重算，任一不自洽拒绝。"""
     at = datetime(2026, 9, 26, 8, tzinfo=UTC)
 

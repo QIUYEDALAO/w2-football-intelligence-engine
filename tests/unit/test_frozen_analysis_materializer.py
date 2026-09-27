@@ -266,6 +266,12 @@ def _patch_ready_projection(monkeypatch: pytest.MonkeyPatch) -> None:
             "decision_tier": "ANALYSIS_ONLY",
             "pick": None,
             "evaluated_at": evaluation_time.astimezone(UTC).isoformat(),
+            "data_readiness": {
+                # R4-01: model input availability source fact (newest xG snapshot
+                # observation time), not a capture time. Matches the four-field xG
+                # as-of the capture writer binds.
+                "xg_observed_at": "2026-07-18T04:57:00Z",
+            },
             "simulation": {
                 "status": "READY",
                 # a shaped production card declares its calibration; these tests are
@@ -1513,6 +1519,31 @@ def test_frozen_reader_accepts_the_pre_calibration_identity_version(
     assert [item.identity_hash for item in restored.evaluations] == [
         item.identity_hash for item in legacy
     ]
+
+
+def test_producer_input_availability_survives_frozen_write_and_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R4-02：来源时间经真实 materializer → frozen → 写库 → 回读逐字段一致。"""
+    _patch_ready_projection(monkeypatch)
+    when = datetime(2026, 7, 18, 5, tzinfo=UTC)
+    artifact = _materializer(ScopedRepository(), clock=lambda: when).build(
+        "1576804",
+        evaluated_at=when,
+        source_event=_event(),
+    )
+    before = artifact.evaluations[0].producer_input_provenance
+    assert before["model_input_available_at"] == "2026-07-18T04:57:00Z"
+
+    restored = validate_frozen_analysis_payload("1576804", artifact.payload)
+    after = restored.evaluations[0].producer_input_provenance
+    assert after == before  # 逐字段一致，时间不丢、不凭空生成
+
+    engine = _engine(dynamic=True)
+    write_frozen_analysis_artifacts(engine, [artifact])
+    repository = DynamicPrematchRepository(engine)
+    _, created = repository.append_evaluation(restored.evaluations[0])
+    assert created is False  # 幂等（相同 identity + 相同 provenance，不冲突）
 
 
 def test_same_source_event_replay_adds_scoreline_contract_as_new_immutable_evaluation(

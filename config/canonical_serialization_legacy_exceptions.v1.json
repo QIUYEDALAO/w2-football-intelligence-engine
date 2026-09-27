@@ -55,7 +55,6 @@
     {"path": "src/w2/providers/ledger.py", "symbol": "provider_request_hash", "hash_domain": "legacy.providers.request_ledger"},
     {"path": "src/w2/settlement/settle.py", "symbol": "stable_hash", "hash_domain": "legacy.settlement.result"},
     {"path": "src/w2/strategy/lock_ledger.py", "symbol": "_canonical_json", "hash_domain": "legacy.strategy.lock_ledger"},
-    {"path": "src/w2/strategy/simulate.py", "symbol": "_canonical_hash", "hash_domain": "legacy.strategy.simulation"},
     {"path": "src/w2/tracking/advisory_blind_spot_policy.py", "symbol": "_hash", "hash_domain": "legacy.tracking.advisory_policy"},
     {"path": "src/w2/tracking/finished_match_scoring_projection.py", "symbol": "_hash_value", "hash_domain": "legacy.tracking.finished_match_projection"},
     {"path": "src/w2/tracking/formal_results.py", "symbol": "stable_hash", "hash_domain": "legacy.tracking.formal_results"},

@@ -102,6 +102,26 @@ def _parse_utc(value: Any) -> datetime | None:
     return parsed if parsed.tzinfo is not None else None
 
 
+def _xg_as_of_upper_bound(capture: Any) -> datetime | None:
+    """Newest xG snapshot observation time the capture actually consumed.
+
+    The producer's ``model_input_available_at`` must equal this upper bound of
+    the four-field xG identities it bound into the capture -- the verifiable
+    source reference for "model input was available no later than forecast".
+    """
+    xg_identity = (capture.payload or {}).get("four_field_xg_identity")
+    if not isinstance(xg_identity, dict):
+        return None
+    observed: list[datetime] = []
+    for side in ("home", "away"):
+        side_identity = xg_identity.get(side)
+        if isinstance(side_identity, dict):
+            parsed = _parse_utc(side_identity.get("as_of"))
+            if parsed is not None:
+                observed.append(parsed)
+    return max(observed) if observed else None
+
+
 def _score_matrix_from_payload(
     payload: dict[str, Any] | None,
 ) -> dict[tuple[int, int], float] | None:
@@ -481,12 +501,20 @@ def append_forward_evidence_in_session(
     elif provenance.get("schema_version") != PRODUCER_INPUT_PROVENANCE_SCHEMA:
         reasons.append("INVALID_PRODUCER_INPUT_PROVENANCE")
     elif version.model_input_hash:
+        # R4-03: a missing component digest is not the same as null -- the
+        # producer must have emitted every digest it consumed. Absorbing an
+        # absent digest via .get(None) and still recomputing would let a
+        # deleted component pass as self-consistent.
+        if "simulation_digest" not in provenance:
+            reasons.append("MISSING_PRODUCER_SIMULATION_DIGEST")
+        if "analysis_evidence_digest" not in provenance:
+            reasons.append("MISSING_PRODUCER_ANALYSIS_EVIDENCE_DIGEST")
         model_input_identity = {
             "simulation": provenance.get("simulation_digest"),
             "analysis_evidence": provenance.get("analysis_evidence_digest"),
             "lineup_input_hash": provenance.get("lineup_input_hash"),
         }
-        if provenance.get("scoreline_projection_contract_version") is not None:
+        if "scoreline_projection_contract_version" in provenance:
             model_input_identity["scoreline_projection_contract_version"] = provenance[
                 "scoreline_projection_contract_version"
             ]
@@ -561,6 +589,25 @@ def append_forward_evidence_in_session(
                 simulation, domain=HashDomain.PREMATCH_READ_MODEL_SIMULATION
             ):
                 reasons.append("PRODUCER_SIMULATION_MISMATCH")
+            # R4-03: the provenance lineup identity must agree with the evaluation's
+            # own lineup identity. Non-post-lineup null must equal null.
+            if provenance.get("lineup_input_hash") != getattr(
+                version, "lineup_input_hash", None
+            ):
+                reasons.append("PRODUCER_LINEUP_MISMATCH")
+            # R4-03: analysis_evidence is verified against the frozen input manifest
+            # the capture bound (the immutable reference whose content the frozen
+            # reader recomputed), not a self-reported digest alone.
+            frozen_manifest = (payload.get("model_input_manifest") or {}).get(
+                "frozen_input_manifest"
+            )
+            frozen_analysis_evidence = (
+                frozen_manifest.get("analysis_evidence_sha256")
+                if isinstance(frozen_manifest, dict)
+                else None
+            )
+            if provenance.get("analysis_evidence_digest") != frozen_analysis_evidence:
+                reasons.append("PRODUCER_ANALYSIS_EVIDENCE_MISMATCH")
             model_input_at = _parse_utc(provenance.get("model_input_available_at"))
             quote_available_at = _parse_utc(provenance.get("quote_available_at"))
             if (
@@ -571,6 +618,12 @@ def append_forward_evidence_in_session(
                 or quote_available_at > version.evaluated_at
             ):
                 reasons.append("PRODUCER_INPUT_TIME_UNPROVABLE")
+            # R4-01: the model input availability is a source fact -- the newest
+            # xG snapshot observation time -- not a back-filled capture time. It
+            # must equal the capture's xG as-of upper bound (verifiable reference).
+            xg_upper_bound = _xg_as_of_upper_bound(capture)
+            if xg_upper_bound is None or model_input_at is None or model_input_at != xg_upper_bound:
+                reasons.append("PRODUCER_INPUT_SOURCE_MISMATCH")
         matrix = _score_matrix_from_payload(payload)
         if version.model_settlement_distribution is None:
             reasons.append("MISSING_SETTLEMENT_DISTRIBUTION")

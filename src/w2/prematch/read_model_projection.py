@@ -576,6 +576,17 @@ class AnalysisCardCanaryMaterializer:
                 card,
                 evaluated_at=evaluated_at,
             ),
+            # R4-01/R4-02: the model input availability upper bound is the xG
+            # snapshot observation time the producer consumed, recorded into the
+            # frozen manifest so the reader reproduces it exactly. It is NOT the
+            # capture time, and never a "latest capture" guess.
+            "producer_input_availability": {
+                "model_input_available_at": (
+                    (card.get("data_readiness") or {}).get("xg_observed_at")
+                    if isinstance(card.get("data_readiness"), dict)
+                    else None
+                ),
+            },
         }
         capture_reader = getattr(self.repository, "model_forecast_capture_exists", None)
         model_forecast_scoped = bool(
@@ -693,12 +704,6 @@ class AnalysisCardCanaryMaterializer:
                 }
                 for item in event.opportunity_contexts
             ]
-        capture_captured_at_reader = getattr(
-            self.repository, "model_forecast_capture_captured_at", None
-        )
-        capture_captured_at = (
-            capture_captured_at_reader(fixture_id) if callable(capture_captured_at_reader) else None
-        )
         evaluations = tuple(
             _dynamic_evaluations(
                 card,
@@ -707,7 +712,6 @@ class AnalysisCardCanaryMaterializer:
                 lineup_identity=dynamic_lineup_identity,
                 build_scoreline_reference=self.build_scoreline_reference,
                 opportunity_contexts=event.opportunity_contexts,
-                capture_captured_at=capture_captured_at,
             )
         )
         if not evaluations and card.get("pick") is not None:
@@ -1433,7 +1437,6 @@ def _dynamic_evaluations(
     opportunity_contexts: tuple[EvaluationOpportunityContext, ...] = (),
     evaluation_identity_version: str = EVALUATION_IDENTITY_VERSION,
     include_factor_verdict: bool = True,
-    capture_captured_at: datetime | None = None,
     attempt_profile: str = ATTEMPT_PROFILE_CURRENT,
 ) -> list[DynamicEvaluationVersion]:
     if not opportunity_contexts:
@@ -1600,14 +1603,17 @@ def _dynamic_evaluations(
             model_input_identity["scoreline_projection_contract_version"] = manifest[
                 "scoreline_projection_contract_version"
             ]
+        availability = manifest.get("producer_input_availability")
+        availability = availability if isinstance(availability, dict) else {}
         producer_input_provenance: dict[str, Any] = {
             "schema_version": PRODUCER_INPUT_PROVENANCE_SCHEMA,
             "simulation_digest": manifest.get("simulation_sha256"),
             "analysis_evidence_digest": manifest.get("analysis_evidence_sha256"),
             "lineup_input_hash": lineup_input_hash,
-            "model_input_available_at": (
-                capture_captured_at.isoformat() if capture_captured_at else None
-            ),
+            # The model input availability is a source fact read from the frozen
+            # manifest (xG snapshot observation time), not a capture-time guess,
+            # so the reader reproduces it byte for byte.
+            "model_input_available_at": availability.get("model_input_available_at"),
             "quote_available_at": capture_at.isoformat() if capture_at else None,
         }
         if "scoreline_projection_contract_version" in manifest:
