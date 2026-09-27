@@ -24,9 +24,7 @@ from w2.tracking.forward_evidence import (
     CLOCK_ID,
     T0,
     TRACK_D_FADE,
-    VALIDATION_SIGNAL,
     append_forward_evidence_in_session,
-    append_validation_signal_settlement_in_session,
     record_shadow_evidence_in_session,
     register_forward_clock,
     settle_track_d_validation_signals_in_session,
@@ -200,12 +198,17 @@ def test_clock_is_one_shot_and_cannot_precede_t0() -> None:
 
 
 def test_new_evaluation_binds_both_quotes_and_model_parameters() -> None:
+    """新评估写入并绑定报价/模型参数；producer 输入内容等价性 fail-closed。"""
     at = datetime(2026, 9, 26, 8, tzinfo=UTC)
     session = _Session(capture=_capture(at), quotes=_quotes(at))
     assert append_forward_evidence_in_session(session, _version(at)) is None
     register_forward_clock(session, started_at=T0, code_revision="a" * 40)
     row = append_forward_evidence_in_session(session, _version(at))
-    assert row is not None and row.pit_status == "PROVABLE"
+    assert row is not None
+    # 报价与模型参数仍然写入；但 producer 输入与 capture manifest 的等价性
+    # 未证明（缺原始输入组件），必须 UNPROVABLE，不因合法 64hex 放行。
+    assert row.pit_status == "PIT_UNPROVABLE"
+    assert "PRODUCER_INPUT_UNPROVABLE" in row.payload["exclusion_reasons"]
     assert row.payload["lambda_home"] == 1.2
     assert row.payload["rho"] == -0.08
     assert row.payload["quote_observation_ids"] == ["OVER", "UNDER"]
@@ -255,6 +258,25 @@ def test_ar2_producer_input_and_manifest_mapping_rejections() -> None:
     assert "MANIFEST_HASH_MISMATCH" in _evidence_for(
         at, manifest_mismatch
     ).payload["exclusion_reasons"]
+
+
+def test_ar2_legal_hex_but_inequivalent_producer_input_rejected() -> None:
+    """①：producer 输入合法 64hex 但内容错误/与 capture manifest 不等价 → 仍 UNPROVABLE。"""
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+
+    # 内容错误：合法 64hex，但非评估实际使用的输入。
+    wrong_content = _version(at)
+    wrong_content.model_input_hash = "f" * 64
+    row = _evidence_for(at, _capture(at), wrong_content)
+    assert row.pit_status == "PIT_UNPROVABLE"
+    assert "PRODUCER_INPUT_UNPROVABLE" in row.payload["exclusion_reasons"]
+
+    # 与 capture manifest 不等价：合法 64hex，但无等价映射。
+    inequivalent = _version(at)
+    inequivalent.model_input_hash = "e" * 64
+    row2 = _evidence_for(at, _capture(at), inequivalent)
+    assert row2.pit_status == "PIT_UNPROVABLE"
+    assert "PRODUCER_INPUT_UNPROVABLE" in row2.payload["exclusion_reasons"]
 
 
 def test_ar2_payload_identity_and_matrix_real_recompute() -> None:
@@ -391,7 +413,8 @@ def test_shadow_writer_logs_failure_without_aborting_evaluation(monkeypatch, cap
     assert "FORWARD_EVIDENCE_WRITE_FAILED evaluation_id=e" in caplog.text
 
 
-def test_under_evaluation_creates_separate_pit_fade_decision_and_channel_settlement() -> None:
+def test_under_evaluation_fade_fails_closed_without_producer_input_equivalence() -> None:
+    """①：producer 输入内容等价性未证明时，UNDER 评估不能派生合格 fade。"""
     at = datetime(2026, 9, 26, 8, tzinfo=UTC)
     source = _version(at)
     source.selection = "UNDER"
@@ -426,45 +449,18 @@ def test_under_evaluation_creates_separate_pit_fade_decision_and_channel_settlem
 
     fade_returned = record_shadow_evidence_in_session(session, version)
 
+    assert fade_returned is None  # 未证明等价，fade 不能派生合格信号
     rows = list(session.events.values())
-    assert len(rows) == 2
-    fade = next(row for row in rows if row.event_type == "DECISION_SNAPSHOT")
-    assert fade_returned is fade
-    assert fade.pit_status == "PROVABLE"
-    assert fade.payload["candidate_kind"] == TRACK_D_FADE
-    assert fade.payload["display_state"] == VALIDATION_SIGNAL
-    assert fade.payload["official_recommendation"] is False
-    assert fade.payload["original_selection"] == "UNDER"
-    assert fade.payload["selection"] == "OVER"
-    assert fade.payload["derived_from_evaluation_id"] == version.evaluation_id
-    assert fade.payload["decimal_odds_channel"] == 1.92
-    assert fade.payload["decimal_odds_pinnacle"] == 1.93
-    assert fade.payload["channel_quote_identity"] == "36-OVER"
-    assert fade.payload["pinnacle_quote_identity"]
-    assert fade.payload["market_quote_identity"] == fade.payload["pinnacle_quote_identity"]
-    assert fade.payload["source_quote_identity"] == version.quote_identity_hash
-    assert fade.payload["track_d_validation_signal"]["fade_delta"] == 0.05
-
-    settled = append_validation_signal_settlement_in_session(
-        session,
-        evaluation_id=version.evaluation_id,
-        settlement="WIN",
-        profit_units_channel=0.92,
-        settled_at=at + timedelta(hours=3),
-        home_goals=2,
-        away_goals=1,
-    )
-    assert settled.payload["profit_units_channel"] == 0.92
-    assert settled.payload["rebate_units_channel"] == pytest.approx(0.023)
-    assert settled.payload["profit_units_channel_with_rebate"] == pytest.approx(0.943)
+    original = next(row for row in rows if row.event_type == "EVALUATION_SNAPSHOT")
+    assert original.pit_status == "PIT_UNPROVABLE"
+    assert "PRODUCER_INPUT_UNPROVABLE" in original.payload["exclusion_reasons"]
+    for row in rows:
+        if row.event_type == "DECISION_SNAPSHOT":
+            assert row.payload["candidate_kind"] != TRACK_D_FADE
 
 
-def test_t1_totals_no_edge_reclassify_keeps_fade_derivation() -> None:
-    """裁决 T1 把 TOTALS 改判 NO_EDGE_CURRENT 后，fade 仍从 UNDER 评估派生。
-
-    锁死关键依赖：fade 派生的允许状态集合必须含 NO_EDGE_CURRENT；
-    修 T1 若引入不在集合里的新状态会弄断 fade，此测试即失败。
-    """
+def test_t1_totals_no_edge_fade_fails_closed_without_producer_input_equivalence() -> None:
+    """①：T1 改判 NO_EDGE_CURRENT 后，fade 派生仍因 producer 输入等价性 fail-closed。"""
     at = datetime(2026, 9, 26, 8, tzinfo=UTC)
     source = _version(at)
     source.selection = "UNDER"
@@ -500,10 +496,7 @@ def test_t1_totals_no_edge_reclassify_keeps_fade_derivation() -> None:
 
     fade = record_shadow_evidence_in_session(session, version)
 
-    assert fade is not None
-    assert fade.payload["candidate_kind"] == TRACK_D_FADE
-    assert fade.payload["display_state"] == VALIDATION_SIGNAL
-    assert fade.payload["selection"] == "OVER"
+    assert fade is None  # 未证明等价，fade 不能派生合格信号
 
 
 def test_pinnacle_cannot_be_used_as_fade_channel_price() -> None:

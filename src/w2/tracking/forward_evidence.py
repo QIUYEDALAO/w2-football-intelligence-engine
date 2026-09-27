@@ -457,12 +457,18 @@ def append_forward_evidence_in_session(
         reasons.append("TRACK_D_CHANNEL_OR_MARKET_QUOTE_UNPROVABLE")
     if any(value is None for value in (lambda_home, lambda_away, rho)) or not input_hash:
         reasons.append("MODEL_PARAMETER_UNPROVABLE")
-    # A：producer 实际输入证据 —— 必填且为合法 64hex；缺/错即 UNPROVABLE，
-    # 非空不等于正确。跨域不能直接比较字符串，但空或非法格式必须先拒。
+    # A：producer 实际输入证据 —— 必填、合法 64hex，且必须能证明其内容与
+    # capture manifest 等价。非空不等于正确，"合法 64hex" 也不等于内容正确。
+    # 格式（缺/错）先拒；格式合法但无法证明内容等价（producer 未保存可重算的
+    # 原始输入组件 simulation_sha256 / analysis_evidence_sha256 / lineup_input_hash，
+    # 与 capture manifest 分属不同域且无跨域映射）同样显式拒绝。补齐跨域映射
+    # （另交最小 schema 设计，即整改选项②）之前一律 fail-closed。
     if not getattr(version, "model_input_hash", None):
         reasons.append("MISSING_PRODUCER_INPUT")
     elif not _is_hex64(version.model_input_hash):
         reasons.append("INVALID_PRODUCER_INPUT_HASH")
+    else:
+        reasons.append("PRODUCER_INPUT_UNPROVABLE")
     if (
         capture is None
         or capture.fixture_id != version.fixture_id
