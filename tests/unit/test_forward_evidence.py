@@ -15,6 +15,8 @@ from w2.domain.canonical_serialization import (
     HashDomain,
     SerializerVersion,
     canonical_sha256,
+)
+from w2.domain.canonical_serialization import (
     canonical_sha256 as serialize_canonical_sha256,
 )
 from w2.infrastructure.database import Base
@@ -42,6 +44,7 @@ from w2.tracking.forward_evidence import (
 from w2.tracking.model_forecast_ledger import (
     MODEL_FORECAST_CAPTURE_HASH_DOMAIN,
     MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN,
+    MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN,
 )
 
 
@@ -223,39 +226,64 @@ def _capture(at: datetime) -> SimpleNamespace:
         "analysis_evidence_sha256": _ANALYSIS_EVIDENCE_DIGEST,
         "simulation_sha256": _SIMULATION_DIGEST,
     }
+    fixture_identity = {
+        "fixture_id": "api_football:123",
+        "home_provider_team_id": "home",
+        "away_provider_team_id": "away",
+        "identity_hash": "i" * 64,
+    }
+    home_side = {
+        "snapshot_identity": "snap-home",
+        "team_id": "home",
+        "as_of_fixture_id": "api_football:123",
+        "as_of": _xg_as_of(at),
+        "match_count": 1,
+        "xg_for": 1.5,
+        "xg_against": 1.0,
+        "component_team_xg_matches": _components(at, xg_for=1.5, xg_against=1.0),
+    }
+    away_side = {
+        "snapshot_identity": "snap-away",
+        "team_id": "away",
+        "as_of_fixture_id": "api_football:123",
+        "as_of": _xg_as_of(at),
+        "match_count": 1,
+        "xg_for": 1.2,
+        "xg_against": 1.1,
+        "component_team_xg_matches": _components(at, xg_for=1.2, xg_against=1.1),
+    }
+    home_side["identity_hash"] = canonical_sha256(
+        dict(home_side), domain=MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN
+    )
+    away_side["identity_hash"] = canonical_sha256(
+        dict(away_side), domain=MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN
+    )
+    four_field_xg_identity = {
+        "fixture_identity": fixture_identity,
+        "home": home_side,
+        "away": away_side,
+        "four_fields": {
+            "home_xg_for": 1.5,
+            "home_xg_against": 1.0,
+            "away_xg_for": 1.2,
+            "away_xg_against": 1.1,
+        },
+    }
+    four_field_xg_identity["identity_hash"] = canonical_sha256(
+        dict(four_field_xg_identity), domain=MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN
+    )
     manifest = {
         "frozen_input_manifest": frozen_input_manifest,
-        "fixture_identity_hash": "f" * 64,
+        "fixture_identity_hash": fixture_identity["identity_hash"],
         "simulation_input_hash": "e" * 64,
-        "four_field_xg_identity_hash": "x" * 64,
+        "four_field_xg_identity_hash": four_field_xg_identity["identity_hash"],
     }
     rows = deepcopy(_SCORE_MATRIX_ROWS)
     core = {
         "model_input_manifest": manifest,
         "score_matrix_distribution": rows,
         "simulation_replay": {"simulation": deepcopy(_SIMULATION)},
-        "four_field_xg_identity": {
-            "home": {
-                "as_of": _xg_as_of(at),
-                "match_count": 1,
-                "xg_for": 1.5,
-                "xg_against": 1.0,
-                "component_team_xg_matches": _components(at, xg_for=1.5, xg_against=1.0),
-            },
-            "away": {
-                "as_of": _xg_as_of(at),
-                "match_count": 1,
-                "xg_for": 1.2,
-                "xg_against": 1.1,
-                "component_team_xg_matches": _components(at, xg_for=1.2, xg_against=1.1),
-            },
-            "four_fields": {
-                "home_xg_for": 1.5,
-                "home_xg_against": 1.0,
-                "away_xg_for": 1.2,
-                "away_xg_against": 1.1,
-            },
-        },
+        "four_field_xg_identity": four_field_xg_identity,
     }
     capture_identity_hash = canonical_sha256(
         core, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN

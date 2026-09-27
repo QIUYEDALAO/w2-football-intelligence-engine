@@ -18,6 +18,8 @@ from w2.domain.canonical_serialization import (
     SerializerVersion,
     _canonical_hash,
     canonical_sha256,
+)
+from w2.domain.canonical_serialization import (
     canonical_sha256 as serialize_canonical_sha256,
 )
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
@@ -40,6 +42,7 @@ from w2.tracking.model_forecast_ledger import (
     MODEL_FAMILY,
     MODEL_FORECAST_CAPTURE_HASH_DOMAIN,
     MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN,
+    MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN,
 )
 
 TRACK_D_FADE = "TRACK_D_FADE"
@@ -169,8 +172,13 @@ def _xg_component_upper_bound(capture: Any) -> datetime | None:
         match_count = _finite(side_identity.get("match_count"))
         if match_count is None or match_count != len(components):
             return None
-        ids = [component.get("identity") if isinstance(component, dict) else None for component in components]
-        if any(not isinstance(value, str) or not value for value in ids) or len(set(ids)) != len(ids):
+        ids = [
+            component.get("identity") if isinstance(component, dict) else None
+            for component in components
+        ]
+        if any(not isinstance(value, str) or not value for value in ids) or len(set(ids)) != len(
+            ids
+        ):
             return None
         xg_for_sum = 0.0
         xg_against_sum = 0.0
@@ -191,6 +199,8 @@ def _xg_component_upper_bound(capture: Any) -> datetime | None:
                 or not _is_hex64(raw_hash)
                 or xg_for is None
                 or xg_against is None
+                or xg_for < 0
+                or xg_against < 0
             ):
                 return None
             xg_for_sum += xg_for
@@ -210,6 +220,17 @@ def _xg_component_upper_bound(capture: Any) -> datetime | None:
             return None
         if abs(round(xg_against_sum / len(components), 4) - side_xg_against) >= 1e-9:
             return None
+        # R8-01: the frozen side identity hash must reproduce from the side's
+        # own preimage (identity_hash excluded). A swapped component identity,
+        # fixture, raw hash, value, or team changes the preimage and is caught
+        # here -- format/mean checks alone never prove source identity.
+        side_preimage = {
+            key: value for key, value in side_identity.items() if key != "identity_hash"
+        }
+        if canonical_sha256(
+            side_preimage, domain=MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN
+        ) != side_identity.get("identity_hash"):
+            return None
         component_times.append(side_upper)
     # four_fields / model input must equal the side snapshot values.
     for side, prefix in (("home", "home"), ("away", "away")):
@@ -226,6 +247,30 @@ def _xg_component_upper_bound(capture: Any) -> datetime | None:
             or abs(four_against - side_xg_against) >= 1e-9
         ):
             return None
+    # R8-01: the frozen four-field identity hash must reproduce from its preimage
+    # (fixture_identity + home/away sides with their own identity_hash + four_fields),
+    # and the manifest must reference exactly that hash -- closing the
+    # component -> side -> four-field -> manifest/capture column chain.
+    fixture_identity = xg_identity.get("fixture_identity")
+    if not isinstance(fixture_identity, dict):
+        return None
+    four_field_preimage = {
+        "fixture_identity": fixture_identity,
+        "home": xg_identity["home"],
+        "away": xg_identity["away"],
+        "four_fields": four_fields,
+    }
+    if canonical_sha256(
+        four_field_preimage, domain=MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN
+    ) != xg_identity.get("identity_hash"):
+        return None
+    manifest = (capture.payload or {}).get("model_input_manifest")
+    if not isinstance(manifest, dict):
+        return None
+    if manifest.get("four_field_xg_identity_hash") != xg_identity.get("identity_hash"):
+        return None
+    if manifest.get("fixture_identity_hash") != fixture_identity.get("identity_hash"):
+        return None
     return max(component_times)
 
 

@@ -50,20 +50,20 @@ from w2.prematch.read_model_projection import (
     AnalysisCardCanaryMaterializer,
     ProjectionSourceEvent,
     _projection_business_hash,
-    canonical_sha256 as rmp_canonical_sha256,
     read_frozen_analysis_artifact,
     validate_frozen_analysis_payload,
     write_frozen_analysis_artifacts,
 )
+from w2.prematch.read_model_projection import (
+    canonical_sha256 as rmp_canonical_sha256,
+)
 from w2.prematch.repository import DynamicPrematchRepository
 from w2.tracking.forward_evidence import (
     T0,
-    append_forward_evidence_in_session,
     register_forward_clock,
 )
 from w2.tracking.model_forecast_ledger import (
     MODEL_FORECAST_CAPTURE_HASH_DOMAIN,
-    MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN,
     ModelForecastLedgerRepository,
     _capture_model,
     run_model_forecast_capture,
@@ -365,7 +365,9 @@ def _seed_quote_pair(engine: Any) -> None:
 
 
 def _materializer() -> AnalysisCardCanaryMaterializer:
-    def calculate(repository: Any, fixture_id: str, evaluated_at: datetime) -> dict[str, Any] | None:
+    def calculate(
+        repository: Any, fixture_id: str, evaluated_at: datetime
+    ) -> dict[str, Any] | None:
         del repository, evaluated_at
         if fixture_id != FIXTURE_ID:
             return None
@@ -386,7 +388,9 @@ def _materializer() -> AnalysisCardCanaryMaterializer:
     )
 
 
-def _event(opportunity_contexts: tuple[EvaluationOpportunityContext, ...] = ()) -> ProjectionSourceEvent:
+def _event(
+    opportunity_contexts: tuple[EvaluationOpportunityContext, ...] = (),
+) -> ProjectionSourceEvent:
     event = ProjectionSourceEvent.create(
         fixture_id=FIXTURE_ID,
         event_type="ODDS_CHANGED",
@@ -629,7 +633,10 @@ def test_r7_02_historical_manifest_reads_back_without_content() -> None:
 
     old_read = _historical_shadow_artifact(engine, materializer)
     assert old_read.evaluations
-    assert all("analysis_evidence" not in ev.producer_input_provenance for ev in old_read.evaluations)
+    assert all(
+        "analysis_evidence" not in ev.producer_input_provenance
+        for ev in old_read.evaluations
+    )
     # provenance is evidence-only: the evaluation identity is unchanged.
     assert [ev.identity_hash for ev in new_read.evaluations] == [
         ev.identity_hash for ev in old_read.evaluations
@@ -750,6 +757,74 @@ def test_real_chain_rejects_duplicate_component() -> None:
     row = _single_review(engine, evaluation)
     assert row.pit_status == "PIT_UNPROVABLE"
     assert "PRODUCER_INPUT_COMPONENT_SOURCE_MISMATCH" in row.payload["exclusion_reasons"]
+
+
+def _r8_mutation_chain(mutate) -> None:
+    engine = _engine()
+    _seed_xg(engine)
+    _seed_quote_pair(engine)
+    materializer = _materializer()
+    evaluation = _run_chain(engine, materializer, mutate_capture_payload=mutate)
+    row = _single_review(engine, evaluation)
+    assert row.pit_status == "PIT_UNPROVABLE", row.payload["exclusion_reasons"]
+    assert "PRODUCER_INPUT_COMPONENT_SOURCE_MISMATCH" in row.payload["exclusion_reasons"]
+
+
+def test_r8_01_rejects_swapped_component_identity() -> None:
+    def mutate(payload: dict) -> None:
+        payload["four_field_xg_identity"]["home"]["component_team_xg_matches"][0][
+            "identity"
+        ] = "other-team-match"
+
+    _r8_mutation_chain(mutate)
+
+
+def test_r8_01_rejects_swapped_component_fixture() -> None:
+    def mutate(payload: dict) -> None:
+        payload["four_field_xg_identity"]["home"]["component_team_xg_matches"][0][
+            "fixture_id"
+        ] = "other-match"
+
+    _r8_mutation_chain(mutate)
+
+
+def test_r8_01_rejects_swapped_raw_hash() -> None:
+    def mutate(payload: dict) -> None:
+        payload["four_field_xg_identity"]["home"]["component_team_xg_matches"][0][
+            "raw_statistics_sha256"
+        ] = "b" * 64
+
+    _r8_mutation_chain(mutate)
+
+
+def test_r8_01_rejects_offset_compensated_xg() -> None:
+    def mutate(payload: dict) -> None:
+        comps = payload["four_field_xg_identity"]["home"]["component_team_xg_matches"]
+        comps[0]["xg_for"] = comps[0]["xg_for"] + 0.5
+        comps[1]["xg_for"] = comps[1]["xg_for"] - 0.5
+
+    _r8_mutation_chain(mutate)
+
+
+def test_r8_01_rejects_negative_xg() -> None:
+    def mutate(payload: dict) -> None:
+        payload["four_field_xg_identity"]["home"]["component_team_xg_matches"][0]["xg_for"] = -1.0
+
+    _r8_mutation_chain(mutate)
+
+
+def test_r8_01_rejects_swapped_team_id() -> None:
+    def mutate(payload: dict) -> None:
+        payload["four_field_xg_identity"]["home"]["team_id"] = "away"
+
+    _r8_mutation_chain(mutate)
+
+
+def test_r8_01_rejects_swapped_side_identity_hash() -> None:
+    def mutate(payload: dict) -> None:
+        payload["four_field_xg_identity"]["home"]["identity_hash"] = "a" * 64
+
+    _r8_mutation_chain(mutate)
 
 
 def test_real_chain_rejects_missing_away_xg_source() -> None:
