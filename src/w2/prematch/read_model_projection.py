@@ -25,6 +25,9 @@ from w2.domain.canonical_serialization import (
 )
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.infrastructure.persistence.dynamic_prematch_models import (
+    DynamicPrematchEvaluationModel,
+)
 from w2.operations.observability import default_metric_registry
 from w2.prematch.lifecycle import (
     ATTEMPT_PROFILE_CURRENT,
@@ -46,7 +49,7 @@ from w2.prematch.lifecycle import (
     classify_evaluation,
     lineup_confirmed_refresh_plan,
 )
-from w2.prematch.repository import DynamicPrematchRepository
+from w2.prematch.repository import DynamicPrematchRepository, _version_from_payload
 from w2.tracking.advisory_blind_spot_policy import (
     POLICY_CHECKPOINT_KEY,
     validate_advisory_blind_spot_policy,
@@ -1239,6 +1242,34 @@ def write_frozen_analysis_artifacts(
                     else None
                 )
                 for evaluation in draft.evaluations:
+                    # R8-02: decide the historical provenance representation from
+                    # the actually-frozen evaluation payload, not from the marker
+                    # alone. A same-identity row already written under A-R6 carried
+                    # analysis_evidence content without a marker; replaying the
+                    # marker-less artifact rebuilds it as digest-only, so re-attach
+                    # the frozen content here to keep the retry idempotent instead of
+                    # falsely conflicting.
+                    existing_row = session.scalar(
+                        select(DynamicPrematchEvaluationModel).where(
+                            DynamicPrematchEvaluationModel.identity_hash
+                            == evaluation.identity_hash
+                        )
+                    )
+                    if existing_row is not None:
+                        prior = _version_from_payload(dict(existing_row.payload))
+                        prior_content = (prior.producer_input_provenance or {}).get(
+                            "analysis_evidence"
+                        )
+                        if prior_content is not None and "analysis_evidence" not in (
+                            evaluation.producer_input_provenance or {}
+                        ):
+                            evaluation = replace(
+                                evaluation,
+                                producer_input_provenance={
+                                    **(evaluation.producer_input_provenance or {}),
+                                    "analysis_evidence": prior_content,
+                                },
+                            )
                     repository.append_evaluation_in_session(
                         session,
                         evaluation,

@@ -15,7 +15,7 @@ import importlib.util
 import subprocess
 import sys
 import types
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -50,7 +50,7 @@ def _load_historical_module(sha: str, name: str) -> types.ModuleType:
     # Register before exec so dataclasses defined in the module can resolve their
     # own module namespace during class creation.
     sys.modules[name] = module
-    exec(source, module.__dict__)
+    exec(source, module.__dict__)  # noqa: S102 - load a fixed Git commit's module for replay
     return module
 
 
@@ -162,10 +162,9 @@ def test_r8_02_three_generations_content_and_idempotency() -> None:
     )
     evals = _write_and_read_back(engine, r6, artifact)
     assert all("analysis_evidence" in ev.producer_input_provenance for ev in evals)
-    # Read-contract limit: A-R5 and A-R6 artifacts are marker-less and byte-identical
-    # at the frozen-payload level, so the CURRENT reader replays both as digest-only
-    # (no content); the A-R6 content is preserved in the already-written evaluation
-    # payload, not reconstructed from the artifact.
+    # Read-time replay (no DB) of a marker-less artifact is digest-only; the write
+    # path decides from the actually-frozen evaluation payload (see the old->new
+    # retry test below) and re-attaches the content.
     current_read = current.validate_frozen_analysis_payload(
         _real["FIXTURE_ID"], artifact.payload
     )
@@ -205,3 +204,30 @@ def test_r8_02_same_identity_retry_idempotent_per_generation() -> None:
             session.commit()
         assert created is False, name
         assert prior.evaluation_id == evaluation.evaluation_id, name
+
+
+def test_r8_02_a_r6_unmarked_content_old_to_new_retry() -> None:
+    """A-R6 marker-less content: old module writes, current reader replays the same
+    artifact, the frozen content is re-attached and the retry stays idempotent."""
+    r6 = _load_historical_module(A_R6_SHA, "w2_r6_read_model_projection_oldnew")
+    engine = _new_engine()
+    _, artifact = _build_shadow(engine, r6)
+
+    # Old (A-R6) module writes with content.
+    r6.write_frozen_analysis_artifacts(engine, [artifact])
+
+    # Current reader replays the marker-less artifact; the write path re-attaches
+    # the frozen content so the retry does not conflict.
+    current.write_frozen_analysis_artifacts(engine, [artifact])
+
+    with Session(engine) as session:
+        row = session.scalar(select(DynamicPrematchEvaluationModel))
+    evaluation = _version_from_payload(dict(row.payload))
+    assert "analysis_evidence" in evaluation.producer_input_provenance
+
+    repository = DynamicPrematchRepository(engine)
+    with Session(engine) as session:
+        prior, created = repository.append_evaluation_in_session(session, evaluation)
+        session.commit()
+    assert created is False
+    assert prior.evaluation_id == evaluation.evaluation_id
