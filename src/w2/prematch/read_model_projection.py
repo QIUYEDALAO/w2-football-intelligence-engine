@@ -1609,6 +1609,11 @@ def _dynamic_evaluations(
             "schema_version": PRODUCER_INPUT_PROVENANCE_SCHEMA,
             "simulation_digest": manifest.get("simulation_sha256"),
             "analysis_evidence_digest": manifest.get("analysis_evidence_sha256"),
+            # R6-01/R6-02: carry the actual analysis evidence content so the
+            # forward reader can recompute analysis_evidence_digest from real
+            # content instead of reading the shadow checkpoint (which is written
+            # after this evaluation and can be replaced by a later quote).
+            "analysis_evidence": _analysis_evidence(card),
             "lineup_input_hash": lineup_input_hash,
             # The model input availability is a source fact read from the frozen
             # manifest (xG snapshot observation time), not a capture-time guess,

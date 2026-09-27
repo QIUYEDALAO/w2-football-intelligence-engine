@@ -28,7 +28,6 @@ from w2.domain.profit import (
     track_d_binary_cashflow,
     track_d_fair_probability,
 )
-from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.forward_evidence_models import (
     ForwardClockModel,
     RecommendationReviewLedgerModel,
@@ -136,6 +135,47 @@ def _xg_as_of_upper_bound(capture: Any) -> datetime | None:
             return None
         observed.append(parsed)
     return max(observed)
+
+
+def _xg_component_upper_bound(capture: Any) -> datetime | None:
+    """Newest xG component observation time the capture actually consumed.
+
+    R6-03: a snapshot's self-reported ``as_of`` is not enough. Each component's
+    ``captured_at`` must be at-or-before the snapshot ``as_of`` (snapshot
+    self-consistency), and the returned upper bound is the newest component time
+    so the caller can prove every component was available before the forecast.
+    A missing side, missing component set, or an unparseable/naive component
+    time fails closed with ``None``.
+    """
+    xg_identity = (capture.payload or {}).get("four_field_xg_identity")
+    if not isinstance(xg_identity, dict):
+        return None
+    component_times: list[datetime] = []
+    for side in ("home", "away"):
+        side_identity = xg_identity.get(side)
+        if not isinstance(side_identity, dict):
+            return None
+        snapshot_as_of = _parse_utc(side_identity.get("as_of"))
+        if snapshot_as_of is None:
+            return None
+        components = side_identity.get("component_team_xg_matches")
+        if not isinstance(components, list) or not components:
+            return None
+        side_times: list[datetime] = []
+        for component in components:
+            if not isinstance(component, dict):
+                return None
+            captured_at = _parse_utc(component.get("captured_at"))
+            if captured_at is None:
+                return None
+            side_times.append(captured_at)
+        side_upper = max(side_times)
+        # The snapshot cannot claim an as_of earlier than the components it
+        # actually consumed -- that would be a self-inconsistent source.
+        if side_upper > snapshot_as_of:
+            return None
+        component_times.append(side_upper)
+    return max(component_times)
 
 
 def _score_matrix_from_payload(
@@ -626,30 +666,30 @@ def append_forward_evidence_in_session(
                 version, "lineup_input_hash", None
             ):
                 reasons.append("PRODUCER_LINEUP_MISMATCH")
-            # R5-02: the analysis evidence digest is the CURRENT quote's analysis
+            # R6-02: the analysis evidence digest is the CURRENT quote's analysis
             # digest, and must be a legal 64-hex (null / fabricated / equal-empty
-            # strings never pass). It is verified against the evaluation's own
-            # frozen artifact (shadow checkpoint), not against the capture's older
-            # frozen manifest, so a legal later-quote update (P03) is not falsely
-            # rejected. Model evidence stays cross-checked against the capture.
+            # strings never pass). It is recomputed from the actual analysis
+            # evidence content carried on this evaluation's provenance -- never
+            # read from the shadow checkpoint, which is written after this
+            # evaluation and can be replaced by a later quote (R6-01). Tampering
+            # with the content without rehashing therefore fails here.
             analysis_digest = provenance.get("analysis_evidence_digest")
             if not _is_hex64(analysis_digest):
                 reasons.append("INVALID_PRODUCER_ANALYSIS_EVIDENCE_DIGEST")
+            elif "analysis_evidence" not in provenance:
+                reasons.append("MISSING_PRODUCER_ANALYSIS_EVIDENCE_CONTENT")
+            elif not isinstance(provenance.get("analysis_evidence"), dict):
+                reasons.append("INVALID_PRODUCER_ANALYSIS_EVIDENCE_CONTENT")
             else:
-                shadow_row = session.scalar(
-                    select(ReadModelCheckpointModel).where(
-                        ReadModelCheckpointModel.checkpoint_key
-                        == f"analysis-card:shadow:v1:{version.fixture_id}"
-                    )
+                # R6: the materializer computes analysis_evidence_sha256 through
+                # read_model_projection.canonical_sha256 (LEGACY_V1), so recompute
+                # the content under the same serialization version.
+                recomputed_analysis_digest = serialize_canonical_sha256(
+                    provenance["analysis_evidence"],
+                    domain=HashDomain.PREMATCH_READ_MODEL_ANALYSIS_EVIDENCE,
+                    version=SerializerVersion.LEGACY_V1,
                 )
-                shadow_analysis = (
-                    ((shadow_row.payload or {}).get("input_manifest") or {}).get(
-                        "analysis_evidence_sha256"
-                    )
-                    if shadow_row is not None and isinstance(shadow_row.payload, dict)
-                    else None
-                )
-                if analysis_digest != shadow_analysis:
+                if analysis_digest != recomputed_analysis_digest:
                     reasons.append("PRODUCER_ANALYSIS_EVIDENCE_MISMATCH")
             model_input_at = _parse_utc(provenance.get("model_input_available_at"))
             quote_available_at = _parse_utc(provenance.get("quote_available_at"))
@@ -667,6 +707,14 @@ def append_forward_evidence_in_session(
             xg_upper_bound = _xg_as_of_upper_bound(capture)
             if xg_upper_bound is None or model_input_at is None or model_input_at != xg_upper_bound:
                 reasons.append("PRODUCER_INPUT_SOURCE_MISMATCH")
+            # R6-03: the snapshot self-reported as_of is not enough -- every xG
+            # component actually consumed must be provably available before the
+            # forecast, and the snapshot as_of must not predate its components.
+            component_upper = _xg_component_upper_bound(capture)
+            if component_upper is None:
+                reasons.append("PRODUCER_INPUT_COMPONENT_SOURCE_MISMATCH")
+            elif forecast_at is not None and component_upper > forecast_at:
+                reasons.append("PRODUCER_INPUT_COMPONENT_FUTURE")
         matrix = _score_matrix_from_payload(payload)
         if version.model_settlement_distribution is None:
             reasons.append("MISSING_SETTLEMENT_DISTRIBUTION")

@@ -11,7 +11,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from w2.domain.canonical_serialization import _canonical_hash, canonical_sha256
@@ -280,21 +280,25 @@ def _engine() -> Any:
     return engine
 
 
-def _seed_xg(engine: Any) -> None:
+def _seed_xg(engine: Any, *, future_component: bool = False) -> None:
     with Session(engine) as session:
         for team_id, xg_for, xg_against in (
             ("home", 1.2, 0.8),
             ("away", 0.8, 1.2),
         ):
             for index in range(3):
+                if future_component and index == 2:
+                    captured_at = XG_AS_OF + timedelta(hours=4)
+                else:
+                    captured_at = XG_AS_OF - timedelta(hours=2 + index)
                 session.add(
                     TeamXgMatchModel(
                         id=f"history-{index}:{team_id}",
                         fixture_id=f"history-{index}",
                         team_id=team_id,
                         opponent_team_id="away" if team_id == "home" else "home",
-                        kickoff_at=KICKOFF - timedelta(days=4 - index),
-                        captured_at=KICKOFF - timedelta(days=3 - index),
+                        kickoff_at=XG_AS_OF - timedelta(days=2 + index),
+                        captured_at=captured_at,
                         xg_for=xg_for,
                         xg_against=xg_against,
                         goals_for=1,
@@ -393,11 +397,23 @@ def _event(opportunity_contexts: tuple[EvaluationOpportunityContext, ...] = ()) 
 def _run_chain(
     engine: Any,
     materializer: AnalysisCardCanaryMaterializer,
+    *,
+    clock_first: bool = True,
     mutate_capture_payload: Any | None = None,
 ) -> Any:
-    """Run the real chain once, optionally mutating the capture payload (resealing
-    its outer hashes) before the opportunity is bound, and return the TOTALS
-    evaluation plus the bound capture hash."""
+    """Run the real chain in production order.
+
+    R6-01: the forward clock is started BEFORE the evaluation is produced, then
+    ``run_model_forecast_capture(dry_run=False, write_db=True)`` persists the
+    capture, then the real materializer / frozen writer automatically calls the
+    forward writer inside the same transaction. The positive sample never calls
+    forward manually after the fact.
+    """
+    if clock_first:
+        with Session(engine) as session:
+            register_forward_clock(session, started_at=T0, code_revision="a" * 40)
+            session.commit()
+
     artifact = materializer.build(FIXTURE_ID, evaluated_at=EVALUATED_AT, source_event=None)
     write_frozen_analysis_artifacts(engine, [artifact])
 
@@ -409,17 +425,31 @@ def _run_chain(
         **card,
         "simulation": {"status": simulation.get("status"), "simulation": simulation},
     }
-    result = run_model_forecast_capture(
-        {"cards": [model_forecast_card]},
-        repository=ModelForecastLedgerRepository(engine),
-        captured_at=CAPTURED_AT,
-        dry_run=True,
-        write_db=False,
-    )
-    assert result["model_forecast_capture_count"] == 1
-    capture = dict(result["captures"][0])
 
-    if mutate_capture_payload is not None:
+    if mutate_capture_payload is None:
+        result = run_model_forecast_capture(
+            {"cards": [model_forecast_card]},
+            repository=ModelForecastLedgerRepository(engine),
+            captured_at=CAPTURED_AT,
+            dry_run=False,
+            write_db=True,
+        )
+        assert result["model_forecast_capture_count"] == 1
+        with Session(engine) as session:
+            capture = session.query(ModelForecastCaptureModel).one()
+            capture_hash = capture.capture_identity_hash
+            model_input_hash = capture.model_input_manifest_hash
+    else:
+        # Counter-example: mutate one capture field and reseal its outer hashes.
+        result = run_model_forecast_capture(
+            {"cards": [model_forecast_card]},
+            repository=ModelForecastLedgerRepository(engine),
+            captured_at=CAPTURED_AT,
+            dry_run=True,
+            write_db=False,
+        )
+        assert result["model_forecast_capture_count"] == 1
+        capture = dict(result["captures"][0])
         mutate_capture_payload(capture)
         identity = {
             key: value for key, value in capture.items() if key != "capture_identity_hash"
@@ -434,13 +464,11 @@ def _run_chain(
             capture["model_input_manifest"],
             domain=MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN,
         )
-
-    with Session(engine) as session:
-        session.add(_capture_model(capture, inserted_at=CAPTURED_AT))
-        session.commit()
-
-    capture_hash = capture["capture_identity_hash"]
-    model_input_hash = capture["model_input_manifest_hash"]
+        with Session(engine) as session:
+            session.add(_capture_model(capture, inserted_at=CAPTURED_AT))
+            session.commit()
+        capture_hash = capture["capture_identity_hash"]
+        model_input_hash = capture["model_input_manifest_hash"]
 
     context = EvaluationOpportunityContext(
         model_forecast_capture_identity_hash=capture_hash,
@@ -458,11 +486,22 @@ def _run_chain(
     return next(item for item in bound.evaluations if item.market == "TOTALS")
 
 
-def _forward(engine: Any, evaluation: Any) -> Any:
+def _review_rows(engine: Any, evaluation_id: str) -> list[Any]:
+    """Read the review ledger the repository's automatic forward already wrote."""
     with Session(engine) as session:
-        register_forward_clock(session, started_at=T0, code_revision="a" * 40)
-        session.commit()
-        return append_forward_evidence_in_session(session, evaluation)
+        return list(
+            session.scalars(
+                select(RecommendationReviewLedgerModel).where(
+                    RecommendationReviewLedgerModel.evaluation_id == evaluation_id
+                )
+            ).all()
+        )
+
+
+def _single_review(engine: Any, evaluation: Any) -> Any:
+    rows = _review_rows(engine, evaluation.evaluation_id)
+    assert rows, "repository automatic forward did not write a review ledger row"
+    return rows[0]
 
 
 def test_real_chain_provable() -> None:
@@ -475,10 +514,24 @@ def test_real_chain_provable() -> None:
         DynamicEvaluationState.NO_EDGE_CURRENT,
         DynamicEvaluationState.ANALYSIS_PICK_ACTIVE,
     ), (evaluation.state, evaluation.blockers)
-    row = _forward(engine, evaluation)
-    assert row is not None
+    row = _single_review(engine, evaluation)
     assert row.pit_status == "PROVABLE", row.payload["exclusion_reasons"]
     assert row.payload["exclusion_reasons"] == []
+
+
+def test_real_chain_rejects_future_xg_component() -> None:
+    engine = _engine()
+    _seed_xg(engine, future_component=True)
+    _seed_quote_pair(engine)
+    materializer = _materializer()
+    evaluation = _run_chain(engine, materializer)
+    row = _single_review(engine, evaluation)
+    assert row.pit_status == "PIT_UNPROVABLE"
+    reasons = row.payload["exclusion_reasons"]
+    assert (
+        "PRODUCER_INPUT_COMPONENT_FUTURE" in reasons
+        or "PRODUCER_INPUT_COMPONENT_SOURCE_MISMATCH" in reasons
+    ), reasons
 
 
 def test_real_chain_rejects_missing_away_xg_source() -> None:
@@ -490,9 +543,8 @@ def test_real_chain_rejects_missing_away_xg_source() -> None:
     def mutate(payload: dict) -> None:
         payload["four_field_xg_identity"].pop("away")
 
-    evaluation = _run_chain(engine, materializer, mutate)
-    row = _forward(engine, evaluation)
-    assert row is not None
+    evaluation = _run_chain(engine, materializer, mutate_capture_payload=mutate)
+    row = _single_review(engine, evaluation)
     assert row.pit_status == "PIT_UNPROVABLE"
     assert "PRODUCER_INPUT_SOURCE_MISMATCH" in row.payload["exclusion_reasons"]
 
@@ -506,8 +558,7 @@ def test_real_chain_rejects_invalid_away_xg_time() -> None:
     def mutate(payload: dict) -> None:
         payload["four_field_xg_identity"]["away"]["as_of"] = "not-a-time"
 
-    evaluation = _run_chain(engine, materializer, mutate)
-    row = _forward(engine, evaluation)
-    assert row is not None
+    evaluation = _run_chain(engine, materializer, mutate_capture_payload=mutate)
+    row = _single_review(engine, evaluation)
     assert row.pit_status == "PIT_UNPROVABLE"
     assert "PRODUCER_INPUT_SOURCE_MISMATCH" in row.payload["exclusion_reasons"]

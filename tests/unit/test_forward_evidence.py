@@ -142,8 +142,10 @@ _SIMULATION_DIGEST = serialize_canonical_sha256(
     domain=HashDomain.PREMATCH_READ_MODEL_SIMULATION,
     version=SerializerVersion.LEGACY_V1,
 )
-_ANALYSIS_EVIDENCE_DIGEST = canonical_sha256(
-    {}, domain=HashDomain.PREMATCH_READ_MODEL_ANALYSIS_EVIDENCE
+_ANALYSIS_EVIDENCE_DIGEST = serialize_canonical_sha256(
+    {},
+    domain=HashDomain.PREMATCH_READ_MODEL_ANALYSIS_EVIDENCE,
+    version=SerializerVersion.LEGACY_V1,
 )
 _MODEL_INPUT_HASH = canonical_sha256(
     {
@@ -178,6 +180,8 @@ def _version(at: datetime) -> SimpleNamespace:
             "schema_version": PRODUCER_INPUT_PROVENANCE_SCHEMA,
             "simulation_digest": _SIMULATION_DIGEST,
             "analysis_evidence_digest": _ANALYSIS_EVIDENCE_DIGEST,
+            # R6: the actual analysis evidence content, recomputed by forward.
+            "analysis_evidence": {},
             "lineup_input_hash": None,
             # The newest xG snapshot observation time (source fact), independent
             # of the capture time. Must equal the capture's xG as-of upper bound.
@@ -194,6 +198,23 @@ def _version(at: datetime) -> SimpleNamespace:
 
 def _xg_as_of(at: datetime) -> str:
     return (at - timedelta(minutes=5)).astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _components(at: datetime) -> list[dict]:
+    """xG components available strictly before the snapshot as_of and forecast."""
+    return [
+        {
+            "identity": "comp-1",
+            "fixture_id": "hist-1",
+            "kickoff_at": (at - timedelta(days=3)).isoformat(),
+            "captured_at": (at - timedelta(minutes=6)).astimezone(UTC).isoformat().replace(
+                "+00:00", "Z"
+            ),
+            "xg_for": 0.9,
+            "xg_against": 0.8,
+            "raw_statistics_sha256": "s" * 64,
+        }
+    ]
 
 
 def _capture(at: datetime) -> SimpleNamespace:
@@ -214,8 +235,18 @@ def _capture(at: datetime) -> SimpleNamespace:
         "score_matrix_distribution": rows,
         "simulation_replay": {"simulation": deepcopy(_SIMULATION)},
         "four_field_xg_identity": {
-            "home": {"as_of": _xg_as_of(at), "xg_for": 1.5, "xg_against": 1.0},
-            "away": {"as_of": _xg_as_of(at), "xg_for": 1.2, "xg_against": 1.1},
+            "home": {
+                "as_of": _xg_as_of(at),
+                "xg_for": 1.5,
+                "xg_against": 1.0,
+                "component_team_xg_matches": _components(at),
+            },
+            "away": {
+                "as_of": _xg_as_of(at),
+                "xg_for": 1.2,
+                "xg_against": 1.1,
+                "component_team_xg_matches": _components(at),
+            },
             "four_fields": {
                 "home_xg_for": 1.5,
                 "home_xg_against": 1.0,
@@ -446,6 +477,30 @@ def test_ar4_analysis_evidence_reference_rejected() -> None:
     assert "PRODUCER_ANALYSIS_EVIDENCE_MISMATCH" in row.payload["exclusion_reasons"]
 
 
+def test_ar6_missing_analysis_evidence_content_rejected() -> None:
+    """R6-02：删身份只留摘要 → 缺实际 analysis 内容拒绝。"""
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+    version = _version(at)
+    version.producer_input_provenance = dict(version.producer_input_provenance)
+    version.producer_input_provenance.pop("analysis_evidence")
+    _rehash_provenance(version)
+    row = _evidence_for(at, _capture(at), version)
+    assert row.pit_status == "PIT_UNPROVABLE"
+    assert "MISSING_PRODUCER_ANALYSIS_EVIDENCE_CONTENT" in row.payload["exclusion_reasons"]
+
+
+def test_ar6_tampered_analysis_evidence_content_rejected() -> None:
+    """R6-02：改 analysis 内容但保留原 digest → 内容重算拒绝。"""
+    at = datetime(2026, 9, 26, 8, tzinfo=UTC)
+    version = _version(at)
+    version.producer_input_provenance = dict(version.producer_input_provenance)
+    version.producer_input_provenance["analysis_evidence"] = {"ou": {"tampered": True}}
+    _rehash_provenance(version)
+    row = _evidence_for(at, _capture(at), version)
+    assert row.pit_status == "PIT_UNPROVABLE"
+    assert "PRODUCER_ANALYSIS_EVIDENCE_MISMATCH" in row.payload["exclusion_reasons"]
+
+
 def test_ar5_null_analysis_digest_rejected() -> None:
     """R5-02：analysis digest 为 null 必须拒绝，不能两端 null 相等放行。"""
     at = datetime(2026, 9, 26, 8, tzinfo=UTC)
@@ -485,8 +540,10 @@ def test_ar5_legal_later_quote_update_not_rejected() -> None:
     }
 
     def digest(card: dict) -> str:
-        return canonical_sha256(
-            _analysis_evidence(card), domain=HashDomain.PREMATCH_READ_MODEL_ANALYSIS_EVIDENCE
+        return serialize_canonical_sha256(
+            _analysis_evidence(card),
+            domain=HashDomain.PREMATCH_READ_MODEL_ANALYSIS_EVIDENCE,
+            version=SerializerVersion.LEGACY_V1,
         )
 
     old_digest = digest(old)
@@ -513,9 +570,10 @@ def test_ar5_legal_later_quote_update_not_rejected() -> None:
     version = _version(at)
     version.producer_input_provenance = dict(version.producer_input_provenance)
     version.producer_input_provenance["analysis_evidence_digest"] = new_digest
+    version.producer_input_provenance["analysis_evidence"] = _analysis_evidence(new)
     _rehash_provenance(version)
 
-    session = _Session(capture=capture, quotes=_quotes(at), shadow_analysis=new_digest)
+    session = _Session(capture=capture, quotes=_quotes(at))
     register_forward_clock(session, started_at=T0, code_revision="a" * 40)
     row = append_forward_evidence_in_session(session, version)
     assert row.pit_status == "PROVABLE", row.payload["exclusion_reasons"]
