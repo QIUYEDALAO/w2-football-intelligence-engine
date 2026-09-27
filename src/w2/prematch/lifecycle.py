@@ -179,6 +179,8 @@ class DynamicEvaluationInput:
     mainline_parsed: bool = False
     denominator_scope: str | None = None
     calibration_identity: str | None = None
+    model_version: str | None = None
+    score_matrix_hash: str | None = None
     one_x_two_probabilities: Mapping[str, Any] | None = None
     # Factor verdict, versioned. Absent on ASIAN_HANDICAP fails closed: an
     # evaluation that never carried a factor verdict is exactly the case this
@@ -232,6 +234,8 @@ class DynamicEvaluationVersion:
     season: str | None = None
     provider: str | None = None
     model_settlement_distribution: dict[str, float] | None = None
+    model_version: str | None = None
+    score_matrix_hash: str | None = None
     scoreline_reference: dict[str, Any] | None = None
     bookmaker_count: int = 0
     denominator_scope: str | None = None
@@ -351,7 +355,6 @@ def bind_evaluation_opportunity(
         version,
         evaluation_id=f"dqe-{attempt_hash}",
         identity_hash=attempt_hash,
-        model_input_hash=context.model_input_hash,
         checkpoint=context.evaluation_slot_id,
         denominator_scope=CHECKPOINT_OPPORTUNITY_SCOPE,
         measurement_semantics=CHECKPOINT_OPPORTUNITY_SEMANTICS,
@@ -892,6 +895,8 @@ def classify_evaluation(
         season=str(value.season) if value.season else None,
         provider=str(value.provider) if value.provider else None,
         model_settlement_distribution=distribution,
+        model_version=value.model_version,
+        score_matrix_hash=value.score_matrix_hash,
         bookmaker_count=max(0, int(value.bookmaker_count)),
         denominator_scope=value.denominator_scope,
         first_failed_gate=failed_gates[0] if failed_gates else None,

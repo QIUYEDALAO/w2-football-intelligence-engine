@@ -1697,6 +1697,17 @@ def _dynamic_evaluations(
                 and simulation.get("calibration_identity")
                 else None
             ),
+            model_version=(
+                str(simulation.get("model_version"))
+                if isinstance(simulation, Mapping) and simulation.get("model_version")
+                else None
+            ),
+            score_matrix_hash=(
+                str(score_matrix_summary.get("score_matrix_hash"))
+                if score_matrix_summary is not None
+                and score_matrix_summary.get("score_matrix_hash")
+                else None
+            ),
             one_x_two_probabilities=one_x_two_probabilities,
         )
         version = classify_evaluation(value, identity_version=evaluation_identity_version)

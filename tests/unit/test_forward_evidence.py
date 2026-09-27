@@ -110,6 +110,8 @@ def _version(at: datetime) -> SimpleNamespace:
         calibration_identity="candidate-eval.v2",
         model_input_hash="m" * 64,
         model_settlement_distribution=dict(_SETTLED_DISTRIBUTION),
+        model_version="v1",
+        score_matrix_hash="a" * 64,
         state=SimpleNamespace(value="NO_EDGE_CURRENT"),
         factor_decision_status="ADMITTED",
     )
@@ -123,7 +125,11 @@ def _capture(at: datetime) -> SimpleNamespace:
         model_family="EXACT_DC_POISSON",
         model_version="v1",
         model_input_manifest_hash="m" * 64,
+        capture_identity_hash="c" * 64,
+        payload_sha256="a" * 64,
+        score_matrix_hash="a" * 64,
         payload={
+            "model_input_manifest": {"nonempty": True},
             "score_matrix_distribution": _SCORE_MATRIX_ROWS,
             "simulation_replay": {
                 "simulation": {
@@ -221,8 +227,8 @@ def test_forecast_capture_semantic_rejections() -> None:
     assert "MODEL_VERSION_MISMATCH" in evidence_for(wrong_version).payload["exclusion_reasons"]
 
     wrong_manifest = _capture(at)
-    wrong_manifest.model_input_manifest_hash = "z" * 64
-    assert "MODEL_INPUT_MANIFEST_MISMATCH" in evidence_for(
+    wrong_manifest.payload["model_input_manifest"] = {}
+    assert "MISSING_MODEL_INPUT_MANIFEST" in evidence_for(
         wrong_manifest
     ).payload["exclusion_reasons"]
 
@@ -272,8 +278,8 @@ def test_under_evaluation_creates_separate_pit_fade_decision_and_channel_settlem
     source.decimal_odds = 1.98
     source.track_d_validation_signal = None
     source.model_settlement_distribution = {
-        "WIN": 0.45, "HALF_WIN": 0.0, "PUSH": 0.0,
-        "HALF_LOSS": 0.0, "LOSS": 0.55,
+        "WIN": 0.25, "HALF_WIN": 0.0, "PUSH": 0.0,
+        "HALF_LOSS": 0.0, "LOSS": 0.75,
     }
     version_type = make_dataclass("UnderVersion", [(key, object) for key in vars(source)])
     version = version_type(**vars(source))
@@ -346,8 +352,8 @@ def test_t1_totals_no_edge_reclassify_keeps_fade_derivation() -> None:
     source.state = SimpleNamespace(value="NO_EDGE_CURRENT")
     source.track_d_validation_signal = None
     source.model_settlement_distribution = {
-        "WIN": 0.45, "HALF_WIN": 0.0, "PUSH": 0.0,
-        "HALF_LOSS": 0.0, "LOSS": 0.55,
+        "WIN": 0.25, "HALF_WIN": 0.0, "PUSH": 0.0,
+        "HALF_LOSS": 0.0, "LOSS": 0.75,
     }
     version_type = make_dataclass("T1NoEdgeUnder", [(key, object) for key in vars(source)])
     version = version_type(**vars(source))

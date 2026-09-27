@@ -68,6 +68,27 @@ def _bind_forecast_capture(version: DynamicEvaluationVersion) -> DynamicEvaluati
         blockers=version.blockers + (_MODEL_FORECAST_CAPTURE_UNRESOLVED,),
     )
 
+
+_IDENTITY_CONFLICT_FIELDS = (
+    "fixture_id", "market", "selection", "exact_line", "bookmaker_id",
+    "capture_id", "quote_identity_hash", "model_input_hash",
+    "model_forecast_capture_identity_hash", "model_version", "score_matrix_hash",
+    "model_settlement_distribution", "calibration_identity",
+    "evaluation_policy_version", "checkpoint",
+)
+
+
+def _versions_conflict(
+    existing: DynamicEvaluationVersion,
+    version: DynamicEvaluationVersion,
+) -> bool:
+    """同 identity 重放须一致；业务字段差异即显式冲突（不比较 recorded_at）。"""
+    return any(
+        getattr(existing, field, None) != getattr(version, field, None)
+        for field in _IDENTITY_CONFLICT_FIELDS
+    )
+
+
 PAIR_PROJECTOR_SCHEMA = "w2.eval_02b_exact_pair_projection.v2"
 _PAIR_MARKETS = {MarketType.ASIAN_HANDICAP.value, MarketType.TOTALS.value}
 #: States in which an evaluation is *complete* -- quote identity, model
@@ -127,7 +148,10 @@ class DynamicPrematchRepository:
                 )
                 if existing is None:
                     raise
-                return _version_from_payload(existing.payload), False
+                prior = _version_from_payload(existing.payload)
+                if _versions_conflict(prior, version):
+                    raise ValueError("EVALUATION_IDENTITY_CONFLICT") from None
+                return prior, False
 
     def denominator_covered_fixture_ids(self) -> set[str]:
         """Return canonical bare fixture ids with both current market rows."""
@@ -170,7 +194,10 @@ class DynamicPrematchRepository:
             )
         )
         if existing is not None:
-            return _version_from_payload(existing.payload), False
+            prior = _version_from_payload(existing.payload)
+            if _versions_conflict(prior, version):
+                raise ValueError("EVALUATION_IDENTITY_CONFLICT") from None
+            return prior, False
         persisted = replace(version, recorded_at=datetime.now(UTC))
         payload = persisted.as_dict()
         # Supersession is scoped to one evaluation slot.  Keyed on fixture x market

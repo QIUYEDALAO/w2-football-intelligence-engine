@@ -138,6 +138,24 @@ def _five_state_close(left: dict[str, float], right: dict[str, float]) -> bool:
     )
 
 
+def _is_hex64(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(
+        c in "0123456789abcdef" for c in value
+    )
+
+
+def _matrix_valid(matrix: dict[tuple[int, int], float]) -> bool:
+    """矩阵行合法：非负整数比分、有限非负概率、质量合计约 1。"""
+    total = 0.0
+    for (home, away), probability in matrix.items():
+        if not isinstance(home, int) or not isinstance(away, int) or home < 0 or away < 0:
+            return False
+        if not math.isfinite(probability) or probability < 0:
+            return False
+        total += probability
+    return abs(total - 1.0) <= 1e-6
+
+
 def _pair(
     session: Session,
     version: Any,
@@ -429,24 +447,41 @@ def append_forward_evidence_in_session(
     if capture is not None:
         if capture.model_family != MODEL_FAMILY:
             reasons.append("MODEL_FAMILY_MISMATCH")
-        # model_version 对齐依据：评估实际使用的模型版本 = capture 绑定的预测的
-        # simulation.model_version（capture.model_version 列是其写入副本）。显式核对
-        # 列与 payload 两处记录一致，不依赖 identity_hash 回溯的隐含保证。
-        if capture.model_version != str((simulation or {}).get("model_version") or ""):
+        # R1 真实来源贯通：producer 的模型版本/完整矩阵身份与 capture 显式对照，
+        # 不依赖 identity_hash 回溯的隐含保证。
+        if getattr(version, "model_version", None) != capture.model_version:
             reasons.append("MODEL_VERSION_MISMATCH")
-        if getattr(version, "model_input_hash", None) != capture.model_input_manifest_hash:
-            reasons.append("MODEL_INPUT_MANIFEST_MISMATCH")
-        if not fade_requested and version.model_settlement_distribution:
+        if getattr(version, "score_matrix_hash", None) != capture.score_matrix_hash:
+            reasons.append("SCORE_MATRIX_HASH_MISMATCH")
+        # R3 完整性 fail-closed：坏 hash / 空 manifest / 缺分布 / 坏矩阵显式拒绝。
+        if not _is_hex64(getattr(capture, "capture_identity_hash", None)):
+            reasons.append("INVALID_CAPTURE_HASH")
+        if not _is_hex64(getattr(capture, "payload_sha256", None)):
+            reasons.append("INVALID_PAYLOAD_HASH")
+        if not _is_hex64(getattr(capture, "score_matrix_hash", None)):
+            reasons.append("INVALID_SCORE_MATRIX_HASH")
+        if not (capture.payload or {}).get("model_input_manifest"):
+            reasons.append("MISSING_MODEL_INPUT_MANIFEST")
+        matrix = _score_matrix_from_payload(capture.payload)
+        if version.model_settlement_distribution is None:
+            reasons.append("MISSING_SETTLEMENT_DISTRIBUTION")
+        elif not matrix or not _matrix_valid(matrix):
+            reasons.append("INVALID_SCORE_MATRIX")
+        else:
             try:
                 line = Decimal(str(version.exact_line))
             except (InvalidOperation, TypeError, ValueError):
                 line = None
             if line is not None:
+                # fade 以原 UNDER 方向核验源五态（派生 OVER 另按旧冻结合同计算）。
+                source_selection = str(
+                    (getattr(version, "track_d_validation_signal", None) or {}).get(
+                        "source_selection"
+                    )
+                    or version.selection
+                )
                 expected = _five_state_from_score_matrix(
-                    _score_matrix_from_payload(capture.payload),
-                    version.market,
-                    version.selection,
-                    line,
+                    matrix, version.market, source_selection, line
                 )
                 if expected is not None and not _five_state_close(
                     version.model_settlement_distribution, expected
