@@ -26,10 +26,16 @@ from w2.infrastructure.persistence.model_forecast_models import (
 )
 from w2.infrastructure.persistence.models import ResultModel
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+from w2.tracking.model_forecast_constants import (
+    MODEL_FAMILY,
+    MODEL_FORECAST_CAPTURE_HASH_DOMAIN,
+    MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN,
+    MODEL_FORECAST_OUTCOME_HASH_DOMAIN,
+    MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN,
+)
 
 CAPTURE_SCHEMA = "w2.model_forecast_capture.v2"
 OUTCOME_SCHEMA = "w2.model_forecast_outcome.v2"
-MODEL_FAMILY = "EXACT_DC_POISSON"
 CAPTURE_POLICY = "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"
 NO_HORIZON = "NONE"
 
@@ -99,10 +105,6 @@ def capture_horizon_for_policy(policy: str) -> str:
 TERMINAL_RESULT_STATUSES = frozenset({"FT", "AET", "PEN"})
 OUTCOME_CLASSES = ("HOME", "DRAW", "AWAY")
 LEAD_TIME_BUCKETS = ("LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D")
-MODEL_FORECAST_CAPTURE_HASH_DOMAIN = HashDomain.FUTURE_REFRESH_EVIDENCE
-MODEL_FORECAST_OUTCOME_HASH_DOMAIN = HashDomain.OUTCOME_LEDGER_PAYLOAD
-MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN = HashDomain.FUTURE_REFRESH_FIXTURE_IDENTITY
-MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN = HashDomain.FUTURE_REFRESH_EVIDENCE
 
 
 class ModelForecastLedgerError(ValueError):

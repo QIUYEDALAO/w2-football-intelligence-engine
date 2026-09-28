@@ -90,8 +90,9 @@ def store():
                         "(history_id, fixture_id, provider, provider_fixture_id, competition_id, "
                         "season, kickoff_utc, fixture_status, team_side, team_provider_id, "
                         "opponent_provider_id, team_w2_id, opponent_w2_id, goals_for, goals_against, "
-                        "result_identity_hash, source_raw_hash, captured_at, history_hash, payload) "
-                        "VALUES (:rid, :fx, 'p', :pfx, 'c', 's', :ko, 'FT', 'HOME', 'tp', 'op', 'th', 'oa', 1, 0, 'rh', 'sh', :ko, :hh, '{}')"
+                        "result_identity_hash, source_raw_hash, captured_at, history_hash, payload, "
+                        "pit_proven) "
+                        "VALUES (:rid, :fx, 'p', :pfx, 'c', 's', :ko, 'FT', 'HOME', 'tp', 'op', 'th', 'oa', 1, 0, 'rh', 'sh', :ko, :hh, '{}', 1)"
                     ),
                     {
                         "rid": f"{factor_id}-rec-{i}",

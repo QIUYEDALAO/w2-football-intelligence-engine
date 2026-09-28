@@ -44,18 +44,20 @@ def upgrade() -> None:
     )
     op.create_index("ix_review_evaluated_at", "recommendation_review_ledger", ["evaluated_at"])
     op.create_index("ix_review_pit_status", "recommendation_review_ledger", ["pit_status"])
-    # Database guard: evidence and clock identities cannot be rewritten or removed.
-    op.execute("""
-        CREATE FUNCTION w2_forward_evidence_immutable() RETURNS trigger AS $$
-        BEGIN
-            RAISE EXCEPTION 'FORWARD_EVIDENCE_IMMUTABLE';
-        END; $$ LANGUAGE plpgsql;
-    """)
-    for table in ("forward_clock_registry", "recommendation_review_ledger"):
-        op.execute(
-            f"CREATE TRIGGER {table}_immutable BEFORE UPDATE OR DELETE ON {table} "
-            "FOR EACH ROW EXECUTE FUNCTION w2_forward_evidence_immutable()"
-        )
+    # Database guard (PostgreSQL only): evidence and clock identities cannot be
+    # rewritten or removed. SQLite has no PL/pgSQL triggers.
+    if op.get_bind().dialect.name == "postgresql":
+        op.execute("""
+            CREATE FUNCTION w2_forward_evidence_immutable() RETURNS trigger AS $$
+            BEGIN
+                RAISE EXCEPTION 'FORWARD_EVIDENCE_IMMUTABLE';
+            END; $$ LANGUAGE plpgsql;
+        """)
+        for table in ("forward_clock_registry", "recommendation_review_ledger"):
+            op.execute(
+                f"CREATE TRIGGER {table}_immutable BEFORE UPDATE OR DELETE ON {table} "
+                "FOR EACH ROW EXECUTE FUNCTION w2_forward_evidence_immutable()"
+            )
 
 
 def downgrade() -> None:
@@ -64,9 +66,10 @@ def downgrade() -> None:
     clock_count = bind.execute(sa.text("SELECT count(*) FROM forward_clock_registry")).scalar_one()
     if count or clock_count:
         raise RuntimeError("FORWARD_EVIDENCE_DOWNGRADE_REQUIRES_EMPTY_TABLES")
-    for table in ("recommendation_review_ledger", "forward_clock_registry"):
-        op.execute(f"DROP TRIGGER IF EXISTS {table}_immutable ON {table}")
-    op.execute("DROP FUNCTION IF EXISTS w2_forward_evidence_immutable()")
+    if bind.dialect.name == "postgresql":
+        for table in ("recommendation_review_ledger", "forward_clock_registry"):
+            op.execute(f"DROP TRIGGER IF EXISTS {table}_immutable ON {table}")
+        op.execute("DROP FUNCTION IF EXISTS w2_forward_evidence_immutable()")
     op.drop_index("ix_review_pit_status", table_name="recommendation_review_ledger")
     op.drop_index("ix_review_evaluated_at", table_name="recommendation_review_ledger")
     op.drop_table("recommendation_review_ledger")

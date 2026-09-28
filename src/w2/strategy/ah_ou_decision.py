@@ -20,7 +20,9 @@ the caller must never emit a pick on partial or conflicted evidence.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import math
+from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any, Protocol
 
 from w2.strategy.ah_ou_features import build_features
@@ -67,17 +69,35 @@ def _is_hemisphere_line(line: float) -> bool:
 
 
 def _parse_asof(value: Any) -> datetime | None:
+    """Parse an AS-OF timestamp strictly: naive (timezone-less) values are refused.
+
+    The AS-OF contract (S1) requires every decision input to be an unambiguous
+    instant; a naive datetime is not an instant, so it is not silently coerced.
+    """
     if isinstance(value, datetime):
-        return value
+        return value if value.tzinfo is not None else None
     if isinstance(value, str) and value.strip():
         try:
             parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            return parsed if parsed.tzinfo is not None else parsed.replace(
-                tzinfo=timezone.utc
-            )
         except ValueError:
             return None
+        return parsed if parsed.tzinfo is not None else None
     return None
+
+
+def _is_finite_number(value: Any) -> bool:
+    """True only for a real (non-NaN, non-infinity) numeric value."""
+    if isinstance(value, bool) or value is None:
+        return False
+    if not isinstance(value, (int, float, Decimal)):
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return False
+    try:
+        return math.isfinite(float(value))
+    except (TypeError, ValueError):
+        return False
 
 
 def build_ah_ou_selections(
@@ -137,8 +157,25 @@ def build_ah_ou_selections(
             if str(snapshot.get("as_of_fixture_id") or "") != fixture_id:
                 return _skip("F9_SNAPSHOT_FIXTURE_MISBOUND")
             asof = _parse_asof(snapshot.get("as_of_time"))
-            if asof is None or asof > decision_at:
+            if asof is None:
+                return _skip("F9_SNAPSHOT_AS_OF_NAIVE")
+            if asof > decision_at:
+                return _skip("F9_SNAPSHOT_AS_OF_AFTER_DECISION")
+            if not snapshot.get("pit_proven"):
+                return _skip("F9_SNAPSHOT_NOT_PIT_PROVEN")
+            first_captured = _parse_asof(snapshot.get("first_captured_at"))
+            if first_captured is None:
+                return _skip("F9_SNAPSHOT_FIRST_CAPTURE_MISSING")
+            if first_captured > decision_at:
                 return _skip("F9_SNAPSHOT_FIRST_CAPTURE_AFTER_DECISION")
+            for field in (
+                "rolling_xg_for",
+                "rolling_xg_against",
+                "rolling_goals_for",
+                "rolling_goals_against",
+            ):
+                if not _is_finite_number(snapshot.get(field)):
+                    return _skip("F9_SNAPSHOT_NON_FINITE")
 
         # --- F6 准入：FT + 同对手（先筛再取 ≤10 场）--------------------
         history = repository.canonical_match_history_for_teams(
@@ -152,15 +189,35 @@ def build_ah_ou_selections(
         if asof_role and callable(set_role):
             set_role(None)
 
-    meetings = [
-        {
-            "goals_for": int(row["goals_for"]),
-            "goals_against": int(row["goals_against"]),
-            "kickoff_at": row["kickoff_utc"],
-            "team_side": row["team_side"],
-        }
-        for row in history
-    ]
+    meetings: list[dict[str, Any]] = []
+    seen_fixtures: set[str] = set()
+    for row in history:
+        captured = _parse_asof(row.get("captured_at"))
+        if captured is None or captured > decision_at:
+            return _skip("F6_H2H_CAPTURED_AFTER_DECISION")
+        status_first_visible = _parse_asof(row.get("status_first_visible_at"))
+        if status_first_visible is None or status_first_visible > decision_at:
+            return _skip("F6_H2H_STATUS_NOT_VISIBLE")
+        if not row.get("pit_proven"):
+            return _skip("F6_H2H_NOT_PIT_PROVEN")
+        if _parse_asof(row.get("kickoff_utc")) is None:
+            return _skip("F6_H2H_KICKOFF_NAIVE")
+        if not _is_finite_number(row.get("goals_for")) or not _is_finite_number(
+            row.get("goals_against")
+        ):
+            return _skip("F6_H2H_NON_FINITE")
+        fixture_key = str(row.get("fixture_id") or "")
+        if not fixture_key or fixture_key in seen_fixtures:
+            return _skip("F6_H2H_DUPLICATE_MEETING")
+        seen_fixtures.add(fixture_key)
+        meetings.append(
+            {
+                "goals_for": int(row["goals_for"]),
+                "goals_against": int(row["goals_against"]),
+                "kickoff_at": row["kickoff_utc"],
+                "team_side": row["team_side"],
+            }
+        )
     meetings.sort(key=lambda row: row["kickoff_at"])
     if not meetings:
         return _skip("F6_H2H_MISSING")

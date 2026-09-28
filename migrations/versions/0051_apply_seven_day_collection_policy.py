@@ -26,7 +26,7 @@ def upgrade() -> None:
         updated_by="alembic-0051-owner-authorized-seven-day-collection",
         now=datetime.now(UTC),
     )
-    if len(updated) != 14:
+    if len(updated) != 28:
         raise RuntimeError(f"COLLECTION_POLICY_UPDATE_COUNT_INVALID:{len(updated)}")
 
 

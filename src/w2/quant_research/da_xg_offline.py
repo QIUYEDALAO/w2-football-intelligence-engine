@@ -21,6 +21,10 @@ from typing import Any
 from w2.domain.canonical_serialization import HashDomain, canonical_sha256
 from w2.strategy.calibration import calibrate_lambdas
 
+# 无 quant 专属 HashDomain（新增会改生产模块）；复用已有 offline-evidence domain，
+# domain 字符串显式写进 preimage，未来新增 quant domain 是可见身份变化而非静默变化。
+_DA_XG_HASH_DOMAIN = HashDomain.FUTURE_REFRESH_EVIDENCE
+
 # ============================================================================
 # 候选参数（冻结假设，非已拟合最优值）
 # ============================================================================
@@ -409,8 +413,15 @@ def predict(
 
 
 def _params_identity(params: DaXgParameters) -> str:
-    """参数快照 canonical digest：全部候选参数变化（如 H=90→180）即 identity 变化。"""
-    return canonical_sha256(asdict(params), domain=HashDomain.QUANT_DA_XG_ARTIFACT)
+    """参数快照 canonical digest：全部候选参数变化（如 H=90→180）即 identity 变化。
+
+    复用已有 offline-evidence domain（不新增 quant 专属 domain，避免改生产模块），
+    domain 字符串显式写进 preimage，未来若新增 quant domain 是可见身份变化而非静默变化。
+    """
+    return canonical_sha256(
+        {"hash_domain": str(_DA_XG_HASH_DOMAIN), "params": asdict(params)},
+        domain=_DA_XG_HASH_DOMAIN,
+    )
 
 
 def _artifact_digest(
@@ -419,6 +430,7 @@ def _artifact_digest(
     """身份包含完整参数快照 + 完整来源（实际消费的历史 fixture 列表），经 canonical authority
     （w2.canonical-json.v2，非自建 json.dumps+sha256）计算。"""
     body = {
+        "hash_domain": str(_DA_XG_HASH_DOMAIN),
         "fixture_id": prediction.fixture_id,
         "model_identity": prediction.model_identity,
         "as_of_utc": prediction.as_of_utc.isoformat(),
@@ -431,7 +443,7 @@ def _artifact_digest(
         "params": asdict(params),
         "source_fixtures": source_fixtures,
     }
-    return canonical_sha256(body, domain=HashDomain.QUANT_DA_XG_ARTIFACT)
+    return canonical_sha256(body, domain=_DA_XG_HASH_DOMAIN)
 
 
 # ============================================================================

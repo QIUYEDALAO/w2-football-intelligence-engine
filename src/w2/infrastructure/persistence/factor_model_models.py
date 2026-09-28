@@ -3,7 +3,17 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from w2.infrastructure.database import Base
@@ -114,6 +124,13 @@ class CanonicalTeamMatchHistoryModel(Base):
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     history_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    # AS-OF contract (AH/OU v3 终验 S1): the moment ``fixture_status`` first
+    # became observable (e.g. FT), distinct from ``captured_at``. A meeting is
+    # only decision-usable when its status was visible at decision time.
+    status_first_visible_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # True only for live PIT captures. Backfilled rows are BACKTEST_LOOKBACK and
+    # must never be treated as point-in-time proven evidence.
+    pit_proven: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class TeamRatingSnapshotModel(Base):

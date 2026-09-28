@@ -2199,11 +2199,13 @@ def test_future_refresh_error_type_is_runtime_error() -> None:
 def test_checkpoint_provider_errors_stop_subsequent_calls(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
-    """Fail-closed: a provider business error stops the checkpoint loop.
+    """Fail-closed: a provider schema-drift stops the checkpoint loop.
 
-    A `PROVIDER_*_ERRORS` refusal must not `continue` into the next fixture /
-    endpoint; it has to stop the remaining provider calls and surface as a
-    blocker. This pins the 整改 item-1 behaviour.
+    A schema-drift refusal (the ``response`` is not the expected shape) must not
+    `continue` into the next fixture / endpoint; it has to stop the remaining
+    provider calls and surface as a blocker. This pins the fail-closed behaviour:
+    schema drift is a whole-data-source failure, unlike a per-fixture business
+    error which is isolated.
     """
     client = _ProviderErrorsWithoutQuota()
 
@@ -2236,7 +2238,7 @@ def test_checkpoint_provider_errors_stop_subsequent_calls(
 
     assert len(client.calls) == 1, client.calls
     assert client.calls[0][0] == "odds"
-    assert "PROVIDER_ODDS_ERRORS" in service._checkpoint_errors
+    assert "PROVIDER_ODDS_SCHEMA_DRIFT" in service._checkpoint_errors
 
 
 def test_settings_cache_does_not_outlive_the_test_that_patched_the_environment() -> None:

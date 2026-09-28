@@ -1769,10 +1769,10 @@ class FutureFixtureRefreshService:
                     "error_code": (
                         f"PROVIDER_HTTP_{status}"
                         if status >= 400
-                        else f"PROVIDER_{endpoint.upper()}_ERRORS"
-                        if payload_error
                         else f"PROVIDER_{endpoint.upper()}_SCHEMA_DRIFT"
                         if response_schema_error
+                        else f"PROVIDER_{endpoint.upper()}_ERRORS"
+                        if payload_error
                         else None
                     ),
                 }
@@ -1794,10 +1794,10 @@ class FutureFixtureRefreshService:
                     if status == 429
                     else f"PROVIDER_HTTP_{status}"
                 )
-            if payload_error:
-                raise FutureRefreshError(f"PROVIDER_{endpoint.upper()}_ERRORS")
             if response_schema_error:
                 raise FutureRefreshError(f"PROVIDER_{endpoint.upper()}_SCHEMA_DRIFT")
+            if payload_error:
+                raise FutureRefreshError(f"PROVIDER_{endpoint.upper()}_ERRORS")
             postmatch_result = self._checkpoint_mode() == "POSTMATCH"
             if not postmatch_result:
                 if remaining is None:
@@ -2015,12 +2015,16 @@ class FutureFixtureRefreshService:
                     response = self._request(str(endpoint), {"fixture": fixture_id})
                 except FutureRefreshError as exc:
                     reason = str(exc)
-                    if reason in {
-                        f"PROVIDER_{str(endpoint).upper()}_ERRORS",
-                        f"PROVIDER_{str(endpoint).upper()}_SCHEMA_DRIFT",
-                    }:
+                    if reason == f"PROVIDER_{str(endpoint).upper()}_SCHEMA_DRIFT":
+                        # Provider schema is broken for this endpoint; carrying on
+                        # to the next fixture is pointless.
                         self._checkpoint_errors.append(reason)
                         self._checkpoint_provider_failed = True
+                        break
+                    if reason == f"PROVIDER_{str(endpoint).upper()}_ERRORS":
+                        # Business error for this fixture only (e.g. plan
+                        # restricted): isolate this fixture and carry on.
+                        self._checkpoint_errors.append(reason)
                         break
                     raise
                 if endpoint == "odds" and bookmaker_count(response.payload) > 0:

@@ -168,10 +168,10 @@ def test_controlled_override_selects_one_collection_task_and_discovery_mode() ->
         "${W2_POSTMATCH_ONLY_ENABLED:-false}"
     )
     assert worker["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == (
-        "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures,odds,lineups,statistics}"
+        "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures,odds,lineups,statistics,h2h}"
     )
     assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == (
-        "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures,odds,lineups,statistics}"
+        "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures,odds,lineups,statistics,h2h}"
     )
     assert worker["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
     assert scheduler["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"

@@ -2680,6 +2680,53 @@ class FutureRefreshDbRepository:
             for row in rows
         ]
 
+    def raw_payloads_for_captures(
+        self, capture_ids: list[str]
+    ) -> dict[str, dict[str, Any]]:
+        """Resolve ``capture_id -> raw payload`` via endpoint captures -> raw_payload.
+
+        Used by the v3 quote selector to recompute ``source_capture_sha256`` in the
+        canonical hash domain (not a bare hex64). Captures whose raw payload is
+        absent are simply omitted, so the selector refuses the quote.
+        """
+        ids = [cid for cid in dict.fromkeys(capture_ids) if cid]
+        if not ids:
+            return {}
+        with self._asof_scoped_session() as session:
+            captures = list(
+                session.execute(
+                    select(
+                        MatchdayEndpointCaptureModel.capture_id,
+                        MatchdayEndpointCaptureModel.raw_payload_sha256,
+                    ).where(MatchdayEndpointCaptureModel.capture_id.in_(ids))
+                )
+            )
+            shas = [sha for _, sha in captures if sha]
+            payloads = {
+                row.sha256: dict(row.payload)
+                for row in session.scalars(
+                    select(RawPayloadModel).where(RawPayloadModel.sha256.in_(shas))
+                )
+            }
+        return {
+            str(capture_id): payloads[sha]
+            for capture_id, sha in captures
+            if sha in payloads
+        }
+
+    def write_ah_ou_decision(self, **kwargs: Any) -> Any:
+        """Write an AH/OU v3 decision ledger row (idempotent, slot-conflict-stopped).
+
+        A single transaction wraps the identity check and the insert, so a
+        conflicting ``(fixture_id, market, decision_at)`` refuses the whole batch
+        instead of silently keeping two writers.
+        """
+        from w2.strategy.ah_ou_decision_ledger import write_ah_ou_decision
+
+        with Session(self.engine) as session:
+            with session.begin():
+                return write_ah_ou_decision(session, **kwargs)
+
     def raw_payload_count(self, endpoint: str) -> int:
         with Session(self.engine) as session:
             return int(
@@ -3029,6 +3076,8 @@ class FutureRefreshDbRepository:
             "source_system": row.source_system,
             "candidate": False,
             "formal_recommendation": False,
+            "first_captured_at": iso_z(row.first_captured_at) if row.first_captured_at else None,
+            "pit_proven": bool(row.pit_proven),
         }
 
     @staticmethod
@@ -3054,6 +3103,10 @@ class FutureRefreshDbRepository:
             "endpoint_capture_id": row.endpoint_capture_id,
             "captured_at": iso_z(row.captured_at),
             "history_hash": row.history_hash,
+            "status_first_visible_at": (
+                iso_z(row.status_first_visible_at) if row.status_first_visible_at else None
+            ),
+            "pit_proven": bool(row.pit_proven),
         }
 
     @staticmethod

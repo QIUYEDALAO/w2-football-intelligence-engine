@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,7 +20,7 @@ def test_sc18_authority_artifacts_are_complete_and_self_checking() -> None:
     }
     assert {path.name for path in REPORTS.iterdir()} == required
     completed = subprocess.run(
-        ["python", "scripts/check_sc18_input_authority.py"],
+        [sys.executable, "scripts/check_sc18_input_authority.py"],
         cwd=ROOT,
         check=False,
         capture_output=True,

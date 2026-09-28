@@ -33,7 +33,15 @@ branch_labels: str | None = None
 depends_on: str | None = None
 
 
+def _postgres_only() -> bool:
+    return op.get_bind().dialect.name == "postgresql"
+
+
 def upgrade() -> None:
+    # SQLite has no CREATE INDEX CONCURRENTLY and no JSON `->>` expression index;
+    # these are production progress-projection indexes only.
+    if not _postgres_only():
+        return
     with op.get_context().autocommit_block():
         # current_flow_*：只索引 capture 记录里已写入 checkpoint 的行（未来 T-30m
         # 数据；当前全 NULL，索引极小，查询不再扫全表解析 JSON）。
@@ -60,6 +68,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if not _postgres_only():
+        return
     with op.get_context().autocommit_block():
         op.execute("DROP INDEX CONCURRENTLY IF EXISTS ix_outcome_ledger_capture_checkpoint")
         op.execute(

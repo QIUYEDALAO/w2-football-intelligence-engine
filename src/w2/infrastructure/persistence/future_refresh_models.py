@@ -253,6 +253,14 @@ class TeamXgRollingSnapshotModel(Base):
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
     candidate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     formal_recommendation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # AS-OF contract (AH/OU v3 终验 S1): the moment this snapshot row was first
+    # captured/ingested. Distinct from ``as_of_time`` (the match-time the rolling
+    # window is "as of"); a snapshot is only decision-usable when its first
+    # capture is observable at decision time.
+    first_captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # True only for live PIT captures. Backfilled rows are BACKTEST_LOOKBACK and
+    # must never be treated as point-in-time proven evidence.
+    pit_proven: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class TeamXgRollingSnapshotBacktestModel(Base):

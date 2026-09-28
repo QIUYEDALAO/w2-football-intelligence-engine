@@ -24,6 +24,10 @@ from w2.infrastructure.persistence.forward_factor_models import (
     FORWARD_AH_FACTOR_OBSERVATION_SCHEMA,
     ForwardAhFactorObservationModel,
 )
+from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+    AH_OU_DECISION_LEDGER_SCHEMA,
+    AhOuDecisionLedgerModel,
+)
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.future_refresh_models import (
     FreePlanFixtureScopeObservationModel,
@@ -116,6 +120,8 @@ __all__ = [
     "PROJECTION_VIEW_NAME",
     "current_market_projection",
     "FORWARD_AH_FACTOR_OBSERVATION_SCHEMA",
+    "AH_OU_DECISION_LEDGER_SCHEMA",
+    "AhOuDecisionLedgerModel",
     "FixtureModel",
     "ForwardAhFactorObservationModel",
     "HistoricalMarketSourceSnapshotModel",

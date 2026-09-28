@@ -3662,6 +3662,40 @@ class ReadModelService:
                 capture_ids.add(str(row.get("capture_id") or ""))
             if len(capture_ids) != 1 or "" in capture_ids:
                 return None, None, f"{label}_QUOTE_NOT_SAME_CAPTURE"
+        # v3 source_capture_sha256 canonical-hash-domain check (S2): the quote's
+        # source must be recomputable from the real raw capture payload, never a
+        # bare hex64 and never empty. A missing raw payload refuses the decision.
+        all_quote_rows = [
+            row
+            for selection in (ah, ou)
+            for row in (selection.get("authoritative_quote_rows") or {}).values()
+            if isinstance(row, dict)
+        ]
+        quote_capture_ids = sorted(
+            {
+                str(row.get("capture_id") or "")
+                for row in all_quote_rows
+                if row.get("capture_id")
+            }
+        )
+        raw_payload_resolver = getattr(repository, "raw_payloads_for_captures", None)
+        raw_payloads: dict[str, dict[str, Any]] = {}
+        if callable(raw_payload_resolver):
+            try:
+                raw_payloads = raw_payload_resolver(quote_capture_ids)
+            except Exception:
+                raw_payloads = {}
+        for label, selection in (("AH", ah), ("OU", ou)):
+            rows = selection.get("authoritative_quote_rows") or {}
+            capture_id = next(
+                iter({str(row.get("capture_id") or "") for row in rows.values()}), ""
+            )
+            raw = raw_payloads.get(capture_id)
+            if not raw:
+                return None, None, f"{label}_SOURCE_CAPTURE_HASH_MISSING"
+            selection["_v3_source_capture_sha256"] = canonical_sha256(
+                raw, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
+            )
         try:
             result = build_ah_ou_selections(
                 repository,

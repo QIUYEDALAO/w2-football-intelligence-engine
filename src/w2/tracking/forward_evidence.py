@@ -38,7 +38,7 @@ from w2.infrastructure.persistence.matchday_intake_models import MatchdayMarketO
 from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
 from w2.infrastructure.persistence.models import ResultModel
 from w2.prematch.lifecycle import PRODUCER_INPUT_PROVENANCE_SCHEMA, SETTLEMENT_STATE_ORDER
-from w2.tracking.model_forecast_ledger import (
+from w2.tracking.model_forecast_constants import (
     MODEL_FAMILY,
     MODEL_FORECAST_CAPTURE_HASH_DOMAIN,
     MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN,

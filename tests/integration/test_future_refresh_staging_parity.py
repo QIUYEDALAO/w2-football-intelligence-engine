@@ -48,6 +48,10 @@ def prepare_runtime_dir(
             f"mkdir -p /host/{name} && chown {owner} /host/{name} && chmod {mode} /host/{name}",
         ]
     )
+    if not runtime.exists():
+        # The Docker Desktop on this host does not file-share the pytest temp
+        # root (/var/folders on macOS), so the volume mount silently no-ops.
+        pytest.skip("docker volume mount of the pytest temp dir is unavailable on this host")
     return runtime
 
 
