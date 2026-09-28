@@ -731,6 +731,16 @@ def future_fixture_refresh(
     #: The result materialisation writes runtime AH settlement facts, and those
     #: writes belong to this run too. Same container rule, different writer.
     ah_fact_reports: list[dict[str, Any]] = []
+    # F6 H2H 自动补采：新 fixture 进评估前补该场交锋（幂等，只补尚无交锋者）。
+    h2h_report: dict[str, object] = {}
+    if os.environ.get("W2_H2H_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
+        try:
+            from w2.ingestion.h2h_capture import capture_h2h_for_competition
+
+            h2h_report = capture_h2h_for_competition(competition_id=competition_id)
+        except Exception:
+            logger.exception("w2 h2h auto-capture failed")
+            h2h_report = {"error": "H2H_AUTO_CAPTURE_FAILED"}
     audit = run_future_refresh_task(
         task_id=task_id,
         key=key,
@@ -800,6 +810,7 @@ def future_fixture_refresh(
         "t30_capture": t30_capture,
         "forward_factor_recording": recording_report,
         "runtime_ah_settlement_facts": ah_fact_report,
+        "h2h_auto_capture": h2h_report,
         "candidate": False,
         "formal_recommendation": False,
     }
