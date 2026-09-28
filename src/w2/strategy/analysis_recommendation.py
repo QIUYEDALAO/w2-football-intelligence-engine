@@ -2,11 +2,11 @@
 
 The admission gates are deliberately asymmetric between markets:
 
-* ``ASIAN_HANDICAP`` is gated by the **factor gate** (``factor_score``): F9_TRUE_XG
-  must actually participate in the weighted score AND at least
-  ``MIN_PARTICIPATING_FACTORS`` factors must participate in total.  Bookmaker
-  intent is attached only as reference and does not drive direction or admission.
-  No strength threshold is layered on top of an admitted score.
+* ``ASIAN_HANDICAP`` is gated by the **factor gate** (``factor_score``): the two
+  evidence families F9_TRUE_XG (xg) and F6_H2H (h2h) must both participate in the
+  weighted score.  Bookmaker intent is attached only as reference and does not
+  drive direction or admission.  No strength threshold is layered on top of an
+  admitted score.
 * ``TOTALS`` is a market view only.  OU intent never admits a recommendation.
 
 The asymmetry is structural, not a bug: the home/away weighted strength axis is
@@ -22,7 +22,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import ClassVar, Literal
+from typing import Any, ClassVar, Literal
 
 from w2.features.framework import FeatureSet, FeatureStatus, TeamSide
 from w2.strategy.bookmaker_intent import BookmakerIntent, IntentSignal
@@ -159,11 +159,9 @@ def _ah_market(
 ) -> MarketAnalysis:
     if AnalysisMarket.ASIAN_HANDICAP in inputs.missing_markets:
         return _skip(AnalysisMarket.ASIAN_HANDICAP, "AH_DATA_UNAVAILABLE")
-    # Owner-approved admission rule (2026-09-03): F9_TRUE_XG must have
-    # actually participated in the weighted score, and at least
-    # MIN_PARTICIPATING_FACTORS factors must have participated in total.
-    # No strength threshold is applied on top of this — see
-    # W2_UPGRADE_PLAN.md cut 06 step 5.
+    # Single-chain admission rule (2026-09-28, AH/OU v3): F9_TRUE_XG and F6_H2H
+    # must both participate in the weighted score. No strength threshold is
+    # applied on top of this.
     if not factor_score.admitted:
         return _skip(
             AnalysisMarket.ASIAN_HANDICAP,
@@ -353,3 +351,69 @@ def _assert_compliant_text(*values: str) -> None:
 def _assert_disclaimer(value: str) -> None:
     if value != DISCLAIMER:
         _assert_compliant_text(value)
+
+
+def build_softmax_market_analyses(
+    *,
+    ah_selection: dict[str, Any] | None,
+    ou_selection: dict[str, Any] | None,
+    status: str,
+    base_risks: tuple[str, ...] = ("阵容/伤停临场变化可能改变判断。",),
+) -> tuple[MarketAnalysis, MarketAnalysis]:
+    """Map ``build_ah_ou_selections`` output to the AH/OU ``MarketAnalysis`` pair.
+
+    This is the new F9+F6 softmax path: AH direction follows the market and is
+    admitted when ``selected`` (``|q-0.5| * support >= cutoff``); OU recommends
+    OVER when ``selected`` (``factor_over_share - market_over_q >= threshold``).
+    It runs *alongside* the legacy ``_ah_market``/``_ou_market`` and does not
+    touch the legacy ``OU intent`` tripwire; the caller decides which path emits.
+    """
+    if ah_selection is None:
+        ah_market = _skip(AnalysisMarket.ASIAN_HANDICAP, status)
+    elif not ah_selection["selected"]:
+        ah_market = _no_edge(
+            AnalysisMarket.ASIAN_HANDICAP,
+            "SOFTMAX_AH_NOT_SELECTED",
+            signal_strength=round(ah_selection["score"], 4),
+        )
+    else:
+        tendency = "HOME_AH" if ah_selection["side"] == "HOME" else "AWAY_AH"
+        ah_market = MarketAnalysis(
+            market=AnalysisMarket.ASIAN_HANDICAP,
+            decision=AnalysisDecision.ANALYSIS_PICK,
+            tendency=tendency,
+            signal_strength=round(ah_selection["score"], 4),
+            reasons=(
+                f"F9+F6 软最大值选边 {ah_selection['side']}"
+                f"(factor_home_cover_p={ah_selection['factor_home_cover_p']:.3f},"
+                f" market_home_cover_p={ah_selection['market_home_cover_p']:.3f})",
+            ),
+            risks=base_risks + ("评分构成因子随赛前信息更新可能变化。",),
+            invalidation_conditions=("主力阵容突变", "滚动快照或交锋样本更新"),
+        )
+
+    if ou_selection is None:
+        ou_market = _skip(AnalysisMarket.TOTALS, status)
+    elif not ou_selection["selected"]:
+        ou_market = _no_edge(
+            AnalysisMarket.TOTALS,
+            "SOFTMAX_OU_NOT_SELECTED",
+            signal_strength=round(max(ou_selection["edge"], 0.0), 4),
+        )
+    else:
+        ou_market = MarketAnalysis(
+            market=AnalysisMarket.TOTALS,
+            decision=AnalysisDecision.ANALYSIS_PICK,
+            tendency="OVER",
+            signal_strength=round(ou_selection["edge"], 4),
+            reasons=(
+                f"F9+F6 软最大值 OVER 价值 factor_over_share={ou_selection['factor_over_share']:.3f}"
+                f" > market_over_q={ou_selection['market_over_q']:.3f}"
+                f" (edge={ou_selection['edge']:+.4f})",
+            ),
+            risks=base_risks + ("总进球模型是分布估计，不代表确定结果。",),
+            invalidation_conditions=("总进球盘口线变化", "滚动快照或交锋样本更新"),
+        )
+
+    return ah_market, ou_market
+

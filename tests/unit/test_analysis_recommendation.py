@@ -252,7 +252,7 @@ def test_leakage_blocked_mandatory_factor_forces_ah_skip() -> None:
     assert ah.tendency is None
     assert len(ah.reasons) == 1
     assert ah.reasons[0].startswith("FACTOR_ADMISSION_FAILED:")
-    assert "MANDATORY_FACTOR_MISSING:F9_TRUE_XG" in ah.reasons[0]
+    assert "REQUIRED_EVIDENCE_MISSING:F9_TRUE_XG" in ah.reasons[0]
 
 
 def test_low_strength_non_ah_markets_emit_no_edge_not_analysis_pick() -> None:

@@ -29,12 +29,16 @@ def independent_team_scores(
     *,
     feature_contributions: list[dict[str, Any]] | tuple[dict[str, Any], ...] | None,
     scale: FactorScaleParams | None = None,
+    allowlist: frozenset[str] | None = None,
+    required_groups: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     scale = scale or DEFAULT_FACTOR_SCALE_PARAMS
+    allowlist = allowlist if allowlist is not None else ALLOWED_INDEPENDENT_FACTORS
+    required = required_groups if required_groups is not None else REQUIRED_SIGNAL_GROUPS
     all_factors = [
         _factor(item, scale=scale)
         for item in feature_contributions or []
-        if _factor_id(item) in ALLOWED_INDEPENDENT_FACTORS
+        if _factor_id(item) in allowlist
     ]
     factors = [factor for factor in all_factors if factor["status"] == "READY"]
     scoring_factors = [
@@ -61,7 +65,7 @@ def independent_team_scores(
         }
         for factor in all_factors
     }
-    coverage = round(len(factors) / len(ALLOWED_INDEPENDENT_FACTORS), 6)
+    coverage = round(len(factors) / len(allowlist), 6) if allowlist else 0.0
     score_meta = _weighted_scores(scoring_factors)
     weight_sum_used = float(score_meta["weight_sum_used"])
     scoring_factor_breakdown = [
@@ -87,7 +91,7 @@ def independent_team_scores(
         "independent_signal_groups": signal_groups,
         "xg_derived_factor_count": sum(1 for factor in factors if factor["source_group"] == "xg"),
         "missing_independent_sources": [
-            group for group in REQUIRED_SIGNAL_GROUPS if group not in signal_groups
+            group for group in required if group not in signal_groups
         ],
         "factor_source_summary": source_summary,
         "weight_sum_used": score_meta["weight_sum_used"],
@@ -107,6 +111,8 @@ def independent_team_scores_from_contributions(
     contributions: Any,
     *,
     scale: FactorScaleParams | None = None,
+    allowlist: frozenset[str] | None = None,
+    required_groups: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     """Same computation as `independent_team_scores`, but accepts
     `FeatureContribution` objects (e.g. `feature_set.contributions`) directly
@@ -115,6 +121,8 @@ def independent_team_scores_from_contributions(
     return independent_team_scores(
         feature_contributions=[_contribution_to_dict(item) for item in contributions or []],
         scale=scale,
+        allowlist=allowlist,
+        required_groups=required_groups,
     )
 
 

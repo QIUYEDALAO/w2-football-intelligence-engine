@@ -2,21 +2,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from w2.domain.factor_registry import factor_policy
-from w2.features.framework import FeatureSet, FeatureStatus, TeamSide
-from w2.pricing.team_score import (
-    ALLOWED_INDEPENDENT_FACTORS,
-    independent_team_scores_from_contributions,
+from w2.domain.factor_registry import (
+    RECOMMENDATION_ALLOWED_INDEPENDENT_FACTORS,
+    RECOMMENDATION_REQUIRED_SIGNAL_GROUPS,
+    factor_policy,
 )
+from w2.features.framework import FeatureSet, FeatureStatus, TeamSide
+from w2.pricing.team_score import independent_team_scores_from_contributions
 
-# Owner-approved admission rule (2026-09-03): a match only produces a
-# factor-score-driven recommendation when F9_TRUE_XG actually participated
-# in the weighted score AND at least 3 factors participated in total.
-# No score threshold is set yet — see W2_UPGRADE_PLAN.md cut 06 step 5: the
-# system must run and accumulate score/outcome pairs before any line is
-# defensible. Do not add a strength threshold here without that data.
+# New single-chain admission (2026-09-28, AH/OU v3): the recommendation-driving
+# factor score only requires the two evidence families F9_TRUE_XG (xg) and
+# F6_H2H (h2h). The historical ">= 3 participating factors" count gate
+# (MIN_PARTICIPATING_FACTORS) is retired — do not reintroduce it. Missing F9 or
+# F6 fails closed (no recommendation); the decision never degrades to a
+# single-factor pick. No strength threshold is layered on top of an admitted
+# score.
 MANDATORY_FACTOR_ID = "F9_TRUE_XG"
-MIN_PARTICIPATING_FACTORS = 3
+REQUIRED_EVIDENCE_FACTORS = frozenset({"F9_TRUE_XG", "F6_H2H"})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -66,7 +68,11 @@ def build_factor_score(feature_set: FeatureSet) -> FactorScore:
     """
     labels = {item.feature_id: item.label for item in feature_set.contributions}
 
-    team_scores = independent_team_scores_from_contributions(feature_set.contributions)
+    team_scores = independent_team_scores_from_contributions(
+        feature_set.contributions,
+        allowlist=RECOMMENDATION_ALLOWED_INDEPENDENT_FACTORS,
+        required_groups=RECOMMENDATION_REQUIRED_SIGNAL_GROUPS,
+    )
     scoring = team_scores["scoring_factors"]
     weight_sum_used = float(team_scores["weight_sum_used"])
 
@@ -98,7 +104,7 @@ def build_factor_score(feature_set: FeatureSet) -> FactorScore:
             reason=item.reason,
         )
         for item in feature_set.contributions
-        if item.feature_id in ALLOWED_INDEPENDENT_FACTORS
+        if item.feature_id in RECOMMENDATION_ALLOWED_INDEPENDENT_FACTORS
         and item.feature_id not in participating_ids
         and factor_policy(item.feature_id).get("lifecycle") != "EXPLANATION_ONLY"
     )
@@ -109,11 +115,10 @@ def build_factor_score(feature_set: FeatureSet) -> FactorScore:
     direction = TeamSide.HOME if margin > 0 else TeamSide.AWAY if margin < 0 else TeamSide.NEUTRAL
 
     blockers: list[str] = []
-    if MANDATORY_FACTOR_ID not in participating_ids:
-        blockers.append(f"MANDATORY_FACTOR_MISSING:{MANDATORY_FACTOR_ID}")
-    if len(participants) < MIN_PARTICIPATING_FACTORS:
+    missing_evidence = REQUIRED_EVIDENCE_FACTORS - participating_ids
+    if missing_evidence:
         blockers.append(
-            f"PARTICIPATING_FACTORS_BELOW_MINIMUM:{len(participants)}/{MIN_PARTICIPATING_FACTORS}"
+            f"REQUIRED_EVIDENCE_MISSING:{','.join(sorted(missing_evidence))}"
         )
 
     return FactorScore(

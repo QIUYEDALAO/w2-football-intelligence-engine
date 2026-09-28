@@ -32,6 +32,16 @@ AUTHORITATIVE_SIGNAL_GROUPS = frozenset(
 REQUIRED_SIGNAL_GROUPS = ("xg", "team_fixture_history", "h2h")
 NON_SCORING_GROUPS = frozenset({"match_importance"})
 
+# v2 — new AH/OU single-chain recommendation (2026-09-28, AH/OU v3).
+# The only scoring evidence families are F9_TRUE_XG (xg) and F6_H2H (h2h); the
+# four raw xG fields and the F9 summary are one xg family, not a separate third
+# factor. F1/F2/F3/F4/F5/F10 are retired from the new recommendation path: they
+# are not scored, not required, and not shown as available factors. The v1
+# constants above remain the authority for frozen-decision replay and shadow
+# pricing; old identities and hashes are never rewritten.
+RECOMMENDATION_ALLOWED_INDEPENDENT_FACTORS = frozenset({"F6_H2H", "F9_TRUE_XG"})
+RECOMMENDATION_REQUIRED_SIGNAL_GROUPS = ("xg", "h2h")
+
 
 @lru_cache(maxsize=1)
 def load_factor_registry() -> dict[str, dict[str, Any]]:

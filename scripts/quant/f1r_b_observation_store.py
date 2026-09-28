@@ -147,6 +147,7 @@ class ForwardFactorObservationStore:
             to_write.append(payload)
 
         if to_write:
+            self._assert_source_capture_ids_self_consistent(to_write)
             with Session(self.engine) as session:
                 with session.begin():           # <- commit point
                     for payload in to_write:
@@ -157,6 +158,48 @@ class ForwardFactorObservationStore:
             "idempotent_no_ops": idempotent,
             "batch_size": len(sealed),
         }
+
+    @staticmethod
+    def _assert_source_capture_ids_self_consistent(
+        payloads: list[dict[str, Any]],
+    ) -> None:
+        """Cross-table reference check (task 9 #1, option ①).
+
+        ``source_capture_sha256`` stays a contract-level ``require_hex64`` check
+        (its target ``raw_payload_sha256`` is non-unique, so no DB FK is
+        possible). Existence of the capture the observation cites is instead
+        verified in the application layer: ``source_capture_id`` is a content
+        address of the consumed source set, so it must re-derive from
+        ``factor_inputs.source_record_ids``. A forged id, a dropped record, or a
+        reordered/edited record set all change the digest and refuse the batch.
+        """
+        for payload in payloads:
+            scid = str(payload["source_capture_id"])
+            for prefix in ("w2.consumed_source_set.v1", "w2.synthetic_source_set.v1"):
+                if scid.startswith(prefix + ":"):
+                    digest = scid[len(prefix) + 1:]
+                    contract.require_hex64(digest, field_name="source_capture_id.digest")
+                    record_ids_text = (payload["factor_inputs"] or {}).get(
+                        "source_record_ids"
+                    )
+                    if not record_ids_text:
+                        raise StoreError("SOURCE_RECORD_IDS_MISSING", payload["factor_id"])
+                    record_ids = [
+                        rid for rid in str(record_ids_text).split(",") if rid
+                    ]
+                    expected = contract.canonical_sha256(
+                        {
+                            "contract": "w2.f1r_b_source_capture.v1",
+                            "factor_id": payload["factor_id"],
+                            "record_ids": sorted(record_ids),
+                        },
+                        domain=contract.HASH_DOMAIN,
+                    )
+                    if digest != expected:
+                        raise StoreError("SOURCE_CAPTURE_ID_MISMATCH", payload["factor_id"])
+                    break
+            else:
+                raise StoreError("SOURCE_CAPTURE_ID_FORMAT_INVALID", scid)
 
     @staticmethod
     def _assert_no_cycle(

@@ -9,7 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from w2.competitions.league_whitelist_audit import MIN_BOOKMAKER_DEPTH
-from w2.domain.factor_registry import ALLOWED_INDEPENDENT_FACTORS, load_factor_registry
+from w2.domain.factor_registry import (
+    RECOMMENDATION_ALLOWED_INDEPENDENT_FACTORS,
+    load_factor_registry,
+)
 from w2.domain.recommendation_decision_v4 import CANDIDATE_QUOTE_MAX_AGE_SECONDS
 
 MARKETS = ("ASIAN_HANDICAP", "TOTALS")
@@ -472,11 +475,12 @@ def _contribution_evidence(factor_id: str, rows: Sequence[Mapping[str, Any]]) ->
     row = rows[0] if rows else {}
     # `F2_BOOKMAKER_INTENT` is the checklist/registry id; the feature layer
     # emits contributions under `F2_BOOKMAKER_DIVERGENCE` (see
-    # `market_factors.py`). ALLOWED_INDEPENDENT_FACTORS is keyed by the
-    # feature-layer id, so translate before checking membership.
+    # `market_factors.py`). The AH recommendation now only reads the two
+    # evidence families F9_TRUE_XG + F6_H2H (v2 allowlist), so only those
+    # factors drive the AH pick.
     scoring_id = "F2_BOOKMAKER_DIVERGENCE" if factor_id == "F2_BOOKMAKER_INTENT" else factor_id
     registry = load_factor_registry().get(scoring_id) or {}
-    drives_ah = scoring_id in ALLOWED_INDEPENDENT_FACTORS and bool(
+    drives_ah = scoring_id in RECOMMENDATION_ALLOWED_INDEPENDENT_FACTORS and bool(
         registry.get("numeric_effect_enabled")
     )
     return {

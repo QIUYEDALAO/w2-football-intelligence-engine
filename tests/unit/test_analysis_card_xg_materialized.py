@@ -833,6 +833,7 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
         "xg_home_match_count": 5,
         "xg_away_match_count": 5,
         "xg_snapshot_count": 2,
+        "xg_observed_at": "2026-06-25T12:00:00Z",
         "h2h": False,
         "lineups": True,
         "lineups_status": "READY",
@@ -915,14 +916,16 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert ah_market["uncertainty"] is not None
     assert ah_market["analysis_evidence_sides"]
     assert ah_market["factor_veto"]["code"] == "FACTOR_ADMISSION_FAILED"
-    assert "PARTICIPATING_FACTORS_BELOW_MINIMUM:1/3" in ah_market["factor_veto"]["blockers"]
+    assert "REQUIRED_EVIDENCE_MISSING:F6_H2H" in ah_market["factor_veto"]["blockers"]
     # The EV evidence is still projected in full for inspection -- the veto
     # blocks the decision, it does not hide the comparison.
     assert ah_market["market_candidate"]["analysis_evidence_status"] == "COMPLETE"
+    # F9 evidence is still projected for inspection even though AH admission
+    # failed: the factor score's participant list carries F9_TRUE_XG (its
+    # contribution is READY), so the veto hides the decision, not the evidence.
     assert any(
-        "F9_TRUE_XG:AS_OF_ROLLING_XG_DIFF" in reason
-        for market in card["markets"]
-        for reason in market["reasons"]
+        participant["feature_id"] == "F9_TRUE_XG"
+        for participant in card["factor_score"]["participants"]
     )
     ah_market = next(market for market in card["markets"] if market["market"] == "ASIAN_HANDICAP")
     totals_market = next(market for market in card["markets"] if market["market"] == "TOTALS")
@@ -943,7 +946,7 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     # `_apply_mainline_market_selection`, which now exempts AH from its
     # signal_strength-based downgrade).
     assert ah_market["reason"].startswith("FACTOR_ADMISSION_FAILED:")
-    assert "PARTICIPATING_FACTORS_BELOW_MINIMUM:1/3" in ah_market["reason"]
+    assert "REQUIRED_EVIDENCE_MISSING:F6_H2H" in ah_market["reason"]
     assert totals_market["reason"].startswith("两队滚动 xG 进攻合计 2.58")
     assert score_market["scores"] == []
     assert card["bookmaker_intent"]["intent"] in {"HOME_LEAN", "AWAY_LEAN"}

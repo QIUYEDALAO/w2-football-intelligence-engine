@@ -1067,6 +1067,95 @@ def append_validation_signal_settlement_in_session(
     return row
 
 
+POSTMORTEM_EVENT = "POSTMORTEM"
+POSTMORTEM_SCHEMA = "w2.recommendation_review_ledger.postmortem.v1"
+POSTMORTEM_MISS_OUTCOMES = frozenset({"LOSS", "HALF_LOSS", "MISS"})
+
+
+def append_postmortem_in_session(
+    session: Session,
+    *,
+    evaluation_id: str,
+    reason: str,
+    hypothesis: str,
+    new_version: str,
+    new_window: str,
+    reviewed_at: datetime | None = None,
+) -> RecommendationReviewLedgerModel:
+    """Append a postmortem review for a missed recommendation.
+
+    Append-only: adds a ``POSTMORTEM`` event that references the frozen
+    ``DECISION_SNAPSHOT`` and its ``SETTLEMENT_OBSERVED`` without rewriting either.
+    The frozen decision hash and the historical version's realized units therefore
+    never change. A correction is a new ``new_version`` + an unseen ``new_window``,
+    not a rewrite of the lost row.
+
+    Refuses when there is no authoritative snapshot/settlement, or the settlement
+    is not a miss, so a postmortem cannot be fabricated for a winning row.
+    """
+    if not str(reason or "").strip() or not str(hypothesis or "").strip():
+        raise ValueError("POSTMORTEM_REASON_OR_HYPOTHESIS_MISSING")
+    if not str(new_version or "").strip() or not str(new_window or "").strip():
+        raise ValueError("POSTMORTEM_VERSION_OR_WINDOW_MISSING")
+    original = session.scalar(
+        select(RecommendationReviewLedgerModel).where(
+            RecommendationReviewLedgerModel.evaluation_id == evaluation_id,
+            RecommendationReviewLedgerModel.event_type == "DECISION_SNAPSHOT",
+        )
+    )
+    if original is None:
+        raise ValueError("POSTMORTEM_DECISION_SNAPSHOT_NOT_FOUND")
+    settlement = session.scalar(
+        select(RecommendationReviewLedgerModel).where(
+            RecommendationReviewLedgerModel.evaluation_id == evaluation_id,
+            RecommendationReviewLedgerModel.event_type == "SETTLEMENT_OBSERVED",
+        )
+    )
+    if settlement is None:
+        raise ValueError("POSTMORTEM_SETTLEMENT_NOT_FOUND")
+    outcome = str((settlement.payload or {}).get("settlement") or "").upper()
+    if outcome not in POSTMORTEM_MISS_OUTCOMES:
+        raise ValueError("POSTMORTEM_NOT_A_MISS")
+    resolved_now = (reviewed_at or datetime.now(UTC)).astimezone(UTC)
+    source = original.payload or {}
+    settlement_payload = settlement.payload or {}
+    payload = {
+        "schema_version": POSTMORTEM_SCHEMA,
+        "event_type": POSTMORTEM_EVENT,
+        "evaluation_id": evaluation_id,
+        "derived_from_evaluation_id": evaluation_id,
+        "derived_from_review_event_id": settlement.review_event_id,
+        "market": settlement_payload.get("market") or source.get("market"),
+        "selection": settlement_payload.get("selection") or "OVER",
+        "settlement": outcome,
+        "profit_units_channel": settlement_payload.get("profit_units_channel"),
+        "reason": str(reason).strip(),
+        "hypothesis": str(hypothesis).strip(),
+        "new_version": str(new_version).strip(),
+        "new_window": str(new_window).strip(),
+        "postmortem_recorded_at": resolved_now.isoformat(),
+    }
+    digest = canonical_sha256(payload, domain=HashDomain.PREMATCH_READ_MODEL_GENERIC)
+    existing = session.get(RecommendationReviewLedgerModel, digest)
+    if existing is not None:
+        if existing.payload_sha256 != digest or existing.payload != payload:
+            raise ValueError("POSTMORTEM_IDENTITY_CONFLICT")
+        return existing
+    row = RecommendationReviewLedgerModel(
+        review_event_id=digest,
+        evaluation_id=evaluation_id,
+        event_type=POSTMORTEM_EVENT,
+        evaluated_at=resolved_now,
+        pit_status="PROVABLE",
+        payload=payload,
+        payload_sha256=digest,
+        created_at=datetime.now(UTC),
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
 def settle_track_d_validation_signals_in_session(
     session: Session, *, now: datetime,
 ) -> dict[str, int]:

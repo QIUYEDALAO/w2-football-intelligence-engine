@@ -4,6 +4,7 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from statistics import median
 from typing import Any
 
@@ -29,6 +30,9 @@ from w2.tracking.performance_scoring import (
 from w2.tracking.performance_scoring import (
     rps as _rps,
 )
+
+from w2.domain.odds import settle_total_goals
+from w2.prematch.lifecycle import SETTLEMENT_STATE_ORDER
 
 SAMPLE_TARGET = 200
 MIN_DECISIVE_SAMPLES_FOR_RATE = 5
@@ -271,6 +275,7 @@ def forward_ledger_performance(
             clv_rows,
         ),
         "by_league_market": _league_market_rows(candidates, validation_rows),
+        "market_breakdown": _market_breakdown(canonical_rows, candidates),
         "provider_calls": 0,
         "db_reads": 3,
         "db_writes": 0,
@@ -1648,3 +1653,206 @@ def _text(value: Any) -> str:
     if value is None:
         return ""
     return str(value).strip()
+
+
+# --- 任务 8：累计监测分层报告（五态/平注单位/赔率段/月/价格年龄/五态 RPS/OU 全大球）---
+
+def _five_state_of(record: Mapping[str, Any]) -> str | None:
+    """归一化 outcome 到 WIN/HALF_WIN/PUSH/HALF_LOSS/LOSS；VOID 不计入五态。"""
+    raw = _outcome(record).upper()
+    if raw in {"WIN", "HIT"}:
+        return "WIN"
+    if raw == "MISS":
+        return "LOSS"
+    return raw if raw in SETTLEMENT_STATE_ORDER else None
+
+
+def _flat_units_total(rows: Sequence[Mapping[str, Any]]) -> float:
+    total = 0.0
+    for row in rows:
+        unit = _roi_unit(row)
+        if unit is not None:
+            total += unit
+    return round(total, 6)
+
+
+def _summarize(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    counts = {state: 0 for state in SETTLEMENT_STATE_ORDER}
+    for row in rows:
+        state = _five_state_of(row)
+        if state is not None:
+            counts[state] += 1
+    n = len(rows)
+    units = _flat_units_total(rows)
+    return {
+        "n": n,
+        "five_state": counts,
+        "flat_units": units,
+        "units_per_pick": round(units / n, 6) if n else None,
+    }
+
+
+def _group(
+    rows: Sequence[Mapping[str, Any]], key: Any
+) -> dict[str, list[Mapping[str, Any]]]:
+    grouped: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    for row in rows:
+        grouped[str(key(row))].append(row)
+    return dict(sorted(grouped.items()))
+
+
+def _month_of(row: Mapping[str, Any]) -> str:
+    settled = _parse_time(row.get("settled_at")) or _parse_time(row.get("occurred_at"))
+    return settled.strftime("%Y-%m") if settled else "UNKNOWN"
+
+
+def _odds_bucket(price: float | None) -> str:
+    if price is None:
+        return "UNKNOWN"
+    if price < 1.7:
+        return "lt1.7"
+    if price < 1.9:
+        return "1.7_1.9"
+    if price < 2.1:
+        return "1.9_2.1"
+    return "gt2.1"
+
+
+def _quote_age_bucket(
+    row: Mapping[str, Any], candidates: Mapping[str, Mapping[str, Any]]
+) -> str:
+    capture = candidates.get(_text(row.get("fixture_id")))
+    if capture is None:
+        return "UNKNOWN"
+    kickoff = _parse_time(capture.get("kickoff_utc"))
+    captured = _parse_time(capture.get("captured_at"))
+    if kickoff is None or captured is None:
+        return "UNKNOWN"
+    age_hours = (kickoff - captured).total_seconds() / 3600
+    return "le4h" if age_hours <= 4.0 else "gt4h"
+
+
+def _five_state_distribution(
+    capture: Mapping[str, Any] | None,
+) -> dict[str, float] | None:
+    if capture is None:
+        return None
+    for key in ("model_five_state_distribution", "market_five_state_baseline"):
+        value = capture.get(key)
+        if isinstance(value, Mapping):
+            distribution = {state: _number(value.get(state)) for state in SETTLEMENT_STATE_ORDER}
+            if all(probability is not None for probability in distribution.values()):
+                return {state: float(distribution[state]) for state in SETTLEMENT_STATE_ORDER}
+    return None
+
+
+def _rps_five_state(
+    distribution: Mapping[str, float], actual: str
+) -> float | None:
+    """五态 RPS：累计预测 vs 累计观测的平方差均值（K-1=4 归一）。"""
+    order = SETTLEMENT_STATE_ORDER
+    if set(distribution) != set(order) or actual not in order:
+        return None
+    observed = [1.0 if state == actual else 0.0 for state in order]
+    predicted = [float(distribution[state]) for state in order]
+    cumulative_predicted = 0.0
+    cumulative_observed = 0.0
+    total = 0.0
+    for forecast, outcome in zip(predicted[:-1], observed[:-1]):
+        cumulative_predicted += forecast
+        cumulative_observed += outcome
+        total += (cumulative_predicted - cumulative_observed) ** 2
+    return total / (len(order) - 1)
+
+
+def _five_state_rps(
+    rows: Sequence[Mapping[str, Any]], candidates: Mapping[str, Mapping[str, Any]]
+) -> dict[str, Any]:
+    scores: list[float] = []
+    for row in rows:
+        state = _five_state_of(row)
+        distribution = _five_state_distribution(candidates.get(_text(row.get("fixture_id"))))
+        if state is None or distribution is None:
+            continue
+        score = _rps_five_state(distribution, state)
+        if score is not None:
+            scores.append(score)
+    if not scores:
+        return {"sample_count": 0, "mean_rps": None, "status": "NOT_AVAILABLE"}
+    return {
+        "sample_count": len(scores),
+        "mean_rps": round(sum(scores) / len(scores), 6),
+        "status": "AVAILABLE",
+    }
+
+
+def _ou_all_over(
+    canonical_rows: Sequence[Mapping[str, Any]],
+    candidates: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    """OU 全大球基线：所有 TOTALS 场次固定买 OVER，用 OVER 报价 + 总进球结算。"""
+    rows: list[Mapping[str, Any]] = []
+    for row in canonical_rows:
+        if _text(row.get("market")).upper() != "TOTALS":
+            continue
+        fixture_id = _text(row.get("fixture_id"))
+        capture = candidates.get(fixture_id)
+        if capture is None:
+            continue
+        over = _quote(capture, "TOTALS", "OVER")
+        score = row.get("final_score")
+        if over is None or not isinstance(score, Mapping):
+            continue
+        home = _number(score.get("home"))
+        away = _number(score.get("away"))
+        if home is None or away is None:
+            continue
+        line_text, price = over
+        try:
+            line = Decimal(line_text)
+        except InvalidOperation:
+            continue
+        state = settle_total_goals(int(home) + int(away), "OVER", line).value
+        rows.append({"settlement_outcome": state, "entry_price": price})
+    if not rows:
+        return {"n": 0, "five_state": {state: 0 for state in SETTLEMENT_STATE_ORDER},
+                "flat_units": None, "units_per_pick": None}
+    return _summarize(rows)
+
+
+def _market_breakdown(
+    canonical_rows: Sequence[Mapping[str, Any]],
+    candidates: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    """按市场（AH/OU）的累计监测分层报告，对齐 cumulative_monitoring_sample 口径。"""
+    by_market: dict[str, list[Mapping[str, Any]]] = {
+        "ASIAN_HANDICAP": [],
+        "TOTALS": [],
+    }
+    for row in canonical_rows:
+        market = _text(row.get("market")).upper()
+        if market in by_market:
+            by_market[market].append(row)
+    result: dict[str, Any] = {}
+    for market, rows in by_market.items():
+        result[market] = {
+            **_summarize(rows),
+            "by_month": {
+                key: _summarize(items) for key, items in _group(rows, key=_month_of).items()
+            },
+            "by_odds_bucket": {
+                key: _summarize(items)
+                for key, items in _group(
+                    rows, key=lambda row: _odds_bucket(_number(row.get("entry_price")))
+                ).items()
+            },
+            "by_quote_age": {
+                key: _summarize(items)
+                for key, items in _group(
+                    rows, key=lambda row: _quote_age_bucket(row, candidates)
+                ).items()
+            },
+            "five_state_rps": _five_state_rps(rows, candidates),
+        }
+    result["TOTALS"]["all_over"] = _ou_all_over(canonical_rows, candidates)
+    return result

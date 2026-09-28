@@ -124,5 +124,10 @@ def test_explanation_only_factor_never_enters_absent() -> None:
     result = build_factor_score(feature_set)
 
     absent_ids = {item.feature_id for item in result.absent}
-    assert "F5_RECENT_AH_COVER" in absent_ids
+    # v2 (AH/OU single-chain): F3/F5 are retired and never surface as "missing
+    # evidence"; F4 is EXPLANATION_ONLY. Only F9/F6 can be absent, and both are
+    # READY here, so the absence list is empty.
+    assert absent_ids == set()
+    assert "F3_REST_FITNESS" not in absent_ids
+    assert "F5_RECENT_AH_COVER" not in absent_ids
     assert "F4_MATCH_IMPORTANCE" not in absent_ids

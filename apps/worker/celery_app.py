@@ -741,6 +741,17 @@ def future_fixture_refresh(
         except Exception:
             logger.exception("w2 h2h auto-capture failed")
             h2h_report = {"error": "H2H_AUTO_CAPTURE_FAILED"}
+    # F9 xG 自动补采：新 fixture 进评估前采历史比赛 xG 落 team_xg_match
+    # （幂等：已缓存 statistics 跳过；fail-closed：quota/hard-cap 阻断即停；不自动重试）。
+    xg_report: dict[str, object] = {}
+    if os.environ.get("W2_XG_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
+        try:
+            from w2.ingestion.xg_backfill import run_xg_history_backfill
+
+            xg_report = run_xg_history_backfill(competition_id=competition_id).as_dict()
+        except Exception:
+            logger.exception("w2 xg auto-capture failed")
+            xg_report = {"error": "XG_AUTO_CAPTURE_FAILED"}
     audit = run_future_refresh_task(
         task_id=task_id,
         key=key,
@@ -811,6 +822,7 @@ def future_fixture_refresh(
         "forward_factor_recording": recording_report,
         "runtime_ah_settlement_facts": ah_fact_report,
         "h2h_auto_capture": h2h_report,
+        "xg_auto_capture": xg_report,
         "candidate": False,
         "formal_recommendation": False,
     }

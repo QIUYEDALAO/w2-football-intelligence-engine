@@ -1264,18 +1264,14 @@ def test_factor_checklist_exposes_four_non_probability_contributions() -> None:
         "F3_REST_FITNESS": (4.0, -0.5, 0.1),
         "F5_RECENT_AH_COVER": (0.6, 0.2, 0.05),
     }
-    # As of the score-driven-recommendation change (2026-09-03), F3/F5 are
-    # in team_score's ALLOWED_INDEPENDENT_FACTORS with registry
-    # ACTIVE/SCORING/numeric_effect_enabled=true, so a READY reading of
-    # either now feeds the AH factor score directly. F1/F2 are not yet in
-    # that allowlist (a separate, not-yet-taken step), so they still only
-    # count toward READY totals for now — update this expectation the day
-    # that changes.
+    # As of the AH/OU v3 single-chain retirement (2026-09-28), only F9_TRUE_XG
+    # and F6_H2H drive the AH factor score. F1/F2/F3/F5 no longer enter the
+    # recommendation allowlist, so none of them drives the AH pick.
     expected_drives_ah = {
         "F1_MARKET_MOVEMENT": False,
         "F2_BOOKMAKER_INTENT": False,
-        "F3_REST_FITNESS": True,
-        "F5_RECENT_AH_COVER": True,
+        "F3_REST_FITNESS": False,
+        "F5_RECENT_AH_COVER": False,
     }
     seen: set[str] = set()
     for factor in factors:
