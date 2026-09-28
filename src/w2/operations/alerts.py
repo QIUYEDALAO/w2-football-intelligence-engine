@@ -84,4 +84,6 @@ ALERT_RULES = [
     "result_sync_delay",
     "frozen_manifest_hash_mismatch",
     "backup_stale",
+    "factor_readiness_below_baseline",
+    "factor_readiness_rate_drop",
 ]

@@ -27,6 +27,7 @@ DEFAULT_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS = 10 * 60
 DEFAULT_FIXTURE_DISCOVERY_INTERVAL_SECONDS = 5 * 60
 DEFAULT_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS = 7
 DEFAULT_CANDIDATE_NOTIFICATION_POLL_SECONDS = 5
+DEFAULT_FACTOR_READINESS_INTERVAL_SECONDS = 24 * 60 * 60
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,39 @@ def xg_history_backfill_enabled() -> bool:
 
 def forward_outcome_ledger_enabled() -> bool:
     return os.environ.get("W2_FORWARD_OUTCOME_LEDGER_ENABLED", "false").lower() == "true"
+
+
+def factor_readiness_enabled() -> bool:
+    return os.environ.get("W2_FACTOR_READINESS_ENABLED", "false").lower() == "true"
+
+
+def factor_readiness_interval_seconds() -> int:
+    try:
+        return max(
+            int(
+                os.environ.get(
+                    "W2_FACTOR_READINESS_INTERVAL_SECONDS",
+                    str(DEFAULT_FACTOR_READINESS_INTERVAL_SECONDS),
+                )
+            ),
+            60 * 60,
+        )
+    except ValueError:
+        return DEFAULT_FACTOR_READINESS_INTERVAL_SECONDS
+
+
+def factor_readiness_tick() -> dict[str, object]:
+    from w2.operations.factor_readiness import factor_readiness_report
+
+    result = factor_readiness_report()
+    return {
+        "status": "REPORTED",
+        "fixture_total": result["report"]["fixture_total"],
+        "alert_count": len(result["alerts"]),
+        "provider_calls": 0,
+        "candidate": False,
+        "formal_recommendation": False,
+    }
 
 
 def candidate_notification_delivery_tick() -> dict[str, object]:
@@ -770,6 +804,7 @@ def run_forever() -> None:
     next_xg_backfill_at = datetime.now(UTC)
     next_forward_outcome_ledger_at = datetime.now(UTC)
     next_fixture_discovery_at = datetime.now(UTC)
+    next_factor_readiness_at = datetime.now(UTC)
     Thread(
         target=candidate_notification_delivery_loop,
         name="candidate-notification-delivery",
@@ -857,6 +892,17 @@ def run_forever() -> None:
             next_forward_outcome_ledger_at = next_forward_outcome_ledger_at.fromtimestamp(
                 next_forward_outcome_ledger_at.timestamp()
                 + forward_outcome_ledger_interval_seconds,
+                tz=UTC,
+            )
+        if factor_readiness_enabled() and datetime.now(UTC) >= next_factor_readiness_at:
+            try:
+                result = factor_readiness_tick()
+                logger.info("w2 factor readiness %s", result)
+            except Exception:
+                logger.exception("w2 factor readiness failed")
+            next_factor_readiness_at = datetime.now(UTC).replace(tzinfo=UTC)
+            next_factor_readiness_at = next_factor_readiness_at.fromtimestamp(
+                next_factor_readiness_at.timestamp() + factor_readiness_interval_seconds(),
                 tz=UTC,
             )
         # CAP-MISS 验收：记录每轮主循环耗时，确认 CPU 不再被全量推送排程占用。
