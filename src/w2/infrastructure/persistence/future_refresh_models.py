@@ -253,3 +253,32 @@ class TeamXgRollingSnapshotModel(Base):
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
     candidate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     formal_recommendation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class TeamXgRollingSnapshotBacktestModel(Base):
+    """回测口径 F9 快照：与线上 PIT 快照隔离，captured_at 视为比赛时点。
+
+    只供离线回测（偏差挖掘）使用，绝不混入线上 team_xg_rolling_snapshot。
+    """
+
+    __tablename__ = "team_xg_rolling_snapshot_backtest"
+    __table_args__ = (
+        UniqueConstraint(
+            "team_id", "as_of_fixture_id", name="uq_team_xg_snapshot_bt_fixture_team"
+        ),
+        Index("ix_team_xg_rolling_snapshot_bt_team_asof", "team_id", "as_of_time"),
+    )
+
+    snapshot_id: Mapped[str] = mapped_column(String(96), primary_key=True)
+    team_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    as_of_fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    as_of_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    match_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    rolling_xg_for: Mapped[float] = mapped_column(Float, nullable=False)
+    rolling_xg_against: Mapped[float] = mapped_column(Float, nullable=False)
+    rolling_goals_for: Mapped[float] = mapped_column(Float, nullable=False)
+    rolling_goals_against: Mapped[float] = mapped_column(Float, nullable=False)
+    regression_index: Mapped[float] = mapped_column(Float, nullable=False)
+    source_system: Mapped[str] = mapped_column(String(64), nullable=False)
+    candidate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    formal_recommendation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

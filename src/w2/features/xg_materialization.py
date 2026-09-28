@@ -127,12 +127,18 @@ def materialize_rolling_xg(
     matches: list[TeamXgMatch],
     window: int = 5,
     min_matches: int = 3,
+    captured_before_cutoff: bool = True,
 ) -> TeamXgRollingSnapshot | None:
     """Build a target-fixture snapshot without making it visible before its inputs.
 
     ``as_of_time`` is the target cutoff used only to select strictly earlier
     components.  The persisted snapshot timestamp is the latest time at which
     every selected component was knowable.
+
+    ``captured_before_cutoff=False`` is the 回测口径: historical backfill rows carry a
+    ``captured_at`` of the (late) backfill run rather than the match time, so eligibility
+    is gated only by ``kickoff_at < cutoff`` and ``available_at`` uses kickoff only.  The
+    default keeps the online PIT semantics unchanged.
     """
     if window < 1 or min_matches < 1:
         raise ValueError("window and min_matches must be positive")
@@ -142,16 +148,19 @@ def materialize_rolling_xg(
         for row in matches
         if row.team_id == team_id
         and row.kickoff_at.astimezone(UTC) < cutoff
-        and row.captured_at.astimezone(UTC) < cutoff
+        and (captured_before_cutoff is False or row.captured_at.astimezone(UTC) < cutoff)
     ]
     eligible.sort(key=lambda row: row.kickoff_at)
     selected = eligible[-window:]
     if len(selected) < min_matches:
         return None
-    available_at = max(
-        max(row.kickoff_at.astimezone(UTC), row.captured_at.astimezone(UTC))
-        for row in selected
-    )
+    if captured_before_cutoff:
+        available_at = max(
+            max(row.kickoff_at.astimezone(UTC), row.captured_at.astimezone(UTC))
+            for row in selected
+        )
+    else:
+        available_at = max(row.kickoff_at.astimezone(UTC) for row in selected)
     count = len(selected)
     xg_for = sum(row.xg_for for row in selected) / count
     xg_against = sum(row.xg_against for row in selected) / count
