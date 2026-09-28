@@ -27,6 +27,13 @@ _INGEST_ROLE = "quant_ingest_role"
 _POSTEVENT_ROLE = "quant_postevent_role"
 _LEDGER = "forward_ah_factor_observations"
 _RESULT_TABLES = ("results",)
+# AS-OF 读角色可读的 as-of 事实表：账本 + 软最大值 F9/F6 来源 + crosswalk。
+_ASOF_READ_TABLES = (
+    _LEDGER,
+    "team_xg_rolling_snapshot",
+    "canonical_team_match_history",
+    "provider_team_identity_crosswalk",
+)
 
 
 def _postgres_only() -> bool:
@@ -43,8 +50,9 @@ def upgrade() -> None:
             f"CREATE ROLE {role} NOLOGIN; "
             f"END IF; END $$;"
         )
-    # AS-OF reader may read the as-of ledger only.
-    op.execute(f"GRANT SELECT ON {_LEDGER} TO {_ASOF_ROLE}")
+    # AS-OF reader may read the as-of ledger + the F9/F6 source tables it reads.
+    for table in _ASOF_READ_TABLES:
+        op.execute(f"GRANT SELECT ON {table} TO {_ASOF_ROLE}")
     for table in _RESULT_TABLES:
         op.execute(f"REVOKE ALL ON {table} FROM {_ASOF_ROLE}")
     # Ingest writes the as-of ledger; post-event role is reserved for settlement
@@ -55,7 +63,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     if not _postgres_only():
         return
-    op.execute(f"REVOKE SELECT ON {_LEDGER} FROM {_ASOF_ROLE}")
+    for table in _ASOF_READ_TABLES:
+        op.execute(f"REVOKE SELECT ON {table} FROM {_ASOF_ROLE}")
     op.execute(f"REVOKE SELECT, INSERT ON {_LEDGER} FROM {_INGEST_ROLE}")
     for role in (_ASOF_ROLE, _INGEST_ROLE, _POSTEVENT_ROLE):
         op.execute(

@@ -243,10 +243,10 @@ def test_repository_consumes_generated_artifacts(monkeypatch: Any, tmp_path: Any
 
     assert card is not None
     summary = card["pricing_shadow"]["factor_source_summary"]
-    assert summary["F3_REST_FITNESS"]["source_group"] == "team_fixture_history"
-    assert summary["F6_H2H"]["source_group"] == "h2h"
+    # 停用因子彻底退出：factor_source_summary 不再含 F3/F6/F7。
+    assert "F3_REST_FITNESS" not in summary
+    assert "F6_H2H" not in summary
     assert "F7_STRENGTH_FORM" not in summary
-    assert card["pricing_shadow"]["independent_signal_count"] == 2
 
 
 def test_repository_skips_unreadable_runtime_artifacts(monkeypatch: Any, tmp_path: Any) -> None:

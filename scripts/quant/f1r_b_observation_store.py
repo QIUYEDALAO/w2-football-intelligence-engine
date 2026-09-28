@@ -230,32 +230,43 @@ class ForwardFactorObservationStore:
 
 
 def _assert_source_records_exist(session: Session, record_ids: set[str]) -> None:
-    """Every cited source record id must resolve to a real source row.
+    """Every cited source record must resolve to a real, complete source row.
 
     The consumed source set spans the canonical match history (F6) and the
-    rolling xG snapshot (F9). A record id that appears in neither refuses the
-    whole batch, so a dangling reference can never be written.
+    rolling xG snapshot (F9). Beyond id existence, each row must carry its
+    capture hash and its content fields, so a record that exists but was
+    truncated or stripped of provenance is refused too (整改 item 6).
     """
     if not record_ids:
         return
-    found: set[str] = set()
-    found.update(
+    history_rows = list(
         session.scalars(
-            select(CanonicalTeamMatchHistoryModel.history_id).where(
+            select(CanonicalTeamMatchHistoryModel).where(
                 CanonicalTeamMatchHistoryModel.history_id.in_(record_ids)
             )
         )
     )
-    found.update(
+    snapshot_rows = list(
         session.scalars(
-            select(TeamXgRollingSnapshotModel.snapshot_id).where(
+            select(TeamXgRollingSnapshotModel).where(
                 TeamXgRollingSnapshotModel.snapshot_id.in_(record_ids)
             )
         )
     )
+    found = {row.history_id for row in history_rows} | {
+        row.snapshot_id for row in snapshot_rows
+    }
     missing = sorted(record_ids - found)
     if missing:
         raise StoreError("SOURCE_RECORD_NOT_FOUND", ",".join(missing))
+    for row in history_rows:
+        if not row.history_hash or not row.source_raw_hash:
+            raise StoreError("SOURCE_RECORD_PROVENANCE_INCOMPLETE", row.history_id)
+        if row.goals_for is None or row.goals_against is None or not row.team_side:
+            raise StoreError("SOURCE_RECORD_CONTENT_INCOMPLETE", row.history_id)
+    for row in snapshot_rows:
+        if row.rolling_xg_for is None or row.rolling_xg_against is None:
+            raise StoreError("SOURCE_RECORD_CONTENT_INCOMPLETE", row.snapshot_id)
 
 
 def utc_now() -> datetime:

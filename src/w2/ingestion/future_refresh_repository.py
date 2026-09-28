@@ -2250,10 +2250,24 @@ class FutureRefreshDbRepository:
         *,
         before: datetime,
         limit_per_team: int = 20,
+        opponent_w2_id: str | None = None,
+        fixture_status: str = "FT",
     ) -> list[dict[str, Any]]:
         ids = [team_id for team_id in dict.fromkeys(team_ids) if team_id]
         if not ids or len(ids) > 8:
             return []
+        # Filter the same opponent and FT status *before* ranking, so the last
+        # 10 qualifying meetings are taken from the full qualified set -- not
+        # from a pre-truncated 20 (which would drop a qualifying 21st meeting).
+        filters = [
+            CanonicalTeamMatchHistoryModel.team_w2_id.in_(ids),
+            CanonicalTeamMatchHistoryModel.kickoff_utc < before,
+        ]
+        if opponent_w2_id is not None:
+            filters.append(
+                CanonicalTeamMatchHistoryModel.opponent_w2_id == opponent_w2_id
+            )
+        filters.append(CanonicalTeamMatchHistoryModel.fixture_status == fixture_status)
         ranked = (
             select(
                 CanonicalTeamMatchHistoryModel.history_id.label("history_id"),
@@ -2264,10 +2278,7 @@ class FutureRefreshDbRepository:
                 )
                 .label("rank"),
             )
-            .where(
-                CanonicalTeamMatchHistoryModel.team_w2_id.in_(ids),
-                CanonicalTeamMatchHistoryModel.kickoff_utc < before,
-            )
+            .where(*filters)
             .subquery()
         )
         with self._asof_scoped_session() as session:

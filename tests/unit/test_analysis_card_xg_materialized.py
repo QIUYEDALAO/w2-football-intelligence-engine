@@ -936,7 +936,8 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert ah_market["reason"] == "SOFTMAX_REPOSITORY_UNAVAILABLE"
     assert totals_market["reason"] == "SOFTMAX_REPOSITORY_UNAVAILABLE"
     assert score_market["scores"] == []
-    assert card["bookmaker_intent"]["intent"] in {"HOME_LEAN", "AWAY_LEAN"}
+    # 停用因子彻底退出新路径：不再 infer bookmaker_intent，展示为 INSUFFICIENT_DATA。
+    assert card["bookmaker_intent"]["intent"] == "INSUFFICIENT_DATA"
 
 
 def test_analysis_card_prefers_future_refresh_observations_over_stale_dashboard(
@@ -1133,14 +1134,8 @@ def test_public_bounded_analysis_consumes_canonical_identity_history_and_ratings
     assert card["simulation"]["input_readiness"]["away_elo_source"] is None
     assert card["simulation"]["input_readiness"]["home_elo_collection_status"] is None
     assert card["simulation"]["input_readiness"]["away_elo_collection_status"] is None
-    contributions = card["feature_contributions"]
-    assert any(
-        item["id"] == "F3_REST_FITNESS"
-        and item["source_group"] == "team_fixture_history"
-        and item["is_independent_signal"] is True
-        for item in contributions
-    )
-    assert all(item.get("proxy_of") != "ratings" for item in contributions)
+    # 停用因子彻底退出新路径：payload 不再展示旧 feature_contributions。
+    assert "feature_contributions" not in card
 
 
 class FakeReadRepositoryOnlyExtremeLines(FakeReadRepository):

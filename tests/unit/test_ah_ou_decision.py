@@ -12,6 +12,7 @@ from w2.strategy.analysis_recommendation import (
 )
 
 KICKOFF = datetime(2026, 8, 1, 12, 0, tzinfo=UTC)
+FIXTURE_ID = "FIX1"
 
 
 class FakeRepository:
@@ -24,13 +25,23 @@ class FakeRepository:
     ):
         return [self.snapshots[t] for t in team_ids if t in self.snapshots]
 
-    def canonical_match_history_for_teams(self, team_ids, *, before, limit_per_team=20):
-        return [r for r in self.history if r["team_w2_id"] in team_ids]
+    def canonical_match_history_for_teams(
+        self, team_ids, *, before, limit_per_team=20,
+        opponent_w2_id=None, fixture_status="FT",
+    ):
+        return [
+            r for r in self.history
+            if r["team_w2_id"] in team_ids
+            and (opponent_w2_id is None or r["opponent_w2_id"] == opponent_w2_id)
+            and r.get("fixture_status") == fixture_status
+        ]
 
 
 def _snapshot(team_id: str) -> dict:
     return {
         "team_id": team_id,
+        "as_of_fixture_id": FIXTURE_ID,
+        "as_of_time": (KICKOFF - timedelta(days=1)).isoformat(),
         "rolling_xg_for": 1.2,
         "rolling_xg_against": 0.8,
     }
@@ -69,6 +80,7 @@ def _ready_repository() -> FakeRepository:
 def test_build_ah_ou_selections_ready() -> None:
     result = build_ah_ou_selections(
         _ready_repository(),
+        fixture_id=FIXTURE_ID,
         home_team_id="H", away_team_id="A", kickoff=KICKOFF,
         competition_id="c", season="s",
         ah_line=-0.5, ah_home_odds=1.8, ah_away_odds=2.2,
@@ -84,7 +96,8 @@ def test_build_ah_ou_selections_f9_missing() -> None:
     repo = _ready_repository()
     repo.snapshots = {"H": _snapshot("H")}  # 缺 A 队快照
     result = build_ah_ou_selections(
-        repo, home_team_id="H", away_team_id="A", kickoff=KICKOFF,
+        repo, fixture_id=FIXTURE_ID,
+        home_team_id="H", away_team_id="A", kickoff=KICKOFF,
         competition_id="c", season="s",
         ah_line=-0.5, ah_home_odds=1.8, ah_away_odds=2.2,
         ou_line=2.5, ou_over_odds=1.9, ou_under_odds=1.9,
@@ -97,7 +110,8 @@ def test_build_ah_ou_selections_f6_missing() -> None:
     repo = _ready_repository()
     repo.history = []  # 无交锋
     result = build_ah_ou_selections(
-        repo, home_team_id="H", away_team_id="A", kickoff=KICKOFF,
+        repo, fixture_id=FIXTURE_ID,
+        home_team_id="H", away_team_id="A", kickoff=KICKOFF,
         competition_id="c", season="s",
         ah_line=-0.5, ah_home_odds=1.8, ah_away_odds=2.2,
         ou_line=2.5, ou_over_odds=1.9, ou_under_odds=1.9,

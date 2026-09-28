@@ -308,21 +308,13 @@ def test_history_and_xg_drive_isc_without_retired_factors(monkeypatch: Any, tmp_
 
     assert card is not None
     factors = {item["id"]: item for item in card["pricing_shadow"]["factors"]}
-    assert factors["F3_REST_FITNESS"]["source_group"] == "canonical_historical_ah_fact"
-    assert factors["F3_REST_FITNESS"]["is_independent_signal"] is True
-    assert factors["F3_REST_FITNESS"]["inputs"]["home_rest_days"] > 0
-    assert factors["F5_RECENT_AH_COVER"]["status"] == "READY"
-    assert factors["F6_H2H"]["source_group"] == "h2h"
+    # 停用因子彻底退出新路径：build_feature_set 不再执行，factors 不再含 F3/F5/F6/F9。
+    assert "F3_REST_FITNESS" not in factors
+    assert "F5_RECENT_AH_COVER" not in factors
+    assert "F6_H2H" not in factors
     assert "F7_STRENGTH_FORM" not in factors
     assert "F8_SQUAD_VALUE" not in factors
-    assert factors["F9_TRUE_XG"]["source_group"] == "xg"
-    assert card["pricing_shadow"]["independent_signal_count"] >= 3
-    assert (
-        card["pricing_shadow"]["team_score"]["home"]
-        > card["pricing_shadow"]["team_score"]["away"]
-    )
-    assert card["pricing_shadow"]["fair_ah"] < 0
-    assert card["pricing_shadow"]["beats_market"] is False
+    assert "F9_TRUE_XG" not in factors
     assert card["formal_recommendation"] is False
     assert card["candidate"] is False
 
@@ -390,7 +382,8 @@ def test_missing_ah_and_h2h_are_reported_without_fake_ready(
 
     assert card is not None
     summary = card["pricing_shadow"]["factor_source_summary"]
-    assert summary["F5_RECENT_AH_COVER"]["collection_status"] == "MISSING_AH_EVIDENCE"
-    assert summary["F6_H2H"]["collection_status"] == "NO_H2H_HISTORY"
-    assert "h2h" in card["pricing_shadow"]["missing_independent_sources"]
-    assert "squad_value" not in card["pricing_shadow"]["missing_independent_sources"]
+    # 停用因子彻底退出：factor_source_summary 不再含 F5/F6 的 collection 详情。
+    assert "F5_RECENT_AH_COVER" not in summary
+    assert "F6_H2H" not in summary
+    assert card["formal_recommendation"] is False
+    assert card["candidate"] is False

@@ -68,7 +68,7 @@ def _card_with(monkeypatch: Any, tmp_path: Path, recorder: Any) -> dict[str, Any
     return service.analysis_card(FIXTURE_ID)
 
 
-def test_the_production_card_evaluation_reaches_the_recorder(
+def test_stopped_factors_no_longer_reach_the_recorder(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
     recorder = SpyRecorder()
@@ -76,34 +76,8 @@ def test_the_production_card_evaluation_reaches_the_recorder(
     card = _card_with(monkeypatch, tmp_path, recorder)
 
     assert card is not None
-    assert len(recorder.calls) == 1, recorder.calls
-    call = recorder.calls[0]
-    assert call["fixture_id"] == FIXTURE_ID
-    assert call["context"].fixture_id == FIXTURE_ID
-    # The context is the one the evaluation read from, not a restatement of it.
-    assert str(call["context"].as_of) == "2026-07-10 18:00:00+00:00"
-    assert call["feature_set"].fixture_id == FIXTURE_ID
-    assert {c.feature_id for c in call["feature_set"].contributions} >= set(REQUIRED_FACTORS)
-    assert len(call["xg_snapshots"]) == 2
-
-
-def test_the_recorder_is_handed_the_scored_evaluation_not_a_recomputation(
-    monkeypatch: Any, tmp_path: Path
-) -> None:
-    from w2.pricing.team_score import independent_team_scores_from_contributions
-
-    recorder = SpyRecorder()
-
-    _card_with(monkeypatch, tmp_path, recorder)
-
-    feature_set = recorder.calls[0]["feature_set"]
-    # The written card carries the same contributions, so the batch the recorder
-    # builds is about the evaluation that was scored -- not a second one.
-    authority = independent_team_scores_from_contributions(feature_set.contributions)
-    scored = {row["id"]: row["weight"] for row in authority["scoring_factors"]}
-    for contribution in feature_set.contributions:
-        if contribution.feature_id in scored:
-            assert float(contribution.weight) == scored[contribution.feature_id]
+    # 停用因子彻底退出新路径：build_feature_set 不再执行，recorder 不再被调用。
+    assert len(recorder.calls) == 0, recorder.calls
 
 
 def test_a_read_only_caller_gets_the_same_card_and_writes_nothing(
@@ -120,7 +94,7 @@ def test_a_read_only_caller_gets_the_same_card_and_writes_nothing(
     with_recorder = _card_with(monkeypatch, tmp_path, recorder)
     without_recorder = _card_with(monkeypatch, tmp_path, None)
 
-    assert len(recorder.calls) == 1
+    assert len(recorder.calls) == 0
     assert with_recorder is not None and without_recorder is not None
     assert with_recorder == without_recorder
     assert with_recorder["candidate"] is False

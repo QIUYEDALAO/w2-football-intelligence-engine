@@ -152,7 +152,7 @@ from w2.strategy.analysis_recommendation import (
     MultiMarketAnalysisCard,
     build_multi_market_analysis,
 )
-from w2.strategy.ah_ou_decision import build_ah_ou_selections
+from w2.strategy.ah_ou_decision import DECISION_LEAD_TIME, build_ah_ou_selections
 from w2.strategy.bookmaker_intent import infer_bookmaker_intent
 from w2.strategy.factor_score import FactorScore
 from w2.strategy.formal_recommendation import (
@@ -3222,55 +3222,6 @@ class ReadModelService:
             )
         )
         mainline_selection = self._mainline_market_selection(observations)
-        mainline_observations = [
-            row
-            for selection in mainline_selection.values()
-            for row in cast(list[dict[str, Any]], selection.get("observations", []))
-        ]
-        feature_observations = mainline_observations or observations
-        market_snapshots = self._market_snapshots_from_observations(feature_observations)
-        bookmaker_quotes = self._bookmaker_quotes_from_observations(feature_observations)
-        registry = CompetitionRegistry()
-        try:
-            coverage = registry.require_enabled(competition_id).coverage_profile
-        except CompetitionRegistryError:
-            return None
-        home_ah_history, away_ah_history = self._runtime_ah_settlement_histories(
-            context=context, home_team_id=home_id, away_team_id=away_id
-        )
-        feature_set = build_feature_set(
-            context=context,
-            inputs=FeatureInputs(
-                market_snapshots=market_snapshots,
-                bookmaker_quotes=bookmaker_quotes,
-                home_history=home_history,
-                away_history=away_history,
-                home_ah_history=home_ah_history,
-                away_ah_history=away_ah_history,
-                h2h_meetings=h2h_meetings,
-                home_xg=home_xg,
-                away_xg=away_xg,
-            ),
-            registry=registry,
-        )
-        ah_snapshots = [row for row in market_snapshots if row.market == "ASIAN_HANDICAP"]
-        ou_snapshots = [row for row in market_snapshots if row.market == "TOTALS"]
-        ah_quotes = [row for row in bookmaker_quotes if row.market == "ASIAN_HANDICAP"]
-        ou_quotes = [row for row in bookmaker_quotes if row.market == "TOTALS"]
-        ah_intent = infer_bookmaker_intent(
-            context=context,
-            profile=coverage,
-            market_kind="AH",
-            snapshots=ah_snapshots,
-            quotes=ah_quotes,
-        )
-        ou_intent = infer_bookmaker_intent(
-            context=context,
-            profile=coverage,
-            market_kind="OU",
-            snapshots=ou_snapshots,
-            quotes=ou_quotes,
-        )
         missing: set[AnalysisMarket] = set()
         if mainline_selection["ASIAN_HANDICAP"]["status"] != "READY":
             missing.add(AnalysisMarket.ASIAN_HANDICAP)
@@ -3367,6 +3318,7 @@ class ReadModelService:
             )
         ah_selection, ou_selection, softmax_status = self._softmax_ah_ou_selections(
             repository=repository,
+            fixture_id=fixture_id,
             home_id=home_id,
             away_id=away_id,
             kickoff=kickoff,
@@ -3377,9 +3329,6 @@ class ReadModelService:
         card = build_multi_market_analysis(
             fixture_id=fixture_id,
             inputs=AnalysisBuildInputs(
-                ah_intent=ah_intent,
-                ou_intent=ou_intent,
-                feature_set=feature_set,
                 half_goals=half_goals,
                 score_matrix=score_matrix,
                 score_direction=score_direction,
@@ -3394,9 +3343,6 @@ class ReadModelService:
         # provider-mapped competition identity as the feature context.
         payload["competition_id"] = competition_id
         payload["season"] = season
-        payload["feature_contributions"] = [
-            self._feature_contribution_payload(item) for item in feature_set.contributions
-        ]
         payload["simulation"] = simulation_output.as_dict()
         payload["neutral_site_resolution"] = neutral_site_resolution
         calibration_audit = (
@@ -3440,12 +3386,6 @@ class ReadModelService:
             payload,
             home_xg=latest_home_xg,
             away_xg=latest_away_xg,
-        )
-        self._record_forward_factor_observations(
-            fixture_id=fixture_id,
-            feature_set=feature_set,
-            context=context,
-            snapshots=snapshots,
         )
         return payload
 
@@ -3664,6 +3604,7 @@ class ReadModelService:
         self,
         *,
         repository: Any,
+        fixture_id: str,
         home_id: str,
         away_id: str,
         kickoff: datetime,
@@ -3699,9 +3640,32 @@ class ReadModelService:
             return None, None, "AH_SIDE_PRICES_INCOMPLETE"
         if "over" not in ou_prices or "under" not in ou_prices:
             return None, None, "OU_SIDE_PRICES_INCOMPLETE"
+        # Quote identity + timing (整改 item 5): Pinnacle bookmaker_id=4, both
+        # sides from one capture, captured_at <= decision_at.
+        decision_at = kickoff - DECISION_LEAD_TIME
+        for label, selection in (("AH", ah), ("OU", ou)):
+            rows = selection.get("authoritative_quote_rows")
+            if not isinstance(rows, dict) or not rows:
+                return None, None, f"{label}_QUOTE_IDENTITY_MISSING"
+            capture_ids: set[str] = set()
+            for row in rows.values():
+                if not isinstance(row, dict):
+                    return None, None, f"{label}_QUOTE_ROW_INVALID"
+                bookmaker_id = str(row.get("bookmaker_id") or "")
+                if bookmaker_id != "4":
+                    return None, None, f"{label}_QUOTE_NOT_PINNACLE"
+                captured = parse_provider_time(
+                    row.get("captured_at") or row.get("captured_at_utc")
+                )
+                if captured is None or captured > decision_at:
+                    return None, None, f"{label}_QUOTE_CAPTURED_AFTER_DECISION"
+                capture_ids.add(str(row.get("capture_id") or ""))
+            if len(capture_ids) != 1 or "" in capture_ids:
+                return None, None, f"{label}_QUOTE_NOT_SAME_CAPTURE"
         try:
             result = build_ah_ou_selections(
                 repository,
+                fixture_id=fixture_id,
                 home_team_id=home_id,
                 away_team_id=away_id,
                 kickoff=kickoff,
@@ -4172,7 +4136,11 @@ class ReadModelService:
             "fixture_id": card.fixture_id,
             "decision": card.decision.value,
             "markets": [self._analysis_market_payload(row) for row in card.markets],
-            "bookmaker_intent": card.bookmaker_intent.as_dict(),
+            "bookmaker_intent": (
+                card.bookmaker_intent.as_dict()
+                if card.bookmaker_intent is not None
+                else None
+            ),
             "factor_score": self._factor_score_payload(card.factor_score),
             "risks": sorted({risk for market in card.markets for risk in market.risks}),
             "source": "db_feature_materialized_analysis",

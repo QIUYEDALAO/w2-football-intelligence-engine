@@ -208,7 +208,9 @@ def test_xg_ready_emits_scoreline_readiness_and_dashboard_picks(
     assert card["scoreline_readiness"]["status"] == "READY"
     assert card["scoreline_readiness"]["source"] == "independent_xg_poisson"
     assert card["scoreline_readiness"]["lambda_home"] > card["scoreline_readiness"]["lambda_away"]
-    assert card["pricing_shadow"]["fair_ou"] == card["scoreline_readiness"]["fair_ou"]
+    # 停用因子退出后 pricing_shadow 不再聚合 fair_ou；独立 xG 的 fair_ou 仍在 scoreline_readiness。
+    assert card["pricing_shadow"]["fair_ou"] is None
+    assert card["scoreline_readiness"]["fair_ou"] == 2.75
     assert card["pricing_shadow"]["beats_market"] is False
     assert card["formal_recommendation"] is False
     assert card["candidate"] is False
@@ -303,12 +305,14 @@ def test_legacy_embedded_scoreline_card_is_refreshed_for_readiness(
     assert card is not None
     assert card["scoreline_readiness"]["status"] == "READY"
     assert card["scoreline_readiness"]["source"] == "independent_xg_poisson"
-    assert card["pricing_shadow"]["fair_ou"] == card["scoreline_readiness"]["fair_ou"]
+    # 停用因子退出后 pricing_shadow 不再聚合 fair_ou。
+    assert card["pricing_shadow"]["fair_ou"] is None
+    assert card["scoreline_readiness"]["fair_ou"] == 2.75
 
     target_date = KICKOFF.astimezone(ZoneInfo("Asia/Shanghai")).date().isoformat()
     dashboard_card = service.dashboard(target_date=target_date, window="next36")["all"][0]
     assert dashboard_card["scoreline_readiness"]["status"] == "READY"
-    assert dashboard_card["pricing_shadow"]["fair_ou"] == card["scoreline_readiness"]["fair_ou"]
+    assert dashboard_card["pricing_shadow"]["fair_ou"] is None
 
 
 def test_recommended_scores_satisfy_primary_and_strict_secondary() -> None:

@@ -81,7 +81,7 @@ class MultiMarketAnalysisCard:
     fixture_id: str
     decision: AnalysisDecision
     markets: tuple[MarketAnalysis, ...]
-    bookmaker_intent: BookmakerIntent
+    bookmaker_intent: BookmakerIntent | None
     factor_score: FactorScore | None = None
     disclaimer: str = DISCLAIMER
     candidate: Literal[False] = False
@@ -103,19 +103,20 @@ class HalfGoalModelInput:
 
 @dataclass(frozen=True, kw_only=True)
 class AnalysisBuildInputs:
-    ah_intent: BookmakerIntent
-    ou_intent: BookmakerIntent
-    feature_set: FeatureSet
-    half_goals: HalfGoalModelInput | None
-    score_matrix: ScoreMatrix | None
-    score_direction: Direction | None
+    # Legacy weighted-factor / bookmaker-intent inputs. They are None on the
+    # F9+F6 softmax path: the softmax path must not build ``feature_set`` or
+    # infer ``bookmaker_intent`` at all (停用因子彻底退出新路径).
+    ah_intent: BookmakerIntent | None = None
+    ou_intent: BookmakerIntent | None = None
+    feature_set: FeatureSet | None = None
+    half_goals: HalfGoalModelInput | None = None
+    score_matrix: ScoreMatrix | None = None
+    score_direction: Direction | None = None
     missing_markets: frozenset[AnalysisMarket] = frozenset()
     base_risks: tuple[str, ...] = ("阵容/伤停临场变化可能改变判断。",)
-    # F9+F6 softmax path (task "原子切换前整改"). When ``ah_selection`` or
-    # ``ou_selection`` is present the AH/OU markets are emitted by the frozen
-    # softmax selection instead of the legacy weighted ``factor_score`` /
-    # ``bookmaker_intent`` path. ``softmax_status`` carries the machine-readable
-    # admission verdict (``READY`` or a structured SKIP code).
+    # F9+F6 softmax path (task "原子切换前整改"). When ``softmax_status`` is not
+    # ``LEGACY`` the AH/OU markets are emitted by the frozen softmax selection
+    # instead of the legacy weighted ``factor_score`` / ``bookmaker_intent`` path.
     ah_selection: dict[str, Any] | None = None
     ou_selection: dict[str, Any] | None = None
     softmax_status: str = "LEGACY"

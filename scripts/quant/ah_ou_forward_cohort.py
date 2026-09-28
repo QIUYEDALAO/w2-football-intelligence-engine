@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from w2.strategy.ah_ou_decision import build_ah_ou_selections
+from w2.strategy.ah_ou_decision import DECISION_LEAD_TIME, build_ah_ou_selections
 
 COHORT_SCHEMA = "w2.ah_ou_forward_cohort.v1"
 
@@ -26,6 +26,8 @@ COHORT_SCHEMA = "w2.ah_ou_forward_cohort.v1"
 @dataclass(frozen=True, kw_only=True)
 class CohortRecord:
     fixture_id: str
+    home_team_id: str
+    away_team_id: str
     competition_id: str
     season: str
     kickoff: datetime
@@ -57,11 +59,12 @@ def record_cohort(
     path: Path,
 ) -> dict[str, Any]:
     """Append one T−2h cohort row. New/pure sides are computed; old is supplied."""
-    decision_at = record.kickoff
+    decision_at = record.kickoff - DECISION_LEAD_TIME
     result = build_ah_ou_selections(
         repository,
-        home_team_id="",  # 由 repository 快照绑定唯一时替换为真实主客 id
-        away_team_id="",
+        fixture_id=record.fixture_id,
+        home_team_id=record.home_team_id,
+        away_team_id=record.away_team_id,
         kickoff=record.kickoff,
         competition_id=record.competition_id,
         season=record.season,

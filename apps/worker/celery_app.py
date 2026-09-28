@@ -733,25 +733,50 @@ def future_fixture_refresh(
     ah_fact_reports: list[dict[str, Any]] = []
     # F6 H2H 自动补采：新 fixture 进评估前补该场交锋（幂等，只补尚无交锋者）。
     h2h_report: dict[str, object] = {}
+    h2h_error: str | None = None
     if os.environ.get("W2_H2H_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
         try:
             from w2.ingestion.h2h_capture import capture_h2h_for_competition
 
             h2h_report = capture_h2h_for_competition(competition_id=competition_id)
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - fail-closed below
             logger.exception("w2 h2h auto-capture failed")
+            h2h_error = f"{type(exc).__name__}:{exc}"
             h2h_report = {"error": "H2H_AUTO_CAPTURE_FAILED"}
     # F9 xG 自动补采：新 fixture 进评估前采历史比赛 xG 落 team_xg_match
     # （幂等：已缓存 statistics 跳过；fail-closed：quota/hard-cap 阻断即停；不自动重试）。
     xg_report: dict[str, object] = {}
+    xg_error: str | None = None
     if os.environ.get("W2_XG_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
         try:
             from w2.ingestion.xg_backfill import run_xg_history_backfill
 
             xg_report = run_xg_history_backfill(competition_id=competition_id).as_dict()
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - fail-closed below
             logger.exception("w2 xg auto-capture failed")
+            xg_error = f"{type(exc).__name__}:{exc}"
             xg_report = {"error": "XG_AUTO_CAPTURE_FAILED"}
+    # Fail-closed: an auto-capture failure is persisted in the task result and
+    # stops the refresh run -- it must never fall through into the provider
+    # refresh while the factor evidence it was supposed to backfill is missing.
+    if h2h_error or xg_error:
+        blockers = [
+            f"H2H_AUTO_CAPTURE_FAILED:{h2h_error}" for h2h_error in ([h2h_error] if h2h_error else [])
+        ]
+        blockers.extend(
+            f"XG_AUTO_CAPTURE_FAILED:{xg_error}" for xg_error in ([xg_error] if xg_error else [])
+        )
+        return {
+            "task_id": task_id,
+            "task_key": key,
+            "status": "BLOCKED",
+            "audit_status": "BLOCKED",
+            "result": {"blockers": blockers, "provider_calls": 0},
+            "h2h_auto_capture": h2h_report,
+            "xg_auto_capture": xg_report,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
     audit = run_future_refresh_task(
         task_id=task_id,
         key=key,
