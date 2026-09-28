@@ -28,7 +28,8 @@ logger = logging.getLogger("w2.operations.factor_readiness")
 F6_READY_RATE_BASELINE = 0.90
 READY_RATE_DROP_THRESHOLD = 0.10
 BASELINE_FILE_ENV = "W2_FACTOR_READINESS_BASELINE_FILE"
-DEFAULT_BASELINE_FILE = "/opt/w2/shared/runtime/factor_readiness_baseline.json"
+# 容器内可写运行时目录（host /opt/w2/shared/runtime 挂载到 /app/runtime）。
+DEFAULT_BASELINE_FILE = "/app/runtime/factor_readiness_baseline.json"
 
 FACTOR_IDS = ("F3_REST_FITNESS", "F5_RECENT_AH_COVER", "F6_H2H", "F9_TRUE_XG")
 
