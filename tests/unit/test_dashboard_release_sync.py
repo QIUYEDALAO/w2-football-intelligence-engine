@@ -443,8 +443,10 @@ def test_dashboard_all_window_compacts_heavy_card_payload(monkeypatch) -> None:
     encoded = json.dumps(payload, ensure_ascii=False, default=str)
     # The v3 cohort temporarily travels beside the v2 compatibility scorecard.
     # Heavy per-card diagnostics must still be removed, while the full two-card
-    # response remains bounded during that compatibility cycle.
-    assert len(encoded) < 9000
+    # response remains bounded during that compatibility cycle. The all-window
+    # performance surface legitimately grew with the task-8 forward-ledger
+    # ``market_breakdown`` monitoring report, so the bound accounts for it.
+    assert len(encoded) < 11000
     assert card["recommendation"] == {
         "recommendation_id": f"rec-{card['fixture_id']}",
         "id": f"rec-row-{card['fixture_id']}",

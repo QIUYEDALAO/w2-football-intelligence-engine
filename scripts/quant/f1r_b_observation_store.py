@@ -27,7 +27,11 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from w2.infrastructure.persistence import ForwardAhFactorObservationModel
+from w2.infrastructure.persistence import (
+    ForwardAhFactorObservationModel,
+    TeamXgRollingSnapshotModel,
+)
+from w2.infrastructure.persistence.factor_model_models import CanonicalTeamMatchHistoryModel
 
 _HERE = Path(__file__).resolve().parent
 
@@ -147,9 +151,9 @@ class ForwardFactorObservationStore:
             to_write.append(payload)
 
         if to_write:
-            self._assert_source_capture_ids_self_consistent(to_write)
             with Session(self.engine) as session:
                 with session.begin():           # <- commit point
+                    self._assert_source_capture_ids_self_consistent(session, to_write)
                     for payload in to_write:
                         session.add(ForwardAhFactorObservationModel(**_to_row(payload)))
         return {
@@ -161,18 +165,24 @@ class ForwardFactorObservationStore:
 
     @staticmethod
     def _assert_source_capture_ids_self_consistent(
+        session: Session,
         payloads: list[dict[str, Any]],
     ) -> None:
-        """Cross-table reference check (task 9 #1, option ①).
+        """Cross-table reference check (task 9 #1, option ① + 整改 item 4).
 
         ``source_capture_sha256`` stays a contract-level ``require_hex64`` check
         (its target ``raw_payload_sha256`` is non-unique, so no DB FK is
-        possible). Existence of the capture the observation cites is instead
-        verified in the application layer: ``source_capture_id`` is a content
-        address of the consumed source set, so it must re-derive from
-        ``factor_inputs.source_record_ids``. A forged id, a dropped record, or a
-        reordered/edited record set all change the digest and refuse the batch.
+        possible). The capture the observation cites is verified in two layers:
+
+        * *self-consistency*: ``source_capture_id`` is a content address of the
+          consumed source set, so it must re-derive from
+          ``factor_inputs.source_record_ids``.
+        * *existence*: every cited ``source_record_id`` must resolve to a real
+          source row (canonical match history or rolling xG snapshot). A forged
+          id, a dropped record, a reordered/edited set, or a dangling record id
+          all refuse the batch.
         """
+        all_record_ids: set[str] = set()
         for payload in payloads:
             scid = str(payload["source_capture_id"])
             for prefix in ("w2.consumed_source_set.v1", "w2.synthetic_source_set.v1"):
@@ -197,9 +207,13 @@ class ForwardFactorObservationStore:
                     )
                     if digest != expected:
                         raise StoreError("SOURCE_CAPTURE_ID_MISMATCH", payload["factor_id"])
+                    all_record_ids.update(record_ids)
                     break
             else:
                 raise StoreError("SOURCE_CAPTURE_ID_FORMAT_INVALID", scid)
+
+        if all_record_ids:
+            _assert_source_records_exist(session, all_record_ids)
 
     @staticmethod
     def _assert_no_cycle(
@@ -213,6 +227,35 @@ class ForwardFactorObservationStore:
             seen.add(cursor)
             stored = existing.get(cursor)
             cursor = stored.get("supersedes_observation_id") if stored else None
+
+
+def _assert_source_records_exist(session: Session, record_ids: set[str]) -> None:
+    """Every cited source record id must resolve to a real source row.
+
+    The consumed source set spans the canonical match history (F6) and the
+    rolling xG snapshot (F9). A record id that appears in neither refuses the
+    whole batch, so a dangling reference can never be written.
+    """
+    if not record_ids:
+        return
+    found: set[str] = set()
+    found.update(
+        session.scalars(
+            select(CanonicalTeamMatchHistoryModel.history_id).where(
+                CanonicalTeamMatchHistoryModel.history_id.in_(record_ids)
+            )
+        )
+    )
+    found.update(
+        session.scalars(
+            select(TeamXgRollingSnapshotModel.snapshot_id).where(
+                TeamXgRollingSnapshotModel.snapshot_id.in_(record_ids)
+            )
+        )
+    )
+    missing = sorted(record_ids - found)
+    if missing:
+        raise StoreError("SOURCE_RECORD_NOT_FOUND", ",".join(missing))
 
 
 def utc_now() -> datetime:

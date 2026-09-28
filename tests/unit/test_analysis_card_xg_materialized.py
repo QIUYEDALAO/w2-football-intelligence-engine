@@ -449,6 +449,8 @@ class FakeCanonicalDbRepository(FakeDbRepository):
                         "team_w2_id": team_id,
                         "opponent_w2_id": opponent_id,
                         "kickoff_utc": (KICKOFF - timedelta(days=30 - index)).isoformat(),
+                        "team_side": "HOME" if team_id == "w2:team:home" else "AWAY",
+                        "fixture_status": "FT",
                         "goals_for": goals_for,
                         "goals_against": goals_against,
                         "result_identity_hash": f"result-{team_id}-{index}",
@@ -897,11 +899,10 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     decisions = {market["market"]: market["decision"] for market in card["markets"]}
     # The EV comparison on this fixture is favourable and its quote identity is
     # complete, so the market-candidate pipeline would set ANALYSIS_PICK on its
-    # own. It no longer can: AH direction is owned by the factor score, and this
-    # fixture only supplies two eligible source groups (xg, team_fixture_history)
-    # against a minimum of three, so admission fails and the SKIP stands. This
-    # is the point of the veto -- a good price is not by itself a reason to
-    # recommend a match the factors cannot speak to.
+    # own. It no longer can: AH direction is owned by the F9+F6 softmax
+    # selection, and this fixture carries no canonical team identity
+    # (provider-only), so the softmax admission issues a SKIP and the veto keeps
+    # a good price from becoming a recommendation the softmax cannot speak to.
     assert decisions["ASIAN_HANDICAP"] == "SKIP"
     assert decisions["TOTALS"] in {"PICK", "ANALYSIS_PICK"}
     assert decisions["FIRST_HALF_GOALS"] == "PICK"
@@ -915,39 +916,25 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert ah_market["expected_value"] is not None
     assert ah_market["uncertainty"] is not None
     assert ah_market["analysis_evidence_sides"]
-    assert ah_market["factor_veto"]["code"] == "FACTOR_ADMISSION_FAILED"
-    assert "REQUIRED_EVIDENCE_MISSING:F6_H2H" in ah_market["factor_veto"]["blockers"]
+    assert ah_market["factor_veto"]["code"] == "SOFTMAX_AH_NO_DIRECTION"
+    assert ah_market["factor_veto"]["blockers"] == []
     # The EV evidence is still projected in full for inspection -- the veto
     # blocks the decision, it does not hide the comparison.
     assert ah_market["market_candidate"]["analysis_evidence_status"] == "COMPLETE"
-    # F9 evidence is still projected for inspection even though AH admission
-    # failed: the factor score's participant list carries F9_TRUE_XG (its
-    # contribution is READY), so the veto hides the decision, not the evidence.
-    assert any(
-        participant["feature_id"] == "F9_TRUE_XG"
-        for participant in card["factor_score"]["participants"]
-    )
+    # The softmax path carries no legacy factor_score payload: AH direction is
+    # owned by ``ah_select``, not by the weighted factor aggregation.
+    assert card["factor_score"] is None
     ah_market = next(market for market in card["markets"] if market["market"] == "ASIAN_HANDICAP")
     totals_market = next(market for market in card["markets"] if market["market"] == "TOTALS")
     score_market = next(market for market in card["markets"] if market["market"] == "SCORE")
     assert ah_market["lean"] is None
-    # This fixture's fake repository provides only two factor-score-eligible
-    # sources (F9_TRUE_XG and F7_STRENGTH_FORM via team_rating_snapshots),
-    # below the score-driven-recommendation admission rule's minimum of
-    # three participating factors (see w2.strategy.factor_score). AH's
-    # `market["decision"]` above still reads ANALYSIS_PICK because it comes
-    # from the separate, pre-existing market-candidate EV comparison
-    # (w2.markets.market_candidate — explicitly independent of bookmaker
-    # intent and of the factor score); only `reasons`/`reason`, sourced from
-    # analysis_recommendation.py's AH market, reflect the new admission
-    # gate's rejection. The two are intentionally separate signals; the old
-    # "跟随市场 · 无独立优势 · 仅参考" downgrade text this used to assert no
-    # longer applies to AH (see analysis_calculator.py's
-    # `_apply_mainline_market_selection`, which now exempts AH from its
-    # signal_strength-based downgrade).
-    assert ah_market["reason"].startswith("FACTOR_ADMISSION_FAILED:")
-    assert "REQUIRED_EVIDENCE_MISSING:F6_H2H" in ah_market["reason"]
-    assert totals_market["reason"].startswith("两队滚动 xG 进攻合计 2.58")
+    # This fixture's future-refresh repository exposes no softmax readers
+    # (provider-only team identity, no canonical match history / rolling
+    # snapshot ports), so the softmax admission refuses with a structured SKIP.
+    # AH's `market["decision"]` stays owned by the softmax path; only its
+    # reasons reflect the refusal.
+    assert ah_market["reason"] == "SOFTMAX_REPOSITORY_UNAVAILABLE"
+    assert totals_market["reason"] == "SOFTMAX_REPOSITORY_UNAVAILABLE"
     assert score_market["scores"] == []
     assert card["bookmaker_intent"]["intent"] in {"HOME_LEAN", "AWAY_LEAN"}
 

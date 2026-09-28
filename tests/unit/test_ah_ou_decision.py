@@ -43,6 +43,7 @@ def _meetings() -> list[dict]:
             "opponent_w2_id": "A",
             "kickoff_utc": (KICKOFF - timedelta(days=30)).isoformat(),
             "team_side": "AWAY",
+            "fixture_status": "FT",
             "goals_for": 1,
             "goals_against": 0,
         },
@@ -51,6 +52,7 @@ def _meetings() -> list[dict]:
             "opponent_w2_id": "A",
             "kickoff_utc": (KICKOFF - timedelta(days=10)).isoformat(),
             "team_side": "HOME",
+            "fixture_status": "FT",
             "goals_for": 2,
             "goals_against": 1,
         },
@@ -87,7 +89,7 @@ def test_build_ah_ou_selections_f9_missing() -> None:
         ah_line=-0.5, ah_home_odds=1.8, ah_away_odds=2.2,
         ou_line=2.5, ou_over_odds=1.9, ou_under_odds=1.9,
     )
-    assert result["status"] == "F9_ROLLING_SNAPSHOT_MISSING"
+    assert result["status"] == "F9_ROLLING_SNAPSHOT_NOT_UNIQUE"
     assert result["ah"] is None and result["ou"] is None
 
 

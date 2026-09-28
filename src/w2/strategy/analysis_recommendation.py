@@ -111,6 +111,14 @@ class AnalysisBuildInputs:
     score_direction: Direction | None
     missing_markets: frozenset[AnalysisMarket] = frozenset()
     base_risks: tuple[str, ...] = ("阵容/伤停临场变化可能改变判断。",)
+    # F9+F6 softmax path (task "原子切换前整改"). When ``ah_selection`` or
+    # ``ou_selection`` is present the AH/OU markets are emitted by the frozen
+    # softmax selection instead of the legacy weighted ``factor_score`` /
+    # ``bookmaker_intent`` path. ``softmax_status`` carries the machine-readable
+    # admission verdict (``READY`` or a structured SKIP code).
+    ah_selection: dict[str, Any] | None = None
+    ou_selection: dict[str, Any] | None = None
+    softmax_status: str = "LEGACY"
 
 
 def build_multi_market_analysis(
@@ -118,18 +126,34 @@ def build_multi_market_analysis(
     fixture_id: str,
     inputs: AnalysisBuildInputs,
 ) -> MultiMarketAnalysisCard:
-    # `factor_score` is computed once here from the same `feature_set` already
-    # carried by `inputs`. It drives ONLY the Asian Handicap market below,
-    # because home/away weighted strength is the one axis team_score's
-    # aggregation was built to answer. TOTALS (over/under total goals) and
-    # the xG/lambda-driven FIRST_HALF_GOALS/SCORE markets ask a different
-    # question that no factor's HOME/AWAY side encodes; they keep their own
-    # existing, independent readiness gates untouched.
-    factor_score = build_factor_score(inputs.feature_set)
-    ou_market = _ou_market(inputs)
-    _assert_ou_intent_emits_no_positive_recommendation(ou_market)
+    # F9+F6 softmax path: AH direction and OU direction are emitted by the frozen
+    # softmax selection (``ah_select``/``ou_select``), not by the legacy weighted
+    # ``factor_score`` or the legacy ``bookmaker_intent`` OU view. This is the
+    # atomic replacement -- when a selection is present the legacy path is not
+    # consulted, so the two can never double-drive a market.
+    use_softmax = inputs.softmax_status != "LEGACY"
+    if use_softmax:
+        ah_market, ou_market = build_softmax_market_analyses(
+            ah_selection=inputs.ah_selection,
+            ou_selection=inputs.ou_selection,
+            status=inputs.softmax_status,
+            base_risks=inputs.base_risks,
+        )
+        factor_score: FactorScore | None = None
+    else:
+        # `factor_score` is computed once here from the same `feature_set` already
+        # carried by `inputs`. It drives ONLY the Asian Handicap market below,
+        # because home/away weighted strength is the one axis team_score's
+        # aggregation was built to answer. TOTALS (over/under total goals) and
+        # the xG/lambda-driven FIRST_HALF_GOALS/SCORE markets ask a different
+        # question that no factor's HOME/AWAY side encodes; they keep their own
+        # existing, independent readiness gates untouched.
+        factor_score = build_factor_score(inputs.feature_set)
+        ou_market = _ou_market(inputs)
+        _assert_ou_intent_emits_no_positive_recommendation(ou_market)
+        ah_market = _ah_market(inputs, factor_score=factor_score)
     markets = (
-        _ah_market(inputs, factor_score=factor_score),
+        ah_market,
         ou_market,
         _half_goal_market(inputs),
         _score_market(inputs),

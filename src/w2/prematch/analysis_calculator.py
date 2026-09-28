@@ -152,6 +152,7 @@ from w2.strategy.analysis_recommendation import (
     MultiMarketAnalysisCard,
     build_multi_market_analysis,
 )
+from w2.strategy.ah_ou_decision import build_ah_ou_selections
 from w2.strategy.bookmaker_intent import infer_bookmaker_intent
 from w2.strategy.factor_score import FactorScore
 from w2.strategy.formal_recommendation import (
@@ -3364,6 +3365,15 @@ class ReadModelService:
                 xg_sample_status=str(xg_readiness["status"]),
                 output=scoreline_output,
             )
+        ah_selection, ou_selection, softmax_status = self._softmax_ah_ou_selections(
+            repository=repository,
+            home_id=home_id,
+            away_id=away_id,
+            kickoff=kickoff,
+            competition_id=competition_id,
+            season=season,
+            mainline_selection=mainline_selection,
+        )
         card = build_multi_market_analysis(
             fixture_id=fixture_id,
             inputs=AnalysisBuildInputs(
@@ -3374,6 +3384,9 @@ class ReadModelService:
                 score_matrix=score_matrix,
                 score_direction=score_direction,
                 missing_markets=frozenset(missing),
+                ah_selection=ah_selection,
+                ou_selection=ou_selection,
+                softmax_status=softmax_status,
             ),
         )
         payload = self._analysis_card_payload(card)
@@ -3646,6 +3659,64 @@ class ReadModelService:
                 if str(entry.provider_mapping.get("api_football_league_id") or "") == provider_id:
                     return competition_id
         return None
+
+    def _softmax_ah_ou_selections(
+        self,
+        *,
+        repository: Any,
+        home_id: str,
+        away_id: str,
+        kickoff: datetime,
+        competition_id: str,
+        season: str,
+        mainline_selection: dict[str, dict[str, Any]],
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, str]:
+        """Run the F9+F6 softmax admission + selection for AH and OU.
+
+        Extracts the Pinnacle mainline prices from ``mainline_selection`` and
+        delegates to ``build_ah_ou_selections`` (which enforces decision_at =
+        kickoff - 2h, FT-only same-opponent <=10 F6 meetings, unique F9 binding
+        and two-sided prices). Returns ``(ah_selection, ou_selection, status)``;
+        a non-``READY`` status carries ``None`` selections (direction 0).
+        """
+        if not (
+            callable(getattr(repository, "team_xg_rolling_snapshots_for_w2_teams", None))
+            and callable(getattr(repository, "canonical_match_history_for_teams", None))
+        ):
+            return None, None, "SOFTMAX_REPOSITORY_UNAVAILABLE"
+        ah = mainline_selection.get("ASIAN_HANDICAP") or {}
+        ou = mainline_selection.get("TOTALS") or {}
+        ah_prices = ah.get("side_prices") if isinstance(ah.get("side_prices"), dict) else {}
+        ou_prices = ou.get("side_prices") if isinstance(ou.get("side_prices"), dict) else {}
+        ah_line_text = ah.get("line")
+        ou_line_text = ou.get("line")
+        if ah_line_text is None or ou_line_text is None:
+            return None, None, "MAINLINE_UNAVAILABLE"
+        # Pinnacle same-capture two-sided prices: both AH sides and both OU
+        # sides must be present in the mainline side_prices (same capture by
+        # construction of the canonical mainline selector).
+        if "home" not in ah_prices or "away" not in ah_prices:
+            return None, None, "AH_SIDE_PRICES_INCOMPLETE"
+        if "over" not in ou_prices or "under" not in ou_prices:
+            return None, None, "OU_SIDE_PRICES_INCOMPLETE"
+        try:
+            result = build_ah_ou_selections(
+                repository,
+                home_team_id=home_id,
+                away_team_id=away_id,
+                kickoff=kickoff,
+                competition_id=competition_id,
+                season=season,
+                ah_line=float(ah_line_text),
+                ah_home_odds=float(ah_prices.get("home") or 0),
+                ah_away_odds=float(ah_prices.get("away") or 0),
+                ou_line=float(ou_line_text),
+                ou_over_odds=float(ou_prices.get("over") or 0),
+                ou_under_odds=float(ou_prices.get("under") or 0),
+            )
+        except (ValueError, TypeError):
+            return None, None, "MAINLINE_PARSE_ERROR"
+        return result["ah"], result["ou"], str(result["status"])
 
     def _mainline_market_selection(
         self,
@@ -6127,14 +6198,26 @@ class ReadModelService:
         if str(market.get("market") or "") != AnalysisMarket.ASIAN_HANDICAP.value:
             return None
         factor_score = card.get("factor_score")
-        if not isinstance(factor_score, dict):
-            return {"code": "FACTOR_SCORE_UNAVAILABLE", "blockers": []}
-        if not factor_score.get("admitted"):
-            return {
-                "code": "FACTOR_ADMISSION_FAILED",
-                "blockers": [str(item) for item in factor_score.get("admission_blockers") or []],
-            }
-        direction = str(factor_score.get("direction") or "")
+        if isinstance(factor_score, dict):
+            if not factor_score.get("admitted"):
+                return {
+                    "code": "FACTOR_ADMISSION_FAILED",
+                    "blockers": [str(item) for item in factor_score.get("admission_blockers") or []],
+                }
+            direction = str(factor_score.get("direction") or "")
+        else:
+            # Softmax path: the AH direction comes from the market's own
+            # tendency (HOME_AH / AWAY_AH) produced by ``ah_select``. No
+            # tendency means the softmax admission issued a SKIP, which the EV
+            # pipeline must not revive either.
+            tendency = str(market.get("tendency") or "")
+            direction = (
+                "HOME" if tendency == "HOME_AH"
+                else "AWAY" if tendency == "AWAY_AH"
+                else ""
+            )
+            if not direction:
+                return {"code": "SOFTMAX_AH_NO_DIRECTION", "blockers": []}
         selection = str(market.get("market_candidate", {}).get("selection") or "")
         if direction in {"HOME", "AWAY"} and selection in {"HOME", "AWAY"}:
             if direction != selection:

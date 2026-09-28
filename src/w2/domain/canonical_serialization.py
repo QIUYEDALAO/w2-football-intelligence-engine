@@ -79,6 +79,7 @@ class HashDomain(StrEnum):
     PREMATCH_READ_MODEL_SIMULATION_RECONCILIATION = "prematch_read_model.simulation_reconciliation"
     EVAL_02B_PAIR_IDENTITY = "eval_02b.pair_identity"
     EVAL_02B_BOOTSTRAP_SEED = "eval_02b.bootstrap_seed"
+    QUANT_DA_XG_ARTIFACT = "quant.da_xg.artifact"
 
 
 _READ_MODEL_DOMAINS = frozenset(

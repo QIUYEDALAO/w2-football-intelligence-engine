@@ -69,8 +69,38 @@ def _record(factor_id: str, record_ids: list[str] | None = None) -> dict:
 
 @pytest.fixture()
 def store():
+    from sqlalchemy import text
+
+    from w2.infrastructure.persistence.factor_model_models import (
+        CanonicalTeamMatchHistoryModel,
+    )
+    from w2.infrastructure.persistence import TeamXgRollingSnapshotModel
+
     engine = create_engine("sqlite://")
     ForwardAhFactorObservationModel.__table__.create(engine)
+    CanonicalTeamMatchHistoryModel.__table__.create(engine)
+    TeamXgRollingSnapshotModel.__table__.create(engine)
+    # 存在校验需要 source 表里有被引用的 record_id。
+    with engine.begin() as conn:
+        for factor_id in FACTORS:
+            for i in (1, 2):
+                conn.execute(
+                    text(
+                        "INSERT INTO canonical_team_match_history "
+                        "(history_id, fixture_id, provider, provider_fixture_id, competition_id, "
+                        "season, kickoff_utc, fixture_status, team_side, team_provider_id, "
+                        "opponent_provider_id, team_w2_id, opponent_w2_id, goals_for, goals_against, "
+                        "result_identity_hash, source_raw_hash, captured_at, history_hash, payload) "
+                        "VALUES (:rid, :fx, 'p', :pfx, 'c', 's', :ko, 'FT', 'HOME', 'tp', 'op', 'th', 'oa', 1, 0, 'rh', 'sh', :ko, :hh, '{}')"
+                    ),
+                    {
+                        "rid": f"{factor_id}-rec-{i}",
+                        "fx": f"fx-{factor_id}-{i}",
+                        "pfx": f"pfx-{factor_id}-{i}",
+                        "ko": (NOW - timedelta(days=10 - i)).isoformat(),
+                        "hh": f"hh-{factor_id}-{i}",
+                    },
+                )
     return ForwardFactorObservationStore(engine)
 
 
@@ -113,3 +143,13 @@ def test_missing_record_ids_refused(store) -> None:
     with pytest.raises(StoreError) as exc:
         _make(store, {"F3_REST_FITNESS": {"factor_inputs": {}}})
     assert exc.value.code == "SOURCE_RECORD_IDS_MISSING"
+
+
+def test_dangling_source_record_refused(store) -> None:
+    # 自洽但引用了不存在的 source record（存在校验，整改 item 4）。
+    with pytest.raises(StoreError) as exc:
+        _make(store, {"F6_H2H": {
+            "factor_inputs": {"source_record_ids": "ghost-rec"},
+            "source_capture_id": _source_capture_id("F6_H2H", ["ghost-rec"]),
+        }})
+    assert exc.value.code == "SOURCE_RECORD_NOT_FOUND"
