@@ -1,0 +1,79 @@
+{
+  "preregistration_id": "W2-AH-OU-SOFTMAX-SWITCH-PREREG-01",
+  "title": "AH/OU 软最大值切换 · 前向 T−2h cohort（新 vs 旧 vs 纯盘口）",
+  "status": "PREREGISTERED_AWAITING_SWITCH",
+  "drafted_at": "2026-09-28T00:00:00+08:00",
+  "frozen_at": null,
+  "frozen_by": null,
+  "project_name": "W2-AH-OU-UNIFIED-SWITCH",
+
+  "purpose": "切换后，每场在 T−2h 决策时落盘三方方向（新软最大值 / 旧 factor_score / 纯盘口），按本预注册判据做前向确认。切换前不运行、不拟合、不写生产。",
+
+  "candidate_definitions": {
+    "new_softmax": {
+      "ah": "w2.strategy.ah_ou_decision.build_ah_ou_selections 的 ah_select 输出 side（HOME/AWAY），selected 由 |q−0.5|·support ≥ 阈值决定",
+      "ou": "ou_select 输出 OVER 候选，selected 由 factor_over_share − market_over_q ≥ 阈值决定"
+    },
+    "old_factor_score": {
+      "ah": "切换前 factor_score 加权方向的 AH 选边（旧链路最后一次产出的方向）",
+      "ou": "旧 OU intent（恒 NO_EDGE，无方向）"
+    },
+    "pure_market": {
+      "ah": "Pinnacle 主盘去水 q_home = (1/o_home)/[(1/o_home)+(1/o_away)] ≥ 0.5 则 HOME，否则 AWAY",
+      "ou": "Pinnacle 主盘去水 q_over = (1/o_over)/[(1/o_over)+(1/o_under)] ≥ 0.5 则 OVER，否则 UNDER"
+    }
+  },
+
+  "scoring_contract": {
+    "ah_settlement": {
+      "binary_object": "Y = 1{主队实际 cover 半球线 L}（半球线无 push）",
+      "cover_rule": "AH 半球线：主队净胜球 > −L（L 为负数让球）即 cover；以 results 表赛果结算"
+    },
+    "ou_settlement": {
+      "binary_object": "Y = 1{总进球 > L}，L 为冻结半球线（无 push）"
+    },
+    "market_debias": "p_market = (1/o) / 归一化和（比例去水），用于纯盘口基线",
+    "loss": "binary log loss（自然对数，概率按 [1e-12, 1−1e-12] 截断），辅助 Brier 与准确率（辅助指标不用于事后换主指标）"
+  },
+
+  "comparison_gates": {
+    "new_vs_market": "Δ = mean(log_loss_new − log_loss_market) 的有效上界 < −δ",
+    "new_vs_old": "Δ = mean(log_loss_new − log_loss_old) 的有效上界 < −δ（旧 OU 无方向则不参与 OU 轨）",
+    "min_improvement_delta": "δ 在切换时按可行性样本冻结；不把备择放在检验边界"
+  },
+
+  "statistical_protocol": {
+    "data_role": "前向确认集（本协议与 identity 固化、实际预测开始落盘后的新比赛）",
+    "dedup": "每场只计一次；同场多盘口/多模型输出不是独立比赛",
+    "finite_looks": "最多两次预定分析（约 50% N_max 与 100% N_max），每轨 α=0.025、两次各 0.0125 单侧",
+    "n_max": "切换时按可行性样本冻结（独立比赛数 + 最小时间块 + 最晚日期）",
+    "late_results": "晚到结果以追加版本进原月修订快照，不覆盖原稿",
+    "endpoint": ["PASS", "TARGET_NOT_MET", "INCONCLUSIVE", "INVALID_EVIDENCE"]
+  },
+
+  "cohort_recording": {
+    "decision_at": "kickoff − 2h（与 build_ah_ou_selections 的 DECISION_LEAD_TIME 一致）",
+    "record_fields": [
+      "fixture_id", "decision_at", "competition_id", "season",
+      "new_ah_side", "new_ou_side", "old_ah_side",
+      "pure_ah_side", "pure_ou_side",
+      "ah_line", "ah_home_odds", "ah_away_odds", "ou_line", "ou_over_odds", "ou_under_odds",
+      "settlement_home_goals", "settlement_away_goals"
+    ],
+    "source": "scripts/quant/ah_ou_forward_cohort.py 只读落盘，不写生产推荐"
+  },
+
+  "explicitly_not_in_scope": [
+    "切换前运行或拟合",
+    "生产推荐启用/部署",
+    "migration / shadow 生产写入",
+    "事后换主指标或挑联赛"
+  ],
+
+  "safety_invariants": [
+    "不碰 Provider allowlist/配额/并发/重试",
+    "不碰推荐/结算/因子安全门",
+    "只读落盘，零 enable/零部署",
+    "raw payload/header/key 不提交"
+  ]
+}

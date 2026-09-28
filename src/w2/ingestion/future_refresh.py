@@ -1987,6 +1987,9 @@ class FutureFixtureRefreshService:
         lineups: list[tuple[str, str, LiveApiFootballResponse]] = []
         seen: set[tuple[str, str]] = set()
         repository = self._db_repository()
+        # Fail-closed: a provider business/schema error stops the checkpoint
+        # loop immediately instead of carrying on to the next fixture/endpoint.
+        self._checkpoint_provider_failed = False
         for plan in self.config.refresh_checkpoints:
             plan_id = str(plan.get("id") or plan.get("plan_id") or "")
             fixture_id = _api_football_fixture_id(str(plan.get("fixture_id") or ""))
@@ -2017,12 +2020,15 @@ class FutureFixtureRefreshService:
                         f"PROVIDER_{str(endpoint).upper()}_SCHEMA_DRIFT",
                     }:
                         self._checkpoint_errors.append(reason)
-                        continue
+                        self._checkpoint_provider_failed = True
+                        break
                     raise
                 if endpoint == "odds" and bookmaker_count(response.payload) > 0:
                     odds.append((fixture_id, response))
                 elif endpoint == "lineups" and response_count(response.payload) > 0:
                     lineups.append((fixture_id, "lineups", response))
+            if self._checkpoint_provider_failed:
+                break
         fixture_rows = list(fixtures.values())
         return (
             LiveApiFootballResponse(

@@ -8,7 +8,7 @@ from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Engine, and_, desc, func, or_, select
+from sqlalchemy import Engine, and_, desc, func, or_, select, text
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
@@ -292,6 +292,27 @@ class DatabaseRawPayloadObjectStore:
 class FutureRefreshDbRepository:
     def __init__(self, *, engine: Engine | None = None, settings: Settings | None = None) -> None:
         self.engine = engine or create_engine(settings)
+        self._asof_role: str | None = None
+
+    def set_asof_role(self, role: str | None) -> None:
+        """Scope subsequent AS-OF reads to ``role`` (task 整改 item 3).
+
+        ``build_ah_ou_selections`` calls this with ``quant_asof_reader_role`` so
+        the F9/F6 reads it performs cannot observe result/settlement tables.
+        ``None`` resets to the ambient role.
+        """
+        self._asof_role = role
+
+    def _asof_scoped_session(self) -> Session:
+        """A session already scoped to the AS-OF role, when one is set.
+
+        The role is a transaction-local ``SET ROLE``; closing the session resets
+        it, so a caller cannot leak the role into a later read.
+        """
+        session = Session(self.engine)
+        if self._asof_role:
+            session.execute(text(f"SET ROLE {self._asof_role}"))
+        return session
 
     @staticmethod
     def _free_plan_fixture_scope_state_from_rows(
@@ -2249,7 +2270,7 @@ class FutureRefreshDbRepository:
             )
             .subquery()
         )
-        with Session(self.engine) as session:
+        with self._asof_scoped_session() as session:
             rows = list(
                 session.scalars(
                     select(CanonicalTeamMatchHistoryModel)
@@ -2313,7 +2334,7 @@ class FutureRefreshDbRepository:
         ids = [team_id for team_id in dict.fromkeys(team_ids) if team_id]
         if not ids or len(ids) > 2:
             return []
-        with Session(self.engine) as session:
+        with self._asof_scoped_session() as session:
             crosswalk_rows = list(
                 session.scalars(
                     select(ProviderTeamIdentityCrosswalkModel).where(
@@ -2964,7 +2985,7 @@ class FutureRefreshDbRepository:
             )
             .subquery()
         )
-        with Session(self.engine) as session:
+        with self._asof_scoped_session() as session:
             rows = list(
                 session.scalars(
                     select(TeamXgRollingSnapshotModel)

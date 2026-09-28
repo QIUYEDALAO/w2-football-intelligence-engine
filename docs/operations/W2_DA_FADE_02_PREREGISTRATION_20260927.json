@@ -1,0 +1,115 @@
+{
+  "preregistration_id": "W2-DA-FADE-02-PREREG-01",
+  "title": "DA-FADE-02 新条件反转研究协议（半球线 OVER 反转候选）",
+  "status": "DRAFT_AWAITING_OWNER_FREEZE",
+  "drafted_at": "2026-09-27T15:00:00+08:00",
+  "frozen_at": null,
+  "frozen_by": null,
+  "project_name": "DA-FADE-02",
+  "sync_note": "本文件是计划书 W2-REMODEL-PLAN-20260927-v3.2（FINAL DRAFT）第 7 节的正式研究协议。候选规则、半球线范围、p_market(OVER)<0.50 阈值、p_fade 构造、二元评分对象、市场去水、渠道结算、有限次检验与终点均与 v3.2 第 7 节及第 6 节逐条同步。参数仍标候选假设，不冻结、不写共享 lambda、不写生产。",
+
+  "authority_boundary": {
+    "authorized_now": "preregistration review only（只写预注册文档与离线设计）",
+    "not_authorized": ["parameter fitting on production data", "production code changes", "migration execution", "shadow production write", "notification integration", "deployment", "freeze"],
+    "next_gate": "OWNER_EXPLICIT_AUTHORIZATION_TO_FREEZE"
+  },
+
+  "scope": {
+    "description": "新条件反转候选：对已冻结旧模型的 UNDER 选边，在限定半球线范围内、且市场认为 OVER 概率低于 0.50 时，构造 OVER 反转候选。首版仅一个候选、一个预注册版本、一个比较基线；不宣称旧全量 fade 失效。",
+    "separation_from_legacy": "旧全量 fade 保持其原策略与授权、原身份、原 cohort、原起点与分母不变。'02' 不覆盖旧身份。旧全量与新子集是嵌套比赛集合，不计为独立样本；未推送子集只是策略状态，不伪装成新模型。",
+    "scope_limit": "首版结论只适用于半球线范围，不外推为全盘口 fade 有效；整数/四分之一线用途须另立候选并另行验证。"
+  },
+
+  "candidate_definition": {
+    "inclusion_rules": [
+      "已绑定的原模型 selection = UNDER（冻结选边，不是 OU 意图门结果，不是取 1−p 的临时推导）",
+      "原评估处于该旧协议允许的 ANALYSIS_PICK_ACTIVE 或 NO_EDGE_CURRENT",
+      "原模型版本及选择算法已冻结",
+      "同期 Pinnacle 主线为半球线（exact line 小数部分 0.5）",
+      "p_market(OVER) < 0.50",
+      "原方向与反向渠道报价、身份、PIT 均合法"
+    ],
+    "selection_new": "OVER",
+    "p_fade": "clip(p_market(OVER) + 0.05, 0.01, 0.99)",
+    "no_extra_filters": "不再额外加入未经登记的联赛、EV 或比分筛选"
+  },
+
+  "candidate_parameters": {
+    "p_market_threshold": 0.50,
+    "threshold_note": "阈值 0.50 来自已查看历史启发，仅作为新候选假设，不是经回测证明的最优值；修订必须登记新候选版本。",
+    "p_fade_shift": 0.05,
+    "p_fade_clip": [0.01, 0.99],
+    "half_line_only": "exact line 小数部分 0.5（半球线）",
+    "frozen_fade_delta": "沿用冻结的 FROZEN_FADE_DELTA（0.05）作为 p_fade 平移，不改该冻结值"
+  },
+
+  "evaluation_contract": {
+    "binary_scoring_object": {
+      "Y": "1{总进球 > L}，L 为冻结半球线",
+      "no_push": "半球线总进球为整数，恒 G != L，Y 为纯二元事件，无 push",
+      "log_loss": "binary log loss（自然对数），概率按 [1e-12, 1-1e-12] 同口径截断",
+      "auxiliary": "Brier、校准；辅助指标不用于事后换主指标或挑联赛"
+    },
+    "market_debias": {
+      "p_market": "(1/o_over) / [(1/o_over) + (1/o_under)]（比例去水）",
+      "assumption_note": "比例去水是声明过的市场基准假设，不等于已知真实概率；closing odds 只能另列历史诊断，不代替 T30 可执行报价"
+    },
+    "channel_price": {
+      "rule": "经济结果使用当时可执行的渠道 OVER 价，不能用历史 Pinnacle 收益代替渠道结果",
+      "quote_pair": "同一报价对两侧必须同比赛、bookmaker、capture、盘口与时点，不用跨时点单边补另一边"
+    },
+    "settlement_and_five_state": {
+      "half_line_binary": "评分与概率比较对象是半球线二元（无半赢半输）",
+      "channel_settlement": "渠道价若非半球线（整数/四分之一线），结算复用现有五态权威：p_WIN / p_HALF_WIN / p_LOSS / p_HALF_LOSS；EV 公式沿用 5.4（EV_pure + E_rebate − verified_cost），不得用含返水收益宣称概率更准确",
+      "no_double_settlement": "同一 signal_identity 只结算一次；旧 fade 结算路径与新信号结算路径不得对同一业务事实重复结算"
+    },
+    "strategy_selection": "概率增量与实际渠道收益分别通过第 6 节对应门；fade 统计通过也不自动更名为正式推荐、不自动进入三档"
+  },
+
+  "statistical_protocol": {
+    "data_roles": ["开发/可行性集（已查看历史，估方差/消融，不冒充确认证据）", "离线时间外推集（rolling-origin 配对，各时点可见输入）", "前向确认集（协议与 identity 固化、实际生成预测后的新比赛）"],
+    "dedup": "每场只属一个数据角色；同场多盘口、不同模型输出不是独立比赛",
+    "two_gates": {
+      "PROBABILITY_INCREMENT_PASS": "Δ = mean(loss_new − loss_market) 的有效上界 < −δ（δ>0 预定最小有意义改善）",
+      "CHANNEL_RETURN_PASS": "冻结执行策略净收益有效下界 > δ_E，并满足数据/行为合同"
+    },
+    "finite_preplanned_tests": {
+      "looks": "最多两次预定确认性分析，分别在每轨约 50% N_max 与 100% N_max",
+      "error_budget": "DA-FADE-02 轨 0.025；两次查看各 0.0125 单侧错误预算，未使用不事后挪用；每次分析用 98.75% 单侧上/下界",
+      "n_max": "每轨 N_max、最小可用时间块数、最晚日期在可行性附件中冻结；数量以独立比赛为基础，采用保留同场记录与时间相关性的分块模拟估算",
+      "min_improvement": "δ / δ_E 的实际意义与设计备择在冻结时确定，不把备择放在检验边界"
+    },
+    "missing_and_late_rules": {
+      "late_results": "晚到结果以追加版本进入原月份修订快照，保留原稿不覆盖；不因迟到永久删除比赛",
+      "missing_sensitivity": "结果缺失可能影响主结论时标为证据不足，并做预定缺失敏感性检查",
+      "settlement_wait": "未结算处理、等待上限与迟到规则须事先冻结"
+    },
+    "endpoint": {
+      "stop": "期末跨零并非自动继续理由；结论依据与 −δ 的关系及区间精度；预定截止先到则以届时样本为终点并关闭后续查看机会，不延长到显著为止",
+      "conclusions": ["PASS（概率增量 + 渠道收益均通过）", "TARGET_NOT_MET", "INCONCLUSIVE", "INVALID_EVIDENCE"]
+    },
+    "monthly_monitoring": "月度描述性监测（快照 UTC 每月 1 日 00:00 固化）；不执行临时显著性筛选，不授予升档资格"
+  },
+
+  "cohort_and_denominator": {
+    "cohort_start": "新 cohort 起点同时满足：协议已冻结 + 实现身份已固定 + 预测实际开始落盘；不能只写一个较早 T0 就追认未实际固化的预测",
+    "denominator": "分母按去重比赛计，每场只计一次；分层规则依据赛前信息确定",
+    "separation": "旧全量 fade 与新子集是嵌套比赛集合，不计为独立样本；已用于选规则或已查看的数据不能重新标为独立确认集"
+  },
+
+  "evidence_transition": {
+    "exploratory_167": "167 场探索证据（旧 Candidate C fade v3-only 结构检验）只作历史背景，不进新确认集、不用于新协议功效估算",
+    "da_xg_independence": "DA-XG-01 成功或失败都不自动证明 fade 有效或无效；基于基线模型的 fade 和基于 DA-XG-01 的 fade 是不同策略，模型更换后不继承旧结论",
+    "legacy_fade": "旧全量 fade 参数、验证水印、正式推荐隔离、推送规则及密封规则按现行授权继续；本协议不自动开旧指标、不停旧时钟、不回填旧样本"
+  },
+
+  "identity_isolation": {
+    "signal_identity": "新 fade 的 signal_identity 由现有 canonical authority 对来源评估、策略版本、模型/报价身份、方向与盘口等业务事实构建，禁止第二套序列化器",
+    "strategy_version": "strategy_id / strategy_version / preregistration_sha256 / cohort_id 进入新策略身份；改变任何值是新策略，不继承旧授权",
+    "shared_lambda_impact": "不写共享运行时 λ；shadow 输出与生产隔离"
+  },
+
+  "explicitly_not_in_scope": ["旧全量 fade 的修改或停用", "整数/四分之一线用途资格", "任何生产推荐启用/部署", "migration / shadow 生产写入 / 通知接入（另行工程授权）"],
+
+  "safety_invariants": ["不碰 Provider allowlist/配额/并发/重试", "不碰推荐/结算/因子安全门", "不改生产，零 enable/零部署", "raw payload/header/key 不提交", "提交一律 git -C 权威 worktree"]
+}

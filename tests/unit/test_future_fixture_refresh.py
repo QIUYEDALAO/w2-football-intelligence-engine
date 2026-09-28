@@ -2196,6 +2196,49 @@ def test_future_refresh_error_type_is_runtime_error() -> None:
     assert issubclass(FutureRefreshError, RuntimeError)
 
 
+def test_checkpoint_provider_errors_stop_subsequent_calls(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """Fail-closed: a provider business error stops the checkpoint loop.
+
+    A `PROVIDER_*_ERRORS` refusal must not `continue` into the next fixture /
+    endpoint; it has to stop the remaining provider calls and surface as a
+    blocker. This pins the 整改 item-1 behaviour.
+    """
+    client = _ProviderErrorsWithoutQuota()
+
+    class Repository:
+        def fixture_payload(self, fixture_id: str) -> dict[str, Any] | None:
+            return {"fixture": {"id": int(fixture_id)}}
+
+        def fixture_payloads(self) -> list[dict[str, Any]]:
+            return []
+
+        def save_raw_payload(self, **_kwargs: Any) -> bool:
+            return True
+
+    service = FutureFixtureRefreshService(
+        client=client,
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="db",
+            checkpoint_fixture_ids=("1489404", "1489405"),
+            refresh_checkpoints=(
+                {"fixture_id": "1489404", "checkpoint": "T1", "endpoints": ["odds", "lineups"]},
+                {"fixture_id": "1489405", "checkpoint": "T1", "endpoints": ["odds", "lineups"]},
+            ),
+        ),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", Repository)
+
+    service._run_checkpoint_requests()  # noqa: SLF001 - fail-closed unit under test
+
+    assert len(client.calls) == 1, client.calls
+    assert client.calls[0][0] == "odds"
+    assert "PROVIDER_ODDS_ERRORS" in service._checkpoint_errors
+
+
 def test_settings_cache_does_not_outlive_the_test_that_patched_the_environment() -> None:
     """Cached settings must match the ambient environment, not an earlier test's.
 
