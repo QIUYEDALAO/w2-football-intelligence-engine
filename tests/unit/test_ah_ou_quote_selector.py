@@ -3,14 +3,53 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from w2.domain.canonical_serialization import HashDomain, canonical_sha256
+from w2.domain.canonical_serialization import (
+    HashDomain,
+    SerializerVersion,
+    canonical_sha256,
+)
 from w2.strategy.ah_ou_quote_selector import select_v3_ah_ou_quotes
 
 FIXTURE_ID = "FIX1"
 DECISION_AT = datetime(2026, 8, 1, 10, 0, tzinfo=UTC)
 CAPTURE_ID = "cap-1"
-RAW_PAYLOAD = {"endpoint": "odds", "fixture": FIXTURE_ID}
+RAW_PAYLOAD = {
+    "response": [
+        {
+            "fixture": {"id": FIXTURE_ID},
+            "bookmakers": [
+                {
+                    "id": 4,
+                    "name": "Pinnacle",
+                    "bets": [
+                        {
+                            "id": 1,
+                            "name": "Asian Handicap",
+                            "values": [
+                                {"value": "Home -0.5", "odd": "1.80"},
+                                {"value": "Away +0.5", "odd": "2.05"},
+                            ],
+                        },
+                        {
+                            "id": 2,
+                            "name": "Goals Over/Under",
+                            "values": [
+                                {"value": "Over 2.5", "odd": "1.90"},
+                                {"value": "Under 2.5", "odd": "1.90"},
+                            ],
+                        },
+                    ],
+                }
+            ],
+        }
+    ]
+}
 RAW_PAYLOADS = {CAPTURE_ID: RAW_PAYLOAD}
+LEGACY_RAW_HASH = canonical_sha256(
+    RAW_PAYLOAD,
+    domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+    version=SerializerVersion.LEGACY_V1,
+)
 
 
 def _row(*, market, selection, line, odds, capture_id=CAPTURE_ID, **overrides) -> dict:
@@ -26,7 +65,7 @@ def _row(*, market, selection, line, odds, capture_id=CAPTURE_ID, **overrides) -
         "suspended": False,
         "live": False,
         "captured_at": (DECISION_AT - timedelta(minutes=30)).isoformat(),
-        "raw_payload_sha256": "a" * 64,
+        "raw_payload_sha256": LEGACY_RAW_HASH,
     }
     row.update(overrides)
     return row

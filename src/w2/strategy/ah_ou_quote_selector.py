@@ -24,7 +24,13 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from w2.domain.canonical_serialization import HashDomain, canonical_sha256
+from w2.domain.canonical_serialization import (
+    HashDomain,
+    SerializerVersion,
+    canonical_sha256,
+)
+from w2.markets.devig import devig_balance_distance
+from w2.matchday.intake_v2 import normalize_matchday_odds_payload
 
 AH_MARKET = "ASIAN_HANDICAP"
 OU_MARKET = "TOTALS"
@@ -91,6 +97,120 @@ def _source_capture_sha256(
     return canonical_sha256(raw, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
 
 
+def _decimal_text(value: Any) -> str:
+    parsed = _decimal(value)
+    return "" if parsed is None else str(parsed)
+
+
+def _source_content_matches(
+    rows: list[dict[str, Any]],
+    raw_payload: dict[str, Any],
+    *,
+    capture_id: str,
+) -> bool:
+    """Verify the projection rows reproduce from the raw capture payload.
+
+    This closes the source-content loop: the raw payload is re-normalized with the
+    production intake parser and every projection row must match a normalized row
+    on fixture/bookmaker/market/selection/line/price. A raw payload swapped for a
+    different fixture (or tampered price/hash/line) therefore fails -- it is not
+    enough that the raw payload merely exists.
+    """
+    first = rows[0]
+    captured = _parse_utc(first.get("captured_at") or first.get("captured_at_utc"))
+    ingested = _parse_utc(first.get("ingested_at")) or captured
+    if captured is None or ingested is None:
+        return False
+    # The projection row's raw hash must equal the LEGACY_V1 canonical hash of the
+    # raw payload (the authority intake uses). A tampered/foreign hash is refused.
+    declared_hash = str(first.get("raw_payload_sha256") or "")
+    if not declared_hash:
+        return False
+    if (
+        canonical_sha256(
+            raw_payload,
+            domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+            version=SerializerVersion.LEGACY_V1,
+        )
+        != declared_hash
+    ):
+        return False
+    try:
+        normalized, _ = normalize_matchday_odds_payload(
+            raw_payload,
+            captured_at=captured,
+            ingested_at=ingested,
+            raw_payload_sha256=str(first.get("raw_payload_sha256") or ""),
+            source_revision=str(first.get("source_revision") or ""),
+            capture_id=capture_id,
+            provider=str(first.get("provider") or "api_football"),
+            competition_id=str(first.get("competition_id") or "UNKNOWN"),
+        )
+    except Exception:
+        return False
+    for row in rows:
+        side = _side(row)
+        matches = [
+            normalized_row
+            for normalized_row in normalized
+            if str(normalized_row.get("fixture_id") or "").removeprefix("api_football:")
+            == str(row.get("fixture_id") or "").removeprefix("api_football:")
+            and str(normalized_row.get("bookmaker_id") or "") == str(row.get("bookmaker_id") or "")
+            and str(normalized_row.get("canonical_market") or "").upper()
+            == str(row.get("canonical_market") or row.get("market") or "").upper()
+            and str(normalized_row.get("canonical_selection") or "").upper() == side
+        ]
+        matched = next(
+            (
+                normalized_row
+                for normalized_row in matches
+                if _decimal(normalized_row.get("line")) == _decimal(row.get("line"))
+            ),
+            None,
+        )
+        if matched is None:
+            return False
+        if _decimal(row.get("decimal_odds") or row.get("executable_odds")) != _decimal(
+            matched.get("decimal_odds")
+        ):
+            return False
+    return True
+
+
+def _pair_sort_key(pair: dict[str, Any]) -> tuple[float, float, float, float]:
+    return (
+        float(pair["balance_distance"]),
+        float(pair["price_gap"]),
+        float(pair["mid_distance"]),
+        abs(float(pair["line"])),
+    )
+
+
+def _make_pair(
+    *,
+    side_a: str,
+    side_b: str,
+    line: Decimal,
+    row_a: dict[str, Any],
+    row_b: dict[str, Any],
+) -> dict[str, Any] | None:
+    price_a = _float(row_a.get("decimal_odds") or row_a.get("executable_odds"))
+    price_b = _float(row_b.get("decimal_odds") or row_b.get("executable_odds"))
+    if price_a is None or price_a <= 1.0 or price_b is None or price_b <= 1.0:
+        return None
+    return {
+        "line": float(line),
+        "decimal_line": line,
+        "price_a": price_a,
+        "price_b": price_b,
+        "balance_distance": devig_balance_distance([price_a, price_b]),
+        "price_gap": round(abs(price_a - price_b), 6),
+        "mid_distance": round(abs(((price_a + price_b) / 2) - 1.90), 6),
+        "row_a": dict(row_a),
+        "row_b": dict(row_b),
+    }
+
+
 def _select_one_market(
     observations: list[dict[str, Any]],
     *,
@@ -129,46 +249,76 @@ def _select_one_market(
         return {"status": f"{market}_QUOTE_NOT_SAME_CAPTURE", "quote": None}
     capture_id = next(iter(capture_ids))
 
-    by_side: dict[str, dict[str, Any]] = {}
-    for row in latest_rows:
-        side = _side(row)
-        if side not in {side_a, side_b}:
-            return {"status": f"{market}_QUOTE_INVALID_SIDE", "quote": None}
-        price = _float(row.get("decimal_odds") or row.get("executable_odds"))
-        if price is None or price <= 1.0:
-            return {"status": f"{market}_QUOTE_PRICE_INVALID", "quote": None}
-        if side in by_side:
-            return {"status": f"{market}_QUOTE_DUPLICATE_SIDE", "quote": None}
-        by_side[side] = row
-    if set(by_side) != {side_a, side_b}:
-        return {"status": f"{market}_QUOTE_SIDE_INCOMPLETE", "quote": None}
-
-    # Line consistency. AH stores the provider line per side (home = L, away = -L,
-    # i.e. complementary); TOTALS stores the same line on both sides. The emitted
-    # line is always the home/over perspective.
-    line_a = _decimal(by_side[side_a].get("line"))
-    line_b = _decimal(by_side[side_b].get("line"))
+    # 3. Pair exact two-sided lines within the same capture. AH pairs a home row
+    #    with an away row whose provider line is the home line or its negative
+    #    (the two legitimate API shapes); TOTALS pairs equal lines. The emitted
+    #    line is always the home/over perspective. A capture may carry multiple
+    #    legal lines; they are ranked below, never refused as DUPLICATE_SIDE.
+    pairs: list[dict[str, Any]] = []
     if market == AH_MARKET:
-        if line_a is None or line_b is None or line_a + line_b != 0:
-            return {"status": f"{market}_QUOTE_LINE_CONFLICT", "quote": None}
-        line = line_a
+        home_rows = [row for row in latest_rows if _side(row) == side_a]
+        away_rows = [row for row in latest_rows if _side(row) == side_b]
+        for home_row in home_rows:
+            home_price = _float(home_row.get("decimal_odds") or home_row.get("executable_odds"))
+            if home_price is None or home_price <= 1.0:
+                return {"status": f"{market}_QUOTE_PRICE_INVALID", "quote": None}
+            home_line = _decimal(home_row.get("line"))
+            if home_line is None:
+                return {"status": f"{market}_QUOTE_LINE_INVALID", "quote": None}
+            for away_row in away_rows:
+                away_price = _float(away_row.get("decimal_odds") or away_row.get("executable_odds"))
+                if away_price is None or away_price <= 1.0:
+                    return {"status": f"{market}_QUOTE_PRICE_INVALID", "quote": None}
+                away_line = _decimal(away_row.get("line"))
+                if away_line is None:
+                    return {"status": f"{market}_QUOTE_LINE_INVALID", "quote": None}
+                if away_line not in {home_line, -home_line}:
+                    continue
+                pair = _make_pair(
+                    side_a=side_a, side_b=side_b, line=home_line,
+                    row_a=home_row, row_b=away_row,
+                )
+                if pair is not None:
+                    pairs.append(pair)
     else:
-        if line_a is None or line_b is None or line_a != line_b:
-            return {"status": f"{market}_QUOTE_LINE_CONFLICT", "quote": None}
-        line = line_a
+        line_groups: dict[str, dict[str, dict[str, Any]]] = {}
+        for row in latest_rows:
+            side = _side(row)
+            if side not in {side_a, side_b}:
+                return {"status": f"{market}_QUOTE_INVALID_SIDE", "quote": None}
+            price = _float(row.get("decimal_odds") or row.get("executable_odds"))
+            if price is None or price <= 1.0:
+                return {"status": f"{market}_QUOTE_PRICE_INVALID", "quote": None}
+            line = _decimal(row.get("line"))
+            if line is None:
+                return {"status": f"{market}_QUOTE_LINE_INVALID", "quote": None}
+            group = line_groups.setdefault(str(line.normalize()), {})
+            group.setdefault(side, row)
+        for group in line_groups.values():
+            if set(group) != {side_a, side_b}:
+                continue
+            pair = _make_pair(
+                side_a=side_a, side_b=side_b,
+                line=_decimal(group[side_a].get("line")),
+                row_a=group[side_a], row_b=group[side_b],
+            )
+            if pair is not None:
+                pairs.append(pair)
+    if not pairs:
+        return {"status": f"{market}_QUOTE_SIDE_INCOMPLETE", "quote": None}
+    # Frozen mainline: the same v3 ladder ordering (balance → gap → mid → |line|).
+    pairs.sort(key=_pair_sort_key)
+    selected = pairs[0]
+    row_a = selected["row_a"]
+    row_b = selected["row_b"]
+    price_a = selected["price_a"]
+    price_b = selected["price_b"]
+    line = selected["decimal_line"]
 
-    row_a = dict(by_side[side_a])
-    row_b = dict(by_side[side_b])
-    price_a = _float(row_a.get("decimal_odds") or row_a.get("executable_odds"))
-    price_b = _float(row_b.get("decimal_odds") or row_b.get("executable_odds"))
-    assert price_a is not None and price_b is not None
-
+    # 4. Source-content closure: the raw payload must reproduce these exact rows.
     source_capture_sha256 = _source_capture_sha256(capture_id, raw_payloads)
     if source_capture_sha256 is None:
         return {"status": f"{market}_SOURCE_CAPTURE_HASH_MISSING", "quote": None}
-
-    # Field-level verification: the emitted side_prices must reproduce exactly
-    # the two raw rows, including market/fixture/line/selection/raw hash.
     raw_hashes = {str(row.get("raw_payload_sha256") or "") for row in (row_a, row_b)}
     if "" in raw_hashes:
         return {"status": f"{market}_QUOTE_RAW_HASH_MISSING", "quote": None}
@@ -177,6 +327,11 @@ def _select_one_market(
             return {"status": f"{market}_QUOTE_FIXTURE_MISMATCH", "quote": None}
         if str(row.get("canonical_market") or row.get("market") or "").upper() != market:
             return {"status": f"{market}_QUOTE_MARKET_MISMATCH", "quote": None}
+    if raw_payloads and capture_id in raw_payloads:
+        if not _source_content_matches(
+            [row_a, row_b], raw_payloads[capture_id], capture_id=capture_id
+        ):
+            return {"status": f"{market}_QUOTE_SOURCE_CONTENT_MISMATCH", "quote": None}
 
     return {
         "status": "READY",
