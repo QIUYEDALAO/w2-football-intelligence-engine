@@ -101,6 +101,39 @@ FACTOR_COMPUTATION_VERSIONS: Final = MappingProxyType(
     {factor_id: binding.version for factor_id, binding in _BINDINGS.items()}
 )
 
+#: Historical computation versions kept as independent, verifiable authorities
+#: (V8/D). A successor must not rewrite the old pin in place; it reads the old
+#: version through ``historical_binding`` and re-runs the old builder bytes for a
+#: retry, preserving the old identity/hash.
+_HISTORICAL_BINDINGS: Final = MappingProxyType(
+    {
+        "F5_RECENT_AH_COVER": MappingProxyType(
+            {
+                "w2.factor.f5_recent_ah_cover.settled_cover_rate_diff.v2":
+                    FactorBuilderBinding(
+                        version="w2.factor.f5_recent_ah_cover.settled_cover_rate_diff.v2",
+                        module="w2.features.team_factors",
+                        builder="recent_ah_cover_factor",
+                        ready_reason="SETTLED_AH_COVER_RATE_DIFF",
+                        builder_source_sha256=(
+                            "9964ac324fac77fc976d4b5d1b7e897b22cf819d5b8f4ead2bedf9acd71613a8"
+                        ),
+                    ),
+            }
+        ),
+    }
+)
+
+
+def historical_binding(factor_id: str, version: str) -> FactorBuilderBinding:
+    """A historical computation version's binding, or a refusal (V8/D)."""
+    try:
+        return _HISTORICAL_BINDINGS[factor_id][version]
+    except KeyError as exc:
+        raise FactorVersionError(
+            f"FACTOR_HISTORICAL_VERSION_UNKNOWN:{factor_id}:{version}"
+        ) from exc
+
 
 class FactorVersionError(KeyError):
     """A factor with no declared computation version. Never defaulted."""

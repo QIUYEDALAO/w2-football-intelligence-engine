@@ -58,6 +58,12 @@ class AhOuRepository(Protocol):
     # see result/settlement tables. Implementations may no-op if unsupported.
     def set_asof_role(self, role: str | None) -> None: ...
 
+    # Optional endpoint-capture lookup (V8/B): prove a cited capture exists and
+    # binds the same fixture/raw hash. Absent = strong-ref check skipped.
+    def endpoint_captures_for_ids(
+        self, capture_ids: list[str]
+    ) -> dict[str, dict[str, Any]]: ...
+
 
 def _skip(status: str) -> dict[str, Any]:
     return {"status": status, "ah": None, "ou": None, "features": None}
@@ -211,10 +217,29 @@ def build_ah_ou_selections(
 
     meetings: list[dict[str, Any]] = []
     seen_fixtures: set[str] = set()
+    # V8/B: prove the cited endpoint capture actually exists and binds the same
+    # fixture + raw hash, not merely that the ID is non-empty.
+    capture_reader = getattr(repository, "endpoint_captures_for_ids", None)
+    capture_by_id: dict[str, dict[str, Any]] = {}
+    if callable(capture_reader):
+        capture_by_id = capture_reader(
+            [str(row.get("endpoint_capture_id") or "") for row in history]
+        )
     for row in history:
         # B: a meeting without a real endpoint capture is not a verifiable source.
-        if not str(row.get("endpoint_capture_id") or ""):
+        capture_id = str(row.get("endpoint_capture_id") or "")
+        if not capture_id:
             return _skip("F6_H2H_CAPTURE_MISSING")
+        if callable(capture_reader):
+            cap = capture_by_id.get(capture_id)
+            if cap is None:
+                return _skip("F6_H2H_CAPTURE_NOT_FOUND")
+            if str(cap.get("fixture_id") or "").removeprefix("api_football:") != str(
+                row.get("fixture_id") or ""
+            ).removeprefix("api_football:"):
+                return _skip("F6_H2H_CAPTURE_FIXTURE_MISMATCH")
+            if str(cap.get("raw_payload_sha256") or "") != str(row.get("source_raw_hash") or ""):
+                return _skip("F6_H2H_CAPTURE_RAW_HASH_MISMATCH")
         captured = _parse_asof(row.get("captured_at"))
         if captured is None or captured > decision_at:
             return _skip("F6_H2H_CAPTURED_AFTER_DECISION")

@@ -142,32 +142,37 @@ def _source_content_matches(
     ingested = _parse_utc(first.get("ingested_at")) or captured
     if captured is None or ingested is None:
         return False
-    # The projection row's raw hash must equal the LEGACY_V1 canonical hash of the
-    # raw payload (the authority intake uses). A tampered/foreign hash is refused.
-    declared_hash = str(first.get("raw_payload_sha256") or "")
-    if not declared_hash:
-        return False
-    if (
-        canonical_sha256(
-            raw_payload,
-            domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
-            version=SerializerVersion.LEGACY_V1,
-        )
-        != declared_hash
-    ):
-        return False
+    # V8/C: EVERY projection row's raw hash must equal the LEGACY_V1 canonical hash
+    # of the raw payload (the authority intake uses) -- not just the first side.
+    expected_hash = canonical_sha256(
+        raw_payload,
+        domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+        version=SerializerVersion.LEGACY_V1,
+    )
+    for row in rows:
+        if str(row.get("raw_payload_sha256") or "") != expected_hash:
+            return False
     try:
         normalized, _ = normalize_matchday_odds_payload(
             raw_payload,
             captured_at=captured,
             ingested_at=ingested,
-            raw_payload_sha256=str(first.get("raw_payload_sha256") or ""),
+            raw_payload_sha256=expected_hash,
             source_revision=str(first.get("source_revision") or ""),
             capture_id=capture_id,
             provider=str(first.get("provider") or "api_football"),
             competition_id=str(first.get("competition_id") or "UNKNOWN"),
         )
     except Exception:
+        return False
+    # V8/C: raw 规范化出的这个 market 的行必须与投影一对一（集合相等），否则 raw
+    # 里多出的行（raw-only duplicate）或投影缺行都会被拒绝，而不是只证明子集。
+    market_name = str(first.get("canonical_market") or first.get("market") or "").upper()
+    normalized_for_market = [
+        n for n in normalized
+        if str(n.get("canonical_market") or "").upper() == market_name
+    ]
+    if len(normalized_for_market) != len(rows):
         return False
     for row in rows:
         side = _side(row)
@@ -373,8 +378,11 @@ def _select_one_market(
         if str(row.get("canonical_market") or row.get("market") or "").upper() != market:
             return {"status": f"{market}_QUOTE_MARKET_MISMATCH", "quote": None}
     if raw_payloads and capture_id in raw_payloads:
+        # V8/C: prove the FULL projection set (every row of this capture for this
+        # market) reproduces from the raw payload one-to-one -- not just the two
+        # selected sides (which would let a raw-only duplicate survive).
         if not _source_content_matches(
-            [row_a, row_b], raw_payloads[capture_id], capture_id=capture_id
+            latest_rows, raw_payloads[capture_id], capture_id=capture_id
         ):
             return {"status": f"{market}_QUOTE_SOURCE_CONTENT_MISMATCH", "quote": None}
 

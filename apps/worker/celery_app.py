@@ -28,10 +28,14 @@ logger = logging.getLogger(__name__)
 _UNSET: Any = object()
 
 
-def _fence_stage(task_id: str, stage: str, state: str, error: str | None = None) -> bool:
-    """Provider 不确定副作用栅栏（包5/E）: persist task+stage+attempt before/after a
-    provider stage. Returns False (and does not write ATTEMPTING) when the stage
-    is already SIDE_EFFECT_UNCERTAIN/BLOCKED, so a retry must not re-issue it."""
+def _fence_stage(task_id: str, stage: str, state: str, error: str | None = None) -> str:
+    """Provider 不确定副作用栅栏（V8/E）: 原子 claim task+stage+attempt.
+
+    返回该阶段的最终状态。``ATTEMPTING`` claim 只在首次未执行时成功；已
+    ATTEMPTING（无明确未发请求证明）/SIDE_EFFECT_UNCERTAIN/BLOCKED/DONE 都拒绝重入
+    （返回现有状态，不再写 ATTEMPTING、不调 Provider）。并发同 key 只一个 claim 成功。
+    """
+    from sqlalchemy.exc import IntegrityError
     from sqlalchemy.orm import Session
 
     import w2.infrastructure.persistence.provider_side_effect_fence_models  # noqa: F401
@@ -45,19 +49,27 @@ def _fence_stage(task_id: str, stage: str, state: str, error: str | None = None)
         now = datetime.now(UTC)
         existing = session.get(ProviderSideEffectFenceModel, (task_id, stage, 1))
         if state == "ATTEMPTING" and existing is not None and existing.state in {
-            "SIDE_EFFECT_UNCERTAIN", "BLOCKED",
+            "ATTEMPTING", "SIDE_EFFECT_UNCERTAIN", "BLOCKED", "DONE",
         }:
-            return False
+            return existing.state
         if existing is None:
             session.add(ProviderSideEffectFenceModel(
                 task_id=task_id, stage=stage, attempt=1, state=state,
                 created_at=now, updated_at=now, error=error,
             ))
+            try:
+                session.flush()
+            except IntegrityError:
+                session.rollback()
+                # 并发同 key 只一个 claim 成功；读回现有状态并拒绝。
+                with Session(engine) as other:
+                    other_row = other.get(ProviderSideEffectFenceModel, (task_id, stage, 1))
+                    return other_row.state if other_row is not None else "BLOCKED"
         else:
             existing.state = state
             existing.updated_at = now
             existing.error = error
-        return True
+        return state
 
 settings = get_settings()
 
@@ -768,7 +780,8 @@ def future_fixture_refresh(
     # carry on into the XG auto-capture (a further provider stage).
     h2h_report: dict[str, object] = {}
     if os.environ.get("W2_H2H_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
-        if not _fence_stage(key, "h2h", "ATTEMPTING"):
+        h2h_state = _fence_stage(key, "h2h", "ATTEMPTING")
+        if h2h_state in {"SIDE_EFFECT_UNCERTAIN", "BLOCKED"}:
             return {
                 "task_id": task_id, "task_key": key,
                 "status": "BLOCKED", "audit_status": "BLOCKED",
@@ -777,40 +790,53 @@ def future_fixture_refresh(
                 "xg_auto_capture": {"error": "NOT_ATTEMPTED_H2H_BLOCKED"},
                 "candidate": False, "formal_recommendation": False,
             }
-        try:
-            from w2.ingestion.h2h_capture import capture_h2h_for_competition
+        if h2h_state == "ATTEMPTING":
+            try:
+                from w2.ingestion.h2h_capture import capture_h2h_for_competition
 
-            h2h_report = capture_h2h_for_competition(competition_id=competition_id)
-            _fence_stage(key, "h2h", "DONE")
-        except Exception as exc:  # noqa: BLE001 - fail-closed below
-            logger.exception("w2 h2h auto-capture failed")
-            _fence_stage(key, "h2h", "SIDE_EFFECT_UNCERTAIN", f"{type(exc).__name__}:{exc}")
-            return {
-                "task_id": task_id,
-                "task_key": key,
-                "status": "BLOCKED",
-                "audit_status": "BLOCKED",
-                "result": {
-                    "blockers": [f"H2H_AUTO_CAPTURE_FAILED:{type(exc).__name__}:{exc}"],
-                    "provider_calls": 0,
-                },
-                "h2h_auto_capture": {"error": "H2H_AUTO_CAPTURE_FAILED"},
-                "xg_auto_capture": {"error": "NOT_ATTEMPTED_H2H_BLOCKED"},
-                "candidate": False,
-                "formal_recommendation": False,
-            }
+                h2h_report = capture_h2h_for_competition(competition_id=competition_id)
+                _fence_stage(key, "h2h", "DONE")
+            except Exception as exc:  # noqa: BLE001 - fail-closed below
+                logger.exception("w2 h2h auto-capture failed")
+                _fence_stage(key, "h2h", "SIDE_EFFECT_UNCERTAIN", f"{type(exc).__name__}:{exc}")
+                return {
+                    "task_id": task_id,
+                    "task_key": key,
+                    "status": "BLOCKED",
+                    "audit_status": "BLOCKED",
+                    "result": {
+                        "blockers": [f"H2H_AUTO_CAPTURE_FAILED:{type(exc).__name__}:{exc}"],
+                        "provider_calls": 0,
+                    },
+                    "h2h_auto_capture": {"error": "H2H_AUTO_CAPTURE_FAILED"},
+                    "xg_auto_capture": {"error": "NOT_ATTEMPTED_H2H_BLOCKED"},
+                    "candidate": False,
+                    "formal_recommendation": False,
+                }
+        # h2h_state == "DONE" → 已持久 DONE，跳过 H2H，进 XG。
     # F9 xG 自动补采：新 fixture 进评估前采历史比赛 xG 落 team_xg_match
     # （幂等：已缓存 statistics 跳过；fail-closed：quota/hard-cap 阻断即停；不自动重试）。
     # E: a XG failure likewise stops the run before the provider refresh.
     xg_report: dict[str, object] = {}
     if os.environ.get("W2_XG_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
-        if not _fence_stage(key, "xg", "ATTEMPTING"):
+        xg_state = _fence_stage(key, "xg", "ATTEMPTING")
+        if xg_state in {"SIDE_EFFECT_UNCERTAIN", "BLOCKED"}:
             return {
                 "task_id": task_id, "task_key": key,
                 "status": "BLOCKED", "audit_status": "BLOCKED",
                 "result": {"blockers": ["XG_STAGE_SIDE_EFFECT_UNCERTAIN"], "provider_calls": 0},
                 "h2h_auto_capture": h2h_report,
                 "xg_auto_capture": {"error": "XG_STAGE_SIDE_EFFECT_UNCERTAIN"},
+                "candidate": False, "formal_recommendation": False,
+            }
+        if xg_state != "ATTEMPTING":
+            # xg_state == "DONE" → 已持久 DONE，跳过 XG。
+            return {
+                "task_id": task_id, "task_key": key,
+                "status": "READY", "audit_status": "READY",
+                "result": {"provider_calls": 0},
+                "h2h_auto_capture": h2h_report,
+                "xg_auto_capture": {"status": "DONE"},
                 "candidate": False, "formal_recommendation": False,
             }
         try:

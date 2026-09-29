@@ -2725,6 +2725,34 @@ class FutureRefreshDbRepository:
             if sha in payloads
         }
 
+    def endpoint_captures_for_ids(
+        self, capture_ids: list[str]
+    ) -> dict[str, dict[str, Any]]:
+        """Resolve ``capture_id -> {fixture_id, raw_payload_sha256}`` (V8/B strong ref).
+
+        Used by the F6 admission to prove the cited endpoint capture actually
+        exists and binds the same fixture/raw hash -- not merely that the ID is
+        non-empty.
+        """
+        ids = [cid for cid in dict.fromkeys(capture_ids) if cid]
+        if not ids:
+            return {}
+        with self._asof_scoped_session() as session:
+            rows = list(
+                session.scalars(
+                    select(MatchdayEndpointCaptureModel).where(
+                        MatchdayEndpointCaptureModel.capture_id.in_(ids)
+                    )
+                )
+            )
+        return {
+            str(row.capture_id): {
+                "fixture_id": row.fixture_id,
+                "raw_payload_sha256": row.raw_payload_sha256,
+            }
+            for row in rows
+        }
+
     def write_ah_ou_decision(self, **kwargs: Any) -> Any:
         """Write an AH/OU v3 decision ledger row (idempotent, slot-conflict-stopped).
 
@@ -2997,6 +3025,13 @@ class FutureRefreshDbRepository:
             for row in snapshots:
                 first_captured_at = row.get("first_captured_at")
                 first_committed_at = row.get("first_committed_at")
+                # DB 权威时钟（V8/B）：首提交只写一次；merge 不得把已有旧身份的
+                # first_committed_at 覆盖（否则背填 now 会把晚生改写为赛前）。
+                existing = session.get(
+                    TeamXgRollingSnapshotModel, str(row["snapshot_id"])
+                )
+                if existing is not None and existing.first_committed_at is not None:
+                    first_committed_at = iso_z(existing.first_committed_at)
                 session.merge(
                     TeamXgRollingSnapshotModel(
                         snapshot_id=str(row["snapshot_id"]),

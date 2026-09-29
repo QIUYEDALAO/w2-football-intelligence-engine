@@ -3647,12 +3647,18 @@ class ReadModelService:
         ah_line_text = ah.get("line")
         ou_line_text = ou.get("line")
         if ah_line_text is None or ou_line_text is None:
+            # V8/C: carry the selector's per-market v3_status through to the ledger
+            # instead of collapsing it to MAINLINE_UNAVAILABLE.
+            v3_status = (
+                str(ah.get("v3_status") or ou.get("v3_status") or "")
+                or "MAINLINE_UNAVAILABLE"
+            )
             self._persist_ah_ou_skip(
                 repository=repository, fixture_id=fixture_id, home_id=home_id,
                 away_id=away_id, kickoff=kickoff,
-                mainline_selection=mainline_selection, status="MAINLINE_UNAVAILABLE",
+                mainline_selection=mainline_selection, status=v3_status,
             )
-            return None, None, "MAINLINE_UNAVAILABLE"
+            return None, None, v3_status
         # Pinnacle same-capture two-sided prices: both AH sides and both OU
         # sides must be present in the mainline side_prices (same capture by
         # construction of the canonical mainline selector).
@@ -3777,11 +3783,10 @@ class ReadModelService:
                 mainline_selection=mainline_selection, status="MAINLINE_PARSE_ERROR",
             )
             return None, None, "MAINLINE_PARSE_ERROR"
-        # S3 wiring: persist the decision to the new AH/OU ledger automatically
-        # after the selection is produced (single (fixture, market, decision_at)
-        # version). A refusal is persisted via skip_reason and stops, never falls
-        # back to the old weighted factor_score / pure bookmaker_intent.
-        self._write_ah_ou_decision_ledger(
+        # S3/V8(A): persist the decision to the new AH/OU ledger; the public
+        # direction is published only after the batch committed. A failed write
+        # drops both selections (selected=false) and surfaces WRITE_FAILED.
+        if not self._write_ah_ou_decision_ledger(
             repository=repository,
             fixture_id=fixture_id,
             home_id=home_id,
@@ -3789,7 +3794,11 @@ class ReadModelService:
             kickoff=kickoff,
             mainline_selection=mainline_selection,
             result=result,
-        )
+        ):
+            for selection in (result.get("ah"), result.get("ou")):
+                if isinstance(selection, dict):
+                    selection["selected"] = False
+            result["status"] = "WRITE_FAILED"
         return result["ah"], result["ou"], str(result["status"])
 
     def _write_ah_ou_decision_ledger(
@@ -3802,22 +3811,21 @@ class ReadModelService:
         kickoff: datetime,
         mainline_selection: dict[str, dict[str, Any]],
         result: dict[str, Any],
-    ) -> None:
+    ) -> bool:
         """Atomically persist the AH/OU cohort + both market decisions (R3).
 
-        The whole batch (cohort + AH + OU) is written in one transaction and
-        every market writes a row even on SKIP. 包1(A): a missing writer is a
-        structured NOT_RECORDED fact (logged, direction stays with the v3
-        status), never a raised error that could let another market route
-        recover a direction.
+        Returns True only when the whole batch committed. V8(A): a missing writer
+        or a write/commit failure is a structured WRITE_NOT_RECORDED / WRITE_FAILED
+        fact -- the caller then drops the public direction (selected=false), never
+        publishing a recommendation whose ledger write did not commit.
         """
         writer = getattr(repository, "write_ah_ou_decision_batch", None)
         if not callable(writer):
             logging.getLogger(__name__).warning(
                 "AH_OU_DECISION_BATCH_WRITER_UNAVAILABLE: decision not recorded "
-                "(NOT_RECORDED): fixture=%s", fixture_id,
+                "(WRITE_NOT_RECORDED): fixture=%s", fixture_id,
             )
-            return
+            return False
         from w2.strategy.ah_ou_decision_ledger import (
             build_ah_ou_input_hash,
         )
@@ -3948,7 +3956,14 @@ class ReadModelService:
         )
         cohort["decision_at"] = decision_at  # upsert_cohort expects a datetime
         cohort["created_at"] = created_at
-        writer(cohort=cohort, decisions=decisions)
+        try:
+            writer(cohort=cohort, decisions=decisions)
+        except Exception as exc:  # noqa: BLE001 - fail the public direction, not the card
+            logging.getLogger(__name__).warning(
+                "AH_OU_DECISION_BATCH_WRITE_FAILED: %s fixture=%s", exc, fixture_id,
+            )
+            return False
+        return True
 
     def _persist_ah_ou_skip(
         self,
