@@ -129,12 +129,20 @@ def build_ah_ou_selections(
     decision_at = kickoff - DECISION_LEAD_TIME
 
     # --- 盘口准入：双侧价 + AH 半球线（仅 .5）---------------------------
-    if ah_home_odds <= 1.0 or ah_away_odds <= 1.0:
+    # 包3(C): finite/type checks first, so NaN/Inf/None become a structured SKIP
+    # instead of a TypeError or a silently-passing comparison.
+    if not _is_finite_number(ah_home_odds) or ah_home_odds <= 1.0:
         return _skip("AH_ODDS_INCOMPLETE")
-    if ou_over_odds <= 1.0 or ou_under_odds <= 1.0:
+    if not _is_finite_number(ah_away_odds) or ah_away_odds <= 1.0:
+        return _skip("AH_ODDS_INCOMPLETE")
+    if not _is_finite_number(ou_over_odds) or ou_over_odds <= 1.0:
         return _skip("OU_ODDS_INCOMPLETE")
-    if not _is_hemisphere_line(ah_line):
+    if not _is_finite_number(ou_under_odds) or ou_under_odds <= 1.0:
+        return _skip("OU_ODDS_INCOMPLETE")
+    if not _is_finite_number(ah_line) or not _is_hemisphere_line(ah_line):
         return _skip("AH_LINE_NOT_HEMISPHERE")
+    if not _is_finite_number(ou_line):
+        return _skip("OU_LINE_INVALID")
 
     set_role = getattr(repository, "set_asof_role", None)
     if asof_role and callable(set_role):
@@ -172,6 +180,14 @@ def build_ah_ou_selections(
                 return _skip("F9_SNAPSHOT_FIRST_CAPTURE_MISSING")
             if first_captured > decision_at:
                 return _skip("F9_SNAPSHOT_FIRST_CAPTURE_AFTER_DECISION")
+            # 双层 PIT（包2/B）: the target snapshot's own first commit/readable
+            # instant must also be at or before decision time, locked by the DB
+            # write clock -- never backfilled from the component capture time.
+            first_committed = _parse_asof(snapshot.get("first_committed_at"))
+            if first_committed is None:
+                return _skip("F9_SNAPSHOT_FIRST_COMMIT_MISSING")
+            if first_committed > decision_at:
+                return _skip("F9_SNAPSHOT_FIRST_COMMIT_AFTER_DECISION")
             for field in (
                 "rolling_xg_for",
                 "rolling_xg_against",

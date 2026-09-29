@@ -258,6 +258,10 @@ class TeamXgRollingSnapshotModel(Base):
     # window is "as of"); a snapshot is only decision-usable when its first
     # capture is observable at decision time.
     first_captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # 双层 PIT（V7 包2/B）: the moment this target snapshot row was first
+    # committed and readable, locked by the DB write clock (never backfilled from
+    # the component sources, never inferred from as_of_time). NULL = backfilled.
+    first_committed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # True only for live PIT captures. Backfilled rows are BACKTEST_LOOKBACK and
     # must never be treated as point-in-time proven evidence.
     pit_proven: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

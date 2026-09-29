@@ -46,6 +46,7 @@ def _snapshot(team_id: str) -> dict:
         "as_of_fixture_id": FIXTURE_ID,
         "as_of_time": (KICKOFF - timedelta(days=1)).isoformat(),
         "first_captured_at": (KICKOFF - timedelta(days=1)).isoformat(),
+        "first_committed_at": (KICKOFF - timedelta(days=1)).isoformat(),
         "pit_proven": True,
         "rolling_xg_for": 1.2,
         "rolling_xg_against": 0.8,

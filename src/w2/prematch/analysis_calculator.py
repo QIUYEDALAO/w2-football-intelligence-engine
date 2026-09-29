@@ -3805,13 +3805,19 @@ class ReadModelService:
     ) -> None:
         """Atomically persist the AH/OU cohort + both market decisions (R3).
 
-        The whole batch (cohort + AH + OU) is written in one transaction; a
-        missing writer is a hard failure, never a silent return, and every market
-        writes a row even on SKIP (the skip_reason is persisted).
+        The whole batch (cohort + AH + OU) is written in one transaction and
+        every market writes a row even on SKIP. 包1(A): a missing writer is a
+        structured NOT_RECORDED fact (logged, direction stays with the v3
+        status), never a raised error that could let another market route
+        recover a direction.
         """
         writer = getattr(repository, "write_ah_ou_decision_batch", None)
         if not callable(writer):
-            raise RuntimeError("AH_OU_DECISION_BATCH_WRITER_UNAVAILABLE")
+            logging.getLogger(__name__).warning(
+                "AH_OU_DECISION_BATCH_WRITER_UNAVAILABLE: decision not recorded "
+                "(NOT_RECORDED): fixture=%s", fixture_id,
+            )
+            return
         from w2.strategy.ah_ou_decision_ledger import (
             build_ah_ou_input_hash,
         )
@@ -6484,33 +6490,14 @@ class ReadModelService:
                     else None
                 )
                 if isinstance(candidate, dict):
+                    # 包1(A): the market-candidate layer only decorates with
+                    # readable odds/EV + the veto reason. It must never read or
+                    # write the AH/OU decision/tendency/selected -- the v3
+                    # status/selection/score/threshold/decision_hash stay the
+                    # sole direction authority.
                     market["market_candidate"] = candidate
                     self._attach_market_candidate_evidence_projection(market, candidate)
-                    veto = self._factor_veto(decorated, market)
-                    if veto is not None:
-                        market["factor_veto"] = veto
-                        if veto["code"] == "FACTOR_EV_DIRECTION_CONFLICT":
-                            # The factor score and the EV comparison point at
-                            # opposite sides. Neither drives: downgrade to WATCH
-                            # rather than silently letting one of them win.
-                            market["decision"] = "WATCH"
-                            market["analysis_decision"] = "WATCH"
-                    if veto is None and candidate.get("analysis_evidence_status") == "COMPLETE":
-                        if candidate.get("analysis_direction_allowed"):
-                            market["tendency"] = candidate.get("selection")
-                            market["analysis_decision"] = "ANALYSIS_PICK"
-                            market["decision_score"] = max(
-                                self._optional_float(market.get("decision_score"))
-                                or self._optional_float(market.get("signal_strength"))
-                                or 0.0,
-                                PRIMARY_THRESHOLD,
-                            )
-                            market["signal_strength"] = market["decision_score"]
-                        market["decision"] = (
-                            "ANALYSIS_PICK"
-                            if candidate.get("analysis_direction_allowed")
-                            else "WATCH"
-                        )
+                    market["factor_veto"] = self._factor_veto(decorated, market)
         apply_market_selection(decorated)
         if not decorated.get("decision_tier"):
             decorated["decision_tier"] = (

@@ -27,6 +27,33 @@ logger = logging.getLogger(__name__)
 #: recording for that call.
 _UNSET: Any = object()
 
+
+def _fence_stage(task_id: str, stage: str, state: str, error: str | None = None) -> None:
+    """Provider 不确定副作用栅栏（包5/E）: persist task+stage+attempt before/after a
+    provider stage so a crash or exception leaves SIDE_EFFECT_UNCERTAIN/BLOCKED
+    instead of being silently retried."""
+    from sqlalchemy.orm import Session
+
+    import w2.infrastructure.persistence.provider_side_effect_fence_models  # noqa: F401
+    from w2.infrastructure.database import create_engine
+    from w2.infrastructure.persistence.provider_side_effect_fence_models import (
+        ProviderSideEffectFenceModel,
+    )
+
+    engine = create_engine()
+    with Session(engine) as session, session.begin():
+        now = datetime.now(UTC)
+        existing = session.get(ProviderSideEffectFenceModel, (task_id, stage, 1))
+        if existing is None:
+            session.add(ProviderSideEffectFenceModel(
+                task_id=task_id, stage=stage, attempt=1, state=state,
+                created_at=now, updated_at=now, error=error,
+            ))
+        else:
+            existing.state = state
+            existing.updated_at = now
+            existing.error = error
+
 settings = get_settings()
 
 broker_url = (
@@ -736,12 +763,15 @@ def future_fixture_refresh(
     # carry on into the XG auto-capture (a further provider stage).
     h2h_report: dict[str, object] = {}
     if os.environ.get("W2_H2H_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
+        _fence_stage(key, "h2h", "ATTEMPTING")
         try:
             from w2.ingestion.h2h_capture import capture_h2h_for_competition
 
             h2h_report = capture_h2h_for_competition(competition_id=competition_id)
+            _fence_stage(key, "h2h", "DONE")
         except Exception as exc:  # noqa: BLE001 - fail-closed below
             logger.exception("w2 h2h auto-capture failed")
+            _fence_stage(key, "h2h", "SIDE_EFFECT_UNCERTAIN", f"{type(exc).__name__}:{exc}")
             return {
                 "task_id": task_id,
                 "task_key": key,
@@ -761,12 +791,15 @@ def future_fixture_refresh(
     # E: a XG failure likewise stops the run before the provider refresh.
     xg_report: dict[str, object] = {}
     if os.environ.get("W2_XG_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
+        _fence_stage(key, "xg", "ATTEMPTING")
         try:
             from w2.ingestion.xg_backfill import run_xg_history_backfill
 
             xg_report = run_xg_history_backfill(competition_id=competition_id).as_dict()
+            _fence_stage(key, "xg", "DONE")
         except Exception as exc:  # noqa: BLE001 - fail-closed below
             logger.exception("w2 xg auto-capture failed")
+            _fence_stage(key, "xg", "SIDE_EFFECT_UNCERTAIN", f"{type(exc).__name__}:{exc}")
             return {
                 "task_id": task_id,
                 "task_key": key,

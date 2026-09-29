@@ -3129,6 +3129,7 @@ class FutureRefreshDbRepository:
             "candidate": False,
             "formal_recommendation": False,
             "first_captured_at": iso_z(row.first_captured_at) if row.first_captured_at else None,
+            "first_committed_at": iso_z(row.first_committed_at) if row.first_committed_at else None,
             "pit_proven": bool(row.pit_proven),
         }
 
