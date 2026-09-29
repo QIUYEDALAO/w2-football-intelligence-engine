@@ -45,31 +45,33 @@ def _fence_stage(task_id: str, stage: str, state: str, error: str | None = None)
     )
 
     engine = create_engine()
-    with Session(engine) as session, session.begin():
-        now = datetime.now(UTC)
-        existing = session.get(ProviderSideEffectFenceModel, (task_id, stage, 1))
-        if state == "ATTEMPTING" and existing is not None and existing.state in {
-            "ATTEMPTING", "SIDE_EFFECT_UNCERTAIN", "BLOCKED", "DONE",
-        }:
-            return existing.state
-        if existing is None:
-            session.add(ProviderSideEffectFenceModel(
-                task_id=task_id, stage=stage, attempt=1, state=state,
-                created_at=now, updated_at=now, error=error,
-            ))
-            try:
-                session.flush()
-            except IntegrityError:
-                session.rollback()
-                # 并发同 key 只一个 claim 成功；读回现有状态并拒绝。
-                with Session(engine) as other:
-                    other_row = other.get(ProviderSideEffectFenceModel, (task_id, stage, 1))
-                    return other_row.state if other_row is not None else "BLOCKED"
-        else:
-            existing.state = state
-            existing.updated_at = now
-            existing.error = error
-        return state
+    with Session(engine) as session:
+        try:
+            now = datetime.now(UTC)
+            existing = session.get(ProviderSideEffectFenceModel, (task_id, stage, 1))
+            if state == "ATTEMPTING" and existing is not None and existing.state in {
+                "ATTEMPTING", "SIDE_EFFECT_UNCERTAIN", "BLOCKED", "DONE",
+            }:
+                return existing.state
+            if existing is None:
+                session.add(ProviderSideEffectFenceModel(
+                    task_id=task_id, stage=stage, attempt=1, state=state,
+                    created_at=now, updated_at=now, error=error,
+                ))
+            else:
+                existing.state = state
+                existing.updated_at = now
+                existing.error = error
+            # flush + commit 一起包住：并发同 key 的 unique violation 可能在 commit 时
+            # 才抛出，此时也必须读回现有状态并拒绝，而不是放行重复 claim。
+            session.flush()
+            session.commit()
+            return state
+        except IntegrityError:
+            session.rollback()
+            with Session(engine) as other:
+                other_row = other.get(ProviderSideEffectFenceModel, (task_id, stage, 1))
+                return other_row.state if other_row is not None else "BLOCKED"
 
 settings = get_settings()
 

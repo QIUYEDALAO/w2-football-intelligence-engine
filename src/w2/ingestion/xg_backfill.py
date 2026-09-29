@@ -814,6 +814,11 @@ class XgHistoryBackfillService:
                                 if snapshot.first_captured_at is not None
                                 else None
                             ),
+                            "first_committed_at": (
+                                iso(snapshot.first_committed_at)
+                                if snapshot.first_committed_at is not None
+                                else None
+                            ),
                             "pit_proven": snapshot.pit_proven,
                         }
                     )
