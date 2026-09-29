@@ -1904,6 +1904,36 @@ test("design v1 review and replay tabs load their API only when opened", async (
   expect([validationRequests, calibratedRequests, replayRequests]).toEqual([1, 1, 1]);
 });
 
+test("v3 postmatch validation shows frozen decisions separately from legacy results", async ({ page }) => {
+  const payload = workspace("normal") as IntelligenceWorkspace & Record<string, unknown>;
+  const { history_replay: _historyReplay, ...validation } = payload.validation;
+  delete (payload as Partial<IntelligenceWorkspace>).validation;
+  const v3 = {
+    schema_version: "w2.ah_ou_v3_validation_view.v1",
+    registered_cohorts: 1, completed_decisions: 2, selected: 2,
+    by_market: {
+      ASIAN_HANDICAP: { registered_cohorts: 1, completed_decisions: 1, selected: 1, pending: 0, blocked: 0, void: 0, settled: 1, outcomes: { WIN: 1, HALF_WIN: 0, PUSH: 0, HALF_LOSS: 0, LOSS: 0 }, hit_rate_denominator: 1, hit_rate: 1, net_units: "0.25" },
+      TOTALS: { registered_cohorts: 1, completed_decisions: 1, selected: 1, pending: 1, blocked: 0, void: 0, settled: 0, outcomes: { WIN: 0, HALF_WIN: 0, PUSH: 0, HALF_LOSS: 0, LOSS: 0 }, hit_rate_denominator: 0, hit_rate: null, net_units: "0" },
+    },
+    rows: [
+      { decision_id: "a".repeat(64), fixture_id: "1489404", market: "ASIAN_HANDICAP", kickoff_utc: "2026-09-30T18:00:00Z", decision_contract: "w2.ah_ou_decision.v3.1", selection: "HOME", exact_line: "-0.5", decimal_odds: "1.25", settlement: "WIN", net_units: "0.25", state: "SETTLED" },
+      { decision_id: "b".repeat(64), fixture_id: "1489405", market: "TOTALS", kickoff_utc: "2026-10-01T18:00:00Z", decision_contract: "w2.ah_ou_decision.v3.1", selection: "OVER", exact_line: "2.5", decimal_odds: "1.9", settlement: null, net_units: null, state: "PENDING" },
+    ],
+  };
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/validation?**", (route) => route.fulfill({ status: 200, json: { request_id: "v3-review", schema_version: "w2.dashboard-intelligence-validation.v1", generated_at: payload.generated_at, validation, samples: [], cumulative_profit_units: 0, cumulative_profit_units_with_rebate: 0, pagination: { days: 7, limit: 50, offset: 0, total: 0 }, read_contract: payload.read_contract, ah_ou_v3: v3 } }));
+  await page.goto("/?date=2026-09-30");
+  await page.getByRole("tab", { name: "战绩复盘" }).click();
+  const section = page.locator("[data-ah-ou-v3]");
+  await expect(section).toBeVisible();
+  await expect(section.locator("[data-v3-decision-id]")).toHaveCount(2);
+  await expect(section.locator("[data-v3-market=ASIAN_HANDICAP]")).toContainText("净单位 0.25");
+  await expect(section.locator("[data-v3-market=TOTALS]")).toContainText("待赛果 1");
+  await expect(section.locator("[data-v3-market=TOTALS]")).toContainText("命中率 —（分母 0）");
+  await expect(section.locator(`[data-v3-decision-id="${"a".repeat(64)}"]`)).toContainText("+0.25");
+  await expect(section.locator(`[data-v3-decision-id="${"b".repeat(64)}"]`)).toContainText("待赛果");
+});
+
 test("design v1 mobile cards and bottom navigation fit the viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const payload = workspace("normal") as IntelligenceWorkspace & Record<string, unknown>;

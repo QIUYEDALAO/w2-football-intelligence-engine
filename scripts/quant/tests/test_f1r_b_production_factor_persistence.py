@@ -1126,6 +1126,12 @@ def test_07_the_wiring_did_not_touch_a_forbidden_path() -> None:
         "migrations/versions/0084_provider_side_effect_fence.py",
         # Exact migration authorised by the V9 A–F contract.
         "migrations/versions/0085_ahou_visibility_and_owned_stages.py",
+        # Exact postmatch lineage paths authorised by the V11 R2/R3 contract.
+        # No quant-recorder wiring is allowed in these files (asserted above).
+        "migrations/versions/0086_ahou_v3_postmatch_chain.py",
+        "src/w2/api/repository.py",
+        "src/w2/api/routers.py",
+        "src/w2/api/schemas.py",
         "migrations/versions/0078_quant_asof_role_isolation.py",
         "src/w2/strategy/ah_ou_decision.py",
         "src/w2/strategy/ah_ou_quote_selector.py",

@@ -159,6 +159,7 @@ def test_scheduler_rejects_file_checkpoint_before_provider_call(
     fake_client = FakeLiveApiFootballPort()
     original_run_task = future_refresh_core.run_future_refresh_task
     dispatched: list[dict[str, Any]] = []
+    task_reports: list[dict[str, Any]] = []
 
     def fake_runtime_run_task(**kwargs: Any) -> future_refresh_core.RefreshTaskAudit:
         patched_kwargs = dict(kwargs)
@@ -176,7 +177,9 @@ def test_scheduler_rejects_file_checkpoint_before_provider_call(
 
     def eager_send_task(name: str, *, kwargs: dict[str, Any], task_id: str) -> None:
         dispatched.append({"name": name, "kwargs": kwargs, "task_id": task_id})
-        worker_module.celery_app.tasks[name].apply(kwargs=kwargs, task_id=task_id).get()
+        task_reports.append(
+            worker_module.celery_app.tasks[name].apply(kwargs=kwargs, task_id=task_id).get()
+        )
 
     gate_seen: set[str] = set()
 
@@ -267,13 +270,14 @@ def test_scheduler_rejects_file_checkpoint_before_provider_call(
     assert second["formal_recommendation"] is False
     assert [item["name"] for item in dispatched] == ["w2.future_fixture_refresh"]
 
+    # The automatic route now refuses a file/SQLite claim before entering
+    # even the provider-facing runtime stub. The missing audit is the expected
+    # fail-closed outcome, and the reason must identify persistent PG.
     task_audits = sorted((runtime_root / "task_audit").glob("*.json"))
-    assert len(task_audits) == 1
-    first_audit = read_json(task_audits[0])
-    assert first_audit["result"]["candidate"] is False
-    assert first_audit["result"]["formal_recommendation"] is False
-
-    assert first_audit["result"]["blockers"] == ["CHECKPOINT_ENDPOINT_SET_INVALID"]
+    assert task_audits == []
+    assert len(task_reports) == 1 and task_reports[0]["status"] == "BLOCKED"
+    assert task_reports[0]["result"]["provider_calls_known"] == 0
+    assert "PROVIDER_PERSISTENT_PG_REQUIRED" in task_reports[0]["result"]["blockers"][0]
     assert fake_client.calls == []
     assert dispatched[0]["kwargs"]["checkpoint_fixture_ids"] == [
         "api_football:1489404"

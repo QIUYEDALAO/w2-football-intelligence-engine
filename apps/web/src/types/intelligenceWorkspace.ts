@@ -669,6 +669,39 @@ export interface WorkspaceValidation {
 
 export type WorkspaceValidationWithoutReplay = Omit<WorkspaceValidation, "history_replay">;
 
+export interface AhOuV3ValidationView {
+  schema_version: "w2.ah_ou_v3_validation_view.v1";
+  registered_cohorts: number;
+  completed_decisions: number;
+  selected: number;
+  by_market: Record<string, {
+    registered_cohorts: number;
+    completed_decisions: number;
+    selected: number;
+    pending: number;
+    blocked: number;
+    void: number;
+    settled: number;
+    outcomes: Record<string, number>;
+    hit_rate_denominator: number;
+    hit_rate: number | null;
+    net_units: string;
+  }>;
+  rows: Array<{
+    decision_id: string;
+    fixture_id: string;
+    market: "ASIAN_HANDICAP" | "TOTALS";
+    kickoff_utc: string;
+    decision_contract: string;
+    selection: string | null;
+    exact_line: string | null;
+    decimal_odds: string | null;
+    settlement: string | null;
+    net_units: string | null;
+    state: "PENDING" | "BLOCKED" | "VOID" | "SETTLED";
+  }>;
+}
+
 export interface IntelligenceValidationResponse {
   request_id: string;
   schema_version: "w2.dashboard-intelligence-validation.v1";
@@ -680,6 +713,7 @@ export interface IntelligenceValidationResponse {
   pagination?: { days: number | null; limit: number | null; offset: number; total: number };
   read_contract: IntelligenceWorkspace["read_contract"];
   validation_signals?: ValidationSignalsProjection;
+  ah_ou_v3?: AhOuV3ValidationView;
 }
 
 export interface ValidationSignalsProjection {

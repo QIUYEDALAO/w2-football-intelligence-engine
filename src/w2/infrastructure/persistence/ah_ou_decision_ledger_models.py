@@ -21,6 +21,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from w2.infrastructure.database import Base
 
 AH_OU_DECISION_LEDGER_SCHEMA = "w2.ah_ou_decision_ledger.v3"
+AH_OU_FROZEN_TERMS_SCHEMA = "w2.ah_ou_frozen_terms.v1"
 AH_OU_COHORT_SCHEMA = "w2.ah_ou_forward_cohort.v3"
 
 
@@ -51,6 +52,11 @@ class AhOuDecisionLedgerModel(Base):
 
     input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     full_distribution: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    # NULL is a historical v3 record. New v3.1 selected rows must freeze terms
+    # before publication; no post-result backfill is permitted.
+    decision_contract: Mapped[str | None] = mapped_column(String(64))
+    frozen_terms: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    terms_hash: Mapped[str | None] = mapped_column(String(64))
 
     quote_identity_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     source_capture_sha256: Mapped[str] = mapped_column(String(64), nullable=False)

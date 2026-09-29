@@ -21,6 +21,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import os
+import subprocess
 import sys
 import time
 import uuid
@@ -124,8 +125,13 @@ def _fresh_database(monkeypatch: Any) -> Engine:
     monkeypatch.setenv("W2_DATABASE_URL", test_url)
     monkeypatch.setenv("W2_FUTURE_REFRESH_PERSISTENCE", "db")
     get_settings.cache_clear()
+    # Automatic Provider tasks now require the persistent PG migration head.
+    # A metadata-only schema cannot prove durable claim ownership.
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=REPO, env=os.environ.copy(), check=True, capture_output=True, text=True,
+    )
     engine = create_engine(test_url)
-    Base.metadata.create_all(engine)
     return engine
 
 
@@ -816,7 +822,9 @@ def _run_refresh_task(
 
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(worker, "run_future_refresh_task", fake_run_future_refresh_task)
-    return worker.future_fixture_refresh.run(competition_id="allsvenskan"), materialized
+    return worker.future_fixture_refresh.run(
+        competition_id="allsvenskan", task_key="checkpoint-refresh:f1r-b-e2e"
+    ), materialized
 
 
 def test_the_refresh_task_result_carries_the_recording_it_wrote(

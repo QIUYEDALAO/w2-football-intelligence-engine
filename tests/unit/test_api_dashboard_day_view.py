@@ -128,6 +128,14 @@ class RecordingDashboardService:
             "lead_time_buckets": {},
         }
 
+    def dashboard_ah_ou_v3_validation(self) -> dict[str, Any]:
+        return {
+            "schema_version": "w2.ah_ou_v3_validation_view.v1",
+            "rows": [],
+            "selected": 0,
+            "by_market": {},
+        }
+
 
 def test_dashboard_day_view_endpoint_reads_requested_window(
     monkeypatch: MonkeyPatch,
@@ -308,6 +316,7 @@ def test_intelligence_workspace_validation_is_lazy_and_excludes_replay(
     }
     assert payload["validation"]["model_forecast"]["capture_count"] == 13
     assert payload["read_contract"]["provider_calls"] == 0
+    assert payload["ah_ou_v3"]["schema_version"] == "w2.ah_ou_v3_validation_view.v1"
 
 
 def test_intelligence_workspace_replay_preserves_existing_replay_projection(

@@ -18,7 +18,7 @@ rest of the batch.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from w2.domain.canonical_serialization import HashDomain, canonical_sha256
 from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
     AH_OU_DECISION_LEDGER_SCHEMA,
+    AH_OU_FROZEN_TERMS_SCHEMA,
     AhOuCohortModel,
     AhOuDecisionLedgerModel,
 )
@@ -51,8 +52,8 @@ def _iso(value: datetime) -> str:
     # a naive value as UTC so the same logical instant hashes and compares equal
     # against the aware input.
     if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc).isoformat()
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(UTC).isoformat()
 
 
 def _frozen_json(value: Any) -> str:
@@ -76,6 +77,9 @@ def _frozen_field_mismatch(
     calibration_version: str,
     input_hash: str,
     full_distribution: dict[str, Any],
+    decision_contract: str | None,
+    frozen_terms: dict[str, Any] | None,
+    terms_hash: str | None,
     quote_identity_hash: str,
     source_capture_sha256: str,
     capture_id: str,
@@ -100,6 +104,9 @@ def _frozen_field_mismatch(
         ("model_version", existing.model_version, model_version),
         ("calibration_version", existing.calibration_version, calibration_version),
         ("input_hash", existing.input_hash, input_hash),
+        ("decision_contract", existing.decision_contract, decision_contract),
+        ("frozen_terms", _frozen_json(existing.frozen_terms), _frozen_json(frozen_terms)),
+        ("terms_hash", existing.terms_hash, terms_hash),
         ("quote_identity_hash", existing.quote_identity_hash, quote_identity_hash),
         ("source_capture_sha256", existing.source_capture_sha256, source_capture_sha256),
         ("capture_id", existing.capture_id, capture_id),
@@ -165,10 +172,11 @@ def build_ah_ou_decision_id(
     score: str,
     skip_reason: str | None,
     selected: bool,
+    terms_hash: str | None = None,
 ) -> str:
     """Evaluate step: identity of the decision, not the inputs."""
     body = {
-        "contract": AH_OU_DECISION_LEDGER_SCHEMA,
+        "contract": "w2.ah_ou_decision_ledger.v3.1" if terms_hash else AH_OU_DECISION_LEDGER_SCHEMA,
         "fixture_id": fixture_id,
         "market": market,
         "decision_at": _iso(decision_at),
@@ -182,6 +190,8 @@ def build_ah_ou_decision_id(
         "skip_reason": skip_reason,
         "selected": selected,
     }
+    if terms_hash:
+        body["terms_hash"] = terms_hash
     return canonical_sha256(body, domain=_DECISION_HASH_DOMAIN)
 
 
@@ -195,6 +205,9 @@ def write_ah_ou_decision(
     calibration_version: str,
     input_hash: str,
     full_distribution: dict[str, Any],
+    decision_contract: str | None = None,
+    frozen_terms: dict[str, Any] | None = None,
+    terms_hash: str | None = None,
     quote_identity_hash: str,
     source_capture_sha256: str,
     capture_id: str,
@@ -209,6 +222,25 @@ def write_ah_ou_decision(
 ) -> AhOuDecisionLedgerModel:
     """Idempotent write: identical re-run is a no-op; slot conflict raises."""
     score_text = _decimal_text(score)
+    if decision_contract == "w2.ah_ou_decision.v3.1":
+        if selected:
+            if (
+                not isinstance(frozen_terms, dict)
+                or frozen_terms.get("schema_version") != AH_OU_FROZEN_TERMS_SCHEMA
+            ):
+                raise ValueError("AH_OU_SELECTED_TERMS_INCOMPLETE")
+            expected_terms_hash = canonical_sha256(
+                frozen_terms, domain=HashDomain.RECOMMENDATION_DECISION_V4)
+            if expected_terms_hash != terms_hash:
+                raise ValueError("AH_OU_SELECTED_TERMS_HASH_MISMATCH")
+            if any(frozen_terms.get(name) in (None, "") for name in (
+                "selection", "home_line" if market == "ASIAN_HANDICAP" else "total_line",
+                "selected_line", "entry_odds", "bookmaker_id", "capture_id",
+                "captured_at", "raw_payload_sha256", "quote_identity_hash",
+                "model_version", "calibration_version", "input_hash")):
+                raise ValueError("AH_OU_SELECTED_TERMS_INCOMPLETE")
+        elif frozen_terms is not None or terms_hash is not None:
+            raise ValueError("AH_OU_UNSELECTED_TERMS_CONFLICT")
     decision_id = build_ah_ou_decision_id(
         fixture_id=fixture_id,
         market=market,
@@ -222,6 +254,7 @@ def write_ah_ou_decision(
         score=score_text,
         skip_reason=skip_reason,
         selected=selected,
+        terms_hash=terms_hash,
     )
 
     existing = session.get(AhOuDecisionLedgerModel, decision_id)
@@ -238,6 +271,9 @@ def write_ah_ou_decision(
             calibration_version=calibration_version,
             input_hash=input_hash,
             full_distribution=full_distribution,
+            decision_contract=decision_contract,
+            frozen_terms=frozen_terms,
+            terms_hash=terms_hash,
             quote_identity_hash=quote_identity_hash,
             source_capture_sha256=source_capture_sha256,
             capture_id=capture_id,
@@ -279,6 +315,9 @@ def write_ah_ou_decision(
         calibration_version=calibration_version,
         input_hash=input_hash,
         full_distribution=full_distribution,
+        decision_contract=decision_contract,
+        frozen_terms=frozen_terms,
+        terms_hash=terms_hash,
         quote_identity_hash=quote_identity_hash,
         source_capture_sha256=source_capture_sha256,
         capture_id=capture_id,

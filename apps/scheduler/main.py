@@ -697,6 +697,7 @@ def xg_history_backfill_tick() -> dict[str, object]:
             "provider_calls": 0,
         }
     from apps.worker.celery_app import celery_app
+    from w2.ingestion.provider_task_identity import xg_backfill_claim_key
 
     now = datetime.now(UTC)
     competition_ids = matchday_checkpoint_competition_ids()
@@ -708,13 +709,20 @@ def xg_history_backfill_tick() -> dict[str, object]:
             "formal_recommendation": False,
         }
     task_ids = []
+    interval_seconds = int(os.environ.get(
+        "W2_XG_BACKFILL_INTERVAL_SECONDS", str(DEFAULT_XG_BACKFILL_INTERVAL_SECONDS)))
     for competition_id in competition_ids:
+        claim_key, window_start = xg_backfill_claim_key(
+            competition_id=competition_id, queued_at=now, interval_seconds=interval_seconds)
         task_id = f"xg-history-backfill:{competition_id}:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
         celery_app.send_task(
             "w2.xg_history_backfill",
             kwargs={
                 "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
                 "competition_id": competition_id,
+                "claim_key": claim_key,
+                "planned_window_start_utc": window_start.isoformat().replace("+00:00", "Z"),
+                "plan_interval_seconds": interval_seconds,
             },
             task_id=task_id,
         )

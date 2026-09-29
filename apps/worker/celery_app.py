@@ -10,7 +10,7 @@ from typing import Any, cast
 from celery import Celery
 
 from w2.config import get_settings
-from w2.ingestion.future_refresh import deterministic_task_key, run_future_refresh_task
+from w2.ingestion.future_refresh import run_future_refresh_task
 from w2.ingestion.xg_backfill import run_xg_history_backfill
 from w2.prematch.read_model_projection import ProjectionSourceEvent
 from w2.providers.api_football import ApiFootballClient
@@ -28,16 +28,45 @@ logger = logging.getLogger(__name__)
 _UNSET: Any = object()
 
 
-def _fence_stage(task_id: str, stage: str, state: str, error: str | None = None,
-                 *, owner_token: str | None = None, stored_result: dict | None = None) -> dict:
+def _fence_stage(
+    task_id: str,
+    stage: str,
+    state: str,
+    error: str | None = None,
+    *,
+    owner_token: str | None = None,
+    stored_result: dict | None = None,
+) -> dict:
     """Atomically claim or CAS a stage. A state is never ownership."""
+    from pathlib import Path
     from uuid import uuid4
-    from sqlalchemy import update
+
+    from alembic.config import Config as AlembicConfig
+    from alembic.script import ScriptDirectory
+    from sqlalchemy import text, update
+    from sqlalchemy.engine.url import make_url
     from sqlalchemy.exc import IntegrityError
     from sqlalchemy.orm import Session
+
     from w2.infrastructure.database import create_engine
-    from w2.infrastructure.persistence.provider_side_effect_fence_models import ProviderSideEffectFenceModel as Fence
+    from w2.infrastructure.persistence.provider_side_effect_fence_models import (
+        ProviderSideEffectFenceModel as Fence,
+    )
+    database_url = get_settings().database_url.get_secret_value()
+    if make_url(database_url).get_backend_name() != "postgresql":
+        raise RuntimeError("PROVIDER_PERSISTENT_PG_REQUIRED")
     engine = create_engine()
+    # A partially migrated PostgreSQL database is not a durable owner fence.
+    # Compare the database's recorded revision with the packaged migration head
+    # before allowing the first automatic external request.
+    config_path = Path(__file__).resolve().parents[2] / "alembic.ini"
+    expected_head = ScriptDirectory.from_config(
+        AlembicConfig(str(config_path))
+    ).get_current_head()
+    with Session(engine) as revision_session:
+        applied = revision_session.scalars(text("SELECT version_num FROM alembic_version")).all()
+    if applied != [expected_head]:
+        raise RuntimeError("PROVIDER_PG_MIGRATION_HEAD_REQUIRED")
     def observed(row):
         if row is None:
             return {"status": "BLOCKED", "reason": "CLAIM_NOT_FOUND"}
@@ -45,7 +74,8 @@ def _fence_stage(task_id: str, stage: str, state: str, error: str | None = None,
             return {"status": "DONE", "stored_result": row.stored_result}
         if row.state == "ATTEMPTING":
             return {"status": "ALREADY_ATTEMPTING", "reason": "DELIVERY_UNKNOWN"}
-        return {"status": "BLOCKED", "reason": row.state if row.state in {"BLOCKED", "SIDE_EFFECT_UNCERTAIN"} else "UNKNOWN_STATE"}
+        reason = row.state if row.state in {"BLOCKED", "SIDE_EFFECT_UNCERTAIN"} else "UNKNOWN_STATE"
+        return {"status": "BLOCKED", "reason": reason}
     with Session(engine) as session:
         if state == "ATTEMPTING":
             existing = session.get(Fence, (task_id, stage, 1))
@@ -63,10 +93,17 @@ def _fence_stage(task_id: str, stage: str, state: str, error: str | None = None,
                 return observed(session.get(Fence, (task_id, stage, 1)))
         if state not in {"DONE", "SIDE_EFFECT_UNCERTAIN", "BLOCKED"} or not owner_token:
             raise RuntimeError("FENCE_TRANSITION_NOT_AUTHORIZED")
-        changed = session.execute(update(Fence).where(
-            Fence.task_id == task_id, Fence.stage == stage, Fence.attempt == 1,
-            Fence.state == "ATTEMPTING", Fence.owner_token == owner_token,
-        ).values(state=state, error=error, stored_result=stored_result, updated_at=datetime.now(UTC)))
+        changed = session.execute(
+            update(Fence)
+            .where(
+                Fence.task_id == task_id, Fence.stage == stage, Fence.attempt == 1,
+                Fence.state == "ATTEMPTING", Fence.owner_token == owner_token,
+            )
+            .values(
+                state=state, error=error, stored_result=stored_result,
+                updated_at=datetime.now(UTC),
+            )
+        )
         if changed.rowcount != 1:
             session.rollback()
             raise RuntimeError("FENCE_OWNER_STATE_CONFLICT")
@@ -787,13 +824,26 @@ def future_fixture_refresh(
             "candidate": False,
             "formal_recommendation": False,
         }
+    # The dispatch key is part of the durable business identity. Constructing
+    # it at consumption time would let a delayed Celery redelivery claim a new
+    # interval and repeat a possible Provider side effect.
+    if not task_key:
+        return {
+            "task_id": "future-refresh",
+            "task_key": None,
+            "status": "BLOCKED",
+            "audit_status": "BLOCKED",
+            "result": {
+                "blockers": ["FUTURE_REFRESH_DISPATCH_KEY_MISSING"],
+                "provider_calls": 0,
+                "provider_calls_known": 0,
+                "provider_calls_unknown": False,
+            },
+            "candidate": False,
+            "formal_recommendation": False,
+        }
     now = datetime.now(UTC)
-    key = task_key or deterministic_task_key(
-        competition_id=competition_id,
-        season="2026",
-        now=now,
-        interval_seconds=900,
-    )
+    key = task_key
     queued_at = (
         datetime.fromisoformat(queued_at_utc.replace("Z", "+00:00")).astimezone(UTC)
         if queued_at_utc
@@ -812,10 +862,10 @@ def future_fixture_refresh(
     xg_report: dict[str, object] = {}
     auto_capture = any(os.environ.get(flag, "false").lower() == "true" for flag in (
         "W2_H2H_AUTO_CAPTURE_ENABLED", "W2_XG_AUTO_CAPTURE_ENABLED"))
-    # 持久 owner claim 需要持久 PG；不能以 auto_capture or W2_DATABASE_URL 环境
-    # 变量决定是否 claim（V10/E）。SQLite 本地测试走 run_future_refresh_task 的
-    # DB task-key 检查，不额外 claim。无 PG / claim 写失败 → 0 次进入外部入口。
-    owned_pipeline = auto_capture or get_settings().safe_database_label.startswith("postgresql")
+    # 每条自动 refresh 都先取得持久 PG owner claim；SQLite 的本地 task
+    # audit 不是 Provider 执行权。无 PG / claim 写失败 → 0 次进入外部入口。
+    get_settings.cache_clear()
+    owned_pipeline = True
     task_claim = None
     try:
         if owned_pipeline:
@@ -828,10 +878,14 @@ def future_fixture_refresh(
                 raise RuntimeError(f"TASK_{task_claim['status']}:{task_claim.get('reason', '')}")
         if os.environ.get("W2_H2H_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
             from w2.ingestion.h2h_capture import capture_h2h_for_competition
-            h2h_report = _execute_owned_stage(key, "h2h", lambda: capture_h2h_for_competition(competition_id=competition_id))
+            h2h_report = _execute_owned_stage(
+                key, "h2h", lambda: capture_h2h_for_competition(competition_id=competition_id)
+            )
         if os.environ.get("W2_XG_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
             from w2.ingestion.xg_backfill import run_xg_history_backfill
-            xg_report = _execute_owned_stage(key, "xg", lambda: run_xg_history_backfill(competition_id=competition_id).as_dict())
+            xg_report = _execute_owned_stage(
+                key, "xg", lambda: run_xg_history_backfill(competition_id=competition_id).as_dict()
+            )
         # The refresh may call Provider; its ownership spans forward and the
         # final result. A crash in this phase is blocked, never falsely READY.
         refresh_claim = (_fence_stage(key, "refresh_forward", "ATTEMPTING") if owned_pipeline
@@ -840,14 +894,20 @@ def future_fixture_refresh(
             if not isinstance(refresh_claim.get("stored_result"), dict):
                 raise RuntimeError("REFRESH_DONE_RESULT_MISSING")
             if task_claim and task_claim["status"] == "CLAIMED":
-                _fence_stage(key, "task", "DONE", owner_token=task_claim["owner_token"], stored_result=refresh_claim["stored_result"])
+                _fence_stage(
+                    key, "task", "DONE", owner_token=task_claim["owner_token"],
+                    stored_result=refresh_claim["stored_result"],
+                )
             return refresh_claim["stored_result"]
         if refresh_claim["status"] != "CLAIMED":
             raise RuntimeError(f"REFRESH_{refresh_claim['status']}")
     except Exception as exc:
         if task_claim and task_claim["status"] == "CLAIMED":
             try:
-                _fence_stage(key, "task", "SIDE_EFFECT_UNCERTAIN", str(exc)[:512], owner_token=task_claim["owner_token"])
+                _fence_stage(
+                    key, "task", "SIDE_EFFECT_UNCERTAIN", str(exc)[:512],
+                    owner_token=task_claim["owner_token"],
+                )
             except Exception:
                 logger.exception("task terminal audit failed; task claim remains blocking")
         elif task_claim is None:
@@ -856,7 +916,8 @@ def future_fixture_refresh(
         return {
             "task_id": task_id, "task_key": key, "status": "BLOCKED", "audit_status": "BLOCKED",
             "result": {"blockers": [f"TASK_STAGE_BLOCKED:{type(exc).__name__}:{exc}"],
-                       "provider_calls": None, "provider_calls_known": getattr(exc, "provider_calls_known", None),
+                       "provider_calls": getattr(exc, "provider_calls_known", None),
+                       "provider_calls_known": getattr(exc, "provider_calls_known", None),
                        "provider_calls_unknown": getattr(exc, "provider_calls_unknown", True)},
             "h2h_auto_capture": h2h_report, "xg_auto_capture": xg_report,
             "candidate": False, "formal_recommendation": False,
@@ -946,17 +1007,29 @@ def future_fixture_refresh(
             task_result.pop("h2h_auto_capture", None)
             task_result.pop("xg_auto_capture", None)
         if owned_pipeline:
-            _fence_stage(key, "refresh_forward", "DONE", owner_token=refresh_claim["owner_token"], stored_result=task_result)
-            _fence_stage(key, "task", "DONE", owner_token=task_claim["owner_token"], stored_result=task_result)
+            _fence_stage(
+                key, "refresh_forward", "DONE", owner_token=refresh_claim["owner_token"],
+                stored_result=task_result,
+            )
+            _fence_stage(
+                key, "task", "DONE", owner_token=task_claim["owner_token"],
+                stored_result=task_result,
+            )
         return task_result
     except Exception as exc:
         try:
-            _fence_stage(key, "refresh_forward", "SIDE_EFFECT_UNCERTAIN", str(exc)[:512], owner_token=refresh_claim["owner_token"])
+            _fence_stage(
+                key, "refresh_forward", "SIDE_EFFECT_UNCERTAIN", str(exc)[:512],
+                owner_token=refresh_claim["owner_token"],
+            )
         except Exception:
             logger.exception("refresh terminal audit failed; claim remains blocking")
         if task_claim and task_claim["status"] == "CLAIMED":
             try:
-                _fence_stage(key, "task", "SIDE_EFFECT_UNCERTAIN", str(exc)[:512], owner_token=task_claim["owner_token"])
+                _fence_stage(
+                    key, "task", "SIDE_EFFECT_UNCERTAIN", str(exc)[:512],
+                    owner_token=task_claim["owner_token"],
+                )
             except Exception:
                 logger.exception("task final report audit failed; claim remains blocking")
         return {"task_id": task_id, "task_key": key, "status": "BLOCKED", "audit_status": "BLOCKED",
@@ -971,6 +1044,9 @@ def xg_history_backfill(
     self: object,
     queued_at_utc: str | None = None,
     competition_id: str | None = None,
+    claim_key: str | None = None,
+    planned_window_start_utc: str | None = None,
+    plan_interval_seconds: int | None = None,
 ) -> dict[str, object]:
     request = getattr(self, "request", None)
     task_id = str(getattr(request, "id", None) or "xg-history-backfill")
@@ -988,20 +1064,43 @@ def xg_history_backfill(
             "candidate": False,
             "formal_recommendation": False,
         }
-    # 独立 XG 路由接入同一持久副作用栅栏（V10/E）。业务执行 key 使用
-    # competition_id + 秒级计划窗口：同一次重投保持同 key，合法的新窗口可独立
-    # 运行；scheduler 的 task_id 含 UUID 只作为 Celery 投递标识，不参与 fence key。
-    now = datetime.now(UTC)
-    # 独立 XG 任务由 scheduler 单独投递，worker 进程内 settings 缓存可能是
-    # 另一个入口留下的；栅栏的持久 owner claim 必须落到当前配置的数据库。
+    from w2.ingestion.provider_task_identity import xg_backfill_claim_key
+
+    # Celery redelivery keeps the scheduler's immutable planned-window key.
+    # Missing or inconsistent dispatch evidence blocks before any Provider call.
+    if not (competition_id and queued_at_utc and claim_key and
+            planned_window_start_utc and plan_interval_seconds):
+        return {"task_id": task_id, "status": "BLOCKED", "reason": "XG_CLAIM_KEY_MISSING",
+                "provider_calls_known": 0, "provider_calls_unknown": False}
+    try:
+        queued_at = datetime.fromisoformat(queued_at_utc.replace("Z", "+00:00"))
+        expected, start = xg_backfill_claim_key(
+            competition_id=competition_id, queued_at=queued_at,
+            interval_seconds=plan_interval_seconds)
+        planned = datetime.fromisoformat(
+            planned_window_start_utc.replace("Z", "+00:00"))
+        if claim_key != expected or planned != start:
+            raise ValueError("XG_CLAIM_KEY_MISMATCH")
+    except (TypeError, ValueError) as exc:
+        return {"task_id": task_id, "status": "BLOCKED", "reason": str(exc),
+                "provider_calls_known": 0, "provider_calls_unknown": False}
+    # Re-read settings only to honour a new worker process' current DB config.
     get_settings.cache_clear()
-    fence_key = f"xg-history-backfill:{competition_id or ''}:{int(now.timestamp())}"
-    result = _execute_owned_stage(
-        fence_key, "xg", lambda: run_xg_history_backfill(competition_id=competition_id).as_dict()
-    )
+    try:
+        result = _execute_owned_stage(
+            claim_key, "xg",
+            lambda: run_xg_history_backfill(competition_id=competition_id).as_dict(),
+        )
+    except Exception as exc:
+        return {"task_id": task_id, "queued_at_utc": queued_at_utc,
+                "claim_key": claim_key, "status": "BLOCKED",
+                "reason": f"{type(exc).__name__}:{exc}",
+                "provider_calls_known": getattr(exc, "provider_calls_known", None),
+                "provider_calls_unknown": getattr(exc, "provider_calls_unknown", True)}
     return {
         "task_id": task_id,
         "queued_at_utc": queued_at_utc,
+        "claim_key": claim_key,
         "status": "COMPLETED",
         "result": result,
         "candidate": False,
@@ -1042,6 +1141,12 @@ def forward_outcome_ledger(
         )
         raise
     cursor_value = result.pop("source_cursor", {})
+    if result.get("status") == "BLOCKED" or str(result.get("status") or "").endswith("_INCOMPLETE"):
+        runtime.mark_failed(task_id=task_id, error=str(result.get("status"))[:512],
+                            now=datetime.now(UTC))
+        return {"task_id": task_id, "queued_at_utc": queued_at_utc,
+                "status": "BLOCKED", "result": result, "provider_calls": 0,
+                "candidate": False, "formal_recommendation": False}
     pending_value = result.get("pending_settlement_count", 0)
     runtime.mark_succeeded(
         task_id=task_id,
@@ -1232,8 +1337,16 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         validation_sample_report = _materialize_validation_sample_projections(
             repository.engine, evaluated_at=evaluated_at
         )
-    except Exception as _exc:  # pragma: no cover - 物化失败不阻断主流程
-        validation_sample_report = {"error": f"{type(_exc).__name__}: {_exc}"}
+    except Exception:
+        # A confirmed v3 selection with no validation row is not a successful
+        # result task. The failure is surfaced to the runtime audit and retried
+        # only through the idempotent post-event writer.
+        raise
+    if (validation_sample_report.get("v3") or {}).get("status") == "BLOCKED":
+        return {"status": "BLOCKED", "source_cursor": work.source_cursor,
+                "validation_samples": validation_sample_report,
+                "pending_settlement_count": settlement.get("unresolved_count", 0),
+                "provider_calls": 0, "db_writes": 0}
     pending_count = settlement["unresolved_count"]
     if not isinstance(pending_count, int) or isinstance(pending_count, bool):
         raise RuntimeError("OUTCOME_LEDGER_PENDING_COUNT_INVALID")
@@ -1363,9 +1476,17 @@ def _run_result_materialize(
 ) -> dict[str, object]:
     from w2.tracking.outcome_result_refresh import run_outcome_result_refresh
 
-    return run_outcome_result_refresh(
+    result = run_outcome_result_refresh(
         fixture_ids=fixture_ids,
         dry_run=False,
         write_db=True,
         now=now,
     )
+    if result["status"] == "BLOCKED":
+        return result
+    from w2.infrastructure.database import create_engine as _engine
+    result["validation_samples"] = _materialize_validation_sample_projections(
+        _engine(), evaluated_at=now or datetime.now(UTC))
+    if (result["validation_samples"].get("v3") or {}).get("status") == "BLOCKED":
+        result["status"] = "BLOCKED"
+    return result

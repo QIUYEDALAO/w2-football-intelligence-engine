@@ -875,7 +875,9 @@ def test_the_refresh_task_carries_the_fact_report_it_wrote(
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(worker, "run_future_refresh_task", fake_run_future_refresh_task)
 
-    result = worker.future_fixture_refresh.run(competition_id="allsvenskan")
+    result = worker.future_fixture_refresh.run(
+        competition_id="allsvenskan", task_key="checkpoint-refresh:f1r-c-e2e"
+    )
 
     report = result["runtime_ah_settlement_facts"]
     assert report["status"] == "COMPLETE", report

@@ -20,8 +20,7 @@ from w2.prematch.analysis_calculator import ReadModelService
 from tests.integration import test_future_refresh_db_persistence as harness
 from tests.integration.test_ah_ou_v3_real_chain import PinnacleAhOuClient
 
-@pytest.fixture
-def chain(tmp_path, monkeypatch):
+def _build_chain(tmp_path, monkeypatch):
     import os, subprocess
     url=os.environ.get('W2_TEST_POSTGRES_URL')
     if not url:
@@ -89,6 +88,11 @@ def chain(tmp_path, monkeypatch):
     assert capture_h2h_for_pair(home_provider_team_id='10',away_provider_team_id='20',competition_id='allsvenskan',season='2026',client=H2H())==6
     repo._v9_h2h_client=H2H()
     yield repo, future, plan, producer
+
+
+@pytest.fixture
+def chain(tmp_path, monkeypatch):
+    yield from _build_chain(tmp_path, monkeypatch)
 
 
 def test_selected_full_chain_and_source_four_steps(chain):
@@ -244,18 +248,19 @@ def test_f6_actual_source_attacks_have_ready_controls(chain,attack,reason):
     ('ou_late','DEPENDENCY_BLOCKED','TOTALS_QUOTE_CAPTURED_AFTER_DECISION'),
     ('different','ASIAN_HANDICAP_QUOTE_CAPTURED_AFTER_DECISION','TOTALS_QUOTE_NOT_PINNACLE'),
 ])
-def test_market_reason_selector_public_and_new_session(chain,attack,ah_reason,ou_reason):
+def test_market_reason_selector_public_and_new_session(chain,tmp_path,monkeypatch,attack,ah_reason,ou_reason):
     from w2.infrastructure.persistence.matchday_intake_models import MatchdayMarketObservationModel
     from w2.strategy.ah_ou_quote_selector import select_v3_ah_ou_quotes
     repo,item,_,_=chain
-    # Legal public control is actually committed; use a second decision slot by
-    # deleting only this isolated test's ledger/cohort before the attack.
+    # Commit the legal public control, then use a fresh isolated PG database for
+    # the attack. Frozen decision rows must never be deleted to reset a test.
     control=ReadModelService().public_analysis_card_bounded('1489404',use_frozen_canary=False)
     assert control['ah_ou_result']['recording']['status']=='COMMITTED'
     assert all(m['selected'] for m in control['markets'] if m['market'] in ('ASIAN_HANDICAP','TOTALS'))
-    with repo.engine.begin() as c:
-        c.execute(text('DELETE FROM ah_ou_decision_ledger'))
-        c.execute(text('DELETE FROM ah_ou_forward_cohort'))
+    attack_root=tmp_path/'market_reason_attack'
+    attack_root.mkdir()
+    attack_chain=_build_chain(attack_root,monkeypatch)
+    repo,item,_,_=next(attack_chain)
     decision=datetime.fromisoformat(item['fixture']['date'])-timedelta(hours=2)
     with Session(repo.engine) as session, session.begin():
         rows=list(session.scalars(select(MatchdayMarketObservationModel)))

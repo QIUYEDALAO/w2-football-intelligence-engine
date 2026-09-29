@@ -1,5 +1,15 @@
 """SQLAlchemy persistence models for the W2 domain."""
 
+from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+    AH_OU_COHORT_SCHEMA,
+    AH_OU_DECISION_LEDGER_SCHEMA,
+    AhOuCohortModel,
+    AhOuDecisionLedgerModel,
+)
+from w2.infrastructure.persistence.ah_ou_postmatch_models import (
+    AhOuV3SettlementModel,
+    AhOuV3ValidationSampleModel,
+)
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     CalibratedValidationSampleModel,
@@ -23,15 +33,6 @@ from w2.infrastructure.persistence.forward_evidence_models import (
 from w2.infrastructure.persistence.forward_factor_models import (
     FORWARD_AH_FACTOR_OBSERVATION_SCHEMA,
     ForwardAhFactorObservationModel,
-)
-from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
-    AH_OU_COHORT_SCHEMA,
-    AH_OU_DECISION_LEDGER_SCHEMA,
-    AhOuCohortModel,
-    AhOuDecisionLedgerModel,
-)
-from w2.infrastructure.persistence.provider_side_effect_fence_models import (
-    ProviderSideEffectFenceModel,
 )
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.future_refresh_models import (
@@ -95,6 +96,9 @@ from w2.infrastructure.persistence.outcome_ledger_models import (
     OutcomeLedgerModel,
     OutcomeLedgerRunStateModel,
 )
+from w2.infrastructure.persistence.provider_side_effect_fence_models import (
+    ProviderSideEffectFenceModel as ProviderSideEffectFenceModel,
+)
 from w2.infrastructure.persistence.recommendation_lock_models import (
     Gate5RecommendationLockEventModel,
 )
@@ -129,6 +133,8 @@ __all__ = [
     "AH_OU_COHORT_SCHEMA",
     "AhOuDecisionLedgerModel",
     "AhOuCohortModel",
+    "AhOuV3SettlementModel",
+    "AhOuV3ValidationSampleModel",
     "FixtureModel",
     "ForwardAhFactorObservationModel",
     "HistoricalMarketSourceSnapshotModel",

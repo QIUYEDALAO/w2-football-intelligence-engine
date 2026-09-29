@@ -611,6 +611,7 @@ def dashboard_intelligence_validation(
         "cumulative_profit_units": profit_summary["profit_units"],
         "cumulative_profit_units_with_rebate": profit_summary["profit_units_with_rebate"],
         "validation_signals": validation_signals,
+        "ah_ou_v3": service.dashboard_ah_ou_v3_validation(),
         "pagination": {"days": days, "limit": limit, "offset": offset, "total": total},
         "read_contract": {
             "provider_calls": int(day_view.get("provider_calls") or 0),

@@ -3231,6 +3231,13 @@ class ReadModelService:
             for row, kickoff_utc in rows
         ], total
 
+    def dashboard_ah_ou_v3_validation(self) -> dict[str, Any]:
+        """Separate v3 lineage and five-state statistics; legacy rows stay v2."""
+        from w2.tracking.ah_ou_v3_postmatch import v3_validation_snapshot
+
+        with Session(self.repository._database_engine()) as session:
+            return v3_validation_snapshot(session)
+
     def dashboard_validation_profit_summary(self) -> dict[str, float]:
         """Sum settled recommendation units across all dates and pages."""
         with Session(self.repository._database_engine()) as session:

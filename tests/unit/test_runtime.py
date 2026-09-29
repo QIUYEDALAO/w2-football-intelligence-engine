@@ -160,6 +160,7 @@ def test_fixture_discovery_enqueues_the_canonical_refresh_task(
     sent: list[dict[str, object]] = []
     now = datetime(2026, 8, 8, 5, tzinfo=UTC)
     monkeypatch.setenv("W2_FIXTURE_DISCOVERY_ENABLED", "true")
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setenv("W2_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS", "1")
     monkeypatch.setattr(
@@ -838,6 +839,40 @@ def test_scheduler_xg_backfill_dispatches_worker_task_without_running_provider(
     assert sent[0]["name"] == "w2.xg_history_backfill"
     assert sent[0]["kwargs"]["queued_at_utc"] == result["queued_at_utc"]
     assert sent[0]["kwargs"]["competition_id"] == "league-0"
+    assert sent[0]["kwargs"]["claim_key"].startswith("xg-history-backfill:v1:league-0:")
+    assert sent[0]["kwargs"]["planned_window_start_utc"]
+    assert sent[0]["kwargs"]["plan_interval_seconds"] == 6 * 60 * 60
+
+
+def test_scheduler_repeated_xg_dispatch_keeps_one_business_claim_key(monkeypatch) -> None:
+    sent: list[dict[str, object]] = []
+
+    class PlannedClock(datetime):
+        calls = 0
+
+        @classmethod
+        def now(cls, tz=None):
+            cls.calls += 1
+            return datetime(2026, 9, 30, 12, 0, cls.calls, tzinfo=UTC)
+
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("W2_XG_BACKFILL_ENABLED", "true")
+    monkeypatch.setattr(scheduler_main, "datetime", PlannedClock)
+    monkeypatch.setattr(celery_app, "send_task", lambda name, **kw: sent.append({"name": name, **kw}))
+    monkeypatch.setattr(
+        scheduler_main, "matchday_checkpoint_competition_ids", lambda: ("allsvenskan",)
+    )
+    first = xg_history_backfill_tick()
+    second = xg_history_backfill_tick()
+    assert first["status"] == second["status"] == "QUEUED"
+    assert first["queued_at_utc"] != second["queued_at_utc"]
+    assert sent[0]["task_id"] != sent[1]["task_id"]
+    assert sent[0]["kwargs"]["claim_key"] == sent[1]["kwargs"]["claim_key"]
+    assert (
+        sent[0]["kwargs"]["planned_window_start_utc"]
+        == sent[1]["kwargs"]["planned_window_start_utc"]
+    )
 
 
 def test_scheduler_forward_outcome_ledger_dispatches_without_provider_calls(monkeypatch) -> None:
@@ -900,6 +935,7 @@ def test_scheduler_defers_outcome_ledger_without_enqueuing(monkeypatch) -> None:
 
 
 def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
+    from w2.ingestion.provider_task_identity import xg_backfill_claim_key
     class FakeResult:
         def as_dict(self) -> dict[str, object]:
             return {
@@ -913,10 +949,21 @@ def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
         "apps.worker.celery_app.run_xg_history_backfill",
         lambda **_kwargs: FakeResult(),
     )
+    # This unit isolates task result shape; real PG ownership is proved by the
+    # V11 integration test and is never skipped on the automatic route.
+    monkeypatch.setattr("apps.worker.celery_app._fence_stage",
+                        lambda _key, _stage, state, **_kw: {"status": "CLAIMED", "owner_token": "test"}
+                        if state == "ATTEMPTING" else {"status": "DONE"})
+    claim_key, window_start = xg_backfill_claim_key(
+        competition_id="allsvenskan", queued_at=datetime(2026, 6, 26, 12, tzinfo=UTC),
+        interval_seconds=6 * 60 * 60)
 
     result = xg_history_backfill.run(
         queued_at_utc="2026-06-26T12:00:00Z",
         competition_id="allsvenskan",
+        claim_key=claim_key,
+        planned_window_start_utc=window_start.isoformat(),
+        plan_interval_seconds=6 * 60 * 60,
     )
 
     assert result["status"] == "COMPLETED"
@@ -1326,8 +1373,13 @@ def test_worker_future_refresh_uses_allowlisted_live_client(monkeypatch) -> None
         "apps.worker.celery_app.run_future_refresh_task",
         fake_run_future_refresh_task,
     )
+    monkeypatch.setattr("apps.worker.celery_app._fence_stage",
+                        lambda _key, _stage, state, **_kw: {"status": "CLAIMED", "owner_token": "test"}
+                        if state == "ATTEMPTING" else {"status": "DONE"})
 
-    result = future_fixture_refresh.run(competition_id="allsvenskan")
+    result = future_fixture_refresh.run(
+        competition_id="allsvenskan", task_key="checkpoint-refresh:runtime-unit"
+    )
 
     client: Any = captured["client"]
     assert type(client).__name__ == "ApiFootballClient"
@@ -1635,6 +1687,10 @@ def test_forward_outcome_ledger_feeds_retry_only_to_model_capture(
     monkeypatch.setattr(
         "w2.historical.runtime_ah_settlement_materializer.writer_status_is_clean",
         lambda report: True,
+    )
+    monkeypatch.setattr(
+        "apps.worker.celery_app._materialize_validation_sample_projections",
+        lambda *args, **kwargs: {"window_rows": 0, "deleted": 0, "v3": {"status": "NO_DUE_WORK"}},
     )
 
     import apps.worker.celery_app as worker_module

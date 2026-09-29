@@ -655,11 +655,16 @@ def materialize_validation_samples(
             session.delete(sample)
             deleted += 1
 
+    # New v3 samples are projected from immutable v3.1 decision + settlement
+    # identities. The legacy writer above remains its original versioned reader.
+    from w2.tracking.ah_ou_v3_postmatch import settle_ah_ou_v3_in_session
+    v3_report = settle_ah_ou_v3_in_session(session, now=now)
     session.flush()
     return {
         "window_fixtures": len(window_provider_ids),
         "window_rows": len(window_rows),
         "deleted": deleted,
+        "v3": v3_report,
     }
 
 
@@ -1287,6 +1292,10 @@ def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> s
         if row["profit_units"] is not None
         and row["settlement"] in {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}
     ]
+    from w2.tracking.ah_ou_v3_postmatch import v3_validation_snapshot
+    v3_snapshot = v3_validation_snapshot(session)
+    v3_today = [row for row in v3_snapshot["rows"] if in_window(row)]
+    v3_today_settled = [row for row in v3_today if row["state"] == "SETTLED"]
     payload = {
         "schema_version": "w2.candidate_notification.v1",
         "event_type": DAILY_SETTLEMENT,
@@ -1308,6 +1317,18 @@ def enqueue_daily_settlement_in_session(session: Session, *, now: datetime) -> s
             profit_units_with_rebate(cumulative_profits)
         ),
         "items": items,
+        "ah_ou_v3": {
+            "schema_version": "w2.ah_ou_v3_daily_settlement.v1",
+            "selected": len(v3_today),
+            "pending": sum(row["state"] == "PENDING" for row in v3_today),
+            "blocked": sum(row["state"] == "BLOCKED" for row in v3_today),
+            "void": sum(row["state"] == "VOID" for row in v3_today),
+            "settled": len(v3_today_settled),
+            "net_units": str(
+                sum((Decimal(str(row["net_units"])) for row in v3_today_settled), Decimal(0))
+            ),
+            "items": v3_today,
+        },
         "pending": pending,
         "dashboard_url": _dashboard_day_url(settled_day.isoformat()),
         "created_at": _iso(now),

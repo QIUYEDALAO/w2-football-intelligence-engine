@@ -7,7 +7,7 @@ import json
 import logging
 import math
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import suppress
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -143,6 +143,7 @@ from w2.prematch.simulation_reconciliation import canonical_public_simulation
 from w2.pricing.shadow import build_pricing_shadow
 from w2.providers.quota import api_football_quota_policy, parse_int
 from w2.ratings.elo import rating_from_history
+from w2.strategy.ah_ou_decision import DECISION_LEAD_TIME, build_ah_ou_selections
 from w2.strategy.analysis_recommendation import (
     DISCLAIMER,
     AnalysisBuildInputs,
@@ -152,8 +153,6 @@ from w2.strategy.analysis_recommendation import (
     MultiMarketAnalysisCard,
     build_multi_market_analysis,
 )
-from w2.strategy.ah_ou_decision import DECISION_LEAD_TIME, build_ah_ou_selections
-from w2.strategy.bookmaker_intent import infer_bookmaker_intent
 from w2.strategy.factor_score import FactorScore
 from w2.strategy.formal_recommendation import (
     ah_display_contract,
@@ -161,11 +160,7 @@ from w2.strategy.formal_recommendation import (
     formal_recommendation_id,
     formal_recommendations_enabled,
 )
-from w2.strategy.market_selector import (
-    PRIMARY_THRESHOLD,
-    apply_market_selection,
-    enrich_secondary_evidence,
-)
+from w2.strategy.market_selector import apply_market_selection, enrich_secondary_evidence
 from w2.strategy.score_scenarios import Direction
 from w2.strategy.simulate import SimulationInputs, SimulationOutput, run_simulation
 from w2.tracking.advisory_blind_spot_policy import (
@@ -3387,7 +3382,10 @@ class ReadModelService:
                 evaluated_at=context.as_of,
             )
         )
-        if getattr(self._forward_factor_recorder, "historical_audit_contract", None) == "w2.f1r.compatibility.v1":
+        if (
+            getattr(self._forward_factor_recorder, "historical_audit_contract", None)
+            == "w2.f1r.compatibility.v1"
+        ):
             self._record_historical_factor_audit(
                 context=context, snapshots=snapshots, observations=observations,
                 home_history=home_history, away_history=away_history,
@@ -3411,7 +3409,10 @@ class ReadModelService:
         if not isinstance(result, dict):
             return
         receipt = result.get("recording", {}).get("receipt") or {}
-        committed = {d["market"]: d for d in receipt.get("decisions", [])} if isinstance(receipt, dict) else {}
+        committed = (
+            {d["market"]: d for d in receipt.get("decisions", [])}
+            if isinstance(receipt, dict) else {}
+        )
         for market in payload.get("markets", []):
             name = market.get("market")
             if name not in {"ASIAN_HANDICAP", "TOTALS"}:
@@ -3423,13 +3424,23 @@ class ReadModelService:
                 market["reasons"] = [reason]
             if name in committed:
                 row = committed[name]
-                tendency = (f"{row['direction']}_AH" if name == "ASIAN_HANDICAP" else row["direction"]) if row["selected"] else None
-                decision = "ANALYSIS_PICK" if row["selected"] else ("SKIP" if row["skip_reason"] else "NO_EDGE")
-                market.update(selected=row["selected"], score=row["score"], decision_score=row["score"],
-                              direction=row["direction"], tendency=tendency, decision=decision,
-                              analysis_decision=decision, decision_hash=row["decision_id"])
+                tendency = (
+                    f"{row['direction']}_AH" if name == "ASIAN_HANDICAP" else row["direction"]
+                ) if row["selected"] else None
+                decision = (
+                    "ANALYSIS_PICK" if row["selected"]
+                    else ("SKIP" if row["skip_reason"] else "NO_EDGE")
+                )
+                market.update(
+                    selected=row["selected"], score=row["score"], decision_score=row["score"],
+                    direction=row["direction"], tendency=tendency, decision=decision,
+                    analysis_decision=decision, decision_hash=row["decision_id"],
+                )
             if result.get("recording", {}).get("status") != "COMMITTED":
-                market.update(selected=False, tendency=None, direction=None, decision="SKIP", reason="WRITE_FAILED")
+                market.update(
+                    selected=False, tendency=None, direction=None,
+                    decision="SKIP", reason="WRITE_FAILED",
+                )
 
     def _record_historical_factor_audit(self, *, context, snapshots, observations,
                                         home_history, away_history, h2h_meetings, home_xg, away_xg):
@@ -3886,11 +3897,15 @@ class ReadModelService:
             )
             result["recording"]["reason"] = "WRITER_UNAVAILABLE"
             return False
+        from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+            AH_OU_FROZEN_TERMS_SCHEMA,
+        )
+        from w2.strategy.ah_ou_cohort import preregister_cohort
         from w2.strategy.ah_ou_decision_ledger import (
-            build_ah_ou_input_hash, canonical_decision_score_text,
+            build_ah_ou_input_hash,
+            canonical_decision_score_text,
         )
         from w2.strategy.ah_ou_softmax import load_ah_model, load_ou_model
-        from w2.strategy.ah_ou_cohort import preregister_cohort
 
         model_version = canonical_sha256(
             {
@@ -3911,8 +3926,8 @@ class ReadModelService:
         input_hashes: list[tuple[str, str]] = []
         capture_by_market: dict[str, tuple[str, str]] = {}
         for market, selection, side_rows in (
-            ("ASIAN_HANDICAP", result.get("ah"), (ah := mainline_selection.get("ASIAN_HANDICAP") or {})),
-            ("TOTALS", result.get("ou"), (ou := mainline_selection.get("TOTALS") or {})),
+            ("ASIAN_HANDICAP", result.get("ah"), mainline_selection.get("ASIAN_HANDICAP") or {}),
+            ("TOTALS", result.get("ou"), mainline_selection.get("TOTALS") or {}),
         ):
             quote = side_rows.get("v3_quote") or {}
             if not isinstance(quote, dict):
@@ -3955,14 +3970,64 @@ class ReadModelService:
                 selected = False
                 direction = None
                 score = 0.0
-                skip_reason = (result.get("market_reasons") or {}).get(market) or str(result.get("status"))
+                skip_reason = (
+                    (result.get("market_reasons") or {}).get(market)
+                    or str(result.get("status"))
+                )
             else:
                 selected = bool(selection.get("selected"))
                 direction = (
-                    (selection.get("side") if market == "ASIAN_HANDICAP" else "OVER") if selected else None
+                    (selection.get("side") if market == "ASIAN_HANDICAP" else "OVER")
+                    if selected else None
                 )
                 score = float(selection.get("score") or selection.get("edge") or 0.0)
                 skip_reason = None
+            frozen_terms = None
+            terms_hash = None
+            if selected:
+                try:
+                    selected_side = str(direction or "")
+                    line = Decimal(str(quote["line"]))
+                    side_prices = quote["side_prices"]
+                    side_rows = quote["side_rows"]
+                    selected_row = side_rows[selected_side.lower()]
+                    entry_odds = Decimal(str(side_prices[selected_side.lower()]))
+                    captured_at = parse_provider_time(quote["captured_at"])
+                    if (line * 4 != (line * 4).to_integral_value() or
+                            not entry_odds.is_finite() or entry_odds <= 1 or
+                            captured_at is None or captured_at > decision_at or
+                            str(selected_row.get("bookmaker_id")) != "4" or
+                            str(selected_row.get("capture_id")) != capture_id or
+                            not source_capture_sha256):
+                        raise ValueError("TERMS_INCOMPLETE")
+                    selected_line = (
+                        -line if market == "ASIAN_HANDICAP" and selected_side == "AWAY"
+                        else line
+                    )
+                    frozen_terms = {
+                        "schema_version": AH_OU_FROZEN_TERMS_SCHEMA,
+                        "selection": selected_side,
+                        "home_line": str(line) if market == "ASIAN_HANDICAP" else None,
+                        "total_line": str(line) if market == "TOTALS" else None,
+                        "selected_line": str(selected_line),
+                        "entry_odds": str(entry_odds),
+                        "bookmaker_id": "4",
+                        "capture_id": capture_id,
+                        "captured_at": captured_at.isoformat(),
+                        "raw_payload_sha256": source_capture_sha256,
+                        "quote_identity_hash": quote_identity_hash,
+                        "model_version": model_version,
+                        "calibration_version": calibration_version,
+                        "input_hash": input_hash,
+                    }
+                    terms_hash = canonical_sha256(
+                        frozen_terms, domain=HashDomain.RECOMMENDATION_DECISION_V4)
+                except (KeyError, TypeError, ValueError, ArithmeticError):
+                    selected = False
+                    direction = None
+                    skip_reason = "TERMS_INCOMPLETE"
+                    selection["selected"] = False
+                    result.setdefault("market_reasons", {})[market] = skip_reason
             capture_by_market[market] = (capture_id, source_capture_sha256)
             input_hashes.append((market, input_hash))
             decisions.append(
@@ -3978,6 +4043,9 @@ class ReadModelService:
                         "features": features,
                         "selection": selection,
                     },
+                    "decision_contract": "w2.ah_ou_decision.v3.1",
+                    "frozen_terms": frozen_terms,
+                    "terms_hash": terms_hash,
                     "quote_identity_hash": quote_identity_hash,
                     "source_capture_sha256": source_capture_sha256,
                     "capture_id": capture_id,
@@ -4021,13 +4089,24 @@ class ReadModelService:
             if not isinstance(receipt, dict) or receipt.get("cohort_id") != cohort["cohort_id"]:
                 raise RuntimeError("AH_OU_COMMIT_RECEIPT_MISSING")
             committed = receipt.get("decisions")
-            if not isinstance(committed, list) or len(committed) != 2 or {d.get("market") for d in committed} != {d["market"] for d in decisions}:
+            if (
+                not isinstance(committed, list) or len(committed) != 2
+                or {d.get("market") for d in committed} != {d["market"] for d in decisions}
+            ):
                 raise RuntimeError("AH_OU_COMMIT_RECEIPT_INCOMPLETE")
             for expected in decisions:
                 actual = next(d for d in committed if d["market"] == expected["market"])
-                if any(actual.get(k) != expected[k] for k in ("selected", "direction", "skip_reason")) or float(actual["score"]) != float(canonical_decision_score_text(expected["score"])):
+                if (
+                    any(actual.get(k) != expected[k] for k in
+                        ("selected", "direction", "skip_reason"))
+                    or float(actual["score"])
+                    != float(canonical_decision_score_text(expected["score"]))
+                ):
                     raise RuntimeError("AH_OU_COMMIT_RECEIPT_CONTENT_CONFLICT")
-                if not isinstance(actual.get("decision_id"), str) or len(actual["decision_id"]) != 64:
+                if (
+                    not isinstance(actual.get("decision_id"), str)
+                    or len(actual["decision_id"]) != 64
+                ):
                     raise RuntimeError("AH_OU_COMMIT_RECEIPT_ID_INVALID")
             result["recording"] = {"status": "COMMITTED", "receipt": receipt}
             result["market_reasons"] = {d["market"]: d["skip_reason"] for d in decisions}
@@ -4035,7 +4114,10 @@ class ReadModelService:
             logging.getLogger(__name__).warning(
                 "AH_OU_DECISION_BATCH_WRITE_FAILED: %s fixture=%s", exc, fixture_id,
             )
-            result["recording"] = {"status": "NOT_RECORDED", "reason": "WRITE_OR_COMMIT_FAILED", "error": str(exc)}
+            result["recording"] = {
+                "status": "NOT_RECORDED", "reason": "WRITE_OR_COMMIT_FAILED",
+                "error": str(exc),
+            }
             return False
         return True
 
@@ -4056,12 +4138,19 @@ class ReadModelService:
         A: when no writer is available the public direction is still 0 and the
         unrecorded refusal is surfaced explicitly, never reported as recorded.
         """
-        reasons = {market: (str((mainline_selection.get(market) or {}).get("v3_status"))
-                            if (mainline_selection.get(market) or {}).get("v3_status") not in {None, "READY"}
-                            else None) for market in ("ASIAN_HANDICAP", "TOTALS")}
+        reasons = {
+            market: (
+                str((mainline_selection.get(market) or {}).get("v3_status"))
+                if (mainline_selection.get(market) or {}).get("v3_status")
+                not in {None, "READY"} else None
+            ) for market in ("ASIAN_HANDICAP", "TOTALS")
+        }
         quote_blocked = any(reasons.values())
         skip_result = {
-            "market_reasons": {market: reason or ("DEPENDENCY_BLOCKED" if quote_blocked else status) for market, reason in reasons.items()},
+            "market_reasons": {
+                market: reason or ("DEPENDENCY_BLOCKED" if quote_blocked else status)
+                for market, reason in reasons.items()
+            },
             "global_blockers": [status],
             "status": status,
             "ah": None,
@@ -6639,7 +6728,9 @@ class ReadModelService:
                 if not factor_score.get("admitted"):
                     return {
                         "code": "FACTOR_ADMISSION_FAILED",
-                        "blockers": [str(item) for item in factor_score.get("admission_blockers") or []],
+                        "blockers": [
+                            str(item) for item in factor_score.get("admission_blockers") or []
+                        ],
                     }
                 direction = str(factor_score.get("direction") or "")
             else:

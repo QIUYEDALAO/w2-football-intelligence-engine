@@ -1,0 +1,387 @@
+"""One post-event authority for frozen AH/OU v3.1 decisions.
+
+Both natural result workers call this writer. It never derives a price or a
+line from post-event market observations, and historical v3 rows without terms
+remain pending for explicit review rather than being rewritten.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from w2.domain.canonical_serialization import HashDomain, SerializerVersion, canonical_sha256
+from w2.domain.odds import settle_asian_handicap, settle_total_goals
+from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+    AH_OU_FROZEN_TERMS_SCHEMA,
+    AhOuCohortModel,
+    AhOuDecisionLedgerModel,
+)
+from w2.infrastructure.persistence.ah_ou_postmatch_models import (
+    AhOuV3SettlementModel,
+    AhOuV3ValidationSampleModel,
+)
+from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayEndpointCaptureModel,
+    MatchdayFixtureIdentityModel,
+)
+from w2.infrastructure.persistence.models import ResultModel
+from w2.tracking.outcome_ledger_repository import _result_hash
+
+SETTLEMENT_SCHEMA = "w2.ah_ou_v3_settlement.v1"
+VALIDATION_SCHEMA = "w2.ah_ou_v3_validation_sample.v1"
+
+
+def _result_source(session: Session, result: ResultModel) -> dict[str, Any]:
+    if result.result_status not in {"FT", "AET", "PEN"}:
+        raise ValueError("V3_RESULT_STATUS_INVALID")
+    raw = session.get(RawPayloadModel, result.source_payload_sha256)
+    if raw is None or raw.endpoint != "fixtures" or not isinstance(raw.payload, dict):
+        raise ValueError("V3_RESULT_RAW_MISSING")
+    actual_hash = canonical_sha256(
+        raw.payload,
+        domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+        version=SerializerVersion.LEGACY_V1,
+    )
+    if actual_hash != result.source_payload_sha256:
+        raise ValueError("V3_RESULT_RAW_HASH_MISMATCH")
+    if not result.source_capture_id:
+        raise ValueError("V3_RESULT_CAPTURE_MISSING")
+    capture = session.get(MatchdayEndpointCaptureModel, result.source_capture_id)
+    if (
+        capture is None
+        or capture.endpoint != "fixtures"
+        or capture.raw_payload_sha256 != raw.sha256
+        or capture.capture_status != "CAPTURED"
+        or capture.status_code is None
+        or not 200 <= capture.status_code < 300
+        or capture.provider_captured_at != raw.captured_at
+        or capture.provider_captured_at != result.confirmed_at
+    ):
+        raise ValueError("V3_RESULT_CAPTURE_INVALID")
+    provider_id = result.fixture_id.removeprefix("api_football:")
+    identity = session.get(MatchdayFixtureIdentityModel, result.fixture_id)
+    if (
+        identity is None
+        or identity.provider != "api_football"
+        or identity.provider_fixture_id != provider_id
+        or capture.fixture_id != result.fixture_id
+        or str(capture.sanitized_params.get("id") or "") != provider_id
+    ):
+        raise ValueError("V3_RESULT_FIXTURE_BINDING_INVALID")
+    if capture.provider_captured_at < identity.kickoff_utc:
+        raise ValueError("V3_RESULT_CAPTURE_BEFORE_KICKOFF")
+    if result.result_hash != _result_hash(result.fixture_id, result.home_goals, result.away_goals):
+        raise ValueError("V3_RESULT_HASH_MISMATCH")
+    items = [
+        item
+        for item in raw.payload.get("response", [])
+        if isinstance(item, dict) and str((item.get("fixture") or {}).get("id")) == provider_id
+    ]
+    if len(items) != 1:
+        raise ValueError("V3_RESULT_FIXTURE_MISMATCH")
+    item = items[0]
+    teams = item.get("teams") or {}
+    if (
+        str((teams.get("home") or {}).get("id") or "") != identity.home_provider_team_id
+        or str((teams.get("away") or {}).get("id") or "") != identity.away_provider_team_id
+    ):
+        raise ValueError("V3_RESULT_TEAM_BINDING_INVALID")
+    status = str(((item.get("fixture") or {}).get("status") or {}).get("short") or "")
+    score = (item.get("score") or {}).get("fulltime") or {}
+    if (
+        status != result.result_status
+        or score.get("home") != result.home_goals
+        or score.get("away") != result.away_goals
+    ):
+        raise ValueError("V3_RESULT_SCORE_MISMATCH")
+    return {"raw_sha256": raw.sha256, "capture_id": capture.capture_id}
+
+
+def _net_units(outcome: str, odds: Decimal) -> Decimal:
+    if outcome == "WIN":
+        return odds - 1
+    if outcome == "HALF_WIN":
+        return (odds - 1) / 2
+    if outcome == "PUSH" or outcome == "VOID":
+        return Decimal(0)
+    if outcome == "HALF_LOSS":
+        return Decimal("-0.5")
+    if outcome == "LOSS":
+        return Decimal(-1)
+    raise ValueError("V3_SETTLEMENT_OUTCOME_UNKNOWN")
+
+
+def _business_fields(row: Any, fields: dict[str, Any]) -> bool:
+    return all(getattr(row, key) == value for key, value in fields.items())
+
+
+def settle_ah_ou_v3_in_session(
+    session: Session,
+    *,
+    fixture_ids: Iterable[str] | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Reconcile all selected decisions with confirmed results in one transaction.
+
+    The caller commits only if this function and its legacy projections succeed.
+    Missing FT is PENDING; a confirmed result with invalid provenance is an
+    explicit error, never a successful empty projection.
+    """
+    ids = set(fixture_ids) if fixture_ids is not None else None
+    stmt = select(AhOuDecisionLedgerModel).where(AhOuDecisionLedgerModel.selected.is_(True))
+    if ids is not None:
+        aliases = ids | {value.removeprefix("api_football:") for value in ids}
+        stmt = stmt.where(AhOuDecisionLedgerModel.fixture_id.in_(aliases))
+    decisions = list(session.scalars(stmt.order_by(AhOuDecisionLedgerModel.decision_id)))
+    counts = {
+        "selected": len(decisions),
+        "pending": 0,
+        "settled": 0,
+        "void": 0,
+        "blocked": 0,
+        "created": 0,
+        "idempotent": 0,
+        "legacy_terms_missing": 0,
+    }
+    observed_at = now or datetime.now(UTC)
+    for decision in decisions:
+        if decision.decision_contract != "w2.ah_ou_decision.v3.1":
+            counts["legacy_terms_missing"] += 1
+            confirmed = session.scalar(
+                select(ResultModel.id).where(
+                    ResultModel.fixture_id
+                    == "api_football:" + decision.fixture_id.removeprefix("api_football:")
+                )
+            )
+            counts["blocked" if confirmed is not None else "pending"] += 1
+            continue
+        terms = decision.frozen_terms
+        if not isinstance(terms, dict) or terms.get("schema_version") != AH_OU_FROZEN_TERMS_SCHEMA:
+            raise ValueError("V3_SELECTED_TERMS_INCOMPLETE")
+        terms_hash = canonical_sha256(terms, domain=HashDomain.RECOMMENDATION_DECISION_V4)
+        if (
+            terms_hash != decision.terms_hash
+            or terms.get("quote_identity_hash") != decision.quote_identity_hash
+        ):
+            raise ValueError("V3_SELECTED_TERMS_CONFLICT")
+        if (
+            terms.get("model_version") != decision.model_version
+            or terms.get("calibration_version") != decision.calibration_version
+            or terms.get("input_hash") != decision.input_hash
+            or terms.get("capture_id") != decision.capture_id
+            or terms.get("raw_payload_sha256") != decision.source_capture_sha256
+        ):
+            raise ValueError("V3_SELECTED_TERMS_CONFLICT")
+        result = session.scalar(
+            select(ResultModel).where(
+                ResultModel.fixture_id
+                == "api_football:" + decision.fixture_id.removeprefix("api_football:")
+            )
+        )
+        if result is None:
+            counts["pending"] += 1
+            continue
+        source = _result_source(session, result)
+        if result.result_status in {"AET", "PEN"}:
+            outcome = "VOID"  # 90-minute-only contract; no extra-time or penalties.
+        elif decision.market == "ASIAN_HANDICAP":
+            outcome = settle_asian_handicap(
+                result.home_goals,
+                result.away_goals,
+                str(terms["selection"]),
+                Decimal(str(terms["selected_line"])),
+            ).value
+        elif decision.market == "TOTALS":
+            outcome = settle_total_goals(
+                result.home_goals + result.away_goals,
+                str(terms["selection"]),
+                Decimal(str(terms["selected_line"])),
+            ).value
+        else:
+            raise ValueError("V3_SETTLEMENT_MARKET_INVALID")
+        odds = Decimal(str(terms["entry_odds"]))
+        if not odds.is_finite() or odds <= 1:
+            raise ValueError("V3_ENTRY_ODDS_INVALID")
+        net = str(_net_units(outcome, odds))
+        settlement_fields = dict(
+            fixture_id=decision.fixture_id,
+            market=decision.market,
+            schema_version=SETTLEMENT_SCHEMA,
+            terms_hash=terms_hash,
+            result_id=result.id,
+            result_hash=result.result_hash,
+            result_raw_sha256=source["raw_sha256"],
+            result_capture_id=source["capture_id"],
+            home_goals=result.home_goals,
+            away_goals=result.away_goals,
+            outcome=outcome,
+            net_units=net,
+        )
+        settlement_hash = canonical_sha256(
+            {"decision_id": decision.decision_id, **settlement_fields},
+            domain=HashDomain.RECOMMENDATION_DECISION_V4,
+        )
+        settlement_fields["settlement_hash"] = settlement_hash
+        stored = session.get(AhOuV3SettlementModel, decision.decision_id)
+        if stored is None:
+            session.add(
+                AhOuV3SettlementModel(
+                    decision_id=decision.decision_id, **settlement_fields, settled_at=observed_at
+                )
+            )
+            counts["created"] += 1
+        elif not _business_fields(stored, settlement_fields):
+            raise ValueError("V3_SETTLEMENT_FIELD_CONFLICT")
+        else:
+            counts["idempotent"] += 1
+        sample_fields = dict(
+            fixture_id=decision.fixture_id,
+            market=decision.market,
+            schema_version=VALIDATION_SCHEMA,
+            selection=str(terms["selection"]),
+            exact_line=str(terms["selected_line"]),
+            decimal_odds=str(terms["entry_odds"]),
+            terms_hash=terms_hash,
+            result_hash=result.result_hash,
+            settlement_hash=settlement_hash,
+            settlement=outcome,
+            net_units=net,
+        )
+        sample = session.get(AhOuV3ValidationSampleModel, decision.decision_id)
+        if sample is None:
+            session.add(
+                AhOuV3ValidationSampleModel(
+                    decision_id=decision.decision_id, **sample_fields, projected_at=observed_at
+                )
+            )
+        elif not _business_fields(sample, sample_fields):
+            raise ValueError("V3_VALIDATION_SAMPLE_FIELD_CONFLICT")
+        if outcome == "VOID":
+            counts["void"] += 1
+        else:
+            counts["settled"] += 1
+    if (
+        counts["selected"]
+        != counts["pending"] + counts["settled"] + counts["void"] + counts["blocked"]
+    ):
+        raise ValueError("V3_SETTLEMENT_SET_CONSERVATION_FAILED")
+    session.flush()
+    return {
+        "schema_version": SETTLEMENT_SCHEMA,
+        "status": "BLOCKED" if counts["blocked"] else "PASS",
+        **counts,
+    }
+
+
+def v3_validation_snapshot(session: Session) -> dict[str, Any]:
+    """Read-only, per-decision reconciliation for API and daily settlement."""
+    cohorts = list(session.scalars(select(AhOuCohortModel)))
+    all_decisions = list(session.scalars(select(AhOuDecisionLedgerModel)))
+    decisions = list(
+        session.scalars(
+            select(AhOuDecisionLedgerModel)
+            .where(AhOuDecisionLedgerModel.selected.is_(True))
+            .order_by(AhOuDecisionLedgerModel.decision_at, AhOuDecisionLedgerModel.decision_id)
+        )
+    )
+    rows: list[dict[str, Any]] = []
+    for decision in decisions:
+        settlement = session.get(AhOuV3SettlementModel, decision.decision_id)
+        sample = session.get(AhOuV3ValidationSampleModel, decision.decision_id)
+        result = session.scalar(
+            select(ResultModel).where(
+                ResultModel.fixture_id
+                == "api_football:" + decision.fixture_id.removeprefix("api_football:")
+            )
+        )
+        if settlement is not None and sample is None:
+            state = "BLOCKED"
+        elif sample is not None and settlement is None:
+            state = "BLOCKED"
+        elif settlement is not None and sample is not None:
+            if sample.settlement_hash != settlement.settlement_hash:
+                state = "BLOCKED"
+            else:
+                state = "VOID" if settlement.outcome == "VOID" else "SETTLED"
+        elif result is not None:
+            state = "BLOCKED"
+        else:
+            state = "PENDING"
+        terms = decision.frozen_terms or {}
+        rows.append(
+            {
+                "decision_id": decision.decision_id,
+                "fixture_id": decision.fixture_id,
+                "market": decision.market,
+                "decision_at": decision.decision_at.isoformat(),
+                "kickoff_utc": (
+                    (
+                        decision.decision_at.replace(tzinfo=UTC)
+                        if decision.decision_at.tzinfo is None
+                        else decision.decision_at
+                    ).astimezone(UTC)
+                    + timedelta(hours=2)
+                ).isoformat(),
+                "model_version": decision.model_version,
+                "decision_contract": decision.decision_contract or "w2.ah_ou_decision_ledger.v3",
+                "selection": terms.get("selection"),
+                "exact_line": terms.get("selected_line"),
+                "decimal_odds": terms.get("entry_odds"),
+                "quote_capture_id": decision.capture_id,
+                "quote_raw_sha256": decision.source_capture_sha256,
+                "terms_hash": decision.terms_hash,
+                "result_hash": result.result_hash if result else None,
+                "result_capture_id": result.source_capture_id if result else None,
+                "settlement_hash": settlement.settlement_hash if settlement else None,
+                "settlement": settlement.outcome if settlement else None,
+                "net_units": settlement.net_units if settlement else None,
+                "validation_sample_id": sample.decision_id if sample else None,
+                "state": state,
+            }
+        )
+    by_market: dict[str, dict[str, Any]] = {}
+    for market in ("ASIAN_HANDICAP", "TOTALS"):
+        subset = [row for row in rows if row["market"] == market]
+        settled = [row for row in subset if row["state"] == "SETTLED"]
+        outcomes = {
+            name: sum(row["settlement"] == name for row in settled)
+            for name in ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
+        }
+        by_market[market] = {
+            "registered_cohorts": sum(
+                bool(cohort.ah_capture_id if market == "ASIAN_HANDICAP" else cohort.ou_capture_id)
+                for cohort in cohorts
+            ),
+            "completed_decisions": sum(decision.market == market for decision in all_decisions),
+            "selected": len(subset),
+            "pending": sum(row["state"] == "PENDING" for row in subset),
+            "blocked": sum(row["state"] == "BLOCKED" for row in subset),
+            "void": sum(row["state"] == "VOID" for row in subset),
+            "settled": len(settled),
+            "outcomes": outcomes,
+            "hit_rate_denominator": len(settled) - outcomes["PUSH"],
+            "hit_rate": (
+                (outcomes["WIN"] + outcomes["HALF_WIN"] / Decimal(2))
+                / (len(settled) - outcomes["PUSH"])
+                if len(settled) - outcomes["PUSH"]
+                else None
+            ),
+            "net_units": str(sum((Decimal(str(row["net_units"])) for row in settled), Decimal(0))),
+        }
+        if by_market[market]["hit_rate"] is not None:
+            by_market[market]["hit_rate"] = float(by_market[market]["hit_rate"])
+    return {
+        "schema_version": "w2.ah_ou_v3_validation_view.v1",
+        "rows": rows,
+        "registered_cohorts": len(cohorts),
+        "completed_decisions": len(all_decisions),
+        "selected": len(decisions),
+        "by_market": by_market,
+    }
