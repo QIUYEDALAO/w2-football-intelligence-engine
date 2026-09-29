@@ -424,6 +424,7 @@ def _parse_time(value: Any) -> datetime:
 
 
 def _snapshot_model(row: Mapping[str, Any]) -> TeamXgRollingSnapshotModel:
+    first_captured_at = row.get("first_captured_at")
     return TeamXgRollingSnapshotModel(
         snapshot_id=str(row["snapshot_id"]),
         team_id=str(row["team_id"]),
@@ -438,4 +439,8 @@ def _snapshot_model(row: Mapping[str, Any]) -> TeamXgRollingSnapshotModel:
         source_system=str(row["source_system"]),
         candidate=False,
         formal_recommendation=False,
+        first_captured_at=(
+            _parse_time(first_captured_at) if first_captured_at else None
+        ),
+        pit_proven=bool(row.get("pit_proven") or False),
     )

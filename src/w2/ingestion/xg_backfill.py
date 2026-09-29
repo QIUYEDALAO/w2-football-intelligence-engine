@@ -808,6 +808,12 @@ class XgHistoryBackfillService:
                             "source_system": snapshot.source_system,
                             "candidate": False,
                             "formal_recommendation": False,
+                            "first_captured_at": (
+                                iso(snapshot.first_captured_at)
+                                if snapshot.first_captured_at is not None
+                                else None
+                            ),
+                            "pit_proven": snapshot.pit_proven,
                         }
                     )
         return rows

@@ -931,6 +931,11 @@ def history_rows_from_fixture(
             "source_raw_hash": source_raw_hash,
             "endpoint_capture_id": endpoint_capture_id,
             "captured_at": iso_z(captured_at),
+            # PIT provenance (AH/OU v3 S1): the FT status first became visible at
+            # this capture. For backfilled rows (no endpoint capture) it stays the
+            # late backfill run time and is not PIT-proven.
+            "status_first_visible_at": iso_z(captured_at),
+            "pit_proven": endpoint_capture_id is not None,
         }
         nested_payload = {"schema_version": "CanonicalTeamMatchHistoryV1", **payload}
         history_hash = stable_hash(payload)
@@ -940,6 +945,7 @@ def history_rows_from_fixture(
                 "history_id": f"{PROVIDER}:{provider_fixture_id}:{team_w2}",
                 "kickoff_utc": kickoff,
                 "captured_at": normalize_utc(captured_at),
+                "status_first_visible_at": normalize_utc(captured_at),
                 "history_hash": history_hash,
                 "payload": nested_payload,
             }

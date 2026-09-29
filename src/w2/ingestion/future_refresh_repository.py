@@ -2973,6 +2973,7 @@ class FutureRefreshDbRepository:
         upserted = 0
         with Session(self.engine) as session:
             for row in snapshots:
+                first_captured_at = row.get("first_captured_at")
                 session.merge(
                     TeamXgRollingSnapshotModel(
                         snapshot_id=str(row["snapshot_id"]),
@@ -2988,6 +2989,12 @@ class FutureRefreshDbRepository:
                         source_system=str(row["source_system"]),
                         candidate=False,
                         formal_recommendation=False,
+                        first_captured_at=(
+                            parse_db_datetime(first_captured_at)
+                            if first_captured_at
+                            else None
+                        ),
+                        pit_proven=bool(row.get("pit_proven") or False),
                     )
                 )
                 upserted += 1

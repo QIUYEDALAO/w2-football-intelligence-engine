@@ -45,6 +45,11 @@ class TeamXgRollingSnapshot:
     source_system: str = "team_xg_match"
     candidate: bool = False
     formal_recommendation: bool = False
+    # PIT provenance (AH/OU v3 S1): the latest statistics capture this snapshot
+    # depends on. Distinct from ``as_of_time`` (the match-time the rolling window
+    # is "as of"); None for BACKTEST_LOOKBACK rows that have no real first capture.
+    first_captured_at: datetime | None = None
+    pit_proven: bool = False
 
     def as_feature_snapshot(self) -> TeamXgSnapshot:
         return TeamXgSnapshot(
@@ -167,6 +172,11 @@ def materialize_rolling_xg(
     goals_for = sum(row.goals_for for row in selected) / count
     goals_against = sum(row.goals_against for row in selected) / count
     regression_index = (goals_for - xg_for) - (goals_against - xg_against)
+    first_captured_at = (
+        max(row.captured_at.astimezone(UTC) for row in selected)
+        if captured_before_cutoff
+        else None
+    )
     return TeamXgRollingSnapshot(
         snapshot_id=f"{team_id}:{as_of_fixture_id}",
         team_id=team_id,
@@ -178,6 +188,8 @@ def materialize_rolling_xg(
         rolling_goals_for=round(goals_for, 4),
         rolling_goals_against=round(goals_against, 4),
         regression_index=round(regression_index, 4),
+        first_captured_at=first_captured_at,
+        pit_proven=captured_before_cutoff,
     )
 
 
