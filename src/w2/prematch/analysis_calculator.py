@@ -3221,7 +3221,12 @@ class ReadModelService:
                 context=context, home_team_id=home_id, away_team_id=away_id
             )
         )
-        mainline_selection = self._mainline_market_selection(observations)
+        mainline_selection = self._mainline_market_selection(
+            observations,
+            decision_at=kickoff - DECISION_LEAD_TIME,
+            fixture_id=fixture_id,
+            raw_payload_resolver=getattr(repository, "raw_payloads_for_captures", None),
+        )
         missing: set[AnalysisMarket] = set()
         if mainline_selection["ASIAN_HANDICAP"]["status"] != "READY":
             missing.add(AnalysisMarket.ASIAN_HANDICAP)
@@ -3662,34 +3667,26 @@ class ReadModelService:
                 capture_ids.add(str(row.get("capture_id") or ""))
             if len(capture_ids) != 1 or "" in capture_ids:
                 return None, None, f"{label}_QUOTE_NOT_SAME_CAPTURE"
-        # v3 source_capture_sha256 canonical-hash-domain check (S2): the quote's
-        # source must be recomputable from the real raw capture payload, never a
-        # bare hex64 and never empty. A missing raw payload refuses the decision.
-        all_quote_rows = [
-            row
-            for selection in (ah, ou)
-            for row in (selection.get("authoritative_quote_rows") or {}).values()
-            if isinstance(row, dict)
-        ]
-        quote_capture_ids = sorted(
-            {
-                str(row.get("capture_id") or "")
-                for row in all_quote_rows
-                if row.get("capture_id")
-            }
-        )
+        # v3 source_capture_sha256 canonical-hash-domain check (S2): prefer the
+        # digest already computed by ah_ou_quote_selector in the mainline selection.
+        # Only fall back to recomputing from the raw capture payload when a legacy
+        # (non-v3) mainline reached this point. Never accept a bare hex64 / empty.
         raw_payload_resolver = getattr(repository, "raw_payloads_for_captures", None)
         raw_payloads: dict[str, dict[str, Any]] = {}
-        if callable(raw_payload_resolver):
-            try:
-                raw_payloads = raw_payload_resolver(quote_capture_ids)
-            except Exception:
-                raw_payloads = {}
         for label, selection in (("AH", ah), ("OU", ou)):
+            source_sha = selection.get("source_capture_sha256")
+            if source_sha:
+                selection["_v3_source_capture_sha256"] = source_sha
+                continue
             rows = selection.get("authoritative_quote_rows") or {}
             capture_id = next(
                 iter({str(row.get("capture_id") or "") for row in rows.values()}), ""
             )
+            if not raw_payloads and callable(raw_payload_resolver):
+                try:
+                    raw_payloads = raw_payload_resolver([capture_id])
+                except Exception:
+                    raw_payloads = {}
             raw = raw_payloads.get(capture_id)
             if not raw:
                 return None, None, f"{label}_SOURCE_CAPTURE_HASH_MISSING"
@@ -3714,12 +3711,199 @@ class ReadModelService:
             )
         except (ValueError, TypeError):
             return None, None, "MAINLINE_PARSE_ERROR"
+        # S3 wiring: persist the decision to the new AH/OU ledger automatically
+        # after the selection is produced (single (fixture, market, decision_at)
+        # version). A refusal is persisted via skip_reason and stops, never falls
+        # back to the old weighted factor_score / pure bookmaker_intent.
+        self._write_ah_ou_decision_ledger(
+            repository=repository,
+            fixture_id=fixture_id,
+            home_id=home_id,
+            away_id=away_id,
+            kickoff=kickoff,
+            mainline_selection=mainline_selection,
+            result=result,
+        )
         return result["ah"], result["ou"], str(result["status"])
+
+    def _write_ah_ou_decision_ledger(
+        self,
+        *,
+        repository: Any,
+        fixture_id: str,
+        home_id: str,
+        away_id: str,
+        kickoff: datetime,
+        mainline_selection: dict[str, dict[str, Any]],
+        result: dict[str, Any],
+    ) -> None:
+        """Persist AH + OU decisions to ``ah_ou_decision_ledger`` (S3)."""
+        writer = getattr(repository, "write_ah_ou_decision", None)
+        if not callable(writer):
+            return
+        from w2.strategy.ah_ou_decision_ledger import (
+            build_ah_ou_input_hash,
+        )
+        from w2.strategy.ah_ou_softmax import load_ah_model, load_ou_model
+
+        model_version = canonical_sha256(
+            {
+                "ah_model": load_ah_model(),
+                "ou_model": load_ou_model(),
+            },
+            domain=HashDomain.RECOMMENDATION_DECISION_V4,
+        )
+        calibration_version = "w2.ah_ou.softmax.calibrated.v3"
+        decision_at = kickoff - DECISION_LEAD_TIME
+        features = dict(result.get("features") or {})
+        home_snapshot = dict(result.get("home_snapshot") or {})
+        away_snapshot = dict(result.get("away_snapshot") or {})
+        meetings = list(result.get("meetings") or [])
+
+        # S4 wiring: preregister the forward cohort once per fixture at T-2h
+        # (identity-idempotent), using the AH quote as the fixture's quote-capture
+        # representative. The cohort_id is embedded in every market's
+        # full_distribution so the call is observable.
+        ah_side = mainline_selection.get("ASIAN_HANDICAP") or {}
+        ah_quote = ah_side.get("v3_quote") or {}
+        if not isinstance(ah_quote, dict):
+            ah_quote = {}
+        ah_capture_id = ah_quote.get("capture_id") or next(
+            iter(
+                {
+                    str(row.get("capture_id") or "")
+                    for row in (ah_side.get("authoritative_quote_rows") or {}).values()
+                    if isinstance(row, dict)
+                }
+            ),
+            "",
+        )
+        ah_quote_identity_hash = canonical_sha256(
+            {
+                "contract": "w2.ah_ou_quote_identity.v3",
+                "fixture_id": fixture_id,
+                "market": "ASIAN_HANDICAP",
+                "capture_id": ah_capture_id,
+                "captured_at": ah_quote.get("captured_at"),
+                "line": ah_quote.get("line"),
+                "side_prices": ah_quote.get("side_prices") or ah_side.get("side_prices"),
+            },
+            domain=HashDomain.FUTURE_REFRESH_ENDPOINT_CAPTURE,
+        )
+        from w2.strategy.ah_ou_cohort import preregister_cohort
+
+        cohort_id = preregister_cohort(
+            fixture_id=fixture_id,
+            decision_at=decision_at,
+            home_team_id=home_id,
+            away_team_id=away_id,
+            model_version=model_version,
+            source_id=ah_capture_id,
+            capture_id=ah_capture_id,
+            quote_identity_hash=ah_quote_identity_hash,
+            source_capture_sha256=ah_side.get("source_capture_sha256") or "",
+        )["cohort_id"]
+
+        for market, selection, side_rows in (
+            ("ASIAN_HANDICAP", result.get("ah"), (ah := mainline_selection.get("ASIAN_HANDICAP") or {})),
+            ("TOTALS", result.get("ou"), (ou := mainline_selection.get("TOTALS") or {})),
+        ):
+            quote = side_rows.get("v3_quote") or {}
+            if not isinstance(quote, dict):
+                quote = {}
+            source_capture_sha256 = side_rows.get("source_capture_sha256") or ""
+            capture_id = quote.get("capture_id") or next(
+                iter(
+                    {
+                        str(row.get("capture_id") or "")
+                        for row in (side_rows.get("authoritative_quote_rows") or {}).values()
+                        if isinstance(row, dict)
+                    }
+                ),
+                "",
+            )
+            quote_identity_hash = canonical_sha256(
+                {
+                    "contract": "w2.ah_ou_quote_identity.v3",
+                    "fixture_id": fixture_id,
+                    "market": market,
+                    "capture_id": capture_id,
+                    "captured_at": quote.get("captured_at"),
+                    "line": quote.get("line"),
+                    "side_prices": quote.get("side_prices") or side_rows.get("side_prices"),
+                },
+                domain=HashDomain.FUTURE_REFRESH_ENDPOINT_CAPTURE,
+            )
+            input_hash = build_ah_ou_input_hash(
+                features=features,
+                home_snapshot=home_snapshot,
+                away_snapshot=away_snapshot,
+                meetings=meetings,
+                quote={
+                    "capture_id": capture_id,
+                    "line": quote.get("line") or side_rows.get("line"),
+                    "side_prices": quote.get("side_prices") or side_rows.get("side_prices"),
+                },
+            )
+            if selection is None:
+                selected = False
+                direction = None
+                score = 0.0
+                skip_reason = str(result.get("status"))
+            else:
+                selected = bool(selection.get("selected"))
+                direction = (
+                    selection.get("side") if market == "ASIAN_HANDICAP" else "OVER"
+                )
+                score = float(selection.get("score") or selection.get("edge") or 0.0)
+                skip_reason = None
+            full_distribution = {
+                "market": market,
+                "features": features,
+                "selection": selection,
+                "cohort_id": cohort_id,
+            }
+            writer(
+                fixture_id=fixture_id,
+                market=market,
+                decision_at=decision_at,
+                model_version=model_version,
+                calibration_version=calibration_version,
+                input_hash=input_hash,
+                full_distribution=full_distribution,
+                quote_identity_hash=quote_identity_hash,
+                source_capture_sha256=source_capture_sha256,
+                capture_id=capture_id,
+                source_id=capture_id,
+                home_team_id=home_id,
+                away_team_id=away_id,
+                selected=selected,
+                direction=direction,
+                score=score,
+                skip_reason=skip_reason,
+                created_at=datetime.now(UTC),
+            )
 
     def _mainline_market_selection(
         self,
         observations: list[dict[str, Any]],
+        *,
+        decision_at: datetime | None = None,
+        fixture_id: str | None = None,
+        raw_payload_resolver: Callable[..., Any] | None = None,
     ) -> dict[str, dict[str, Any]]:
+        # v3 decision path (S2 wiring): when the decision instant and a raw-payload
+        # resolver are available, the AH/OU mainline comes from the v3 same-capture
+        # two-sided Pinnacle selector (ah_ou_quote_selector), not the legacy
+        # multi-bookmaker vote. The legacy selector remains only for display
+        # surfaces that have no decision instant (last-known-odds snapshot).
+        if decision_at is not None and fixture_id is not None and callable(raw_payload_resolver):
+            return self._v3_mainline_market_selection(
+                observations,
+                fixture_id=fixture_id,
+                decision_at=decision_at,
+                raw_payload_resolver=raw_payload_resolver,
+            )
         return {
             "ASIAN_HANDICAP": self._select_mainline_observations(
                 observations,
@@ -3730,6 +3914,71 @@ class ReadModelService:
                 market="TOTALS",
             ),
         }
+
+    def _v3_mainline_market_selection(
+        self,
+        observations: list[dict[str, Any]],
+        *,
+        fixture_id: str,
+        decision_at: datetime,
+        raw_payload_resolver: Callable[..., Any],
+    ) -> dict[str, dict[str, Any]]:
+        from w2.strategy.ah_ou_quote_selector import select_v3_ah_ou_quotes
+
+        quote_capture_ids = sorted(
+            {
+                str(row.get("capture_id") or "")
+                for row in observations
+                if str(row.get("fixture_id") or "") == fixture_id
+                and row.get("capture_id")
+            }
+        )
+        try:
+            raw_payloads = raw_payload_resolver(quote_capture_ids) if quote_capture_ids else {}
+        except Exception:
+            raw_payloads = {}
+        result = select_v3_ah_ou_quotes(
+            observations,
+            fixture_id=fixture_id,
+            decision_at=decision_at,
+            raw_payloads=raw_payloads,
+        )
+        selection: dict[str, dict[str, Any]] = {}
+        for market, key in (("ASIAN_HANDICAP", "ah"), ("TOTALS", "ou")):
+            per_market = result.get(key) or {}
+            quote = per_market.get("quote") if per_market.get("status") == "READY" else None
+            if quote is None:
+                # Surface the v3 refusal as "UNAVAILABLE" so the card's mainline
+                # downgrade (无有效主盘) still applies; keep the specific v3 code
+                # alongside for diagnosis.
+                selection[market] = {
+                    "market": market,
+                    "status": "UNAVAILABLE",
+                    "v3_status": per_market.get("status") or f"{market}_QUOTE_UNAVAILABLE",
+                    "line": None,
+                    "observations": [],
+                    "bookmaker_count": 0,
+                    "side_prices": {},
+                    "authoritative_quote_rows": {},
+                }
+                continue
+            side_prices = dict(quote.get("side_prices") or {})
+            side_rows = dict(quote.get("side_rows") or {})
+            line = Decimal(str(quote["line"]))
+            selection[market] = {
+                "market": market,
+                "status": "READY",
+                "line": self._format_decimal_line(line),
+                "observations": list(side_rows.values()),
+                "bookmaker_count": 1,
+                "selection_policy": "v3_same_capture_two_sided_pinnacle",
+                "side_prices": side_prices,
+                "authoritative_quote_rows": side_rows,
+                "source_capture_sha256": quote.get("source_capture_sha256"),
+                "raw_payload_sha256s": quote.get("raw_payload_sha256s") or [],
+                "v3_quote": quote,
+            }
+        return selection
 
     def _select_mainline_observations(
         self,

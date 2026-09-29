@@ -310,7 +310,9 @@ class FutureRefreshDbRepository:
         it, so a caller cannot leak the role into a later read.
         """
         session = Session(self.engine)
-        if self._asof_role:
+        # SET ROLE is PostgreSQL-only; SQLite (tests) has no role facility and
+        # the AS-OF isolation is a no-op there.
+        if self._asof_role and self.engine.dialect.name == "postgresql":
             session.execute(text(f"SET ROLE {self._asof_role}"))
         return session
 

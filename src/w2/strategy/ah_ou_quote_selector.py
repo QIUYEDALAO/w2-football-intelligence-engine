@@ -123,17 +123,11 @@ def _select_one_market(
     if not latest_rows:
         return {"status": f"{market}_QUOTE_UNAVAILABLE", "quote": None}
 
-    # Both sides must come from the exact same (capture_id, captured_at, line).
+    # Both sides must come from the exact same (capture_id, captured_at).
     capture_ids = {str(row.get("capture_id") or "") for row in latest_rows}
     if len(capture_ids) != 1 or "" in capture_ids:
         return {"status": f"{market}_QUOTE_NOT_SAME_CAPTURE", "quote": None}
     capture_id = next(iter(capture_ids))
-
-    line_values = {_decimal(row.get("line")) for row in latest_rows}
-    line_values.discard(None)
-    if len(line_values) != 1:
-        return {"status": f"{market}_QUOTE_LINE_CONFLICT", "quote": None}
-    line = next(iter(line_values))
 
     by_side: dict[str, dict[str, Any]] = {}
     for row in latest_rows:
@@ -148,6 +142,20 @@ def _select_one_market(
         by_side[side] = row
     if set(by_side) != {side_a, side_b}:
         return {"status": f"{market}_QUOTE_SIDE_INCOMPLETE", "quote": None}
+
+    # Line consistency. AH stores the provider line per side (home = L, away = -L,
+    # i.e. complementary); TOTALS stores the same line on both sides. The emitted
+    # line is always the home/over perspective.
+    line_a = _decimal(by_side[side_a].get("line"))
+    line_b = _decimal(by_side[side_b].get("line"))
+    if market == AH_MARKET:
+        if line_a is None or line_b is None or line_a + line_b != 0:
+            return {"status": f"{market}_QUOTE_LINE_CONFLICT", "quote": None}
+        line = line_a
+    else:
+        if line_a is None or line_b is None or line_a != line_b:
+            return {"status": f"{market}_QUOTE_LINE_CONFLICT", "quote": None}
+        line = line_a
 
     row_a = dict(by_side[side_a])
     row_b = dict(by_side[side_b])

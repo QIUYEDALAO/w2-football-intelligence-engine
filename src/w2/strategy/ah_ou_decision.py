@@ -237,4 +237,9 @@ def build_ah_ou_selections(
             features, line=ou_line, over_odds=ou_over_odds, under_odds=ou_under_odds
         ),
         "features": features,
+        # Frozen input provenance for the decision ledger (S3): the exact F9
+        # snapshot pair and F6 meeting rows the softmax consumed.
+        "home_snapshot": home_snapshot,
+        "away_snapshot": away_snapshot,
+        "meetings": meetings,
     }

@@ -35,7 +35,7 @@ def _row(*, market, selection, line, odds, capture_id=CAPTURE_ID, **overrides) -
 def _observations() -> list[dict]:
     return [
         _row(market="ASIAN_HANDICAP", selection="HOME", line="-0.5", odds="1.80"),
-        _row(market="ASIAN_HANDICAP", selection="AWAY", line="-0.5", odds="2.05"),
+        _row(market="ASIAN_HANDICAP", selection="AWAY", line="0.5", odds="2.05"),
         _row(market="TOTALS", selection="OVER", line="2.5", odds="1.90"),
         _row(market="TOTALS", selection="UNDER", line="2.5", odds="1.90"),
     ]
