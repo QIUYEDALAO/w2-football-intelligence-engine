@@ -44,7 +44,79 @@ def _decimal_text(value: Any) -> str:
 
 
 def _iso(value: datetime) -> str:
+    # SQLite stores DateTime(timezone=True) as a naive value on read-back; treat
+    # a naive value as UTC so the same logical instant hashes and compares equal
+    # against the aware input.
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc).isoformat()
+
+
+def _frozen_json(value: Any) -> str:
+    """Normalize a JSON column (full_distribution) to a comparable digest.
+
+    ``==`` on decoded JSON is float-fragile and order-sensitive; hashing through
+    the canonical serializer makes the comparison deterministic.
+    """
+    if value is None:
+        return ""
+    return canonical_sha256(value, domain=_DECISION_HASH_DOMAIN)
+
+
+def _frozen_field_mismatch(
+    existing: AhOuDecisionLedgerModel,
+    *,
+    fixture_id: str,
+    market: str,
+    decision_at: datetime,
+    model_version: str,
+    calibration_version: str,
+    input_hash: str,
+    full_distribution: dict[str, Any],
+    quote_identity_hash: str,
+    source_capture_sha256: str,
+    capture_id: str,
+    source_id: str,
+    home_team_id: str,
+    away_team_id: str,
+    selected: bool,
+    direction: str | None,
+    score_text: str,
+    skip_reason: str | None,
+) -> str | None:
+    """Compare every frozen business field; return the first differing name.
+
+    A stored row with the same ``decision_id`` is only an idempotent no-op when
+    every frozen field is identical. Any field that differs is an explicit
+    conflict (never a silent return).
+    """
+    checks = (
+        ("fixture_id", existing.fixture_id, fixture_id),
+        ("market", existing.market, market),
+        ("decision_at", _iso(existing.decision_at), _iso(decision_at)),
+        ("model_version", existing.model_version, model_version),
+        ("calibration_version", existing.calibration_version, calibration_version),
+        ("input_hash", existing.input_hash, input_hash),
+        ("quote_identity_hash", existing.quote_identity_hash, quote_identity_hash),
+        ("source_capture_sha256", existing.source_capture_sha256, source_capture_sha256),
+        ("capture_id", existing.capture_id, capture_id),
+        ("source_id", existing.source_id, source_id),
+        ("home_team_id", existing.home_team_id, home_team_id),
+        ("away_team_id", existing.away_team_id, away_team_id),
+        ("selected", existing.selected, selected),
+        ("direction", existing.direction, direction),
+        ("score", existing.score, score_text),
+        ("skip_reason", existing.skip_reason, skip_reason),
+        (
+            "full_distribution",
+            _frozen_json(existing.full_distribution),
+            _frozen_json(full_distribution),
+        ),
+    )
+    for name, left, right in checks:
+        if left != right:
+            return name
+    return None
 
 
 def build_ah_ou_input_hash(
@@ -151,8 +223,35 @@ def write_ah_ou_decision(
 
     existing = session.get(AhOuDecisionLedgerModel, decision_id)
     if existing is not None:
-        # Four-step idempotency: the same identity was already written; nothing
-        # changed, so this is a successful no-op rather than a duplicate.
+        # Four-step idempotency step 4: an identical re-run is a no-op ONLY when
+        # every frozen business field matches. A same decision_id with any field
+        # changed is an explicit conflict, never a silent return.
+        mismatch = _frozen_field_mismatch(
+            existing,
+            fixture_id=fixture_id,
+            market=market,
+            decision_at=decision_at,
+            model_version=model_version,
+            calibration_version=calibration_version,
+            input_hash=input_hash,
+            full_distribution=full_distribution,
+            quote_identity_hash=quote_identity_hash,
+            source_capture_sha256=source_capture_sha256,
+            capture_id=capture_id,
+            source_id=source_id,
+            home_team_id=home_team_id,
+            away_team_id=away_team_id,
+            selected=selected,
+            direction=direction,
+            score_text=score_text,
+            skip_reason=skip_reason,
+        )
+        if mismatch is not None:
+            raise ValueError(
+                "AH_OU_DECISION_FIELD_CONFLICT:"
+                f"decision_id {decision_id} already exists with a different "
+                f"{mismatch}"
+            )
         return existing
 
     slot_row = session.scalar(
