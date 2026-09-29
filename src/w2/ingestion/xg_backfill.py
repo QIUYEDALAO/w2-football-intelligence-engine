@@ -791,6 +791,7 @@ class XgHistoryBackfillService:
                     matches=materialized_matches,
                     window=self.config.max_rolling_matches,
                     min_matches=self.config.min_rolling_matches,
+                    now=self.now,
                 )
                 if snapshot is not None:
                     rows.append(

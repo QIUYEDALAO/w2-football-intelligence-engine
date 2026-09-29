@@ -30,6 +30,9 @@ from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
     AhOuCohortModel,
     AhOuDecisionLedgerModel,
 )
+from w2.infrastructure.persistence.provider_side_effect_fence_models import (
+    ProviderSideEffectFenceModel,
+)
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.future_refresh_models import (
     FreePlanFixtureScopeObservationModel,

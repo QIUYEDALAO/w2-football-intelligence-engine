@@ -137,6 +137,7 @@ def materialize_rolling_xg(
     window: int = 5,
     min_matches: int = 3,
     captured_before_cutoff: bool = True,
+    now: datetime | None = None,
 ) -> TeamXgRollingSnapshot | None:
     """Build a target-fixture snapshot without making it visible before its inputs.
 
@@ -184,7 +185,15 @@ def materialize_rolling_xg(
     # 双层 PIT（V7 包2/B）: the target snapshot's own first-commit instant is the
     # DB write clock now, never backfilled from the component capture times. A
     # BACKTEST_LOOKBACK materialisation has no PIT commit time and is not proven.
-    first_committed_at = datetime.now(UTC) if captured_before_cutoff else None
+    first_committed_at = (now or datetime.now(UTC)) if captured_before_cutoff else None
+    # pit_proven 语义（V7 B 字面）: 快照在决策点前已物化可读（first_committed_at
+    # <= cutoff）且组件在 cutoff 前捕获。晚物化（now > as_of_time）→ false，与
+    # first_committed_at=None 一致。
+    pit_proven = (
+        captured_before_cutoff
+        and first_committed_at is not None
+        and first_committed_at <= cutoff
+    )
     return TeamXgRollingSnapshot(
         snapshot_id=f"{team_id}:{as_of_fixture_id}",
         team_id=team_id,
@@ -198,7 +207,7 @@ def materialize_rolling_xg(
         regression_index=round(regression_index, 4),
         first_captured_at=first_captured_at,
         first_committed_at=first_committed_at,
-        pit_proven=captured_before_cutoff,
+        pit_proven=pit_proven,
     )
 
 
