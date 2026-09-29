@@ -565,6 +565,12 @@ class FakeCanonicalDbRepository(FakeDbRepository):
                 )
         return [row for row in rows if row["team_id"] in team_ids]
 
+    def write_ah_ou_decision_batch(self, *, cohort, decisions) -> None:
+        # R3 atomic-batch sink; these fixtures assert the decision path, not the
+        # ledger write, so a no-op sink is sufficient.
+        self.last_cohort = cohort
+        self.last_decisions = decisions
+
 
 class FakeCanonicalDbRepositoryCurrentXg(FakeCanonicalDbRepository):
     def team_xg_rolling_snapshots_for_w2_teams(

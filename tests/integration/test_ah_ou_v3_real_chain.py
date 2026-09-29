@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+    AhOuCohortModel,
     AhOuDecisionLedgerModel,
 )
 from w2.infrastructure.persistence.factor_model_models import (
@@ -282,7 +283,21 @@ def test_v3_wiring_real_chain_writes_ledger(tmp_path: Any, monkeypatch: Any) -> 
         assert row.away_team_id == "A"
         assert row.capture_id
         assert row.source_capture_sha256
-        assert row.full_distribution.get("cohort_id"), row.market
+    # R3: cohort is independently persisted (one row per (fixture, decision_at)).
+    with Session(repository.engine) as session:
+        cohorts = list(
+            session.scalars(
+                select(AhOuCohortModel).where(
+                    AhOuCohortModel.fixture_id == FIXTURE_ID
+                )
+            )
+        )
+    assert len(cohorts) == 1
+    assert cohorts[0].home_team_id == "H"
+    assert cohorts[0].away_team_id == "A"
+    assert cohorts[0].ah_capture_id
+    assert cohorts[0].ou_capture_id
+    assert cohorts[0].frozen_identity
 
 
 def FutureRefreshDbRepositoryForTest() -> Any:  # noqa: N802

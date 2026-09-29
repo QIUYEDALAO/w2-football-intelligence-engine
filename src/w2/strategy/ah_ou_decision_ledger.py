@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from w2.domain.canonical_serialization import HashDomain, canonical_sha256
 from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
     AH_OU_DECISION_LEDGER_SCHEMA,
+    AhOuCohortModel,
     AhOuDecisionLedgerModel,
 )
 
@@ -190,3 +191,79 @@ def write_ah_ou_decision(
     )
     session.add(row)
     return row
+
+
+def upsert_cohort(
+    session: Session,
+    *,
+    cohort_id: str,
+    fixture_id: str,
+    decision_at: datetime,
+    home_team_id: str,
+    away_team_id: str,
+    ah_capture_id: str | None,
+    ah_source_capture_sha256: str | None,
+    ou_capture_id: str | None,
+    ou_source_capture_sha256: str | None,
+    model_version: str,
+    calibration_version: str,
+    frozen_identity: str,
+    created_at: datetime,
+) -> AhOuCohortModel:
+    """Idempotent cohort write keyed on ``(fixture_id, decision_at)``.
+
+    Re-running with the same inputs produces the same ``cohort_id`` and is a
+    one-row no-op. A conflicting cohort on the same slot raises, so the pre-match
+    role can never silently overwrite a frozen preregistration.
+    """
+    existing = session.get(AhOuCohortModel, cohort_id)
+    if existing is not None:
+        return existing
+    slot_row = session.scalar(
+        select(AhOuCohortModel).where(
+            AhOuCohortModel.fixture_id == fixture_id,
+            AhOuCohortModel.decision_at == decision_at,
+        )
+    )
+    if slot_row is not None:
+        if slot_row.cohort_id != cohort_id:
+            raise ValueError(
+                "AH_OU_COHORT_SLOT_CONFLICT:"
+                f"{fixture_id}/{_iso(decision_at)} already has {slot_row.cohort_id}"
+            )
+        return slot_row
+    row = AhOuCohortModel(
+        cohort_id=cohort_id,
+        fixture_id=fixture_id,
+        decision_at=decision_at,
+        home_team_id=home_team_id,
+        away_team_id=away_team_id,
+        ah_capture_id=ah_capture_id,
+        ah_source_capture_sha256=ah_source_capture_sha256,
+        ou_capture_id=ou_capture_id,
+        ou_source_capture_sha256=ou_source_capture_sha256,
+        model_version=model_version,
+        calibration_version=calibration_version,
+        frozen_identity=frozen_identity,
+        created_at=created_at,
+    )
+    session.add(row)
+    return row
+
+
+def write_ah_ou_decision_batch(
+    session: Session,
+    *,
+    cohort: dict[str, Any],
+    decisions: list[dict[str, Any]],
+) -> None:
+    """Atomic AH/OU + cohort write: every row in one transaction.
+
+    The caller owns ``session.begin()``/``commit()``. Any step raising propagates,
+    so the caller rolls back the whole batch -- an OU conflict never leaves a
+    one-sided AH ledger row, and the cohort is never committed without both
+    markets (or their SKIP reasons) in the same transaction.
+    """
+    upsert_cohort(session, **cohort)
+    for decision in decisions:
+        write_ah_ou_decision(session, **decision)

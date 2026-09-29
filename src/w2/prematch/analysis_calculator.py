@@ -3637,13 +3637,28 @@ class ReadModelService:
         ah_line_text = ah.get("line")
         ou_line_text = ou.get("line")
         if ah_line_text is None or ou_line_text is None:
+            self._persist_ah_ou_skip(
+                repository=repository, fixture_id=fixture_id, home_id=home_id,
+                away_id=away_id, kickoff=kickoff,
+                mainline_selection=mainline_selection, status="MAINLINE_UNAVAILABLE",
+            )
             return None, None, "MAINLINE_UNAVAILABLE"
         # Pinnacle same-capture two-sided prices: both AH sides and both OU
         # sides must be present in the mainline side_prices (same capture by
         # construction of the canonical mainline selector).
         if "home" not in ah_prices or "away" not in ah_prices:
+            self._persist_ah_ou_skip(
+                repository=repository, fixture_id=fixture_id, home_id=home_id,
+                away_id=away_id, kickoff=kickoff,
+                mainline_selection=mainline_selection, status="AH_SIDE_PRICES_INCOMPLETE",
+            )
             return None, None, "AH_SIDE_PRICES_INCOMPLETE"
         if "over" not in ou_prices or "under" not in ou_prices:
+            self._persist_ah_ou_skip(
+                repository=repository, fixture_id=fixture_id, home_id=home_id,
+                away_id=away_id, kickoff=kickoff,
+                mainline_selection=mainline_selection, status="OU_SIDE_PRICES_INCOMPLETE",
+            )
             return None, None, "OU_SIDE_PRICES_INCOMPLETE"
         # Quote identity + timing (整改 item 5): Pinnacle bookmaker_id=4, both
         # sides from one capture, captured_at <= decision_at.
@@ -3651,21 +3666,51 @@ class ReadModelService:
         for label, selection in (("AH", ah), ("OU", ou)):
             rows = selection.get("authoritative_quote_rows")
             if not isinstance(rows, dict) or not rows:
+                self._persist_ah_ou_skip(
+                    repository=repository, fixture_id=fixture_id, home_id=home_id,
+                    away_id=away_id, kickoff=kickoff,
+                    mainline_selection=mainline_selection,
+                    status=f"{label}_QUOTE_IDENTITY_MISSING",
+                )
                 return None, None, f"{label}_QUOTE_IDENTITY_MISSING"
             capture_ids: set[str] = set()
             for row in rows.values():
                 if not isinstance(row, dict):
+                    self._persist_ah_ou_skip(
+                        repository=repository, fixture_id=fixture_id, home_id=home_id,
+                        away_id=away_id, kickoff=kickoff,
+                        mainline_selection=mainline_selection,
+                        status=f"{label}_QUOTE_ROW_INVALID",
+                    )
                     return None, None, f"{label}_QUOTE_ROW_INVALID"
                 bookmaker_id = str(row.get("bookmaker_id") or "")
                 if bookmaker_id != "4":
+                    self._persist_ah_ou_skip(
+                        repository=repository, fixture_id=fixture_id, home_id=home_id,
+                        away_id=away_id, kickoff=kickoff,
+                        mainline_selection=mainline_selection,
+                        status=f"{label}_QUOTE_NOT_PINNACLE",
+                    )
                     return None, None, f"{label}_QUOTE_NOT_PINNACLE"
                 captured = parse_provider_time(
                     row.get("captured_at") or row.get("captured_at_utc")
                 )
                 if captured is None or captured > decision_at:
+                    self._persist_ah_ou_skip(
+                        repository=repository, fixture_id=fixture_id, home_id=home_id,
+                        away_id=away_id, kickoff=kickoff,
+                        mainline_selection=mainline_selection,
+                        status=f"{label}_QUOTE_CAPTURED_AFTER_DECISION",
+                    )
                     return None, None, f"{label}_QUOTE_CAPTURED_AFTER_DECISION"
                 capture_ids.add(str(row.get("capture_id") or ""))
             if len(capture_ids) != 1 or "" in capture_ids:
+                self._persist_ah_ou_skip(
+                    repository=repository, fixture_id=fixture_id, home_id=home_id,
+                    away_id=away_id, kickoff=kickoff,
+                    mainline_selection=mainline_selection,
+                    status=f"{label}_QUOTE_NOT_SAME_CAPTURE",
+                )
                 return None, None, f"{label}_QUOTE_NOT_SAME_CAPTURE"
         # v3 source_capture_sha256 canonical-hash-domain check (S2): prefer the
         # digest already computed by ah_ou_quote_selector in the mainline selection.
@@ -3689,6 +3734,12 @@ class ReadModelService:
                     raw_payloads = {}
             raw = raw_payloads.get(capture_id)
             if not raw:
+                self._persist_ah_ou_skip(
+                    repository=repository, fixture_id=fixture_id, home_id=home_id,
+                    away_id=away_id, kickoff=kickoff,
+                    mainline_selection=mainline_selection,
+                    status=f"{label}_SOURCE_CAPTURE_HASH_MISSING",
+                )
                 return None, None, f"{label}_SOURCE_CAPTURE_HASH_MISSING"
             selection["_v3_source_capture_sha256"] = canonical_sha256(
                 raw, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
@@ -3710,6 +3761,11 @@ class ReadModelService:
                 ou_under_odds=float(ou_prices.get("under") or 0),
             )
         except (ValueError, TypeError):
+            self._persist_ah_ou_skip(
+                repository=repository, fixture_id=fixture_id, home_id=home_id,
+                away_id=away_id, kickoff=kickoff,
+                mainline_selection=mainline_selection, status="MAINLINE_PARSE_ERROR",
+            )
             return None, None, "MAINLINE_PARSE_ERROR"
         # S3 wiring: persist the decision to the new AH/OU ledger automatically
         # after the selection is produced (single (fixture, market, decision_at)
@@ -3737,14 +3793,20 @@ class ReadModelService:
         mainline_selection: dict[str, dict[str, Any]],
         result: dict[str, Any],
     ) -> None:
-        """Persist AH + OU decisions to ``ah_ou_decision_ledger`` (S3)."""
-        writer = getattr(repository, "write_ah_ou_decision", None)
+        """Atomically persist the AH/OU cohort + both market decisions (R3).
+
+        The whole batch (cohort + AH + OU) is written in one transaction; a
+        missing writer is a hard failure, never a silent return, and every market
+        writes a row even on SKIP (the skip_reason is persisted).
+        """
+        writer = getattr(repository, "write_ah_ou_decision_batch", None)
         if not callable(writer):
-            return
+            raise RuntimeError("AH_OU_DECISION_BATCH_WRITER_UNAVAILABLE")
         from w2.strategy.ah_ou_decision_ledger import (
             build_ah_ou_input_hash,
         )
         from w2.strategy.ah_ou_softmax import load_ah_model, load_ou_model
+        from w2.strategy.ah_ou_cohort import preregister_cohort
 
         model_version = canonical_sha256(
             {
@@ -3759,51 +3821,11 @@ class ReadModelService:
         home_snapshot = dict(result.get("home_snapshot") or {})
         away_snapshot = dict(result.get("away_snapshot") or {})
         meetings = list(result.get("meetings") or [])
+        created_at = datetime.now(UTC)
 
-        # S4 wiring: preregister the forward cohort once per fixture at T-2h
-        # (identity-idempotent), using the AH quote as the fixture's quote-capture
-        # representative. The cohort_id is embedded in every market's
-        # full_distribution so the call is observable.
-        ah_side = mainline_selection.get("ASIAN_HANDICAP") or {}
-        ah_quote = ah_side.get("v3_quote") or {}
-        if not isinstance(ah_quote, dict):
-            ah_quote = {}
-        ah_capture_id = ah_quote.get("capture_id") or next(
-            iter(
-                {
-                    str(row.get("capture_id") or "")
-                    for row in (ah_side.get("authoritative_quote_rows") or {}).values()
-                    if isinstance(row, dict)
-                }
-            ),
-            "",
-        )
-        ah_quote_identity_hash = canonical_sha256(
-            {
-                "contract": "w2.ah_ou_quote_identity.v3",
-                "fixture_id": fixture_id,
-                "market": "ASIAN_HANDICAP",
-                "capture_id": ah_capture_id,
-                "captured_at": ah_quote.get("captured_at"),
-                "line": ah_quote.get("line"),
-                "side_prices": ah_quote.get("side_prices") or ah_side.get("side_prices"),
-            },
-            domain=HashDomain.FUTURE_REFRESH_ENDPOINT_CAPTURE,
-        )
-        from w2.strategy.ah_ou_cohort import preregister_cohort
-
-        cohort_id = preregister_cohort(
-            fixture_id=fixture_id,
-            decision_at=decision_at,
-            home_team_id=home_id,
-            away_team_id=away_id,
-            model_version=model_version,
-            source_id=ah_capture_id,
-            capture_id=ah_capture_id,
-            quote_identity_hash=ah_quote_identity_hash,
-            source_capture_sha256=ah_side.get("source_capture_sha256") or "",
-        )["cohort_id"]
-
+        decisions: list[dict[str, Any]] = []
+        input_hashes: list[tuple[str, str]] = []
+        capture_by_market: dict[str, tuple[str, str]] = {}
         for market, selection, side_rows in (
             ("ASIAN_HANDICAP", result.get("ah"), (ah := mainline_selection.get("ASIAN_HANDICAP") or {})),
             ("TOTALS", result.get("ou"), (ou := mainline_selection.get("TOTALS") or {})),
@@ -3857,32 +3879,93 @@ class ReadModelService:
                 )
                 score = float(selection.get("score") or selection.get("edge") or 0.0)
                 skip_reason = None
-            full_distribution = {
-                "market": market,
-                "features": features,
-                "selection": selection,
-                "cohort_id": cohort_id,
-            }
-            writer(
-                fixture_id=fixture_id,
-                market=market,
-                decision_at=decision_at,
-                model_version=model_version,
-                calibration_version=calibration_version,
-                input_hash=input_hash,
-                full_distribution=full_distribution,
-                quote_identity_hash=quote_identity_hash,
-                source_capture_sha256=source_capture_sha256,
-                capture_id=capture_id,
-                source_id=capture_id,
-                home_team_id=home_id,
-                away_team_id=away_id,
-                selected=selected,
-                direction=direction,
-                score=score,
-                skip_reason=skip_reason,
-                created_at=datetime.now(UTC),
+            capture_by_market[market] = (capture_id, source_capture_sha256)
+            input_hashes.append((market, input_hash))
+            decisions.append(
+                {
+                    "fixture_id": fixture_id,
+                    "market": market,
+                    "decision_at": decision_at,
+                    "model_version": model_version,
+                    "calibration_version": calibration_version,
+                    "input_hash": input_hash,
+                    "full_distribution": {
+                        "market": market,
+                        "features": features,
+                        "selection": selection,
+                    },
+                    "quote_identity_hash": quote_identity_hash,
+                    "source_capture_sha256": source_capture_sha256,
+                    "capture_id": capture_id,
+                    "source_id": capture_id,
+                    "home_team_id": home_id,
+                    "away_team_id": away_id,
+                    "selected": selected,
+                    "direction": direction,
+                    "score": score,
+                    "skip_reason": skip_reason,
+                    "created_at": created_at,
+                }
             )
+
+        frozen_identity = canonical_sha256(
+            {
+                "contract": "w2.ah_ou_frozen_input.v3",
+                "input_hashes": dict(input_hashes),
+            },
+            domain=HashDomain.RECOMMENDATION_DECISION_V4,
+        )
+        ah_capture_id, ah_source_sha = capture_by_market.get("ASIAN_HANDICAP", ("", ""))
+        ou_capture_id, ou_source_sha = capture_by_market.get("TOTALS", ("", ""))
+        cohort = preregister_cohort(
+            fixture_id=fixture_id,
+            decision_at=decision_at,
+            home_team_id=home_id,
+            away_team_id=away_id,
+            model_version=model_version,
+            calibration_version=calibration_version,
+            ah_capture_id=ah_capture_id,
+            ah_source_capture_sha256=ah_source_sha,
+            ou_capture_id=ou_capture_id,
+            ou_source_capture_sha256=ou_source_sha,
+            frozen_identity=frozen_identity,
+        )
+        cohort["decision_at"] = decision_at  # upsert_cohort expects a datetime
+        cohort["created_at"] = created_at
+        writer(cohort=cohort, decisions=decisions)
+
+    def _persist_ah_ou_skip(
+        self,
+        *,
+        repository: Any,
+        fixture_id: str,
+        home_id: str,
+        away_id: str,
+        kickoff: datetime,
+        mainline_selection: dict[str, dict[str, Any]],
+        status: str,
+    ) -> None:
+        """Persist an early refusal (missing side/source, late price, …) so a SKIP
+        never disappears. Both markets write a skip_reason row with direction 0.
+        """
+        skip_result = {
+            "status": status,
+            "ah": None,
+            "ou": None,
+            "features": {},
+            "home_snapshot": {},
+            "away_snapshot": {},
+            "meetings": [],
+        }
+        self._write_ah_ou_decision_ledger(
+            repository=repository,
+            fixture_id=fixture_id,
+            home_id=home_id,
+            away_id=away_id,
+            kickoff=kickoff,
+            mainline_selection=mainline_selection,
+            result=skip_result,
+        )
 
     def _mainline_market_selection(
         self,

@@ -21,6 +21,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from w2.infrastructure.database import Base
 
 AH_OU_DECISION_LEDGER_SCHEMA = "w2.ah_ou_decision_ledger.v3"
+AH_OU_COHORT_SCHEMA = "w2.ah_ou_forward_cohort.v3"
 
 
 class AhOuDecisionLedgerModel(Base):
@@ -63,5 +64,45 @@ class AhOuDecisionLedgerModel(Base):
     direction: Mapped[str | None] = mapped_column(String(16))
     score: Mapped[str] = mapped_column(String(64), nullable=False)
     skip_reason: Mapped[str | None] = mapped_column(String(255))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AhOuCohortModel(Base):
+    """AH/OU v3 forward cohort preregistration (S4/R3 persisted).
+
+    One row per ``(fixture_id, decision_at)``. The scheduler preregisters it at
+    ``decision_at = kickoff - 2h`` with the real home/away ids, both markets'
+    capture/source, the model/calibration versions and the frozen input identity.
+    Re-running with the same identity is a one-row no-op. Results are added only
+    later, by a separate POST_EVENT_ENRICHMENT step, never by the pre-match role.
+    """
+
+    __tablename__ = "ah_ou_forward_cohort"
+    __table_args__ = (
+        Index(
+            "uq_ah_ou_forward_cohort_slot",
+            "fixture_id",
+            "decision_at",
+            unique=True,
+        ),
+        Index("ix_ah_ou_forward_cohort_fixture", "fixture_id", "decision_at"),
+    )
+
+    cohort_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    fixture_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    decision_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    home_team_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    away_team_id: Mapped[str] = mapped_column(String(128), nullable=False)
+
+    ah_capture_id: Mapped[str | None] = mapped_column(String(64))
+    ah_source_capture_sha256: Mapped[str | None] = mapped_column(String(64))
+    ou_capture_id: Mapped[str | None] = mapped_column(String(64))
+    ou_source_capture_sha256: Mapped[str | None] = mapped_column(String(64))
+
+    model_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    calibration_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    frozen_identity: Mapped[str] = mapped_column(String(64), nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

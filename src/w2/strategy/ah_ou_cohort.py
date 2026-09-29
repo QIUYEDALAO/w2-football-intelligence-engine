@@ -32,10 +32,10 @@ def build_cohort_identity(
     home_team_id: str,
     away_team_id: str,
     model_version: str,
-    source_id: str,
-    capture_id: str,
+    ah_capture_id: str,
+    ou_capture_id: str,
 ) -> str:
-    """Identity of the preregistration: real team ids + quote capture + model + source."""
+    """Identity of the preregistration: real team ids + both markets' captures + model."""
     body = {
         "contract": COHORT_SCHEMA,
         "fixture_id": fixture_id,
@@ -43,8 +43,8 @@ def build_cohort_identity(
         "home_team_id": home_team_id,
         "away_team_id": away_team_id,
         "model_version": model_version,
-        "source_id": source_id,
-        "capture_id": capture_id,
+        "ah_capture_id": ah_capture_id,
+        "ou_capture_id": ou_capture_id,
     }
     return canonical_sha256(body, domain=_DOMAIN)
 
@@ -56,15 +56,19 @@ def preregister_cohort(
     home_team_id: str,
     away_team_id: str,
     model_version: str,
-    source_id: str,
-    capture_id: str,
-    quote_identity_hash: str,
-    source_capture_sha256: str,
+    calibration_version: str,
+    ah_capture_id: str,
+    ah_source_capture_sha256: str,
+    ou_capture_id: str,
+    ou_source_capture_sha256: str,
+    frozen_identity: str,
 ) -> dict[str, Any]:
-    """Return the preregistration payload keyed by its canonical identity.
+    """Return the persisted cohort payload keyed by its canonical identity.
 
-    The payload is what the scheduler persists. Re-running with the same inputs
-    yields the same identity, so persistence by ``cohort_id`` is idempotent.
+    The payload records the real home/away ids, both markets' capture/source, the
+    model/calibration versions and the frozen input identity. Re-running with the
+    same inputs yields the same identity, so persistence by ``cohort_id`` is a
+    one-row no-op.
     """
     cohort_id = build_cohort_identity(
         fixture_id=fixture_id,
@@ -72,8 +76,8 @@ def preregister_cohort(
         home_team_id=home_team_id,
         away_team_id=away_team_id,
         model_version=model_version,
-        source_id=source_id,
-        capture_id=capture_id,
+        ah_capture_id=ah_capture_id,
+        ou_capture_id=ou_capture_id,
     )
     return {
         "cohort_id": cohort_id,
@@ -82,8 +86,10 @@ def preregister_cohort(
         "home_team_id": home_team_id,
         "away_team_id": away_team_id,
         "model_version": model_version,
-        "source_id": source_id,
-        "capture_id": capture_id,
-        "quote_identity_hash": quote_identity_hash,
-        "source_capture_sha256": source_capture_sha256,
+        "calibration_version": calibration_version,
+        "ah_capture_id": ah_capture_id,
+        "ah_source_capture_sha256": ah_source_capture_sha256,
+        "ou_capture_id": ou_capture_id,
+        "ou_source_capture_sha256": ou_source_capture_sha256,
+        "frozen_identity": frozen_identity,
     }

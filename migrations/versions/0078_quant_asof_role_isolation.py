@@ -32,7 +32,7 @@ _ASOF_READ_TABLES = (
     _LEDGER,
     "team_xg_rolling_snapshot",
     "canonical_team_match_history",
-    "provider_team_identity_crosswalk",
+    "provider_team_identity_crosswalks",
 )
 
 

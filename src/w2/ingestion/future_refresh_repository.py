@@ -2729,6 +2729,19 @@ class FutureRefreshDbRepository:
             with session.begin():
                 return write_ah_ou_decision(session, **kwargs)
 
+    def write_ah_ou_decision_batch(
+        self, *, cohort: dict[str, Any], decisions: list[dict[str, Any]]
+    ) -> None:
+        """Atomically write the AH/OU cohort + both market decisions in one
+        transaction. An OU conflict (or any step) rolls back the whole batch, so a
+        one-sided AH ledger row can never survive.
+        """
+        from w2.strategy.ah_ou_decision_ledger import write_ah_ou_decision_batch
+
+        with Session(self.engine) as session:
+            with session.begin():
+                write_ah_ou_decision_batch(session, cohort=cohort, decisions=decisions)
+
     def raw_payload_count(self, endpoint: str) -> int:
         with Session(self.engine) as session:
             return int(
