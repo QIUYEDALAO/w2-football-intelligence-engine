@@ -40,6 +40,7 @@ class AhOuRepository(Protocol):
         before: datetime,
         competition_id: str,
         season: str,
+        as_of_fixture_id: str | None = None,
     ) -> list[dict[str, Any]]: ...
 
     def canonical_match_history_for_teams(
@@ -140,11 +141,14 @@ def build_ah_ou_selections(
         set_role(asof_role)
     try:
         # --- F9 准入：滚动快照绑定唯一 + 目标 fixture 绑定 + 首捕获 ≤ decision_at
+        # B: request the exact target snapshot by as_of_fixture_id so the
+        # repository never ranks by as_of_time and then discovers a misbound row.
         snapshots = repository.team_xg_rolling_snapshots_for_w2_teams(
             [home_team_id, away_team_id],
             before=decision_at,
             competition_id=competition_id,
             season=season,
+            as_of_fixture_id=fixture_id,
         )
         home_rows = [s for s in snapshots if s.get("team_id") == home_team_id]
         away_rows = [s for s in snapshots if s.get("team_id") == away_team_id]
@@ -192,6 +196,9 @@ def build_ah_ou_selections(
     meetings: list[dict[str, Any]] = []
     seen_fixtures: set[str] = set()
     for row in history:
+        # B: a meeting without a real endpoint capture is not a verifiable source.
+        if not str(row.get("endpoint_capture_id") or ""):
+            return _skip("F6_H2H_CAPTURE_MISSING")
         captured = _parse_asof(row.get("captured_at"))
         if captured is None or captured > decision_at:
             return _skip("F6_H2H_CAPTURED_AFTER_DECISION")

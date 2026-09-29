@@ -1130,12 +1130,17 @@ def test_19_frozen_package_hashes_are_unchanged(package) -> None:
 #: not against a working tree a successor was authorised to change.
 F1R_B_DELIVERY_COMMIT = "b4285660b091b1270172cfd3b7c226ff8c7fcc62"
 
-#: F1 froze two source files' hashes. F1R-C revised one of them, because the F5
-#: builder lives in it. That revision is named here rather than hidden by
-#: relaxing the check.
+#: F1 froze two source files' hashes. F1R-C revised one of them (the F5 builder
+#: lives in it, v2). 42a6e60b revised it again (F5 absence cold-start vs team-gap
+#: split, v3). Each successor revision is named here rather than hidden by
+#: relaxing the check, so the revision chain stays verifiable.
 F1R_C_REVISED_F1_PINNED_SOURCES = {
     "src/w2/features/team_factors.py":
         "8d4afae21ced6b4cdc02673a88057899475b0884a4e0787ce3d6f240c57acdfc",
+}
+F5_V3_REVISED_F1_PINNED_SOURCES = {
+    "src/w2/features/team_factors.py":
+        "026c6d4fe59d7fcfb93047cb6627f2dd7641370f5fc0ce748885edd4a91bc8ba",
 }
 
 
@@ -1167,14 +1172,23 @@ def test_19_the_pinned_builder_sources_are_still_the_frozen_f1_evidence() -> Non
         assert hashlib.sha256(delivered).hexdigest() == digest, path
 
     for path, digest in pinned.items():
-        expected = F1R_C_REVISED_F1_PINNED_SOURCES.get(path, digest)
+        expected = F5_V3_REVISED_F1_PINNED_SOURCES.get(
+            path, F1R_C_REVISED_F1_PINNED_SOURCES.get(path, digest)
+        )
         assert hashlib.sha256((REPO / path).read_bytes()).hexdigest() == expected, path
 
+    # Every successor revision is named explicitly: the set of files whose
+    # working-tree bytes differ from the F1 freeze is exactly the union of the
+    # F1R-C and F5-v3 revisions.
     revised = {
         path for path, digest in pinned.items()
-        if digest != F1R_C_REVISED_F1_PINNED_SOURCES.get(path, digest)
+        if digest != F5_V3_REVISED_F1_PINNED_SOURCES.get(
+            path, F1R_C_REVISED_F1_PINNED_SOURCES.get(path, digest)
+        )
     }
-    assert revised == set(F1R_C_REVISED_F1_PINNED_SOURCES), sorted(revised)
+    assert revised == set(F1R_C_REVISED_F1_PINNED_SOURCES) | set(
+        F5_V3_REVISED_F1_PINNED_SOURCES
+    ), sorted(revised)
 
 
 # --- 20: no side effects ---------------------------------------------------

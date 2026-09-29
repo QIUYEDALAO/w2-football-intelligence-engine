@@ -2270,13 +2270,19 @@ class FutureRefreshDbRepository:
                 CanonicalTeamMatchHistoryModel.opponent_w2_id == opponent_w2_id
             )
         filters.append(CanonicalTeamMatchHistoryModel.fixture_status == fixture_status)
+        # B: freeze the ranking key as (kickoff_utc, provider_fixture_id) so a
+        # same-kickoff 10th/11th meeting has a deterministic second key instead of
+        # an ambiguous tie broken only by kickoff time.
         ranked = (
             select(
                 CanonicalTeamMatchHistoryModel.history_id.label("history_id"),
                 func.row_number()
                 .over(
                     partition_by=CanonicalTeamMatchHistoryModel.team_w2_id,
-                    order_by=CanonicalTeamMatchHistoryModel.kickoff_utc.desc(),
+                    order_by=(
+                        CanonicalTeamMatchHistoryModel.kickoff_utc.desc(),
+                        CanonicalTeamMatchHistoryModel.provider_fixture_id.desc(),
+                    ),
                 )
                 .label("rank"),
             )
@@ -2295,6 +2301,7 @@ class FutureRefreshDbRepository:
                     .order_by(
                         CanonicalTeamMatchHistoryModel.team_w2_id,
                         CanonicalTeamMatchHistoryModel.kickoff_utc,
+                        CanonicalTeamMatchHistoryModel.provider_fixture_id,
                     )
                 )
             )
@@ -2343,6 +2350,7 @@ class FutureRefreshDbRepository:
         before: datetime,
         competition_id: str,
         season: str,
+        as_of_fixture_id: str | None = None,
     ) -> list[dict[str, Any]]:
         ids = [team_id for team_id in dict.fromkeys(team_ids) if team_id]
         if not ids or len(ids) > 2:
@@ -2367,6 +2375,7 @@ class FutureRefreshDbRepository:
         provider_rows = self.team_xg_rolling_snapshots_for_teams(
             list(provider_to_w2),
             before=before,
+            as_of_fixture_id=as_of_fixture_id,
         )
         projected: list[dict[str, Any]] = []
         for row in provider_rows:
@@ -3045,10 +3054,34 @@ class FutureRefreshDbRepository:
         team_ids: list[str],
         *,
         before: datetime,
+        as_of_fixture_id: str | None = None,
     ) -> list[dict[str, Any]]:
         ids = [team_id for team_id in dict.fromkeys(team_ids) if team_id]
         if not ids or len(ids) > 2:
             return []
+        filters = [
+            TeamXgRollingSnapshotModel.team_id.in_(ids),
+            TeamXgRollingSnapshotModel.as_of_time < before,
+        ]
+        if as_of_fixture_id:
+            # B: select the exact target snapshot by (as_of_fixture_id, team_id);
+            # never rank=1 over as_of_time and then discover it is not the target.
+            # Returning every matching candidate lets the caller reject a
+            # duplicate target instead of silently taking one.
+            filters.append(
+                TeamXgRollingSnapshotModel.as_of_fixture_id == as_of_fixture_id
+            )
+            with self._asof_scoped_session() as session:
+                rows = list(
+                    session.scalars(
+                        select(TeamXgRollingSnapshotModel)
+                        .where(*filters)
+                        .order_by(TeamXgRollingSnapshotModel.team_id)
+                    )
+                )
+            return [self._team_xg_rolling_snapshot_dict(row) for row in rows]
+        # Default (no target fixture): keep the latest pre-fixture snapshot per
+        # team (rank=1 by as_of_time), the legacy read shape.
         ranked = (
             select(
                 TeamXgRollingSnapshotModel.snapshot_id.label("snapshot_id"),
@@ -3059,10 +3092,7 @@ class FutureRefreshDbRepository:
                 )
                 .label("rank"),
             )
-            .where(
-                TeamXgRollingSnapshotModel.team_id.in_(ids),
-                TeamXgRollingSnapshotModel.as_of_time < before,
-            )
+            .where(*filters)
             .subquery()
         )
         with self._asof_scoped_session() as session:

@@ -910,9 +910,17 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     # (provider-only), so the softmax admission issues a SKIP and the veto keeps
     # a good price from becoming a recommendation the softmax cannot speak to.
     assert decisions["ASIAN_HANDICAP"] == "SKIP"
-    assert decisions["TOTALS"] in {"PICK", "ANALYSIS_PICK"}
+    # A (唯一公开决策权威): OU is owned by the softmax selection too. This
+    # fixture carries no canonical team identity, so the softmax admission issues
+    # a SKIP for TOTALS as well -- the market-candidate pipeline may project the
+    # EV evidence for inspection but must not turn the softmax SKIP into a PICK.
+    assert decisions["TOTALS"] == "SKIP"
     assert decisions["FIRST_HALF_GOALS"] == "PICK"
     assert decisions["SCORE"] == "NO_EDGE"
+    ou_market = next(
+        market for market in card["markets"] if market["market"] == "TOTALS"
+    )
+    assert ou_market["factor_veto"]["code"] == "SOFTMAX_OU_NO_DIRECTION"
     ah_market = next(
         market for market in card["markets"] if market["market"] == "ASIAN_HANDICAP"
     )

@@ -1112,14 +1112,19 @@ def test_07_the_wiring_did_not_touch_a_forbidden_path() -> None:
     )
     # F1R-C was authorised to revise exactly these, and only these. R5 then
     # authorised the observation store too, to skip `absence:` lookups in the
-    # source-existence check (修 R1 引入的 SOURCE_RECORD_NOT_FOUND). The
-    # exemptions are enumerated rather than expressed as a relaxed prefix, so
-    # the guard keeps refusing everything else it always refused.
+    # source-existence check. The A–F one-pass remediation (2026-09-29) is
+    # authorised to revise the AH/OU strategy modules (decision/quote-selector/
+    # ledger) under the frozen one-pass delivery order. The exemptions are
+    # enumerated rather than expressed as a relaxed prefix, so the guard keeps
+    # refusing everything else it always refused.
     authorised_paths = {
         "scripts/quant/f1r_b_production_ports.py",
         "scripts/quant/f1r_b_production_recording_integration.py",
         "scripts/quant/f1r_b_observation_store.py",
         "migrations/versions/0072_runtime_ah_settlement_fact.py",
+        "src/w2/strategy/ah_ou_decision.py",
+        "src/w2/strategy/ah_ou_quote_selector.py",
+        "src/w2/strategy/ah_ou_decision_ledger.py",
     }
     # The successor package is new. Every frozen package stays untouchable: the
     # exemption is the successor's own directory, not the whole tree.

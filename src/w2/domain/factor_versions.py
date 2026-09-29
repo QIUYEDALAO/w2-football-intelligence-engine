@@ -61,16 +61,18 @@ _BINDINGS: Final = MappingProxyType(
             ),
         ),
         "F5_RECENT_AH_COVER": FactorBuilderBinding(
-            # F1R-C revised this builder: it now consumes canonical AH settlement
-            # facts and reports the latest settlement instant it read as its
-            # observed_at, instead of a kickoff-derived placeholder. The
-            # computation changed, so the version moves with it.
-            version="w2.factor.f5_recent_ah_cover.settled_cover_rate_diff.v2",
+            # F1R-C revised this builder to consume canonical AH settlement facts
+            # (v2). 42a6e60b then split the F5 absence reason into whole-league
+            # cold-start vs per-team gap (Owner-approved factor-gate adjudication),
+            # which changes the emitted reason/collection_status/absence_lifecycle,
+            # so the computation version moves again to v3. The old v2 pin stays
+            # as historical authority; it is not rewritten in place.
+            version="w2.factor.f5_recent_ah_cover.settled_cover_rate_diff.v3",
             module="w2.features.team_factors",
             builder="recent_ah_cover_factor",
             ready_reason="SETTLED_AH_COVER_RATE_DIFF",
             builder_source_sha256=(
-                "9964ac324fac77fc976d4b5d1b7e897b22cf819d5b8f4ead2bedf9acd71613a8"
+                "52051415049e836d13d00238935f8d7db9048c3a0c5f0f31801ce05f2667e2a5"
             ),
         ),
         "F6_H2H": FactorBuilderBinding(

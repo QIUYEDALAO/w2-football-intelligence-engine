@@ -21,9 +21,12 @@ class FakeRepository:
         self.history = history
 
     def team_xg_rolling_snapshots_for_w2_teams(
-        self, team_ids, *, before, competition_id, season
+        self, team_ids, *, before, competition_id, season, as_of_fixture_id=None
     ):
-        return [self.snapshots[t] for t in team_ids if t in self.snapshots]
+        rows = [self.snapshots[t] for t in team_ids if t in self.snapshots]
+        if as_of_fixture_id is not None:
+            rows = [r for r in rows if r.get("as_of_fixture_id") == as_of_fixture_id]
+        return rows
 
     def canonical_match_history_for_teams(
         self, team_ids, *, before, limit_per_team=20,
@@ -62,6 +65,7 @@ def _meetings() -> list[dict]:
             "fixture_status": "FT",
             "goals_for": 1,
             "goals_against": 0,
+            "endpoint_capture_id": "cap-1",
             "captured_at": (KICKOFF - timedelta(days=29)).isoformat(),
             "status_first_visible_at": (KICKOFF - timedelta(days=29)).isoformat(),
             "pit_proven": True,
@@ -75,6 +79,7 @@ def _meetings() -> list[dict]:
             "fixture_status": "FT",
             "goals_for": 2,
             "goals_against": 1,
+            "endpoint_capture_id": "cap-2",
             "captured_at": (KICKOFF - timedelta(days=9)).isoformat(),
             "status_first_visible_at": (KICKOFF - timedelta(days=9)).isoformat(),
             "pit_proven": True,

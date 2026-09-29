@@ -3629,6 +3629,16 @@ class ReadModelService:
             callable(getattr(repository, "team_xg_rolling_snapshots_for_w2_teams", None))
             and callable(getattr(repository, "canonical_match_history_for_teams", None))
         ):
+            # A: a missing reader is a structured refusal, not a silent card that
+            # later gets revived by the market-candidate pipeline. Persist both
+            # market SKIP rows (direction 0) in the same transaction when a writer
+            # is available; otherwise surface the unrecorded refusal explicitly.
+            self._persist_ah_ou_skip(
+                repository=repository, fixture_id=fixture_id, home_id=home_id,
+                away_id=away_id, kickoff=kickoff,
+                mainline_selection=mainline_selection,
+                status="SOFTMAX_REPOSITORY_UNAVAILABLE",
+            )
             return None, None, "SOFTMAX_REPOSITORY_UNAVAILABLE"
         ah = mainline_selection.get("ASIAN_HANDICAP") or {}
         ou = mainline_selection.get("TOTALS") or {}
@@ -3947,6 +3957,9 @@ class ReadModelService:
     ) -> None:
         """Persist an early refusal (missing side/source, late price, …) so a SKIP
         never disappears. Both markets write a skip_reason row with direction 0.
+
+        A: when no writer is available the public direction is still 0 and the
+        unrecorded refusal is surfaced explicitly, never reported as recorded.
         """
         skip_result = {
             "status": status,
@@ -3957,15 +3970,21 @@ class ReadModelService:
             "away_snapshot": {},
             "meetings": [],
         }
-        self._write_ah_ou_decision_ledger(
-            repository=repository,
-            fixture_id=fixture_id,
-            home_id=home_id,
-            away_id=away_id,
-            kickoff=kickoff,
-            mainline_selection=mainline_selection,
-            result=skip_result,
-        )
+        try:
+            self._write_ah_ou_decision_ledger(
+                repository=repository,
+                fixture_id=fixture_id,
+                home_id=home_id,
+                away_id=away_id,
+                kickoff=kickoff,
+                mainline_selection=mainline_selection,
+                result=skip_result,
+            )
+        except RuntimeError as exc:
+            logging.getLogger(__name__).warning(
+                "AH/OU SKIP not recorded (direction stays 0): fixture=%s status=%s reason=%s",
+                fixture_id, status, exc,
+            )
 
     def _mainline_market_selection(
         self,
@@ -6513,56 +6532,65 @@ class ReadModelService:
         card: dict[str, Any],
         market: dict[str, Any],
     ) -> dict[str, Any] | None:
-        """Return why the factor score forbids the EV comparison from setting
+        """Return why the softmax admission forbids the EV comparison from setting
         this market's direction, or None if it does not forbid it.
 
         The market-candidate pipeline derives its direction purely from model
         probability vs market probability plus an economic admission test; it
-        never consults a factor.  Left unguarded it would overwrite the AH
-        market's decision, tendency and signal_strength, including reviving a
-        SKIP that the factor admission rule had just issued -- which would put
-        the factors back out of the recommendation they are supposed to drive.
+        never consults the softmax selection.  Left unguarded it would overwrite
+        the AH/OU market's decision, tendency and signal_strength, including
+        reviving a SKIP the softmax admission just issued.
 
-        Only ASIAN_HANDICAP is guarded: it is the market the factor score
-        drives.  TOTALS keeps its previous behaviour.
+        A (唯一公开决策权威): AH **and** OU are both guarded. The softmax
+        selection is the sole direction authority; the market-candidate layer may
+        only enrich readable odds/EV, never turn a softmax SKIP / no-edge into a
+        PICK, and never override a fixed-formula direction with the EV side.
 
-        Fail-closed: a card with no factor score (e.g. the fallback card)
-        counts as not admitted, so EV alone can never create an AH pick.
+        Fail-closed: a market with no softmax direction (SKIP / no-edge) counts
+        as refused, so EV alone can never create an AH or OU pick.
         """
-        if str(market.get("market") or "") != AnalysisMarket.ASIAN_HANDICAP.value:
+        market_name = str(market.get("market") or "")
+        if market_name == AnalysisMarket.ASIAN_HANDICAP.value:
+            factor_score = card.get("factor_score")
+            if isinstance(factor_score, dict):
+                if not factor_score.get("admitted"):
+                    return {
+                        "code": "FACTOR_ADMISSION_FAILED",
+                        "blockers": [str(item) for item in factor_score.get("admission_blockers") or []],
+                    }
+                direction = str(factor_score.get("direction") or "")
+            else:
+                # Softmax path: AH direction from tendency (HOME_AH / AWAY_AH).
+                tendency = str(market.get("tendency") or "")
+                direction = (
+                    "HOME" if tendency == "HOME_AH"
+                    else "AWAY" if tendency == "AWAY_AH"
+                    else ""
+                )
+                if not direction:
+                    return {"code": "SOFTMAX_AH_NO_DIRECTION", "blockers": []}
+            selection = str(market.get("market_candidate", {}).get("selection") or "")
+            if direction in {"HOME", "AWAY"} and selection in {"HOME", "AWAY"}:
+                if direction != selection:
+                    return {
+                        "code": "FACTOR_EV_DIRECTION_CONFLICT",
+                        "factor_direction": direction,
+                        "ev_selection": selection,
+                    }
             return None
-        factor_score = card.get("factor_score")
-        if isinstance(factor_score, dict):
-            if not factor_score.get("admitted"):
-                return {
-                    "code": "FACTOR_ADMISSION_FAILED",
-                    "blockers": [str(item) for item in factor_score.get("admission_blockers") or []],
-                }
-            direction = str(factor_score.get("direction") or "")
-        else:
-            # Softmax path: the AH direction comes from the market's own
-            # tendency (HOME_AH / AWAY_AH) produced by ``ah_select``. No
-            # tendency means the softmax admission issued a SKIP, which the EV
-            # pipeline must not revive either.
+        if market_name == AnalysisMarket.TOTALS.value:
+            # Softmax OU path: direction is OVER (selected) or None (SKIP/no-edge).
             tendency = str(market.get("tendency") or "")
-            direction = (
-                "HOME" if tendency == "HOME_AH"
-                else "AWAY" if tendency == "AWAY_AH"
-                else ""
-            )
-            if not direction:
-                return {"code": "SOFTMAX_AH_NO_DIRECTION", "blockers": []}
-        selection = str(market.get("market_candidate", {}).get("selection") or "")
-        if direction in {"HOME", "AWAY"} and selection in {"HOME", "AWAY"}:
-            if direction != selection:
-                # Two independent evidence sources disagree on the side. That is
-                # not a reason to pick either one, so neither drives -- the
-                # caller downgrades the market to WATCH.
+            if tendency != "OVER":
+                return {"code": "SOFTMAX_OU_NO_DIRECTION", "blockers": []}
+            selection = str(market.get("market_candidate", {}).get("selection") or "")
+            if selection in {"OVER", "UNDER"} and selection != "OVER":
                 return {
                     "code": "FACTOR_EV_DIRECTION_CONFLICT",
-                    "factor_direction": direction,
+                    "factor_direction": "OVER",
                     "ev_selection": selection,
                 }
+            return None
         return None
 
     def _attach_round3_intelligence(self, card: dict[str, Any]) -> None:

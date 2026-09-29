@@ -292,6 +292,46 @@ def write_ah_ou_decision(
     return row
 
 
+def _frozen_cohort_mismatch(
+    existing: AhOuCohortModel,
+    *,
+    fixture_id: str,
+    decision_at: datetime,
+    home_team_id: str,
+    away_team_id: str,
+    ah_capture_id: str | None,
+    ah_source_capture_sha256: str | None,
+    ou_capture_id: str | None,
+    ou_source_capture_sha256: str | None,
+    model_version: str,
+    calibration_version: str,
+    frozen_identity: str,
+) -> str | None:
+    """Compare every frozen cohort field; return the first differing name.
+
+    D: a stored cohort with the same ``cohort_id`` is only an idempotent no-op
+    when every frozen field is identical. Any differing field (e.g. a changed
+    ``frozen_identity`` or OU source hash) is an explicit conflict.
+    """
+    checks = (
+        ("fixture_id", existing.fixture_id, fixture_id),
+        ("decision_at", _iso(existing.decision_at), _iso(decision_at)),
+        ("home_team_id", existing.home_team_id, home_team_id),
+        ("away_team_id", existing.away_team_id, away_team_id),
+        ("ah_capture_id", existing.ah_capture_id, ah_capture_id),
+        ("ah_source_capture_sha256", existing.ah_source_capture_sha256, ah_source_capture_sha256),
+        ("ou_capture_id", existing.ou_capture_id, ou_capture_id),
+        ("ou_source_capture_sha256", existing.ou_source_capture_sha256, ou_source_capture_sha256),
+        ("model_version", existing.model_version, model_version),
+        ("calibration_version", existing.calibration_version, calibration_version),
+        ("frozen_identity", existing.frozen_identity, frozen_identity),
+    )
+    for name, left, right in checks:
+        if left != right:
+            return name
+    return None
+
+
 def upsert_cohort(
     session: Session,
     *,
@@ -312,11 +352,31 @@ def upsert_cohort(
     """Idempotent cohort write keyed on ``(fixture_id, decision_at)``.
 
     Re-running with the same inputs produces the same ``cohort_id`` and is a
-    one-row no-op. A conflicting cohort on the same slot raises, so the pre-match
-    role can never silently overwrite a frozen preregistration.
+    one-row no-op only when every frozen field matches (D). A conflicting cohort
+    on the same slot raises, so the pre-match role can never silently overwrite a
+    frozen preregistration.
     """
     existing = session.get(AhOuCohortModel, cohort_id)
     if existing is not None:
+        mismatch = _frozen_cohort_mismatch(
+            existing,
+            fixture_id=fixture_id,
+            decision_at=decision_at,
+            home_team_id=home_team_id,
+            away_team_id=away_team_id,
+            ah_capture_id=ah_capture_id,
+            ah_source_capture_sha256=ah_source_capture_sha256,
+            ou_capture_id=ou_capture_id,
+            ou_source_capture_sha256=ou_source_capture_sha256,
+            model_version=model_version,
+            calibration_version=calibration_version,
+            frozen_identity=frozen_identity,
+        )
+        if mismatch is not None:
+            raise ValueError(
+                "AH_OU_COHORT_FIELD_CONFLICT:"
+                f"cohort_id {cohort_id} already exists with a different {mismatch}"
+            )
         return existing
     slot_row = session.scalar(
         select(AhOuCohortModel).where(

@@ -155,7 +155,7 @@ def test_f9_first_capture_after_decision_is_refused_by_admission() -> None:
             self.snapshots = snapshots
 
         def team_xg_rolling_snapshots_for_w2_teams(
-            self, team_ids, *, before, competition_id, season
+            self, team_ids, *, before, competition_id, season, as_of_fixture_id=None
         ):
             return [
                 {**s, "team_id": self._mapping[s["team_id"]]}

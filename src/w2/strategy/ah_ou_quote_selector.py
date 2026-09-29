@@ -53,11 +53,17 @@ def _decimal(value: Any) -> Decimal | None:
     if value is None:
         return None
     if isinstance(value, Decimal):
-        return value
-    try:
-        return Decimal(str(value))
-    except (InvalidOperation, ValueError):
+        parsed = value
+    else:
+        try:
+            parsed = Decimal(str(value))
+        except (InvalidOperation, ValueError):
+            return None
+    # C: NaN/Inf are never a valid line; refuse rather than letting a non-finite
+    # Decimal flow into comparisons and arithmetic.
+    if not parsed.is_finite():
         return None
+    return parsed
 
 
 def _float(value: Any) -> float | None:
@@ -76,6 +82,21 @@ def _side(row: dict[str, Any]) -> str:
 
 def _complementary_sides(market: str) -> tuple[str, str]:
     return ("HOME", "AWAY") if market == AH_MARKET else ("OVER", "UNDER")
+
+
+def _has_duplicate_line(rows: list[dict[str, Any]]) -> bool:
+    """True when the same side carries two rows on the same line (a duplicate
+    side that must be refused, never silently deduplicated)."""
+    seen: set[str] = set()
+    for row in rows:
+        line = _decimal(row.get("line"))
+        if line is None:
+            continue
+        key = str(line.normalize())
+        if key in seen:
+            return True
+        seen.add(key)
+    return False
 
 
 def _source_capture_sha256(
@@ -177,13 +198,17 @@ def _source_content_matches(
     return True
 
 
-def _pair_sort_key(pair: dict[str, Any]) -> tuple[float, float, float, float]:
-    return (
-        float(pair["balance_distance"]),
-        float(pair["price_gap"]),
-        float(pair["mid_distance"]),
-        abs(float(pair["line"])),
-    )
+def _pair_sort_key(
+    pair: dict[str, Any], *, market: str
+) -> tuple[float, float, float, float]:
+    # C: frozen mainline ranking is |odds_side1−1.9|+|odds_side2−1.9| (the pair
+    # closest to a 1.90/1.90 two-way book), NOT the devigged balance distance.
+    primary = abs(pair["price_a"] - 1.90) + abs(pair["price_b"] - 1.90)
+    line = abs(float(pair["line"]))
+    # AH secondary: |line|; OU secondary: distance to 2.5. Both then fall back to
+    # price gap and |line| for a deterministic tie-break.
+    secondary = line if market == AH_MARKET else abs(float(pair["line"]) - 2.5)
+    return (primary, secondary, float(pair["price_gap"]), line)
 
 
 def _make_pair(
@@ -258,6 +283,9 @@ def _select_one_market(
     if market == AH_MARKET:
         home_rows = [row for row in latest_rows if _side(row) == side_a]
         away_rows = [row for row in latest_rows if _side(row) == side_b]
+        # C: a duplicate side on the same line (even same price) is a refusal.
+        if _has_duplicate_line(home_rows) or _has_duplicate_line(away_rows):
+            return {"status": f"{market}_QUOTE_DUPLICATE_SIDE", "quote": None}
         for home_row in home_rows:
             home_price = _float(home_row.get("decimal_odds") or home_row.get("executable_odds"))
             if home_price is None or home_price <= 1.0:
@@ -293,7 +321,11 @@ def _select_one_market(
             if line is None:
                 return {"status": f"{market}_QUOTE_LINE_INVALID", "quote": None}
             group = line_groups.setdefault(str(line.normalize()), {})
-            group.setdefault(side, row)
+            if side in group:
+                # C: a duplicate OVER/UNDER row on the same line (even same price)
+                # must be refused, never silently deduplicated.
+                return {"status": f"{market}_QUOTE_DUPLICATE_SIDE", "quote": None}
+            group[side] = row
         for group in line_groups.values():
             if set(group) != {side_a, side_b}:
                 continue
@@ -306,8 +338,8 @@ def _select_one_market(
                 pairs.append(pair)
     if not pairs:
         return {"status": f"{market}_QUOTE_SIDE_INCOMPLETE", "quote": None}
-    # Frozen mainline: the same v3 ladder ordering (balance → gap → mid → |line|).
-    pairs.sort(key=_pair_sort_key)
+    # Frozen mainline: |odds−1.9| sum first (C), then market-specific secondary.
+    pairs.sort(key=lambda pair: _pair_sort_key(pair, market=market))
     selected = pairs[0]
     row_a = selected["row_a"]
     row_b = selected["row_b"]
