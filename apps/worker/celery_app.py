@@ -28,10 +28,10 @@ logger = logging.getLogger(__name__)
 _UNSET: Any = object()
 
 
-def _fence_stage(task_id: str, stage: str, state: str, error: str | None = None) -> None:
+def _fence_stage(task_id: str, stage: str, state: str, error: str | None = None) -> bool:
     """Provider 不确定副作用栅栏（包5/E）: persist task+stage+attempt before/after a
-    provider stage so a crash or exception leaves SIDE_EFFECT_UNCERTAIN/BLOCKED
-    instead of being silently retried."""
+    provider stage. Returns False (and does not write ATTEMPTING) when the stage
+    is already SIDE_EFFECT_UNCERTAIN/BLOCKED, so a retry must not re-issue it."""
     from sqlalchemy.orm import Session
 
     import w2.infrastructure.persistence.provider_side_effect_fence_models  # noqa: F401
@@ -44,6 +44,10 @@ def _fence_stage(task_id: str, stage: str, state: str, error: str | None = None)
     with Session(engine) as session, session.begin():
         now = datetime.now(UTC)
         existing = session.get(ProviderSideEffectFenceModel, (task_id, stage, 1))
+        if state == "ATTEMPTING" and existing is not None and existing.state in {
+            "SIDE_EFFECT_UNCERTAIN", "BLOCKED",
+        }:
+            return False
         if existing is None:
             session.add(ProviderSideEffectFenceModel(
                 task_id=task_id, stage=stage, attempt=1, state=state,
@@ -53,6 +57,7 @@ def _fence_stage(task_id: str, stage: str, state: str, error: str | None = None)
             existing.state = state
             existing.updated_at = now
             existing.error = error
+        return True
 
 settings = get_settings()
 
@@ -763,7 +768,15 @@ def future_fixture_refresh(
     # carry on into the XG auto-capture (a further provider stage).
     h2h_report: dict[str, object] = {}
     if os.environ.get("W2_H2H_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
-        _fence_stage(key, "h2h", "ATTEMPTING")
+        if not _fence_stage(key, "h2h", "ATTEMPTING"):
+            return {
+                "task_id": task_id, "task_key": key,
+                "status": "BLOCKED", "audit_status": "BLOCKED",
+                "result": {"blockers": ["H2H_STAGE_SIDE_EFFECT_UNCERTAIN"], "provider_calls": 0},
+                "h2h_auto_capture": {"error": "H2H_STAGE_SIDE_EFFECT_UNCERTAIN"},
+                "xg_auto_capture": {"error": "NOT_ATTEMPTED_H2H_BLOCKED"},
+                "candidate": False, "formal_recommendation": False,
+            }
         try:
             from w2.ingestion.h2h_capture import capture_h2h_for_competition
 
@@ -791,7 +804,15 @@ def future_fixture_refresh(
     # E: a XG failure likewise stops the run before the provider refresh.
     xg_report: dict[str, object] = {}
     if os.environ.get("W2_XG_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
-        _fence_stage(key, "xg", "ATTEMPTING")
+        if not _fence_stage(key, "xg", "ATTEMPTING"):
+            return {
+                "task_id": task_id, "task_key": key,
+                "status": "BLOCKED", "audit_status": "BLOCKED",
+                "result": {"blockers": ["XG_STAGE_SIDE_EFFECT_UNCERTAIN"], "provider_calls": 0},
+                "h2h_auto_capture": h2h_report,
+                "xg_auto_capture": {"error": "XG_STAGE_SIDE_EFFECT_UNCERTAIN"},
+                "candidate": False, "formal_recommendation": False,
+            }
         try:
             from w2.ingestion.xg_backfill import run_xg_history_backfill
 

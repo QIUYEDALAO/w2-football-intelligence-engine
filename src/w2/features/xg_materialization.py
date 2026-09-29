@@ -49,6 +49,10 @@ class TeamXgRollingSnapshot:
     # depends on. Distinct from ``as_of_time`` (the match-time the rolling window
     # is "as of"); None for BACKTEST_LOOKBACK rows that have no real first capture.
     first_captured_at: datetime | None = None
+    # 双层 PIT（V7 包2/B）: the moment this target snapshot row was first
+    # committed/readable, locked by the DB write clock (set by the writer, never
+    # backfilled from component capture times). None = BACKTEST_LOOKBACK.
+    first_committed_at: datetime | None = None
     pit_proven: bool = False
 
     def as_feature_snapshot(self) -> TeamXgSnapshot:
@@ -177,6 +181,10 @@ def materialize_rolling_xg(
         if captured_before_cutoff
         else None
     )
+    # 双层 PIT（V7 包2/B）: the target snapshot's own first-commit instant is the
+    # DB write clock now, never backfilled from the component capture times. A
+    # BACKTEST_LOOKBACK materialisation has no PIT commit time and is not proven.
+    first_committed_at = datetime.now(UTC) if captured_before_cutoff else None
     return TeamXgRollingSnapshot(
         snapshot_id=f"{team_id}:{as_of_fixture_id}",
         team_id=team_id,
@@ -189,6 +197,7 @@ def materialize_rolling_xg(
         rolling_goals_against=round(goals_against, 4),
         regression_index=round(regression_index, 4),
         first_captured_at=first_captured_at,
+        first_committed_at=first_committed_at,
         pit_proven=captured_before_cutoff,
     )
 

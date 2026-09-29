@@ -146,7 +146,7 @@ def test_late_price_is_refused() -> None:
         rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
         raw_payloads={CAPTURE_ID: raw},
     )
-    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_UNAVAILABLE"
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_CAPTURED_AFTER_DECISION"
 
 
 def test_non_pinnacle_is_refused() -> None:
@@ -158,7 +158,7 @@ def test_non_pinnacle_is_refused() -> None:
         rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
         raw_payloads={CAPTURE_ID: raw},
     )
-    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_UNAVAILABLE"
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_NOT_PINNACLE"
 
 
 def test_ah_wrong_line_is_refused() -> None:

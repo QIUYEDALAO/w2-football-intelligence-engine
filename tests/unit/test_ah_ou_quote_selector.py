@@ -105,7 +105,7 @@ def test_non_pinnacle_is_refused() -> None:
         row["bookmaker_id"] = "8"
     result = select_v3_ah_ou_quotes(rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
                                      raw_payloads=RAW_PAYLOADS)
-    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_UNAVAILABLE"
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_NOT_PINNACLE"
 
 
 def test_live_is_refused() -> None:
@@ -114,7 +114,7 @@ def test_live_is_refused() -> None:
         row["live"] = True
     result = select_v3_ah_ou_quotes(rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
                                      raw_payloads=RAW_PAYLOADS)
-    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_UNAVAILABLE"
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_LIVE_OR_SUSPENDED"
 
 
 def test_captured_after_decision_is_refused() -> None:
@@ -123,7 +123,7 @@ def test_captured_after_decision_is_refused() -> None:
         row["captured_at"] = (DECISION_AT + timedelta(minutes=5)).isoformat()
     result = select_v3_ah_ou_quotes(rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
                                      raw_payloads=RAW_PAYLOADS)
-    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_UNAVAILABLE"
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_CAPTURED_AFTER_DECISION"
 
 
 def test_different_capture_is_refused() -> None:

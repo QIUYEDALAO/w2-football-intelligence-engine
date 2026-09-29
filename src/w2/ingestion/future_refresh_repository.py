@@ -2996,6 +2996,7 @@ class FutureRefreshDbRepository:
         with Session(self.engine) as session:
             for row in snapshots:
                 first_captured_at = row.get("first_captured_at")
+                first_committed_at = row.get("first_committed_at")
                 session.merge(
                     TeamXgRollingSnapshotModel(
                         snapshot_id=str(row["snapshot_id"]),
@@ -3014,6 +3015,11 @@ class FutureRefreshDbRepository:
                         first_captured_at=(
                             parse_db_datetime(first_captured_at)
                             if first_captured_at
+                            else None
+                        ),
+                        first_committed_at=(
+                            parse_db_datetime(first_committed_at)
+                            if first_committed_at
                             else None
                         ),
                         pit_proven=bool(row.get("pit_proven") or False),

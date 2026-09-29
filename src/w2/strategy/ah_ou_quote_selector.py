@@ -247,20 +247,33 @@ def _select_one_market(
     side_a, side_b = _complementary_sides(market)
 
     scoped: list[tuple[datetime, dict[str, Any]]] = []
+    saw_not_pinnacle = False
+    saw_live_suspended = False
+    saw_late = False
     for row in observations:
         if str(row.get("fixture_id") or "") != fixture_id:
             continue
         if str(row.get("bookmaker_id") or "") != PINNACLE_BOOKMAKER_ID:
+            saw_not_pinnacle = True
             continue
         if row.get("suspended") or row.get("live"):
+            saw_live_suspended = True
             continue
         if str(row.get("canonical_market") or row.get("market") or "").upper() != market:
             continue
         captured = _parse_utc(row.get("captured_at") or row.get("captured_at_utc"))
         if captured is None or captured > decision_at:
+            saw_late = True
             continue
         scoped.append((captured, row))
     if not scoped:
+        # 包3(C): a targeted refusal reason, not a blanket QUOTE_UNAVAILABLE.
+        if saw_late:
+            return {"status": f"{market}_QUOTE_CAPTURED_AFTER_DECISION", "quote": None}
+        if saw_live_suspended:
+            return {"status": f"{market}_QUOTE_LIVE_OR_SUSPENDED", "quote": None}
+        if saw_not_pinnacle:
+            return {"status": f"{market}_QUOTE_NOT_PINNACLE", "quote": None}
         return {"status": f"{market}_QUOTE_UNAVAILABLE", "quote": None}
 
     latest = max(item[0] for item in scoped)
