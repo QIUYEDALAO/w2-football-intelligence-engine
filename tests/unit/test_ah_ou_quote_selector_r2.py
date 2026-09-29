@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+import pytest
 
 from w2.domain.canonical_serialization import (
     HashDomain,
@@ -81,6 +82,29 @@ def test_ready_with_matching_raw() -> None:
         raw_payloads={CAPTURE_ID: raw},
     )
     assert result["status"] == "READY"
+
+
+def test_projection_only_duplicate_side_is_refused_after_ready_control() -> None:
+    raw = _raw()
+    rows = _obs(raw)
+    assert select_v3_ah_ou_quotes(rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+                                  raw_payloads={CAPTURE_ID: raw})["status"] == "READY"
+    rows.insert(1, dict(rows[0]))
+    result = select_v3_ah_ou_quotes(rows, fixture_id=FIXTURE_ID,
+                                    decision_at=DECISION_AT, raw_payloads={CAPTURE_ID: raw})
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_DUPLICATE_SIDE"
+
+
+@pytest.mark.parametrize("price", [None, "NaN", "Inf", "-Inf"])
+def test_nonfinite_or_missing_price_is_refused_after_ready_control(price) -> None:
+    raw = _raw()
+    rows = _obs(raw)
+    assert select_v3_ah_ou_quotes(rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+                                  raw_payloads={CAPTURE_ID: raw})["status"] == "READY"
+    rows[0]["decimal_odds"] = price
+    result = select_v3_ah_ou_quotes(rows, fixture_id=FIXTURE_ID,
+                                    decision_at=DECISION_AT, raw_payloads={CAPTURE_ID: raw})
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_PRICE_INVALID"
 
 
 def test_cross_fixture_raw_is_refused() -> None:

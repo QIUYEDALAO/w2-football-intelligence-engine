@@ -1124,6 +1124,9 @@ def test_07_the_wiring_did_not_touch_a_forbidden_path() -> None:
         "migrations/versions/0072_runtime_ah_settlement_fact.py",
         "migrations/versions/0083_f9_first_committed_at.py",
         "migrations/versions/0084_provider_side_effect_fence.py",
+        # Exact migration authorised by the V9 A–F contract.
+        "migrations/versions/0085_ahou_visibility_and_owned_stages.py",
+        "migrations/versions/0078_quant_asof_role_isolation.py",
         "src/w2/strategy/ah_ou_decision.py",
         "src/w2/strategy/ah_ou_quote_selector.py",
         "src/w2/strategy/ah_ou_decision_ledger.py",

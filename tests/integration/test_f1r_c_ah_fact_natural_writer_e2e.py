@@ -883,7 +883,8 @@ def test_the_refresh_task_carries_the_fact_report_it_wrote(
     assert report["provider_calls"] == 0
     # The result and the database are one claim, not two.
     assert _fact_count(natural) == report["appended"] == 1
-    assert result["status"] == "PASS"
+    assert result["forward_factor_recording"]["recording_status"] == "NOT_EXECUTED"
+    assert result["status"] == "PASS_WITH_RECORDING_INCOMPLETE"
 
 
 def test_the_recovery_path_is_not_the_only_writer() -> None:
@@ -960,6 +961,7 @@ def test_a_writer_that_failed_does_not_let_the_task_report_a_clean_pass(
 
     recording = empty_report(enabled=True, note="")
     recording["recording_status"] = "COMPLETE"
+    recording["evaluations"] = 1
     assert _task_status(recording) == "PASS"
     assert _task_status(recording, ah_fact_report=report) == (
         "PASS_WITH_AH_FACT_INCOMPLETE"

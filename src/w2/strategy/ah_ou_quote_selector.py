@@ -165,42 +165,28 @@ def _source_content_matches(
         )
     except Exception:
         return False
-    # V8/C: raw 规范化出的这个 market 的行必须与投影一对一（集合相等），否则 raw
-    # 里多出的行（raw-only duplicate）或投影缺行都会被拒绝，而不是只证明子集。
-    market_name = str(first.get("canonical_market") or first.get("market") or "").upper()
-    normalized_for_market = [
-        n for n in normalized
-        if str(n.get("canonical_market") or "").upper() == market_name
-    ]
-    if len(normalized_for_market) != len(rows):
-        return False
-    for row in rows:
-        side = _side(row)
-        matches = [
-            normalized_row
-            for normalized_row in normalized
-            if str(normalized_row.get("fixture_id") or "").removeprefix("api_football:")
-            == str(row.get("fixture_id") or "").removeprefix("api_football:")
-            and str(normalized_row.get("bookmaker_id") or "") == str(row.get("bookmaker_id") or "")
-            and str(normalized_row.get("canonical_market") or "").upper()
-            == str(row.get("canonical_market") or row.get("market") or "").upper()
-            and str(normalized_row.get("canonical_selection") or "").upper() == side
-        ]
-        matched = next(
-            (
-                normalized_row
-                for normalized_row in matches
-                if _decimal(normalized_row.get("line")) == _decimal(row.get("line"))
-            ),
-            None,
+    # Compare multisets in exactly the same fixture/bookmaker/capture/market scope.
+    # Other fixtures and companies in a batch response are independent facts.
+    from collections import Counter
+
+    fixture = str(first.get("fixture_id") or "").removeprefix("api_football:")
+    market = str(first.get("canonical_market") or first.get("market") or "").upper()
+    def signature(row):
+        return (
+            str(row.get("fixture_id") or "").removeprefix("api_football:"),
+            str(row.get("bookmaker_id") or ""),
+            str(row.get("canonical_market") or row.get("market") or "").upper(),
+            _side(row), _decimal(row.get("line")),
+            _decimal(row.get("decimal_odds") or row.get("executable_odds")),
+            _parse_utc(row.get("captured_at") or row.get("captured_at_utc")),
+            str(row.get("capture_id") or ""), str(row.get("raw_payload_sha256") or ""),
         )
-        if matched is None:
-            return False
-        if _decimal(row.get("decimal_odds") or row.get("executable_odds")) != _decimal(
-            matched.get("decimal_odds")
-        ):
-            return False
-    return True
+    scoped = [n for n in normalized
+              if str(n.get("fixture_id") or "").removeprefix("api_football:") == fixture
+              and str(n.get("bookmaker_id") or "") == PINNACLE_BOOKMAKER_ID
+              and str(n.get("canonical_market") or "").upper() == market
+              and str(n.get("capture_id") or "") == capture_id]
+    return Counter(map(signature, scoped)) == Counter(map(signature, rows))
 
 
 def _pair_sort_key(
@@ -257,6 +243,8 @@ def _select_one_market(
     saw_late = False
     for row in observations:
         if str(row.get("fixture_id") or "") != fixture_id:
+            continue
+        if str(row.get("canonical_market") or row.get("market") or "").upper() != market:
             continue
         if str(row.get("bookmaker_id") or "") != PINNACLE_BOOKMAKER_ID:
             saw_not_pinnacle = True

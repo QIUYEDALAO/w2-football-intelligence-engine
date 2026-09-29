@@ -265,6 +265,10 @@ class TeamXgRollingSnapshotModel(Base):
     # True only for live PIT captures. Backfilled rows are BACKTEST_LOOKBACK and
     # must never be treated as point-in-time proven evidence.
     pit_proven: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    decision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_matches: Mapped[list | None] = mapped_column(JSON)
+    proof_pending: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    source_pit_requested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class TeamXgRollingSnapshotBacktestModel(Base):

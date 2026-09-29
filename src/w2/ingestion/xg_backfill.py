@@ -787,7 +787,7 @@ class XgHistoryBackfillService:
                 snapshot = materialize_rolling_xg(
                     team_id=team_id,
                     as_of_fixture_id=fixture_id,
-                    as_of_time=kickoff,
+                    as_of_time=kickoff - timedelta(hours=2),
                     matches=materialized_matches,
                     window=self.config.max_rolling_matches,
                     min_matches=self.config.min_rolling_matches,
@@ -820,6 +820,8 @@ class XgHistoryBackfillService:
                                 else None
                             ),
                             "pit_proven": snapshot.pit_proven,
+                            "decision_at": iso(snapshot.decision_at) if snapshot.decision_at else None,
+                            "source_matches": list(snapshot.source_matches),
                         }
                     )
         return rows

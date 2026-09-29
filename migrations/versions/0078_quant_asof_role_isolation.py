@@ -69,7 +69,9 @@ def downgrade() -> None:
     for role in (_ASOF_ROLE, _INGEST_ROLE, _POSTEVENT_ROLE):
         op.execute(
             f"DO $$ BEGIN "
-            f"IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN "
+            f"IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') "
+            f"AND NOT EXISTS (SELECT 1 FROM pg_shdepend d JOIN pg_roles r ON r.oid=d.refobjid "
+            f"WHERE r.rolname='{role}' AND d.refclassid='pg_authid'::regclass) THEN "
             f"DROP ROLE {role}; "
             f"END IF; END $$;"
         )

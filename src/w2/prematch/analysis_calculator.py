@@ -2444,6 +2444,7 @@ class ReadModelService:
             card=card,
         )
         request_service._attach_dynamic_prematch_lifecycle(projected)
+        request_service._apply_ah_ou_commit_receipt(projected)
         return projected
 
     def _uses_frozen_public_authority(self) -> bool:
@@ -3386,13 +3387,67 @@ class ReadModelService:
                 evaluated_at=context.as_of,
             )
         )
+        if getattr(self._forward_factor_recorder, "historical_audit_contract", None) == "w2.f1r.compatibility.v1":
+            self._record_historical_factor_audit(
+                context=context, snapshots=snapshots, observations=observations,
+                home_history=home_history, away_history=away_history,
+                h2h_meetings=h2h_meetings, home_xg=home_xg, away_xg=away_xg,
+            )
         self._isolate_non_current_quote_outputs(payload)
         self._attach_xg_reason_values(
             payload,
             home_xg=latest_home_xg,
             away_xg=latest_away_xg,
         )
+        result = getattr(self, "_ah_ou_result", None)
+        if isinstance(result, dict):
+            payload["ah_ou_result"] = result
+        self._apply_ah_ou_commit_receipt(payload)
         return payload
+
+    @staticmethod
+    def _apply_ah_ou_commit_receipt(payload):
+        result = payload.get("ah_ou_result")
+        if not isinstance(result, dict):
+            return
+        receipt = result.get("recording", {}).get("receipt") or {}
+        committed = {d["market"]: d for d in receipt.get("decisions", [])} if isinstance(receipt, dict) else {}
+        for market in payload.get("markets", []):
+            name = market.get("market")
+            if name not in {"ASIAN_HANDICAP", "TOTALS"}:
+                continue
+            reason = (result.get("market_reasons") or {}).get(name)
+            market["recording"] = result.get("recording")
+            market["reason"] = reason
+            if reason:
+                market["reasons"] = [reason]
+            if name in committed:
+                row = committed[name]
+                tendency = (f"{row['direction']}_AH" if name == "ASIAN_HANDICAP" else row["direction"]) if row["selected"] else None
+                decision = "ANALYSIS_PICK" if row["selected"] else ("SKIP" if row["skip_reason"] else "NO_EDGE")
+                market.update(selected=row["selected"], score=row["score"], decision_score=row["score"],
+                              direction=row["direction"], tendency=tendency, decision=decision,
+                              analysis_decision=decision, decision_hash=row["decision_id"])
+            if result.get("recording", {}).get("status") != "COMMITTED":
+                market.update(selected=False, tendency=None, direction=None, decision="SKIP", reason="WRITE_FAILED")
+
+    def _record_historical_factor_audit(self, *, context, snapshots, observations,
+                                        home_history, away_history, h2h_meetings, home_xg, away_xg):
+        """F1R recording compatibility consumer; output cannot drive public v3.
+
+        This separate write-side audit retains the four-factor observation
+        contract. Read-only v3 evaluation never calls it or reads F5 settlements.
+        """
+        home_ah, away_ah = self._runtime_ah_settlement_histories(
+            context=context, home_team_id=context.home_team_id, away_team_id=context.away_team_id)
+        feature_set = build_feature_set(context=context, inputs=FeatureInputs(
+            market_snapshots=self._market_snapshots_from_observations(observations),
+            bookmaker_quotes=self._bookmaker_quotes_from_observations(observations),
+            home_history=home_history, away_history=away_history,
+            home_ah_history=home_ah, away_ah_history=away_ah,
+            h2h_meetings=h2h_meetings, home_xg=home_xg, away_xg=away_xg))
+        self._forward_factor_recorder.record(fixture_id=context.fixture_id,
+            feature_set=feature_set, context=context, xg_snapshots=snapshots)
 
     def _record_forward_factor_observations(
         self,
@@ -3625,6 +3680,7 @@ class ReadModelService:
         and two-sided prices). Returns ``(ah_selection, ou_selection, status)``;
         a non-``READY`` status carries ``None`` selections (direction 0).
         """
+        self._ah_ou_result = None
         if not (
             callable(getattr(repository, "team_xg_rolling_snapshots_for_w2_teams", None))
             and callable(getattr(repository, "canonical_match_history_for_teams", None))
@@ -3819,15 +3875,19 @@ class ReadModelService:
         fact -- the caller then drops the public direction (selected=false), never
         publishing a recommendation whose ledger write did not commit.
         """
+        result["schema_version"] = "w2.ah_ou_result.v3.1"
+        result["recording"] = {"status": "NOT_RECORDED", "reason": None}
+        self._ah_ou_result = result
         writer = getattr(repository, "write_ah_ou_decision_batch", None)
         if not callable(writer):
             logging.getLogger(__name__).warning(
                 "AH_OU_DECISION_BATCH_WRITER_UNAVAILABLE: decision not recorded "
                 "(WRITE_NOT_RECORDED): fixture=%s", fixture_id,
             )
+            result["recording"]["reason"] = "WRITER_UNAVAILABLE"
             return False
         from w2.strategy.ah_ou_decision_ledger import (
-            build_ah_ou_input_hash,
+            build_ah_ou_input_hash, canonical_decision_score_text,
         )
         from w2.strategy.ah_ou_softmax import load_ah_model, load_ou_model
         from w2.strategy.ah_ou_cohort import preregister_cohort
@@ -3895,11 +3955,11 @@ class ReadModelService:
                 selected = False
                 direction = None
                 score = 0.0
-                skip_reason = str(result.get("status"))
+                skip_reason = (result.get("market_reasons") or {}).get(market) or str(result.get("status"))
             else:
                 selected = bool(selection.get("selected"))
                 direction = (
-                    selection.get("side") if market == "ASIAN_HANDICAP" else "OVER"
+                    (selection.get("side") if market == "ASIAN_HANDICAP" else "OVER") if selected else None
                 )
                 score = float(selection.get("score") or selection.get("edge") or 0.0)
                 skip_reason = None
@@ -3957,11 +4017,25 @@ class ReadModelService:
         cohort["decision_at"] = decision_at  # upsert_cohort expects a datetime
         cohort["created_at"] = created_at
         try:
-            writer(cohort=cohort, decisions=decisions)
+            receipt = writer(cohort=cohort, decisions=decisions)
+            if not isinstance(receipt, dict) or receipt.get("cohort_id") != cohort["cohort_id"]:
+                raise RuntimeError("AH_OU_COMMIT_RECEIPT_MISSING")
+            committed = receipt.get("decisions")
+            if not isinstance(committed, list) or len(committed) != 2 or {d.get("market") for d in committed} != {d["market"] for d in decisions}:
+                raise RuntimeError("AH_OU_COMMIT_RECEIPT_INCOMPLETE")
+            for expected in decisions:
+                actual = next(d for d in committed if d["market"] == expected["market"])
+                if any(actual.get(k) != expected[k] for k in ("selected", "direction", "skip_reason")) or float(actual["score"]) != float(canonical_decision_score_text(expected["score"])):
+                    raise RuntimeError("AH_OU_COMMIT_RECEIPT_CONTENT_CONFLICT")
+                if not isinstance(actual.get("decision_id"), str) or len(actual["decision_id"]) != 64:
+                    raise RuntimeError("AH_OU_COMMIT_RECEIPT_ID_INVALID")
+            result["recording"] = {"status": "COMMITTED", "receipt": receipt}
+            result["market_reasons"] = {d["market"]: d["skip_reason"] for d in decisions}
         except Exception as exc:  # noqa: BLE001 - fail the public direction, not the card
             logging.getLogger(__name__).warning(
                 "AH_OU_DECISION_BATCH_WRITE_FAILED: %s fixture=%s", exc, fixture_id,
             )
+            result["recording"] = {"status": "NOT_RECORDED", "reason": "WRITE_OR_COMMIT_FAILED", "error": str(exc)}
             return False
         return True
 
@@ -3982,7 +4056,13 @@ class ReadModelService:
         A: when no writer is available the public direction is still 0 and the
         unrecorded refusal is surfaced explicitly, never reported as recorded.
         """
+        reasons = {market: (str((mainline_selection.get(market) or {}).get("v3_status"))
+                            if (mainline_selection.get(market) or {}).get("v3_status") not in {None, "READY"}
+                            else None) for market in ("ASIAN_HANDICAP", "TOTALS")}
+        quote_blocked = any(reasons.values())
         skip_result = {
+            "market_reasons": {market: reason or ("DEPENDENCY_BLOCKED" if quote_blocked else status) for market, reason in reasons.items()},
+            "global_blockers": [status],
             "status": status,
             "ah": None,
             "ou": None,
@@ -6527,6 +6607,7 @@ class ReadModelService:
                 )
                 else "SKIP"
             )
+        self._apply_ah_ou_commit_receipt(decorated)
         return decorated
 
     def _factor_veto(

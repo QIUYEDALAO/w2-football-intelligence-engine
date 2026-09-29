@@ -409,8 +409,11 @@ def test_analysis_card_falls_back_for_db_fixture_when_dashboard_exists() -> None
     assert card["data_readiness"]["market_observations"] == 2
     assert all(market.get("odds") is None for market in card["markets"])
     assert card.get("pick") is None
-    assert card["markets"][0]["reasons"] == ["无有效主盘"]
-    assert card["markets"][1]["reasons"] == ["无有效主盘"]
+    assert card["markets"][0]["reasons"] == ["ASIAN_HANDICAP_QUOTE_NOT_PINNACLE"]
+    assert card["markets"][0]["selected"] is False
+    assert card["markets"][0]["recording"]["status"] == "COMMITTED"
+    assert card["markets"][0]["reason"] == "ASIAN_HANDICAP_QUOTE_NOT_PINNACLE"
+    assert card["markets"][1]["reasons"] == ["TOTALS_QUOTE_NOT_PINNACLE"]
 
 
 def test_fixture_list_includes_team_names_for_loading_cards() -> None:

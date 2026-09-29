@@ -19,7 +19,7 @@ from w2.domain.canonical_serialization import (
     SerializerVersion,
     canonical_sha256,
 )
-from w2.features.xg_materialization import statistics_xg_by_team
+from w2.features.xg_materialization import statistics_xg_by_team, TeamXgMatch, materialize_rolling_xg, parse_team_xg_matches
 from w2.identity import CanonicalIdentityRepository
 from w2.identity.canonical_identity_repository import (
     PROVIDER_PRIMARY_READY,
@@ -2725,33 +2725,26 @@ class FutureRefreshDbRepository:
             if sha in payloads
         }
 
-    def endpoint_captures_for_ids(
-        self, capture_ids: list[str]
-    ) -> dict[str, dict[str, Any]]:
-        """Resolve ``capture_id -> {fixture_id, raw_payload_sha256}`` (V8/B strong ref).
-
-        Used by the F6 admission to prove the cited endpoint capture actually
-        exists and binds the same fixture/raw hash -- not merely that the ID is
-        non-empty.
-        """
+    def endpoint_captures_for_ids(self, capture_ids: list[str]) -> dict[str, dict[str, Any]]:
         ids = [cid for cid in dict.fromkeys(capture_ids) if cid]
         if not ids:
             return {}
         with self._asof_scoped_session() as session:
-            rows = list(
-                session.scalars(
-                    select(MatchdayEndpointCaptureModel).where(
-                        MatchdayEndpointCaptureModel.capture_id.in_(ids)
-                    )
-                )
-            )
-        return {
-            str(row.capture_id): {
-                "fixture_id": row.fixture_id,
-                "raw_payload_sha256": row.raw_payload_sha256,
-            }
-            for row in rows
-        }
+            if self.engine.dialect.name == "postgresql" and self._asof_role:
+                return {row["capture_id"]: dict(row) for row in session.execute(text(
+                    "SELECT * FROM ah_ou_history_capture_sources WHERE capture_id = ANY(:ids)"
+                ), {"ids": ids}).mappings()}
+            rows = list(session.scalars(select(MatchdayEndpointCaptureModel).where(
+                MatchdayEndpointCaptureModel.capture_id.in_(ids))))
+            raws = {r.sha256: r for r in session.scalars(select(RawPayloadModel).where(
+                RawPayloadModel.sha256.in_([r.raw_payload_sha256 for r in rows])))}
+            return {str(r.capture_id): {
+                "fixture_id": r.fixture_id, "raw_payload_sha256": r.raw_payload_sha256,
+                "capture_status": r.capture_status, "status_code": r.status_code,
+                "provider_captured_at": iso_z(r.provider_captured_at),
+                "raw_payload": raws[r.raw_payload_sha256].payload if r.raw_payload_sha256 in raws else None,
+                "raw_captured_at": iso_z(raws[r.raw_payload_sha256].captured_at) if r.raw_payload_sha256 in raws else None,
+            } for r in rows}
 
     def write_ah_ou_decision(self, **kwargs: Any) -> Any:
         """Write an AH/OU v3 decision ledger row (idempotent, slot-conflict-stopped).
@@ -2768,7 +2761,7 @@ class FutureRefreshDbRepository:
 
     def write_ah_ou_decision_batch(
         self, *, cohort: dict[str, Any], decisions: list[dict[str, Any]]
-    ) -> None:
+    ) -> dict[str, Any]:
         """Atomically write the AH/OU cohort + both market decisions in one
         transaction. An OU conflict (or any step) rolls back the whole batch, so a
         one-sided AH ledger row can never survive.
@@ -2777,7 +2770,8 @@ class FutureRefreshDbRepository:
 
         with Session(self.engine) as session:
             with session.begin():
-                write_ah_ou_decision_batch(session, cohort=cohort, decisions=decisions)
+                receipt = write_ah_ou_decision_batch(session, cohort=cohort, decisions=decisions)
+        return receipt
 
     def raw_payload_count(self, endpoint: str) -> int:
         with Session(self.engine) as session:
@@ -3020,53 +3014,130 @@ class FutureRefreshDbRepository:
         }
 
     def upsert_team_xg_rolling_snapshots(self, snapshots: list[dict[str, Any]]) -> int:
-        upserted = 0
-        with Session(self.engine) as session:
+        """Freeze once, commit, then confirm visibility in a distinct transaction.
+
+        Only rows inserted by this protocol receive proof. Historical NULLs stay
+        NULL. Application first_committed_at is never a persistence authority.
+        PostgreSQL's trigger timestamps the confirmation with clock_timestamp().
+        """
+        inserted = []
+        with Session(self.engine) as session, session.begin():
             for row in snapshots:
-                first_captured_at = row.get("first_captured_at")
-                first_committed_at = row.get("first_committed_at")
-                # DB 权威时钟（V8/B）：首提交只写一次；merge 不得把已有旧身份的
-                # first_committed_at 覆盖（否则背填 now 会把晚生改写为赛前）。
-                existing = session.get(
-                    TeamXgRollingSnapshotModel, str(row["snapshot_id"])
-                )
-                if existing is not None and existing.first_committed_at is not None:
-                    first_committed_at = iso_z(existing.first_committed_at)
-                session.merge(
-                    TeamXgRollingSnapshotModel(
-                        snapshot_id=str(row["snapshot_id"]),
-                        team_id=str(row["team_id"]),
-                        as_of_fixture_id=str(row["as_of_fixture_id"]),
-                        as_of_time=parse_db_datetime(row["as_of_time"]),
-                        match_count=int(row["match_count"]),
-                        rolling_xg_for=float(row["rolling_xg_for"]),
-                        rolling_xg_against=float(row["rolling_xg_against"]),
-                        rolling_goals_for=float(row["rolling_goals_for"]),
-                        rolling_goals_against=float(row["rolling_goals_against"]),
-                        regression_index=float(row["regression_index"]),
-                        source_system=str(row["source_system"]),
-                        candidate=False,
-                        formal_recommendation=False,
-                        first_captured_at=(
-                            parse_db_datetime(first_captured_at)
-                            if first_captured_at
-                            else None
-                        ),
-                        first_committed_at=(
-                            parse_db_datetime(first_committed_at)
-                            if first_committed_at
-                            else None
-                        ),
-                        pit_proven=bool(row.get("pit_proven") or False),
-                    )
-                )
-                upserted += 1
-            try:
-                session.commit()
-            except Exception as exc:
-                session.rollback()
-                raise FutureRefreshPersistenceError("TEAM_XG_SNAPSHOT_WRITE_FAILED") from exc
-        return upserted
+                values = {
+                    "snapshot_id": str(row["snapshot_id"]), "team_id": str(row["team_id"]),
+                    "as_of_fixture_id": str(row["as_of_fixture_id"]),
+                    "as_of_time": parse_db_datetime(row["as_of_time"]),
+                    "match_count": int(row["match_count"]),
+                    **{k: float(row[k]) for k in (
+                        "rolling_xg_for", "rolling_xg_against", "rolling_goals_for",
+                        "rolling_goals_against", "regression_index")},
+                    "source_system": str(row["source_system"]),
+                    "first_captured_at": parse_db_datetime(row["first_captured_at"]) if row.get("first_captured_at") else None,
+                    "decision_at": parse_db_datetime(row["decision_at"]) if row.get("decision_at") else None,
+                    "source_matches": row.get("source_matches"),
+                    "source_pit_requested": bool(row.get("source_pit_requested", row.get("pit_proven", False))),
+                    "candidate": False, "formal_recommendation": False,
+                }
+                existing = session.get(TeamXgRollingSnapshotModel, values["snapshot_id"])
+                if existing is not None:
+                    for key, value in values.items():
+                        actual = getattr(existing, key)
+                        if isinstance(value, datetime) and isinstance(actual, datetime):
+                            value, actual = iso_z(value), iso_z(actual)
+                        if actual != value:
+                            raise FutureRefreshPersistenceError(f"TEAM_XG_SNAPSHOT_FIELD_CONFLICT:{key}")
+                    continue
+                # Verify frozen components against persisted source facts, not
+                # against another copy supplied by the snapshot caller.
+                components = values["source_matches"] or []
+                source_valid = (len(components) == values["match_count"] and bool(components)
+                                and len({c.get("id") for c in components}) == len(components))
+                identity = session.scalar(select(MatchdayFixtureIdentityModel).where(
+                    MatchdayFixtureIdentityModel.provider_fixture_id == values["as_of_fixture_id"].removeprefix("api_football:")))
+                if identity is None or values["decision_at"] is None or parse_db_datetime(identity.kickoff_utc) - timedelta(hours=2) != values["decision_at"]:
+                    source_valid = False
+                verified_matches = []
+                fixture_raw = list(session.scalars(select(RawPayloadModel).where(RawPayloadModel.endpoint == "fixtures")))
+                for component in components:
+                    if (component.get("raw_hash_domain") != HashDomain.FUTURE_REFRESH_RAW_PAYLOAD.value
+                        or component.get("raw_serializer_version") != SerializerVersion.LEGACY_V1.value):
+                        source_valid = False
+                    fact = session.get(TeamXgMatchModel, str(component.get("id") or ""))
+                    if fact is None:
+                        source_valid = False
+                        continue
+                    for key in ("fixture_id", "team_id", "opponent_team_id", "xg_for", "xg_against",
+                                "goals_for", "goals_against", "raw_payload_sha256"):
+                        if getattr(fact, key) != component.get(key):
+                            source_valid = False
+                    for key in ("captured_at", "kickoff_at"):
+                        if iso_z(getattr(fact, key)) != iso_z(parse_db_datetime(component[key])):
+                            source_valid = False
+                    raw = session.get(RawPayloadModel, fact.raw_payload_sha256)
+                    if raw is None or raw.endpoint != "statistics":
+                        source_valid = False
+                    else:
+                        digest = canonical_sha256(raw.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+                                                  version=SerializerVersion.LEGACY_V1)
+                        xg = statistics_xg_by_team(raw.payload)
+                        if (digest != raw.sha256 or str((raw.payload.get("parameters") or {}).get("fixture")) != fact.fixture_id
+                            or xg.get(fact.team_id) != fact.xg_for or xg.get(fact.opponent_team_id) != fact.xg_against
+                            or parse_db_datetime(raw.captured_at) != parse_db_datetime(fact.captured_at)):
+                            source_valid = False
+                    candidates = []
+                    for fixture_source in fixture_raw:
+                        if parse_db_datetime(fixture_source.captured_at) > parse_db_datetime(fact.captured_at):
+                            continue
+                        if canonical_sha256(fixture_source.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+                                            version=SerializerVersion.LEGACY_V1) != fixture_source.sha256:
+                            continue
+                        for item in fixture_source.payload.get("response", []):
+                            if str((item.get("fixture") or {}).get("id")) == fact.fixture_id:
+                                candidates.append((fixture_source.captured_at, item))
+                    if not candidates or raw is None:
+                        source_valid = False
+                    else:
+                        latest_source = max(candidates, key=lambda item: item[0])[1]
+                        parsed = parse_team_xg_matches(fixture_payload=latest_source, statistics_payload=raw.payload,
+                            captured_at=parse_db_datetime(raw.captured_at), raw_payload_sha256=raw.sha256)
+                        expected_fact = next((item for item in parsed if item.team_id == fact.team_id), None)
+                        if expected_fact is None or any(getattr(expected_fact,k) != getattr(fact,k) for k in (
+                            "fixture_id", "team_id", "opponent_team_id", "kickoff_at", "goals_for", "goals_against", "xg_for", "xg_against")):
+                            source_valid = False
+                    verified_matches.append(TeamXgMatch(**{k: getattr(fact,k) for k in (
+                        "fixture_id", "team_id", "opponent_team_id", "kickoff_at", "captured_at", "xg_for", "xg_against",
+                        "goals_for", "goals_against", "raw_payload_sha256", "source_system")}))
+                if verified_matches and values["decision_at"] is not None:
+                    expected = materialize_rolling_xg(team_id=values["team_id"], as_of_fixture_id=values["as_of_fixture_id"],
+                        as_of_time=values["decision_at"], matches=verified_matches, window=values["match_count"])
+                    if expected is None:
+                        source_valid = False
+                    else:
+                        for key in ("as_of_time", "first_captured_at", "match_count", "rolling_xg_for", "rolling_xg_against",
+                                    "rolling_goals_for", "rolling_goals_against", "regression_index"):
+                            if getattr(expected,key) != values[key]:
+                                source_valid = False
+                pending = source_valid and values["decision_at"] is not None
+                session.add(TeamXgRollingSnapshotModel(**values,
+                    first_committed_at=None, pit_proven=False, proof_pending=pending))
+                inserted.append(values["snapshot_id"])
+        # A different connection/transaction sees only committed rows. The
+        # confirmation instant is a conservative upper bound on first readability.
+        if self.engine.dialect.name == "postgresql" and inserted:
+            from sqlalchemy import update
+            with Session(self.engine) as confirmation, confirmation.begin():
+                visible = list(confirmation.scalars(select(TeamXgRollingSnapshotModel).where(
+                    TeamXgRollingSnapshotModel.snapshot_id.in_(inserted),
+                    TeamXgRollingSnapshotModel.proof_pending.is_(True))))
+                for frozen in visible:
+                    confirmation.execute(update(TeamXgRollingSnapshotModel).where(
+                        TeamXgRollingSnapshotModel.snapshot_id == frozen.snapshot_id,
+                        TeamXgRollingSnapshotModel.proof_pending.is_(True),
+                    ).values(proof_pending=False, first_committed_at=func.clock_timestamp(),
+                             pit_proven=(TeamXgRollingSnapshotModel.source_pit_requested &
+                                (func.clock_timestamp() <= TeamXgRollingSnapshotModel.decision_at) &
+                                (TeamXgRollingSnapshotModel.first_captured_at <= TeamXgRollingSnapshotModel.decision_at))))
+        return len(snapshots)
 
     def team_xg_rolling_snapshots(
         self,
@@ -3171,6 +3242,9 @@ class FutureRefreshDbRepository:
             "formal_recommendation": False,
             "first_captured_at": iso_z(row.first_captured_at) if row.first_captured_at else None,
             "first_committed_at": iso_z(row.first_committed_at) if row.first_committed_at else None,
+            "decision_at": iso_z(row.decision_at) if row.decision_at else None,
+            "source_matches": row.source_matches,
+            "source_pit_requested": row.source_pit_requested,
             "pit_proven": bool(row.pit_proven),
         }
 

@@ -1335,9 +1335,20 @@ def test_worker_future_refresh_uses_allowlisted_live_client(monkeypatch) -> None
     assert client.allowed_live_endpoints == frozenset({"status", "fixtures", "odds", "lineups"})
     # `status` is this task's pass/fail verdict and now includes its factor
     # recording; the refresh audit's own verdict is kept next to it.
-    assert result["status"] == "PASS"
+    assert result["status"] == "PASS_WITH_RECORDING_INCOMPLETE"
     assert result["audit_status"] == "COMPLETED"
-    assert result["forward_factor_recording"]["recording_status"] == "COMPLETE"
+    assert result["forward_factor_recording"]["recording_status"] == "NOT_EXECUTED"
+
+
+def test_zero_evaluation_recording_is_not_complete() -> None:
+    from w2.quant_research.forward_factor_recording import empty_report, merge_reports
+
+    assert merge_reports([])["recording_status"] == "NOT_EXECUTED"
+    assert merge_reports([])["recording_incomplete"] is True
+    empty_pass = empty_report(enabled=True, recording_status="COMPLETE")
+    assert merge_reports([empty_pass])["recording_status"] == "NOT_EXECUTED"
+    assert merge_reports([empty_report(enabled=False)])["recording_status"] == "DISABLED"
+    assert merge_reports([merge_reports([empty_pass]), dict(empty_pass, evaluations=2)])["recording_status"] == "COMPLETE"
 
 
 def test_scheduler_checkpoint_batch_queries_persisted_due_plans_directly(monkeypatch) -> None:

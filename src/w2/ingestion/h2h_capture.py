@@ -114,6 +114,32 @@ def _persist_capture(
     return str(capture["capture_id"])
 
 
+def _freeze_h2h_history_row(session: Session, payload: dict) -> bool:
+    """One immutable source identity; retry compares every frozen business field."""
+    def same(existing):
+        for field, expected in payload.items():
+            actual = getattr(existing, field)
+            if isinstance(expected, datetime) and isinstance(actual, datetime):
+                expected, actual = (value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC) for value in (expected,actual))
+            if actual != expected:
+                raise RuntimeError(f"F6_HISTORY_FIELD_CONFLICT:{field}")
+    existing = session.get(CanonicalTeamMatchHistoryModel, payload["history_id"])
+    if existing is not None:
+        same(existing)
+        return False
+    try:
+        with session.begin_nested():
+            session.add(CanonicalTeamMatchHistoryModel(**payload))
+            session.flush()
+        return True
+    except IntegrityError:
+        existing = session.get(CanonicalTeamMatchHistoryModel, payload["history_id"])
+        if existing is None:
+            raise
+        same(existing)
+        return False
+
+
 def capture_h2h_for_pair(
     *,
     home_provider_team_id: str,
@@ -131,7 +157,7 @@ def capture_h2h_for_pair(
         "h2h", {"h2h": f"{home_provider_team_id}-{away_provider_team_id}", "last": "10"}
     )
     if response.status_code >= 400:
-        return 0
+        raise RuntimeError("F6_H2H_CAPTURE_FAILED")
     now = datetime.now(UTC)
     inserted = 0
     with Session(engine) as session:
@@ -154,17 +180,12 @@ def capture_h2h_for_pair(
                 season=meeting_season,
                 source_raw_hash=stable_hash(item),
                 endpoint_capture_id=capture_id,
-                captured_at=now,
+                captured_at=response.captured_at.astimezone(UTC),
                 provider_to_w2=mapping,
             ):
-                model = CanonicalTeamMatchHistoryModel(**payload)
-                try:
-                    with session.begin_nested():
-                        session.add(model)
-                        session.flush()
+                if _freeze_h2h_history_row(session, payload):
                     inserted += 1
-                except IntegrityError:
-                    pass
+
         session.commit()
     return inserted
 

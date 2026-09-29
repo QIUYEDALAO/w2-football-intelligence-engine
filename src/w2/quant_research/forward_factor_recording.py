@@ -187,11 +187,13 @@ RECORDING_COMPLETE = "COMPLETE"
 RECORDING_INCOMPLETE = "INCOMPLETE"
 RECORDING_DISABLED = "DISABLED"
 RECORDING_UNAVAILABLE = "UNAVAILABLE"
+RECORDING_NOT_EXECUTED = "NOT_EXECUTED"
 RECORDING_STATUSES = (
     RECORDING_COMPLETE,
     RECORDING_INCOMPLETE,
     RECORDING_DISABLED,
     RECORDING_UNAVAILABLE,
+    RECORDING_NOT_EXECUTED,
 )
 #: Worst first. A run that could not record at all is reported as such even if
 #: another part of the run simply had the switch off.
@@ -199,6 +201,7 @@ RECORDING_STATUS_PRECEDENCE = (
     RECORDING_UNAVAILABLE,
     RECORDING_INCOMPLETE,
     RECORDING_DISABLED,
+    RECORDING_NOT_EXECUTED,
     RECORDING_COMPLETE,
 )
 
@@ -219,7 +222,7 @@ def empty_report(
         "schema_version": RECORDING_SCHEMA,
         "enabled": enabled,
         "recording_status": status,
-        "recording_incomplete": status == RECORDING_INCOMPLETE,
+        "recording_incomplete": status in {RECORDING_INCOMPLETE, RECORDING_NOT_EXECUTED},
         "evaluations": 0,
         "status_counts": {},
         "refusal_codes": {},
@@ -233,14 +236,13 @@ def empty_report(
 
 def merge_reports(reports: Sequence[dict[str, Any]]) -> dict[str, Any]:
     """One report for a call that ran several projection passes."""
+    if not reports:
+        return empty_report(enabled=False, note="NO_RECORDING_PASSES",
+                            recording_status=RECORDING_NOT_EXECUTED)
     merged = empty_report(
         enabled=any(bool(report.get("enabled")) for report in reports),
         recording_status=RECORDING_COMPLETE,
     )
-    merged["recording_status"] = _worst_status(
-        str(report.get("recording_status") or RECORDING_COMPLETE) for report in reports
-    )
-    merged["recording_incomplete"] = merged["recording_status"] == RECORDING_INCOMPLETE
     for report in reports:
         merged["evaluations"] += int(report.get("evaluations") or 0)
         merged["rows_appended"] += int(report.get("rows_appended") or 0)
@@ -252,6 +254,16 @@ def merge_reports(reports: Sequence[dict[str, Any]]) -> dict[str, Any]:
             assert isinstance(target, dict)
             for name, count in (report.get(key) or {}).items():
                 target[str(name)] = target.get(str(name), 0) + int(count)
+    statuses = [str(report.get("recording_status") or RECORDING_COMPLETE) for report in reports]
+    if merged["evaluations"] > 0:
+        # An empty companion pass cannot erase evaluations another pass wrote.
+        statuses = [status for status in statuses if status != RECORDING_NOT_EXECUTED]
+    merged["recording_status"] = _worst_status(statuses) if statuses else RECORDING_NOT_EXECUTED
+    if merged["evaluations"] == 0 and merged["recording_status"] == RECORDING_COMPLETE:
+        merged["recording_status"] = RECORDING_NOT_EXECUTED
+        merged["note"] = "NO_EVALUATIONS"
+    merged["recording_incomplete"] = merged["recording_status"] in {
+        RECORDING_INCOMPLETE, RECORDING_NOT_EXECUTED}
     notes = sorted({str(report["note"]) for report in reports if report.get("note")})
     if len(notes) == 1:
         merged["note"] = notes[0]
@@ -343,6 +355,8 @@ class RecordingRefusal(Exception):
 
 
 class ForwardFactorRecorder:
+    historical_audit_contract = "w2.f1r.compatibility.v1"
+
     """The production call site's recorder. One per composition root."""
 
     def __init__(
@@ -809,9 +823,8 @@ class ForwardFactorRecorder:
         batch = self._state_the_two_instants(
             batch, cutoff=cutoff, evaluation_instant=evaluation_instant
         )
-        appended = self.modules.store.ForwardFactorObservationStore(
-            self.engine
-        ).append_batch(batch)
+        from w2.quant_research.forward_factor_modules import runtime_store
+        appended = runtime_store(self.modules)(self.engine).append_batch(batch)
         return {
             "status": "RECORDED",
             "fixture_id": str(fixture_id),
@@ -882,7 +895,7 @@ class ForwardFactorRecorder:
             idempotent += int(outcome.get("idempotent_no_ops") or 0)
         if not self.enabled:
             status = RECORDING_DISABLED
-        elif codes:
+        elif codes or not self.outcomes:
             status = RECORDING_INCOMPLETE
         else:
             status = RECORDING_COMPLETE

@@ -566,10 +566,13 @@ class FakeCanonicalDbRepository(FakeDbRepository):
         return [row for row in rows if row["team_id"] in team_ids]
 
     def write_ah_ou_decision_batch(self, *, cohort, decisions) -> None:
-        # R3 atomic-batch sink; these fixtures assert the decision path, not the
-        # ledger write, so a no-op sink is sufficient.
+        # Explicit synthetic commit acknowledgement for adapter unit controls.
+        # The isolated PG chain separately verifies actual commit/readback.
         self.last_cohort = cohort
         self.last_decisions = decisions
+        return {"cohort_id": cohort["cohort_id"], "decisions": [
+            {**{k:d[k] for k in ("market", "selected", "direction", "skip_reason")},
+             "score": format(float(d["score"]), ".8f"), "decision_id": d["input_hash"]} for d in decisions]}
 
 
 class FakeCanonicalDbRepositoryCurrentXg(FakeCanonicalDbRepository):
@@ -947,8 +950,9 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     # snapshot ports), so the softmax admission refuses with a structured SKIP.
     # AH's `market["decision"]` stays owned by the softmax path; only its
     # reasons reflect the refusal.
-    assert ah_market["reason"] == "SOFTMAX_REPOSITORY_UNAVAILABLE"
-    assert totals_market["reason"] == "SOFTMAX_REPOSITORY_UNAVAILABLE"
+    assert ah_market["reason"] == "WRITE_FAILED"
+    assert ah_market["recording"]["reason"] == "WRITER_UNAVAILABLE"
+    assert totals_market["reason"] == "WRITE_FAILED"
     assert score_market["scores"] == []
     # 停用因子彻底退出新路径：不再 infer bookmaker_intent，展示为 INSUFFICIENT_DATA。
     assert card["bookmaker_intent"]["intent"] == "INSUFFICIENT_DATA"
@@ -1236,5 +1240,7 @@ def test_analysis_card_skips_market_when_only_extreme_lines_exist(monkeypatch) -
     assert totals_market["decision"] == "SKIP"
     assert ah_market["line_status"] == "NO_BALANCED_MAINLINE"
     assert totals_market["line_status"] == "NO_BALANCED_MAINLINE"
-    assert ah_market["reason"] == "无有效主盘"
-    assert totals_market["reason"] == "无有效主盘"
+    assert ah_market["reason"] == "WRITE_FAILED"
+    assert ah_market["recording"]["status"] == "NOT_RECORDED"
+    assert totals_market["reason"] == "WRITE_FAILED"
+    assert totals_market["recording"]["status"] == "NOT_RECORDED"

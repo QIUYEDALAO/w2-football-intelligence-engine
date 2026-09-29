@@ -43,6 +43,9 @@ def _decimal_text(value: Any) -> str:
     return format(float(value), ".8f")
 
 
+canonical_decision_score_text = _decimal_text
+
+
 def _iso(value: datetime) -> str:
     # SQLite stores DateTime(timezone=True) as a naive value on read-back; treat
     # a naive value as UTC so the same logical instant hashes and compares equal
@@ -415,7 +418,7 @@ def write_ah_ou_decision_batch(
     *,
     cohort: dict[str, Any],
     decisions: list[dict[str, Any]],
-) -> None:
+) -> dict[str, Any]:
     """Atomic AH/OU + cohort write: every row in one transaction.
 
     The caller owns ``session.begin()``/``commit()``. Any step raising propagates,
@@ -423,6 +426,10 @@ def write_ah_ou_decision_batch(
     one-sided AH ledger row, and the cohort is never committed without both
     markets (or their SKIP reasons) in the same transaction.
     """
-    upsert_cohort(session, **cohort)
-    for decision in decisions:
-        write_ah_ou_decision(session, **decision)
+    cohort_row = upsert_cohort(session, **cohort)
+    written = [write_ah_ou_decision(session, **decision) for decision in decisions]
+    return {"cohort_id": cohort_row.cohort_id,
+            "decisions": [{"decision_id": row.decision_id, "market": row.market,
+                           "selected": row.selected, "direction": row.direction,
+                           "score": row.score, "skip_reason": row.skip_reason,
+                           } for row in written]}

@@ -60,7 +60,8 @@ def test_f9_snapshot_constructor_writes_pit_provenance(tmp_path: Any) -> None:
     assert rows
     for row in rows:
         assert row.first_captured_at is not None
-        assert row.pit_proven is True
+        assert row.pit_proven is False  # No PG visibility proof in SQLite.
+        assert row.first_committed_at is None
         assert row.first_captured_at <= row.as_of_time  # 首捕获 ≤ as-of 时点
 
 
@@ -146,7 +147,7 @@ def test_f9_first_capture_after_decision_is_refused_by_admission() -> None:
         now=NOW,
     ).build_saved_raw_plan()
     snapshots = [dict(row) for row in plan.rolling_snapshots]
-    assert snapshots
+    assert not snapshots  # Producer excludes T-1h capture at its T-2h window.
 
     class Repo:
         _mapping = {"10": "w2:team:api_football:10", "20": "w2:team:api_football:20"}
@@ -184,7 +185,7 @@ def test_f9_first_capture_after_decision_is_refused_by_admission() -> None:
     )
     # as_of_time = max(kickoff, captured_at) >= captured_at，所以晚捕获先触发
     # AS_OF_AFTER_DECISION（方向=0）。
-    assert result["status"] == "F9_SNAPSHOT_AS_OF_AFTER_DECISION"
+    assert result["status"] == "F9_ROLLING_SNAPSHOT_NOT_UNIQUE"
     assert result["ah"] is None and result["ou"] is None
 
 

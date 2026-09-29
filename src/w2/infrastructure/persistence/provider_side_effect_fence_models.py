@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import DateTime, Integer, String, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from w2.infrastructure.database import Base
@@ -24,3 +24,5 @@ class ProviderSideEffectFenceModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     error: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    owner_token: Mapped[str | None] = mapped_column(String(64))
+    stored_result: Mapped[dict | None] = mapped_column(JSON)

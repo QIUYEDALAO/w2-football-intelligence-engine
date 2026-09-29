@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from w2.domain.canonical_serialization import HashDomain, SerializerVersion
 from w2.features.live_factors import TeamXgSnapshot
 
 FINISHED_STATUS = {"FT", "AET", "PEN"}
@@ -54,6 +55,8 @@ class TeamXgRollingSnapshot:
     # backfilled from component capture times). None = BACKTEST_LOOKBACK.
     first_committed_at: datetime | None = None
     pit_proven: bool = False
+    decision_at: datetime | None = None
+    source_matches: tuple[dict[str, Any], ...] = ()
 
     def as_feature_snapshot(self) -> TeamXgSnapshot:
         return TeamXgSnapshot(
@@ -208,6 +211,17 @@ def materialize_rolling_xg(
         first_captured_at=first_captured_at,
         first_committed_at=first_committed_at,
         pit_proven=pit_proven,
+        decision_at=cutoff if captured_before_cutoff else None,
+        source_matches=tuple({
+            "id": row.id, "fixture_id": row.fixture_id, "team_id": row.team_id,
+            "opponent_team_id": row.opponent_team_id,
+            "kickoff_at": row.kickoff_at.isoformat(), "captured_at": row.captured_at.isoformat(),
+            "raw_payload_sha256": row.raw_payload_sha256,
+            "raw_hash_domain": HashDomain.FUTURE_REFRESH_RAW_PAYLOAD.value,
+            "raw_serializer_version": SerializerVersion.LEGACY_V1.value,
+            "xg_for": row.xg_for, "xg_against": row.xg_against,
+            "goals_for": row.goals_for, "goals_against": row.goals_against,
+        } for row in selected),
     )
 
 

@@ -288,7 +288,7 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
             ).all()
         assert [row[0] for row in persisted] == ["BLOCKED_BY_FACTOR", "BLOCKED_BY_FACTOR"]
         for _, persisted_payload in persisted:
-            assert persisted_payload["blockers"] == ["FACTOR_SCORE_UNAVAILABLE"]
+            assert persisted_payload["blockers"] == ["FACTOR_SCORE_UNAVAILABLE", "MODEL_FORECAST_CAPTURE_UNRESOLVED"]
             assert persisted_payload["state"] == "BLOCKED_BY_FACTOR"
             assert persisted_payload.get("opportunity_state") in {None, "BLOCKED_BY_GATE"}
             # gate_results is None outside the denominator scope, which the

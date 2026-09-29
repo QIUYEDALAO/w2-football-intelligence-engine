@@ -28,50 +28,81 @@ logger = logging.getLogger(__name__)
 _UNSET: Any = object()
 
 
-def _fence_stage(task_id: str, stage: str, state: str, error: str | None = None) -> str:
-    """Provider 不确定副作用栅栏（V8/E）: 原子 claim task+stage+attempt.
-
-    返回该阶段的最终状态。``ATTEMPTING`` claim 只在首次未执行时成功；已
-    ATTEMPTING（无明确未发请求证明）/SIDE_EFFECT_UNCERTAIN/BLOCKED/DONE 都拒绝重入
-    （返回现有状态，不再写 ATTEMPTING、不调 Provider）。并发同 key 只一个 claim 成功。
-    """
+def _fence_stage(task_id: str, stage: str, state: str, error: str | None = None,
+                 *, owner_token: str | None = None, stored_result: dict | None = None) -> dict:
+    """Atomically claim or CAS a stage. A state is never ownership."""
+    from uuid import uuid4
+    from sqlalchemy import update
     from sqlalchemy.exc import IntegrityError
     from sqlalchemy.orm import Session
-
-    import w2.infrastructure.persistence.provider_side_effect_fence_models  # noqa: F401
     from w2.infrastructure.database import create_engine
-    from w2.infrastructure.persistence.provider_side_effect_fence_models import (
-        ProviderSideEffectFenceModel,
-    )
-
+    from w2.infrastructure.persistence.provider_side_effect_fence_models import ProviderSideEffectFenceModel as Fence
     engine = create_engine()
+    def observed(row):
+        if row is None:
+            return {"status": "BLOCKED", "reason": "CLAIM_NOT_FOUND"}
+        if row.state == "DONE":
+            return {"status": "DONE", "stored_result": row.stored_result}
+        if row.state == "ATTEMPTING":
+            return {"status": "ALREADY_ATTEMPTING", "reason": "DELIVERY_UNKNOWN"}
+        return {"status": "BLOCKED", "reason": row.state if row.state in {"BLOCKED", "SIDE_EFFECT_UNCERTAIN"} else "UNKNOWN_STATE"}
     with Session(engine) as session:
-        try:
+        if state == "ATTEMPTING":
+            existing = session.get(Fence, (task_id, stage, 1))
+            if existing is not None:
+                return observed(existing)
+            token = uuid4().hex
             now = datetime.now(UTC)
-            existing = session.get(ProviderSideEffectFenceModel, (task_id, stage, 1))
-            if state == "ATTEMPTING" and existing is not None and existing.state in {
-                "ATTEMPTING", "SIDE_EFFECT_UNCERTAIN", "BLOCKED", "DONE",
-            }:
-                return existing.state
-            if existing is None:
-                session.add(ProviderSideEffectFenceModel(
-                    task_id=task_id, stage=stage, attempt=1, state=state,
-                    created_at=now, updated_at=now, error=error,
-                ))
-            else:
-                existing.state = state
-                existing.updated_at = now
-                existing.error = error
-            # flush + commit 一起包住：并发同 key 的 unique violation 可能在 commit 时
-            # 才抛出，此时也必须读回现有状态并拒绝，而不是放行重复 claim。
-            session.flush()
-            session.commit()
-            return state
-        except IntegrityError:
+            session.add(Fence(task_id=task_id, stage=stage, attempt=1, state="ATTEMPTING",
+                              owner_token=token, created_at=now, updated_at=now))
+            try:
+                session.commit()
+                return {"status": "CLAIMED", "owner_token": token}
+            except IntegrityError:
+                session.rollback()
+                return observed(session.get(Fence, (task_id, stage, 1)))
+        if state not in {"DONE", "SIDE_EFFECT_UNCERTAIN", "BLOCKED"} or not owner_token:
+            raise RuntimeError("FENCE_TRANSITION_NOT_AUTHORIZED")
+        changed = session.execute(update(Fence).where(
+            Fence.task_id == task_id, Fence.stage == stage, Fence.attempt == 1,
+            Fence.state == "ATTEMPTING", Fence.owner_token == owner_token,
+        ).values(state=state, error=error, stored_result=stored_result, updated_at=datetime.now(UTC)))
+        if changed.rowcount != 1:
             session.rollback()
-            with Session(engine) as other:
-                other_row = other.get(ProviderSideEffectFenceModel, (task_id, stage, 1))
-                return other_row.state if other_row is not None else "BLOCKED"
+            raise RuntimeError("FENCE_OWNER_STATE_CONFLICT")
+        session.commit()
+        return {"status": state, "stored_result": stored_result}
+
+
+def _execute_owned_stage(key: str, stage: str, action: Callable[[], dict]) -> dict:
+    try:
+        claim = _fence_stage(key, stage, "ATTEMPTING")
+    except Exception as exc:
+        exc.provider_calls_known = 0
+        exc.provider_calls_unknown = False
+        raise
+    if claim["status"] == "DONE":
+        if not isinstance(claim.get("stored_result"), dict):
+            raise RuntimeError(f"{stage}:DONE_RESULT_MISSING")
+        return claim["stored_result"]
+    if claim["status"] != "CLAIMED":
+        exc = RuntimeError(f"{stage}:{claim['status']}:{claim.get('reason', '')}")
+        exc.provider_calls_known = None
+        exc.provider_calls_unknown = True
+        raise exc
+    token = claim["owner_token"]
+    try:
+        result = action()
+        _fence_stage(key, stage, "DONE", owner_token=token, stored_result=result)
+        return result
+    except Exception as exc:
+        # If this write fails, the committed ATTEMPTING still blocks reentry.
+        try:
+            _fence_stage(key, stage, "SIDE_EFFECT_UNCERTAIN", str(exc)[:512], owner_token=token)
+        except Exception:
+            logger.exception("stage terminal audit failed; original claim remains blocking")
+        raise
+
 
 settings = get_settings()
 
@@ -777,166 +808,159 @@ def future_fixture_refresh(
     #: The result materialisation writes runtime AH settlement facts, and those
     #: writes belong to this run too. Same container rule, different writer.
     ah_fact_reports: list[dict[str, Any]] = []
-    # F6 H2H 自动补采：新 fixture 进评估前补该场交锋（幂等，只补尚无交锋者）。
-    # E: a H2H failure is persisted and stops the run immediately -- it must not
-    # carry on into the XG auto-capture (a further provider stage).
     h2h_report: dict[str, object] = {}
-    if os.environ.get("W2_H2H_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
-        h2h_state = _fence_stage(key, "h2h", "ATTEMPTING")
-        if h2h_state in {"SIDE_EFFECT_UNCERTAIN", "BLOCKED"}:
-            return {
-                "task_id": task_id, "task_key": key,
-                "status": "BLOCKED", "audit_status": "BLOCKED",
-                "result": {"blockers": ["H2H_STAGE_SIDE_EFFECT_UNCERTAIN"], "provider_calls": 0},
-                "h2h_auto_capture": {"error": "H2H_STAGE_SIDE_EFFECT_UNCERTAIN"},
-                "xg_auto_capture": {"error": "NOT_ATTEMPTED_H2H_BLOCKED"},
-                "candidate": False, "formal_recommendation": False,
-            }
-        if h2h_state == "ATTEMPTING":
-            try:
-                from w2.ingestion.h2h_capture import capture_h2h_for_competition
-
-                h2h_report = capture_h2h_for_competition(competition_id=competition_id)
-                _fence_stage(key, "h2h", "DONE")
-            except Exception as exc:  # noqa: BLE001 - fail-closed below
-                logger.exception("w2 h2h auto-capture failed")
-                _fence_stage(key, "h2h", "SIDE_EFFECT_UNCERTAIN", f"{type(exc).__name__}:{exc}")
-                return {
-                    "task_id": task_id,
-                    "task_key": key,
-                    "status": "BLOCKED",
-                    "audit_status": "BLOCKED",
-                    "result": {
-                        "blockers": [f"H2H_AUTO_CAPTURE_FAILED:{type(exc).__name__}:{exc}"],
-                        "provider_calls": 0,
-                    },
-                    "h2h_auto_capture": {"error": "H2H_AUTO_CAPTURE_FAILED"},
-                    "xg_auto_capture": {"error": "NOT_ATTEMPTED_H2H_BLOCKED"},
-                    "candidate": False,
-                    "formal_recommendation": False,
-                }
-        # h2h_state == "DONE" → 已持久 DONE，跳过 H2H，进 XG。
-    # F9 xG 自动补采：新 fixture 进评估前采历史比赛 xG 落 team_xg_match
-    # （幂等：已缓存 statistics 跳过；fail-closed：quota/hard-cap 阻断即停；不自动重试）。
-    # E: a XG failure likewise stops the run before the provider refresh.
     xg_report: dict[str, object] = {}
-    if os.environ.get("W2_XG_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
-        xg_state = _fence_stage(key, "xg", "ATTEMPTING")
-        if xg_state in {"SIDE_EFFECT_UNCERTAIN", "BLOCKED"}:
-            return {
-                "task_id": task_id, "task_key": key,
-                "status": "BLOCKED", "audit_status": "BLOCKED",
-                "result": {"blockers": ["XG_STAGE_SIDE_EFFECT_UNCERTAIN"], "provider_calls": 0},
-                "h2h_auto_capture": h2h_report,
-                "xg_auto_capture": {"error": "XG_STAGE_SIDE_EFFECT_UNCERTAIN"},
-                "candidate": False, "formal_recommendation": False,
-            }
-        if xg_state != "ATTEMPTING":
-            # xg_state == "DONE" → 已持久 DONE，跳过 XG。
-            return {
-                "task_id": task_id, "task_key": key,
-                "status": "READY", "audit_status": "READY",
-                "result": {"provider_calls": 0},
-                "h2h_auto_capture": h2h_report,
-                "xg_auto_capture": {"status": "DONE"},
-                "candidate": False, "formal_recommendation": False,
-            }
-        try:
+    auto_capture = any(os.environ.get(flag, "false").lower() == "true" for flag in (
+        "W2_H2H_AUTO_CAPTURE_ENABLED", "W2_XG_AUTO_CAPTURE_ENABLED"))
+    owned_pipeline = auto_capture or bool(os.environ.get("W2_DATABASE_URL"))
+    task_claim = None
+    try:
+        if owned_pipeline:
+            task_claim = _fence_stage(key, "task", "ATTEMPTING")
+            if task_claim["status"] == "DONE":
+                if not isinstance(task_claim.get("stored_result"), dict):
+                    raise RuntimeError("TASK_DONE_RESULT_MISSING")
+                return task_claim["stored_result"]
+            if task_claim["status"] != "CLAIMED":
+                raise RuntimeError(f"TASK_{task_claim['status']}:{task_claim.get('reason', '')}")
+        if os.environ.get("W2_H2H_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
+            from w2.ingestion.h2h_capture import capture_h2h_for_competition
+            h2h_report = _execute_owned_stage(key, "h2h", lambda: capture_h2h_for_competition(competition_id=competition_id))
+        if os.environ.get("W2_XG_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
             from w2.ingestion.xg_backfill import run_xg_history_backfill
+            xg_report = _execute_owned_stage(key, "xg", lambda: run_xg_history_backfill(competition_id=competition_id).as_dict())
+        # The refresh may call Provider; its ownership spans forward and the
+        # final result. A crash in this phase is blocked, never falsely READY.
+        refresh_claim = (_fence_stage(key, "refresh_forward", "ATTEMPTING") if owned_pipeline
+                         else {"status": "CLAIMED", "owner_token": None})
+        if refresh_claim["status"] == "DONE":
+            if not isinstance(refresh_claim.get("stored_result"), dict):
+                raise RuntimeError("REFRESH_DONE_RESULT_MISSING")
+            if task_claim and task_claim["status"] == "CLAIMED":
+                _fence_stage(key, "task", "DONE", owner_token=task_claim["owner_token"], stored_result=refresh_claim["stored_result"])
+            return refresh_claim["stored_result"]
+        if refresh_claim["status"] != "CLAIMED":
+            raise RuntimeError(f"REFRESH_{refresh_claim['status']}")
+    except Exception as exc:
+        if task_claim and task_claim["status"] == "CLAIMED":
+            try:
+                _fence_stage(key, "task", "SIDE_EFFECT_UNCERTAIN", str(exc)[:512], owner_token=task_claim["owner_token"])
+            except Exception:
+                logger.exception("task terminal audit failed; task claim remains blocking")
+        elif task_claim is None:
+            exc.provider_calls_known = 0
+            exc.provider_calls_unknown = False
+        return {
+            "task_id": task_id, "task_key": key, "status": "BLOCKED", "audit_status": "BLOCKED",
+            "result": {"blockers": [f"TASK_STAGE_BLOCKED:{type(exc).__name__}:{exc}"],
+                       "provider_calls": None, "provider_calls_known": getattr(exc, "provider_calls_known", None),
+                       "provider_calls_unknown": getattr(exc, "provider_calls_unknown", True)},
+            "h2h_auto_capture": h2h_report, "xg_auto_capture": xg_report,
+            "candidate": False, "formal_recommendation": False,
+        }
+    try:
+        audit = run_future_refresh_task(
+            task_id=task_id,
+            key=key,
+            queued_at=queued_at,
+            competition_id=competition_id,
+            now=now,
+            requested_interval_seconds=requested_interval_seconds,
+            effective_interval_seconds=effective_interval_seconds,
+            provider_refresh_min_interval_seconds=provider_refresh_min_interval_seconds,
+            checkpoint_fixture_ids=tuple(checkpoint_fixture_ids or ()),
+            refresh_checkpoints=tuple(refresh_checkpoints or ()),
+            discovery_date=discovery_date,
+            materialize_public_artifacts=_materialize_public_artifacts_with_recording(
+                recording_reports
+            ),
+            materialize_results=_materialize_results_with_ah_facts(ah_fact_reports),
+            client=ApiFootballClient(
+                allow_live=True,
+                allowed_live_endpoints=provider_endpoint_allowlist(),
+            ),
+        )
+        opportunity_write = _write_checkpoint_opportunities(
+            [
+                dict(item)
+                for item in audit.result.get("refresh_checkpoints", [])
+                if isinstance(item, Mapping)
+            ],
+            task_id=audit.task_id,
+            task_key=audit.key,
+            evaluated_at=_worker_utc(getattr(audit, "finished_at", None)) or now,
+            request_audit=[
+                dict(item)
+                for item in audit.result.get("requests", [])
+                if isinstance(item, Mapping)
+            ],
+        )
+        t30_capture = _freeze_t30_checkpoint_captures(
+            [
+                dict(item)
+                for item in audit.result.get("refresh_checkpoints", [])
+                if isinstance(item, Mapping)
+            ],
+            evaluated_at=datetime.now(UTC),
+        )
+        # Every write-side branch that actually ran a recorder reports here: the
+        # projection callback above and the opportunity writer below. Merging is the
+        # recording module's own, so a single worst-status rule applies everywhere.
+        recording_report = _merge_recording_reports(
+            [*recording_reports, *_recording_report_of(opportunity_write)]
+        )
+        ah_fact_report = _merge_ah_fact_reports(ah_fact_reports)
+        task_result = {
+            "task_id": audit.task_id,
+            "task_key": audit.key,
+            "status": _task_status(
+                recording_report,
+                default="PASS" if audit.status == "COMPLETED" else str(audit.status),
+                ah_fact_report=ah_fact_report,
+            ),
+            # The refresh audit's own verdict, kept under its own name: `status` above
+            # now answers "did this run pass, including its factor recording?".
+            "audit_status": audit.status,
+            "requested_interval_seconds": requested_interval_seconds,
+            "effective_interval_seconds": effective_interval_seconds,
+            "provider_refresh_min_interval_seconds": provider_refresh_min_interval_seconds,
+            "checkpoint_fixture_ids": checkpoint_fixture_ids or [],
+            "refresh_checkpoints": refresh_checkpoints or [],
+            "discovery_date": discovery_date,
+            "result": audit.result,
+            "opportunity_write": opportunity_write,
+            "t30_capture": t30_capture,
+            "forward_factor_recording": recording_report,
+            "runtime_ah_settlement_facts": ah_fact_report,
+            "h2h_auto_capture": h2h_report,
+            "xg_auto_capture": xg_report,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
 
-            xg_report = run_xg_history_backfill(competition_id=competition_id).as_dict()
-            _fence_stage(key, "xg", "DONE")
-        except Exception as exc:  # noqa: BLE001 - fail-closed below
-            logger.exception("w2 xg auto-capture failed")
-            _fence_stage(key, "xg", "SIDE_EFFECT_UNCERTAIN", f"{type(exc).__name__}:{exc}")
-            return {
-                "task_id": task_id,
-                "task_key": key,
-                "status": "BLOCKED",
-                "audit_status": "BLOCKED",
-                "result": {
-                    "blockers": [f"XG_AUTO_CAPTURE_FAILED:{type(exc).__name__}:{exc}"],
-                    "provider_calls": 0,
-                },
-                "h2h_auto_capture": h2h_report,
-                "xg_auto_capture": {"error": "XG_AUTO_CAPTURE_FAILED"},
-                "candidate": False,
-                "formal_recommendation": False,
-            }
-    audit = run_future_refresh_task(
-        task_id=task_id,
-        key=key,
-        queued_at=queued_at,
-        competition_id=competition_id,
-        now=now,
-        requested_interval_seconds=requested_interval_seconds,
-        effective_interval_seconds=effective_interval_seconds,
-        provider_refresh_min_interval_seconds=provider_refresh_min_interval_seconds,
-        checkpoint_fixture_ids=tuple(checkpoint_fixture_ids or ()),
-        refresh_checkpoints=tuple(refresh_checkpoints or ()),
-        discovery_date=discovery_date,
-        materialize_public_artifacts=_materialize_public_artifacts_with_recording(
-            recording_reports
-        ),
-        materialize_results=_materialize_results_with_ah_facts(ah_fact_reports),
-        client=ApiFootballClient(
-            allow_live=True,
-            allowed_live_endpoints=provider_endpoint_allowlist(),
-        ),
-    )
-    opportunity_write = _write_checkpoint_opportunities(
-        [
-            dict(item)
-            for item in audit.result.get("refresh_checkpoints", [])
-            if isinstance(item, Mapping)
-        ],
-        task_id=audit.task_id,
-        task_key=audit.key,
-        evaluated_at=_worker_utc(getattr(audit, "finished_at", None)) or now,
-        request_audit=[
-            dict(item)
-            for item in audit.result.get("requests", [])
-            if isinstance(item, Mapping)
-        ],
-    )
-    t30_capture = _freeze_t30_checkpoint_captures(
-        [
-            dict(item)
-            for item in audit.result.get("refresh_checkpoints", [])
-            if isinstance(item, Mapping)
-        ],
-        evaluated_at=datetime.now(UTC),
-    )
-    # Every write-side branch that actually ran a recorder reports here: the
-    # projection callback above and the opportunity writer below. Merging is the
-    # recording module's own, so a single worst-status rule applies everywhere.
-    recording_report = _merge_recording_reports(
-        [*recording_reports, *_recording_report_of(opportunity_write)]
-    )
-    ah_fact_report = _merge_ah_fact_reports(ah_fact_reports)
-    return {
-        "task_id": audit.task_id,
-        "task_key": audit.key,
-        "status": _task_status(recording_report, ah_fact_report=ah_fact_report),
-        # The refresh audit's own verdict, kept under its own name: `status` above
-        # now answers "did this run pass, including its factor recording?".
-        "audit_status": audit.status,
-        "requested_interval_seconds": requested_interval_seconds,
-        "effective_interval_seconds": effective_interval_seconds,
-        "provider_refresh_min_interval_seconds": provider_refresh_min_interval_seconds,
-        "checkpoint_fixture_ids": checkpoint_fixture_ids or [],
-        "refresh_checkpoints": refresh_checkpoints or [],
-        "discovery_date": discovery_date,
-        "result": audit.result,
-        "opportunity_write": opportunity_write,
-        "t30_capture": t30_capture,
-        "forward_factor_recording": recording_report,
-        "runtime_ah_settlement_facts": ah_fact_report,
-        "h2h_auto_capture": h2h_report,
-        "xg_auto_capture": xg_report,
-        "candidate": False,
-        "formal_recommendation": False,
-    }
+        if not auto_capture:
+            # Preserve the frozen legacy response schema when auto-capture is off.
+            task_result.pop("h2h_auto_capture", None)
+            task_result.pop("xg_auto_capture", None)
+        if owned_pipeline:
+            _fence_stage(key, "refresh_forward", "DONE", owner_token=refresh_claim["owner_token"], stored_result=task_result)
+            _fence_stage(key, "task", "DONE", owner_token=task_claim["owner_token"], stored_result=task_result)
+        return task_result
+    except Exception as exc:
+        try:
+            _fence_stage(key, "refresh_forward", "SIDE_EFFECT_UNCERTAIN", str(exc)[:512], owner_token=refresh_claim["owner_token"])
+        except Exception:
+            logger.exception("refresh terminal audit failed; claim remains blocking")
+        if task_claim and task_claim["status"] == "CLAIMED":
+            try:
+                _fence_stage(key, "task", "SIDE_EFFECT_UNCERTAIN", str(exc)[:512], owner_token=task_claim["owner_token"])
+            except Exception:
+                logger.exception("task final report audit failed; claim remains blocking")
+        return {"task_id": task_id, "task_key": key, "status": "BLOCKED", "audit_status": "BLOCKED",
+                "result": {"blockers": [f"REFRESH_FORWARD_UNCERTAIN:{exc}"], "provider_calls": None,
+                           "provider_calls_known": None, "provider_calls_unknown": True},
+                "h2h_auto_capture": h2h_report, "xg_auto_capture": xg_report,
+                "candidate": False, "formal_recommendation": False}
 
 
 @celery_app.task(name="w2.xg_history_backfill", bind=True)
