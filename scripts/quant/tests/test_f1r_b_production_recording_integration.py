@@ -92,8 +92,69 @@ def _isolated_engine(tmp_path: Path):  # type: ignore[no-untyped-def]
     engine = sa.create_engine(f"sqlite+pysqlite:///{tmp_path / 'observations.db'}")
     Base.metadata.create_all(
         engine,
-        tables=[Base.metadata.tables["forward_ah_factor_observations"]])
+        tables=[
+            Base.metadata.tables["forward_ah_factor_observations"],
+            # The store's source-existence check resolves cited records against
+            # the canonical history and the rolling xG snapshot.
+            Base.metadata.tables["canonical_team_match_history"],
+            Base.metadata.tables["team_xg_rolling_snapshot"],
+        ])
+    _seed_source_records(engine)
     return engine
+
+
+def _seed_source_records(engine) -> None:  # type: ignore[no-untyped-def]
+    """Seed the canonical history and rolling xG rows the bindings cite.
+
+    The store's source-existence check resolves every cited ``source_record_id``
+    against these tables, so the records the production bindings reference have
+    to exist here.
+    """
+    from sqlalchemy.orm import Session
+
+    from w2.infrastructure.persistence.factor_model_models import (
+        CanonicalTeamMatchHistoryModel,
+    )
+    from w2.infrastructure.persistence.future_refresh_models import (
+        TeamXgRollingSnapshotModel,
+    )
+
+    def _dt(value: str) -> datetime:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+    home, away = runner.history_rows()
+    meetings = runner.meeting_rows()
+    with Session(engine) as session, session.begin():
+        for row in [*home, *away, *meetings]:
+            session.add(CanonicalTeamMatchHistoryModel(
+                history_id=row["history_id"], fixture_id=row["fixture_id"],
+                provider=row["provider"], provider_fixture_id=row["provider_fixture_id"],
+                competition_id=row["competition_id"], season=row["season"],
+                kickoff_utc=_dt(row["kickoff_utc"]),
+                fixture_status=row["fixture_status"], team_side=row["team_side"],
+                team_provider_id=row["team_provider_id"],
+                opponent_provider_id=row["opponent_provider_id"],
+                team_w2_id=row["team_w2_id"], opponent_w2_id=row["opponent_w2_id"],
+                goals_for=row["goals_for"], goals_against=row["goals_against"],
+                result_identity_hash=row["result_identity_hash"],
+                source_raw_hash=row["source_raw_hash"],
+                endpoint_capture_id=row["endpoint_capture_id"],
+                captured_at=_dt(row["captured_at"]),
+                history_hash=row["history_hash"], payload={}))
+        for snap in runner.xg_rows():
+            session.add(TeamXgRollingSnapshotModel(
+                snapshot_id=snap["snapshot_id"], team_id=snap["team_id"],
+                as_of_fixture_id=snap["as_of_fixture_id"],
+                as_of_time=_dt(snap["as_of_time"]),
+                match_count=snap["match_count"],
+                rolling_xg_for=snap["rolling_xg_for"],
+                rolling_xg_against=snap["rolling_xg_against"],
+                rolling_goals_for=snap["rolling_goals_for"],
+                rolling_goals_against=snap["rolling_goals_against"],
+                regression_index=snap["regression_index"],
+                source_system=snap["source_system"],
+                candidate=snap["candidate"],
+                formal_recommendation=snap["formal_recommendation"]))
 
 
 # --- 1: a complete four-factor batch --------------------------------------

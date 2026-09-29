@@ -249,6 +249,59 @@ def _alembic(database_url: str, *args: str) -> subprocess.CompletedProcess[str]:
         cwd=_ROOT, env=environment, capture_output=True, text=True, check=False)
 
 
+def _seed_source_records(engine: Any) -> None:
+    """Seed the canonical history + rolling xG rows the batch cites.
+
+    The store's source-existence check resolves every cited ``source_record_id``
+    against these tables, so the isolated database has to carry them too.
+    """
+    from sqlalchemy.orm import Session
+
+    from w2.infrastructure.persistence.factor_model_models import (
+        CanonicalTeamMatchHistoryModel,
+    )
+    from w2.infrastructure.persistence.future_refresh_models import (
+        TeamXgRollingSnapshotModel,
+    )
+
+    def _dt(value: str) -> datetime:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+    home, away = history_rows()
+    meetings = meeting_rows()
+    with Session(engine) as session, session.begin():
+        for row in [*home, *away, *meetings]:
+            session.add(CanonicalTeamMatchHistoryModel(
+                history_id=row["history_id"], fixture_id=row["fixture_id"],
+                provider=row["provider"], provider_fixture_id=row["provider_fixture_id"],
+                competition_id=row["competition_id"], season=row["season"],
+                kickoff_utc=_dt(row["kickoff_utc"]),
+                fixture_status=row["fixture_status"], team_side=row["team_side"],
+                team_provider_id=row["team_provider_id"],
+                opponent_provider_id=row["opponent_provider_id"],
+                team_w2_id=row["team_w2_id"], opponent_w2_id=row["opponent_w2_id"],
+                goals_for=row["goals_for"], goals_against=row["goals_against"],
+                result_identity_hash=row["result_identity_hash"],
+                source_raw_hash=row["source_raw_hash"],
+                endpoint_capture_id=row["endpoint_capture_id"],
+                captured_at=_dt(row["captured_at"]),
+                history_hash=row["history_hash"], payload={}))
+        for snap in xg_rows():
+            session.add(TeamXgRollingSnapshotModel(
+                snapshot_id=snap["snapshot_id"], team_id=snap["team_id"],
+                as_of_fixture_id=snap["as_of_fixture_id"],
+                as_of_time=_dt(snap["as_of_time"]),
+                match_count=snap["match_count"],
+                rolling_xg_for=snap["rolling_xg_for"],
+                rolling_xg_against=snap["rolling_xg_against"],
+                rolling_goals_for=snap["rolling_goals_for"],
+                rolling_goals_against=snap["rolling_goals_against"],
+                regression_index=snap["regression_index"],
+                source_system=snap["source_system"],
+                candidate=snap["candidate"],
+                formal_recommendation=snap["formal_recommendation"]))
+
+
 def isolated_replay(batch: list[Any]) -> dict[str, Any]:
     """upgrade -> write -> readback -> rollback, on a database created here.
 
@@ -293,6 +346,7 @@ def isolated_replay(batch: list[Any]) -> dict[str, Any]:
         other_tables_after_upgrade = len(
             names_after_upgrade - set(MIGRATION_ADDED_TABLES) - {"alembic_version"})
 
+        _seed_source_records(engine)
         store = store_module.ForwardFactorObservationStore(engine)
         appended = store.append_batch(batch)
         replayed = store.append_batch(batch)

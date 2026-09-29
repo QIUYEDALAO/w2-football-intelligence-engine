@@ -239,24 +239,30 @@ def _assert_source_records_exist(session: Session, record_ids: set[str]) -> None
     """
     if not record_ids:
         return
+    # An `absence:...` record is an honest "lookup returned zero rows" source,
+    # not a real source row, so it has no existence to prove and must not be
+    # resolved against the history/snapshot tables.
+    real_ids = {rid for rid in record_ids if not rid.startswith("absence:")}
+    if not real_ids:
+        return
     history_rows = list(
         session.scalars(
             select(CanonicalTeamMatchHistoryModel).where(
-                CanonicalTeamMatchHistoryModel.history_id.in_(record_ids)
+                CanonicalTeamMatchHistoryModel.history_id.in_(real_ids)
             )
         )
     )
     snapshot_rows = list(
         session.scalars(
             select(TeamXgRollingSnapshotModel).where(
-                TeamXgRollingSnapshotModel.snapshot_id.in_(record_ids)
+                TeamXgRollingSnapshotModel.snapshot_id.in_(real_ids)
             )
         )
     )
     found = {row.history_id for row in history_rows} | {
         row.snapshot_id for row in snapshot_rows
     }
-    missing = sorted(record_ids - found)
+    missing = sorted(real_ids - found)
     if missing:
         raise StoreError("SOURCE_RECORD_NOT_FOUND", ",".join(missing))
     for row in history_rows:

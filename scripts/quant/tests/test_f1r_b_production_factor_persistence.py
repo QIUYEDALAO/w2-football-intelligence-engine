@@ -206,6 +206,9 @@ TABLE_NAMES = (
     # F1R-C. The recorder now re-reads the AH settlement facts F5 reports having
     # consumed, so the table it reads has to exist here.
     "runtime_ah_settlement_facts",
+    # F9's cited source records are resolved from the rolling xG snapshot, and
+    # the store's source-existence check reads this table (整改 item 6).
+    "team_xg_rolling_snapshot",
 )
 
 
@@ -225,6 +228,9 @@ def _seed(engine: sa.Engine, *, capture_overrides: dict[str, str] | None = None)
 
     from w2.infrastructure.persistence.factor_model_models import (
         CanonicalTeamMatchHistoryModel,
+    )
+    from w2.infrastructure.persistence.future_refresh_models import (
+        TeamXgRollingSnapshotModel,
     )
     from w2.infrastructure.persistence.matchday_intake_models import (
         MatchdayEndpointCaptureModel,
@@ -264,6 +270,25 @@ def _seed(engine: sa.Engine, *, capture_overrides: dict[str, str] | None = None)
                 raw_payload_sha256=capture["raw_payload_sha256"],
                 provider_event_time=None,
                 capture_status=capture["capture_status"], error_code=None))
+        # F9's cited source records must resolve to real rolling-xG rows: seed
+        # the same snapshots the recorder is handed, so the store's
+        # source-existence check can read them back.
+        for snap in _xg_rows():
+            session.add(TeamXgRollingSnapshotModel(
+                snapshot_id=snap["snapshot_id"],
+                team_id=snap["team_id"],
+                as_of_fixture_id=snap["as_of_fixture_id"],
+                as_of_time=_utc(snap["as_of_time"]),
+                match_count=snap["match_count"],
+                rolling_xg_for=snap["rolling_xg_for"],
+                rolling_xg_against=snap["rolling_xg_against"],
+                rolling_goals_for=snap["rolling_goals_for"],
+                rolling_goals_against=snap["rolling_goals_against"],
+                regression_index=snap["regression_index"],
+                source_system=snap["source_system"],
+                candidate=snap["candidate"],
+                formal_recommendation=snap["formal_recommendation"],
+            ))
 
 
 def _recorder(engine: sa.Engine) -> Any:
@@ -1034,12 +1059,15 @@ def test_07_the_recorder_is_reached_by_injection_only() -> None:
 
 
 def test_07_the_recorder_is_called_at_the_scored_evaluation() -> None:
-    """The call sits where the final contributions and the score already exist."""
+    """停用因子退出后 recorder 不再在 scored evaluation 处被调用。
+
+    25e85fa8（停用因子彻底退出新路径）移除了 build_feature_set 与 recorder
+    调用点：停用因子退出后 recorder 不再收到 4 个 AH 因子。行为断言由
+    tests/unit/test_forward_factor_recording_call_site.py 覆盖，这里只钉住
+    代码层：调用点已从 scored evaluation 移除。
+    """
     text = (REPO / "src/w2/prematch/analysis_calculator.py").read_text(encoding="utf-8")
-    build = text.index("card = build_multi_market_analysis(")
-    record = text.index("self._record_forward_factor_observations(")
-    return_payload = text.index("return payload", record)
-    assert build < record < return_payload
+    assert "self._record_forward_factor_observations(" not in text
     for name in ("build_production_batch", "independent_team_scores_from_contributions",
                  "factor_computation_version"):
         assert name not in text, name
@@ -1082,12 +1110,15 @@ def test_07_the_wiring_did_not_touch_a_forbidden_path() -> None:
         "src/w2/api/", "src/w2/replay/", "migrations/", "config/",
         "docs/review_packages/", "scripts/quant/f1r_",
     )
-    # F1R-C was authorised to revise exactly these, and only these. The
+    # F1R-C was authorised to revise exactly these, and only these. R5 then
+    # authorised the observation store too, to skip `absence:` lookups in the
+    # source-existence check (修 R1 引入的 SOURCE_RECORD_NOT_FOUND). The
     # exemptions are enumerated rather than expressed as a relaxed prefix, so
     # the guard keeps refusing everything else it always refused.
     authorised_paths = {
         "scripts/quant/f1r_b_production_ports.py",
         "scripts/quant/f1r_b_production_recording_integration.py",
+        "scripts/quant/f1r_b_observation_store.py",
         "migrations/versions/0072_runtime_ah_settlement_fact.py",
     }
     # The successor package is new. Every frozen package stays untouchable: the
@@ -1129,10 +1160,13 @@ F1R_B_MODULE_SHA256 = {
 }
 
 #: F1R-C was authorised to revise exactly these two modules, and only these two:
-#: the F5 absence port and the integration that binds F5's consumed set.
+#: the F5 absence port and the integration that binds F5's consumed set. R5 then
+#: authorised the observation store too, to skip `absence:` lookups in the
+#: source-existence check (修 R1 引入的 SOURCE_RECORD_NOT_FOUND).
 F1R_C_AUTHORISED_REVISIONS = frozenset({
     "f1r_b_production_ports.py",
     "f1r_b_production_recording_integration.py",
+    "f1r_b_observation_store.py",
 })
 
 #: The six modules as F1R-C delivers them.
@@ -1148,7 +1182,7 @@ F1R_C_MODULE_SHA256 = {
     "f1r_b_production_recording_integration.py":
         "fda5734a7d83ec05b309d2b8ebe401a254ee147453da60ebf3f5909a649a3ce2",
     "f1r_b_observation_store.py":
-        "4ab1ae874942eabfc2e721ec5c1cc3beefc27dcf541f61ed5314caef2cfb8499",
+        "d855e2042b5a22365aaa8d10adfa543b2a5fd865b603e5180d757c6c0fbb616f",
 }
 
 
