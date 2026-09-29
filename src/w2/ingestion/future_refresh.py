@@ -3709,6 +3709,34 @@ def run_future_refresh_task(
         )
         write_task_audit(root, audit, persistence=persistence)
         return audit
+    # 在 provider 调用前持久预占 task key（V10/E）：进程硬退出时该预占残留，
+    # 重投 task_key_exists 返回 True → ALREADY_RUNNING，不再进入外部入口。
+    # 只对 db 持久化生效；file/redis 锁由 RefreshSingletonLock 承担。
+    if resolved_persistence == "db":
+        write_task_audit(
+            root,
+            RefreshTaskAudit(
+                task_id=task_id,
+                key=key,
+                owner=owner_marker,
+                queued_at=iso(queued_at or evaluation_time),
+                started_at=iso(execution_started_at),
+                finished_at=iso(utc_now()),
+                status="ATTEMPTING",
+                result={"candidate": False, "formal_recommendation": False},
+                gate_a_authorization_id=(
+                    runtime_authorization.authorization_id
+                    if runtime_authorization is not None
+                    else None
+                ),
+                gate_a_lease_epoch=(
+                    getattr(provider_call_reservation, "lease_epoch", None)
+                    if provider_call_reservation is not None
+                    else None
+                ),
+            ),
+            persistence=resolved_persistence,
+        )
     status = "BLOCKED"
     summary: dict[str, Any] = {
         "blockers": ["UNHANDLED_FUTURE_REFRESH_EXCEPTION"],

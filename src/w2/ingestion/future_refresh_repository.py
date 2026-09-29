@@ -289,6 +289,83 @@ class DatabaseRawPayloadObjectStore:
         return dict(row.payload) if row is not None else None
 
 
+#: 固定策略窗口（与 XgBackfillConfig.max_rolling_matches/min_rolling_matches 一致）。
+#: 快照首插的待核全集必须由持久化层独立确定，不得用提交快照自带的
+#: source_matches 或 match_count 定义验证窗口。
+_XG_ROLLING_WINDOW = 5
+_XG_ROLLING_MIN_MATCHES = 3
+
+
+def _verify_persisted_xg_match(session: Any, fact: Any, fixture_raw: list[Any]) -> TeamXgMatch | None:
+    """Verify a persisted TeamXgMatch against its raw statistics/fixture payloads.
+
+    Returns the rebuilt TeamXgMatch when every raw hash domain, serializer
+    version, capture time, team/match identity and xG value is provable from the
+    persisted raw capture; otherwise None (fail-closed).
+    """
+    raw = session.get(RawPayloadModel, fact.raw_payload_sha256)
+    if raw is None or raw.endpoint != "statistics":
+        return None
+    digest = canonical_sha256(raw.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+                              version=SerializerVersion.LEGACY_V1)
+    xg = statistics_xg_by_team(raw.payload)
+    if (digest != raw.sha256
+        or str((raw.payload.get("parameters") or {}).get("fixture")) != fact.fixture_id
+        or xg.get(fact.team_id) != fact.xg_for
+        or xg.get(fact.opponent_team_id) != fact.xg_against
+        or parse_db_datetime(raw.captured_at) != parse_db_datetime(fact.captured_at)):
+        return None
+    candidates = []
+    for fixture_source in fixture_raw:
+        if parse_db_datetime(fixture_source.captured_at) > parse_db_datetime(fact.captured_at):
+            continue
+        if canonical_sha256(fixture_source.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+                            version=SerializerVersion.LEGACY_V1) != fixture_source.sha256:
+            continue
+        for item in fixture_source.payload.get("response", []):
+            if str((item.get("fixture") or {}).get("id")) == fact.fixture_id:
+                candidates.append((fixture_source.captured_at, item))
+    if not candidates:
+        return None
+    latest_source = max(candidates, key=lambda item: item[0])[1]
+    parsed = parse_team_xg_matches(fixture_payload=latest_source, statistics_payload=raw.payload,
+        captured_at=parse_db_datetime(raw.captured_at), raw_payload_sha256=raw.sha256)
+    expected_fact = next((item for item in parsed if item.team_id == fact.team_id), None)
+    if expected_fact is None or any(getattr(expected_fact, k) != getattr(fact, k) for k in (
+        "fixture_id", "team_id", "opponent_team_id", "kickoff_at", "goals_for", "goals_against",
+        "xg_for", "xg_against")):
+        return None
+    return TeamXgMatch(**{k: getattr(fact, k) for k in (
+        "fixture_id", "team_id", "opponent_team_id", "kickoff_at", "captured_at", "xg_for",
+        "xg_against", "goals_for", "goals_against", "raw_payload_sha256", "source_system")})
+
+
+def _normalize_source_match(source: dict[str, Any]) -> tuple[Any, ...]:
+    """Normalize one source_matches entry so submission and independent rebuild compare equal."""
+
+    def _instant(value: Any) -> Any:
+        if value is None:
+            return None
+        parsed = parse_db_datetime(value)
+        return iso_z(parsed) if parsed is not None else value
+
+    return (
+        str(source.get("id") or ""),
+        str(source.get("fixture_id") or ""),
+        str(source.get("team_id") or ""),
+        str(source.get("opponent_team_id") or ""),
+        _instant(source.get("kickoff_at")),
+        _instant(source.get("captured_at")),
+        str(source.get("raw_payload_sha256") or ""),
+        str(source.get("raw_hash_domain") or ""),
+        str(source.get("raw_serializer_version") or ""),
+        source.get("xg_for"),
+        source.get("xg_against"),
+        source.get("goals_for"),
+        source.get("goals_against"),
+    )
+
+
 class FutureRefreshDbRepository:
     def __init__(self, *, engine: Engine | None = None, settings: Settings | None = None) -> None:
         self.engine = engine or create_engine(settings)
@@ -3047,77 +3124,73 @@ class FutureRefreshDbRepository:
                         if actual != value:
                             raise FutureRefreshPersistenceError(f"TEAM_XG_SNAPSHOT_FIELD_CONFLICT:{key}")
                     continue
-                # Verify frozen components against persisted source facts, not
-                # against another copy supplied by the snapshot caller.
+                # 独立确定全集（V10/B）：由持久化层从 DB 查询目标球队在
+                # decision_at 前全部合格（raw 可证明）的最近比赛，按固定策略窗口
+                # 选源；提交的来源集合、顺序、数量及聚合必须与独立重建完全一致，
+                # 否则 fail-closed（不给 pit_proven=true）。不得用提交快照自带的
+                # source_matches 或 match_count 定义待核全集。
                 components = values["source_matches"] or []
-                source_valid = (len(components) == values["match_count"] and bool(components)
-                                and len({c.get("id") for c in components}) == len(components))
                 identity = session.scalar(select(MatchdayFixtureIdentityModel).where(
                     MatchdayFixtureIdentityModel.provider_fixture_id == values["as_of_fixture_id"].removeprefix("api_football:")))
-                if identity is None or values["decision_at"] is None or parse_db_datetime(identity.kickoff_utc) - timedelta(hours=2) != values["decision_at"]:
-                    source_valid = False
-                verified_matches = []
-                fixture_raw = list(session.scalars(select(RawPayloadModel).where(RawPayloadModel.endpoint == "fixtures")))
-                for component in components:
-                    if (component.get("raw_hash_domain") != HashDomain.FUTURE_REFRESH_RAW_PAYLOAD.value
-                        or component.get("raw_serializer_version") != SerializerVersion.LEGACY_V1.value):
-                        source_valid = False
-                    fact = session.get(TeamXgMatchModel, str(component.get("id") or ""))
-                    if fact is None:
-                        source_valid = False
-                        continue
-                    for key in ("fixture_id", "team_id", "opponent_team_id", "xg_for", "xg_against",
-                                "goals_for", "goals_against", "raw_payload_sha256"):
-                        if getattr(fact, key) != component.get(key):
+                # identity_valid：目标身份/截点是否可证明（首次可读证明的前置）。
+                # source_valid：来源是否完备（含 identity_valid + 独立重建一致）。
+                # 两者分离：身份可证明但遗漏来源 → 仍记录首次可读、但拒绝 PIT 证明。
+                identity_valid = (
+                    identity is not None
+                    and values["decision_at"] is not None
+                    and parse_db_datetime(identity.kickoff_utc) - timedelta(hours=2) == values["decision_at"]
+                )
+                source_valid = (
+                    identity_valid
+                    and bool(components)
+                    and len(components) == values["match_count"]
+                    and len({c.get("id") for c in components}) == len(components)
+                )
+                verified_matches: list[TeamXgMatch] = []
+                if source_valid:
+                    fixture_raw = list(session.scalars(select(RawPayloadModel).where(RawPayloadModel.endpoint == "fixtures")))
+                    independent_facts = list(session.scalars(select(TeamXgMatchModel).where(
+                        TeamXgMatchModel.team_id == values["team_id"],
+                        TeamXgMatchModel.kickoff_at < values["decision_at"],
+                        TeamXgMatchModel.captured_at < values["decision_at"],
+                    )))
+                    for fact in independent_facts:
+                        verified = _verify_persisted_xg_match(session, fact, fixture_raw)
+                        if verified is None:
                             source_valid = False
-                    for key in ("captured_at", "kickoff_at"):
-                        if iso_z(getattr(fact, key)) != iso_z(parse_db_datetime(component[key])):
-                            source_valid = False
-                    raw = session.get(RawPayloadModel, fact.raw_payload_sha256)
-                    if raw is None or raw.endpoint != "statistics":
-                        source_valid = False
-                    else:
-                        digest = canonical_sha256(raw.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
-                                                  version=SerializerVersion.LEGACY_V1)
-                        xg = statistics_xg_by_team(raw.payload)
-                        if (digest != raw.sha256 or str((raw.payload.get("parameters") or {}).get("fixture")) != fact.fixture_id
-                            or xg.get(fact.team_id) != fact.xg_for or xg.get(fact.opponent_team_id) != fact.xg_against
-                            or parse_db_datetime(raw.captured_at) != parse_db_datetime(fact.captured_at)):
-                            source_valid = False
-                    candidates = []
-                    for fixture_source in fixture_raw:
-                        if parse_db_datetime(fixture_source.captured_at) > parse_db_datetime(fact.captured_at):
-                            continue
-                        if canonical_sha256(fixture_source.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
-                                            version=SerializerVersion.LEGACY_V1) != fixture_source.sha256:
-                            continue
-                        for item in fixture_source.payload.get("response", []):
-                            if str((item.get("fixture") or {}).get("id")) == fact.fixture_id:
-                                candidates.append((fixture_source.captured_at, item))
-                    if not candidates or raw is None:
-                        source_valid = False
-                    else:
-                        latest_source = max(candidates, key=lambda item: item[0])[1]
-                        parsed = parse_team_xg_matches(fixture_payload=latest_source, statistics_payload=raw.payload,
-                            captured_at=parse_db_datetime(raw.captured_at), raw_payload_sha256=raw.sha256)
-                        expected_fact = next((item for item in parsed if item.team_id == fact.team_id), None)
-                        if expected_fact is None or any(getattr(expected_fact,k) != getattr(fact,k) for k in (
-                            "fixture_id", "team_id", "opponent_team_id", "kickoff_at", "goals_for", "goals_against", "xg_for", "xg_against")):
-                            source_valid = False
-                    verified_matches.append(TeamXgMatch(**{k: getattr(fact,k) for k in (
-                        "fixture_id", "team_id", "opponent_team_id", "kickoff_at", "captured_at", "xg_for", "xg_against",
-                        "goals_for", "goals_against", "raw_payload_sha256", "source_system")}))
-                if verified_matches and values["decision_at"] is not None:
-                    expected = materialize_rolling_xg(team_id=values["team_id"], as_of_fixture_id=values["as_of_fixture_id"],
-                        as_of_time=values["decision_at"], matches=verified_matches, window=values["match_count"])
+                            break
+                        verified_matches.append(verified)
+                if source_valid:
+                    expected = materialize_rolling_xg(
+                        team_id=values["team_id"], as_of_fixture_id=values["as_of_fixture_id"],
+                        as_of_time=values["decision_at"], matches=verified_matches,
+                        window=_XG_ROLLING_WINDOW, min_matches=_XG_ROLLING_MIN_MATCHES)
                     if expected is None:
                         source_valid = False
                     else:
-                        for key in ("as_of_time", "first_captured_at", "match_count", "rolling_xg_for", "rolling_xg_against",
+                        submitted = sorted(
+                            (_normalize_source_match(dict(c)) for c in components),
+                            key=lambda item: item[0])
+                        expected_sources = sorted(
+                            (_normalize_source_match(dict(m)) for m in expected.source_matches),
+                            key=lambda item: item[0])
+                        if submitted != expected_sources:
+                            source_valid = False
+                        for key in ("match_count", "rolling_xg_for", "rolling_xg_against",
                                     "rolling_goals_for", "rolling_goals_against", "regression_index"):
-                            if getattr(expected,key) != values[key]:
+                            if getattr(expected, key) != values[key]:
                                 source_valid = False
-                pending = source_valid and values["decision_at"] is not None
+                        if iso_z(expected.as_of_time) != iso_z(values["as_of_time"]):
+                            source_valid = False
+                        if iso_z(expected.first_captured_at) != iso_z(values["first_captured_at"]):
+                            source_valid = False
+                # source_pit_requested 由持久化层根据来源是否完备独立决定，不能
+                # 沿用提交快照自带的 pit_proven（那会让遗漏来源仍请求证明）。
+                # proof_pending 只表示「本次插入需要另一事务证明首次可读」，与
+                # 来源是否完备无关；pit_proven 由 source_pit_requested（=source_valid）
+                # 与时点检查在确认事务里计算。
+                values["source_pit_requested"] = source_valid
+                pending = identity_valid
                 session.add(TeamXgRollingSnapshotModel(**values,
                     first_committed_at=None, pit_proven=False, proof_pending=pending))
                 inserted.append(values["snapshot_id"])
@@ -3391,12 +3464,15 @@ class FutureRefreshDbRepository:
                 raise FutureRefreshPersistenceError("TASK_AUDIT_WRITE_FAILED") from exc
 
     def task_key_exists(self, key: str) -> bool:
+        # COMPLETED（已运行）与 ATTEMPTING（provider 调用前预占、进程硬退出残留）
+        # 都视为已存在：重投必须被阻止。BLOCKED 是已知的 0 次/失败结果，不占用
+        # task key，允许重试（与持久 owner claim 的 SIDE_EFFECT_UNCERTAIN 语义分开）。
         with Session(self.engine) as session:
             row = session.scalar(
                 select(FutureRefreshTaskAuditModel.task_id)
                 .where(
                     FutureRefreshTaskAuditModel.key == key,
-                    FutureRefreshTaskAuditModel.status == "COMPLETED",
+                    FutureRefreshTaskAuditModel.status.in_(("COMPLETED", "ATTEMPTING")),
                 )
                 .limit(1)
             )

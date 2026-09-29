@@ -812,7 +812,10 @@ def future_fixture_refresh(
     xg_report: dict[str, object] = {}
     auto_capture = any(os.environ.get(flag, "false").lower() == "true" for flag in (
         "W2_H2H_AUTO_CAPTURE_ENABLED", "W2_XG_AUTO_CAPTURE_ENABLED"))
-    owned_pipeline = auto_capture or bool(os.environ.get("W2_DATABASE_URL"))
+    # 持久 owner claim 需要持久 PG；不能以 auto_capture or W2_DATABASE_URL 环境
+    # 变量决定是否 claim（V10/E）。SQLite 本地测试走 run_future_refresh_task 的
+    # DB task-key 检查，不额外 claim。无 PG / claim 写失败 → 0 次进入外部入口。
+    owned_pipeline = auto_capture or get_settings().safe_database_label.startswith("postgresql")
     task_claim = None
     try:
         if owned_pipeline:
@@ -985,12 +988,22 @@ def xg_history_backfill(
             "candidate": False,
             "formal_recommendation": False,
         }
-    result = run_xg_history_backfill(competition_id=competition_id)
+    # 独立 XG 路由接入同一持久副作用栅栏（V10/E）。业务执行 key 使用
+    # competition_id + 秒级计划窗口：同一次重投保持同 key，合法的新窗口可独立
+    # 运行；scheduler 的 task_id 含 UUID 只作为 Celery 投递标识，不参与 fence key。
+    now = datetime.now(UTC)
+    # 独立 XG 任务由 scheduler 单独投递，worker 进程内 settings 缓存可能是
+    # 另一个入口留下的；栅栏的持久 owner claim 必须落到当前配置的数据库。
+    get_settings.cache_clear()
+    fence_key = f"xg-history-backfill:{competition_id or ''}:{int(now.timestamp())}"
+    result = _execute_owned_stage(
+        fence_key, "xg", lambda: run_xg_history_backfill(competition_id=competition_id).as_dict()
+    )
     return {
         "task_id": task_id,
         "queued_at_utc": queued_at_utc,
         "status": "COMPLETED",
-        "result": result.as_dict(),
+        "result": result,
         "candidate": False,
         "formal_recommendation": False,
     }
