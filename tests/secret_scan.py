@@ -19,6 +19,10 @@ _ASSIGNED_LITERAL = re.compile(
     rf"|(?P<bare_key>{_KEY})|\[\s*[\"'](?P<indexed_key>{_KEY})[\"']\s*\])"
     r"\s*(?::|=)\s*(?P<value_quote>[\"'])(?P<value>[^\"']+)(?P=value_quote)"
 )
+_SHELL_ASSIGNED_LITERAL = re.compile(
+    rf"(?i)^\s*(?:export\s+)?(?P<key>{_KEY})\s*=\s*"
+    r"(?![\"'])(?P<value>[^\s;#]+)"
+)
 _SETENV_LITERAL = re.compile(
     rf"setenv\(\s*[\"'](?P<key>{_KEY})[\"']\s*,\s*(?P<quote>[\"'])(?P<value>.*?)(?P=quote)\s*\)",
     flags=re.IGNORECASE,
@@ -45,6 +49,10 @@ _SAFE_FIXTURE_DIGESTS = frozenset({
     "e3c336920be672dcff915838819ee9f252b752abfeb1dbe47cba01ad65541eb6",
     "9bdf10a691a1cfda89d9ff66629d1609ab176cec9b6a3146a8929f28937a9fce",
 })
+_SAFE_SCRIPT_FIXTURE_DIGESTS = {
+    ("POSTGRES_PASSWORD", "bafe10d291a91ca650811e1fdcf576cf3d9139204b2bb0690e020fda15aeabee"),
+    ("W2_API_FOOTBALL_API_KEY", "42dfeac94e09e352d69117de95f689b46586771fef69f132440ae9897babfdfb"),
+}
 SKIP_PARTS = {
     ".git", ".venv", "node_modules", ".mypy_cache", ".pytest_cache",
     ".ruff_cache", "runtime", "dist", "test-results", "playwright-report",
@@ -65,16 +73,16 @@ def _safe_literal(value: str) -> bool:
     cleaned = value.strip().lower()
     if cleaned in _PLACEHOLDERS or cleaned.startswith("placeholder_"):
         return True
-    if value.startswith("$") or "{{" in value:
-        return True  # a variable reference, not a stored credential value
+    if re.fullmatch(r"\$[A-Za-z_][A-Za-z0-9_]*|\$\{[A-Za-z_][A-Za-z0-9_]*\}", value):
+        return True  # an entire shell variable reference
+    if re.fullmatch(r"\{\{\s*[A-Za-z_][A-Za-z0-9_.]*\s*\}\}", value):
+        return True  # an entire template variable reference
     if value.strip() == "W2_API_FOOTBALL_API_KEY='dummy-key'\\n":
         return True  # exact malformed test input for copy/paste normalization
     if re.fullmatch(r"\{[A-Za-z_][A-Za-z0-9_]*\}", value):
         return True  # a single dynamic f-string reference
     if re.fullmatch(r"Bearer \{[A-Za-z_][A-Za-z0-9_]*\}", value):
         return True
-    if re.fullmatch(r"[A-Z][A-Z0-9_]+", value) and "_" in value:
-        return True  # the name of an environment variable
     return False
 
 
@@ -94,9 +102,15 @@ def line_has_credential(line: str, *, path: Path | None = None) -> bool:
         (match.group("key"), match.group("value"))
         for match in _SETENV_LITERAL.finditer(line)
     )
+    shell_context = line.lstrip().startswith("export ") or (
+        path is not None and path.suffix in {".sh", ".bash", ".zsh", ".env"}
+    )
+    shell_match = _SHELL_ASSIGNED_LITERAL.search(line) if shell_context else None
+    if shell_match is not None:
+        literals.append((shell_match.group("key"), shell_match.group("value")))
     for key, value in literals:
         if "authorization" in key.lower() and key.lower().endswith(
-            ("_id", "_schema", "_sha256", "_hash")
+            ("_id", "_schema", "_sha256", "_hash", "_status")
         ):
             continue
         if key.lower() == "js-tokens":  # dependency package name, not a credential field
@@ -108,6 +122,12 @@ def line_has_credential(line: str, *, path: Path | None = None) -> bool:
         if (
             path is not None and "tests" in path.parts
             and hashlib.sha256(value.encode()).hexdigest() in _SAFE_FIXTURE_DIGESTS
+        ):
+            continue
+        if (
+            path is not None
+            and path == ROOT / "scripts/run_predeploy_e2e_smoke.sh"
+            and (key, hashlib.sha256(value.encode()).hexdigest()) in _SAFE_SCRIPT_FIXTURE_DIGESTS
         ):
             continue
         return True
