@@ -164,7 +164,9 @@ def test_context_records_release_candidate_promotion_without_changing_next_actio
 def test_cumulative_candidate_base_is_exact_ancestor_and_only_postmerge() -> None:
     from pathlib import Path
 
-    workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/release-candidate.yml").read_text()
+    workflow = (
+        Path(__file__).resolve().parents[2] / ".github/workflows/release-candidate.yml"
+    ).read_text()
     assert "candidate_base_sha:" in workflow
     assert '[[ "$CANDIDATE_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]' in workflow
     assert 'test "$CANDIDATE_BASE_SHA" != "$EXPECTED_HEAD_SHA"' in workflow
