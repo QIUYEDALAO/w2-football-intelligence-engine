@@ -1,4 +1,4 @@
-"""F6 H2H 补采 — 第 1 步：查询 Football-API 今日剩余配额（只读 status 调用）。
+"""F6 H2H 补采 — 第 1 步：查询 API-Football 今日剩余配额（只读 status 调用）。
 
 只读键名，不打印 API key。fail-closed：任何失败即非零退出，不自动重试。
 """

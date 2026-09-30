@@ -1,7 +1,7 @@
 """F6 H2H 补采（T1 小批验证 / T2 全量回填）—— 对象为回测场次清单 CSV。
 
 复用 remediation.py 的 canonical 写入路径（history_rows_from_fixture + endpoint capture），
-对 CSV 的每行（home_team_id/away_team_id 为 Football-API team id）调用
+对 CSV 的每行（home_team_id/away_team_id 为 API-Football team id）调用
 /fixtures/headtohead?h2h={home}-{away}&last=10，把已完赛交锋写入 canonical_team_match_history
 （每场 2 行，幂等键 provider+provider_fixture_id+team_w2_id）。
 

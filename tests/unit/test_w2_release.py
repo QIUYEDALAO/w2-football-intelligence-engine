@@ -599,10 +599,10 @@ exit 0
     (bin_dir / "preflight").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
     (bin_dir / "sync-preflight").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
     (bin_dir / "sleep").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
-    # macOS sed 的 -i 需要参数；把 VPS 脚本里 GNU 风格的 `sed -i -e` 转成 `sed -i '' -e`
+    # macOS sed 的 -i 需要参数；Linux 保留 GNU sed 原参数。
     (bin_dir / "sed").write_text(
         """#!/usr/bin/env bash
-if [ "$1" = "-i" ] && [ "$2" = "-e" ]; then
+if [ "$(uname -s)" = "Darwin" ] && [ "$1" = "-i" ] && [ "$2" = "-e" ]; then
   shift
   exec /usr/bin/sed -i '' "$@"
 fi
