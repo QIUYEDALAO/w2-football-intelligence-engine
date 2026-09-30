@@ -22,9 +22,8 @@ REPO = Path(__file__).resolve().parents[3]
 PACKAGE = REPO / "docs/review_packages/W2_OFFICIAL_CANDIDATE_ACCURACY_REMEDIATION_20260909"
 OUTPUT = REPO / "docs/review_packages/W2_AH_FACTOR_ACCURACY_F0_20260910"
 RUNNER_PATH = REPO / "scripts/quant/run_ah_factor_accuracy_f0.py"
-LABELS = Path(
-    "/Users/liudehua/Desktop/W2文档/evidence/W2_OFFICIAL_148_RAW_20260909"
-    "/_raw_official_recommendations.json")
+# Byte-identical trusted auxiliary labels; retain the original F0 SHA pin.
+LABELS = REPO / "tests/fixtures/quant/official_148_display_labels.json"
 
 _spec = importlib.util.spec_from_file_location("w2_f0_runner", RUNNER_PATH)
 assert _spec is not None and _spec.loader is not None

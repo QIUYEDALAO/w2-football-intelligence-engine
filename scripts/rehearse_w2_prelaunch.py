@@ -802,7 +802,8 @@ def main() -> None:
                 "-t",
                 candidate,
                 str(context),
-            ]
+            ],
+            cwd=context,
         )
         run(
             [
@@ -815,7 +816,8 @@ def main() -> None:
                 "-t",
                 web,
                 str(context),
-            ]
+            ],
+            cwd=context,
         )
     if not args.old_image:
         archive = root / "old.tar"
@@ -834,7 +836,8 @@ def main() -> None:
                 "-t",
                 old,
                 str(context),
-            ]
+            ],
+            cwd=context,
         )
     outcomes = [
         case(root, fault=fault, candidate=candidate, old=old, web=web)
