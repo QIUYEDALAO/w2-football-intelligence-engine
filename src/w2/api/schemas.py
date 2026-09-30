@@ -1042,6 +1042,7 @@ class WorkspaceMatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     fixture_id: str
+    ah_ou_v3_recommendations: list[dict[str, Any]] = Field(default_factory=list)
     competition_id: str | None
     competition_name: str | None
     kickoff_utc: datetime | str | None

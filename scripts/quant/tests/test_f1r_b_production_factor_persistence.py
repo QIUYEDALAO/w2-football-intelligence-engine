@@ -1132,6 +1132,9 @@ def test_07_the_wiring_did_not_touch_a_forbidden_path() -> None:
         "src/w2/api/repository.py",
         "src/w2/api/routers.py",
         "src/w2/api/schemas.py",
+        # V12's exact current-public projection; the frozen quant packages
+        # and every other dashboard path remain forbidden.
+        "src/w2/dashboard/ah_ou_v3_public.py",
         "migrations/versions/0078_quant_asof_role_isolation.py",
         "src/w2/strategy/ah_ou_decision.py",
         "src/w2/strategy/ah_ou_quote_selector.py",

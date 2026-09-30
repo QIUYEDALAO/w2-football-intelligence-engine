@@ -993,6 +993,35 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
   );
 }
 
+function PrematchInputDiagnostics({ generatedAt, match, thresholdRatio }: { generatedAt: string | null; match: WorkspaceMatch; thresholdRatio: number }) {
+  const markets = [match.market_radar.markets.ASIAN_HANDICAP, match.market_radar.markets.TOTALS];
+  const model = match.w2_analysis.model_view;
+  const relations = markets.map((market) => match.w2_analysis.model_market_relation[market.market]);
+  return <div className="w2-prematch-inputs" data-authority="DIAGNOSTIC_INPUT_ONLY">
+    <p>以下为已落盘的赛前输入与旧代际诊断；当前推荐只以本场 v3 冻结决策为准。</p>
+    {match.priority_reason_primary === "MARKET_MOVEMENT" ? <p className="w2-input-movement">{marketMovementDetail(match, thresholdRatio)}</p> : null}
+    <div className="v41-focus-summary" data-primary-conclusion={diagnosisConclusion(match)}><b>{!match.outcome.is_finished && match.market_collection.public_semantics.cause === "AWAITING_COLLECTION" ? "采集状态" : "本场摘要"}</b><span>{unassessedSummary(match)}</span></div>
+    <div className="v41-three-layer"><div><span>市场输入</span><strong>报价证据</strong><b>逐市场 · {candidateAggregateLabel(match.readiness.market_aggregate_status)}</b></div></div>
+    <div className="v41-focus-markets">
+      <p className="v41-market-contract">市场雷达 · 仅绘制已落盘快照 · 点间不插值、不推断缺失路径</p>
+      {markets.map((market) => <MarketEvidence key={market.market} market={market} generatedAt={generatedAt} kickoff={match.kickoff_utc} finished={match.outcome.is_finished} quoteMaxAgeSeconds={quoteAgeMaximumSeconds(match.factor_checklist, market.market)} />)}
+      <MarketEvidenceDetails markets={markets} latestSnapshotAt={match.market_collection.latest_snapshot_at} latestSnapshotCheckpoint={match.market_collection.latest_snapshot_checkpoint} />
+    </div>
+    {match.evaluation_execution.status === "NO_CANDIDATE_FORMED" ? <p className="w2-historical-lifecycle">{match.evaluation_execution.summary_zh}</p> : null}
+    <EvaluationDiagnosis match={match} />
+    <div className="v41-diagnostic"><span /><p><b>可比较模型（需已验证校准）：{label(model.status)}</b>{`让球：${label(relations[0]?.status)}；大小球：${label(relations[1]?.status)}。`}</p></div>
+    <RiskSummary generatedAt={generatedAt} match={match} />
+    <Scoreline match={match} />
+    <div className="v41-next"><span>市场输入</span><strong>{candidateAggregateLabel(match.readiness.market_aggregate_status)}</strong><span>最终候选</span><strong>{evaluationStatusLabel(match.evaluation_execution.status)}</strong><span>采集状态</span><strong>{match.outcome.is_finished ? "赛前流程已关闭" : collectionLabel(match)}</strong><span>计划时刻</span><strong>{match.outcome.is_finished ? "不适用" : match.market_collection.scheduled_at ? scheduledEvaluation(match.market_collection.scheduled_at, generatedAt) : "暂无后续计划"}</strong><span>宽限结束</span><strong>{match.outcome.is_finished ? "不适用" : match.market_collection.window_end_at ? localDateTime(match.market_collection.window_end_at) : "不适用"}</strong><span>下次评估</span><strong>{match.outcome.is_finished ? "赛前流程已结束" : nextEvaluation(match.readiness.next_eval_at, generatedAt)}</strong></div>
+    <FactorChecklist match={match} />
+    <details className="v41-details"><summary>原始技术字段</summary>
+      <code>{match.intelligence_state}</code>
+      <code>{match.readiness.reason_code || "NO_REASON_CODE"}</code>
+      {markets.map((market) => <div key={market.market}>{market.reason_codes.map((reason) => <code key={reason}>{market.market}:{reason}</code>)}{market.eligibility.blockers.map((blocker) => <code key={blocker}>{market.market}:{blocker}</code>)}</div>)}
+    </details>
+  </div>;
+}
+
 function DetailLoadingFocus({ fixtureId, loading, error }: { fixtureId: string; loading: boolean; error: string | null }) {
   return <article className="v41-focus v41-global" data-fixture-id={fixtureId} data-focus-type="DETAIL_ON_DEMAND">
     <div className="v41-global-copy">
@@ -1302,9 +1331,9 @@ export function IntelligenceConsole(props: Props) {
   };
   const tabContent = tabState === "loading" ? <p className="w2-pending">正在按需读取…</p>
     : tabState === "error" ? <p className="w2-pending">该视图暂不可用。<button type="button" className="w2-link" onClick={() => { setTabState("idle"); setRequestAttempt((value) => value + 1); }}>重试</button></p>
-    : tab === "validation" && validation ? <Suspense fallback={<p className="w2-pending">正在加载战绩复盘…</p>}><DesignV1ValidationView response={validation} onPageChange={setReviewOffset} /></Suspense>
+    : tab === "validation" && validation ? <Suspense fallback={<p className="w2-pending">正在加载战绩复盘…</p>}><DesignV1ValidationView response={validation} onPageChange={setReviewOffset} />{validation.validation?.model_forecast ? <section aria-label="旧代际历史验证" data-legacy-validation><p>以下是旧代际历史验证，仅供审计；当前 AH/OU 推荐与战绩以上方 v3 冻结账本为准。</p><ValidationCenter response={validation} /></section> : null}</Suspense>
     : tab === "validation-calibrated" && calibratedValidation ? <Suspense fallback={<p className="w2-pending">正在加载校准复盘…</p>}><DesignV1CalibratedValidationView response={calibratedValidation} onPageChange={setReviewOffset} /></Suspense>
-    : tab === "replay" && replay ? <Suspense fallback={<p className="w2-pending">正在加载回放记录…</p>}><DesignV1ReplayView response={replay} /></Suspense>
+    : tab === "replay" && replay ? <Suspense fallback={<p className="w2-pending">正在加载回放记录…</p>}><DesignV1ReplayView response={replay} />{replay.history_replay ? <section aria-label="旧代际历史回放" data-legacy-replay><p>以下是旧代际历史回放，不作为当前 AH/OU v3 推荐权威。</p><ReplayCenter response={replay} /></section> : null}</Suspense>
     : null;
-  return <DesignV1Overview workspace={workspace} date={props.date} onDateChange={props.onDateChange} activeTab={tab} onTabChange={selectTab} tabContent={tabContent} />;
+  return <DesignV1Overview workspace={workspace} date={props.date} initialFixtureId={props.initialFixtureId} onDateChange={props.onDateChange} onRefresh={props.onRefresh} loading={props.loading} activeTab={tab} onTabChange={selectTab} tabContent={tabContent} dateNavigation={<RecentDateNav date={props.date} onDateChange={props.onDateChange} workspace={workspace} />} dayContext={workspace.global_focus ? <GlobalFocus date={props.date} onDateChange={props.onDateChange} workspace={workspace} /> : null} capabilityStatus={<CapabilityStatus workspace={workspace} />} historicalQuality={<QualityRail workspace={workspace} />} renderInputDiagnostics={(match) => <PrematchInputDiagnostics generatedAt={workspace.generated_at} match={match} thresholdRatio={workspace.runtime.market_price_attention_threshold_ratio} />} />;
 }

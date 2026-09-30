@@ -3238,6 +3238,90 @@ class ReadModelService:
         with Session(self.repository._database_engine()) as session:
             return v3_validation_snapshot(session)
 
+    def dashboard_ah_ou_v3_public(self) -> list[dict[str, Any]]:
+        """The current public AH/OU rows come only from frozen v3.1 decisions.
+
+        Fixture and canonical-team joins are read-only identity checks. A
+        missing or inconsistent binding is an unavailable read, never a reason
+        to fill the public surface with the older V4 pick or v2 sample.
+        """
+        from w2.tracking.ah_ou_v3_postmatch import v3_validation_snapshot
+
+        with Session(self.repository._database_engine()) as session:
+            rows = v3_validation_snapshot(session)["rows"]
+            fixture_ids = {
+                "api_football:" + str(row["fixture_id"]).removeprefix("api_football:")
+                for row in rows
+                if row["decision_contract"] == "w2.ah_ou_decision.v3.1"
+            }
+            identities = {
+                identity.fixture_id: identity
+                for identity in session.scalars(select(MatchdayFixtureIdentityModel).where(
+                    MatchdayFixtureIdentityModel.fixture_id.in_(fixture_ids)
+                ))
+            } if fixture_ids else {}
+            team_ids = {
+                str(team_id)
+                for row in rows
+                for team_id in (row["home_team_id"], row["away_team_id"])
+            }
+            teams = {
+                team.w2_team_id: team
+                for team in session.scalars(select(CanonicalTeamModel).where(
+                    CanonicalTeamModel.w2_team_id.in_(team_ids)
+                ))
+            } if team_ids else {}
+            labels_by_fixture = shared_public_team_labels_for_fixtures(
+                session, list(identities.values())
+            ) if identities else {}
+            projected: list[dict[str, Any]] = []
+            for row in rows:
+                if row["decision_contract"] != "w2.ah_ou_decision.v3.1":
+                    continue  # Historical selected v3 rows have no frozen price.
+                if not all(row.get(field) for field in (
+                    "selection", "exact_line", "decimal_odds", "terms_hash",
+                    "quote_capture_id", "quote_raw_sha256",
+                )):
+                    raise ValueError("V3_PUBLIC_FROZEN_TERMS_INCOMPLETE")
+                fixture_id = str(row["fixture_id"])
+                identity = identities.get(
+                    "api_football:" + fixture_id.removeprefix("api_football:")
+                )
+                if (
+                    identity is None
+                    or identity.home_w2_team_id != row["home_team_id"]
+                    or identity.away_w2_team_id != row["away_team_id"]
+                    or identity.kickoff_utc != datetime.fromisoformat(row["kickoff_utc"])
+                ):
+                    raise ValueError("V3_PUBLIC_FIXTURE_TEAM_BINDING_INVALID")
+                home = teams.get(row["home_team_id"])
+                away = teams.get(row["away_team_id"])
+                if home is None or away is None:
+                    raise ValueError("V3_PUBLIC_CANONICAL_TEAM_MISSING")
+                labels = labels_by_fixture.get(identity.fixture_id)
+                if not labels:
+                    raise ValueError("V3_PUBLIC_TEAM_LABEL_MISSING")
+                home_label = (
+                    labels["home"].get("display_name")
+                    or labels["home"].get("raw_provider_name")
+                    or home.display_name
+                )
+                away_label = (
+                    labels["away"].get("display_name")
+                    or labels["away"].get("raw_provider_name")
+                    or away.display_name
+                )
+                if not home_label or not away_label:
+                    raise ValueError("V3_PUBLIC_TEAM_LABEL_MISSING")
+                projected.append({
+                    **row,
+                    "competition_id": identity.competition_id,
+                    "home": home_label,
+                    "away": away_label,
+                    "kickoff_utc": identity.kickoff_utc.isoformat(),
+                })
+            return projected
+
     def dashboard_validation_profit_summary(self) -> dict[str, float]:
         """Sum settled recommendation units across all dates and pages."""
         with Session(self.repository._database_engine()) as session:

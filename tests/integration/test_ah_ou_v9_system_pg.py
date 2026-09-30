@@ -30,6 +30,11 @@ def _build_chain(tmp_path, monkeypatch):
     db=url.rsplit('/',1)[0]+'/'+name
     monkeypatch.setenv('W2_DATABASE_URL',db); monkeypatch.setenv('W2_ENVIRONMENT','test')
     monkeypatch.setenv('W2_FUTURE_REFRESH_PERSISTENCE','db'); get_settings.cache_clear()
+    # The public router is imported once per pytest process. Bind its read
+    # service to this case's isolated database before the first API request.
+    from w2.api import routers
+    from w2.api.repository import ReadModelService as ApiReadModelService
+    monkeypatch.setattr(routers, 'service', ApiReadModelService())
     subprocess.run(['.venv/bin/alembic','upgrade','head'],check=True,env=os.environ.copy(),capture_output=True)
     now=datetime.now(UTC).replace(microsecond=0); kickoff=now+timedelta(hours=7)
     monkeypatch.setattr(harness,'NOW',now)

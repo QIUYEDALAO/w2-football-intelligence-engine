@@ -8,11 +8,13 @@ type LoadState = "loading" | "ready" | "error";
 
 function initialQuery() {
   const query = new URLSearchParams(window.location.search);
-  // 默认日期永远解析为「今天（足球日）」。URL 里可能残留用户上次
-  // 手动切换后浏览器缓存的 `date` 参数，但它不得覆盖默认行为——只有
-  // 用户在页面里手动切换日期时才改变当前日期（经 onDateChange 更新 state）。
+  // The notification/detail links carry a football day. Honor a valid explicit
+  // date; an absent or malformed value starts at today's Shanghai football day.
+  const requestedDay = query.get("date");
+  const validDay = requestedDay && /^\d{4}-\d{2}-\d{2}$/.test(requestedDay)
+    && !Number.isNaN(new Date(`${requestedDay}T12:00:00+08:00`).valueOf());
   return {
-    date: footballDayShanghai(),
+    date: validDay ? requestedDay : footballDayShanghai(),
     fixtureId: query.get("fixture_id"),
   };
 }

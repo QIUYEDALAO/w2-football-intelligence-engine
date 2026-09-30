@@ -30,6 +30,7 @@ from w2.domain.recommendation_decision_v4 import (
 from w2.identity.public_competition_labels import public_competition_labels
 from w2.identity.public_team_labels import reviewed_public_team_labels
 from w2.infrastructure.database import create_engine
+from w2.infrastructure.persistence.ah_ou_decision_ledger_models import AhOuDecisionLedgerModel
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     CandidateNotificationOutboxModel,
     DynamicPrematchEvaluationModel,
@@ -61,6 +62,7 @@ TEST_MESSAGE = "TEST_MESSAGE"
 # NOTIF-04: the three business push types plus the test message.
 DAILY_CANDIDATE_LIST = "DAILY_CANDIDATE_LIST"
 VALIDATION_SAMPLE_CONFIRMED = "VALIDATION_SAMPLE_CONFIRMED"
+V3_RECOMMENDATION_CONFIRMED = "AH_OU_V3_RECOMMENDATION_CONFIRMED"
 VALIDATION_SIGNAL = "VALIDATION_SIGNAL"
 VALIDATION_SIGNAL_WATERMARK = "验证期信号 · 非正式推荐 · 不计入档位"
 DAILY_SETTLEMENT = "DAILY_SETTLEMENT"
@@ -123,7 +125,7 @@ def notification_health_in_session(session: Session, *, now: datetime) -> dict[s
     rows = list(
         session.scalars(
             select(CandidateNotificationOutboxModel).where(
-                CandidateNotificationOutboxModel.event_type.in_(_ALWAYS_PUSH)
+                CandidateNotificationOutboxModel.event_type.in_(_HEALTH_RELEVANT)
             )
         )
     )
@@ -222,7 +224,7 @@ def record_delivery_result_in_session(
         list(
             session.scalars(
                 select(CandidateNotificationOutboxModel).where(
-                    CandidateNotificationOutboxModel.event_type.in_(_ALWAYS_PUSH)
+                    CandidateNotificationOutboxModel.event_type.in_(_HEALTH_RELEVANT)
                 )
             )
         )
@@ -260,16 +262,19 @@ def _aware(moment: datetime) -> datetime:
 _ALWAYS_PUSH = frozenset(
     {
         DAILY_CANDIDATE_LIST,
-        VALIDATION_SAMPLE_CONFIRMED,
+        V3_RECOMMENDATION_CONFIRMED,
         VALIDATION_SIGNAL,
         DAILY_SETTLEMENT,
         TEST_MESSAGE,
     }
 )
+_HEALTH_RELEVANT = _ALWAYS_PUSH | {VALIDATION_SAMPLE_CONFIRMED}
 
 
 def delivery_route(row: CandidateNotificationOutboxModel) -> tuple[str, str]:
-    """Only the four approved event types reach the phone."""
+    """Only current v3 recommendations and operational digests reach the phone."""
+    if str(row.event_type) == VALIDATION_SAMPLE_CONFIRMED:
+        return "SUPPRESS", "HISTORICAL_V4_RECOMMENDATION"
     if str(row.event_type) in _ALWAYS_PUSH:
         return "SEND", "ACTIONABLE"
     return "SUPPRESS", "EVENT_TYPE_RETIRED"
@@ -962,6 +967,78 @@ def _team_display_name(label: Mapping[str, Any], fallback: str) -> str:
     return name or fallback
 
 
+def enqueue_v3_recommendation_confirmed_in_session(
+    session: Session, *, decision: AhOuDecisionLedgerModel
+) -> str | None:
+    """Queue the current recommendation from its committed v3.1 identity.
+
+    The caller places this in the cohort/decision transaction. Historical V4
+    sample-confirmation events remain readable, but never supply a current v3
+    selection or price.
+    """
+    if not decision.selected or decision.decision_contract != "w2.ah_ou_decision.v3.1":
+        return None
+    terms = decision.frozen_terms
+    if not isinstance(terms, dict) or not decision.terms_hash:
+        raise ValueError("V3_NOTIFICATION_FROZEN_TERMS_MISSING")
+    if (
+        terms.get("selection") != decision.direction
+        or terms.get("capture_id") != decision.capture_id
+        or terms.get("model_version") != decision.model_version
+        or terms.get("calibration_version") != decision.calibration_version
+    ):
+        raise ValueError("V3_NOTIFICATION_FROZEN_TERMS_BINDING_INVALID")
+    identity = _fixture_identity(session, str(decision.fixture_id))
+    if identity is None or (
+        identity.home_w2_team_id != decision.home_team_id
+        or identity.away_w2_team_id != decision.away_team_id
+    ):
+        raise ValueError("V3_NOTIFICATION_FIXTURE_IDENTITY_INVALID")
+    event_id = _event_id(decision.decision_id, V3_RECOMMENDATION_CONFIRMED)
+    payload = {
+        "schema_version": "w2.ah_ou_v3_recommendation_notification.v1",
+        "event_type": V3_RECOMMENDATION_CONFIRMED,
+        "decision_contract": decision.decision_contract,
+        "decision_id": decision.decision_id,
+        "fixture_id": decision.fixture_id,
+        "competition": _competition_zh_name(identity.competition_id),
+        "match": {"home": _team_name(identity, "home"), "away": _team_name(identity, "away")},
+        "kickoff_local": _utc(identity.kickoff_utc).astimezone(BEIJING).isoformat(),
+        "market": decision.market,
+        "direction": decision.direction,
+        "line": terms.get("selected_line"),
+        "decimal_odds": terms.get("entry_odds"),
+        "score": decision.score,
+        "model_version": decision.model_version,
+        "calibration_version": decision.calibration_version,
+        "quote_capture_id": decision.capture_id,
+        "quote_raw_sha256": terms.get("raw_payload_sha256"),
+        "terms_hash": decision.terms_hash,
+        "dashboard_url": _dashboard_fixture_url(str(decision.fixture_id), identity.kickoff_utc),
+        "created_at": _iso(decision.created_at),
+    }
+    if _insert(
+        session,
+        event_id=event_id,
+        opportunity_identity_hash=None,
+        attempt_identity_hash=None,
+        event_type=V3_RECOMMENDATION_CONFIRMED,
+        previous_state=None,
+        current_state="CONFIRMED",
+        payload=payload,
+        created_at=decision.created_at,
+    ):
+        return event_id
+    existing = session.get(CandidateNotificationOutboxModel, event_id)
+    if (
+        existing is None
+        or existing.event_type != V3_RECOMMENDATION_CONFIRMED
+        or existing.payload != payload
+    ):
+        raise ValueError("V3_NOTIFICATION_EVENT_FIELD_CONFLICT")
+    return None
+
+
 def enqueue_validation_sample_confirmed_in_session(
     session: Session,
     *,
@@ -1632,6 +1709,13 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
         except ValueError:
             day_label = day_str or "未知日期"
         title = f"[今日候选] {day_label} 共 {count} 场待评估"
+    elif event_type == V3_RECOMMENDATION_CONFIRMED:
+        competition = str(payload.get("competition") or "未知联赛")
+        kickoff_time = kickoff.astimezone(BEIJING).strftime("%H:%M") if kickoff else "--:--"
+        title = (
+            f"[AH/OU v3 推荐] {competition} {home}vs{away} {kickoff_time} "
+            f"{_market_label(payload.get('market'))} {direction}{line} @{odds}"
+        )
     elif event_type == VALIDATION_SAMPLE_CONFIRMED:
         competition = str(payload.get("competition") or payload.get("league") or "未知联赛")
         kickoff_time = kickoff.astimezone(BEIJING).strftime("%H:%M") if kickoff else "--:--"
@@ -1646,7 +1730,15 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
             day_label = f"{settled_day.month}月{settled_day.day}日"
         except ValueError:
             day_label = day_str or "未知日期"
-        if int(payload.get("item_count", 0) or 0) == 0:
+        v3 = payload.get("ah_ou_v3")
+        if isinstance(v3, Mapping):
+            selected = int(v3.get("selected") or 0)
+            settled = int(v3.get("settled") or 0)
+            title = (
+                f"[AH/OU v3 结算] {day_label} {selected}条 · 已结算{settled}"
+                if selected else f"[AH/OU v3 结算] {day_label} 当天无 v3 推荐"
+            )
+        elif int(payload.get("item_count", 0) or 0) == 0:
             title = f"[结算] {day_label} 当天无推荐"
         else:
             title = (
@@ -1783,7 +1875,7 @@ def _message_body(payload: Mapping[str, Any]) -> str:
     event_type = str(payload.get("event_type") or "")
     if event_type == DAILY_CANDIDATE_LIST:
         lines = [
-            "以下比赛将在开球前 3 小时起评估，开球前 15 分钟确定的推荐会逐条推送"
+            "以下比赛进入赛前评估；仅已提交的 AH/OU v3.1 冻结决策会逐条推送"
         ]
         for item in payload.get("matches") or []:
             if not isinstance(item, Mapping):
@@ -1793,6 +1885,16 @@ def _message_body(payload: Mapping[str, Any]) -> str:
                 f"{item.get('home', '主队')} vs {item.get('away', '客队')}"
             )
         return "\n".join(lines)
+    if event_type == V3_RECOMMENDATION_CONFIRMED:
+        return "\n".join(
+            (
+                f"冻结盘口 {_format_line(payload.get('line'))} · "
+                f"入场赔率 {_format_odds(payload.get('decimal_odds'))} · "
+                f"模型分数 {payload.get('score')}",
+                f"决策 {payload.get('decision_id')}",
+                f"报价 capture {payload.get('quote_capture_id')}",
+            )
+        )
     if event_type == VALIDATION_SAMPLE_CONFIRMED:
         bookmaker = _as_mapping(payload.get("bookmaker"))
         return "\n".join(
@@ -1820,6 +1922,27 @@ def _message_body(payload: Mapping[str, Any]) -> str:
             )
         )
     if event_type == DAILY_SETTLEMENT:
+        v3 = payload.get("ah_ou_v3")
+        if isinstance(v3, Mapping):
+            lines = [
+                f"当前 AH/OU v3.1：选中 {int(v3.get('selected') or 0)} 条 · "
+                f"已结算 {int(v3.get('settled') or 0)} 条 · "
+                f"待赛果 {int(v3.get('pending') or 0)} 条 · "
+                f"净单位 {v3.get('net_units') or '0'}"
+            ]
+            for item in v3.get("items") or []:
+                if isinstance(item, Mapping):
+                    lines.append(
+                        f"{_market_label(item.get('market'))} "
+                        f"{_direction_label(item.get('selection'))} "
+                        f"{_format_line(item.get('exact_line'))} "
+                        f"@{_format_odds(item.get('decimal_odds'))} · "
+                        f"{item.get('settlement') or item.get('state')} · "
+                        f"{item.get('net_units') if item.get('net_units') is not None else '—'} "
+                        "单位 · "
+                        f"决策 {item.get('decision_id')}"
+                    )
+            return "\n".join(lines)
         cumulative_pure = payload.get("cumulative_profit_units") or 0
         current_formula = payload.get("rebate_formula_version") == REBATE_FORMULA_VERSION
         cumulative_with_rebate = (

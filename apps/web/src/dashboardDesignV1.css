@@ -139,6 +139,10 @@ h2, h3 { margin: 0; text-wrap: balance; }
   display: grid;
   gap: 20px;
 }
+.w2-day-status { display: flex; align-items: baseline; gap: 12px; padding: 10px 14px; border: 1px solid var(--v41-line-soft); border-radius: 8px; color: var(--v41-ink-2); font-size: 12px; }
+.w2-day-status strong { color: var(--v41-ink); font-size: 13px; }
+.w2-day-status--warn { border-color: var(--v41-accent-line); }
+.w2-day-status--critical { border-color: var(--v41-critical-line); }
 
 /* ===== StatusBar ===== */
 .w2-statusbar {
@@ -178,11 +182,18 @@ h2, h3 { margin: 0; text-wrap: balance; }
 }
 .w2-day button {
   border: 0; background: transparent; cursor: pointer;
-  width: 30px; height: 30px; border-radius: 999px;
+  width: 38px; height: 38px; border-radius: 999px;
   display: grid; place-items: center;
   color: var(--v41-ink-2);
 }
 .w2-day button:hover { background: var(--v41-focus); color: var(--v41-ink); }
+.w2-day button:nth-last-child(-n+2) { width: auto; min-width: 40px; padding-inline: 6px; font-size: 12px; }
+.w2-day button:disabled { opacity: .45; cursor: wait; }
+.w2-day input[type="date"] { width: 122px; min-width: 0; height: 38px; border: 0; border-radius: 8px; padding-inline: 4px; color: var(--v41-ink); background: transparent; font-size: 12px; }
+.w2-input-diagnostics { margin-top: 22px; border-top: 1px solid var(--v41-line-soft); padding-top: 12px; }
+.w2-input-diagnostics > summary { cursor: pointer; color: var(--v41-ink-2); min-height: 32px; }
+.w2-prematch-inputs { display: grid; gap: 14px; min-width: 0; }
+.w2-prematch-inputs .v41-focus-markets { min-width: 0; }
 .w2-day__label { display: grid; line-height: 1.2; padding-inline: 6px; text-align: center; }
 .w2-day__label strong { font-size: 14px; }
 .w2-day__label span { font-size: 11px; color: var(--v41-ink-3); }
@@ -409,13 +420,21 @@ h2, h3 { margin: 0; text-wrap: balance; }
 .w2-tabpanel { padding: 4px 0; }
 
 /* 比赛列表 */
-.w2-fixtures { list-style: none; margin: 0; padding: 0; }
+.w2-match-browser { min-width: 0; }
+.w2-match-filters { display: flex; gap: 6px; padding: 8px 14px; overflow-x: auto; border-bottom: 1px solid var(--v41-line-faint); }
+.w2-match-filters button { min-height: 38px; flex: none; padding: 5px 10px; border: 1px solid var(--v41-line-soft); border-radius: 6px; background: transparent; cursor: pointer; font-size: 12px; }
+.w2-match-filters button[aria-pressed="true"] { color: var(--v41-accent); border-color: var(--v41-accent-line); background: var(--v41-accent-soft); }
+.w2-fixtures { list-style: none; margin: 0; padding: 0; max-height: 480px; overflow-y: auto; }
 .w2-fixture {
   display: grid;
   grid-template-columns: 62px 72px minmax(0, 1fr) 150px 150px 96px;
   gap: 12px; align-items: center;
+  height: 72px;
+  box-sizing: border-box;
+  overflow: hidden;
   padding: 11px 16px;
   border-bottom: 1px solid var(--v41-line-faint);
+  cursor: pointer;
 }
 .w2-fixture:last-child { border-bottom: 0; }
 .w2-fixture__teams { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -565,12 +584,14 @@ h2, h3 { margin: 0; text-wrap: balance; }
 
 /* ===== 手机 <768 ===== */
 @media (max-width: 767px) {
+  .w2-day-status { flex-direction: column; gap: 3px; }
   .w2-main { padding-inline: 16px; padding-block: 14px calc(84px + env(safe-area-inset-bottom, 0px)); gap: 16px; }
   .w2-statusbar { position: static; }
   .w2-statusbar__inner { padding-inline: 16px; padding-block: 8px; gap: 10px; }
   .w2-brand__name, .w2-statusbar__meta > span { display: none; }
   .w2-statusbar__meta { gap: 8px; margin-left: auto; }
   .w2-day__label span { display: none; }
+  .w2-day { max-width: 100%; flex-wrap: wrap; border-radius: 14px; }
   .w2-badges { order: 5; width: 100%; }
   .w2-badge { height: 26px; font-size: 12.5px; }
   .w2-theme span { display: none; }
@@ -589,7 +610,7 @@ h2, h3 { margin: 0; text-wrap: balance; }
 
   .w2-side { grid-template-columns: minmax(0, 1fr); }
 
-  .w2-fixture { grid-template-columns: 50px minmax(0, 1fr) auto; row-gap: 6px; }
+  .w2-fixture { grid-template-columns: 50px minmax(0, 1fr) auto; row-gap: 6px; height: auto; overflow: visible; }
   .w2-fixture .w2-fixture__league { display: none; }
   .w2-fixture .w2-market { grid-column: 2 / span 2; display: flex; gap: 8px; }
   .w2-fixture .w2-market + .w2-market { grid-column: 2 / span 2; }

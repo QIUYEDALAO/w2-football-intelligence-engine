@@ -256,6 +256,7 @@ export interface FixtureFactorChecklist {
 }
 
 export interface WorkspaceMatch {
+  ah_ou_v3_recommendations?: TodayRecommendation[];
   fixture_id: string;
   competition_id: string | null;
   competition_name: string | null;
@@ -990,8 +991,15 @@ export interface PerformanceWindow {
 }
 
 export interface PerformanceSummary {
+  schema_version?: "w2.ah_ou_v3_public_performance.v1";
   calibration_identity: string | null;
   status: string;
+  selected_count?: number;
+  settled_count?: number;
+  pending_count?: number;
+  blocked_count?: number;
+  void_count?: number;
+  by_market?: Record<string, PerformanceWindow>;
   total_profit_units: number;
   total_profit_units_with_rebate: number;
   last_7_days: PerformanceWindow;
@@ -1004,6 +1012,9 @@ export interface PerformanceSummary {
 }
 
 export interface TodayRecommendation {
+  schema_version?: "w2.ah_ou_v3_public_recommendation.v1";
+  decision_id?: string;
+  decision_contract?: string;
   fixture_id: string;
   kickoff_utc: string | null;
   competition_name_zh: string | null;
@@ -1014,9 +1025,17 @@ export interface TodayRecommendation {
   selection: string | null;
   line: string | number | null;
   odds: number | string | null;
-  ev: number | null;
-  status: "settled" | "confirmed" | "candidate" | "withdrawn" | string;
-  withdraw_reason: string | null;
+  ev?: number | null;
+  score?: string | number | null;
+  model_version?: string;
+  calibration_version?: string;
+  quote_capture_id?: string;
+  quote_raw_sha256?: string;
+  terms_hash?: string;
+  net_units?: string | null;
+  settlement_hash?: string | null;
+  status: "settled" | "pending" | "blocked" | "void" | "confirmed" | "candidate" | "withdrawn" | string;
+  withdraw_reason?: string | null;
   result?: string | null;
   tier?: "重点" | "一般" | "观察" | "不推" | null;
   fusion_ev?: number | null;

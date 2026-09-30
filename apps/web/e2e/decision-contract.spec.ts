@@ -358,7 +358,23 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
 }
 
 async function installWorkspace(page: Page, scenario: Scenario = "normal"): Promise<void> {
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: workspace(scenario) }));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: withCurrentV3(workspace(scenario)) }));
+}
+
+function withCurrentV3(payload: IntelligenceWorkspace, rows: Array<Record<string, unknown>> = []): IntelligenceWorkspace & Record<string, unknown> {
+  const current = payload as IntelligenceWorkspace & Record<string, unknown>;
+  current.performance_summary = { schema_version: "w2.ah_ou_v3_public_performance.v1", status: "AVAILABLE", calibration_identity: "w2.ah_ou_decision.v3.1", selected_count: rows.length, pending_count: rows.filter((row) => row.status === "pending").length, settled_count: rows.filter((row) => row.status === "settled").length, total_profit_units: 0, total_profit_units_with_rebate: 0, last_7_days: { match_count: 0, hit_rate: null, profit_units: 0 }, last_30_days: { match_count: 0, hit_rate: null, profit_units: 0 }, daily_series: [] };
+  current.today_recommendations = rows;
+  return current;
+}
+
+async function openCurrentInputDiagnostics(page: Page, payload: IntelligenceWorkspace, fixtureId = payload.selected_fixture_id || payload.matches[0]?.fixture_id): Promise<void> {
+  const detail = payload.matches.find((item) => item.fixture_id === fixtureId);
+  if (!detail) throw new Error(`Fixture ${fixtureId} missing from test payload`);
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: withCurrentV3(payload) }));
+  await page.route(`**/v1/dashboard/intelligence-workspace/matches/${fixtureId}`, (route) => route.fulfill({ status: 200, json: detail }));
+  await page.goto(`/?date=${payload.date}&fixture_id=${fixtureId}`);
+  await page.locator(".w2-input-diagnostics > summary").click();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -536,8 +552,10 @@ test("dashboard tabs lazy-load validation and replay once per selected date", as
 test("public team labels come from the workspace authority, not frontend guessing", async ({ page }) => {
   await installWorkspace(page);
   await page.goto("/");
-  await expect(page.locator(".v41-focus-header h1")).toHaveText("本菲卡 vs 波尔图");
-  await expect(page.locator(".v41-focus-header h1")).not.toContainText("Benfica");
+  const row = page.locator('.w2-fixture[data-fixture-id="1571806"]');
+  await expect(row.locator(".w2-fixture__teams")).toContainText("本菲卡");
+  await expect(row.locator(".w2-fixture__teams")).toContainText("波尔图");
+  await expect(row.locator(".w2-fixture__teams")).not.toContainText("Benfica");
 });
 
 test("future selected day derives neutral scope/cause copy and keeps known raw team names", async ({ page }) => {
@@ -561,6 +579,7 @@ test("future selected day derives neutral scope/cause copy and keeps known raw t
   payload.matches[0].home_team_label = { display_name: "Rosenborg", state: "CANONICAL_IDENTITY_READY_LABEL_MISSING", canonical_team_id: "w2:team:api_football:331", provider_team_id: "331", public_semantics: { scope: "MATCH", cause: "LABEL_MISSING" }, technical: { raw_provider_name: "Rosenborg" } };
   payload.matches[0].away_team_label = { display_name: "维京", state: "CHINESE_LABEL_READY", canonical_team_id: "w2:team:api_football:759", provider_team_id: "759", public_semantics: { scope: "MATCH", cause: null }, technical: { raw_provider_name: "Viking" } };
   payload.matches[1].kickoff_utc = "2026-08-14T17:00:00Z";
+  payload.matches = payload.matches.slice(0, 2);
   const selected = payload.date_strip.find((item) => item.football_day === payload.date)!;
   selected.fixture_count = 2;
   selected.upcoming_fixture_count = 2;
@@ -575,22 +594,18 @@ test("future selected day derives neutral scope/cause copy and keeps known raw t
   await page.getByLabel("选择比赛日").fill(payload.date);
   await expect(page.getByLabel("选择比赛日")).toHaveValue(payload.date);
 
-  const selectedDayCause = page.locator("header.v41-header [data-public-cause=NOT_YET_DUE]");
-  await expect(selectedDayCause).toHaveText("W2 计划采集尚未开始");
-  await expect(selectedDayCause).toHaveClass(/v41-pill--neutral/);
-  await expect(page.locator(".v41-shortlist .v41-stripe--neutral")).toHaveCount(2);
-  await expect(page.locator(".v41-shortlist [class*='collection_incident']")).toHaveCount(0);
+  const selectedDayCause = page.locator(".w2-day-status[data-public-cause=NOT_YET_DUE]");
+  await expect(selectedDayCause).toContainText("W2 计划采集尚未开始");
+  await expect(selectedDayCause).toHaveClass(/w2-day-status--neutral/);
+  await expect(page.locator(".w2-fixture")).toHaveCount(2);
   await expect(page.locator("body")).not.toContainText("采集异常");
-  await expect(page.locator(".v41-today")).toContainText("场所选比赛日比赛");
-  await expect(page.locator(".v41-global h1")).toContainText("W2 计划采集尚未开始");
-  await expect(page.locator(".v41-global-note")).toContainText("不判断外部市场是否已有盘口");
-  await expect(page.locator(".v41-shortlist")).toContainText("Rosenborg");
-  await expect(page.locator(".v41-shortlist")).toContainText("维京");
-  await expect(page.locator(".v41-shortlist")).toContainText("中文译名待映射");
-  await expect(page.locator(".v41-shortlist")).not.toContainText("主队（中文译名待映射）");
+  await expect(selectedDayCause).toContainText("所选比赛日比赛可查看");
+  await expect(page.locator(".w2-fixtures")).toContainText("Rosenborg");
+  await expect(page.locator(".w2-fixtures")).toContainText("维京");
+  await expect(page.locator(".w2-fixtures")).not.toContainText("主队（中文译名待映射）");
   await expect(page.locator("body")).not.toContainText("仅赛程");
-  await expect(page.locator(".v41-shortlist time").first()).toHaveText("20:00");
-  await expect(page.locator(".v41-shortlist time").nth(1)).toHaveText("次日 01:00");
+  await expect(page.locator(".w2-fixture > .num").first()).toHaveText("20:00");
+  await expect(page.locator(".w2-fixture > .num").nth(1)).toHaveText("次日 01:00");
   await page.getByRole("tab", { name: "回放记录" }).click();
   await expect(page.locator("#history")).toContainText("前向记录");
   await expect(page.locator("#history")).toContainText("赛果尚未产生");
@@ -603,39 +618,37 @@ test("cross-day cumulative insufficiency never becomes a selected-day failure", 
   await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
 
   await page.goto("/");
-  await page.getByRole("tab", { name: "赛后验证" }).click();
+  await page.getByRole("tab", { name: "战绩复盘" }).click();
 
   await expect(page.locator(".v41-validation-verdict")).toContainText("样本量远不足以判断模型好坏");
   await expect(page.locator(".v41-validation-verdict")).not.toContainText("所选比赛日");
 });
 
 test("V41 uses the selected fixture fact and never falls back to matches[0]", async ({ page }) => {
-  await installWorkspace(page);
-  await page.goto("/");
-  await expect(page.locator(".dashboard-v41")).toHaveAttribute("data-public-cause", "NONE");
-  await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "1571806");
-  await expect(page.locator(".v41-shortlist-list button").first()).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".v41-focus h1")).toContainText("本菲卡");
-  await expect(page.locator(".v41-shortlist > header")).toContainText("盘口/赔率变化重点观察");
-  await expect(page.locator(".v41-shortlist > header")).toContainText("观察阈值：盘口移动或任一侧赔率相对变化 ≥ 2%");
-  await expect(page.getByLabel("选择比赛日")).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
-  await expect(page.locator(".v41-today-day")).toContainText("比赛日 2026-08-09 12:00 → 2026-08-10 12:00（不含）");
+  const payload = withCurrentV3(workspace("normal"), [{ decision_id: "a".repeat(64), decision_contract: "w2.ah_ou_decision.v3.1", fixture_id: "1571806", kickoff_utc: "2026-08-09T14:30:00Z", competition_name_zh: "葡超", home: "本菲卡", away: "波尔图", market: "ASIAN_HANDICAP", selection: "HOME", line: "-0.75", odds: "1.95", score: "0.24", status: "pending", result: null, net_units: null }]);
+  const target = payload.matches.find((item) => item.fixture_id === "1571806")!;
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.route("**/v1/dashboard/intelligence-workspace/matches/1571806", (route) => route.fulfill({ status: 200, json: { ...target, ah_ou_v3_recommendations: payload.today_recommendations } }));
+  await page.goto("/?date=2026-08-09&fixture_id=1571806");
+  await expect(page.locator(".w2-drawer__teams")).toHaveText("本菲卡 vs 波尔图");
+  await expect(page.locator(".w2-drawer__teams")).not.toContainText("皇家马德里");
+  await expect(page.locator(".w2-v3-detail-recommendations li")).toHaveCount(1);
+  await expect(page.locator(".w2-v3-detail-recommendations li")).toHaveAttribute("data-decision-id", "a".repeat(64));
+  await expect(page.locator(".w2-day")).toContainText("足球日 12:00 至次日 12:00");
 });
 
 test("shadow candidate is explicit, tracked and non-production", async ({ page }) => {
   await installWorkspace(page);
   await page.goto("/");
-
-  await expect(page.getByText("影子候选已启用", { exact: true })).toBeVisible();
-  await expect(page.locator(".v41-candidate")).toHaveAttribute("data-candidate-status", "ACTIVE");
-  await expect(page.locator(".v41-candidate")).toContainText("让球主盘 · 推荐主队");
-  // shadow_candidate is selection HOME with exact_line -0.75. Since e90c0abe the
-  // selected-team line is rendered as-is instead of being re-framed, so the sign
-  // stays negative here.
-  await expect(page.locator(".v41-candidate")).toContainText("推荐主队盘口 本菲卡 -0.75 · 赔率 1.95");
-  await expect(page.locator(".v41-candidate")).toContainText("Formal、Lock、Production 与实盘保持关闭");
-  await page.getByRole("tab", { name: "赛后验证" }).click();
-  await expect(page.locator("#secondary-validation .v41-validation-t30")).toContainText("T-30 候选评估0");
+  // The fixture contains an active historical V4 shadow candidate. Without a
+  // committed v3.1 decision it must not become a current homepage pick.
+  await expect(page.locator(".w2-table tbody tr")).toHaveCount(1);
+  await expect(page.locator(".w2-table tbody")).toContainText("今日没有 AH/OU v3 推荐");
+  await expect(page.locator('.w2-fixture[data-fixture-id="1571806"]')).toHaveAttribute("data-v3-count", "0");
+  await expect(page.locator(".w2-app")).not.toContainText("推荐主队盘口 本菲卡 -0.75");
+  await page.locator(".w2-system > summary").click();
+  await expect(page.locator(".w2-system")).toContainText("AH/OU v3.1 冻结决策账本");
+  await expect(page.locator(".w2-system")).toContainText("正式推荐关闭");
 });
 
 test("V41 presents unassessed model evidence in Chinese and keeps codes technical", async ({ page }) => {
@@ -663,20 +676,23 @@ test("V41 presents unassessed model evidence in Chinese and keeps codes technica
     explanation: "可比较模型尚无已验证校准证据",
     assessment_status: "UNASSESSED",
   };
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: withCurrentV3(payload) }));
+  await page.route("**/v1/dashboard/intelligence-workspace/matches/1571806", (route) => route.fulfill({ status: 200, json: focused }));
+  await page.goto("/?date=2026-08-09&fixture_id=1571806");
+  await page.locator(".w2-input-diagnostics > summary").click();
+  const diagnostics = page.locator(".w2-input-diagnostics");
 
-  await expect(page.locator(".v41-three-layer")).toContainText("逐市场 · 均未就绪");
-  await expect(page.locator(".v41-three-layer")).not.toContainText("部分就绪");
-  await expect(page.locator(".v41-focus-summary")).toContainText("尚无权威评估结论");
-  await expect(page.locator(".v41-focus-summary")).not.toContainText("ASIAN_HANDICAP/TOTALS");
-  await expect(page.locator(".v41-market-details")).toContainText("可用模型");
-  await expect(page.locator("[data-market-details='ASIAN_HANDICAP']")).toContainText("尚未就绪");
-  const modelDiagnostic = page.locator(".v41-diagnostic").filter({ hasText: "可比较模型（需已验证校准）" });
+  await expect(diagnostics.locator(".v41-three-layer")).toContainText("逐市场 · 均未就绪");
+  await expect(diagnostics.locator(".v41-three-layer")).not.toContainText("部分就绪");
+  await expect(diagnostics.locator(".v41-focus-summary")).toContainText("尚无权威评估结论");
+  await expect(diagnostics.locator(".v41-focus-summary")).not.toContainText("ASIAN_HANDICAP/TOTALS");
+  await expect(diagnostics.locator(".v41-market-details")).toContainText("可用模型");
+  await expect(diagnostics.locator("[data-market-details='ASIAN_HANDICAP']")).toContainText("尚未就绪");
+  const modelDiagnostic = diagnostics.locator(".v41-diagnostic").filter({ hasText: "可比较模型（需已验证校准）" });
   await expect(modelDiagnostic).toContainText("可比较模型（需已验证校准）");
   await expect(modelDiagnostic).not.toContainText("当前模型状态");
   await expect(modelDiagnostic).not.toContainText("MODEL_NOT_READY");
-  await expect(page.locator(".v41-risk-list")).toContainText("可比较模型校准尚无已验证校准可比较模型尚无已验证校准证据");
+  await expect(diagnostics.locator(".v41-risk-list")).toContainText("可比较模型校准尚无已验证校准可比较模型尚无已验证校准证据");
   await expect(page.getByText("MODEL_CALIBRATION_NOT_READY", { exact: true })).not.toBeVisible();
 });
 
@@ -684,30 +700,25 @@ test("market depth asymmetry stays inside the existing technical details", async
   const payload = workspace();
   const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
   focused.market_radar.markets.ASIAN_HANDICAP.reason_codes.push("MARKET_DEPTH_ASYMMETRY");
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
-
-  const focus = page.locator(".v41-focus");
-  const reason = focus.getByText("ASIAN_HANDICAP:MARKET_DEPTH_ASYMMETRY", { exact: true });
+  await openCurrentInputDiagnostics(page, payload);
+  const inputs = page.locator(".w2-input-diagnostics");
+  const reason = inputs.getByText("ASIAN_HANDICAP:MARKET_DEPTH_ASYMMETRY", { exact: true });
   await expect(reason).not.toBeVisible();
-  await focus.locator(".v41-compact-audit > summary").click();
-  await focus.locator(".v41-details > summary").click();
+  await inputs.locator(".v41-details > summary").click();
   await expect(reason).toBeVisible();
-  await expect(focus.locator(".v41-focus-summary")).not.toContainText("MARKET_DEPTH_ASYMMETRY");
+  await expect(inputs.locator(".v41-focus-summary")).not.toContainText("MARKET_DEPTH_ASYMMETRY");
 });
 
 test("raw system health cannot override collection windows or candidate quote age", async ({ page }) => {
   await installWorkspace(page, "deployed");
   await page.goto("/");
-  await expect(page.locator(".dashboard-v41")).toHaveAttribute("data-public-cause", "NONE");
-  await expect(page.locator("header.v41-header")).toContainText("市场证据可用");
-  await expect(page.locator("header.v41-header")).not.toContainText("BLOCKED DAY");
-  await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "1571806");
-  await expect(page.locator(".v41-shortlist > header")).toContainText("0 场重点观察");
-  await expect(page.locator(".v41-shortlist-list")).not.toContainText("证据已过期");
-  await expect(page.locator(".v41-shortlist-list")).toContainText("关注 · 尚无权威评估结论");
-  await expect(page.locator(".v41-shortlist-list")).toContainText("其他关注 · 3 场（未触发变化阈值）");
-  await expect(page.locator(".v41-focus-summary")).toContainText("尚无权威评估结论");
+  await expect(page.locator(".w2-day-status")).toHaveAttribute("data-public-cause", "NONE");
+  await expect(page.locator(".w2-day-status")).toContainText("市场证据可用");
+  await expect(page.locator(".w2-day-status")).not.toContainText("BLOCKED DAY");
+  await expect(page.locator(".w2-table tbody")).toContainText("今日没有 AH/OU v3 推荐");
+  await expect(page.locator('.w2-fixture[data-fixture-id="1571806"]')).toHaveAttribute("data-v3-count", "0");
+  await expect(page.locator(".w2-fixtures")).not.toContainText("证据已过期");
+  await expect(page.locator(".w2-day-status")).toContainText("3 场比赛未触发优先复核");
 });
 
 for (const [scenario, cause, copy] of [
@@ -718,29 +729,28 @@ for (const [scenario, cause, copy] of [
   test(`V41 ${scenario} renders facts plus the single public cause`, async ({ page }) => {
     await installWorkspace(page, scenario);
     await page.goto("/");
-    await expect(page.locator(".dashboard-v41")).toHaveAttribute("data-public-cause", cause);
-    await expect(page.locator(".v41-focus")).toContainText(copy);
-    await expect(page.locator(".v41-focus")).not.toHaveAttribute("data-fixture-id", /.+/);
+    await expect(page.locator(".w2-day-status")).toHaveAttribute("data-public-cause", cause);
+    await expect(page.locator(".w2-day-status")).toContainText(copy);
+    await expect(page.locator(".w2-table tbody")).toContainText("今日没有 AH/OU v3 推荐");
   });
 }
 
 test("V41 separates diagnostic market age from the candidate quote-age hard gate", async ({ page }) => {
   const payload = workspace("stale");
   payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!.kickoff_utc = "2026-08-10T14:30:00Z";
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
-  const totals = page.locator("[data-market='TOTALS']");
-  await expect(page.locator("[data-market-details='TOTALS']")).toContainText("证据不足");
-  await expect(page.locator(".v41-market-details")).toContainText("同一时刻机构双边报价可比较");
-  await expect(page.locator(".v41-focus-summary")).toContainText("尚无权威评估结论");
-  await expect(page.locator(".v41-three-layer")).toContainText("市场输入报价证据逐市场 · 均未就绪");
-  await expect(page.locator(".v41-candidate")).toHaveCount(0);
-  await expect(page.locator(".v41-snapshots time").first()).toHaveText("08-09 14:02");
-  await expect(page.locator(".v41-scoreline")).toHaveCount(0);
+  await openCurrentInputDiagnostics(page, payload);
+  const inputs = page.locator(".w2-input-diagnostics");
+  await expect(inputs.locator("[data-market-details='TOTALS']")).toContainText("证据不足");
+  await expect(inputs.locator(".v41-market-details")).toContainText("同一时刻机构双边报价可比较");
+  await expect(inputs.locator(".v41-focus-summary")).toContainText("尚无权威评估结论");
+  await expect(inputs.locator(".v41-three-layer")).toContainText("市场输入报价证据逐市场 · 均未就绪");
+  await expect(page.locator(".w2-v3-detail-recommendations li")).toHaveCount(0);
+  await expect(inputs.locator(".v41-snapshots time").first()).toHaveText("08-09 14:02");
+  await expect(inputs.locator(".v41-scoreline")).toHaveCount(0);
 });
 
 test("AH market radar uses the owner main-handicap sign convention", async ({ page }) => {
-  const payload = workspace();
+  const payload = withCurrentV3(workspace());
   const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
   const handicap = focused.market_radar.markets.ASIAN_HANDICAP;
   handicap.main_line = "0.5";
@@ -750,17 +760,20 @@ test("AH market radar uses the owner main-handicap sign convention", async ({ pa
     prices: { HOME: 1.94, AWAY: 1.80 },
   }));
   await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
+  await page.route("**/v1/dashboard/intelligence-workspace/matches/1571806", (route) => route.fulfill({ status: 200, json: focused }));
+  await page.goto("/?date=2026-08-09&fixture_id=1571806");
+  await page.locator(".w2-input-diagnostics > summary").click();
 
-  const market = page.locator("[data-market='ASIAN_HANDICAP']");
+  const market = page.locator(".w2-input-diagnostics [data-market='ASIAN_HANDICAP']");
   await expect(market.locator("[data-market-line]")).toHaveText("+0.5");
   await expect(market.locator(".v41-snapshots li").last()).toContainText("+0.5");
   await expect(market.locator(".v41-snapshots li").last()).toContainText("主 1.94 / 客 1.80");
-  await expect(page.locator(".v41-three-layer > div").first()).toContainText("+0.5");
+  await expect(page.locator(".w2-drawer__pick")).toContainText("0.5");
 
   handicap.main_line = "-1.5";
   handicap.timeline_points = handicap.timeline_points.map((point) => ({ ...point, canonical_line: "-1.5" }));
   await page.reload();
+  await page.locator(".w2-input-diagnostics > summary").click();
   await expect(market.locator("[data-market-line]")).toHaveText("-1.5");
   await expect(market.locator(".v41-snapshots li").last()).toContainText("-1.5");
 });
@@ -771,52 +784,44 @@ test("AH recommendation rows share the owner main-handicap sign convention with 
   focused.fixture_id = "1490405";
   focused.market_radar.markets.ASIAN_HANDICAP.main_line = "-0.5";
   payload.selected_fixture_id = focused.fixture_id;
-  // e90c0abe made exactLine belong to the selected team rather than always
-  // being a home-frame line, so formatAhRecommendationHandicap no longer
-  // inverts it for AWAY. These expectations are the selected-team line put
-  // through formatSignedLine: positive keeps a "+", negative keeps its "-",
-  // and trailing zeros are trimmed, so +1.0 renders as "+1".
   const recommendations = [
-    ["1490398", "AWAY", "-0.5", "让球 波尔图 -0.5 · 推荐客队"],
-    ["1490400", "HOME", "+0.25", "让球 本菲卡 +0.25 · 推荐主队"],
-    ["1490401", "AWAY", "+0.75", "让球 波尔图 +0.75 · 推荐客队"],
-    ["1490402", "AWAY", "+0.5", "让球 波尔图 +0.5 · 推荐客队"],
-    ["1490404", "AWAY", "+1.0", "让球 波尔图 +1 · 推荐客队"],
-    ["1490405", "HOME", "-0.5", "让球 本菲卡 -0.5 · 推荐主队"],
+    ["1490398", "AWAY", "-0.5", "让球 客 -0.5"],
+    ["1490400", "HOME", "+0.25", "让球 主 +0.25"],
+    ["1490401", "AWAY", "+0.75", "让球 客 +0.75"],
+    ["1490402", "AWAY", "+0.5", "让球 客 +0.5"],
+    ["1490404", "AWAY", "+1", "让球 客 +1"],
+    ["1490405", "HOME", "-0.5", "让球 主 -0.5"],
   ] as const;
-  payload.validation.model_forecast.official_recommendations = recommendations.map(([fixtureId, selection, exactLine], index) => ({
-    evaluation_id: `eval-${fixtureId}`,
+  const rows = recommendations.map(([fixtureId, selection, exactLine], index) => ({
+    schema_version: "w2.ah_ou_v3_public_recommendation.v1",
+    decision_id: String(index + 1).repeat(64),
+    decision_contract: "w2.ah_ou_decision.v3.1",
     fixture_id: fixtureId,
-    competition_id: "primeira_liga",
-    evaluated_at: `2026-08-10T01:0${index}:00Z`,
     kickoff_utc: "2026-08-10T02:00:00Z",
+    competition_name_zh: "葡超",
+    home: "本菲卡", away: "波尔图",
     market: "ASIAN_HANDICAP",
     selection,
-    exact_line: exactLine,
-    decimal_odds: 1.88,
-    home_team_label: focused.home_team_label,
-    away_team_label: focused.away_team_label,
-    score: null,
-    settlement: "PENDING",
-    profit_units: null,
+    line: exactLine,
+    odds: "1.88", score: "0.24", status: "pending", result: null, net_units: null,
   }));
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
-  const radarLine = await page.locator("[data-focus-type='MATCH'] [data-market='ASIAN_HANDICAP'] [data-market-line]").textContent();
-  await page.getByRole("tab", { name: "赛后验证" }).click();
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: withCurrentV3(payload, rows) }));
+  await page.route("**/v1/dashboard/intelligence-workspace/matches/1490405", (route) => route.fulfill({ status: 200, json: { ...focused, ah_ou_v3_recommendations: [rows[5]] } }));
+  await page.goto("/?date=2026-08-09&fixture_id=1490405");
+  await page.locator(".w2-input-diagnostics > summary").click();
+  const radarLine = await page.locator(".w2-input-diagnostics [data-market='ASIAN_HANDICAP'] [data-market-line]").textContent();
 
   for (const [fixtureId, , , expected] of recommendations) {
-    await expect(page.locator(`.v41-official-recommendations li[data-fixture-id='${fixtureId}'] .v41-match-card__pick`).first()).toContainText(expected);
+    const index = recommendations.findIndex((row) => row[0] === fixtureId);
+    await expect(page.locator(`.w2-table tbody tr[data-decision-id='${String(index + 1).repeat(64)}'] .w2-pick`)).toContainText(expected);
   }
-  // formatAhMarketHandicap renders the home-frame main_line with its sign
-  // preserved, so the market radar and the recommendation rows now share one
-  // sign convention: main_line -0.5 reads as "-0.5" in both places.
-  const recommendationText = await page.locator(".v41-official-recommendations li[data-fixture-id='1490405'] .v41-match-card__pick").first().textContent();
+  const recommendationText = await page.locator(`.w2-table tbody tr[data-decision-id='${"6".repeat(64)}'] .w2-pick`).textContent();
   expect(recommendationText).toContain(` ${radarLine}`);
+  await expect(page.locator(".w2-v3-detail-recommendations li")).toContainText("主 -0.5 @1.88");
 });
 
 test("quote age gate mark reads each market's projected maximum", async ({ page }) => {
-  const payload = workspace();
+  const payload = withCurrentV3(workspace());
   const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
   focused.market_radar.markets.ASIAN_HANDICAP.quote_age_seconds = 120;
   focused.market_radar.markets.TOTALS.quote_age_seconds = 121;
@@ -824,10 +829,12 @@ test("quote age gate mark reads each market's projected maximum", async ({ page 
     if (factor.factor_id === "MK_QUOTE_AGE") factor.evidence.maximum_seconds = 120;
   }
   await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
+  await page.route("**/v1/dashboard/intelligence-workspace/matches/1571806", (route) => route.fulfill({ status: 200, json: focused }));
+  await page.goto("/?date=2026-08-09&fixture_id=1571806");
+  await page.locator(".w2-input-diagnostics > summary").click();
 
-  const ready = page.locator("[data-market='ASIAN_HANDICAP'] [data-quote-age-state='ready']");
-  const warning = page.locator("[data-market='TOTALS'] [data-quote-age-state='warning']");
+  const ready = page.locator(".w2-input-diagnostics [data-market='ASIAN_HANDICAP'] [data-quote-age-state='ready']");
+  const warning = page.locator(".w2-input-diagnostics [data-market='TOTALS'] [data-quote-age-state='warning']");
   await expect(ready).toContainText("快照年龄2 分钟✓");
   await expect(ready.locator(".v41-quote-age-mark")).toHaveCSS("color", "rgb(111, 166, 135)");
   await expect(warning).toContainText("快照年龄2 分钟✗");
@@ -839,11 +846,11 @@ test("1440x900 keeps the Dashboard v1 KPI and recommendation surface above the f
   await installWorkspace(page);
   await page.goto("/");
 
-  const market = page.locator(".design-v1-shell");
+  const market = page.locator(".w2-app");
   const targets = [
-    market.locator(".design-v1-header"),
-    market.locator(".design-v1-kpis"),
-    market.locator("#design-v1-picks-title"),
+    market.locator(".w2-statusbar"),
+    market.locator(".w2-kpis"),
+    market.locator("#picksTitle"),
   ];
   for (const target of targets) {
     await expect(target).toBeVisible();
@@ -853,18 +860,15 @@ test("1440x900 keeps the Dashboard v1 KPI and recommendation surface above the f
 });
 
 test("V41 keeps low-priority diagnostics folded by default", async ({ page }) => {
-  await installWorkspace(page, "deployed");
-  await page.goto("/");
-
-  await expect(page.locator(".v41-compact-audit")).not.toHaveAttribute("open", "");
-  await expect(page.locator(".v41-semantic-audit")).not.toHaveAttribute("open", "");
-  await expect(page.locator(".v41-factor-audit")).not.toHaveAttribute("open", "");
-  const diagnosis = page.locator(".v41-evaluation-diagnosis[data-diagnosis-status]");
+  await openCurrentInputDiagnostics(page, workspace("deployed"));
+  await expect(page.locator(".w2-input-diagnostics .v41-details")).not.toHaveAttribute("open", "");
+  await expect(page.locator(".w2-input-diagnostics .v41-factor-audit")).not.toHaveAttribute("open", "");
+  const diagnosis = page.locator(".w2-input-diagnostics .v41-evaluation-diagnosis[data-diagnosis-status]");
   await expect(diagnosis).toBeVisible();
   await expect(diagnosis).toContainText("首要阻断 / 结论尚无权威评估结论");
   await expect(diagnosis).toContainText("缺失明细当前没有足够的候选轨道证据定位原因");
   await expect(diagnosis).toContainText("下一步查看已注册档位与只读技术证据");
-  await expect(page.locator(".v41-factor-checklist > header")).toBeVisible();
+  await expect(page.locator(".w2-input-diagnostics .v41-factor-checklist > header")).toBeVisible();
 });
 
 test("V41 uses diagnosis as the only unassessed conclusion and explains stale market movement", async ({ page }) => {
@@ -895,34 +899,29 @@ test("V41 uses diagnosis as the only unassessed conclusion and explains stale ma
     price_delta: { HOME: 0.02, AWAY: 0.51 },
     probability_delta: { HOME: 0.064689, AWAY: -0.064689 },
   };
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
-
-  const row = page.locator(`.v41-shortlist-list [data-fixture-id='${focused.fixture_id}']`);
-  await expect(row.locator(".v41-shortlist-title")).toContainText("本菲卡 vs 波尔图");
-  await expect(row.locator(".v41-shortlist-title time")).toHaveText("22:30");
-  await expect(row).toContainText("让球 +0.25 未变");
-  await expect(row).toContainText("客赔 1.51 → 2.02（+33.8%）");
-  await expect(row).toContainText("历史变化 · 当前不可执行");
-  await expect(row).toContainText("当前报价已过期，等待 T3 更新");
-  await expect(row.locator(".v41-stripe")).toHaveCount(1);
-  await expect(row).toHaveCSS("border-left-width", "0px");
+  await openCurrentInputDiagnostics(page, payload);
+  const inputs = page.locator(".w2-input-diagnostics");
+  await expect(page.locator(".w2-drawer__teams")).toContainText("本菲卡 vs 波尔图");
+  await expect(inputs).toContainText("让球 +0.25 未变");
+  await expect(inputs).toContainText("客赔 1.51 → 2.02（+33.8%）");
+  await expect(inputs).toContainText("历史变化 · 当前不可执行");
+  await expect(inputs).toContainText("当前报价已过期，等待 T3 更新");
+  await expect(page.locator(".w2-v3-detail-recommendations li")).toHaveCount(0);
 
   const conclusionNodes = [
-    row.locator(".v41-shortlist-status[data-primary-conclusion]"),
-    page.locator(".v41-focus-summary[data-primary-conclusion]"),
-    page.locator(".v41-evaluation-diagnosis[data-primary-conclusion]"),
+    inputs.locator(".v41-focus-summary[data-primary-conclusion]"),
+    inputs.locator(".v41-evaluation-diagnosis[data-primary-conclusion]"),
   ];
   const conclusions = await Promise.all(conclusionNodes.map(async (node) => {
     await expect(node).toHaveCount(1);
     return node.getAttribute("data-primary-conclusion");
   }));
   expect(new Set(conclusions)).toEqual(new Set(["第一个评估档位尚未到达"]));
-  await expect(page.locator(".v41-focus-summary")).toContainText("第一个评估档位尚未到达");
-  await expect(page.locator(".v41-focus-summary")).not.toContainText("错误的旧数据链结论");
+  await expect(inputs.locator(".v41-focus-summary")).toContainText("第一个评估档位尚未到达");
+  await expect(inputs.locator(".v41-focus-summary")).not.toContainText("错误的旧数据链结论");
 });
 
-test("V41 makes the final official candidate card authoritative and folds repeated semantics", async ({ page }) => {
+test("historical final candidate stays diagnostic and cannot become a current v3 recommendation", async ({ page }) => {
   const payload = workspace();
   const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
   focused.evaluation_execution = {
@@ -937,30 +936,27 @@ test("V41 makes the final official candidate card authoritative and folds repeat
     summary_zh: "已评估 2 次（T-3h / T-15m），最终官方状态仍为候选。",
     diagnosis: { status: "CANDIDATE_ACTIVE", primary_blocker_zh: "最终仍为候选", missing_detail_zh: "候选轨道已完成评估并保持有效。", next_step_zh: "等待赛果进入既有结算流程。", next_checkpoint: null, next_checkpoint_at: null, non_blocking_missing_zh: [], evidence_codes: [] },
   };
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
-
-  const official = page.locator(".v41-candidate--official");
-  await expect(official.locator("header")).toContainText("检查点漏斗候选最终仍有效");
-  await expect(official.locator("header")).not.toContainText("产品权限未启用");
-  await expect(official).toContainText("让球主盘 · 盘口 波尔图 -0.5 · 推荐客队 @1.88");
-  await expect(official.locator("footer")).toHaveText(focused.evaluation_execution.summary_zh);
-  await expect(page.locator(".v41-evaluation-diagnosis[data-diagnosis-status]")).toHaveCount(0);
-  await expect(page.locator(".v41-semantic-audit")).not.toHaveAttribute("open", "");
+  await openCurrentInputDiagnostics(page, payload);
+  await expect(page.locator(".w2-table tbody")).toContainText("今日没有 AH/OU v3 推荐");
+  await expect(page.locator(".w2-v3-detail-recommendations li")).toHaveCount(0);
+  const diagnostic = page.locator(".w2-input-diagnostics .v41-evaluation-diagnosis");
+  await expect(diagnostic).toContainText("最终仍为候选");
+  await expect(diagnostic).toContainText(focused.evaluation_execution.diagnosis.next_step_zh);
+  await expect(page.locator(".w2-input-diagnostics")).toContainText("不构成当前推荐");
 });
 
 test("V41 reads global capability state and distinguishes disabled from not implemented", async ({ page }) => {
-  const payload = workspace();
+  const payload = withCurrentV3(workspace());
   payload.runtime.recommendation_capabilities.formal_ah.feature_enabled = true;
   await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
-
+  await page.locator(".w2-system > summary").click();
   const capabilities = page.locator(".v41-capabilities");
   await expect(capabilities).toContainText("分析选择：让球 开 / 大小球 开");
   await expect(capabilities).toContainText("影子候选 开");
   await expect(capabilities).toContainText("正式推荐：让球 开 / 大小球 未实现");
   await expect(capabilities).toContainText("实盘 关");
-  await expect(page.locator(".v41-focus-meaning")).not.toContainText("产品权限未启用");
+  await expect(page.locator(".w2-table tbody")).toContainText("今日没有 AH/OU v3 推荐");
 });
 
 test("V41 uses one lifecycle decision for a match that never formed a candidate", async ({ page }) => {
@@ -972,18 +968,16 @@ test("V41 uses one lifecycle decision for a match that never formed a candidate"
   focused.evaluation_execution.ever_formed_candidate = false;
   focused.evaluation_execution.summary_zh = "本场未形成候选；期间有检查点错过，但不影响该结论。";
   focused.factual_summary = focused.evaluation_execution.summary_zh;
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
-
-  await expect(page.locator(`.v41-shortlist-list [data-fixture-id='${focused.fixture_id}']`)).toContainText("已完场 · 未形成候选");
-  await expect(page.locator(".v41-focus-summary")).toContainText(focused.evaluation_execution.summary_zh);
-  await expect(page.locator(".v41-focus")).not.toContainText("曾形成候选");
+  await openCurrentInputDiagnostics(page, payload);
+  await expect(page.locator(".w2-drawer__body")).toContainText(focused.evaluation_execution.summary_zh);
+  await expect(page.locator(".w2-input-diagnostics .w2-historical-lifecycle")).toContainText("未形成候选");
+  await expect(page.locator(".w2-table tbody")).toContainText("今日没有 AH/OU v3 推荐");
+  await expect(page.locator(".w2-v3-detail-recommendations li")).toHaveCount(0);
 });
 
 test("R5 factor checklist keeps model and shadow tracks separate per market", async ({ page }, testInfo) => {
-  await installWorkspace(page, "stale");
-  await page.goto("/");
-  const checklist = page.locator(".v41-factor-checklist");
+  await openCurrentInputDiagnostics(page, workspace("stale"));
+  const checklist = page.locator(".w2-input-diagnostics .v41-factor-checklist");
   await expect(checklist).toContainText("本场可进入模型预测账本；不能形成影子候选");
   await expect(checklist.locator(".v41-factor-tracks")).toContainText("模型账本 READY");
   await expect(checklist.locator(".v41-factor-tracks")).toContainText("候选因子投影 BLOCKED");
@@ -994,16 +988,15 @@ test("R5 factor checklist keeps model and shadow tracks separate per market", as
 });
 
 test("R6 distinguishes mainline identity from candidate quote lock", async ({ page }) => {
-  await installWorkspace(page, "stale");
-  await page.goto("/");
-  const checklist = page.locator(".v41-factor-checklist");
+  await openCurrentInputDiagnostics(page, workspace("stale"));
+  const checklist = page.locator(".w2-input-diagnostics .v41-factor-checklist");
 
   await expect(checklist).toContainText("模型账本 READY");
   await expect(checklist).toContainText("候选因子投影 BLOCKED");
   await expect(checklist).toContainText("主盘身份可解析 ≠ 候选报价可锁定");
   await expect(checklist.getByText("主盘身份可解析", { exact: true })).toHaveCount(2);
-  await expect(page.getByText("报价锁定", { exact: true })).toHaveCount(1);
-  await expect(page.locator(".v41-market-details__row")).toHaveCount(2);
+  await expect(page.locator(".w2-input-diagnostics").getByText("报价锁定", { exact: true })).toHaveCount(1);
+  await expect(page.locator(".w2-input-diagnostics .v41-market-details__row")).toHaveCount(2);
   await expect(checklist).toContainText("模型预测账本事实");
   await expect(checklist).toContainText("尚未冻结");
 });
@@ -1021,10 +1014,9 @@ test("R6 renders the complete persisted capture fact independently of current pr
     calibration_version: "w2.formal.lambda_baseline_prior.v1",
     calibration_status: "BASELINE_PRIOR",
   };
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
+  await openCurrentInputDiagnostics(page, payload);
 
-  const checklist = page.locator(".v41-factor-checklist");
+  const checklist = page.locator(".w2-input-diagnostics .v41-factor-checklist");
   await expect(checklist).toContainText("本场模型预测已冻结，等待真实完场结算");
   await expect(checklist.locator(".v41-factor-ledger")).toContainText("capture a59386fc");
   await expect(checklist.locator(".v41-factor-ledger")).toContainText("开球前 1 小时 30 分");
@@ -1035,11 +1027,10 @@ test("R6 renders the complete persisted capture fact independently of current pr
 test("V41 keeps the zero-observation market state explicit", async ({ page }, testInfo) => {
   const payload = workspace();
   payload.selected_fixture_id = "1571808";
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
+  await openCurrentInputDiagnostics(page, payload, "1571808");
 
-  const focus = page.locator(".v41-focus");
-  await expect(focus).toHaveAttribute("data-fixture-id", "1571808");
+  const focus = page.locator(".w2-input-diagnostics");
+  await expect(page.locator(".w2-drawer__teams")).toContainText("拜仁慕尼黑");
   await expect(focus.getByText("0 个真实快照", { exact: false })).toHaveCount(2);
   await expect(focus.getByText("暂无已落盘时间线证据，不推断走势。", { exact: true })).toHaveCount(2);
   await focus.screenshot({ animations: "disabled", path: testInfo.outputPath("actual-market-evidence-zero.png") });
@@ -1073,17 +1064,17 @@ test("one match projection failure remains visible without hiding the selected d
 
   await page.goto("/");
 
-  await expect(page.locator(".v41-shortlist-list [data-fixture-id]")).toHaveCount(payload.matches.length);
-  await expect(page.locator(".v41-shortlist")).toContainText("投影异常 · 1 场");
-  await page.locator(`.v41-shortlist-list [data-fixture-id="${failed.fixture_id}"]`).click();
-  await expect(page.locator(".v41-focus")).toContainText("单场投影已隔离");
-  await expect(page.locator(".v41-focus")).toContainText("其余比赛不受影响");
+  await expect(page.locator(".w2-fixture[data-fixture-id]")).toHaveCount(payload.matches.length);
+  await expect(page.locator(`.w2-fixture[data-fixture-id="${failed.fixture_id}"]`)).toContainText("投影异常");
+  await page.locator(`.w2-fixture[data-fixture-id="${failed.fixture_id}"]`).click();
+  await expect(page.locator(".w2-projection-error")).toContainText("单场投影已隔离");
+  await expect(page.locator(".w2-projection-error")).toContainText("其余比赛不受影响");
+  await expect(page.locator(".w2-fixture[data-fixture-id]")).toHaveCount(payload.matches.length);
 });
 
 test("V41 scoreline is exact 10,000 existing simulations with unconditional probability and sample count", async ({ page }) => {
-  await installWorkspace(page);
-  await page.goto("/");
-  const scoreline = page.locator(".v41-scoreline");
+  await openCurrentInputDiagnostics(page, workspace());
+  const scoreline = page.locator(".w2-input-diagnostics .v41-scoreline");
   await expect(scoreline).toContainText("10,000 次既有模拟");
   await expect(scoreline).toContainText("12.6%");
   await expect(scoreline).toContainText("样本 1260");
@@ -1091,16 +1082,13 @@ test("V41 scoreline is exact 10,000 existing simulations with unconditional prob
 });
 
 test("V41 keeps dimension-specific risks, read isolation and forbidden semantics", async ({ page }) => {
-  await installWorkspace(page);
-  await page.goto("/");
-  const risks = page.locator(".v41-risk-list");
+  await openCurrentInputDiagnostics(page, workspace());
+  const risks = page.locator(".w2-input-diagnostics .v41-risk-list");
   await expect(risks).toContainText("大小球走势只有一个已落盘时间快照");
   await expect(risks).toContainText("大小球 2.5 模型落在市场观测区间外");
-  await page.locator("#system-status > summary").click();
-  await page.locator("#system-status > details > summary").click();
-  await expect(page.locator("#system-status")).toContainText("provider_calls=0");
-  await expect(page.locator("#system-status")).toContainText("db_writes=0");
-  await expect(page.locator("#system-status")).toContainText("no_call_on_read=true");
+  await page.getByRole("button", { name: "关闭" }).click();
+  await page.locator(".w2-system > summary").click();
+  await expect(page.locator(".w2-system")).toContainText("只读 · 不调用 Provider");
   const body = page.locator("body");
   for (const forbidden of ["ROI", "CLV", "expected_value", "opportunity_score", "Boss Decision Console"]) await expect(body).not.toContainText(forbidden);
 });
@@ -1109,14 +1097,12 @@ test("D16 keeps canonical risk codes in technical detail, not public explanation
   const payload = workspace("deployed");
   const focused = payload.matches.find((item) => item.fixture_id === "1571806")!;
   focused.risks.DATA_RISK = { dimension: "DATA_RISK", status: "INCIDENT", reason_codes: ["DATA_FIELD_STALE", "DATA_IDENTITY_NOT_READY"], explanation: "数据字段已超过新鲜度边界；比赛或盘口身份尚未完成" };
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
-  const risks = page.locator(".v41-risk-list");
+  await openCurrentInputDiagnostics(page, payload, focused.fixture_id);
+  const risks = page.locator(".w2-input-diagnostics .v41-risk-list");
   const publicCopy = risks.locator(".is-incident").first().locator(":scope > small");
   await expect(publicCopy).toContainText("数据字段已超过新鲜度边界");
   await expect(publicCopy).not.toContainText("DATA IDENTITY NOT READY");
   await expect(publicCopy).not.toContainText("DATA_IDENTITY_NOT_READY");
-  await page.locator(".v41-compact-audit > summary").click();
   await risks.locator("details summary").first().click();
   await expect(risks).toContainText("DATA_IDENTITY_NOT_READY");
 });
@@ -1141,6 +1127,8 @@ for (const [status, timestamp, copy] of [
     }
     await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
     await page.goto("/");
+    await page.locator(".w2-system > summary").click();
+    await expect(page.locator(".w2-historical-quality")).toContainText("不参与当前 AH/OU v3 战绩");
     await expect(page.locator(".v41-quality")).toContainText(copy);
     if (status !== "AVAILABLE") await expect(page.locator(".v41-quality > div")).toHaveCount(0);
     if (status === "NOT_AVAILABLE") await expect(page.locator(".v41-quality")).not.toContainText("截至");
@@ -1150,15 +1138,14 @@ for (const [status, timestamp, copy] of [
 test("V41 limited day keeps affected match names, kickoff times and recorded evaluation visible", async ({ page }) => {
   await installWorkspace(page, "limited");
   await page.goto("/");
-  const shortlist = page.locator(".v41-shortlist");
-  await expect(shortlist).toContainText("皇家马德里 vs 贝蒂斯");
-  await expect(shortlist).toContainText("拜仁慕尼黑 vs 多特蒙德");
-  await expect(shortlist.locator(".v41-limited-match")).toHaveCount(2);
-  await expect(page.locator(".v41-today-primary")).toContainText("2场今日比赛");
-  await expect(page.locator(".v41-today-primary")).toContainText("2 场可查看赛程");
-  await expect(page.locator(".v41-today-primary")).toContainText("0 场可进行市场分析");
-  await expect(page.locator(".v41-shortlist")).toContainText("盘口证据待采集 · 2 场");
-  await expect(page.locator(".v41-shortlist")).not.toContainText("仅赛程");
+  const fixtures = page.locator(".w2-fixtures");
+  await expect(fixtures).toContainText("皇家马德里 vs 贝蒂斯");
+  await expect(fixtures).toContainText("拜仁慕尼黑 vs 多特蒙德");
+  await expect(fixtures.locator(".w2-fixture")).toHaveCount(2);
+  await expect(page.locator(".w2-day-status")).toHaveAttribute("data-public-cause", "AWAITING_COLLECTION");
+  await page.locator(".w2-day-diagnostics > summary").click();
+  await expect(page.locator(".v41-global-stats")).toContainText("2 场");
+  await expect(page.locator(".v41-global-stats")).toContainText("0 场");
   await expect(page.locator(".v41-focus")).toContainText("只展示已持久化事实，不用缺失数据补算");
   await expect(page.locator(".v41-focus")).not.toContainText("当日市场采集阻塞");
   await expect(page.locator(".v41-focus")).not.toContainText("等待既有调度");
@@ -1172,6 +1159,7 @@ test("V41 limited day does not promise a schedule when none exists", async ({ pa
   payload.global_focus!.next_eval_at = null;
   await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
+  await page.locator(".w2-day-diagnostics > summary").click();
   await expect(page.locator(".v41-global-stats")).toContainText("暂无适用于所选比赛日的调度记录");
   await expect(page.locator(".v41-focus")).not.toContainText("等待既有调度");
 });
@@ -1180,37 +1168,29 @@ test("V41 match browser exposes all fixtures in priority order and one filter pe
   await page.setViewportSize({ width: 1440, height: 900 });
   await installWorkspace(page, "browser");
   await page.goto("/");
-  const shortlist = page.locator(".v41-shortlist");
-  const list = shortlist.locator(".v41-shortlist-list");
-  const filters = shortlist.getByRole("toolbar", { name: "按联赛筛选比赛" });
-  await expect(list.locator("button[data-fixture-id]")).toHaveCount(11);
+  const browser = page.locator(".w2-match-browser");
+  const list = browser.locator(".w2-fixtures");
+  const filters = browser.getByRole("toolbar", { name: "按联赛筛选比赛" });
+  await expect(list.locator(".w2-fixture[data-fixture-id]")).toHaveCount(11);
   await expect(filters.getByRole("button")).toHaveCount(8);
-  await expect(list.locator("button[data-fixture-id]").first()).toHaveAttribute("data-fixture-id", "browser-1");
-  await expect(list.locator("button[data-fixture-id]").nth(1)).toHaveAttribute("data-fixture-id", "browser-0");
-  await expect(list.locator(".v41-shortlist-title").first()).toHaveCSS("display", "flex");
-  const rowHeights = await list.locator("button[data-fixture-id]").evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
+  await expect(list.locator(".w2-fixture[data-fixture-id]").first()).toHaveAttribute("data-fixture-id", "browser-1");
+  await expect(list.locator(".w2-fixture[data-fixture-id]").nth(1)).toHaveAttribute("data-fixture-id", "browser-0");
+  await expect(list.locator(".w2-fixture__teams").first()).toHaveCSS("display", "flex");
+  const rowHeights = await list.locator(".w2-fixture[data-fixture-id]").evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
   expect(new Set(rowHeights).size).toBe(1);
-  await expect(list.locator(".v41-shortlist-title strong").first()).toHaveCSS("white-space", "nowrap");
-  await expect(list.locator(".v41-shortlist-title").first()).toHaveAttribute("title", / vs /);
-  await expect(list.locator("button[data-fixture-id]").first()).toContainText("重点 1");
+  await expect(list.locator(".w2-fixture__teams span").first()).toHaveCSS("white-space", "nowrap");
+  await expect(list.locator(".w2-fixture").first()).toHaveAttribute("title", / vs /);
+  await expect(list.locator(".w2-fixture").first()).toHaveAttribute("data-priority", "MARKET_MOVEMENT");
   const scroll = await list.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight, overflowY: getComputedStyle(element).overflowY }));
   expect(scroll.overflowY).toBe("auto");
   expect(scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight);
-  const panelBottoms = await page.evaluate(() => {
-    const shortlistBounds = document.querySelector(".v41-shortlist")!.getBoundingClientRect();
-    const listBounds = document.querySelector(".v41-shortlist-list")!.getBoundingClientRect();
-    const focusBounds = document.querySelector(".v41-focus")!.getBoundingClientRect();
-    return { shortlist: shortlistBounds.bottom, list: listBounds.bottom, focus: focusBounds.bottom };
-  });
-  expect(Math.abs(panelBottoms.shortlist - panelBottoms.focus)).toBeLessThanOrEqual(1);
-  expect(Math.abs(panelBottoms.list - panelBottoms.focus)).toBeLessThanOrEqual(1);
-  await shortlist.screenshot({ animations: "disabled", path: testInfo.outputPath("match-browser-all-top.png") });
+  await browser.screenshot({ animations: "disabled", path: testInfo.outputPath("match-browser-all-top.png") });
   await list.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-  await shortlist.screenshot({ animations: "disabled", path: testInfo.outputPath("match-browser-all-bottom.png") });
+  await browser.screenshot({ animations: "disabled", path: testInfo.outputPath("match-browser-all-bottom.png") });
   await filters.getByRole("button", { name: "Browser League 4 1" }).click();
-  await expect(list.locator("button[data-fixture-id]")).toHaveCount(1);
-  await expect(shortlist.locator(":scope > header")).toContainText("0 场重点观察 · 1 场可滚动查看");
-  await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "browser-4");
+  await expect(list.locator(".w2-fixture[data-fixture-id]")).toHaveCount(1);
+  await list.locator(".w2-fixture").click();
+  await expect(page.locator(".w2-drawer")).toBeVisible();
 });
 
 test("V41 match browser hides the redundant filter for one present league", async ({ page }) => {
@@ -1228,16 +1208,16 @@ test("V41 derives age across timezone and day boundaries and never labels a past
   focused.market_radar.markets.ASIAN_HANDICAP.timeline_points.at(-1)!.checkpoint = null;
   focused.market_collection = { latest_snapshot_at: "2026-08-09T15:18:00Z", latest_snapshot_checkpoint: "T24_OPEN_ODDS", target_checkpoint: "T12_OPEN_ODDS", scheduled_at: "2026-08-09T18:30:00Z", window_end_at: "2026-08-09T18:40:00Z", overdue: false, public_semantics: { scope: "MATCH", cause: "NOT_YET_DUE" } };
   focused.readiness.next_eval_at = "2026-08-09T16:30:00Z";
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
-  const freshness = page.locator("[data-market-details='ASIAN_HANDICAP']");
+  await openCurrentInputDiagnostics(page, payload);
+  const inputs = page.locator(".w2-input-diagnostics");
+  const freshness = inputs.locator("[data-market-details='ASIAN_HANDICAP']");
   await expect(freshness.locator("span").nth(1)).toHaveText("T24_OPEN_ODDS");
-  const quoteAge = page.locator("[data-market='ASIAN_HANDICAP'] [data-quote-age-state='warning']");
+  const quoteAge = inputs.locator("[data-market='ASIAN_HANDICAP'] [data-quote-age-state='warning']");
   await expect(quoteAge.locator("span")).toHaveText("快照年龄");
   await expect(quoteAge.locator("strong")).toContainText("1 小时 12 分");
   await expect(freshness).toHaveCSS("display", "grid");
-  await expect(page.locator(".v41-market-details .v41-market-technical")).toContainText("技术说明");
-  const schedule = page.locator(".v41-next");
+  await expect(inputs.locator(".v41-market-details .v41-market-technical")).toContainText("技术说明");
+  const schedule = inputs.locator(".v41-next");
   await expect(schedule.locator("span").nth(2)).toHaveText("采集状态");
   await expect(schedule.locator("strong").nth(2)).toHaveText("未到 T12_OPEN_ODDS 采集时点");
   await expect(schedule.locator("span").nth(3)).toHaveText("计划时刻");
@@ -1250,9 +1230,8 @@ test("V41 derives age across timezone and day boundaries and never labels a past
 });
 
 test("V41 shares market evidence labels across both markets", async ({ page }) => {
-  await installWorkspace(page);
-  await page.goto("/");
-  const details = page.locator(".v41-market-details");
+  await openCurrentInputDiagnostics(page, workspace());
+  const details = page.locator(".w2-input-diagnostics .v41-market-details");
   await expect(details.locator(".v41-market-details__head").getByText("市场证据", { exact: true })).toHaveCount(1);
   await expect(details.locator(".v41-market-details__head").getByText("快照档位", { exact: true })).toHaveCount(1);
   await expect(details.locator(".v41-market-details__head").getByText("走势证据", { exact: true })).toHaveCount(1);
@@ -1271,16 +1250,15 @@ test("V41 finished match freezes quote age at kickoff and closes prematch planni
   focused.outcome.is_finished = true;
   focused.kickoff_utc = "2026-08-10T10:00:00Z";
   focused.market_radar.markets.ASIAN_HANDICAP.latest_snapshot_at = "2026-08-10T09:50:00Z";
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
+  await openCurrentInputDiagnostics(page, payload);
 
-  const market = page.locator("[data-market='ASIAN_HANDICAP']");
+  const market = page.locator(".w2-input-diagnostics [data-market='ASIAN_HANDICAP']");
   await expect(market).toContainText("开球前最后快照");
   await expect(market.locator(".v41-market-summary")).toContainText("报价年龄10 分钟");
-  await expect(page.locator(".v41-next")).toContainText("采集状态赛前流程已关闭");
-  await expect(page.locator(".v41-next")).toContainText("下次评估赛前流程已结束");
-  await expect(page.locator("#factor-checklist-title")).toContainText("赛前未形成检查点漏斗评估");
-  await expect(page.locator("#factor-checklist-title")).not.toContainText("尚未评估");
+  await expect(page.locator(".w2-input-diagnostics .v41-next")).toContainText("采集状态赛前流程已关闭");
+  await expect(page.locator(".w2-input-diagnostics .v41-next")).toContainText("下次评估赛前流程已结束");
+  await expect(page.locator(".w2-input-diagnostics #factor-checklist-title")).toContainText("赛前未形成检查点漏斗评估");
+  await expect(page.locator(".w2-input-diagnostics #factor-checklist-title")).not.toContainText("尚未评估");
 });
 
 test("V41 keeps not-yet-due lineups out of anomalous missing inputs", async ({ page }) => {
@@ -1301,9 +1279,8 @@ test("V41 keeps not-yet-due lineups out of anomalous missing inputs", async ({ p
     overdue: false,
     public_semantics: { scope: "MATCH", cause: "NOT_YET_DUE" },
   };
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-  await page.goto("/");
-  const risk = page.locator("[data-risk-axis='DATA_RISK']");
+  await openCurrentInputDiagnostics(page, payload);
+  const risk = page.locator(".w2-input-diagnostics [data-risk-axis='DATA_RISK']");
   await expect(risk).toContainText("待补齐：模型核心输入 xG、评级增强输入、球队身价增强输入");
   await expect(risk).not.toContainText("待补齐：首发");
   await expect(risk).toContainText("等待中：首发（T60_ODDS_LINEUPS 窗口）· 计划 2026-08-09 21:30（约 13 小时 0 分后）");
@@ -1321,29 +1298,30 @@ for (const state of [
       overdue: state.overdue,
       public_semantics: { scope: "MATCH", cause: "AWAITING_COLLECTION" },
     };
-    await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
-    await page.goto("/");
-    await expect(page.locator(".v41-focus-summary b")).toHaveText("采集状态");
-    await expect(page.locator(".v41-next strong").nth(2)).toHaveText(state.expected);
+    await openCurrentInputDiagnostics(page, payload);
+    await expect(page.locator(".w2-input-diagnostics .v41-focus-summary b")).toHaveText("采集状态");
+    await expect(page.locator(".w2-input-diagnostics .v41-next strong").nth(2)).toHaveText(state.expected);
   });
 }
 
 test("V41 date navigation, Today, Refresh and keyboard focus are functional", async ({ page }) => {
   const requestedDates: string[] = [];
-  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => { requestedDates.push(new URL(route.request().url()).searchParams.get("date") || ""); return route.fulfill({ status: 200, json: workspace() }); });
+  await page.clock.setFixedTime(new Date("2026-08-09T14:00:00+08:00"));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => { requestedDates.push(new URL(route.request().url()).searchParams.get("date") || ""); return route.fulfill({ status: 200, json: withCurrentV3(workspace()) }); });
   await page.goto("/");
   await page.getByLabel("选择比赛日").fill("2026-08-09");
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-09");
-  await page.getByRole("button", { name: "前一天" }).click();
+  await page.getByRole("button", { name: "前一个足球日" }).click();
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-08");
   await page.getByLabel("选择比赛日").fill("2026-08-03");
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-03");
-  const requestsBeforeHistoryClick = requestedDates.length;
-  const strip = page.getByRole("navigation", { name: "近七日比赛浏览" });
-  await strip.getByRole("button", { name: "查看更早日期" }).click();
-  await strip.getByRole("button").filter({ hasText: "2026-08-02" }).click();
+  await page.getByRole("button", { name: "前一个足球日" }).click();
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-02");
-  expect(requestedDates).toHaveLength(requestsBeforeHistoryClick + 1);
+  await page.getByRole("button", { name: "今天", exact: true }).click();
+  await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-09");
+  const requestsBeforeRefresh = requestedDates.length;
+  await page.getByRole("button", { name: "刷新" }).click();
+  await expect.poll(() => requestedDates.length).toBe(requestsBeforeRefresh + 1);
   await page.getByLabel("选择比赛日").focus();
   await page.keyboard.press("Tab");
   const focused = await page.evaluate(() => document.activeElement?.tagName);
@@ -1357,16 +1335,16 @@ test("refresh keeps the current workspace visible while the read is pending", as
   const refreshPending = new Promise<void>((resolve) => { finishRefresh = resolve; });
   await page.route("**/v1/dashboard/intelligence-workspace/list?**", async (route) => {
     if (holdRefresh) await refreshPending;
-    await route.fulfill({ status: 200, json: workspace() });
+    await route.fulfill({ status: 200, json: withCurrentV3(workspace()) });
   });
   await page.goto("/");
-  await expect(page.locator(".dashboard-v41")).toBeVisible();
+  await expect(page.locator(".w2-app")).toBeVisible();
   holdRefresh = true;
 
   const refresh = page.getByRole("button", { name: "刷新" });
   await refresh.click();
   await expect(refresh).toBeDisabled();
-  await expect(page.locator(".dashboard-v41")).toBeVisible();
+  await expect(page.locator(".w2-app")).toBeVisible();
   await page.screenshot({ animations: "disabled", path: testInfo.outputPath("actual-refresh-loading.png") });
   finishRefresh();
   await expect(refresh).toBeEnabled();
@@ -1386,8 +1364,8 @@ test("SC19 date strip exposes persisted counts and collection-window truth", asy
   await expect(strip.getByText("1/13 联赛", { exact: false }).first()).toBeVisible();
   await expect(strip).toContainText("已落盘市场观察（含历史）1/3 场");
   await expect(strip.locator('[aria-current="date"] .v41-recent-days-title')).toHaveText("2026-08-09 · 3 场 · 今天");
-  await expect(page.locator(".v41-today-primary")).toContainText("场尚无市场证据");
-  await expect(page.locator(".v41-no-break")).toHaveCSS("white-space", "nowrap");
+  await expect(page.locator(".w2-day-status")).toHaveAttribute("data-public-cause", "AWAITING_COLLECTION");
+  await expect(page.locator(".w2-day-status")).toContainText("已到采集时点，证据待采集");
   await expect(strip).not.toContainText("市场证据可用");
   await expect(strip.getByText("W2 计划采集尚未开始", { exact: false }).first()).toBeVisible();
   await expect(strip).toContainText("每次只读取所选日期，不额外查询 Provider");
@@ -1448,7 +1426,7 @@ test("mobile selected date remains visible after the workspace replaces date-str
 
   await page.goto("/");
   await page.getByLabel("选择比赛日").fill(selected.date);
-  await expect(page.locator(".v41-today-day")).toContainText("比赛日 2026-08-14");
+  await expect(page.getByLabel("选择比赛日")).toHaveValue("2026-08-14");
   const strip = page.getByRole("navigation", { name: "近七日比赛浏览" });
   const selectedVisible = await strip.locator("[aria-current=date]").evaluate((item) => {
     const stripBounds = item.closest("nav")!.getBoundingClientRect();
@@ -1462,9 +1440,11 @@ test("V41 empty-day adjacent controls change the requested football day", async 
   const requestedDates: string[] = [];
   await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => { requestedDates.push(new URL(route.request().url()).searchParams.get("date") || ""); return route.fulfill({ status: 200, json: workspace("empty") }); });
   await page.goto("/");
-  await page.locator(".v41-adjacent-days button").first().click();
+  await page.getByRole("button", { name: "前一个足球日" }).click();
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-08");
-  await page.locator(".v41-adjacent-days button").last().click();
+  await page.getByRole("button", { name: "后一个足球日" }).click();
+  await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-09");
+  await page.getByRole("button", { name: "后一个足球日" }).click();
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-10");
 });
 
@@ -1486,7 +1466,7 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
   ];
   await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => { requests += 1; return route.fulfill({ status: 200, json: payload }); });
   await page.goto("/");
-  await page.getByRole("tab", { name: "赛后验证" }).click();
+  await page.getByRole("tab", { name: "战绩复盘" }).click();
   const validation = page.locator("#secondary-validation");
   await expect(validation).toBeVisible();
   await expect(validation).toContainText("赛后验证");
@@ -1546,10 +1526,12 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
 });
 
 test("official recommendation empty state is explicit", async ({ page }) => {
-  await installWorkspace(page);
+  const payload = withCurrentV3(workspace("normal"));
+  await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
-  await page.getByRole("tab", { name: "赛后验证" }).click();
-  await expect(page.locator(".v41-official-recommendations")).toContainText("当日无检查点漏斗候选");
+  await expect(page.locator(".w2-table tbody")).toContainText("今日没有 AH/OU v3 推荐");
+  await expect(page.locator(".w2-kpi").first()).toContainText("0条");
+  await expect(page.locator(".w2-table tbody")).not.toContainText("影子候选");
 });
 
 test("empty selected day never leaks replay gaps into public copy", async ({ page }) => {
@@ -1667,7 +1649,7 @@ test("recorded match outcomes render only the persisted outcome semantics", asyn
 test("V41 primary controls meet the bounded minimum target size", async ({ page }) => {
   await installWorkspace(page);
   await page.goto("/");
-  for (const selector of [".v41-date-nav button", ".v41-date-nav input", ".v41-recent-days button"]) {
+  for (const selector of [".w2-day button", ".w2-day input", ".v41-recent-days button"]) {
     const box = await page.locator(selector).first().boundingBox();
     expect(box?.height, selector).toBeGreaterThanOrEqual(38);
   }
@@ -1677,11 +1659,11 @@ test("V41 1180 and 200% zoom preserve horizontal containment with a scrollable m
   await page.setViewportSize({ width: 1180, height: 1300 });
   await installWorkspace(page);
   await page.goto("/");
-  await expect(page.locator(".v41-focus-body")).toBeVisible();
-  const normal = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth, shortlist: getComputedStyle(document.querySelector(".v41-shortlist-list")!).overflowY, focus: getComputedStyle(document.querySelector(".v41-focus-body")!).overflowY }));
+  await expect(page.locator(".w2-grid")).toBeVisible();
+  const normal = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth, shortlist: getComputedStyle(document.querySelector(".w2-fixtures")!).overflowY, focus: getComputedStyle(document.querySelector(".w2-grid")!).position }));
   expect(normal.scrollWidth).toBeLessThanOrEqual(normal.width);
   expect(normal.shortlist).toBe("auto");
-  expect(normal.focus).toBe("visible");
+  expect(normal.focus).toBe("static");
   await page.setViewportSize({ width: 590, height: 650 });
   const zoomed = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
   expect(zoomed.scrollWidth).toBeLessThanOrEqual(zoomed.width);
@@ -1698,15 +1680,15 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await installWorkspace(page, "deployed");
     await page.goto("/");
-    await expect(page.locator(".design-v1-shell")).toBeVisible();
+    await expect(page.locator(".w2-app")).toBeVisible();
     const layout = await page.evaluate(() => ({
       width: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
-      focus: getComputedStyle(document.querySelector(".v41-focus-body")!).overflowY,
-      shortlist: getComputedStyle(document.querySelector(".v41-shortlist-list")!).overflowY,
+      focus: getComputedStyle(document.querySelector(".w2-grid")!).position,
+      shortlist: getComputedStyle(document.querySelector(".w2-fixtures")!).overflowY,
     }));
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.width);
-    expect(layout.focus).toBe("visible");
+    expect(layout.focus).toBe("static");
     expect(layout.shortlist).toBe("auto");
   });
 }
@@ -1719,9 +1701,9 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await installWorkspace(page, "deployed");
     await page.goto("/");
-    await expect(page.locator(".v41-focus-body")).toBeVisible();
-    await expect(page.locator(".design-v1-kpis")).toBeVisible();
-    await expect(page.locator(".design-v1-panel").first()).toBeVisible();
+    await expect(page.locator(".w2-grid")).toBeVisible();
+    await expect(page.locator(".w2-kpis")).toBeVisible();
+    await expect(page.locator(".w2-panel").first()).toBeVisible();
   });
 }
 
@@ -1785,15 +1767,15 @@ test("design v1 visual shell restores six required regions with real API-shaped 
   await page.setViewportSize({ width: 1440, height: 900 });
   const payload = workspace("normal") as IntelligenceWorkspace & Record<string, unknown>;
   payload.performance_summary = {
-    calibration_identity: "candidate-eval.v2", status: "AVAILABLE",
+    schema_version: "w2.ah_ou_v3_public_performance.v1", calibration_identity: "w2.ah_ou_decision.v3.1", status: "AVAILABLE",
     last_7_days: { match_count: 7, hit_rate: 0.6, profit_units: 2.95 },
     last_30_days: { match_count: 30, hit_rate: 0.57, profit_units: 3.4 },
     daily_series: Array.from({ length: 30 }, (_, index) => ({ date: new Date(Date.UTC(2026, 6, 11 + index)).toISOString().slice(0, 10), daily_profit_units: index % 2 ? -0.2 : 0.3, cumulative_profit_units: index * 0.11 })),
   };
   payload.system_status = { data: "实时数据", recommendations: "推荐已开启" };
   payload.today_recommendations = [
-    { fixture_id: "1571807", kickoff_utc: "2026-08-09T23:30:00Z", competition_name_zh: "巴甲", home: "弗拉门戈", away: "帕尔梅拉斯", market: "大小球", selection: "小", line: "2.25", odds: 1.96, ev: 0.06, fusion_ev: 0.06, tier: "重点", pinnacle_fair_line: "2.28", channel_price_gap: -0.02, status: "confirmed", withdraw_reason: null, result: null },
-    { fixture_id: "1571806", kickoff_utc: "2026-08-10T00:30:00Z", competition_name_zh: "美职联", home: "洛杉矶FC", away: "西雅图海湾人", market: "让球", selection: "主", line: "-0.5", odds: 1.88, ev: 0.03, fusion_ev: 0.03, tier: "一般", pinnacle_fair_line: "-0.5", channel_price_gap: -0.01, status: "candidate", withdraw_reason: null, result: null },
+    { decision_id: "a".repeat(64), decision_contract: "w2.ah_ou_decision.v3.1", fixture_id: "1571807", kickoff_utc: "2026-08-09T23:30:00Z", competition_name_zh: "巴甲", home: "弗拉门戈", away: "帕尔梅拉斯", market: "TOTALS", selection: "UNDER", line: "2.25", odds: "1.96", score: "0.27", status: "settled", result: "WIN", net_units: "0.96" },
+    { decision_id: "b".repeat(64), decision_contract: "w2.ah_ou_decision.v3.1", fixture_id: "1571806", kickoff_utc: "2026-08-10T00:30:00Z", competition_name_zh: "美职联", home: "洛杉矶FC", away: "西雅图海湾人", market: "ASIAN_HANDICAP", selection: "HOME", line: "-0.5", odds: "1.88", score: "0.18", status: "pending", result: null, net_units: null },
   ];
   let listCount = 0;
   let otherCount = 0;
@@ -1937,7 +1919,8 @@ test("v3 postmatch validation shows frozen decisions separately from legacy resu
 test("design v1 mobile cards and bottom navigation fit the viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const payload = workspace("normal") as IntelligenceWorkspace & Record<string, unknown>;
-  payload.today_recommendations = [{ fixture_id: "1571807", kickoff_utc: "2026-08-09T23:30:00Z", competition_name_zh: "巴甲", home: "弗拉门戈", away: "帕尔梅拉斯", market: "大小球", selection: "小", line: "2.25", odds: 1.96, ev: 0.06, status: "confirmed", withdraw_reason: null, result: null }];
+  payload.performance_summary = { schema_version: "w2.ah_ou_v3_public_performance.v1", status: "AVAILABLE", calibration_identity: "w2.ah_ou_decision.v3.1", total_profit_units: 0, total_profit_units_with_rebate: 0, last_7_days: { match_count: 0, hit_rate: null, profit_units: 0 }, last_30_days: { match_count: 0, hit_rate: null, profit_units: 0 }, daily_series: [] };
+  payload.today_recommendations = [{ decision_id: "a".repeat(64), decision_contract: "w2.ah_ou_decision.v3.1", fixture_id: "1571807", kickoff_utc: "2026-08-09T23:30:00Z", competition_name_zh: "巴甲", home: "弗拉门戈", away: "帕尔梅拉斯", market: "TOTALS", selection: "UNDER", line: "2.25", odds: "1.96", score: "0.27", status: "pending", result: null, net_units: null }];
   await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/?date=2026-08-09");
   await expect(page.locator(".w2-cards .w2-card")).toBeVisible();

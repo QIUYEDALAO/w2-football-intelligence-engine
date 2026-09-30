@@ -59,13 +59,12 @@ from w2.api.schemas import (
     WorldCupReadinessResponse,
 )
 from w2.config import Environment, get_settings
+from w2.dashboard.ah_ou_v3_public import public_v3_home_projection
 from w2.dashboard.date_window import football_day_for_kickoff
 from w2.dashboard.day_view import build_dashboard_day_view
 from w2.dashboard.design_v1_projection import (
-    performance_summary,
     replay_display_row,
     review_row,
-    today_recommendations,
 )
 from w2.dashboard.results import normalize_match_status, outcome_public_cause
 from w2.dashboard.workspace import (
@@ -500,22 +499,11 @@ def dashboard_intelligence_workspace_list(
         ],
     )
     anchor = datetime.fromisoformat(str(day_view["date"])).date()
-    facts_reader = getattr(service, "dashboard_design_v1_facts", None)
-    facts = (
-        facts_reader(anchor=anchor)
-        if callable(facts_reader)
-        else {"rows": [], "current_calibration_identity": None}
-    )
-    workspace["performance_summary"] = performance_summary(
-        facts["rows"], anchor=anchor,
-        calibration_identity=facts["current_calibration_identity"],
-        total_profit_units=facts.get("total_profit_units"),
-        total_absolute_profit_units=facts.get("total_absolute_profit_units"),
-    )
-    workspace["today_recommendations"] = today_recommendations(
-        workspace["matches"], facts["rows"], anchor=anchor,
-        calibration_identity=facts["current_calibration_identity"],
-    )
+    # One current public authority: selected, committed v3.1 ledger rows.
+    # Legacy V4 picks and v2 validation samples remain historical reads only.
+    workspace.update(public_v3_home_projection(
+        service.dashboard_ah_ou_v3_public(), anchor=anchor,
+    ))
     workspace["system_status"] = {
         "data": (
             "实时数据"
@@ -525,12 +513,7 @@ def dashboard_intelligence_workspace_list(
             else "数据未就绪"
         ),
         "recommendations": (
-            "推荐已开启"
-            if any(
-                row.get("feature_enabled") is True
-                for row in workspace["runtime"]["recommendation_capabilities"].values()
-            )
-            else "推荐未开启"
+            "今日有 v3 推荐" if workspace["today_recommendations"] else "今日无 v3 推荐"
         ),
     }
     upcoming_reader = getattr(service, "dashboard_upcoming_football_days", None)
@@ -888,6 +871,15 @@ def dashboard_intelligence_match(fixture_id: str) -> dict[str, Any]:
     )
     if match is None:
         raise HTTPException(status_code=404, detail="dashboard match not found")
+    kickoff = datetime.fromisoformat(str(match["kickoff_utc"]).replace("Z", "+00:00"))
+    projected = public_v3_home_projection(
+        service.dashboard_ah_ou_v3_public(), anchor=football_day_for_kickoff(kickoff),
+    )
+    match["ah_ou_v3_recommendations"] = [
+        row for row in projected["today_recommendations"]
+        if str(row["fixture_id"]).removeprefix("api_football:")
+        == fixture_id.removeprefix("api_football:")
+    ]
     return match
 
 

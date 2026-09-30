@@ -136,6 +136,9 @@ class RecordingDashboardService:
             "by_market": {},
         }
 
+    def dashboard_ah_ou_v3_public(self) -> list[dict[str, Any]]:
+        return []
+
 
 def test_dashboard_day_view_endpoint_reads_requested_window(
     monkeypatch: MonkeyPatch,

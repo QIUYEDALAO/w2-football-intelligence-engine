@@ -291,16 +291,50 @@ def v3_validation_snapshot(session: Session) -> dict[str, Any]:
             .order_by(AhOuDecisionLedgerModel.decision_at, AhOuDecisionLedgerModel.decision_id)
         )
     )
+    decision_ids = [decision.decision_id for decision in decisions]
+    fixture_ids = {
+        "api_football:" + decision.fixture_id.removeprefix("api_football:")
+        for decision in decisions
+    }
+    settlements = (
+        {
+            row.decision_id: row
+            for row in session.scalars(
+                select(AhOuV3SettlementModel).where(
+                    AhOuV3SettlementModel.decision_id.in_(decision_ids)
+                )
+            )
+        }
+        if decision_ids
+        else {}
+    )
+    samples = (
+        {
+            row.decision_id: row
+            for row in session.scalars(
+                select(AhOuV3ValidationSampleModel).where(
+                    AhOuV3ValidationSampleModel.decision_id.in_(decision_ids)
+                )
+            )
+        }
+        if decision_ids
+        else {}
+    )
+    results = (
+        {
+            str(row.fixture_id): row
+            for row in session.scalars(
+                select(ResultModel).where(ResultModel.fixture_id.in_(fixture_ids))
+            )
+        }
+        if fixture_ids
+        else {}
+    )
     rows: list[dict[str, Any]] = []
     for decision in decisions:
-        settlement = session.get(AhOuV3SettlementModel, decision.decision_id)
-        sample = session.get(AhOuV3ValidationSampleModel, decision.decision_id)
-        result = session.scalar(
-            select(ResultModel).where(
-                ResultModel.fixture_id
-                == "api_football:" + decision.fixture_id.removeprefix("api_football:")
-            )
-        )
+        settlement = settlements.get(decision.decision_id)
+        sample = samples.get(decision.decision_id)
+        result = results.get("api_football:" + decision.fixture_id.removeprefix("api_football:"))
         if settlement is not None and sample is None:
             state = "BLOCKED"
         elif sample is not None and settlement is None:
@@ -315,10 +349,31 @@ def v3_validation_snapshot(session: Session) -> dict[str, Any]:
         else:
             state = "PENDING"
         terms = decision.frozen_terms or {}
+        if decision.decision_contract == "w2.ah_ou_decision.v3.1":
+            if (
+                not terms
+                or canonical_sha256(terms, domain=HashDomain.RECOMMENDATION_DECISION_V4)
+                != decision.terms_hash
+            ):
+                raise ValueError("V3_PUBLIC_FROZEN_TERMS_HASH_MISMATCH")
+            if any(
+                (
+                    terms.get("selection") != decision.direction,
+                    terms.get("capture_id") != decision.capture_id,
+                    terms.get("raw_payload_sha256") != decision.source_capture_sha256,
+                    terms.get("quote_identity_hash") != decision.quote_identity_hash,
+                    terms.get("model_version") != decision.model_version,
+                    terms.get("calibration_version") != decision.calibration_version,
+                    terms.get("input_hash") != decision.input_hash,
+                )
+            ):
+                raise ValueError("V3_PUBLIC_FROZEN_TERMS_BINDING_INVALID")
         rows.append(
             {
                 "decision_id": decision.decision_id,
                 "fixture_id": decision.fixture_id,
+                "home_team_id": decision.home_team_id,
+                "away_team_id": decision.away_team_id,
                 "market": decision.market,
                 "decision_at": decision.decision_at.isoformat(),
                 "kickoff_utc": (
@@ -330,7 +385,9 @@ def v3_validation_snapshot(session: Session) -> dict[str, Any]:
                     + timedelta(hours=2)
                 ).isoformat(),
                 "model_version": decision.model_version,
+                "calibration_version": decision.calibration_version,
                 "decision_contract": decision.decision_contract or "w2.ah_ou_decision_ledger.v3",
+                "score": decision.score,
                 "selection": terms.get("selection"),
                 "exact_line": terms.get("selected_line"),
                 "decimal_odds": terms.get("entry_odds"),

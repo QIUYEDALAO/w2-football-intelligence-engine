@@ -2843,11 +2843,25 @@ class FutureRefreshDbRepository:
         transaction. An OU conflict (or any step) rolls back the whole batch, so a
         one-sided AH ledger row can never survive.
         """
+        from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+            AhOuDecisionLedgerModel,
+        )
+        from w2.prematch.candidate_notifications import (
+            enqueue_v3_recommendation_confirmed_in_session,
+        )
         from w2.strategy.ah_ou_decision_ledger import write_ah_ou_decision_batch
 
         with Session(self.engine) as session:
             with session.begin():
                 receipt = write_ah_ou_decision_batch(session, cohort=cohort, decisions=decisions)
+                for item in receipt["decisions"]:
+                    if item["selected"]:
+                        row = session.get(AhOuDecisionLedgerModel, item["decision_id"])
+                        if row is None:
+                            raise ValueError("V3_NOTIFICATION_DECISION_READBACK_MISSING")
+                        enqueue_v3_recommendation_confirmed_in_session(
+                            session, decision=row
+                        )
         return receipt
 
     def raw_payload_count(self, endpoint: str) -> int:

@@ -924,6 +924,28 @@ def test_validation_sample_confirmed_only_when_final_state_is_candidate() -> Non
     assert confirmed[0].payload["market"] == "ASIAN_HANDICAP"
 
 
+def test_historical_v4_confirmation_remains_readable_but_cannot_push_as_current(
+    monkeypatch,
+) -> None:
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    _append(repository, _attempt("T15_ODDS", "legacy"))
+    legacy = next(
+        row for row in _events(engine)
+        if row.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
+    )
+    assert "[推荐]" in render_bark_message(legacy.payload)["title"]
+    assert candidate_notifications.delivery_route(legacy) == (
+        "SUPPRESS", "HISTORICAL_V4_RECOMMENDATION"
+    )
+    monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app")
+    monkeypatch.setenv("W2_BARK_DEVICE_KEY", "owner-device-test-key")
+    sent: list[Mapping[str, object]] = []
+    result = deliver_pending_notifications(now=NOW, engine=engine, sender=sent.append)
+    assert result["delivered"] == 0 and result["suppressed"] == 1
+    assert sent == []
+
+
 def test_validation_sample_confirmed_is_idempotent() -> None:
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
@@ -1163,8 +1185,8 @@ def test_daily_settlement_zero_note_day() -> None:
         assert event_id is not None
         event = session.get(CandidateNotificationOutboxModel, event_id)
         rendered = render_bark_message(event.payload)
-        assert rendered["title"] == "[结算] 8月19日 当天无推荐"
-        assert "累计：0 注 +0.00 单位" in rendered["body"]
+        assert rendered["title"] == "[AH/OU v3 结算] 8月19日 当天无 v3 推荐"
+        assert "当前 AH/OU v3.1：选中 0 条" in rendered["body"]
         session.commit()
 
 
@@ -1287,8 +1309,8 @@ def test_notif04_titles_and_bodies_render() -> None:
         }
     )
     assert candidate_list["title"] == "[今日候选] 8月20日 共 1 场待评估"
-    assert "开球前 3 小时" in candidate_list["body"]
-    assert "推荐会逐条推送" in candidate_list["body"]
+    assert "仅已提交的 AH/OU v3.1 冻结决策会逐条推送" in candidate_list["body"]
+    assert "逐条推送" in candidate_list["body"]
     assert "08-20 20:30 中超 上海海港 vs 大连英博" in candidate_list["body"]
 
     confirmed = render_bark_message(
