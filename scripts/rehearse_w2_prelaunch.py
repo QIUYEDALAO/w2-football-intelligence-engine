@@ -284,6 +284,62 @@ def case(root: Path, *, fault: str, candidate: str, old: str, web: str) -> dict:
         assert old_ready["status"] == "READY", old_ready
         off_at = datetime.now(UTC).isoformat()
         run([*compose, "stop", "-t", "15", "scheduler", "worker", "worker-heavy", "api", "web"])
+        legacy_digest = None
+        ledger_query = [
+            "docker",
+            "exec",
+            containers[0],
+            "psql",
+            "-XAt",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "w2_user",
+            "-d",
+            "w2",
+            "-c",
+        ]
+        if fault == "normal":
+            # Production had this verified ORM table at revision 0076. Replay
+            # that actual schema anomaly without stamping, deleting, or making
+            # the legacy record eligible as a v3 decision.
+            run(
+                [
+                    *ledger_query,
+                    (ROOT / "tests/fixtures/ah_ou_0076_existing_ledger.sql").read_text(),
+                ]
+            )
+            run(
+                [
+                    *ledger_query,
+                    """
+                INSERT INTO ah_ou_decision_ledger VALUES
+                ('preexisting-ledger','legacy-fixture','ASIAN_HANDICAP','2026-09-28T18:00Z',
+                 'm1','c1',repeat('a',64),'{}',repeat('a',64),repeat('a',64),
+                 repeat('a',64),'old-source','H','A',true,'HOME','0.1',NULL,
+                 '2026-09-28T18:00Z');
+            """,
+                ]
+            )
+            legacy_digest = run(
+                [*ledger_query, "SELECT md5(to_jsonb(t)::text) FROM ah_ou_decision_ledger t"]
+            )
+            # Exact read-only observed production source shapes. This fault
+            # construction runs only in this isolated replica. Unproven rows
+            # must survive in archives without acquiring capture/FT proof.
+            run(
+                [
+                    *ledger_query,
+                    "DROP TABLE matchday_endpoint_captures CASCADE; "
+                    "DROP TABLE results CASCADE; "
+                    "CREATE TABLE matchday_endpoint_captures (capture_id varchar(64) "
+                    "PRIMARY KEY, raw_payload_sha256 varchar(64) NOT NULL); "
+                    "INSERT INTO matchday_endpoint_captures VALUES ('cap-1',repeat('a',64)); "
+                    "CREATE TABLE results (fixture_id varchar(128) PRIMARY KEY, "
+                    "home_goals integer, away_goals integer); "
+                    "INSERT INTO results VALUES ('f1',2,1);",
+                ]
+            )
         head = run(
             ["docker", "run", "--rm", "--entrypoint", "alembic", candidate, "heads"]
         ).split()[0]
@@ -304,6 +360,42 @@ def case(root: Path, *, fault: str, candidate: str, old: str, web: str) -> dict:
                     "head",
                 ]
             )
+            if legacy_digest is not None:
+                assert run(
+                    [*ledger_query, "SELECT capture_id,raw_payload_sha256 FROM "
+                     "w2_legacy_unproven_matchday_endpoint_captures_0076"]
+                ) == "cap-1|" + "a" * 64
+                assert run(
+                    [*ledger_query, "SELECT fixture_id,home_goals,away_goals FROM "
+                     "w2_legacy_unproven_results_0076"]
+                ) == "f1|2|1"
+                assert run(
+                    [*ledger_query, "SELECT (SELECT count(*) FROM results), "
+                     "(SELECT count(*) FROM matchday_endpoint_captures)"]
+                ) == "0|0"
+                after_digest = run(
+                    [
+                        *ledger_query,
+                        """
+                    SELECT md5((to_jsonb(t)-ARRAY[
+                        'decision_contract','frozen_terms','terms_hash'])::text)
+                    FROM ah_ou_decision_ledger t WHERE decision_id='preexisting-ledger'
+                      AND decision_contract IS NULL AND frozen_terms IS NULL AND terms_hash IS NULL
+                """,
+                    ]
+                )
+                assert after_digest == legacy_digest
+                (path / "preexisting-ledger-preservation.json").write_text(
+                    json.dumps(
+                        {
+                            "schema_before": pre_revision,
+                            "business_digest_before": legacy_digest,
+                            "business_digest_after": after_digest,
+                            "v3_upgrade": False,
+                        },
+                        indent=2,
+                    )
+                )
             pg_port = run([*compose, "port", "postgres", "5432"]).rsplit(":", 1)[1]
             future = seed_positive(
                 f"postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:{pg_port}/w2", path
@@ -680,6 +772,15 @@ assert v['result']['validation_samples']['v3']['idempotent']==2,v
                 assert len(home.json()["today_recommendations"]) == 2, home.text
                 assert home.json()["performance_summary"]["total_profit_units"] == 1.15, home.text
                 (path / "postmatch-home.json").write_text(home.text)
+                validation = httpx.get(
+                    f"http://127.0.0.1:{port}/v1/dashboard/validation", trust_env=False
+                )
+                assert validation.status_code == 200, validation.text
+                current = validation.json()["ah_ou_v3"]
+                assert current["selected"] == 2, current
+                assert len(current["rows"]) == 2, current
+                assert all(row["fixture_id"] == "1489404" for row in current["rows"]), current
+                (path / "postmatch-validation.json").write_text(validation.text)
                 import hashlib
                 import runpy
 

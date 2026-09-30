@@ -594,15 +594,28 @@ def settle_ah_ou_v3_in_session(
 
 def v3_validation_snapshot(session: Session) -> dict[str, Any]:
     """Read-only, per-decision reconciliation for API and daily settlement."""
-    cohorts = list(session.scalars(select(AhOuCohortModel)))
-    all_decisions = list(session.scalars(select(AhOuDecisionLedgerModel)))
-    decisions = list(
-        session.scalars(
-            select(AhOuDecisionLedgerModel)
-            .where(AhOuDecisionLedgerModel.selected.is_(True))
-            .order_by(AhOuDecisionLedgerModel.decision_at, AhOuDecisionLedgerModel.decision_id)
+    # Historical rows with no versioned terms remain stored, but cannot become
+    # current recommendations, validation samples or daily report counts.
+    # Retain malformed current rows for verification: a changed/NULL contract
+    # must not hide a decision that still has its frozen terms or terms hash.
+    all_decisions = [
+        row
+        for row in session.scalars(
+            select(AhOuDecisionLedgerModel).order_by(
+                AhOuDecisionLedgerModel.decision_at, AhOuDecisionLedgerModel.decision_id
+            )
         )
-    )
+        if row.decision_contract is not None
+        or row.frozen_terms is not None
+        or row.terms_hash is not None
+    ]
+    slots = {(row.fixture_id, row.decision_at) for row in all_decisions}
+    cohorts = [
+        row
+        for row in session.scalars(select(AhOuCohortModel))
+        if (row.fixture_id, row.decision_at) in slots
+    ]
+    decisions = [row for row in all_decisions if row.selected]
     decision_ids = [decision.decision_id for decision in decisions]
     fixture_ids = {
         "api_football:" + decision.fixture_id.removeprefix("api_football:")
@@ -647,8 +660,7 @@ def v3_validation_snapshot(session: Session) -> dict[str, Any]:
         settlement = settlements.get(decision.decision_id)
         sample = samples.get(decision.decision_id)
         result = results.get("api_football:" + decision.fixture_id.removeprefix("api_football:"))
-        if decision.decision_contract == "w2.ah_ou_decision.v3.1":
-            _verify_public_postmatch(session, decision, result, settlement, sample)
+        _verify_public_postmatch(session, decision, result, settlement, sample)
         if settlement is not None and sample is None:
             state = "BLOCKED"
         elif sample is not None and settlement is None:

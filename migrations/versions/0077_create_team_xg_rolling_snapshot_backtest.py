@@ -4,6 +4,7 @@ Revision ID: 0077_create_team_xg_rolling_snapshot_backtest
 Revises: 0076_forward_review_evidence
 Create Date: 2026-09-28 20:00:00.000000
 """
+
 from __future__ import annotations
 
 import sqlalchemy as sa
@@ -16,6 +17,9 @@ depends_on: str | None = None
 
 
 def upgrade() -> None:
+    from migrations.legacy_0076_source_recovery import recover_known_minimal_sources
+
+    recover_known_minimal_sources()
     op.create_table(
         "team_xg_rolling_snapshot_backtest",
         sa.Column("snapshot_id", sa.String(length=96), primary_key=True),

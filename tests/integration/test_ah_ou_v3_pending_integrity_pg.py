@@ -48,6 +48,7 @@ def read(day):
         "input_hash",
         "quote_identity_hash",
         "capture_id",
+        "decision_contract",
     ],
 )
 def test_pending_homepage_rejects_frozen_decision_field_conflicts(chain, field):
@@ -91,6 +92,7 @@ def test_pending_homepage_rejects_frozen_decision_field_conflicts(chain, field):
         "input_hash": "f" * 64,
         "quote_identity_hash": "f" * 64,
         "capture_id": "other",
+        "decision_contract": None,
     }[field]
     assert original != bad
     mutate(repo, decision_id, field, bad)
@@ -121,6 +123,7 @@ def test_pending_homepage_rejects_frozen_decision_field_conflicts(chain, field):
         "home_team_id": "V3_PUBLIC_FIXTURE_TEAM_BINDING_INVALID",
         "skip_reason": "V3_SELECTED_DECISION_STATE_INVALID",
         "source_id": "V3_PUBLIC_SOURCE_ID_MISMATCH",
+        "decision_contract": "V3_SELECTED_CONTRACT_INVALID",
     }.get(field, "V3_PUBLIC_FROZEN_TERMS_BINDING_INVALID")
     assert expected in payload["message"]
 
