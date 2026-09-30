@@ -6,6 +6,7 @@ backtest feature construction (``build_enriched_f9_f6_matrix.py`` /
 ``build_ou_research_matrix.py``); do not change the arithmetic without a new
 model version and an unseen forward window.
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -59,7 +60,9 @@ def build_features(
         weights = [
             2 ** (-_days_between(kickoff, m["kickoff_at"]) / half_life_days) for m in meetings
         ]
-        return sum(value * weight for value, weight in zip(values, weights)) / sum(weights)
+        return sum(value * weight for value, weight in zip(values, weights, strict=False)) / sum(
+            weights
+        )
 
     f6_raw = clip(sum(diffs) / n / 2)
     last_age = _days_between(kickoff, last["kickoff_at"])

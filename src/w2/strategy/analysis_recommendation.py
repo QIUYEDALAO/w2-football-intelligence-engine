@@ -149,6 +149,8 @@ def build_multi_market_analysis(
         # the xG/lambda-driven FIRST_HALF_GOALS/SCORE markets ask a different
         # question that no factor's HOME/AWAY side encodes; they keep their own
         # existing, independent readiness gates untouched.
+        if inputs.feature_set is None:
+            raise ValueError("LEGACY_FEATURE_SET_MISSING")
         factor_score = build_factor_score(inputs.feature_set)
         ou_market = _ou_market(inputs)
         _assert_ou_intent_emits_no_positive_recommendation(ou_market)
@@ -184,6 +186,8 @@ def _ah_market(
 ) -> MarketAnalysis:
     if AnalysisMarket.ASIAN_HANDICAP in inputs.missing_markets:
         return _skip(AnalysisMarket.ASIAN_HANDICAP, "AH_DATA_UNAVAILABLE")
+    if inputs.ah_intent is None:
+        return _skip(AnalysisMarket.ASIAN_HANDICAP, "AH_INTENT_MISSING")
     # Single-chain admission rule (2026-09-28, AH/OU v3): F9_TRUE_XG and F6_H2H
     # must both participate in the weighted score. No strength threshold is
     # applied on top of this.
@@ -214,6 +218,8 @@ def _ah_market(
 def _ou_market(inputs: AnalysisBuildInputs) -> MarketAnalysis:
     if AnalysisMarket.TOTALS in inputs.missing_markets:
         return _skip(AnalysisMarket.TOTALS, "OU_DATA_UNAVAILABLE")
+    if inputs.ou_intent is None:
+        return _skip(AnalysisMarket.TOTALS, "OU_INTENT_MISSING")
     if inputs.ou_intent.intent in {IntentSignal.LEAKAGE_BLOCKED, IntentSignal.INSUFFICIENT_DATA}:
         return _skip(AnalysisMarket.TOTALS, inputs.ou_intent.intent.value)
     return MarketAnalysis(
@@ -234,10 +240,7 @@ def _assert_ou_intent_emits_no_positive_recommendation(market: MarketAnalysis) -
     means the intent gate has been re-enabled.  Fail closed rather than let a
     positive TOTALS recommendation escape the intent gate again.
     """
-    if (
-        market.market == AnalysisMarket.TOTALS
-        and market.decision == AnalysisDecision.ANALYSIS_PICK
-    ):
+    if market.market == AnalysisMarket.TOTALS and market.decision == AnalysisDecision.ANALYSIS_PICK:
         raise AssertionError("OU_INTENT_GATE_POSITIVE_RECOMMENDATION_FORBIDDEN")
 
 
@@ -278,10 +281,7 @@ def _score_market(inputs: AnalysisBuildInputs) -> MarketAnalysis:
         primary_direction=inputs.score_direction,
     )
     top_probability = max(
-        (
-            scenario.probability or 0.0
-            for scenario in card.scenarios
-        ),
+        (scenario.probability or 0.0 for scenario in card.scenarios),
         default=0.0,
     )
     if top_probability < MIN_SCORE_SCENARIO_PROBABILITY:
@@ -432,7 +432,8 @@ def build_softmax_market_analyses(
             tendency="OVER",
             signal_strength=round(ou_selection["edge"], 4),
             reasons=(
-                f"F9+F6 软最大值 OVER 价值 factor_over_share={ou_selection['factor_over_share']:.3f}"
+                f"F9+F6 软最大值 OVER 价值 "
+                f"factor_over_share={ou_selection['factor_over_share']:.3f}"
                 f" > market_over_q={ou_selection['market_over_q']:.3f}"
                 f" (edge={ou_selection['edge']:+.4f})",
             ),
@@ -441,4 +442,3 @@ def build_softmax_market_analyses(
         )
 
     return ah_market, ou_market
-

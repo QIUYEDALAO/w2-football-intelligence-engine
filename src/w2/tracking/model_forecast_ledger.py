@@ -10,7 +10,7 @@ from sqlalchemy import func, inspect, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from w2.domain.canonical_serialization import HashDomain, canonical_sha256
+from w2.domain.canonical_serialization import canonical_sha256
 from w2.domain.enums import SettlementOutcome
 from w2.domain.odds import settle_total_goals
 from w2.infrastructure.database import create_engine

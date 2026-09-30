@@ -8,15 +8,16 @@
 - F6 H2H：主客对在 canonical_team_match_history 有交锋历史。
 - F9 TRUE_XG：双方在 team_xg_rolling_snapshot 有 xG 快照。
 """
+
 from __future__ import annotations
 
 import json
 import logging
 import os
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import func, select, text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import create_engine
@@ -44,9 +45,7 @@ def _target_fixtures(session: Session, *, now: datetime) -> list[MatchdayFixture
     )
 
 
-def compute_factor_readiness(
-    session: Session, *, now: datetime | None = None
-) -> dict[str, Any]:
+def compute_factor_readiness(session: Session, *, now: datetime | None = None) -> dict[str, Any]:
     """统计四因子的 READY 率（按目标 fixture 全量口径）。
 
     每个因子逐场判定 READY/缺失，附带缺失原因计数（如 NO_H2H_HISTORY）。
@@ -58,10 +57,7 @@ def compute_factor_readiness(
     history_teams: dict[str, datetime] = {}
     history_pairs: dict[tuple[str, str], datetime] = {}
     for row in session.execute(
-        text(
-            "SELECT team_w2_id, opponent_w2_id, kickoff_utc "
-            "FROM canonical_team_match_history"
-        )
+        text("SELECT team_w2_id, opponent_w2_id, kickoff_utc FROM canonical_team_match_history")
     ):
         team = row.team_w2_id
         opponent = row.opponent_w2_id
@@ -93,9 +89,7 @@ def compute_factor_readiness(
 
     # 3) F9 xG 快照集合：provider team_id -> 最早 as_of_time。
     xg_teams: dict[str, datetime] = {}
-    for row in session.execute(
-        text("SELECT team_id, as_of_time FROM team_xg_rolling_snapshot")
-    ):
+    for row in session.execute(text("SELECT team_id, as_of_time FROM team_xg_rolling_snapshot")):
         if not row.team_id:
             continue
         prior = xg_teams.get(str(row.team_id))
@@ -134,7 +128,11 @@ def compute_factor_readiness(
             _bump(reasons, "F5_RECENT_AH_COVER", "F5_TEAM_INSUFFICIENT")
 
         # F6
-        pair_kickoff = history_pairs.get((home_w2, away_w2))
+        pair_kickoff = (
+            history_pairs.get((home_w2, away_w2))
+            if home_w2 is not None and away_w2 is not None
+            else None
+        )
         f6_ready = pair_kickoff is not None and pair_kickoff < kickoff
         counts["F6_H2H"]["ready" if f6_ready else "missing"] += 1
         if not f6_ready:
@@ -176,7 +174,7 @@ def _baseline_path() -> str:
 def _load_baseline() -> dict[str, Any]:
     try:
         with open(_baseline_path(), encoding="utf-8") as f:
-            return json.load(f)
+            return cast(dict[str, Any], json.load(f))
     except (OSError, json.JSONDecodeError):
         return {}
 
@@ -189,10 +187,7 @@ def _save_baseline(report: dict[str, Any]) -> None:
             {
                 "as_of": report["as_of"],
                 "fixture_total": report["fixture_total"],
-                "rates": {
-                    factor: report["factors"][factor]["rate"]
-                    for factor in FACTOR_IDS
-                },
+                "rates": {factor: report["factors"][factor]["rate"] for factor in FACTOR_IDS},
             },
             f,
             ensure_ascii=False,
@@ -220,7 +215,11 @@ def evaluate_alerts(
     for factor in FACTOR_IDS:
         rate = factors[factor]["rate"]
         previous = baseline_rates.get(factor)
-        if rate is not None and previous is not None and previous - rate > READY_RATE_DROP_THRESHOLD:
+        if (
+            rate is not None
+            and previous is not None
+            and previous - rate > READY_RATE_DROP_THRESHOLD
+        ):
             alerts.append(
                 OperationalAlert(
                     alert_key=f"factor_readiness.{factor}_drop",

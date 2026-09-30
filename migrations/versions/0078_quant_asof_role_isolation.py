@@ -45,7 +45,7 @@ def upgrade() -> None:
         return
     for role in (_ASOF_ROLE, _INGEST_ROLE, _POSTEVENT_ROLE):
         op.execute(
-            f"DO $$ BEGIN "
+            f"DO $$ BEGIN "  # noqa: S608 - role comes from migration constants above.
             f"IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN "
             f"CREATE ROLE {role} NOLOGIN; "
             f"END IF; END $$;"
@@ -64,11 +64,11 @@ def downgrade() -> None:
     if not _postgres_only():
         return
     for table in _ASOF_READ_TABLES:
-        op.execute(f"REVOKE SELECT ON {table} FROM {_ASOF_ROLE}")
+        op.execute(f"REVOKE SELECT ON {table} FROM {_ASOF_ROLE}")  # noqa: S608
     op.execute(f"REVOKE SELECT, INSERT ON {_LEDGER} FROM {_INGEST_ROLE}")
     for role in (_ASOF_ROLE, _INGEST_ROLE, _POSTEVENT_ROLE):
         op.execute(
-            f"DO $$ BEGIN "
+            f"DO $$ BEGIN "  # noqa: S608 - role comes from migration constants above.
             f"IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') "
             f"AND NOT EXISTS (SELECT 1 FROM pg_shdepend d JOIN pg_roles r ON r.oid=d.refobjid "
             f"WHERE r.rolname='{role}' AND d.refclassid='pg_authid'::regclass) THEN "

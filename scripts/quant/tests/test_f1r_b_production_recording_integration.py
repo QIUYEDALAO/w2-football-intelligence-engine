@@ -18,7 +18,7 @@ import re
 import subprocess
 import sys
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -120,7 +120,7 @@ def _seed_source_records(engine) -> None:  # type: ignore[no-untyped-def]
     )
 
     def _dt(value: str) -> datetime:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
 
     home, away = runner.history_rows()
     meetings = runner.meeting_rows()

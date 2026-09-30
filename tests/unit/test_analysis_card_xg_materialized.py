@@ -113,9 +113,7 @@ class FakeReadRepository:
 
     def future_market_observations(self) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
-        for index, captured in enumerate(
-            (NOW - timedelta(hours=3), NOW - timedelta(minutes=10))
-        ):
+        for index, captured in enumerate((NOW - timedelta(hours=3), NOW - timedelta(minutes=10))):
             for bookmaker_id, bookmaker_name, home_price, away_price, over_price, under_price in (
                 ("1", "Pinnacle", "1.95", "1.96", "1.90", "1.94"),
                 ("2", "SoftBook", "2.04", "1.92", "2.02", "1.86"),
@@ -300,7 +298,9 @@ class FakeDbRepository:
         return [
             {
                 "endpoint_capture_id": "lineups-capture-1489410",
-                "captured_at": (NOW - timedelta(minutes=10)).isoformat().replace(
+                "captured_at": (NOW - timedelta(minutes=10))
+                .isoformat()
+                .replace(
                     "+00:00",
                     "Z",
                 ),
@@ -570,9 +570,17 @@ class FakeCanonicalDbRepository(FakeDbRepository):
         # The isolated PG chain separately verifies actual commit/readback.
         self.last_cohort = cohort
         self.last_decisions = decisions
-        return {"cohort_id": cohort["cohort_id"], "decisions": [
-            {**{k:d[k] for k in ("market", "selected", "direction", "skip_reason")},
-             "score": format(float(d["score"]), ".8f"), "decision_id": d["input_hash"]} for d in decisions]}
+        return {
+            "cohort_id": cohort["cohort_id"],
+            "decisions": [
+                {
+                    **{k: d[k] for k in ("market", "selected", "direction", "skip_reason")},
+                    "score": format(float(d["score"]), ".8f"),
+                    "decision_id": d["input_hash"],
+                }
+                for d in decisions
+            ],
+        }
 
 
 class FakeCanonicalDbRepositoryCurrentXg(FakeCanonicalDbRepository):
@@ -667,9 +675,7 @@ def test_empirical_xg_uncertainty_requires_three_real_xg_matches(monkeypatch) ->
                             "fixture_id": f"sparse-{team_id}-{index}",
                             "team_id": team_id,
                             "opponent_team_id": "20" if team_id == "10" else "10",
-                            "kickoff_at": (
-                                KICKOFF - timedelta(days=8 - index)
-                            ).isoformat(),
+                            "kickoff_at": (KICKOFF - timedelta(days=8 - index)).isoformat(),
                             "captured_at": (NOW - timedelta(days=7 - index)).isoformat(),
                             "xg_for": 1.0 + index,
                             "xg_against": 0.8 + index,
@@ -748,9 +754,7 @@ def test_public_bounded_uncertainty_excludes_xg_captured_after_evaluation_time(
                             "opponent_team_id": "20" if team_id == "10" else "10",
                             "kickoff_at": (NOW - timedelta(days=10 - index)).isoformat(),
                             "captured_at": (
-                                NOW - timedelta(hours=1)
-                                if index < 2
-                                else NOW + timedelta(hours=1)
+                                NOW - timedelta(hours=1) if index < 2 else NOW + timedelta(hours=1)
                             ).isoformat(),
                             "xg_for": 1.0 + (index * 0.2),
                             "xg_against": 0.7 + (index * 0.15),
@@ -848,7 +852,9 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
         "h2h": False,
         "lineups": True,
         "lineups_status": "READY",
-        "lineups_captured_at": (NOW - timedelta(minutes=10)).isoformat().replace(
+        "lineups_captured_at": (NOW - timedelta(minutes=10))
+        .isoformat()
+        .replace(
             "+00:00",
             "Z",
         ),
@@ -920,13 +926,9 @@ def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) ->
     assert decisions["TOTALS"] == "SKIP"
     assert decisions["FIRST_HALF_GOALS"] == "PICK"
     assert decisions["SCORE"] == "NO_EDGE"
-    ou_market = next(
-        market for market in card["markets"] if market["market"] == "TOTALS"
-    )
+    ou_market = next(market for market in card["markets"] if market["market"] == "TOTALS")
     assert ou_market["factor_veto"]["code"] == "SOFTMAX_OU_NO_DIRECTION"
-    ah_market = next(
-        market for market in card["markets"] if market["market"] == "ASIAN_HANDICAP"
-    )
+    ah_market = next(market for market in card["markets"] if market["market"] == "ASIAN_HANDICAP")
     assert ah_market["model_probability"] is not None
     assert ah_market["market_probability"] is not None
     assert ah_market["probability_delta"] is not None

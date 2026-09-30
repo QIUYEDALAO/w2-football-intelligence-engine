@@ -264,7 +264,7 @@ def present_offline(
                     market_odds=(
                         e.pinnacle_quote_pair if e.market == "ASIAN_HANDICAP"
                         else e.pinnacle_odds
-                    ),
+                    ) or {},
                 )
                 original_marker = fused.marker
                 if original_marker is None:

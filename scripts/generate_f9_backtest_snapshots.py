@@ -11,8 +11,10 @@
 
 用法：
   python scripts/generate_f9_backtest_snapshots.py --csv <清单.csv> --dry-run
-  python scripts/generate_f9_backtest_snapshots.py --csv <清单.csv> --report-out /tmp/f9_bt_report.json
+  python scripts/generate_f9_backtest_snapshots.py --csv <清单.csv> \
+      --report-out /tmp/f9_bt_report.json
 """
+
 from __future__ import annotations
 
 import argparse

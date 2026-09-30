@@ -235,7 +235,12 @@ def _proportional_devig(
         prices = _validate_ah_quote_pair(odds, selection=selection, line=line)
     else:
         try:
-            prices = {side: float(odds[side]) for side in required}
+            prices = {}
+            for side in required:
+                value = odds[side]
+                if not isinstance(value, (int, float, str, Decimal)):
+                    raise ValueError("decimal odds must be numeric")
+                prices[side] = float(value)
         except (KeyError, TypeError, ValueError) as exc:
             raise ValueError("both market sides are required") from exc
     if any(not isfinite(price) or price <= 1.0 for price in prices.values()):
@@ -306,7 +311,7 @@ def _distribution(
     return normalized
 
 
-def _decimal_line(line: float):
+def _decimal_line(line: float) -> Decimal:
     from decimal import Decimal
 
     return Decimal(str(line))

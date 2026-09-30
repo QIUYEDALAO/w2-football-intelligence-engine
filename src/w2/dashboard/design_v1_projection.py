@@ -68,7 +68,8 @@ def performance_summary(
     def window(days: int) -> dict[str, Any]:
         included = [
             row for row in current
-            if anchor - timedelta(days=days - 1) <= _day(row) <= anchor
+            if (row_day := _day(row)) is not None
+            and anchor - timedelta(days=days - 1) <= row_day <= anchor
         ]
         decisive = [row for row in included if row["settlement"] in DECISIVE]
         return {
@@ -124,7 +125,7 @@ def review_row(row: Mapping[str, Any], *, calibrated: bool = False) -> dict[str,
     return {
         "fixture_id": str(row["fixture_id"]),
         "kickoff_utc": row.get("kickoff_utc"),
-        "date": _day(row).isoformat() if _day(row) else None,
+        "date": row_day.isoformat() if (row_day := _day(row)) is not None else None,
         "league": _league(row.get("competition_id")),
         "match": f"{home} vs {away}" if home and away else None,
         "recommendation": (

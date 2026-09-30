@@ -18,6 +18,7 @@ Admission gates (task "原子切换前整改" item 3):
 Every refusal returns ``status != READY`` with ``ah/ou = None`` (direction 0):
 the caller must never emit a pick on partial or conflicted evidence.
 """
+
 from __future__ import annotations
 
 import math
@@ -59,9 +60,7 @@ class AhOuRepository(Protocol):
     def set_asof_role(self, role: str | None) -> None: ...
 
     # Required source port: actual capture metadata and original response payload.
-    def endpoint_captures_for_ids(
-        self, capture_ids: list[str]
-    ) -> dict[str, dict[str, Any]]: ...
+    def endpoint_captures_for_ids(self, capture_ids: list[str]) -> dict[str, dict[str, Any]]: ...
 
 
 def _skip(status: str) -> dict[str, Any]:
@@ -216,7 +215,9 @@ def build_ah_ou_selections(
         if not callable(capture_reader):
             return _skip("F6_H2H_CAPTURE_LOOKUP_REQUIRED")
         try:
-            capture_by_id = capture_reader([str(row.get("endpoint_capture_id") or "") for row in history])
+            capture_by_id = capture_reader(
+                [str(row.get("endpoint_capture_id") or "") for row in history]
+            )
         except Exception:
             return _skip("F6_H2H_CAPTURE_LOOKUP_FAILED")
     finally:
@@ -256,7 +257,11 @@ def build_ah_ou_selections(
         target = str(row.get("fixture_id") or "").removeprefix("api_football:")
         if cap.get("fixture_id") and str(cap["fixture_id"]).removeprefix("api_football:") != target:
             return _skip("F6_H2H_CAPTURE_FIXTURE_MISMATCH")
-        if cap.get("capture_status") != "CAPTURED" or not isinstance(cap.get("status_code"), int) or not 200 <= cap["status_code"] < 300:
+        if (
+            cap.get("capture_status") != "CAPTURED"
+            or not isinstance(cap.get("status_code"), int)
+            or not 200 <= cap["status_code"] < 300
+        ):
             return _skip("F6_H2H_CAPTURE_FAILED")
         source_time = _parse_asof(cap.get("provider_captured_at"))
         if source_time is None or source_time > decision_at:
@@ -267,26 +272,48 @@ def build_ah_ou_selections(
         raw_time = _parse_asof(cap.get("raw_captured_at"))
         if raw_time is None or raw_time != source_time:
             return _skip("F6_H2H_RAW_CAPTURE_TIME_MISMATCH")
-        from w2.domain.canonical_serialization import canonical_sha256, HashDomain, SerializerVersion
+        from w2.domain.canonical_serialization import (
+            HashDomain,
+            SerializerVersion,
+            canonical_sha256,
+        )
         from w2.matchday.intake_v2 import stable_hash
-        actual_hash = canonical_sha256(raw, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD, version=SerializerVersion.LEGACY_V1)
+
+        actual_hash = canonical_sha256(
+            raw, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD, version=SerializerVersion.LEGACY_V1
+        )
         if actual_hash != cap.get("raw_payload_sha256"):
             return _skip("F6_H2H_CAPTURE_RAW_HASH_MISMATCH")
-        items = [item for item in raw.get("response", []) if isinstance(item, dict)
-                 and str((item.get("fixture") or {}).get("id") or "") == target]
+        items = [
+            item
+            for item in raw.get("response", [])
+            if isinstance(item, dict) and str((item.get("fixture") or {}).get("id") or "") == target
+        ]
         if len(items) != 1:
             return _skip("F6_H2H_CAPTURE_FIXTURE_MISMATCH")
         item = items[0]
         if row.get("source_raw_hash") not in {actual_hash, stable_hash(item)}:
             return _skip("F6_H2H_CAPTURE_RAW_HASH_MISMATCH")
-        fixture, teams, goals = item.get("fixture") or {}, item.get("teams") or {}, item.get("goals") or {}
+        fixture, teams, goals = (
+            item.get("fixture") or {},
+            item.get("teams") or {},
+            item.get("goals") or {},
+        )
         if (fixture.get("status") or {}).get("short") != "FT" or row.get("fixture_status") != "FT":
             return _skip("F6_H2H_STATUS_NOT_FT")
         side = str(row.get("team_side") or "").lower()
         opposite = "away" if side == "home" else "home"
-        if side not in {"home", "away"} or str((teams.get(side) or {}).get("id") or "") != str(row.get("team_provider_id") or "") or str((teams.get(opposite) or {}).get("id") or "") != str(row.get("opponent_provider_id") or ""):
+        if (
+            side not in {"home", "away"}
+            or str((teams.get(side) or {}).get("id") or "")
+            != str(row.get("team_provider_id") or "")
+            or str((teams.get(opposite) or {}).get("id") or "")
+            != str(row.get("opponent_provider_id") or "")
+        ):
             return _skip("F6_H2H_CAPTURE_TEAM_MISMATCH")
-        if goals.get(side) != row.get("goals_for") or goals.get(opposite) != row.get("goals_against"):
+        if goals.get(side) != row.get("goals_for") or goals.get(opposite) != row.get(
+            "goals_against"
+        ):
             return _skip("F6_H2H_CAPTURE_SCORE_MISMATCH")
         if _parse_asof(fixture.get("date")) != _parse_asof(row.get("kickoff_utc")):
             return _skip("F6_H2H_CAPTURE_KICKOFF_MISMATCH")
@@ -317,9 +344,7 @@ def build_ah_ou_selections(
         "ah": ah_select(
             features, home_line=ah_line, home_odds=ah_home_odds, away_odds=ah_away_odds
         ),
-        "ou": ou_select(
-            features, line=ou_line, over_odds=ou_over_odds, under_odds=ou_under_odds
-        ),
+        "ou": ou_select(features, line=ou_line, over_odds=ou_over_odds, under_odds=ou_under_odds),
         "features": features,
         # Frozen input provenance for the decision ledger (S3): the exact F9
         # snapshot pair and F6 meeting rows the softmax consumed.

@@ -1404,6 +1404,7 @@ class ReadModelService:
         # caller -- the API router, the dashboard, the replay harness, the
         # scripts -- leaves it None and therefore writes no factor rows.
         self._forward_factor_recorder = forward_factor_recorder
+        self._ah_ou_result: dict[str, Any] | None = None
         self.day_policy = BeijingOperationalDayPolicy()
         self.date_resolver = FixtureOperationalDateResolver()
         self._fixture_payloads_cache: list[dict[str, Any]] | None = None
@@ -3404,7 +3405,7 @@ class ReadModelService:
         return payload
 
     @staticmethod
-    def _apply_ah_ou_commit_receipt(payload):
+    def _apply_ah_ou_commit_receipt(payload: dict[str, Any]) -> None:
         result = payload.get("ah_ou_result")
         if not isinstance(result, dict):
             return
@@ -3442,8 +3443,11 @@ class ReadModelService:
                     decision="SKIP", reason="WRITE_FAILED",
                 )
 
-    def _record_historical_factor_audit(self, *, context, snapshots, observations,
-                                        home_history, away_history, h2h_meetings, home_xg, away_xg):
+    def _record_historical_factor_audit(
+        self, *, context: FeatureContext, snapshots: list[dict[str, Any]],
+        observations: Any, home_history: Any, away_history: Any,
+        h2h_meetings: Any, home_xg: Any, away_xg: Any,
+    ) -> None:
         """F1R recording compatibility consumer; output cannot drive public v3.
 
         This separate write-side audit retains the four-factor observation
@@ -3457,7 +3461,10 @@ class ReadModelService:
             home_history=home_history, away_history=away_history,
             home_ah_history=home_ah, away_ah_history=away_ah,
             h2h_meetings=h2h_meetings, home_xg=home_xg, away_xg=away_xg))
-        self._forward_factor_recorder.record(fixture_id=context.fixture_id,
+        recorder = self._forward_factor_recorder
+        if recorder is None:
+            raise ValueError("HISTORICAL_FACTOR_RECORDER_MISSING")
+        recorder.record(fixture_id=context.fixture_id,
             feature_set=feature_set, context=context, xg_snapshots=snapshots)
 
     def _record_forward_factor_observations(
@@ -3707,10 +3714,14 @@ class ReadModelService:
                 status="SOFTMAX_REPOSITORY_UNAVAILABLE",
             )
             return None, None, "SOFTMAX_REPOSITORY_UNAVAILABLE"
-        ah = mainline_selection.get("ASIAN_HANDICAP") or {}
-        ou = mainline_selection.get("TOTALS") or {}
-        ah_prices = ah.get("side_prices") if isinstance(ah.get("side_prices"), dict) else {}
-        ou_prices = ou.get("side_prices") if isinstance(ou.get("side_prices"), dict) else {}
+        ah_source = mainline_selection.get("ASIAN_HANDICAP")
+        ou_source = mainline_selection.get("TOTALS")
+        ah: dict[str, Any] = ah_source if isinstance(ah_source, dict) else {}
+        ou: dict[str, Any] = ou_source if isinstance(ou_source, dict) else {}
+        ah_price_source = ah.get("side_prices")
+        ou_price_source = ou.get("side_prices")
+        ah_prices: dict[str, Any] = ah_price_source if isinstance(ah_price_source, dict) else {}
+        ou_prices: dict[str, Any] = ou_price_source if isinstance(ou_price_source, dict) else {}
         ah_line_text = ah.get("line")
         ou_line_text = ou.get("line")
         if ah_line_text is None or ou_line_text is None:
@@ -3862,9 +3873,9 @@ class ReadModelService:
             mainline_selection=mainline_selection,
             result=result,
         ):
-            for selection in (result.get("ah"), result.get("ou")):
-                if isinstance(selection, dict):
-                    selection["selected"] = False
+            for market_result in (result.get("ah"), result.get("ou")):
+                if isinstance(market_result, dict):
+                    market_result["selected"] = False
             result["status"] = "WRITE_FAILED"
         return result["ah"], result["ou"], str(result["status"])
 
@@ -4026,8 +4037,13 @@ class ReadModelService:
                     selected = False
                     direction = None
                     skip_reason = "TERMS_INCOMPLETE"
-                    selection["selected"] = False
-                    result.setdefault("market_reasons", {})[market] = skip_reason
+                    if isinstance(selection, dict):
+                        selection["selected"] = False
+                    market_reasons = result.get("market_reasons")
+                    if not isinstance(market_reasons, dict):
+                        market_reasons = {}
+                        result["market_reasons"] = market_reasons
+                    market_reasons[market] = skip_reason
             capture_by_market[market] = (capture_id, source_capture_sha256)
             input_hashes.append((market, input_hash))
             decisions.append(

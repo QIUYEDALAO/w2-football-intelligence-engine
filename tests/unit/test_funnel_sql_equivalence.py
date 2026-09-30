@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from w2.api.repository import (
@@ -125,8 +125,10 @@ def _assert_equal(old, new):
     assert old == new, (
         f"funnel 结果不相等\n"
         f"gate_counts old={old['gate_counts']} new={new['gate_counts']}\n"
-        f"first_failed old={old['first_failed_gate_counts']} new={new['first_failed_gate_counts']}\n"
-        f"invalid old={old['invalid_opportunity_reasons']} new={new['invalid_opportunity_reasons']}\n"
+        f"first_failed old={old['first_failed_gate_counts']} "
+        f"new={new['first_failed_gate_counts']}\n"
+        f"invalid old={old['invalid_opportunity_reasons']} "
+        f"new={new['invalid_opportunity_reasons']}\n"
         f"status old={old['measurement_status']} new={new['measurement_status']}"
     )
 
@@ -163,13 +165,34 @@ def test_funnel_sql_equals_python_basic():
 
 def test_funnel_sql_equals_python_dedup_latest():
     engine = _engine()
-    gate_win = {"model_ready": True, "mainline_parsed": True, "bookmaker_depth": True, "quote_fresh": True, "evaluated": True, "no_edge": False, "candidate": True}
-    gate_noedge = {"model_ready": True, "mainline_parsed": True, "bookmaker_depth": True, "quote_fresh": True, "evaluated": True, "no_edge": True, "candidate": False}
+    gate_win = {
+        "model_ready": True,
+        "mainline_parsed": True,
+        "bookmaker_depth": True,
+        "quote_fresh": True,
+        "evaluated": True,
+        "no_edge": False,
+        "candidate": True,
+    }
+    gate_noedge = {
+        "model_ready": True,
+        "mainline_parsed": True,
+        "bookmaker_depth": True,
+        "quote_fresh": True,
+        "evaluated": True,
+        "no_edge": True,
+        "candidate": False,
+    }
     with Session(engine) as session:
         captures = [_capture()]
         # 同一 (capture, policy, slot, market) 两次评估，latest 是 no_edge
         evaluations = [
-            _eval("e1-old", gate_results=dict(gate_win), evaluated_at=NOW - timedelta(minutes=5), opp_hash="opp-e1-new"),
+            _eval(
+                "e1-old",
+                gate_results=dict(gate_win),
+                evaluated_at=NOW - timedelta(minutes=5),
+                opp_hash="opp-e1-new",
+            ),
             _eval("e1-new", gate_results=dict(gate_noedge), evaluated_at=NOW),
         ]
         opportunities = [_opportunity("opp-e1-new")]
@@ -183,7 +206,15 @@ def test_funnel_sql_equals_python_dedup_latest():
 
 def test_funnel_sql_equals_python_superseded():
     engine = _engine()
-    gate = {"model_ready": True, "mainline_parsed": True, "bookmaker_depth": True, "quote_fresh": True, "evaluated": True, "no_edge": False, "candidate": True}
+    gate = {
+        "model_ready": True,
+        "mainline_parsed": True,
+        "bookmaker_depth": True,
+        "quote_fresh": True,
+        "evaluated": True,
+        "no_edge": False,
+        "candidate": True,
+    }
     with Session(engine) as session:
         captures = [_capture()]
         evaluations = [
@@ -191,7 +222,16 @@ def test_funnel_sql_equals_python_superseded():
             _eval("e2", gate_results=dict(gate)),
         ]
         opportunities = [_opportunity("opp-e1"), _opportunity("opp-e2")]
-        superseded = [DynamicPrematchSupersessionModel(superseded_evaluation_id="e2", superseded_by_evaluation_id="e1", fixture_id="fix1", market="ASIAN_HANDICAP", reason="retry", created_at=NOW)]
+        superseded = [
+            DynamicPrematchSupersessionModel(
+                superseded_evaluation_id="e2",
+                superseded_by_evaluation_id="e1",
+                fixture_id="fix1",
+                market="ASIAN_HANDICAP",
+                reason="retry",
+                created_at=NOW,
+            )
+        ]
         session.add_all(captures + evaluations + opportunities + superseded)
         session.commit()
         old, new = _run(session, captures, evaluations, opportunities, ["e2"])
@@ -201,7 +241,15 @@ def test_funnel_sql_equals_python_superseded():
 
 def test_funnel_sql_equals_python_defects():
     engine = _engine()
-    gate = {"model_ready": True, "mainline_parsed": True, "bookmaker_depth": True, "quote_fresh": True, "evaluated": True, "no_edge": False, "candidate": True}
+    gate = {
+        "model_ready": True,
+        "mainline_parsed": True,
+        "bookmaker_depth": True,
+        "quote_fresh": True,
+        "evaluated": True,
+        "no_edge": False,
+        "candidate": True,
+    }
     with Session(engine) as session:
         captures = [_capture()]
         evaluations = [
@@ -231,12 +279,26 @@ def test_funnel_sql_equals_python_defects():
 
 def test_funnel_sql_equals_python_first_failed():
     engine = _engine()
-    gate_ok = {"model_ready": True, "mainline_parsed": True, "bookmaker_depth": True, "quote_fresh": True, "evaluated": True, "no_edge": False, "candidate": True}
+    gate_ok = {
+        "model_ready": True,
+        "mainline_parsed": True,
+        "bookmaker_depth": True,
+        "quote_fresh": True,
+        "evaluated": True,
+        "no_edge": False,
+        "candidate": True,
+    }
     with Session(engine) as session:
         captures = [_capture()]
         evaluations = [
             _eval("e1", gate_results=dict(gate_ok), first_failed_gate=None),
-            _eval("e2", market="TOTALS", slot="T60_ODDS_LINEUPS", gate_results=dict(gate_ok), first_failed_gate="bookmaker_depth"),
+            _eval(
+                "e2",
+                market="TOTALS",
+                slot="T60_ODDS_LINEUPS",
+                gate_results=dict(gate_ok),
+                first_failed_gate="bookmaker_depth",
+            ),
         ]
         opportunities = [
             _opportunity("opp-e1"),

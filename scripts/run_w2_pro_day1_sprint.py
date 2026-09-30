@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 import sys
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,7 +23,6 @@ from w2.backtest.free_tier_2024 import (  # noqa: E402,I001
 from w2.competitions.league_whitelist_scope import load_league_whitelist_scope  # noqa: E402
 from w2.competitions.odds_market_mapping import bookmaker_observed_evidence  # noqa: E402
 from w2.competitions.registry import CompetitionRegistryEntry  # noqa: E402
-from w2.providers.quota import parse_api_football_quota  # noqa: E402
 
 
 SOURCE = "scripts.run_w2_pro_day1_sprint.v1"

@@ -3,6 +3,7 @@
 Revision ID: 0085_ahou_visibility_owned
 Revises: 0084_provider_side_effect_fence
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -14,8 +15,14 @@ branch_labels = depends_on = None
 def upgrade():
     op.add_column("team_xg_rolling_snapshot", sa.Column("decision_at", sa.DateTime(timezone=True)))
     op.add_column("team_xg_rolling_snapshot", sa.Column("source_matches", sa.JSON()))
-    op.add_column("team_xg_rolling_snapshot", sa.Column("proof_pending", sa.Boolean(), nullable=False, server_default=sa.false()))
-    op.add_column("team_xg_rolling_snapshot", sa.Column("source_pit_requested", sa.Boolean(), nullable=False, server_default=sa.false()))
+    op.add_column(
+        "team_xg_rolling_snapshot",
+        sa.Column("proof_pending", sa.Boolean(), nullable=False, server_default=sa.false()),
+    )
+    op.add_column(
+        "team_xg_rolling_snapshot",
+        sa.Column("source_pit_requested", sa.Boolean(), nullable=False, server_default=sa.false()),
+    )
     op.add_column("provider_side_effect_fence", sa.Column("owner_token", sa.String(64)))
     op.add_column("provider_side_effect_fence", sa.Column("stored_result", sa.JSON()))
     if op.get_bind().dialect.name != "postgresql":
@@ -26,7 +33,8 @@ def upgrade():
              c.status_code, c.provider_captured_at, r.payload AS raw_payload,
              r.captured_at AS raw_captured_at
       FROM matchday_endpoint_captures c LEFT JOIN raw_payload r ON r.sha256=c.raw_payload_sha256
-      WHERE EXISTS (SELECT 1 FROM canonical_team_match_history h WHERE h.endpoint_capture_id=c.capture_id);
+      WHERE EXISTS (SELECT 1 FROM canonical_team_match_history h
+                    WHERE h.endpoint_capture_id=c.capture_id);
     GRANT SELECT ON ah_ou_history_capture_sources TO quant_asof_reader_role;
     """)
     # Do not backfill historical rows. Only a later transaction can confirm a
@@ -40,7 +48,8 @@ def upgrade():
         RETURN NEW;
       END IF;
       IF (to_jsonb(OLD) - ARRAY['first_committed_at','pit_proven','proof_pending'])
-         IS DISTINCT FROM (to_jsonb(NEW) - ARRAY['first_committed_at','pit_proven','proof_pending']) THEN
+         IS DISTINCT FROM
+            (to_jsonb(NEW) - ARRAY['first_committed_at','pit_proven','proof_pending']) THEN
         RAISE EXCEPTION 'TEAM_XG_SNAPSHOT_FROZEN_CONTENT_CONFLICT';
       END IF;
       IF OLD.proof_pending AND NOT NEW.proof_pending AND OLD.first_committed_at IS NULL

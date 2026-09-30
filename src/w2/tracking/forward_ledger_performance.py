@@ -8,6 +8,8 @@ from decimal import Decimal, InvalidOperation
 from statistics import median
 from typing import Any
 
+from w2.domain.odds import settle_total_goals
+from w2.prematch.lifecycle import SETTLEMENT_STATE_ORDER
 from w2.tracking.outcome_ledger_repository import (
     CURRENT_FORWARD_RECORD_TYPES,
     OutcomeLedgerRepository,
@@ -30,9 +32,6 @@ from w2.tracking.performance_scoring import (
 from w2.tracking.performance_scoring import (
     rps as _rps,
 )
-
-from w2.domain.odds import settle_total_goals
-from w2.prematch.lifecycle import SETTLEMENT_STATE_ORDER
 
 SAMPLE_TARGET = 200
 MIN_DECISIVE_SAMPLES_FOR_RATE = 5
@@ -1742,7 +1741,11 @@ def _five_state_distribution(
         if isinstance(value, Mapping):
             distribution = {state: _number(value.get(state)) for state in SETTLEMENT_STATE_ORDER}
             if all(probability is not None for probability in distribution.values()):
-                return {state: float(distribution[state]) for state in SETTLEMENT_STATE_ORDER}
+                return {
+                    state: float(probability)
+                    for state, probability in distribution.items()
+                    if probability is not None
+                }
     return None
 
 
@@ -1758,7 +1761,7 @@ def _rps_five_state(
     cumulative_predicted = 0.0
     cumulative_observed = 0.0
     total = 0.0
-    for forecast, outcome in zip(predicted[:-1], observed[:-1]):
+    for forecast, outcome in zip(predicted[:-1], observed[:-1], strict=False):
         cumulative_predicted += forecast
         cumulative_observed += outcome
         total += (cumulative_predicted - cumulative_observed) ** 2

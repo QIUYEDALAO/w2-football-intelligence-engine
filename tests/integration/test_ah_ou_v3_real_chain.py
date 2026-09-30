@@ -10,13 +10,19 @@ DB 实读。
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+from tests.integration.test_future_refresh_db_persistence import (
+    NOW,
+    FakeApiFootballClient,
+    configure_sqlite_db,
+    run_direct_checkpoint,
+    seed_odds_checkpoint,
+)
 
-from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
     AhOuCohortModel,
     AhOuDecisionLedgerModel,
@@ -33,14 +39,6 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayFixtureIdentityModel,
 )
 from w2.prematch.analysis_calculator import ReadModelService
-
-from tests.integration.test_future_refresh_db_persistence import (
-    FakeApiFootballClient,
-    NOW,
-    configure_sqlite_db,
-    run_direct_checkpoint,
-    seed_odds_checkpoint,
-)
 
 FIXTURE_ID = "1489404"
 KICKOFF = NOW + timedelta(hours=7)

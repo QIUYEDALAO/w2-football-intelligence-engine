@@ -19,7 +19,12 @@ from w2.domain.canonical_serialization import (
     SerializerVersion,
     canonical_sha256,
 )
-from w2.features.xg_materialization import statistics_xg_by_team, TeamXgMatch, materialize_rolling_xg, parse_team_xg_matches
+from w2.features.xg_materialization import (
+    TeamXgMatch,
+    materialize_rolling_xg,
+    parse_team_xg_matches,
+    statistics_xg_by_team,
+)
 from w2.identity import CanonicalIdentityRepository
 from w2.identity.canonical_identity_repository import (
     PROVIDER_PRIMARY_READY,
@@ -296,7 +301,9 @@ _XG_ROLLING_WINDOW = 5
 _XG_ROLLING_MIN_MATCHES = 3
 
 
-def _verify_persisted_xg_match(session: Any, fact: Any, fixture_raw: list[Any]) -> TeamXgMatch | None:
+def _verify_persisted_xg_match(
+    session: Any, fact: Any, fixture_raw: list[Any]
+) -> TeamXgMatch | None:
     """Verify a persisted TeamXgMatch against its raw statistics/fixture payloads.
 
     Returns the rebuilt TeamXgMatch when every raw hash domain, serializer
@@ -306,21 +313,32 @@ def _verify_persisted_xg_match(session: Any, fact: Any, fixture_raw: list[Any]) 
     raw = session.get(RawPayloadModel, fact.raw_payload_sha256)
     if raw is None or raw.endpoint != "statistics":
         return None
-    digest = canonical_sha256(raw.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
-                              version=SerializerVersion.LEGACY_V1)
+    digest = canonical_sha256(
+        raw.payload,
+        domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+        version=SerializerVersion.LEGACY_V1,
+    )
     xg = statistics_xg_by_team(raw.payload)
-    if (digest != raw.sha256
+    if (
+        digest != raw.sha256
         or str((raw.payload.get("parameters") or {}).get("fixture")) != fact.fixture_id
         or xg.get(fact.team_id) != fact.xg_for
         or xg.get(fact.opponent_team_id) != fact.xg_against
-        or parse_db_datetime(raw.captured_at) != parse_db_datetime(fact.captured_at)):
+        or parse_db_datetime(raw.captured_at) != parse_db_datetime(fact.captured_at)
+    ):
         return None
     candidates = []
     for fixture_source in fixture_raw:
         if parse_db_datetime(fixture_source.captured_at) > parse_db_datetime(fact.captured_at):
             continue
-        if canonical_sha256(fixture_source.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
-                            version=SerializerVersion.LEGACY_V1) != fixture_source.sha256:
+        if (
+            canonical_sha256(
+                fixture_source.payload,
+                domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+                version=SerializerVersion.LEGACY_V1,
+            )
+            != fixture_source.sha256
+        ):
             continue
         for item in fixture_source.payload.get("response", []):
             if str((item.get("fixture") or {}).get("id")) == fact.fixture_id:
@@ -328,16 +346,45 @@ def _verify_persisted_xg_match(session: Any, fact: Any, fixture_raw: list[Any]) 
     if not candidates:
         return None
     latest_source = max(candidates, key=lambda item: item[0])[1]
-    parsed = parse_team_xg_matches(fixture_payload=latest_source, statistics_payload=raw.payload,
-        captured_at=parse_db_datetime(raw.captured_at), raw_payload_sha256=raw.sha256)
+    parsed = parse_team_xg_matches(
+        fixture_payload=latest_source,
+        statistics_payload=raw.payload,
+        captured_at=parse_db_datetime(raw.captured_at),
+        raw_payload_sha256=raw.sha256,
+    )
     expected_fact = next((item for item in parsed if item.team_id == fact.team_id), None)
-    if expected_fact is None or any(getattr(expected_fact, k) != getattr(fact, k) for k in (
-        "fixture_id", "team_id", "opponent_team_id", "kickoff_at", "goals_for", "goals_against",
-        "xg_for", "xg_against")):
+    if expected_fact is None or any(
+        getattr(expected_fact, k) != getattr(fact, k)
+        for k in (
+            "fixture_id",
+            "team_id",
+            "opponent_team_id",
+            "kickoff_at",
+            "goals_for",
+            "goals_against",
+            "xg_for",
+            "xg_against",
+        )
+    ):
         return None
-    return TeamXgMatch(**{k: getattr(fact, k) for k in (
-        "fixture_id", "team_id", "opponent_team_id", "kickoff_at", "captured_at", "xg_for",
-        "xg_against", "goals_for", "goals_against", "raw_payload_sha256", "source_system")})
+    return TeamXgMatch(
+        **{
+            k: getattr(fact, k)
+            for k in (
+                "fixture_id",
+                "team_id",
+                "opponent_team_id",
+                "kickoff_at",
+                "captured_at",
+                "xg_for",
+                "xg_against",
+                "goals_for",
+                "goals_against",
+                "raw_payload_sha256",
+                "source_system",
+            )
+        }
+    )
 
 
 def _normalize_source_match(source: dict[str, Any]) -> tuple[Any, ...]:
@@ -2343,9 +2390,7 @@ class FutureRefreshDbRepository:
             CanonicalTeamMatchHistoryModel.kickoff_utc < before,
         ]
         if opponent_w2_id is not None:
-            filters.append(
-                CanonicalTeamMatchHistoryModel.opponent_w2_id == opponent_w2_id
-            )
+            filters.append(CanonicalTeamMatchHistoryModel.opponent_w2_id == opponent_w2_id)
         filters.append(CanonicalTeamMatchHistoryModel.fixture_status == fixture_status)
         # B: freeze the ranking key as (kickoff_utc, provider_fixture_id) so a
         # same-kickoff 10th/11th meeting has a deterministic second key instead of
@@ -2768,9 +2813,7 @@ class FutureRefreshDbRepository:
             for row in rows
         ]
 
-    def raw_payloads_for_captures(
-        self, capture_ids: list[str]
-    ) -> dict[str, dict[str, Any]]:
+    def raw_payloads_for_captures(self, capture_ids: list[str]) -> dict[str, dict[str, Any]]:
         """Resolve ``capture_id -> raw payload`` via endpoint captures -> raw_payload.
 
         Used by the v3 quote selector to recompute ``source_capture_sha256`` in the
@@ -2796,11 +2839,7 @@ class FutureRefreshDbRepository:
                     select(RawPayloadModel).where(RawPayloadModel.sha256.in_(shas))
                 )
             }
-        return {
-            str(capture_id): payloads[sha]
-            for capture_id, sha in captures
-            if sha in payloads
-        }
+        return {str(capture_id): payloads[sha] for capture_id, sha in captures if sha in payloads}
 
     def endpoint_captures_for_ids(self, capture_ids: list[str]) -> dict[str, dict[str, Any]]:
         ids = [cid for cid in dict.fromkeys(capture_ids) if cid]
@@ -2808,20 +2847,47 @@ class FutureRefreshDbRepository:
             return {}
         with self._asof_scoped_session() as session:
             if self.engine.dialect.name == "postgresql" and self._asof_role:
-                return {row["capture_id"]: dict(row) for row in session.execute(text(
-                    "SELECT * FROM ah_ou_history_capture_sources WHERE capture_id = ANY(:ids)"
-                ), {"ids": ids}).mappings()}
-            rows = list(session.scalars(select(MatchdayEndpointCaptureModel).where(
-                MatchdayEndpointCaptureModel.capture_id.in_(ids))))
-            raws = {r.sha256: r for r in session.scalars(select(RawPayloadModel).where(
-                RawPayloadModel.sha256.in_([r.raw_payload_sha256 for r in rows])))}
-            return {str(r.capture_id): {
-                "fixture_id": r.fixture_id, "raw_payload_sha256": r.raw_payload_sha256,
-                "capture_status": r.capture_status, "status_code": r.status_code,
-                "provider_captured_at": iso_z(r.provider_captured_at),
-                "raw_payload": raws[r.raw_payload_sha256].payload if r.raw_payload_sha256 in raws else None,
-                "raw_captured_at": iso_z(raws[r.raw_payload_sha256].captured_at) if r.raw_payload_sha256 in raws else None,
-            } for r in rows}
+                return {
+                    row["capture_id"]: dict(row)
+                    for row in session.execute(
+                        text(
+                            "SELECT * FROM ah_ou_history_capture_sources "
+                            "WHERE capture_id = ANY(:ids)"
+                        ),
+                        {"ids": ids},
+                    ).mappings()
+                }
+            rows = list(
+                session.scalars(
+                    select(MatchdayEndpointCaptureModel).where(
+                        MatchdayEndpointCaptureModel.capture_id.in_(ids)
+                    )
+                )
+            )
+            raws = {
+                r.sha256: r
+                for r in session.scalars(
+                    select(RawPayloadModel).where(
+                        RawPayloadModel.sha256.in_([r.raw_payload_sha256 for r in rows])
+                    )
+                )
+            }
+            return {
+                str(r.capture_id): {
+                    "fixture_id": r.fixture_id,
+                    "raw_payload_sha256": r.raw_payload_sha256,
+                    "capture_status": r.capture_status,
+                    "status_code": r.status_code,
+                    "provider_captured_at": iso_z(r.provider_captured_at),
+                    "raw_payload": raws[r.raw_payload_sha256].payload
+                    if r.raw_payload_sha256 in raws
+                    else None,
+                    "raw_captured_at": iso_z(raws[r.raw_payload_sha256].captured_at)
+                    if r.raw_payload_sha256 in raws
+                    else None,
+                }
+                for r in rows
+            }
 
     def write_ah_ou_decision(self, **kwargs: Any) -> Any:
         """Write an AH/OU v3 decision ledger row (idempotent, slot-conflict-stopped).
@@ -2859,9 +2925,7 @@ class FutureRefreshDbRepository:
                         row = session.get(AhOuDecisionLedgerModel, item["decision_id"])
                         if row is None:
                             raise ValueError("V3_NOTIFICATION_DECISION_READBACK_MISSING")
-                        enqueue_v3_recommendation_confirmed_in_session(
-                            session, decision=row
-                        )
+                        enqueue_v3_recommendation_confirmed_in_session(session, decision=row)
         return receipt
 
     def raw_payload_count(self, endpoint: str) -> int:
@@ -2900,9 +2964,7 @@ class FutureRefreshDbRepository:
             for (payload,) in rows:
                 parameters = payload.get("parameters") if isinstance(payload, dict) else None
                 fixture_id = (
-                    str(parameters.get("fixture") or "")
-                    if isinstance(parameters, dict)
-                    else ""
+                    str(parameters.get("fixture") or "") if isinstance(parameters, dict) else ""
                 )
                 if fixture_id and len(statistics_xg_by_team(payload)) == 2:
                     fixture_ids.add(fixture_id)
@@ -3114,20 +3176,35 @@ class FutureRefreshDbRepository:
         inserted = []
         with Session(self.engine) as session, session.begin():
             for row in snapshots:
-                values = {
-                    "snapshot_id": str(row["snapshot_id"]), "team_id": str(row["team_id"]),
+                values: dict[str, Any] = {
+                    "snapshot_id": str(row["snapshot_id"]),
+                    "team_id": str(row["team_id"]),
                     "as_of_fixture_id": str(row["as_of_fixture_id"]),
                     "as_of_time": parse_db_datetime(row["as_of_time"]),
                     "match_count": int(row["match_count"]),
-                    **{k: float(row[k]) for k in (
-                        "rolling_xg_for", "rolling_xg_against", "rolling_goals_for",
-                        "rolling_goals_against", "regression_index")},
+                    **{
+                        k: float(row[k])
+                        for k in (
+                            "rolling_xg_for",
+                            "rolling_xg_against",
+                            "rolling_goals_for",
+                            "rolling_goals_against",
+                            "regression_index",
+                        )
+                    },
                     "source_system": str(row["source_system"]),
-                    "first_captured_at": parse_db_datetime(row["first_captured_at"]) if row.get("first_captured_at") else None,
-                    "decision_at": parse_db_datetime(row["decision_at"]) if row.get("decision_at") else None,
+                    "first_captured_at": parse_db_datetime(row["first_captured_at"])
+                    if row.get("first_captured_at")
+                    else None,
+                    "decision_at": parse_db_datetime(row["decision_at"])
+                    if row.get("decision_at")
+                    else None,
                     "source_matches": row.get("source_matches"),
-                    "source_pit_requested": bool(row.get("source_pit_requested", row.get("pit_proven", False))),
-                    "candidate": False, "formal_recommendation": False,
+                    "source_pit_requested": bool(
+                        row.get("source_pit_requested", row.get("pit_proven", False))
+                    ),
+                    "candidate": False,
+                    "formal_recommendation": False,
                 }
                 existing = session.get(TeamXgRollingSnapshotModel, values["snapshot_id"])
                 if existing is not None:
@@ -3136,7 +3213,9 @@ class FutureRefreshDbRepository:
                         if isinstance(value, datetime) and isinstance(actual, datetime):
                             value, actual = iso_z(value), iso_z(actual)
                         if actual != value:
-                            raise FutureRefreshPersistenceError(f"TEAM_XG_SNAPSHOT_FIELD_CONFLICT:{key}")
+                            raise FutureRefreshPersistenceError(
+                                f"TEAM_XG_SNAPSHOT_FIELD_CONFLICT:{key}"
+                            )
                     continue
                 # 独立确定全集（V10/B）：由持久化层从 DB 查询目标球队在
                 # decision_at 前全部合格（raw 可证明）的最近比赛，按固定策略窗口
@@ -3144,15 +3223,20 @@ class FutureRefreshDbRepository:
                 # 否则 fail-closed（不给 pit_proven=true）。不得用提交快照自带的
                 # source_matches 或 match_count 定义待核全集。
                 components = values["source_matches"] or []
-                identity = session.scalar(select(MatchdayFixtureIdentityModel).where(
-                    MatchdayFixtureIdentityModel.provider_fixture_id == values["as_of_fixture_id"].removeprefix("api_football:")))
+                identity = session.scalar(
+                    select(MatchdayFixtureIdentityModel).where(
+                        MatchdayFixtureIdentityModel.provider_fixture_id
+                        == values["as_of_fixture_id"].removeprefix("api_football:")
+                    )
+                )
                 # identity_valid：目标身份/截点是否可证明（首次可读证明的前置）。
                 # source_valid：来源是否完备（含 identity_valid + 独立重建一致）。
                 # 两者分离：身份可证明但遗漏来源 → 仍记录首次可读、但拒绝 PIT 证明。
                 identity_valid = (
                     identity is not None
                     and values["decision_at"] is not None
-                    and parse_db_datetime(identity.kickoff_utc) - timedelta(hours=2) == values["decision_at"]
+                    and parse_db_datetime(identity.kickoff_utc) - timedelta(hours=2)
+                    == values["decision_at"]
                 )
                 source_valid = (
                     identity_valid
@@ -3162,12 +3246,20 @@ class FutureRefreshDbRepository:
                 )
                 verified_matches: list[TeamXgMatch] = []
                 if source_valid:
-                    fixture_raw = list(session.scalars(select(RawPayloadModel).where(RawPayloadModel.endpoint == "fixtures")))
-                    independent_facts = list(session.scalars(select(TeamXgMatchModel).where(
-                        TeamXgMatchModel.team_id == values["team_id"],
-                        TeamXgMatchModel.kickoff_at < values["decision_at"],
-                        TeamXgMatchModel.captured_at < values["decision_at"],
-                    )))
+                    fixture_raw = list(
+                        session.scalars(
+                            select(RawPayloadModel).where(RawPayloadModel.endpoint == "fixtures")
+                        )
+                    )
+                    independent_facts = list(
+                        session.scalars(
+                            select(TeamXgMatchModel).where(
+                                TeamXgMatchModel.team_id == values["team_id"],
+                                TeamXgMatchModel.kickoff_at < values["decision_at"],
+                                TeamXgMatchModel.captured_at < values["decision_at"],
+                            )
+                        )
+                    )
                     for fact in independent_facts:
                         verified = _verify_persisted_xg_match(session, fact, fixture_raw)
                         if verified is None:
@@ -3176,27 +3268,43 @@ class FutureRefreshDbRepository:
                         verified_matches.append(verified)
                 if source_valid:
                     expected = materialize_rolling_xg(
-                        team_id=values["team_id"], as_of_fixture_id=values["as_of_fixture_id"],
-                        as_of_time=values["decision_at"], matches=verified_matches,
-                        window=_XG_ROLLING_WINDOW, min_matches=_XG_ROLLING_MIN_MATCHES)
+                        team_id=values["team_id"],
+                        as_of_fixture_id=values["as_of_fixture_id"],
+                        as_of_time=values["decision_at"],
+                        matches=verified_matches,
+                        window=_XG_ROLLING_WINDOW,
+                        min_matches=_XG_ROLLING_MIN_MATCHES,
+                    )
                     if expected is None:
                         source_valid = False
                     else:
                         submitted = sorted(
                             (_normalize_source_match(dict(c)) for c in components),
-                            key=lambda item: item[0])
+                            key=lambda item: item[0],
+                        )
                         expected_sources = sorted(
                             (_normalize_source_match(dict(m)) for m in expected.source_matches),
-                            key=lambda item: item[0])
+                            key=lambda item: item[0],
+                        )
                         if submitted != expected_sources:
                             source_valid = False
-                        for key in ("match_count", "rolling_xg_for", "rolling_xg_against",
-                                    "rolling_goals_for", "rolling_goals_against", "regression_index"):
+                        for key in (
+                            "match_count",
+                            "rolling_xg_for",
+                            "rolling_xg_against",
+                            "rolling_goals_for",
+                            "rolling_goals_against",
+                            "regression_index",
+                        ):
                             if getattr(expected, key) != values[key]:
                                 source_valid = False
                         if iso_z(expected.as_of_time) != iso_z(values["as_of_time"]):
                             source_valid = False
-                        if iso_z(expected.first_captured_at) != iso_z(values["first_captured_at"]):
+                        expected_capture = expected.first_captured_at
+                        submitted_capture = values["first_captured_at"]
+                        if expected_capture is None or submitted_capture is None:
+                            source_valid = False
+                        elif iso_z(expected_capture) != iso_z(submitted_capture):
                             source_valid = False
                 # source_pit_requested 由持久化层根据来源是否完备独立决定，不能
                 # 沿用提交快照自带的 pit_proven（那会让遗漏来源仍请求证明）。
@@ -3205,25 +3313,46 @@ class FutureRefreshDbRepository:
                 # 与时点检查在确认事务里计算。
                 values["source_pit_requested"] = source_valid
                 pending = identity_valid
-                session.add(TeamXgRollingSnapshotModel(**values,
-                    first_committed_at=None, pit_proven=False, proof_pending=pending))
+                session.add(
+                    TeamXgRollingSnapshotModel(
+                        **values, first_committed_at=None, pit_proven=False, proof_pending=pending
+                    )
+                )
                 inserted.append(values["snapshot_id"])
         # A different connection/transaction sees only committed rows. The
         # confirmation instant is a conservative upper bound on first readability.
         if self.engine.dialect.name == "postgresql" and inserted:
             from sqlalchemy import update
+
             with Session(self.engine) as confirmation, confirmation.begin():
-                visible = list(confirmation.scalars(select(TeamXgRollingSnapshotModel).where(
-                    TeamXgRollingSnapshotModel.snapshot_id.in_(inserted),
-                    TeamXgRollingSnapshotModel.proof_pending.is_(True))))
+                visible = list(
+                    confirmation.scalars(
+                        select(TeamXgRollingSnapshotModel).where(
+                            TeamXgRollingSnapshotModel.snapshot_id.in_(inserted),
+                            TeamXgRollingSnapshotModel.proof_pending.is_(True),
+                        )
+                    )
+                )
                 for frozen in visible:
-                    confirmation.execute(update(TeamXgRollingSnapshotModel).where(
-                        TeamXgRollingSnapshotModel.snapshot_id == frozen.snapshot_id,
-                        TeamXgRollingSnapshotModel.proof_pending.is_(True),
-                    ).values(proof_pending=False, first_committed_at=func.clock_timestamp(),
-                             pit_proven=(TeamXgRollingSnapshotModel.source_pit_requested &
-                                (func.clock_timestamp() <= TeamXgRollingSnapshotModel.decision_at) &
-                                (TeamXgRollingSnapshotModel.first_captured_at <= TeamXgRollingSnapshotModel.decision_at))))
+                    confirmation.execute(
+                        update(TeamXgRollingSnapshotModel)
+                        .where(
+                            TeamXgRollingSnapshotModel.snapshot_id == frozen.snapshot_id,
+                            TeamXgRollingSnapshotModel.proof_pending.is_(True),
+                        )
+                        .values(
+                            proof_pending=False,
+                            first_committed_at=func.clock_timestamp(),
+                            pit_proven=(
+                                TeamXgRollingSnapshotModel.source_pit_requested
+                                & (func.clock_timestamp() <= TeamXgRollingSnapshotModel.decision_at)
+                                & (
+                                    TeamXgRollingSnapshotModel.first_captured_at
+                                    <= TeamXgRollingSnapshotModel.decision_at
+                                )
+                            ),
+                        )
+                    )
         return len(snapshots)
 
     def team_xg_rolling_snapshots(
@@ -3267,9 +3396,7 @@ class FutureRefreshDbRepository:
             # never rank=1 over as_of_time and then discover it is not the target.
             # Returning every matching candidate lets the caller reject a
             # duplicate target instead of silently taking one.
-            filters.append(
-                TeamXgRollingSnapshotModel.as_of_fixture_id == as_of_fixture_id
-            )
+            filters.append(TeamXgRollingSnapshotModel.as_of_fixture_id == as_of_fixture_id)
             with self._asof_scoped_session() as session:
                 rows = list(
                     session.scalars(
@@ -3711,9 +3838,7 @@ class FutureRefreshDbRepository:
         except Exception as exc:
             raise FutureRefreshPersistenceError("REQUEST_COUNT_READ_FAILED") from exc
         known_count = (
-            quota_usage_count
-            if authority_ready
-            else quota_usage_count + dispatched_since_authority
+            quota_usage_count if authority_ready else quota_usage_count + dispatched_since_authority
         )
         delta = attempt_count - quota_usage_count
         return {
@@ -3724,9 +3849,7 @@ class FutureRefreshDbRepository:
             "billable_from_provider": quota_usage_count if observed is not None else None,
             "provider_daily_limit": int(latest_quota.limit) if latest_quota else None,
             "provider_daily_remaining": (
-                max(int(latest_quota.limit) - int(latest_quota.used), 0)
-                if latest_quota
-                else None
+                max(int(latest_quota.limit) - int(latest_quota.used), 0) if latest_quota else None
             ),
             "local_ledger_count": provider_ledger_count,
             "last_authority_at": iso_z(observed) if observed else None,
@@ -3736,16 +3859,13 @@ class FutureRefreshDbRepository:
             "attempt_count": attempt_count,
             "quota_authority_status": "AUTHORITATIVE" if authority_ready else "DEGRADED",
             "quota_authority_degraded": not authority_ready,
-            "quota_degradation_classification": (
-                None if authority_ready else "EXPECTED_DEGRADED"
-            ),
+            "quota_degradation_classification": (None if authority_ready else "EXPECTED_DEGRADED"),
             "quota_authority_observed_at": iso_z(observed) if observed else None,
             "quota_authority_age_seconds": age_seconds,
             "quota_authority_max_age_seconds": max_age_seconds,
             "quota_usage_ledger_delta": delta,
             "quota_usage_ledger_divergence": (
-                observed is not None
-                and abs(delta) > QUOTA_USAGE_LEDGER_DIVERGENCE_THRESHOLD
+                observed is not None and abs(delta) > QUOTA_USAGE_LEDGER_DIVERGENCE_THRESHOLD
             ),
         }
 
@@ -3882,12 +4002,8 @@ class FutureRefreshDbRepository:
             .select_from(ModelForecastCaptureModel)
             .join(
                 MatchdayCheckpointPlanModel,
-                canonical_model_forecast_fixture_id_sql(
-                    MatchdayCheckpointPlanModel.fixture_id
-                )
-                == canonical_model_forecast_fixture_id_sql(
-                    ModelForecastCaptureModel.fixture_id
-                ),
+                canonical_model_forecast_fixture_id_sql(MatchdayCheckpointPlanModel.fixture_id)
+                == canonical_model_forecast_fixture_id_sql(ModelForecastCaptureModel.fixture_id),
             )
             .outerjoin(
                 ModelForecastOutcomeModel,
@@ -3908,9 +4024,7 @@ class FutureRefreshDbRepository:
             with Session(self.engine) as session:
                 return int(session.scalar(query) or 0)
         except Exception as exc:
-            raise FutureRefreshPersistenceError(
-                "RESULT_CAPTURE_RESERVATION_READ_FAILED"
-            ) from exc
+            raise FutureRefreshPersistenceError("RESULT_CAPTURE_RESERVATION_READ_FAILED") from exc
 
     def provider_quota_snapshot(self, day_start: datetime) -> dict[str, Any]:
         start = parse_db_datetime(day_start).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -3939,9 +4053,7 @@ class FutureRefreshDbRepository:
                 "burst_observed_at": None,
             }
         burst_rows = [
-            row
-            for row in rows
-            if row.burst_limit is not None and row.burst_remaining is not None
+            row for row in rows if row.burst_limit is not None and row.burst_remaining is not None
         ]
         burst_row = max(
             burst_rows,
@@ -3968,8 +4080,6 @@ class FutureRefreshDbRepository:
                 else None
             ),
             "burst_observed_at": (
-                iso_z(parse_db_datetime(burst_row.observed_at))
-                if burst_row is not None
-                else None
+                iso_z(parse_db_datetime(burst_row.observed_at)) if burst_row is not None else None
             ),
         }

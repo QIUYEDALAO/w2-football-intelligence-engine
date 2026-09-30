@@ -10,7 +10,9 @@ SCRIPT = Path(__file__).resolve().parents[2] / "ops" / "host" / "w2-release"
 FAKE_ONLINE = "f" * 40  # 40 字符假 sha（!= 任何真实 commit）
 
 
-def _bash(expr: str, *, cwd: Path | None = None, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+def _bash(
+    expr: str, *, cwd: Path | None = None, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["bash", "-c", expr], cwd=cwd, env=env, capture_output=True, text=True)
 
 
@@ -65,9 +67,9 @@ def _make_repo(tmp_path: Path, with_migration: bool) -> tuple[Path, str, str]:
     override = repo / "infra" / "compose" / "controlled-future-refresh.override.yml"
     override.parent.mkdir(parents=True)
     override.write_text(
-        'services:\n  worker:\n    environment:\n      '
+        "services:\n  worker:\n    environment:\n      "
         'W2_POSTMATCH_RESULT_DAILY_HARD_CAP: "800"\n'
-        '  scheduler:\n    environment:\n      '
+        "  scheduler:\n    environment:\n      "
         'W2_POSTMATCH_RESULT_DAILY_HARD_CAP: "800"\n',
         encoding="utf-8",
     )
@@ -122,7 +124,7 @@ if [ "$count" -eq 1 ]; then
   echo '{{"release_id":""}}'
 elif [ "$count" -eq 2 ]; then
   exit 7
-elif [ "{'1' if recover else '0'}" = "1" ]; then
+elif [ "{"1" if recover else "0"}" = "1" ]; then
   echo '{{"release_id":"{FAKE_ONLINE}"}}'
 else
   echo '{{"release_id":null}}'
@@ -131,9 +133,7 @@ fi
         encoding="utf-8",
     )
     sleep = bin_dir / "sleep"
-    sleep.write_text(
-        f'#!/usr/bin/env bash\necho "$*" >> "{sleep_log}"\n', encoding="utf-8"
-    )
+    sleep.write_text(f'#!/usr/bin/env bash\necho "$*" >> "{sleep_log}"\n', encoding="utf-8")
     ssh.chmod(0o755)
     sleep.chmod(0o755)
     env = {**os.environ, "W2_RELEASE_SSH_CMD": str(ssh), "PATH": f"{bin_dir}:{os.environ['PATH']}"}
@@ -169,14 +169,14 @@ def _deploy_body(mode: str, target: str) -> str:
     if mode == "early_exit_0":
         return "cat >/dev/null\nexit 0"
     if mode == "missing_readback":
-        lines = ['cat >/dev/null', 'echo "SWITCH_OK backup=/opt/w2/shared/release.pre-x.env"']
+        lines = ["cat >/dev/null", 'echo "SWITCH_OK backup=/opt/w2/shared/release.pre-x.env"']
         for k in "abcdefg":
             lines.append(f'echo "READBACK {k}=PASS"')
         lines.append(f'echo "DEPLOY_COMPLETE {target}"')
         lines.append("exit 0")
         return "\n".join(lines)
     if mode == "full_success":
-        lines = ['cat >/dev/null', 'echo "SWITCH_OK backup=/opt/w2/shared/release.pre-x.env"']
+        lines = ["cat >/dev/null", 'echo "SWITCH_OK backup=/opt/w2/shared/release.pre-x.env"']
         for k in "abcdefgh":
             lines.append(f'echo "READBACK {k}=PASS"')
         lines.append(f'echo "DEPLOY_COMPLETE {target}"')
@@ -211,7 +211,7 @@ case "$cmd" in
   *)
     exit 0 ;;
 esac
-""",
+""",  # noqa: E501 - literal shell fixture output is byte-stable.
         encoding="utf-8",
     )
     fake.chmod(0o755)
@@ -295,7 +295,12 @@ def test_readback_fail_no_push_no_rotate(tmp_path: Path) -> None:
     repo, _base, target = _make_repo(tmp_path, with_migration=False)
     env, home = _build_test_env(tmp_path, mode="readback_fail", target=target)
     r = subprocess.run(
-        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
+        ["bash", str(SCRIPT), "--target", target],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     assert r.returncode == 1
     assert "READBACK_FAILED" in r.stdout
@@ -307,7 +312,9 @@ def test_readback_fail_no_push_no_rotate(tmp_path: Path) -> None:
     receipt_dir = home / "Desktop" / "W2文档"
     receipts = list(receipt_dir.glob("W2_发布_*.md"))
     assert receipts
-    assert any("结果：失败" in l for l in receipts[0].read_text(encoding="utf-8").splitlines())
+    assert any(
+        "结果：失败" in line for line in receipts[0].read_text(encoding="utf-8").splitlines()
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -326,7 +333,12 @@ def test_dry_run_no_side_effects(tmp_path: Path) -> None:
         "HOME": str(home),
     }
     r = subprocess.run(
-        ["bash", str(SCRIPT), "--dry-run", "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
+        ["bash", str(SCRIPT), "--dry-run", "--target", target],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     assert r.returncode == 0, r.stderr
     assert "dry-run" in r.stdout
@@ -359,7 +371,11 @@ def test_target_short_sha_resolved_to_full(tmp_path: Path) -> None:
     }
     r = subprocess.run(
         ["bash", str(SCRIPT), "--dry-run", "--target", short],
-        cwd=repo, env=env, capture_output=True, text=True, timeout=120
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     assert r.returncode == 0, r.stderr
     # dry-run 计划里的 target 应为完整 SHA，而不是短 SHA。
@@ -383,7 +399,11 @@ def test_target_full_sha_passes_through(tmp_path: Path) -> None:
     }
     r = subprocess.run(
         ["bash", str(SCRIPT), "--dry-run", "--target", target],
-        cwd=repo, env=env, capture_output=True, text=True, timeout=120
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     assert r.returncode == 0, r.stderr
     assert f"target={target} " in r.stdout
@@ -465,7 +485,7 @@ def _write_fake_vps_bin(
         f"""#!/usr/bin/env bash
 echo "$*" >> "{install_log}"
 case "$*" in
-  *release.pre-*) touch "{tmp_path / 'restored-old'}" ;;
+  *release.pre-*) touch "{tmp_path / "restored-old"}" ;;
 esac
 exec /usr/bin/install "$@"
 """,
@@ -499,7 +519,7 @@ case "$1" in
         if [ "{migration_mode}" != "downgrade_mismatch" ]; then printf 'aaa\\n' > "$state_file"; fi
         exit 0 ;;
       *" upgrade "*)
-        if [ "{'1' if fail_migration else '0'}" = "1" ]; then exit 1; fi
+        if [ "{"1" if fail_migration else "0"}" = "1" ]; then exit 1; fi
         printf 'bbb\\n' > "$state_file"
         exit 0 ;;
       *) exit 0 ;;
@@ -522,13 +542,13 @@ case "$1" in
   logs) exit 0 ;;
   *) exit 0 ;;
 esac
-""",
+""",  # noqa: S608, E501 - literal shell fixture output is byte-stable.
         encoding="utf-8",
     )
     (bin_dir / "curl").write_text(
         f"""#!/usr/bin/env bash
 state_file="{state_file}"
-count_file="{tmp_path / 'curl-count'}"
+count_file="{tmp_path / "curl-count"}"
 count=0
 [ -f "$count_file" ] && count=$(cat "$count_file")
 count=$((count + 1))
@@ -541,18 +561,18 @@ for a in "$@"; do
 done
 case "$url" in
   */ready)
-    if [ "{'1' if fail_ready else '0'}" = "1" ]; then exit 1; fi
-    if [ "{'1' if readback_ready_fail else '0'}" = "1" ] && [ "$count" -ge 3 ] && [ ! -f "{tmp_path / 'restored-old'}" ]; then exit 1; fi
-    if [ "{'1' if rollback_not_ready else '0'}" = "1" ] && [ -f "{tmp_path / 'restored-old'}" ]; then exit 1; fi
+    if [ "{"1" if fail_ready else "0"}" = "1" ]; then exit 1; fi
+    if [ "{"1" if readback_ready_fail else "0"}" = "1" ] && [ "$count" -ge 3 ] && [ ! -f "{tmp_path / "restored-old"}" ]; then exit 1; fi
+    if [ "{"1" if rollback_not_ready else "0"}" = "1" ] && [ -f "{tmp_path / "restored-old"}" ]; then exit 1; fi
     echo '{{}}' ;;
   */v1/version) echo '{{"release_id":"{online}","api_git_sha":"{online}"}}' ;;
   */v1/dashboard/intelligence-workspace)
-    dash_count_file="{tmp_path / 'dash-count'}"
+    dash_count_file="{tmp_path / "dash-count"}"
     dash_count=0
     [ -f "$dash_count_file" ] && dash_count=$(cat "$dash_count_file")
     dash_count=$((dash_count + 1))
     printf '%s\\n' "$dash_count" > "$dash_count_file"
-    if [ "$dash_count" -eq 1 ] && [ "{'1' if baseline_invalid else '0'}" = "1" ]; then
+    if [ "$dash_count" -eq 1 ] && [ "{"1" if baseline_invalid else "0"}" = "1" ]; then
       echo '{{}}'
       exit 0
     elif [ "$dash_count" -eq 1 ]; then
@@ -561,7 +581,7 @@ case "$url" in
       matches="{post_matches}"; day="{post_football_day}"
     fi
     if [ "$matches" -gt 0 ]; then
-      if [ "{'1' if post_snapshot else '0'}" = "1" ]; then
+      if [ "{"1" if post_snapshot else "0"}" = "1" ]; then
         radar='{{"markets":{{"AH":{{"snapshot_count":1}}}}}}'
       else
         radar='{{"markets":{{"AH":{{"snapshot_count":0}}}}}}'
@@ -573,7 +593,7 @@ case "$url" in
   *) echo '{{}}' ;;
 esac
 exit 0
-""",
+""",  # noqa: E501 - literal shell fixture output is byte-stable.
         encoding="utf-8",
     )
     (bin_dir / "preflight").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
@@ -639,7 +659,7 @@ if echo "$cmd" | grep -q "pg_restore --list"; then
   exit 0
 fi
 exit 0
-""",
+""",  # noqa: E501 - literal shell fixture output is byte-stable.
         encoding="utf-8",
     )
     fake.chmod(0o755)
@@ -703,28 +723,37 @@ def _run_release_with_vps(
         "SCHEMA": "aaa",
     }
     r = subprocess.run(
-        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
+        ["bash", str(SCRIPT), "--target", target],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     return r, install_log
 
 
 def test_api_ready_timeout_rolls_back_release_env(tmp_path: Path) -> None:
-    r, install_log = _run_release_with_vps(tmp_path, with_migration=False, fail_ready=True, fail_migration=False)
+    r, install_log = _run_release_with_vps(
+        tmp_path, with_migration=False, fail_ready=True, fail_migration=False
+    )
     assert r.returncode == 1
     assert "ROLLBACK" in r.stdout
     lines = install_log.read_text(encoding="utf-8").splitlines() if install_log.exists() else []
     # 切换：candidate -> release.env；回滚：backup -> release.env（恢复旧内容）
-    assert any("release.candidate-" in l and "release.env" in l for l in lines)
-    assert any("release.pre-" in l and "release.env" in l for l in lines)
+    assert any("release.candidate-" in line and "release.env" in line for line in lines)
+    assert any("release.pre-" in line and "release.env" in line for line in lines)
 
 
 def test_migration_fail_does_not_switch(tmp_path: Path) -> None:
-    r, install_log = _run_release_with_vps(tmp_path, with_migration=True, fail_ready=False, fail_migration=True)
+    r, install_log = _run_release_with_vps(
+        tmp_path, with_migration=True, fail_ready=False, fail_migration=True
+    )
     assert r.returncode == 1
     assert "alembic upgrade head 失败" in r.stdout
     lines = install_log.read_text(encoding="utf-8").splitlines() if install_log.exists() else []
     # 迁移失败 → 不切换：install 日志里没有 candidate -> release.env
-    assert not any("release.candidate-" in l and "release.env" in l for l in lines)
+    assert not any("release.candidate-" in line and "release.env" in line for line in lines)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -735,7 +764,15 @@ def _release_env(tmp_path: Path) -> str:
 
 
 def _docker_calls(log: Path) -> list[str]:
-    return [line for line in log.read_text(encoding="utf-8").splitlines() if line.startswith("docker ")] if log.exists() else []
+    return (
+        [
+            line
+            for line in log.read_text(encoding="utf-8").splitlines()
+            if line.startswith("docker ")
+        ]
+        if log.exists()
+        else []
+    )
 
 
 def test_t1_migration_readback_d_fail_ready_keeps_new_without_downgrade(tmp_path: Path) -> None:
@@ -753,7 +790,10 @@ def test_t1_migration_readback_d_fail_ready_keeps_new_without_downgrade(tmp_path
     assert not any(" downgrade " in call for call in _docker_calls(install_log))
     assert "W2_GIT_SHA=" in _release_env(tmp_path)
     assert "W2_GIT_SHA=old" not in _release_env(tmp_path)
-    assert not any("release.pre-" in line and "release.env" in line for line in install_log.read_text().splitlines())
+    assert not any(
+        "release.pre-" in line and "release.env" in line
+        for line in install_log.read_text().splitlines()
+    )
 
 
 def test_t2_migration_readback_failure_ready_503_downgrades_before_restore(tmp_path: Path) -> None:
@@ -771,7 +811,9 @@ def test_t2_migration_readback_failure_ready_503_downgrades_before_restore(tmp_p
     assert "ROLLBACK_DONE" in r.stdout
     lines = install_log.read_text().splitlines()
     downgrade_index = next(i for i, line in enumerate(lines) if " downgrade aaa" in line)
-    restore_index = next(i for i, line in enumerate(lines) if "release.pre-" in line and "release.env" in line)
+    restore_index = next(
+        i for i, line in enumerate(lines) if "release.pre-" in line and "release.env" in line
+    )
     assert downgrade_index < restore_index
     assert "W2_GIT_SHA=old" in _release_env(tmp_path)
 
@@ -789,7 +831,10 @@ def test_t3_migration_downgrade_failure_blocks_code_rollback(tmp_path: Path) -> 
     )
     assert r.returncode == 1
     assert "ROLLBACK_BLOCKED_SCHEMA" in r.stdout
-    assert not any("release.pre-" in line and "release.env" in line for line in install_log.read_text().splitlines())
+    assert not any(
+        "release.pre-" in line and "release.env" in line
+        for line in install_log.read_text().splitlines()
+    )
     assert "W2_GIT_SHA=old" not in _release_env(tmp_path)
 
 
@@ -807,7 +852,10 @@ def test_t4_migration_downgrade_schema_mismatch_blocks_code_rollback(tmp_path: P
     assert r.returncode == 1
     assert "ROLLBACK_BLOCKED_SCHEMA" in r.stdout
     assert "current=bbb" in r.stdout
-    assert not any("release.pre-" in line and "release.env" in line for line in install_log.read_text().splitlines())
+    assert not any(
+        "release.pre-" in line and "release.env" in line
+        for line in install_log.read_text().splitlines()
+    )
 
 
 def test_t5_no_migration_readback_failure_keeps_existing_rollback_behavior(tmp_path: Path) -> None:
@@ -822,7 +870,10 @@ def test_t5_no_migration_readback_failure_keeps_existing_rollback_behavior(tmp_p
     assert r.returncode == 1
     assert "ROLLBACK_DONE" in r.stdout
     assert not any(" downgrade " in call for call in _docker_calls(install_log))
-    assert any("release.pre-" in line and "release.env" in line for line in install_log.read_text().splitlines())
+    assert any(
+        "release.pre-" in line and "release.env" in line
+        for line in install_log.read_text().splitlines()
+    )
 
 
 def test_t6_rollback_old_version_not_ready_is_failure(tmp_path: Path) -> None:
@@ -917,7 +968,9 @@ def test_t11_baseline_capture_failure_stops_before_migration(tmp_path: Path) -> 
     )
     assert r.returncode == 1
     assert "BASELINE_CAPTURE_FAILED" in r.stdout
-    assert not any(" upgrade " in call or " downgrade " in call for call in _docker_calls(install_log))
+    assert not any(
+        " upgrade " in call or " downgrade " in call for call in _docker_calls(install_log)
+    )
     assert "W2_GIT_SHA=old" in _release_env(tmp_path)
 
 
@@ -934,7 +987,12 @@ def test_vps_early_exit_zero_judged_failed(tmp_path: Path) -> None:
     repo, _base, target = _make_repo(tmp_path, with_migration=False)
     env, home = _build_test_env(tmp_path, mode="early_exit_0", target=target)
     r = subprocess.run(
-        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
+        ["bash", str(SCRIPT), "--target", target],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     assert r.returncode == 1
     assert "正向成功标记缺失" in r.stderr
@@ -943,7 +1001,9 @@ def test_vps_early_exit_zero_judged_failed(tmp_path: Path) -> None:
     receipt_dir = home / "Desktop" / "W2文档"
     receipts = list(receipt_dir.glob("W2_发布_*.md"))
     assert receipts
-    assert any("结果：失败" in l for l in receipts[0].read_text(encoding="utf-8").splitlines())
+    assert any(
+        "结果：失败" in line for line in receipts[0].read_text(encoding="utf-8").splitlines()
+    )
 
 
 def test_missing_readback_marker_judged_failed(tmp_path: Path) -> None:
@@ -951,7 +1011,12 @@ def test_missing_readback_marker_judged_failed(tmp_path: Path) -> None:
     repo, _base, target = _make_repo(tmp_path, with_migration=False)
     env, home = _build_test_env(tmp_path, mode="missing_readback", target=target)
     r = subprocess.run(
-        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
+        ["bash", str(SCRIPT), "--target", target],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     assert r.returncode == 1
     assert "READBACK_h" in r.stderr
@@ -963,7 +1028,12 @@ def test_verify_release_id_mismatch_judged_failed(tmp_path: Path) -> None:
     repo, _base, target = _make_repo(tmp_path, with_migration=False)
     env, home = _build_test_env(tmp_path, mode="full_success", target=target)
     r = subprocess.run(
-        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
+        ["bash", str(SCRIPT), "--target", target],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     assert r.returncode == 1
     assert "release_id 与目标不符" in r.stderr
@@ -971,7 +1041,9 @@ def test_verify_release_id_mismatch_judged_failed(tmp_path: Path) -> None:
     receipt_dir = home / "Desktop" / "W2文档"
     receipts = list(receipt_dir.glob("W2_发布_*.md"))
     assert receipts
-    assert any("结果：失败" in l for l in receipts[0].read_text(encoding="utf-8").splitlines())
+    assert any(
+        "结果：失败" in line for line in receipts[0].read_text(encoding="utf-8").splitlines()
+    )
 
 
 def test_window_query_fail_rejects_deploy(tmp_path: Path) -> None:
@@ -979,7 +1051,12 @@ def test_window_query_fail_rejects_deploy(tmp_path: Path) -> None:
     repo, _base, target = _make_repo(tmp_path, with_migration=False)
     env, home = _build_test_env(tmp_path, mode="early_exit_0", target=target, window_fail=True)
     r = subprocess.run(
-        ["bash", str(SCRIPT), "--target", target], cwd=repo, env=env, capture_output=True, text=True, timeout=120
+        ["bash", str(SCRIPT), "--target", target],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     assert r.returncode == 2
     assert "窗口查询失败" in r.stderr
@@ -1000,7 +1077,11 @@ def test_release_syncs_override_and_verifies_sha_before_activation() -> None:
     assert 'show "${TARGET}:infra/compose/controlled-future-refresh.override.yml"' in text
     assert "override_before_sha" in text
     assert "override_after_sha" in text
-    assert 'OVERRIDE_SYNC before_sha=$override_before_sha repo_sha=$override_repo_sha after_sha=$override_after_sha' in text
+    assert (
+        "OVERRIDE_SYNC before_sha=$override_before_sha "
+        "repo_sha=$override_repo_sha after_sha=$override_after_sha"
+        in text
+    )
 
 
 def test_checkpoint_gate_polls_active_claims_and_fails_closed() -> None:
@@ -1026,8 +1107,8 @@ def test_readback_e_polls_health_before_started_at_and_checks_cap_800() -> None:
 
     assert "health_deadline=$(( $(date +%s) + 180 ))" in section
     assert "sleep 5" in section
-    assert section.index('Health.Status') < section.index('st="$(docker inspect')
-    assert 'printenv W2_POSTMATCH_RESULT_DAILY_HARD_CAP' in section
+    assert section.index("Health.Status") < section.index('st="$(docker inspect')
+    assert "printenv W2_POSTMATCH_RESULT_DAILY_HARD_CAP" in section
     assert '[ "$cap" = "800" ]' in section
 
 
@@ -1038,5 +1119,5 @@ def test_readback_h_requires_progress_not_zero() -> None:
     assert 'overdue_due_n0" != "0"' in section
     assert '"$h_n1" -lt "$overdue_due_n0"' in section
     assert '"$h_n1" = "0"' not in section
-    assert 'deploy_done_epoch + drain_max_wait_sec' in section
+    assert "deploy_done_epoch + drain_max_wait_sec" in section
     assert "drain_max_wait_sec" in section

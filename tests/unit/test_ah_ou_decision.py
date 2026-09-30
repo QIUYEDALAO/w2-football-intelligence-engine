@@ -1,9 +1,8 @@
 """AH/OU 决策编排（build_ah_ou_selections + build_softmax_market_analyses）单测。"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-
-import pytest
 
 from w2.strategy.ah_ou_decision import build_ah_ou_selections
 from w2.strategy.analysis_recommendation import (
@@ -21,20 +20,46 @@ class FakeRepository:
         self.history = history
         # Immutable synthetic source controls; later attacks mutate the
         # projection only, never rewrite its source oracle.
-        from w2.domain.canonical_serialization import canonical_sha256, HashDomain, SerializerVersion
+        from w2.domain.canonical_serialization import (
+            HashDomain,
+            SerializerVersion,
+            canonical_sha256,
+        )
+
         self.captures = {}
         for row in history:
             home = row["team_side"] == "HOME"
-            item = {"fixture": {"id": row["fixture_id"], "date": row["kickoff_utc"], "status": {"short": "FT"}},
-                    "teams": {"home": {"id": "10" if home else "20"}, "away": {"id": "20" if home else "10"}},
-                    "goals": {"home": row["goals_for"] if home else row["goals_against"],
-                              "away": row["goals_against"] if home else row["goals_for"]}}
+            item = {
+                "fixture": {
+                    "id": row["fixture_id"],
+                    "date": row["kickoff_utc"],
+                    "status": {"short": "FT"},
+                },
+                "teams": {
+                    "home": {"id": "10" if home else "20"},
+                    "away": {"id": "20" if home else "10"},
+                },
+                "goals": {
+                    "home": row["goals_for"] if home else row["goals_against"],
+                    "away": row["goals_against"] if home else row["goals_for"],
+                },
+            }
             raw = {"response": [item]}
-            sha = canonical_sha256(raw, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD, version=SerializerVersion.LEGACY_V1)
+            sha = canonical_sha256(
+                raw,
+                domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+                version=SerializerVersion.LEGACY_V1,
+            )
             row.update(team_provider_id="10", opponent_provider_id="20", source_raw_hash=sha)
-            self.captures[row["endpoint_capture_id"]] = {"fixture_id": row["fixture_id"], "capture_status": "CAPTURED",
-                "status_code": 200, "provider_captured_at": row["captured_at"], "raw_captured_at": row["captured_at"],
-                "raw_payload": raw, "raw_payload_sha256": sha}
+            self.captures[row["endpoint_capture_id"]] = {
+                "fixture_id": row["fixture_id"],
+                "capture_status": "CAPTURED",
+                "status_code": 200,
+                "provider_captured_at": row["captured_at"],
+                "raw_captured_at": row["captured_at"],
+                "raw_payload": raw,
+                "raw_payload_sha256": sha,
+            }
 
     def endpoint_captures_for_ids(self, ids):
         return {cid: self.captures[cid] for cid in ids if cid in self.captures}
@@ -48,11 +73,17 @@ class FakeRepository:
         return rows
 
     def canonical_match_history_for_teams(
-        self, team_ids, *, before, limit_per_team=20,
-        opponent_w2_id=None, fixture_status="FT",
+        self,
+        team_ids,
+        *,
+        before,
+        limit_per_team=20,
+        opponent_w2_id=None,
+        fixture_status="FT",
     ):
         return [
-            r for r in self.history
+            r
+            for r in self.history
             if r["team_w2_id"] in team_ids
             and (opponent_w2_id is None or r["opponent_w2_id"] == opponent_w2_id)
             and r.get("fixture_status") == fixture_status
@@ -118,10 +149,17 @@ def test_build_ah_ou_selections_ready() -> None:
     result = build_ah_ou_selections(
         _ready_repository(),
         fixture_id=FIXTURE_ID,
-        home_team_id="H", away_team_id="A", kickoff=KICKOFF,
-        competition_id="c", season="s",
-        ah_line=-0.5, ah_home_odds=1.8, ah_away_odds=2.2,
-        ou_line=2.5, ou_over_odds=1.9, ou_under_odds=1.9,
+        home_team_id="H",
+        away_team_id="A",
+        kickoff=KICKOFF,
+        competition_id="c",
+        season="s",
+        ah_line=-0.5,
+        ah_home_odds=1.8,
+        ah_away_odds=2.2,
+        ou_line=2.5,
+        ou_over_odds=1.9,
+        ou_under_odds=1.9,
     )
     assert result["status"] == "READY"
     assert result["ah"]["side"] in {"HOME", "AWAY"}
@@ -133,11 +171,19 @@ def test_build_ah_ou_selections_f9_missing() -> None:
     repo = _ready_repository()
     repo.snapshots = {"H": _snapshot("H")}  # 缺 A 队快照
     result = build_ah_ou_selections(
-        repo, fixture_id=FIXTURE_ID,
-        home_team_id="H", away_team_id="A", kickoff=KICKOFF,
-        competition_id="c", season="s",
-        ah_line=-0.5, ah_home_odds=1.8, ah_away_odds=2.2,
-        ou_line=2.5, ou_over_odds=1.9, ou_under_odds=1.9,
+        repo,
+        fixture_id=FIXTURE_ID,
+        home_team_id="H",
+        away_team_id="A",
+        kickoff=KICKOFF,
+        competition_id="c",
+        season="s",
+        ah_line=-0.5,
+        ah_home_odds=1.8,
+        ah_away_odds=2.2,
+        ou_line=2.5,
+        ou_over_odds=1.9,
+        ou_under_odds=1.9,
     )
     assert result["status"] == "F9_ROLLING_SNAPSHOT_NOT_UNIQUE"
     assert result["ah"] is None and result["ou"] is None
@@ -147,21 +193,38 @@ def test_build_ah_ou_selections_f6_missing() -> None:
     repo = _ready_repository()
     repo.history = []  # 无交锋
     result = build_ah_ou_selections(
-        repo, fixture_id=FIXTURE_ID,
-        home_team_id="H", away_team_id="A", kickoff=KICKOFF,
-        competition_id="c", season="s",
-        ah_line=-0.5, ah_home_odds=1.8, ah_away_odds=2.2,
-        ou_line=2.5, ou_over_odds=1.9, ou_under_odds=1.9,
+        repo,
+        fixture_id=FIXTURE_ID,
+        home_team_id="H",
+        away_team_id="A",
+        kickoff=KICKOFF,
+        competition_id="c",
+        season="s",
+        ah_line=-0.5,
+        ah_home_odds=1.8,
+        ah_away_odds=2.2,
+        ou_line=2.5,
+        ou_over_odds=1.9,
+        ou_under_odds=1.9,
     )
     assert result["status"] == "F6_H2H_MISSING"
 
 
 def test_softmax_market_analyses_ah_pick() -> None:
     ah, ou = build_softmax_market_analyses(
-        ah_selection={"side": "HOME", "score": 0.12, "selected": True,
-                      "factor_home_cover_p": 0.6, "market_home_cover_p": 0.55},
-        ou_selection={"edge": 0.01, "selected": False,
-                      "factor_over_share": 0.51, "market_over_q": 0.5},
+        ah_selection={
+            "side": "HOME",
+            "score": 0.12,
+            "selected": True,
+            "factor_home_cover_p": 0.6,
+            "market_home_cover_p": 0.55,
+        },
+        ou_selection={
+            "edge": 0.01,
+            "selected": False,
+            "factor_over_share": 0.51,
+            "market_over_q": 0.5,
+        },
         status="READY",
     )
     assert ah.decision == AnalysisDecision.ANALYSIS_PICK
@@ -171,10 +234,19 @@ def test_softmax_market_analyses_ah_pick() -> None:
 
 def test_softmax_market_analyses_ou_pick() -> None:
     ah, ou = build_softmax_market_analyses(
-        ah_selection={"side": "AWAY", "score": 0.02, "selected": False,
-                      "factor_home_cover_p": 0.4, "market_home_cover_p": 0.45},
-        ou_selection={"edge": 0.06, "selected": True,
-                      "factor_over_share": 0.56, "market_over_q": 0.5},
+        ah_selection={
+            "side": "AWAY",
+            "score": 0.02,
+            "selected": False,
+            "factor_home_cover_p": 0.4,
+            "market_home_cover_p": 0.45,
+        },
+        ou_selection={
+            "edge": 0.06,
+            "selected": True,
+            "factor_over_share": 0.56,
+            "market_over_q": 0.5,
+        },
         status="READY",
     )
     assert ah.decision == AnalysisDecision.NO_EDGE
@@ -192,11 +264,19 @@ def test_softmax_market_analyses_skip_on_missing() -> None:
 
 def _run(repo) -> dict:
     return build_ah_ou_selections(
-        repo, fixture_id=FIXTURE_ID,
-        home_team_id="H", away_team_id="A", kickoff=KICKOFF,
-        competition_id="c", season="s",
-        ah_line=-0.5, ah_home_odds=1.8, ah_away_odds=2.2,
-        ou_line=2.5, ou_over_odds=1.9, ou_under_odds=1.9,
+        repo,
+        fixture_id=FIXTURE_ID,
+        home_team_id="H",
+        away_team_id="A",
+        kickoff=KICKOFF,
+        competition_id="c",
+        season="s",
+        ah_line=-0.5,
+        ah_home_odds=1.8,
+        ah_away_odds=2.2,
+        ou_line=2.5,
+        ou_over_odds=1.9,
+        ou_under_odds=1.9,
     )
 
 
@@ -210,7 +290,9 @@ def test_f6_capture_lookup_port_is_required_and_fail_closed() -> None:
         canonical_match_history_for_teams=control.canonical_match_history_for_teams,
     )
     assert _run(missing)["status"] == "F6_H2H_CAPTURE_LOOKUP_REQUIRED"
-    control.endpoint_captures_for_ids = lambda ids: (_ for _ in ()).throw(RuntimeError("lookup failed"))
+    control.endpoint_captures_for_ids = lambda ids: (_ for _ in ()).throw(
+        RuntimeError("lookup failed")
+    )
     assert _run(control)["status"] == "F6_H2H_CAPTURE_LOOKUP_FAILED"
 
 

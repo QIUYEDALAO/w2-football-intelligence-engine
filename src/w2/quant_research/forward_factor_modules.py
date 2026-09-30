@@ -150,7 +150,7 @@ def load_modules() -> ForwardFactorModules:
     )
 
 
-def runtime_store(modules: ForwardFactorModules):
+def runtime_store(modules: ForwardFactorModules) -> type[Any]:
     """Adapt runtime F5 source references without modifying frozen modules."""
     from w2.quant_research.forward_factor_store_v2 import runtime_source_store
     return runtime_source_store(modules.store, "w2.f1r_b_source_capture.v1")

@@ -171,7 +171,7 @@ def _source_content_matches(
 
     fixture = str(first.get("fixture_id") or "").removeprefix("api_football:")
     market = str(first.get("canonical_market") or first.get("market") or "").upper()
-    def signature(row):
+    def signature(row: dict[str, Any]) -> tuple[Any, ...]:
         return (
             str(row.get("fixture_id") or "").removeprefix("api_football:"),
             str(row.get("bookmaker_id") or ""),
@@ -335,9 +335,12 @@ def _select_one_market(
         for group in line_groups.values():
             if set(group) != {side_a, side_b}:
                 continue
+            line = _decimal(group[side_a].get("line"))
+            if line is None:
+                continue
             pair = _make_pair(
                 side_a=side_a, side_b=side_b,
-                line=_decimal(group[side_a].get("line")),
+                line=line,
                 row_a=group[side_a], row_b=group[side_b],
             )
             if pair is not None:

@@ -55,7 +55,7 @@ def upgrade() -> None:
           FOR EACH ROW EXECUTE FUNCTION {_FUNCTION}();
         END IF;
         END $$
-        """
+        """  # noqa: S608 - all trigger identifiers are migration constants.
     )
 
 

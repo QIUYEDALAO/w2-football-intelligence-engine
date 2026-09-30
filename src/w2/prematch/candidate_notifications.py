@@ -665,12 +665,13 @@ def materialize_validation_samples(
     from w2.tracking.ah_ou_v3_postmatch import settle_ah_ou_v3_in_session
     v3_report = settle_ah_ou_v3_in_session(session, now=now)
     session.flush()
-    return {
+    report: dict[str, Any] = {
         "window_fixtures": len(window_provider_ids),
         "window_rows": len(window_rows),
         "deleted": deleted,
         "v3": v3_report,
     }
+    return report
 
 
 def _iso_or_none(value: datetime | None) -> str | None:

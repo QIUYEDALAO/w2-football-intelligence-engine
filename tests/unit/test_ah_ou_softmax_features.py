@@ -1,4 +1,5 @@
 """AH/OU 软最大值公式 + 特征构造 单测（核心逻辑手算 + 参数维度校验）。"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -72,9 +73,7 @@ def test_ah_side_follows_market_and_selected() -> None:
     # home_odds < away_odds -> q >= 0.5 -> HOME
     home_fav = ah_select(features, home_line=-0.5, home_odds=1.8, away_odds=2.2)
     assert home_fav["side"] == "HOME"
-    assert home_fav["market_home_cover_p"] == pytest.approx(
-        (1 / 1.8) / ((1 / 1.8) + (1 / 2.2))
-    )
+    assert home_fav["market_home_cover_p"] == pytest.approx((1 / 1.8) / ((1 / 1.8) + (1 / 2.2)))
     # away_odds < home_odds -> q < 0.5 -> AWAY
     away_fav = ah_select(features, home_line=-0.5, home_odds=2.2, away_odds=1.8)
     assert away_fav["side"] == "AWAY"
@@ -109,8 +108,12 @@ def test_model_params_dimensions_consistent() -> None:
     ah = load_ah_model()
     ou = load_ou_model()
     assert len(ah["feature_order"]) == len(ah["scaler_mean"]) == len(ah["scaler_scale"]) == 14
-    assert len(ah["softmax_intercept"]) == len(ah["softmax_coefficients"]) == len(ah["classes"]) == 9
+    assert (
+        len(ah["softmax_intercept"]) == len(ah["softmax_coefficients"]) == len(ah["classes"]) == 9
+    )
     assert all(len(coef) == 14 for coef in ah["softmax_coefficients"])
     assert len(ou["feature_order"]) == len(ou["scaler_mean"]) == len(ou["scaler_scale"]) == 22
-    assert len(ou["softmax_intercept"]) == len(ou["softmax_coefficients"]) == len(ou["classes"]) == 9
+    assert (
+        len(ou["softmax_intercept"]) == len(ou["softmax_coefficients"]) == len(ou["classes"]) == 9
+    )
     assert all(len(coef) == 22 for coef in ou["softmax_coefficients"])

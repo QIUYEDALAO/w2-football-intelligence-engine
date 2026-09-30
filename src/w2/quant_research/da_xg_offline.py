@@ -129,7 +129,7 @@ def _day_weight(match: XgMatchRecord, at: datetime, params: DaXgParameters) -> f
     if params.ablate_day_decay:
         return 1.0
     days = (at - match.kickoff_utc).total_seconds() / 86400.0
-    return 2.0 ** (-days / params.half_life_days)
+    return float(2.0 ** (-days / params.half_life_days))
 
 
 def _season_factor(match: XgMatchRecord, target_season: str, params: DaXgParameters) -> float:

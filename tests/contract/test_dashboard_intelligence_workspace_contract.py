@@ -375,30 +375,19 @@ def test_intelligence_workspace_200_with_complete_recommendation_fields(monkeypa
     from fastapi.testclient import TestClient
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
+    from sqlalchemy.pool import StaticPool
 
     from w2.api import routers
     from w2.api.repository import ReadModelRepository, ReadModelService
     from w2.infrastructure.database import Base
-    from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
     from w2.infrastructure.persistence.dynamic_prematch_models import (
         DynamicPrematchEvaluationModel,
         DynamicPrematchOpportunityModel,
-        DynamicPrematchSupersessionModel,
     )
-    from w2.infrastructure.persistence.future_refresh_models import TeamXgMatchModel
     from w2.infrastructure.persistence.league_models import LeagueSeasonModel
     from w2.infrastructure.persistence.matchday_intake_models import (
-        MatchdayCheckpointPlanModel,
         MatchdayFixtureIdentityModel,
     )
-    from w2.infrastructure.persistence.model_forecast_models import (
-        ModelForecastCaptureDataVersionModel,
-        ModelForecastCaptureModel,
-        ModelForecastOutcomeModel,
-    )
-    from w2.infrastructure.persistence.models import ResultModel
-    from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
-    from sqlalchemy.pool import StaticPool
 
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",

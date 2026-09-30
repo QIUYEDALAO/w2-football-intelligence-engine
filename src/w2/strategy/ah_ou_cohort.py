@@ -12,7 +12,7 @@ step.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from w2.domain.canonical_serialization import HashDomain, canonical_sha256
@@ -22,7 +22,7 @@ _DOMAIN = HashDomain.RECOMMENDATION_DECISION_V4
 
 
 def _iso(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat()
+    return value.astimezone(UTC).isoformat()
 
 
 def build_cohort_identity(

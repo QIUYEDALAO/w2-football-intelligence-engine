@@ -1,19 +1,10 @@
-from datetime import UTC, datetime, timedelta
 import json
+from datetime import UTC, datetime, timedelta
 
+from pytest import approx
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from pytest import approx
 
-from w2.strategy.online_calibration_filter import (
-    BiasObservation,
-    LEGAL_STATE,
-    WARMUP_OBSERVATIONS,
-    bias_at_decision,
-    build_bias_pool,
-    decision_from_bias,
-    evaluate_fast_criteria,
-)
 from w2.api.routers import FORWARD_START_UTC as ROUTER_FORWARD_START_UTC
 from w2.domain.ev_online_contract import FORWARD_START_UTC as CONTRACT_FORWARD_START_UTC
 from w2.infrastructure.persistence.dynamic_prematch_models import (
@@ -21,6 +12,15 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
     ValidationSampleModel,
 )
 from w2.prematch.candidate_notifications import validation_samples_snapshot
+from w2.strategy.online_calibration_filter import (
+    LEGAL_STATE,
+    WARMUP_OBSERVATIONS,
+    BiasObservation,
+    bias_at_decision,
+    build_bias_pool,
+    decision_from_bias,
+    evaluate_fast_criteria,
+)
 
 
 def _dt(minutes: int) -> datetime:
@@ -29,7 +29,13 @@ def _dt(minutes: int) -> datetime:
 
 def test_bias_pool_is_fail_closed_and_has_no_time_leakage() -> None:
     class Evaluation:
-        def __init__(self, fixture_id: str, evaluated_at: datetime, state: str, market: str = "ASIAN_HANDICAP"):
+        def __init__(
+            self,
+            fixture_id: str,
+            evaluated_at: datetime,
+            state: str,
+            market: str = "ASIAN_HANDICAP",
+        ):
             self.fixture_id = fixture_id
             self.evaluated_at = evaluated_at
             self.original_state = state
@@ -57,16 +63,38 @@ def test_bias_pool_is_fail_closed_and_has_no_time_leakage() -> None:
         # A TOTALS result has no real settlement-observed source in the current schema.
         "totals": Fact("totals", _dt(5)),
     }
-    sample_rows = [type("Sample", (), {"fixture_id": row.fixture_id, "market": row.market,
-                                        "selection": row.selection, "evaluation_id": row.fixture_id,
-                                        "calibration_identity": None, "kickoff_utc": _dt(25),
-                                        "settlement": facts[row.fixture_id].home_settlement})()
-                   for row in rows]
-    evaluations = [type("Eval", (), {"evaluation_id": row.fixture_id, "fixture_id": row.fixture_id,
-                                      "market": row.market, "selection": row.selection,
-                                      "original_state": row.original_state,
-                                      "evaluated_at": row.evaluated_at, "payload": row.payload})()
-                   for row in rows]
+    sample_rows = [
+        type(
+            "Sample",
+            (),
+            {
+                "fixture_id": row.fixture_id,
+                "market": row.market,
+                "selection": row.selection,
+                "evaluation_id": row.fixture_id,
+                "calibration_identity": None,
+                "kickoff_utc": _dt(25),
+                "settlement": facts[row.fixture_id].home_settlement,
+            },
+        )()
+        for row in rows
+    ]
+    evaluations = [
+        type(
+            "Eval",
+            (),
+            {
+                "evaluation_id": row.fixture_id,
+                "fixture_id": row.fixture_id,
+                "market": row.market,
+                "selection": row.selection,
+                "original_state": row.original_state,
+                "evaluated_at": row.evaluated_at,
+                "payload": row.payload,
+            },
+        )()
+        for row in rows
+    ]
     pool = build_bias_pool(
         sample_rows,
         evaluations,
@@ -88,18 +116,24 @@ def test_bias_warmup_and_market_selection_partition_are_frozen() -> None:
         )
         for index in range(1, WARMUP_OBSERVATIONS + 1)
     ]
-    assert bias_at_decision(
-        market="ASIAN_HANDICAP",
-        selection="HOME",
-        evaluated_at=_dt(WARMUP_OBSERVATIONS + 2),
-        observations=observations,
-    ) is not None
-    assert bias_at_decision(
-        market="TOTALS",
-        selection="OVER",
-        evaluated_at=_dt(WARMUP_OBSERVATIONS + 2),
-        observations=observations,
-    ) == 0.0
+    assert (
+        bias_at_decision(
+            market="ASIAN_HANDICAP",
+            selection="HOME",
+            evaluated_at=_dt(WARMUP_OBSERVATIONS + 2),
+            observations=observations,
+        )
+        is not None
+    )
+    assert (
+        bias_at_decision(
+            market="TOTALS",
+            selection="OVER",
+            evaluated_at=_dt(WARMUP_OBSERVATIONS + 2),
+            observations=observations,
+        )
+        == 0.0
+    )
 
 
 def test_bias_after_warmup_is_equal_weight_mean_and_non_negative() -> None:
@@ -186,25 +220,29 @@ def test_parallel_component_does_not_change_legacy_snapshot_bytes() -> None:
 
 def test_fast_criteria_is_frozen_and_pnl_is_only_a_group_rate() -> None:
     rows = []
-    for index in range(300):
-        rows.append({
-            "market": "ASIAN_HANDICAP",
-            "selection": "HOME",
-            "warmup": False,
-            "filter_decision": "KEPT",
+    for _ in range(300):
+        rows.append(
+            {
+                "market": "ASIAN_HANDICAP",
+                "selection": "HOME",
+                "warmup": False,
+                "filter_decision": "KEPT",
                 "bias_at_decision": 0.05,
                 "profit_units": 1.0,
-                "predicted_success": 0.6, "realized_success": 0.5,
-        })
+                "predicted_success": 0.6,
+                "realized_success": 0.5,
+            }
+        )
     rows.extend(
         {
             "market": "ASIAN_HANDICAP",
             "selection": "HOME",
             "warmup": False,
             "filter_decision": "FILTERED",
-                "bias_at_decision": 0.05,
-                "profit_units": -1.0,
-                "predicted_success": 0.8, "realized_success": 0.2,
+            "bias_at_decision": 0.05,
+            "profit_units": -1.0,
+            "predicted_success": 0.8,
+            "realized_success": 0.2,
         }
         for _ in range(10)
     )
@@ -222,7 +260,8 @@ def test_warmup_rows_do_not_count_toward_trigger_or_any_fast_criterion() -> None
             "filter_decision": "KEPT",
             "bias_at_decision": 0.04,
             "profit_units": 1.0,
-            "predicted_success": 0.6, "realized_success": 0.5,
+            "predicted_success": 0.6,
+            "realized_success": 0.5,
         }
         for _ in range(299)
     ]
@@ -234,7 +273,8 @@ def test_warmup_rows_do_not_count_toward_trigger_or_any_fast_criterion() -> None
             "filter_decision": "FILTERED",
             "bias_at_decision": 0.04,
             "profit_units": -1.0,
-            "predicted_success": 0.8, "realized_success": 0.2,
+            "predicted_success": 0.8,
+            "realized_success": 0.2,
         }
         for _ in range(10)
     )
@@ -247,7 +287,8 @@ def test_warmup_rows_do_not_count_toward_trigger_or_any_fast_criterion() -> None
             # These deliberately violate all three criteria and must be ignored.
             "bias_at_decision": -1.0,
             "profit_units": -1.0,
-            "predicted_success": 0.0, "realized_success": 1.0,
+            "predicted_success": 0.0,
+            "realized_success": 1.0,
         }
         for _ in range(500)
     ]
@@ -260,7 +301,8 @@ def test_warmup_rows_do_not_count_toward_trigger_or_any_fast_criterion() -> None
             "filter_decision": "KEPT",
             "bias_at_decision": 0.04,
             "profit_units": 1.0,
-            "predicted_success": 0.6, "realized_success": 0.5,
+            "predicted_success": 0.6,
+            "realized_success": 0.5,
         }
     )
     assert evaluate_fast_criteria(non_warmup + warmup_rows)

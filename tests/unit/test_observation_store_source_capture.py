@@ -3,6 +3,7 @@
 不建跨表 FK；``source_capture_sha256`` 仅契约 hash 校验，跨表引用一致性改由
 ``source_capture_id`` 与 ``factor_inputs.source_record_ids`` 重算比对。
 """
+
 from __future__ import annotations
 
 import sys
@@ -71,10 +72,10 @@ def _record(factor_id: str, record_ids: list[str] | None = None) -> dict:
 def store():
     from sqlalchemy import text
 
+    from w2.infrastructure.persistence import TeamXgRollingSnapshotModel
     from w2.infrastructure.persistence.factor_model_models import (
         CanonicalTeamMatchHistoryModel,
     )
-    from w2.infrastructure.persistence import TeamXgRollingSnapshotModel
 
     engine = create_engine("sqlite://")
     ForwardAhFactorObservationModel.__table__.create(engine)
@@ -89,10 +90,13 @@ def store():
                         "INSERT INTO canonical_team_match_history "
                         "(history_id, fixture_id, provider, provider_fixture_id, competition_id, "
                         "season, kickoff_utc, fixture_status, team_side, team_provider_id, "
-                        "opponent_provider_id, team_w2_id, opponent_w2_id, goals_for, goals_against, "
-                        "result_identity_hash, source_raw_hash, captured_at, history_hash, payload, "
+                        "opponent_provider_id, team_w2_id, opponent_w2_id, "
+                        "goals_for, goals_against, "
+                        "result_identity_hash, source_raw_hash, captured_at, "
+                        "history_hash, payload, "
                         "pit_proven) "
-                        "VALUES (:rid, :fx, 'p', :pfx, 'c', 's', :ko, 'FT', 'HOME', 'tp', 'op', 'th', 'oa', 1, 0, 'rh', 'sh', :ko, :hh, '{}', 1)"
+                        "VALUES (:rid, :fx, 'p', :pfx, 'c', 's', :ko, 'FT', 'HOME', "
+                        "'tp', 'op', 'th', 'oa', 1, 0, 'rh', 'sh', :ko, :hh, '{}', 1)"
                     ),
                     {
                         "rid": f"{factor_id}-rec-{i}",
@@ -122,15 +126,13 @@ def test_self_consistent_batch_appends(store) -> None:
 
 def test_forged_capture_id_refused(store) -> None:
     with pytest.raises(StoreError) as exc:
-        _make(store, {"F6_H2H": {
-            "source_capture_id": _source_capture_id("F6_H2H", ["other-rec"])}})
+        _make(store, {"F6_H2H": {"source_capture_id": _source_capture_id("F6_H2H", ["other-rec"])}})
     assert exc.value.code == "SOURCE_CAPTURE_ID_MISMATCH"
 
 
 def test_dropped_record_refused(store) -> None:
     with pytest.raises(StoreError) as exc:
-        _make(store, {"F9_TRUE_XG": {
-            "factor_inputs": {"source_record_ids": "F9_TRUE_XG-rec-1"}}})
+        _make(store, {"F9_TRUE_XG": {"factor_inputs": {"source_record_ids": "F9_TRUE_XG-rec-1"}}})
     assert exc.value.code == "SOURCE_CAPTURE_ID_MISMATCH"
 
 
@@ -149,8 +151,13 @@ def test_missing_record_ids_refused(store) -> None:
 def test_dangling_source_record_refused(store) -> None:
     # 自洽但引用了不存在的 source record（存在校验，整改 item 4）。
     with pytest.raises(StoreError) as exc:
-        _make(store, {"F6_H2H": {
-            "factor_inputs": {"source_record_ids": "ghost-rec"},
-            "source_capture_id": _source_capture_id("F6_H2H", ["ghost-rec"]),
-        }})
+        _make(
+            store,
+            {
+                "F6_H2H": {
+                    "factor_inputs": {"source_record_ids": "ghost-rec"},
+                    "source_capture_id": _source_capture_id("F6_H2H", ["ghost-rec"]),
+                }
+            },
+        )
     assert exc.value.code == "SOURCE_RECORD_NOT_FOUND"

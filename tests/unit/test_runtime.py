@@ -224,9 +224,7 @@ def test_scheduler_future_refresh_intersects_runtime_allowlist(monkeypatch) -> N
     monkeypatch.setattr("w2.competitions.registry.CompetitionRegistry", Registry)
     monkeypatch.setattr(
         "w2.competitions.league_whitelist_scope.load_league_whitelist_scope",
-        lambda registry: type(
-            "Scope", (), {"all_whitelist": ("allsvenskan", "eliteserien")}
-        )(),
+        lambda registry: type("Scope", (), {"all_whitelist": ("allsvenskan", "eliteserien")})(),
     )
 
     assert future_fixture_refresh_competition_ids() == ("allsvenskan", "eliteserien")
@@ -371,9 +369,7 @@ def test_scheduler_suppresses_duplicate_future_refresh_task_key(monkeypatch) -> 
     monkeypatch.setattr(
         scheduler_main,
         "release_checkpoint_batch_claims",
-        lambda checkpoints, **kwargs: released.append(
-            {"checkpoints": checkpoints, **kwargs}
-        ),
+        lambda checkpoints, **kwargs: released.append({"checkpoints": checkpoints, **kwargs}),
     )
 
     result = future_fixture_refresh_tick()
@@ -416,9 +412,7 @@ def test_scheduler_enqueue_failure_keeps_attempt_for_ambiguous_delivery(monkeypa
     monkeypatch.setattr(
         scheduler_main,
         "release_checkpoint_batch_claims",
-        lambda checkpoints, **kwargs: released.append(
-            {"checkpoints": checkpoints, **kwargs}
-        ),
+        lambda checkpoints, **kwargs: released.append({"checkpoints": checkpoints, **kwargs}),
     )
     monkeypatch.setattr(
         celery_app,
@@ -429,9 +423,7 @@ def test_scheduler_enqueue_failure_keeps_attempt_for_ambiguous_delivery(monkeypa
     with pytest.raises(RuntimeError, match="broker uncertain"):
         future_fixture_refresh_tick()
 
-    assert released == [
-        {"checkpoints": [checkpoint], "reason": "CHECKPOINT_ENQUEUE_FAILED"}
-    ]
+    assert released == [{"checkpoints": [checkpoint], "reason": "CHECKPOINT_ENQUEUE_FAILED"}]
 
 
 def test_scheduler_future_refresh_uses_checkpoint_task_key_and_dedup(
@@ -859,7 +851,9 @@ def test_scheduler_repeated_xg_dispatch_keeps_one_business_claim_key(monkeypatch
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setenv("W2_XG_BACKFILL_ENABLED", "true")
     monkeypatch.setattr(scheduler_main, "datetime", PlannedClock)
-    monkeypatch.setattr(celery_app, "send_task", lambda name, **kw: sent.append({"name": name, **kw}))
+    monkeypatch.setattr(
+        celery_app, "send_task", lambda name, **kw: sent.append({"name": name, **kw})
+    )
     monkeypatch.setattr(
         scheduler_main, "matchday_checkpoint_competition_ids", lambda: ("allsvenskan",)
     )
@@ -936,6 +930,7 @@ def test_scheduler_defers_outcome_ledger_without_enqueuing(monkeypatch) -> None:
 
 def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
     from w2.ingestion.provider_task_identity import xg_backfill_claim_key
+
     class FakeResult:
         def as_dict(self) -> dict[str, object]:
             return {
@@ -951,12 +946,19 @@ def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
     )
     # This unit isolates task result shape; real PG ownership is proved by the
     # V11 integration test and is never skipped on the automatic route.
-    monkeypatch.setattr("apps.worker.celery_app._fence_stage",
-                        lambda _key, _stage, state, **_kw: {"status": "CLAIMED", "owner_token": "test"}
-                        if state == "ATTEMPTING" else {"status": "DONE"})
+    monkeypatch.setattr(
+        "apps.worker.celery_app._fence_stage",
+        lambda _key, _stage, state, **_kw: (
+            {"status": "CLAIMED", "owner_token": "test"}
+            if state == "ATTEMPTING"
+            else {"status": "DONE"}
+        ),
+    )
     claim_key, window_start = xg_backfill_claim_key(
-        competition_id="allsvenskan", queued_at=datetime(2026, 6, 26, 12, tzinfo=UTC),
-        interval_seconds=6 * 60 * 60)
+        competition_id="allsvenskan",
+        queued_at=datetime(2026, 6, 26, 12, tzinfo=UTC),
+        interval_seconds=6 * 60 * 60,
+    )
 
     result = xg_history_backfill.run(
         queued_at_utc="2026-06-26T12:00:00Z",
@@ -1008,9 +1010,7 @@ def test_worker_forward_outcome_ledger_task_reports_safety_flags(monkeypatch) ->
     assert result["settlement_write"] is False
     assert result["candidate"] is True
     assert result["formal_recommendation"] is False
-    assert completed[0]["source_cursor"] == {
-        "analysis_created_at": "2026-06-29T12:00:00Z"
-    }
+    assert completed[0]["source_cursor"] == {"analysis_created_at": "2026-06-29T12:00:00Z"}
 
 
 def test_calibrated_materialization_failure_cannot_rollback_legacy_samples(
@@ -1058,9 +1058,7 @@ def test_calibrated_materialization_failure_cannot_rollback_legacy_samples(
 
     from apps.worker.celery_app import _materialize_validation_sample_projections
 
-    report = _materialize_validation_sample_projections(
-        engine, evaluated_at=evaluated_at
-    )
+    report = _materialize_validation_sample_projections(engine, evaluated_at=evaluated_at)
 
     assert report["window_rows"] == 1
     assert report["calibrated_error"] == "RuntimeError: calibrated boom"
@@ -1150,6 +1148,7 @@ def test_worker_tick_continues_and_reports_calibrated_error(
         "w2.tracking.forward_outcome_ledger.backfill_outcomes",
         lambda **kwargs: {"db_writes": 0, "unresolved_count": 0, "unresolved_fixture_ids": []},
     )
+
     def legacy_materialize(session: Any, *, now: datetime) -> dict[str, int]:
         session.add(
             ValidationSampleModel(
@@ -1191,18 +1190,19 @@ def test_worker_tick_continues_and_reports_calibrated_error(
     result = _run_forward_outcome_ledger(window="next7")
 
     assert result["status"] == "PASS"
-    assert result["validation_samples"]["calibrated_error"] == (
-        "RuntimeError: calibrated boom"
-    )
+    assert result["validation_samples"]["calibrated_error"] == ("RuntimeError: calibrated boom")
     from sqlalchemy import select
     from sqlalchemy.orm import Session
 
     with Session(engine) as session:
-        assert session.scalar(
-            select(ValidationSampleModel).where(
-                ValidationSampleModel.fixture_id == "tick-legacy-fixture"
+        assert (
+            session.scalar(
+                select(ValidationSampleModel).where(
+                    ValidationSampleModel.fixture_id == "tick-legacy-fixture"
+                )
             )
-        ) is not None
+            is not None
+        )
 
 
 def test_model_forecast_projection_refresh_targets_only_not_ready(
@@ -1373,9 +1373,14 @@ def test_worker_future_refresh_uses_allowlisted_live_client(monkeypatch) -> None
         "apps.worker.celery_app.run_future_refresh_task",
         fake_run_future_refresh_task,
     )
-    monkeypatch.setattr("apps.worker.celery_app._fence_stage",
-                        lambda _key, _stage, state, **_kw: {"status": "CLAIMED", "owner_token": "test"}
-                        if state == "ATTEMPTING" else {"status": "DONE"})
+    monkeypatch.setattr(
+        "apps.worker.celery_app._fence_stage",
+        lambda _key, _stage, state, **_kw: (
+            {"status": "CLAIMED", "owner_token": "test"}
+            if state == "ATTEMPTING"
+            else {"status": "DONE"}
+        ),
+    )
 
     result = future_fixture_refresh.run(
         competition_id="allsvenskan", task_key="checkpoint-refresh:runtime-unit"
@@ -1400,7 +1405,12 @@ def test_zero_evaluation_recording_is_not_complete() -> None:
     empty_pass = empty_report(enabled=True, recording_status="COMPLETE")
     assert merge_reports([empty_pass])["recording_status"] == "NOT_EXECUTED"
     assert merge_reports([empty_report(enabled=False)])["recording_status"] == "DISABLED"
-    assert merge_reports([merge_reports([empty_pass]), dict(empty_pass, evaluations=2)])["recording_status"] == "COMPLETE"
+    assert (
+        merge_reports([merge_reports([empty_pass]), dict(empty_pass, evaluations=2)])[
+            "recording_status"
+        ]
+        == "COMPLETE"
+    )
 
 
 def test_scheduler_checkpoint_batch_queries_persisted_due_plans_directly(monkeypatch) -> None:
@@ -1591,8 +1601,14 @@ def test_forward_outcome_ledger_feeds_retry_only_to_model_capture(
     )
 
     cards = [
-        {"fixture_id": "1570001", "simulation": {"status": "READY", "simulation": {"status": "READY"}}},
-        {"fixture_id": "1570002", "simulation": {"status": "READY", "simulation": {"status": "READY"}}},
+        {
+            "fixture_id": "1570001",
+            "simulation": {"status": "READY", "simulation": {"status": "READY"}},
+        },
+        {
+            "fixture_id": "1570002",
+            "simulation": {"status": "READY", "simulation": {"status": "READY"}},
+        },
     ]
 
     class FakeReadModel:

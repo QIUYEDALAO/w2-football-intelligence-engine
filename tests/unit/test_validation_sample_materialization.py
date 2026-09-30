@@ -146,7 +146,9 @@ def test_materialize_writes_in_window_samples() -> None:
         _seed_sample(session, fixture_id="1523202", evaluated_at=NOW - timedelta(hours=3))
         session.commit()
 
-        report = materialize_validation_samples(session, now=NOW, window_before_days=3, window_after_days=1)
+        report = materialize_validation_samples(
+            session, now=NOW, window_before_days=3, window_after_days=1
+        )
         session.commit()
 
     assert report["window_fixtures"] == 1
@@ -191,14 +193,18 @@ def test_materialize_freezes_out_of_window_rows() -> None:
 
     # 第二次物化：样本仍在窗口内 → 保留（deleted=0）。
     with Session(engine) as session:
-        report = materialize_validation_samples(session, now=NOW, window_before_days=3, window_after_days=1)
+        report = materialize_validation_samples(
+            session, now=NOW, window_before_days=3, window_after_days=1
+        )
         session.commit()
         assert report["deleted"] == 0
 
     # 窗口外：物化时间前进，样本开球已离开窗口 → 冻结不动（不删除）。
     later = NOW + timedelta(days=5)
     with Session(engine) as session:
-        report = materialize_validation_samples(session, now=later, window_before_days=3, window_after_days=1)
+        report = materialize_validation_samples(
+            session, now=later, window_before_days=3, window_after_days=1
+        )
         session.commit()
         assert report["window_rows"] == 0
         assert report["deleted"] == 0  # 窗口外冻结，不删除
@@ -223,7 +229,9 @@ def test_materialize_deletes_window_row_no_longer_a_sample() -> None:
         opp.state = "EVALUATED_NO_EDGE"
         session.commit()
 
-        report = materialize_validation_samples(session, now=NOW, window_before_days=3, window_after_days=1)
+        report = materialize_validation_samples(
+            session, now=NOW, window_before_days=3, window_after_days=1
+        )
         session.commit()
         assert report["window_rows"] == 0
         assert report["deleted"] == 1
@@ -254,9 +262,21 @@ def test_snapshot_sorted_desc_with_ah_before_totals() -> None:
         _seed_competition(session)
         _seed_fixture(session, fixture_id="early", kickoff=NOW - timedelta(hours=1))
         _seed_fixture(session, fixture_id="late", kickoff=NOW)
-        _seed_sample(session, fixture_id="early", market="ASIAN_HANDICAP", evaluated_at=NOW - timedelta(hours=2))
-        _seed_sample(session, fixture_id="early", market="TOTALS", evaluated_at=NOW - timedelta(hours=2))
-        _seed_sample(session, fixture_id="late", market="ASIAN_HANDICAP", evaluated_at=NOW - timedelta(hours=2))
+        _seed_sample(
+            session,
+            fixture_id="early",
+            market="ASIAN_HANDICAP",
+            evaluated_at=NOW - timedelta(hours=2),
+        )
+        _seed_sample(
+            session, fixture_id="early", market="TOTALS", evaluated_at=NOW - timedelta(hours=2)
+        )
+        _seed_sample(
+            session,
+            fixture_id="late",
+            market="ASIAN_HANDICAP",
+            evaluated_at=NOW - timedelta(hours=2),
+        )
         session.commit()
         materialize_validation_samples(session, now=NOW, window_before_days=3, window_after_days=1)
         session.commit()

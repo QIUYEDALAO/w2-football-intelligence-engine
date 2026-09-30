@@ -3,7 +3,6 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
-
 SCRIPT = Path(__file__).parents[2] / "scripts" / "quant" / "fit_track_b_output_calibration.py"
 SPEC = importlib.util.spec_from_file_location("fit_track_b_output_calibration", SCRIPT)
 assert SPEC and SPEC.loader
@@ -11,7 +10,9 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
-def _row(*, competition: str, market: str, selection: str, probability: float, y: float, stamp: str) -> dict:
+def _row(
+    *, competition: str, market: str, selection: str, probability: float, y: float, stamp: str
+) -> dict:
     return {
         "fixture_id": f"{competition}-{stamp}",
         "competition_id": competition,
@@ -35,10 +36,28 @@ def test_pava_serializes_merged_block_max_x_as_right_edge() -> None:
 
 def test_global_prior_is_partitioned_by_market_and_selection() -> None:
     rows = [
-        _row(competition="a", market="TOTALS", selection="OVER", probability=0.4, y=1.0, stamp="01"),
-        _row(competition="a", market="TOTALS", selection="UNDER", probability=0.4, y=0.0, stamp="02"),
-        _row(competition="a", market="ASIAN_HANDICAP", selection="HOME", probability=0.4, y=1.0, stamp="03"),
-        _row(competition="a", market="ASIAN_HANDICAP", selection="AWAY", probability=0.4, y=0.0, stamp="04"),
+        _row(
+            competition="a", market="TOTALS", selection="OVER", probability=0.4, y=1.0, stamp="01"
+        ),
+        _row(
+            competition="a", market="TOTALS", selection="UNDER", probability=0.4, y=0.0, stamp="02"
+        ),
+        _row(
+            competition="a",
+            market="ASIAN_HANDICAP",
+            selection="HOME",
+            probability=0.4,
+            y=1.0,
+            stamp="03",
+        ),
+        _row(
+            competition="a",
+            market="ASIAN_HANDICAP",
+            selection="AWAY",
+            probability=0.4,
+            y=0.0,
+            stamp="04",
+        ),
     ]
 
     global_curves, _ = MODULE._fit_hierarchical_maps(rows, 20.0)
@@ -54,7 +73,9 @@ def test_global_prior_is_partitioned_by_market_and_selection() -> None:
 
 
 def test_cell_shrinkage_is_continuous_across_old_n20_boundary() -> None:
-    row = _row(competition="a", market="TOTALS", selection="OVER", probability=0.5, y=1.0, stamp="01")
+    row = _row(
+        competition="a", market="TOTALS", selection="OVER", probability=0.5, y=1.0, stamp="01"
+    )
     global_curves = {("TOTALS", "OVER"): [(1.0, 0.25)]}
     cell_curves = {("TOTALS", "OVER", "a"): [(1.0, 0.75)]}
 

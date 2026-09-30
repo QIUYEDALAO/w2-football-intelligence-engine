@@ -5,29 +5,28 @@ status_first_visible_at / pit_proven，准入 READY 或命中目标 reason。
 （``build_saved_raw_plan`` 派生 F9 快照、``history_rows_from_fixture`` 派生 F6
 交锋），再经生产 upsert 构造器落库，最后 DB 实读证明字段由构造器真实写入。
 """
+
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
-import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
-
-from w2.infrastructure.database import Base
-from w2.infrastructure.persistence.factor_model_models import CanonicalTeamMatchHistoryModel
-from w2.infrastructure.persistence.future_refresh_models import TeamXgRollingSnapshotModel
-from w2.factor_model.remediation import history_rows_from_fixture
-from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
-from w2.ingestion.xg_backfill import XgBackfillConfig, XgHistoryBackfillService
-from w2.strategy.ah_ou_decision import build_ah_ou_selections
-
 from tests.unit.test_xg_backfill_materialization import (
     NOW,
     NoCallClient,
     SavedRawRepository,
     finished_fixture,
 )
+
+from w2.factor_model.remediation import history_rows_from_fixture
+from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.factor_model_models import CanonicalTeamMatchHistoryModel
+from w2.infrastructure.persistence.future_refresh_models import TeamXgRollingSnapshotModel
+from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+from w2.ingestion.xg_backfill import XgBackfillConfig, XgHistoryBackfillService
+from w2.strategy.ah_ou_decision import build_ah_ou_selections
 
 DECISION_AT = NOW + timedelta(days=1) - timedelta(hours=2)  # 目标 kickoff - 2h
 
@@ -119,8 +118,10 @@ def test_finished_fixture_items_filter_non_ft() -> None:
     payload = {
         "response": [
             finished_fixture("f6-ft", NOW - timedelta(days=3)),
-            finished_fixture("f6-ns", NOW - timedelta(days=3),
-                             ),
+            finished_fixture(
+                "f6-ns",
+                NOW - timedelta(days=3),
+            ),
         ]
     }
     payload["response"][1]["fixture"]["status"]["short"] = "NS"
@@ -167,8 +168,13 @@ def test_f9_first_capture_after_decision_is_refused_by_admission() -> None:
             ]
 
         def canonical_match_history_for_teams(
-            self, team_ids, *, before, limit_per_team=20,
-            opponent_w2_id=None, fixture_status="FT",
+            self,
+            team_ids,
+            *,
+            before,
+            limit_per_team=20,
+            opponent_w2_id=None,
+            fixture_status="FT",
         ):
             return []
 
@@ -180,8 +186,12 @@ def test_f9_first_capture_after_decision_is_refused_by_admission() -> None:
         kickoff=NOW + timedelta(days=1),
         competition_id="allsvenskan",
         season="2026",
-        ah_line=-0.5, ah_home_odds=1.8, ah_away_odds=2.2,
-        ou_line=2.5, ou_over_odds=1.9, ou_under_odds=1.9,
+        ah_line=-0.5,
+        ah_home_odds=1.8,
+        ah_away_odds=2.2,
+        ou_line=2.5,
+        ou_over_odds=1.9,
+        ou_under_odds=1.9,
     )
     # as_of_time = max(kickoff, captured_at) >= captured_at，所以晚捕获先触发
     # AS_OF_AFTER_DECISION（方向=0）。
@@ -204,8 +214,14 @@ def test_f9_first_capture_after_decision_is_refused_by_admission_backtest() -> N
                 fixture_payload=finished_fixture(f"bt{index}", NOW - timedelta(days=5 - index)),
                 statistics_payload={
                     "response": [
-                        {"team": {"id": 10}, "statistics": [{"type": "expected_goals", "value": "1.0"}]},
-                        {"team": {"id": 20}, "statistics": [{"type": "expected_goals", "value": "0.5"}]},
+                        {
+                            "team": {"id": 10},
+                            "statistics": [{"type": "expected_goals", "value": "1.0"}],
+                        },
+                        {
+                            "team": {"id": 20},
+                            "statistics": [{"type": "expected_goals", "value": "0.5"}],
+                        },
                     ]
                 },
                 captured_at=NOW,

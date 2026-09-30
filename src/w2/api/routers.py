@@ -694,17 +694,17 @@ def dashboard_intelligence_validation_calibrated(
             raise HTTPException(status_code=400, detail="invalid date") from None
     if days is not None:
         try:
-            anchor = (
+            validation_anchor = (
                 datetime.fromisoformat(date).date()
                 if date
                 else datetime.now(ZoneInfo(timezone)).date()
             )
         except (ValueError, ZoneInfoNotFoundError):
             raise HTTPException(status_code=400, detail="invalid date or timezone") from None
-        start = anchor - timedelta(days=days - 1)
+        start_day = validation_anchor - timedelta(days=days - 1)
         rows = [
             row for row in rows if row["date"] is not None
-            and start <= datetime.fromisoformat(row["date"]).date() <= anchor
+            and start_day <= datetime.fromisoformat(row["date"]).date() <= validation_anchor
         ]
     total_before_page = len(rows)
     if offset:

@@ -820,7 +820,9 @@ class XgHistoryBackfillService:
                                 else None
                             ),
                             "pit_proven": snapshot.pit_proven,
-                            "decision_at": iso(snapshot.decision_at) if snapshot.decision_at else None,
+                            "decision_at": iso(snapshot.decision_at)
+                            if snapshot.decision_at
+                            else None,
                             "source_matches": list(snapshot.source_matches),
                         }
                     )
@@ -915,9 +917,7 @@ class ProStatisticsBackfillService:
         self.now = now or datetime.now(UTC)
         entries = CompetitionRegistry().entries()
         self._provider_league_by_competition = {
-            competition_id: str(
-                entries[competition_id].provider_mapping["api_football_league_id"]
-            )
+            competition_id: str(entries[competition_id].provider_mapping["api_football_league_id"])
             for competition_id in PRO_BACKFILL_BATCHES[config.batch]
         }
         self._competition_by_scope = {
@@ -984,14 +984,10 @@ class ProStatisticsBackfillService:
             if self.config.batch == 4:
                 # 批次 4：试探只从 2025 部分取，2026 部分不做试探、直接进 bulk。
                 season_2025 = [
-                    fixture
-                    for fixture in fixtures
-                    if self._fixture_season(fixture) == "2025"
+                    fixture for fixture in fixtures if self._fixture_season(fixture) == "2025"
                 ]
                 season_2026 = [
-                    fixture
-                    for fixture in fixtures
-                    if self._fixture_season(fixture) == "2026"
+                    fixture for fixture in fixtures if self._fixture_season(fixture) == "2026"
                 ]
                 probe = season_2025
             else:
@@ -1023,9 +1019,7 @@ class ProStatisticsBackfillService:
                     bulk_fixtures_by_competition[competition_id] = season_2026
                 else:
                     verified.add(competition_id)
-                    bulk_fixtures_by_competition[competition_id] = (
-                        probe[pilot_size:] + season_2026
-                    )
+                    bulk_fixtures_by_competition[competition_id] = probe[pilot_size:] + season_2026
             else:
                 verified.add(competition_id)
                 bulk_fixtures_by_competition[competition_id] = (
@@ -1138,8 +1132,7 @@ class ProStatisticsBackfillService:
         raw_after = self.repository.raw_payload_count("fixtures")
         if raw_after - raw_before != len(hashes):
             raise XgBackfillError(
-                f"PRO_FIXTURE_MANIFEST_RAW_COUNT_MISMATCH:"
-                f"{raw_before}:{raw_after}:{len(hashes)}"
+                f"PRO_FIXTURE_MANIFEST_RAW_COUNT_MISMATCH:{raw_before}:{raw_after}:{len(hashes)}"
             )
         if any(
             not self.repository.raw_payload_exists(sha256=digest, endpoint="fixtures")
@@ -1198,7 +1191,7 @@ class ProStatisticsBackfillService:
         return result
 
     def _statistics_fixture_ids_any(self) -> set[str]:
-        """Return every fixture that has any statistics raw payload, regardless of xG completeness."""
+        """Return fixtures with statistics raw payload, regardless of xG completeness."""
         fetched: set[str] = set()
         for raw in self.repository.raw_payloads("statistics"):
             payload = raw.get("payload") if isinstance(raw, dict) else None

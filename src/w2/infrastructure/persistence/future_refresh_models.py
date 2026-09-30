@@ -266,7 +266,7 @@ class TeamXgRollingSnapshotModel(Base):
     # must never be treated as point-in-time proven evidence.
     pit_proven: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     decision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    source_matches: Mapped[list | None] = mapped_column(JSON)
+    source_matches: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
     proof_pending: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     source_pit_requested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 

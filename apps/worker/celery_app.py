@@ -35,8 +35,8 @@ def _fence_stage(
     error: str | None = None,
     *,
     owner_token: str | None = None,
-    stored_result: dict | None = None,
-) -> dict:
+    stored_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Atomically claim or CAS a stage. A state is never ownership."""
     from pathlib import Path
     from uuid import uuid4
@@ -67,7 +67,7 @@ def _fence_stage(
         applied = revision_session.scalars(text("SELECT version_num FROM alembic_version")).all()
     if applied != [expected_head]:
         raise RuntimeError("PROVIDER_PG_MIGRATION_HEAD_REQUIRED")
-    def observed(row):
+    def observed(row: Fence | None) -> dict[str, Any]:
         if row is None:
             return {"status": "BLOCKED", "reason": "CLAIM_NOT_FOUND"}
         if row.state == "DONE":
@@ -104,29 +104,32 @@ def _fence_stage(
                 updated_at=datetime.now(UTC),
             )
         )
-        if changed.rowcount != 1:
+        if getattr(changed, "rowcount", None) != 1:
             session.rollback()
             raise RuntimeError("FENCE_OWNER_STATE_CONFLICT")
         session.commit()
         return {"status": state, "stored_result": stored_result}
 
 
-def _execute_owned_stage(key: str, stage: str, action: Callable[[], dict]) -> dict:
+def _execute_owned_stage(
+    key: str, stage: str, action: Callable[[], dict[str, Any]]
+) -> dict[str, Any]:
     try:
         claim = _fence_stage(key, stage, "ATTEMPTING")
     except Exception as exc:
-        exc.provider_calls_known = 0
-        exc.provider_calls_unknown = False
+        exc.__dict__["provider_calls_known"] = 0
+        exc.__dict__["provider_calls_unknown"] = False
         raise
     if claim["status"] == "DONE":
-        if not isinstance(claim.get("stored_result"), dict):
+        stored = claim.get("stored_result")
+        if not isinstance(stored, dict):
             raise RuntimeError(f"{stage}:DONE_RESULT_MISSING")
-        return claim["stored_result"]
+        return stored
     if claim["status"] != "CLAIMED":
-        exc = RuntimeError(f"{stage}:{claim['status']}:{claim.get('reason', '')}")
-        exc.provider_calls_known = None
-        exc.provider_calls_unknown = True
-        raise exc
+        blocked_error = RuntimeError(f"{stage}:{claim['status']}:{claim.get('reason', '')}")
+        blocked_error.__dict__["provider_calls_known"] = None
+        blocked_error.__dict__["provider_calls_unknown"] = True
+        raise blocked_error
     token = claim["owner_token"]
     try:
         result = action()
@@ -871,9 +874,10 @@ def future_fixture_refresh(
         if owned_pipeline:
             task_claim = _fence_stage(key, "task", "ATTEMPTING")
             if task_claim["status"] == "DONE":
-                if not isinstance(task_claim.get("stored_result"), dict):
+                stored = task_claim.get("stored_result")
+                if not isinstance(stored, dict):
                     raise RuntimeError("TASK_DONE_RESULT_MISSING")
-                return task_claim["stored_result"]
+                return stored
             if task_claim["status"] != "CLAIMED":
                 raise RuntimeError(f"TASK_{task_claim['status']}:{task_claim.get('reason', '')}")
         if os.environ.get("W2_H2H_AUTO_CAPTURE_ENABLED", "false").lower() == "true":
@@ -891,14 +895,15 @@ def future_fixture_refresh(
         refresh_claim = (_fence_stage(key, "refresh_forward", "ATTEMPTING") if owned_pipeline
                          else {"status": "CLAIMED", "owner_token": None})
         if refresh_claim["status"] == "DONE":
-            if not isinstance(refresh_claim.get("stored_result"), dict):
+            stored = refresh_claim.get("stored_result")
+            if not isinstance(stored, dict):
                 raise RuntimeError("REFRESH_DONE_RESULT_MISSING")
             if task_claim and task_claim["status"] == "CLAIMED":
                 _fence_stage(
                     key, "task", "DONE", owner_token=task_claim["owner_token"],
-                    stored_result=refresh_claim["stored_result"],
+                    stored_result=stored,
                 )
-            return refresh_claim["stored_result"]
+            return stored
         if refresh_claim["status"] != "CLAIMED":
             raise RuntimeError(f"REFRESH_{refresh_claim['status']}")
     except Exception as exc:
@@ -911,8 +916,8 @@ def future_fixture_refresh(
             except Exception:
                 logger.exception("task terminal audit failed; task claim remains blocking")
         elif task_claim is None:
-            exc.provider_calls_known = 0
-            exc.provider_calls_unknown = False
+            exc.__dict__["provider_calls_known"] = 0
+            exc.__dict__["provider_calls_unknown"] = False
         return {
             "task_id": task_id, "task_key": key, "status": "BLOCKED", "audit_status": "BLOCKED",
             "result": {"blockers": [f"TASK_STAGE_BLOCKED:{type(exc).__name__}:{exc}"],
@@ -974,7 +979,7 @@ def future_fixture_refresh(
             [*recording_reports, *_recording_report_of(opportunity_write)]
         )
         ah_fact_report = _merge_ah_fact_reports(ah_fact_reports)
-        task_result = {
+        task_result: dict[str, Any] = {
             "task_id": audit.task_id,
             "task_key": audit.key,
             "status": _task_status(
@@ -1007,6 +1012,8 @@ def future_fixture_refresh(
             task_result.pop("h2h_auto_capture", None)
             task_result.pop("xg_auto_capture", None)
         if owned_pipeline:
+            if task_claim is None:
+                raise RuntimeError("TASK_CLAIM_MISSING")
             _fence_stage(
                 key, "refresh_forward", "DONE", owner_token=refresh_claim["owner_token"],
                 stored_result=task_result,
@@ -1304,6 +1311,7 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
             "unresolved_fixture_ids": [],
         }
     )
+    track_d_settlement: dict[str, Any]
     try:
         from sqlalchemy.orm import Session as _OrmSession
 
@@ -1332,7 +1340,7 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
     # 避免每次请求对推荐表全量重算。结果刷新 + 结算回填之后才物化，保证
     # settlement / profit_units / settled_at 已随结果落库。物化失败不阻断
     # ledger 主流程（每 10 分钟重试，最终一致），但把错误带进返回值供监控。
-    validation_sample_report: dict[str, object] = {"window_rows": 0, "deleted": 0}
+    validation_sample_report: dict[str, Any] = {"window_rows": 0, "deleted": 0}
     try:
         validation_sample_report = _materialize_validation_sample_projections(
             repository.engine, evaluated_at=evaluated_at
@@ -1342,7 +1350,8 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         # result task. The failure is surfaced to the runtime audit and retried
         # only through the idempotent post-event writer.
         raise
-    if (validation_sample_report.get("v3") or {}).get("status") == "BLOCKED":
+    v3_sample_report = validation_sample_report.get("v3")
+    if isinstance(v3_sample_report, dict) and v3_sample_report.get("status") == "BLOCKED":
         return {"status": "BLOCKED", "source_cursor": work.source_cursor,
                 "validation_samples": validation_sample_report,
                 "pending_settlement_count": settlement.get("unresolved_count", 0),
@@ -1423,7 +1432,7 @@ def _materialize_validation_sample_projections(
     from w2.prematch.candidate_notifications import materialize_validation_samples
 
     with _OrmSession(engine) as _legacy_session:
-        validation_sample_report = materialize_validation_samples(
+        validation_sample_report: dict[str, Any] = materialize_validation_samples(
             _legacy_session, now=evaluated_at
         )
         _legacy_session.commit()

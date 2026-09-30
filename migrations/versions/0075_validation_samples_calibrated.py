@@ -50,8 +50,13 @@ def upgrade() -> None:
         sa.Column("filter_decision", sa.String(16), nullable=False),
         sa.Column("param_version", sa.String(64), nullable=False),
         sa.Column("warmup", sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.CheckConstraint("market in ('ASIAN_HANDICAP', 'TOTALS')", name="ck_validation_samples_calibrated_market"),
-        sa.CheckConstraint("filter_decision in ('KEPT', 'FILTERED')", name="ck_validation_samples_calibrated_filter_decision"),
+        sa.CheckConstraint(
+            "market in ('ASIAN_HANDICAP', 'TOTALS')", name="ck_validation_samples_calibrated_market"
+        ),
+        sa.CheckConstraint(
+            "filter_decision in ('KEPT', 'FILTERED')",
+            name="ck_validation_samples_calibrated_filter_decision",
+        ),
     )
     op.create_index("ix_validation_samples_calibrated_kickoff", table, ["kickoff_utc"])
     op.create_index("ix_validation_samples_calibrated_competition", table, ["competition_id"])

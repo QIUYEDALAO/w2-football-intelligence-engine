@@ -19,7 +19,6 @@ from w2.tracking.forward_ledger_performance import (
     _rps_five_state,
 )
 
-
 # --- POSTMORTEM ---
 
 def _review_row(

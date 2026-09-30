@@ -271,8 +271,8 @@ def materialize_calibrated_validation_samples(session: Session) -> dict[str, int
         filtered += decision == "FILTERED"
     seen = {(sample.fixture_id, sample.market) for sample in samples}
     deleted = 0
-    for key, row in existing.items():
-        if key not in seen:
+    for identity, row in existing.items():
+        if identity not in seen:
             session.delete(row)
             deleted += 1
     session.flush()
@@ -338,7 +338,8 @@ def evaluate_fast_criteria(
         profits = [row.get("profit_units") for row in items]
         if not profits or any(not isinstance(value, (int, float)) for value in profits):
             return None
-        return sum(1 for value in profits if float(value) > 0) / len(profits)
+        numeric = [float(value) for value in profits if isinstance(value, (int, float))]
+        return sum(value > 0 for value in numeric) / len(numeric)
     kept_rate, filtered_rate = positive_rate(kept), positive_rate(filtered)
     if kept_rate is None or filtered_rate is None or not filtered_rate < kept_rate:
         return False
@@ -348,8 +349,12 @@ def evaluate_fast_criteria(
         values = (*predicted, *realized)
         if not predicted or any(not isinstance(value, (int, float)) for value in values):
             return None
-        predicted_mean = sum(float(value) for value in predicted) / len(predicted)
-        realized_mean = sum(float(value) for value in realized) / len(realized)
+        predicted_mean = sum(
+            float(value) for value in predicted if isinstance(value, (int, float))
+        ) / len(predicted)
+        realized_mean = sum(
+            float(value) for value in realized if isinstance(value, (int, float))
+        ) / len(realized)
         return predicted_mean - realized_mean
     for group in groups:
         group_kept = [

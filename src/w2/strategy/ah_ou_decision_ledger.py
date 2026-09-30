@@ -18,13 +18,19 @@ rest of the batch.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from w2.domain.ah_ou_decision_identity import (
+    build_ah_ou_decision_id,
+)
+from w2.domain.ah_ou_decision_identity import (
+    canonical_decision_time as _iso,
+)
 from w2.domain.canonical_serialization import HashDomain, canonical_sha256
 from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
     AH_OU_DECISION_LEDGER_SCHEMA,
@@ -45,15 +51,6 @@ def _decimal_text(value: Any) -> str:
 
 
 canonical_decision_score_text = _decimal_text
-
-
-def _iso(value: datetime) -> str:
-    # SQLite stores DateTime(timezone=True) as a naive value on read-back; treat
-    # a naive value as UTC so the same logical instant hashes and compares equal
-    # against the aware input.
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=UTC)
-    return value.astimezone(UTC).isoformat()
 
 
 def _frozen_json(value: Any) -> str:
@@ -155,43 +152,6 @@ def build_ah_ou_input_hash(
         "quote_line": str(quote.get("line")),
         "quote_side_prices": quote.get("side_prices"),
     }
-    return canonical_sha256(body, domain=_DECISION_HASH_DOMAIN)
-
-
-def build_ah_ou_decision_id(
-    *,
-    fixture_id: str,
-    market: str,
-    decision_at: datetime,
-    model_version: str,
-    calibration_version: str,
-    input_hash: str,
-    quote_identity_hash: str,
-    source_capture_sha256: str,
-    direction: str | None,
-    score: str,
-    skip_reason: str | None,
-    selected: bool,
-    terms_hash: str | None = None,
-) -> str:
-    """Evaluate step: identity of the decision, not the inputs."""
-    body = {
-        "contract": "w2.ah_ou_decision_ledger.v3.1" if terms_hash else AH_OU_DECISION_LEDGER_SCHEMA,
-        "fixture_id": fixture_id,
-        "market": market,
-        "decision_at": _iso(decision_at),
-        "model_version": model_version,
-        "calibration_version": calibration_version,
-        "input_hash": input_hash,
-        "quote_identity_hash": quote_identity_hash,
-        "source_capture_sha256": source_capture_sha256,
-        "direction": direction,
-        "score": score,
-        "skip_reason": skip_reason,
-        "selected": selected,
-    }
-    if terms_hash:
-        body["terms_hash"] = terms_hash
     return canonical_sha256(body, domain=_DECISION_HASH_DOMAIN)
 
 

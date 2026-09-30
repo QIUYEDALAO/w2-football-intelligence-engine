@@ -39,18 +39,36 @@ def _seed(
     session, fixture="f1", evaluation_id="e1", *, settlement="PENDING", profit=None, score=None
 ):
     evaluated = datetime(2026, 9, 20, tzinfo=UTC)
-    session.add(ValidationSampleModel(
-        fixture_id=fixture, market="ASIAN_HANDICAP", selection="HOME", exact_line="-0.5",
-        decimal_odds=2.0, evaluation_id=evaluation_id, settlement=settlement,
-        profit_units=profit, score=score, projected_at=evaluated, evaluated_at=evaluated,
-        kickoff_utc=evaluated + timedelta(hours=1), current_ev=0.1,
-    ))
-    session.add(DynamicPrematchEvaluationModel(
-        evaluation_id=evaluation_id, identity_hash=evaluation_id * 64, fixture_id=fixture,
-        market="ASIAN_HANDICAP", selection="HOME", checkpoint="FINAL",
-        evaluated_at=evaluated, original_state=LEGAL_STATE,
-        payload={"model_settlement_distribution": {"WIN": 0.8, "HALF_WIN": 0.0}},
-    ))
+    session.add(
+        ValidationSampleModel(
+            fixture_id=fixture,
+            market="ASIAN_HANDICAP",
+            selection="HOME",
+            exact_line="-0.5",
+            decimal_odds=2.0,
+            evaluation_id=evaluation_id,
+            settlement=settlement,
+            profit_units=profit,
+            score=score,
+            projected_at=evaluated,
+            evaluated_at=evaluated,
+            kickoff_utc=evaluated + timedelta(hours=1),
+            current_ev=0.1,
+        )
+    )
+    session.add(
+        DynamicPrematchEvaluationModel(
+            evaluation_id=evaluation_id,
+            identity_hash=evaluation_id * 64,
+            fixture_id=fixture,
+            market="ASIAN_HANDICAP",
+            selection="HOME",
+            checkpoint="FINAL",
+            evaluated_at=evaluated,
+            original_state=LEGAL_STATE,
+            payload={"model_settlement_distribution": {"WIN": 0.8, "HALF_WIN": 0.0}},
+        )
+    )
     session.commit()
 
 
@@ -61,13 +79,25 @@ def test_b1_v3_decision_fields_freeze_and_conflict_is_counted():
         materialize_calibrated_validation_samples(session)
         row = session.scalar(select(CalibratedValidationSampleModel))
         assert row is not None and row.param_version == PARAM_VERSION
-        frozen = (row.filter_decision, row.bias_at_decision, row.ev_corrected, row.warmup, row.param_version)
+        frozen = (
+            row.filter_decision,
+            row.bias_at_decision,
+            row.ev_corrected,
+            row.warmup,
+            row.param_version,
+        )
         source = session.scalar(select(ValidationSampleModel))
         source.current_ev = 0.9
         session.commit()
         second = materialize_calibrated_validation_samples(session)
         session.refresh(row)
-        assert (row.filter_decision, row.bias_at_decision, row.ev_corrected, row.warmup, row.param_version) == frozen
+        assert (
+            row.filter_decision,
+            row.bias_at_decision,
+            row.ev_corrected,
+            row.warmup,
+            row.param_version,
+        ) == frozen
         assert second["frozen_conflicts"] == 1
 
 
@@ -118,33 +148,68 @@ def _seed_forward_batch(session, *, bad_filtered_gap=False):
         evaluation_id = f"forward-e-{index}"
         evaluated = base + timedelta(minutes=index)
         payload_value = 0.1 if bad_filtered_gap and index == 53 else 0.8
-        session.add(ValidationSampleModel(
-            fixture_id=fixture, market="ASIAN_HANDICAP", selection="HOME", exact_line="-0.5",
-            decimal_odds=2.0, evaluation_id=evaluation_id, settlement="LOSS",
-            profit_units=1.0 if index == 52 else (-1.0 if index == 53 else 0.0),
-            projected_at=evaluated, evaluated_at=evaluated, kickoff_utc=evaluated + timedelta(minutes=1),
-            current_ev=2.0 if index == 52 else (0.1 if index == 53 else 0.0),
-        ))
-        session.add(DynamicPrematchEvaluationModel(
-            evaluation_id=evaluation_id, identity_hash=(evaluation_id + "x") * 64,
-            fixture_id=fixture, market="ASIAN_HANDICAP", selection="HOME", checkpoint="FINAL",
-            evaluated_at=evaluated, original_state=LEGAL_STATE,
-            payload={"model_settlement_distribution": {"WIN": payload_value, "HALF_WIN": 0.0}},
-        ))
+        session.add(
+            ValidationSampleModel(
+                fixture_id=fixture,
+                market="ASIAN_HANDICAP",
+                selection="HOME",
+                exact_line="-0.5",
+                decimal_odds=2.0,
+                evaluation_id=evaluation_id,
+                settlement="LOSS",
+                profit_units=1.0 if index == 52 else (-1.0 if index == 53 else 0.0),
+                projected_at=evaluated,
+                evaluated_at=evaluated,
+                kickoff_utc=evaluated + timedelta(minutes=1),
+                current_ev=2.0 if index == 52 else (0.1 if index == 53 else 0.0),
+            )
+        )
+        session.add(
+            DynamicPrematchEvaluationModel(
+                evaluation_id=evaluation_id,
+                identity_hash=(evaluation_id + "x") * 64,
+                fixture_id=fixture,
+                market="ASIAN_HANDICAP",
+                selection="HOME",
+                checkpoint="FINAL",
+                evaluated_at=evaluated,
+                original_state=LEGAL_STATE,
+                payload={"model_settlement_distribution": {"WIN": payload_value, "HALF_WIN": 0.0}},
+            )
+        )
         capture_id = f"capture-{index}"
-        session.add(MatchdayEndpointCaptureModel(
-            capture_id=capture_id, fixture_id=fixture, endpoint="fixtures",
-            sanitized_params={}, params_hash=(capture_id + "p") * 32, request_task_key=capture_id,
-            attempt=1, requested_at=evaluated, provider_captured_at=evaluated + timedelta(minutes=2),
-            status_code=200, elapsed_ms=1, response_count=1, quota_values={},
-            raw_payload_sha256=(capture_id + "h") * 32, capture_status="SUCCESS",
-        ))
-        session.add(ResultModel(
-            id=f"result-{index}", fixture_id=fixture, home_goals=0, away_goals=1,
-            result_status="FINAL", confirmed_at=evaluated + timedelta(minutes=2),
-            source_payload_sha256=(fixture + "s") * 32, source_capture_id=capture_id,
-            result_hash=(fixture + "r") * 32,
-        ))
+        session.add(
+            MatchdayEndpointCaptureModel(
+                capture_id=capture_id,
+                fixture_id=fixture,
+                endpoint="fixtures",
+                sanitized_params={},
+                params_hash=(capture_id + "p") * 32,
+                request_task_key=capture_id,
+                attempt=1,
+                requested_at=evaluated,
+                provider_captured_at=evaluated + timedelta(minutes=2),
+                status_code=200,
+                elapsed_ms=1,
+                response_count=1,
+                quota_values={},
+                raw_payload_sha256=(capture_id + "h") * 32,
+                capture_status="SUCCESS",
+            )
+        )
+        session.add(
+            ResultModel(
+                id=f"result-{index}",
+                fixture_id=fixture,
+                home_goals=0,
+                away_goals=1,
+                result_status="FINAL",
+                confirmed_at=evaluated + timedelta(minutes=2),
+                source_payload_sha256=(fixture + "s") * 32,
+                source_capture_id=capture_id,
+                result_hash=(fixture + "r") * 32,
+            )
+        )
     session.commit()
 
 
@@ -169,17 +234,33 @@ def test_b6_fast_criteria_fails_only_calibration_gap_after_materialization():
 def test_c3_unsettled_forward_row_is_excluded_but_missing_prediction_fails_closed():
     rows = [
         {"forward": True, "warmup": False, "settlement": "PENDING", "filter_decision": "KEPT"},
-        {"forward": True, "warmup": False, "settlement": "WIN", "filter_decision": "KEPT",
-         "market": "ASIAN_HANDICAP", "selection": "HOME", "bias_at_decision": 0.1,
-         "profit_units": 1.0, "predicted_success": None, "realized_success": 1.0},
+        {
+            "forward": True,
+            "warmup": False,
+            "settlement": "WIN",
+            "filter_decision": "KEPT",
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME",
+            "bias_at_decision": 0.1,
+            "profit_units": 1.0,
+            "predicted_success": None,
+            "realized_success": 1.0,
+        },
     ]
     assert not evaluate_fast_criteria(rows, minimum_kept=1)
 
 
 def test_c4_missing_forward_is_not_treated_as_forward():
-    assert not evaluate_fast_criteria([{
-        "warmup": False, "settlement": "WIN", "filter_decision": "KEPT",
-    }], minimum_kept=1)
+    assert not evaluate_fast_criteria(
+        [
+            {
+                "warmup": False,
+                "settlement": "WIN",
+                "filter_decision": "KEPT",
+            }
+        ],
+        minimum_kept=1,
+    )
 
 
 def test_c2_date_filters_samples_but_forward_progress_uses_all_days(monkeypatch):
@@ -188,20 +269,35 @@ def test_c2_date_filters_samples_but_forward_progress_uses_all_days(monkeypatch)
     second = FORWARD_START_UTC + timedelta(days=2)
     with Session(engine) as session:
         for index, evaluated in enumerate((first, second)):
-            session.add(CalibratedValidationSampleModel(
-                fixture_id=f"api-{index}", market="ASIAN_HANDICAP", selection="HOME",
-                exact_line="-0.5", decimal_odds=2.0, evaluation_id=f"e-{index}",
-                settlement="WIN", projected_at=evaluated, evaluated_at=evaluated,
-                kickoff_utc=evaluated + timedelta(hours=1), current_ev=0.1,
-                filter_decision="KEPT", param_version=PARAM_VERSION, warmup=False,
-            ))
+            session.add(
+                CalibratedValidationSampleModel(
+                    fixture_id=f"api-{index}",
+                    market="ASIAN_HANDICAP",
+                    selection="HOME",
+                    exact_line="-0.5",
+                    decimal_odds=2.0,
+                    evaluation_id=f"e-{index}",
+                    settlement="WIN",
+                    projected_at=evaluated,
+                    evaluated_at=evaluated,
+                    kickoff_utc=evaluated + timedelta(hours=1),
+                    current_ev=0.1,
+                    filter_decision="KEPT",
+                    param_version=PARAM_VERSION,
+                    warmup=False,
+                )
+            )
         session.commit()
+
     class Repo:
         def _database_engine(self):
             return engine
+
     class Service:
         repository = Repo()
+
     import w2.api.routers as routers
+
     monkeypatch.setattr(routers, "service", Service())
     response = routers.dashboard_intelligence_validation_calibrated(
         Request({"type": "http", "method": "GET", "path": "/", "headers": []}),
@@ -217,28 +313,47 @@ def test_original_profit_summary_ignores_pagination_and_pending() -> None:
         for index, (settlement, profit) in enumerate(
             (("WIN", 0.95), ("LOSS", -1.0), ("PENDING", None))
         ):
-            session.add(ValidationSampleModel(
-                fixture_id=f"profit-{index}", market="TOTALS", selection="OVER",
-                exact_line="2.5", decimal_odds=1.95, evaluation_id=f"profit-e-{index}",
-                settlement=settlement, profit_units=profit,
-                calibration_identity="v2",
-                projected_at=datetime(2026, 8, index + 1, tzinfo=UTC),
-                kickoff_utc=datetime(2026, 8, index + 1, 16, tzinfo=UTC),
-            ))
-        session.add(ValidationSampleModel(
-            fixture_id="old-model", market="TOTALS", selection="UNDER", exact_line="2.5",
-            decimal_odds=2.0, evaluation_id="old-e", settlement="WIN",
-            profit_units=1.0, calibration_identity="v1",
-            projected_at=datetime(2026, 7, 1, tzinfo=UTC),
-            kickoff_utc=datetime(2026, 7, 1, 16, tzinfo=UTC),
-        ))
+            session.add(
+                ValidationSampleModel(
+                    fixture_id=f"profit-{index}",
+                    market="TOTALS",
+                    selection="OVER",
+                    exact_line="2.5",
+                    decimal_odds=1.95,
+                    evaluation_id=f"profit-e-{index}",
+                    settlement=settlement,
+                    profit_units=profit,
+                    calibration_identity="v2",
+                    projected_at=datetime(2026, 8, index + 1, tzinfo=UTC),
+                    kickoff_utc=datetime(2026, 8, index + 1, 16, tzinfo=UTC),
+                )
+            )
+        session.add(
+            ValidationSampleModel(
+                fixture_id="old-model",
+                market="TOTALS",
+                selection="UNDER",
+                exact_line="2.5",
+                decimal_odds=2.0,
+                evaluation_id="old-e",
+                settlement="WIN",
+                profit_units=1.0,
+                calibration_identity="v1",
+                projected_at=datetime(2026, 7, 1, tzinfo=UTC),
+                kickoff_utc=datetime(2026, 7, 1, 16, tzinfo=UTC),
+            )
+        )
         session.commit()
+
     class Repo:
         def _database_engine(self):
             return engine
+
     service = ReadModelService(repository=Repo())
     rows, total = service.dashboard_validation_samples(
-        anchor=datetime(2026, 8, 3, tzinfo=UTC).date(), days=1, limit=1,
+        anchor=datetime(2026, 8, 3, tzinfo=UTC).date(),
+        days=1,
+        limit=1,
     )
     assert total == len(rows) == 1
     all_rows, all_total = service.dashboard_validation_samples(limit=50)
@@ -246,7 +361,8 @@ def test_original_profit_summary_ignores_pagination_and_pending() -> None:
     assert [row["fixture_id"] for row in all_rows] == ["profit-2", "profit-1", "profit-0"]
     assert service.dashboard_validation_cumulative_profit_units() == -0.05
     assert service.dashboard_validation_profit_summary() == {
-        "profit_units": -0.05, "profit_units_with_rebate": -0.001,
+        "profit_units": -0.05,
+        "profit_units_with_rebate": -0.001,
     }
     facts = service.dashboard_design_v1_facts(anchor=datetime(2026, 9, 23, tzinfo=UTC).date())
     assert facts["rows"] == []  # the 30-day list remains unchanged
@@ -254,8 +370,7 @@ def test_original_profit_summary_ignores_pagination_and_pending() -> None:
     assert facts["total_profit_units"] == -0.05  # includes settled rows before 30 days
     assert facts["total_absolute_profit_units"] == 1.95
     assert (
-        service.dashboard_validation_profit_summary()["profit_units"]
-        == facts["total_profit_units"]
+        service.dashboard_validation_profit_summary()["profit_units"] == facts["total_profit_units"]
     )
 
 
@@ -267,25 +382,45 @@ def test_original_review_falls_back_to_fixture_identity_kickoff_before_paginatio
             ("older", datetime(2026, 9, 20, 12, tzinfo=UTC)),
             ("api_football:newer", None),
         ):
-            session.add(ValidationSampleModel(
-                fixture_id=fixture_id, market="ASIAN_HANDICAP", selection="HOME",
-                exact_line="-0.5", decimal_odds=1.9, evaluation_id=fixture_id,
-                settlement="WIN", calibration_identity="v2", projected_at=kickoff,
-                kickoff_utc=sample_kickoff,
-            ))
-        session.add(MatchdayFixtureIdentityModel(
-            fixture_id="api_football:newer", provider="api_football",
-            provider_fixture_id="newer", competition_id="140", provider_league_id="140",
-            season="2026", kickoff_utc=kickoff, fixture_status="NS",
-            home_provider_team_id="1", away_provider_team_id="2",
-            team_identity_status="PROVIDER_ONLY", raw_payload_sha256="3" * 64,
-            captured_at=kickoff - timedelta(days=1), identity_hash="4" * 64,
-            payload={},
-        ))
+            session.add(
+                ValidationSampleModel(
+                    fixture_id=fixture_id,
+                    market="ASIAN_HANDICAP",
+                    selection="HOME",
+                    exact_line="-0.5",
+                    decimal_odds=1.9,
+                    evaluation_id=fixture_id,
+                    settlement="WIN",
+                    calibration_identity="v2",
+                    projected_at=kickoff,
+                    kickoff_utc=sample_kickoff,
+                )
+            )
+        session.add(
+            MatchdayFixtureIdentityModel(
+                fixture_id="api_football:newer",
+                provider="api_football",
+                provider_fixture_id="newer",
+                competition_id="140",
+                provider_league_id="140",
+                season="2026",
+                kickoff_utc=kickoff,
+                fixture_status="NS",
+                home_provider_team_id="1",
+                away_provider_team_id="2",
+                team_identity_status="PROVIDER_ONLY",
+                raw_payload_sha256="3" * 64,
+                captured_at=kickoff - timedelta(days=1),
+                identity_hash="4" * 64,
+                payload={},
+            )
+        )
         session.commit()
+
     class Repo:
         def _database_engine(self):
             return engine
+
     rows, total = ReadModelService(repository=Repo()).dashboard_validation_samples(limit=1)
     assert total == 2
     assert rows[0]["fixture_id"] == "api_football:newer"
@@ -296,40 +431,68 @@ def test_calibrated_profit_summary_uses_full_history_before_pagination(monkeypat
     engine = _session()
     start = FORWARD_START_UTC + timedelta(days=1)
     with Session(engine) as session:
-        for index, (decision, settlement, profit) in enumerate((
-            ("KEPT", "WIN", 0.9), ("FILTERED", "LOSS", -1.0),
-            ("KEPT", "PENDING", None),
-        )):
+        for index, (decision, settlement, profit) in enumerate(
+            (
+                ("KEPT", "WIN", 0.9),
+                ("FILTERED", "LOSS", -1.0),
+                ("KEPT", "PENDING", None),
+            )
+        ):
             evaluated = start + timedelta(days=index)
-            session.add(CalibratedValidationSampleModel(
-                fixture_id=f"summary-{index}", market="ASIAN_HANDICAP", selection="HOME",
-                exact_line="-0.5", decimal_odds=1.9, evaluation_id=f"summary-e-{index}",
-                settlement=settlement, profit_units=profit, projected_at=evaluated,
-                evaluated_at=evaluated,
-                kickoff_utc=None if index == 2 else evaluated + timedelta(hours=1),
-                calibration_identity="v2", filter_decision=decision,
-                param_version=PARAM_VERSION, warmup=False,
-            ))
+            session.add(
+                CalibratedValidationSampleModel(
+                    fixture_id=f"summary-{index}",
+                    market="ASIAN_HANDICAP",
+                    selection="HOME",
+                    exact_line="-0.5",
+                    decimal_odds=1.9,
+                    evaluation_id=f"summary-e-{index}",
+                    settlement=settlement,
+                    profit_units=profit,
+                    projected_at=evaluated,
+                    evaluated_at=evaluated,
+                    kickoff_utc=None if index == 2 else evaluated + timedelta(hours=1),
+                    calibration_identity="v2",
+                    filter_decision=decision,
+                    param_version=PARAM_VERSION,
+                    warmup=False,
+                )
+            )
             if index == 2:
-                session.add(MatchdayFixtureIdentityModel(
-                    fixture_id=f"summary-{index}", provider="api_football",
-                    provider_fixture_id=f"summary-{index}", competition_id="140",
-                    provider_league_id="140", season="2026",
-                    kickoff_utc=evaluated + timedelta(hours=1), fixture_status="NS",
-                    home_provider_team_id="1", away_provider_team_id="2",
-                    team_identity_status="PROVIDER_ONLY", raw_payload_sha256="3" * 64,
-                    captured_at=evaluated, identity_hash="4" * 64, payload={},
-                ))
+                session.add(
+                    MatchdayFixtureIdentityModel(
+                        fixture_id=f"summary-{index}",
+                        provider="api_football",
+                        provider_fixture_id=f"summary-{index}",
+                        competition_id="140",
+                        provider_league_id="140",
+                        season="2026",
+                        kickoff_utc=evaluated + timedelta(hours=1),
+                        fixture_status="NS",
+                        home_provider_team_id="1",
+                        away_provider_team_id="2",
+                        team_identity_status="PROVIDER_ONLY",
+                        raw_payload_sha256="3" * 64,
+                        captured_at=evaluated,
+                        identity_hash="4" * 64,
+                        payload={},
+                    )
+                )
         session.commit()
+
     class Repo:
         def _database_engine(self):
             return engine
+
     class Service:
         repository = Repo()
+
         @staticmethod
         def dashboard_current_calibration_identity():
             return "v2"
+
     import w2.api.routers as routers
+
     monkeypatch.setattr(routers, "service", Service())
     response = routers.dashboard_intelligence_validation_calibrated(
         Request({"type": "http", "method": "GET", "path": "/", "headers": []}),

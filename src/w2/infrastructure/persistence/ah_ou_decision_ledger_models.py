@@ -18,9 +18,11 @@ from typing import Any
 from sqlalchemy import JSON, Boolean, DateTime, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from w2.domain.ah_ou_decision_identity import (
+    AH_OU_DECISION_LEDGER_SCHEMA as AH_OU_DECISION_LEDGER_SCHEMA,
+)
 from w2.infrastructure.database import Base
 
-AH_OU_DECISION_LEDGER_SCHEMA = "w2.ah_ou_decision_ledger.v3"
 AH_OU_FROZEN_TERMS_SCHEMA = "w2.ah_ou_frozen_terms.v1"
 AH_OU_COHORT_SCHEMA = "w2.ah_ou_forward_cohort.v3"
 

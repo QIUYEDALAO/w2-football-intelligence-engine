@@ -3,11 +3,13 @@
 复用 remediation.py 的 canonical 写入路径（history_rows_from_fixture + endpoint capture），
 把 h2h 交锋写入 canonical_team_match_history，让 F6 builder 无需改动即可读到。
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any, cast
 
-from sqlalchemy import select
+from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -26,7 +28,7 @@ from w2.infrastructure.persistence.matchday_intake_models import MatchdayEndpoin
 from w2.ingestion.future_refresh import response_count, sanitize_params, sha256_payload
 from w2.matchday.intake_v2 import endpoint_capture_contract, stable_hash
 from w2.matchday.repository import MatchdayRuntimeRepository
-from w2.providers.api_football import ApiFootballClient
+from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 
 PROVIDER = "api_football"
 CHECKPOINT = "F6_H2H_AUTO_CAPTURE"
@@ -56,7 +58,8 @@ def _league_mapping(session: Session) -> dict[str, str]:
 
 
 def _persist_capture(
-    session: Session, response, *, fixture_id: str | None, competition_id: str
+    session: Session, response: LiveApiFootballResponse, *, fixture_id: str | None,
+    competition_id: str
 ) -> str:
     payload_hash = sha256_payload(response.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
     captured_at = response.captured_at.astimezone(UTC)
@@ -105,7 +108,9 @@ def _persist_capture(
                 error_code=capture["error_code"],
             )
         )
-    MatchdayRuntimeRepository(engine=session.bind).save_raw_payload(
+    # Preserve the caller's connection when the capture participates in its
+    # transaction; the repository constructor's Engine annotation is narrower.
+    MatchdayRuntimeRepository(engine=cast(Engine, session.get_bind())).save_raw_payload(
         sha256=payload_hash,
         endpoint=response.endpoint,
         captured_at=captured_at,
@@ -114,15 +119,20 @@ def _persist_capture(
     return str(capture["capture_id"])
 
 
-def _freeze_h2h_history_row(session: Session, payload: dict) -> bool:
+def _freeze_h2h_history_row(session: Session, payload: dict[str, Any]) -> bool:
     """One immutable source identity; retry compares every frozen business field."""
-    def same(existing):
+
+    def same(existing: CanonicalTeamMatchHistoryModel) -> None:
         for field, expected in payload.items():
             actual = getattr(existing, field)
             if isinstance(expected, datetime) and isinstance(actual, datetime):
-                expected, actual = (value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC) for value in (expected,actual))
+                expected, actual = (
+                    value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+                    for value in (expected, actual)
+                )
             if actual != expected:
                 raise RuntimeError(f"F6_HISTORY_FIELD_CONFLICT:{field}")
+
     existing = session.get(CanonicalTeamMatchHistoryModel, payload["history_id"])
     if existing is not None:
         same(existing)

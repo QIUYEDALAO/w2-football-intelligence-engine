@@ -15,7 +15,9 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from w2.domain.ah_ou_decision_identity import build_ah_ou_decision_id
 from w2.domain.canonical_serialization import HashDomain, SerializerVersion, canonical_sha256
+from w2.domain.decision_contract import DecisionContractViolation
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
     AH_OU_FROZEN_TERMS_SCHEMA,
@@ -122,6 +124,152 @@ def _business_fields(row: Any, fields: dict[str, Any]) -> bool:
     return all(getattr(row, key) == value for key, value in fields.items())
 
 
+def _expected_postmatch_fields(
+    session: Session, decision: AhOuDecisionLedgerModel, result: ResultModel
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Derive both immutable postmatch records from prematch terms and FT source."""
+    if decision.decision_contract != "w2.ah_ou_decision.v3.1" or not decision.selected:
+        raise ValueError("V3_SELECTED_CONTRACT_INVALID")
+    terms = decision.frozen_terms
+    if not isinstance(terms, dict) or terms.get("schema_version") != AH_OU_FROZEN_TERMS_SCHEMA:
+        raise ValueError("V3_SELECTED_TERMS_INCOMPLETE")
+    terms_hash = canonical_sha256(terms, domain=HashDomain.RECOMMENDATION_DECISION_V4)
+    if terms_hash != decision.terms_hash:
+        raise ValueError("V3_SELECTED_TERMS_CONFLICT:terms_hash")
+    bindings = {
+        "selection": decision.direction,
+        "quote_identity_hash": decision.quote_identity_hash,
+        "model_version": decision.model_version,
+        "calibration_version": decision.calibration_version,
+        "input_hash": decision.input_hash,
+        "capture_id": decision.capture_id,
+        "raw_payload_sha256": decision.source_capture_sha256,
+    }
+    for field, expected in bindings.items():
+        if terms.get(field) != expected:
+            raise ValueError(f"V3_SELECTED_TERMS_CONFLICT:{field}")
+    if decision.skip_reason is not None or decision.direction is None:
+        raise ValueError("V3_SELECTED_DECISION_STATE_INVALID")
+    expected_id = build_ah_ou_decision_id(
+        fixture_id=decision.fixture_id,
+        market=decision.market,
+        decision_at=decision.decision_at,
+        model_version=decision.model_version,
+        calibration_version=decision.calibration_version,
+        input_hash=decision.input_hash,
+        quote_identity_hash=decision.quote_identity_hash,
+        source_capture_sha256=decision.source_capture_sha256,
+        direction=decision.direction,
+        score=decision.score,
+        skip_reason=decision.skip_reason,
+        selected=decision.selected,
+        terms_hash=terms_hash,
+    )
+    if decision.decision_id != expected_id:
+        raise ValueError("V3_PUBLIC_DECISION_ID_MISMATCH")
+    fixture = session.get(
+        MatchdayFixtureIdentityModel,
+        "api_football:" + decision.fixture_id.removeprefix("api_football:"),
+    )
+    if (
+        fixture is None
+        or fixture.home_w2_team_id != decision.home_team_id
+        or fixture.away_w2_team_id != decision.away_team_id
+        or result.fixture_id != fixture.fixture_id
+    ):
+        raise ValueError("V3_RESULT_DECISION_FIXTURE_BINDING_INVALID")
+    source = _result_source(session, result)
+    if result.result_status in {"AET", "PEN"}:
+        outcome = "VOID"
+    elif decision.market == "ASIAN_HANDICAP":
+        outcome = settle_asian_handicap(
+            result.home_goals,
+            result.away_goals,
+            str(terms["selection"]),
+            Decimal(str(terms["selected_line"])),
+        ).value
+    elif decision.market == "TOTALS":
+        outcome = settle_total_goals(
+            result.home_goals + result.away_goals,
+            str(terms["selection"]),
+            Decimal(str(terms["selected_line"])),
+        ).value
+    else:
+        raise ValueError("V3_SETTLEMENT_MARKET_INVALID")
+    odds = Decimal(str(terms["entry_odds"]))
+    if not odds.is_finite() or odds <= 1:
+        raise ValueError("V3_ENTRY_ODDS_INVALID")
+    net = str(_net_units(outcome, odds))
+    settlement_fields = dict(
+        fixture_id=decision.fixture_id,
+        market=decision.market,
+        schema_version=SETTLEMENT_SCHEMA,
+        terms_hash=terms_hash,
+        result_id=result.id,
+        result_hash=result.result_hash,
+        result_raw_sha256=source["raw_sha256"],
+        result_capture_id=source["capture_id"],
+        home_goals=result.home_goals,
+        away_goals=result.away_goals,
+        outcome=outcome,
+        net_units=net,
+    )
+    settlement_hash = canonical_sha256(
+        {"decision_id": decision.decision_id, **settlement_fields},
+        domain=HashDomain.RECOMMENDATION_DECISION_V4,
+    )
+    settlement_fields["settlement_hash"] = settlement_hash
+    sample_fields = dict(
+        fixture_id=decision.fixture_id,
+        market=decision.market,
+        schema_version=VALIDATION_SCHEMA,
+        selection=str(terms["selection"]),
+        exact_line=str(terms["selected_line"]),
+        decimal_odds=str(terms["entry_odds"]),
+        terms_hash=terms_hash,
+        result_hash=result.result_hash,
+        settlement_hash=settlement_hash,
+        settlement=outcome,
+        net_units=net,
+    )
+    return settlement_fields, sample_fields
+
+
+def _verify_public_postmatch(
+    session: Session,
+    decision: AhOuDecisionLedgerModel,
+    result: ResultModel | None,
+    settlement: AhOuV3SettlementModel | None,
+    sample: AhOuV3ValidationSampleModel | None,
+) -> None:
+    if result is None:
+        if settlement is not None or sample is not None:
+            raise DecisionContractViolation("V3_PUBLIC_POSTMATCH_WITHOUT_RESULT")
+        return
+    try:
+        expected_settlement, expected_sample = _expected_postmatch_fields(session, decision, result)
+    except ValueError as exc:
+        raise DecisionContractViolation(str(exc)) from exc
+    if settlement is None and sample is None:
+        return  # Confirmed FT exists, but the natural writer has not completed.
+    if settlement is None or sample is None:
+        raise DecisionContractViolation("V3_PUBLIC_POSTMATCH_PAIR_INCOMPLETE")
+    if settlement.settlement_hash != canonical_sha256(
+        {"decision_id": settlement.decision_id, **{
+            field: getattr(settlement, field)
+            for field in expected_settlement if field != "settlement_hash"
+        }},
+        domain=HashDomain.RECOMMENDATION_DECISION_V4,
+    ):
+        raise DecisionContractViolation("V3_PUBLIC_SETTLEMENT_HASH_MISMATCH")
+    for field, expected in expected_settlement.items():
+        if getattr(settlement, field) != expected:
+            raise DecisionContractViolation(f"V3_PUBLIC_SETTLEMENT_FIELD_CONFLICT:{field}")
+    for field, expected in expected_sample.items():
+        if getattr(sample, field) != expected:
+            raise DecisionContractViolation(f"V3_PUBLIC_SAMPLE_FIELD_CONFLICT:{field}")
+
+
 def settle_ah_ou_v3_in_session(
     session: Session,
     *,
@@ -162,23 +310,6 @@ def settle_ah_ou_v3_in_session(
             )
             counts["blocked" if confirmed is not None else "pending"] += 1
             continue
-        terms = decision.frozen_terms
-        if not isinstance(terms, dict) or terms.get("schema_version") != AH_OU_FROZEN_TERMS_SCHEMA:
-            raise ValueError("V3_SELECTED_TERMS_INCOMPLETE")
-        terms_hash = canonical_sha256(terms, domain=HashDomain.RECOMMENDATION_DECISION_V4)
-        if (
-            terms_hash != decision.terms_hash
-            or terms.get("quote_identity_hash") != decision.quote_identity_hash
-        ):
-            raise ValueError("V3_SELECTED_TERMS_CONFLICT")
-        if (
-            terms.get("model_version") != decision.model_version
-            or terms.get("calibration_version") != decision.calibration_version
-            or terms.get("input_hash") != decision.input_hash
-            or terms.get("capture_id") != decision.capture_id
-            or terms.get("raw_payload_sha256") != decision.source_capture_sha256
-        ):
-            raise ValueError("V3_SELECTED_TERMS_CONFLICT")
         result = session.scalar(
             select(ResultModel).where(
                 ResultModel.fixture_id
@@ -188,47 +319,8 @@ def settle_ah_ou_v3_in_session(
         if result is None:
             counts["pending"] += 1
             continue
-        source = _result_source(session, result)
-        if result.result_status in {"AET", "PEN"}:
-            outcome = "VOID"  # 90-minute-only contract; no extra-time or penalties.
-        elif decision.market == "ASIAN_HANDICAP":
-            outcome = settle_asian_handicap(
-                result.home_goals,
-                result.away_goals,
-                str(terms["selection"]),
-                Decimal(str(terms["selected_line"])),
-            ).value
-        elif decision.market == "TOTALS":
-            outcome = settle_total_goals(
-                result.home_goals + result.away_goals,
-                str(terms["selection"]),
-                Decimal(str(terms["selected_line"])),
-            ).value
-        else:
-            raise ValueError("V3_SETTLEMENT_MARKET_INVALID")
-        odds = Decimal(str(terms["entry_odds"]))
-        if not odds.is_finite() or odds <= 1:
-            raise ValueError("V3_ENTRY_ODDS_INVALID")
-        net = str(_net_units(outcome, odds))
-        settlement_fields = dict(
-            fixture_id=decision.fixture_id,
-            market=decision.market,
-            schema_version=SETTLEMENT_SCHEMA,
-            terms_hash=terms_hash,
-            result_id=result.id,
-            result_hash=result.result_hash,
-            result_raw_sha256=source["raw_sha256"],
-            result_capture_id=source["capture_id"],
-            home_goals=result.home_goals,
-            away_goals=result.away_goals,
-            outcome=outcome,
-            net_units=net,
-        )
-        settlement_hash = canonical_sha256(
-            {"decision_id": decision.decision_id, **settlement_fields},
-            domain=HashDomain.RECOMMENDATION_DECISION_V4,
-        )
-        settlement_fields["settlement_hash"] = settlement_hash
+        settlement_fields, sample_fields = _expected_postmatch_fields(session, decision, result)
+        outcome = settlement_fields["outcome"]
         stored = session.get(AhOuV3SettlementModel, decision.decision_id)
         if stored is None:
             session.add(
@@ -241,19 +333,6 @@ def settle_ah_ou_v3_in_session(
             raise ValueError("V3_SETTLEMENT_FIELD_CONFLICT")
         else:
             counts["idempotent"] += 1
-        sample_fields = dict(
-            fixture_id=decision.fixture_id,
-            market=decision.market,
-            schema_version=VALIDATION_SCHEMA,
-            selection=str(terms["selection"]),
-            exact_line=str(terms["selected_line"]),
-            decimal_odds=str(terms["entry_odds"]),
-            terms_hash=terms_hash,
-            result_hash=result.result_hash,
-            settlement_hash=settlement_hash,
-            settlement=outcome,
-            net_units=net,
-        )
         sample = session.get(AhOuV3ValidationSampleModel, decision.decision_id)
         if sample is None:
             session.add(
@@ -335,6 +414,8 @@ def v3_validation_snapshot(session: Session) -> dict[str, Any]:
         settlement = settlements.get(decision.decision_id)
         sample = samples.get(decision.decision_id)
         result = results.get("api_football:" + decision.fixture_id.removeprefix("api_football:"))
+        if decision.decision_contract == "w2.ah_ou_decision.v3.1":
+            _verify_public_postmatch(session, decision, result, settlement, sample)
         if settlement is not None and sample is None:
             state = "BLOCKED"
         elif sample is not None and settlement is None:
@@ -355,7 +436,7 @@ def v3_validation_snapshot(session: Session) -> dict[str, Any]:
                 or canonical_sha256(terms, domain=HashDomain.RECOMMENDATION_DECISION_V4)
                 != decision.terms_hash
             ):
-                raise ValueError("V3_PUBLIC_FROZEN_TERMS_HASH_MISMATCH")
+                raise DecisionContractViolation("V3_PUBLIC_FROZEN_TERMS_HASH_MISMATCH")
             if any(
                 (
                     terms.get("selection") != decision.direction,
@@ -367,7 +448,7 @@ def v3_validation_snapshot(session: Session) -> dict[str, Any]:
                     terms.get("input_hash") != decision.input_hash,
                 )
             ):
-                raise ValueError("V3_PUBLIC_FROZEN_TERMS_BINDING_INVALID")
+                raise DecisionContractViolation("V3_PUBLIC_FROZEN_TERMS_BINDING_INVALID")
         rows.append(
             {
                 "decision_id": decision.decision_id,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, event
 from sqlalchemy.orm import Mapped, mapped_column
@@ -54,7 +55,7 @@ class AhOuV3ValidationSampleModel(Base):
     projected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-def _immutable(_mapper, _connection, target) -> None:
+def _immutable(_mapper: Any, _connection: Any, target: Any) -> None:
     raise ValueError(f"{type(target).__name__} is append-only")
 
 

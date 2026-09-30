@@ -242,14 +242,14 @@ def test_collection_policy_ignores_leagues_absent_from_both_policies(
         json.dumps(matchday), encoding="utf-8"
     )
 
-    updated = apply_collection_policy_update(
+    apply_collection_policy_update(
         engine,
         config_root=config_root,
         updated_by="unit-test-owner-authorization",
         now=datetime(2026, 8, 12, tzinfo=UTC),
     )
     # 只 enable 了有对称 policy 的联赛；新联赛（两个文件都没有）保持 disabled。
-    # 注意：updated 覆盖所有被处理的 profile（含 disabled 的），enable 与否要看
+    # 注意：更新会处理所有 profile（含 disabled 的），enable 与否要看
     # registry.enabled_ids()（= active_ids = 对称 policy 联赛）。
     enabled = CompetitionRegistry(engine).enabled_ids()
     assert "brasileirao_serie_a" in enabled

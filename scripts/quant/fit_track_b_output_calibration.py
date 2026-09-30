@@ -13,6 +13,7 @@ hierarchical isotonic, and Platt by deterministic expanding-time OOF Brier score
 (NLL breaks ties).  Holdout/test files are not accepted by the
 interface and are never read or scored here.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -22,7 +23,6 @@ import hashlib
 import json
 import math
 from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
 
 
@@ -40,7 +40,7 @@ def pava(xs: list[float], ys: list[float]) -> list[tuple[float, float]]:
     if len(xs) != len(ys):
         raise ValueError("PAVA inputs must have equal length")
     grouped: dict[float, list[float]] = defaultdict(lambda: [0.0, 0.0])
-    for x, y in zip(xs, ys):
+    for x, y in zip(xs, ys, strict=False):
         if not (math.isfinite(x) and math.isfinite(y)):
             raise ValueError("PAVA inputs must be finite")
         grouped[float(x)][0] += float(y)
@@ -92,7 +92,7 @@ def fit_platt(rows: list[dict]) -> dict[str, float]:
     ridge = 1e-8
     for _ in range(100):
         grad_a = grad_b = h_aa = h_ab = h_bb = 0.0
-        for x, y in zip(xs, ys):
+        for x, y in zip(xs, ys, strict=False):
             p = _sigmoid(intercept + slope * x)
             weight = p * (1.0 - p)
             error = p - y
@@ -128,11 +128,16 @@ def _curve_json(curve: list[tuple[float, float]]) -> list[dict[str, float]]:
 def _curve_is_valid(curve: list[tuple[float, float]]) -> bool:
     return all(
         left < right and 0.0 <= left_y <= right_y <= 1.0
-        for (left, left_y), (right, right_y) in zip(curve, curve[1:])
+        for (left, left_y), (right, right_y) in zip(curve, curve[1:], strict=False)
     ) and all(0.0 <= y <= 1.0 for _, y in curve)
 
 
-def _fit_hierarchical_maps(rows: list[dict], k: float) -> tuple[dict[tuple[str, str], list[tuple[float, float]]], dict[tuple[str, str, str], list[tuple[float, float]]]]:
+def _fit_hierarchical_maps(
+    rows: list[dict], k: float
+) -> tuple[
+    dict[tuple[str, str], list[tuple[float, float]]],
+    dict[tuple[str, str, str], list[tuple[float, float]]],
+]:
     global_curves: dict[tuple[str, str], list[tuple[float, float]]] = {}
     groups: dict[tuple[str, str, str], list[dict]] = defaultdict(list)
     for row in rows:
@@ -144,7 +149,9 @@ def _fit_hierarchical_maps(rows: list[dict], k: float) -> tuple[dict[tuple[str, 
     return global_curves, cell_curves
 
 
-def _predict_hierarchical(row: dict, global_curves: dict, cell_curves: dict, k: float, cell_n: int) -> float:
+def _predict_hierarchical(
+    row: dict, global_curves: dict, cell_curves: dict, k: float, cell_n: int
+) -> float:
     pair = (row["market"], row["selection"])
     cell_key = (row["market"], row["selection"], row["competition_id"])
     global_curve = global_curves.get(pair, [])
@@ -158,17 +165,26 @@ def _predict_hierarchical(row: dict, global_curves: dict, cell_curves: dict, k: 
 def _metrics(rows: list[dict], predictions: list[float]) -> dict[str, float]:
     if not rows:
         return {"n": 0, "cal_gap": None, "brier": None, "nll": None}
-    gap = sum(p - float(row["y"]) for row, p in zip(rows, predictions)) / len(rows)
-    brier = sum((p - float(row["y"])) ** 2 for row, p in zip(rows, predictions)) / len(rows)
+    gap = sum(p - float(row["y"]) for row, p in zip(rows, predictions, strict=False)) / len(rows)
+    brier = sum(
+        (p - float(row["y"])) ** 2 for row, p in zip(rows, predictions, strict=False)
+    ) / len(rows)
     nll = -sum(
         float(row["y"]) * math.log(min(max(p, 1e-9), 1.0 - 1e-9))
         + (1.0 - float(row["y"])) * math.log(min(max(1.0 - p, 1e-9), 1.0 - 1e-9))
-        for row, p in zip(rows, predictions)
+        for row, p in zip(rows, predictions, strict=False)
     ) / len(rows)
-    return {"n": len(rows), "cal_gap": round(gap, 12), "brier": round(brier, 12), "nll": round(nll, 12)}
+    return {
+        "n": len(rows),
+        "cal_gap": round(gap, 12),
+        "brier": round(brier, 12),
+        "nll": round(nll, 12),
+    }
 
 
-def _temporal_oof(rows: list[dict], k: float, folds: int = 5) -> tuple[dict[tuple[str, str], str], dict[tuple[str, str], dict]]:
+def _temporal_oof(
+    rows: list[dict], k: float, folds: int = 5
+) -> tuple[dict[tuple[str, str], str], dict[tuple[str, str], dict]]:
     """Expanding-time OOF model selection, with no future row in a fit."""
     by_pair: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for row in rows:
@@ -176,7 +192,9 @@ def _temporal_oof(rows: list[dict], k: float, folds: int = 5) -> tuple[dict[tupl
     selected: dict[tuple[str, str], str] = {}
     diagnostics: dict[tuple[str, str], dict] = {}
     for pair, pair_rows in sorted(by_pair.items()):
-        pair_rows = sorted(pair_rows, key=lambda r: (r["evaluated_at"], r["fixture_id"], r["competition_id"]))
+        pair_rows = sorted(
+            pair_rows, key=lambda r: (r["evaluated_at"], r["fixture_id"], r["competition_id"])
+        )
         predictions = {"hierarchical_isotonic": [], "platt": [], "raw": []}
         observed: list[dict] = []
         n = len(pair_rows)
@@ -191,32 +209,42 @@ def _temporal_oof(rows: list[dict], k: float, folds: int = 5) -> tuple[dict[tupl
                 global_curves, cell_curves = _fit_hierarchical_maps(train, k)
                 cell_sizes = defaultdict(int)
                 for train_row in train:
-                    cell_sizes[(train_row["market"], train_row["selection"], train_row["competition_id"])] += 1
+                    cell_sizes[
+                        (train_row["market"], train_row["selection"], train_row["competition_id"])
+                    ] += 1
                 for row in valid:
                     cell_n = cell_sizes[(row["market"], row["selection"], row["competition_id"])]
-                    predictions["hierarchical_isotonic"].append(_predict_hierarchical(row, global_curves, cell_curves, k, cell_n))
+                    predictions["hierarchical_isotonic"].append(
+                        _predict_hierarchical(row, global_curves, cell_curves, k, cell_n)
+                    )
                 platt = fit_platt(train)
-                predictions["platt"].extend(predict_platt(platt, float(row["model_probability"])) for row in valid)
+                predictions["platt"].extend(
+                    predict_platt(platt, float(row["model_probability"])) for row in valid
+                )
                 predictions["raw"].extend(float(row["model_probability"]) for row in valid)
                 observed.extend(valid)
-        candidate_metrics = {name: _metrics(observed, values) for name, values in predictions.items()}
+        candidate_metrics = {
+            name: _metrics(observed, values) for name, values in predictions.items()
+        }
         if not observed:
             selected[pair] = "hierarchical_isotonic"
         else:
             selection_metrics = {
-                name: candidate_metrics[name]
-                for name in ("raw", "hierarchical_isotonic", "platt")
+                name: candidate_metrics[name] for name in ("raw", "hierarchical_isotonic", "platt")
             }
             selected[pair] = min(
                 selection_metrics,
-                key=lambda name: (selection_metrics[name]["brier"], selection_metrics[name]["nll"], name),
+                key=lambda name: (
+                    selection_metrics[name]["brier"],
+                    selection_metrics[name]["nll"],
+                    name,
+                ),
             )
         diagnostics[pair] = {
             "oof_rows": len(observed),
             "folds": folds - 1,
             "candidates": {
-                name: candidate_metrics[name]
-                for name in ("raw", "hierarchical_isotonic", "platt")
+                name: candidate_metrics[name] for name in ("raw", "hierarchical_isotonic", "platt")
             },
             "selected": selected[pair],
         }
@@ -260,7 +288,9 @@ def outcome(market: str, selection: str, line: float, home_goals: int, away_goal
 
 
 def load_scores(home_away: Path, team_xg: Path) -> dict[str, tuple[int, int]]:
-    identities = {r["fixture_id"]: r for r in csv.DictReader(home_away.open(newline="", encoding="utf-8"))}
+    identities = {
+        r["fixture_id"]: r for r in csv.DictReader(home_away.open(newline="", encoding="utf-8"))
+    }
     teams: dict[str, dict[str, dict[str, str]]] = defaultdict(dict)
     for row in csv.DictReader(team_xg.open(newline="", encoding="utf-8")):
         teams[row["fixture_id"]][row["team_id"]] = row
@@ -309,8 +339,14 @@ def load_rows(evaluations: Path, scores: dict[str, tuple[int, int]]) -> tuple[li
                 if payload is None:
                     continue
                 fid = str(payload.get("fixture_id", fields[1]))
-                stamp = (str(payload.get("evaluated_at", fields[0])), str(payload.get("evaluation_id", fields[0])))
-            key = (fid, str(payload.get("market", fields.get("market", "") if admission_format else "")))
+                stamp = (
+                    str(payload.get("evaluated_at", fields[0])),
+                    str(payload.get("evaluation_id", fields[0])),
+                )
+            key = (
+                fid,
+                str(payload.get("market", fields.get("market", "") if admission_format else "")),
+            )
             if not key[1] or key[0] not in scores:
                 continue
             if not payload.get("model_settlement_distribution"):
@@ -331,16 +367,18 @@ def load_rows(evaluations: Path, scores: dict[str, tuple[int, int]]) -> tuple[li
         dist = p["model_settlement_distribution"]
         model_p = float(dist.get("WIN", 0.0)) + float(dist.get("HALF_WIN", 0.0))
         settlement = outcome(str(p["market"]), str(p["selection"]), float(p["exact_line"]), hg, ag)
-        rows.append({
-            "fixture_id": fid,
-            "competition_id": str(p.get("competition_id") or "UNKNOWN"),
-            "market": str(p["market"]),
-            "selection": str(p["selection"]),
-            "model_probability": model_p,
-            "settlement": settlement,
-            "y": 1.0 if settlement > 0 else 0.0,
-            "evaluated_at": str(p.get("evaluated_at", "")),
-        })
+        rows.append(
+            {
+                "fixture_id": fid,
+                "competition_id": str(p.get("competition_id") or "UNKNOWN"),
+                "market": str(p["market"]),
+                "selection": str(p["selection"]),
+                "model_probability": model_p,
+                "settlement": settlement,
+                "y": 1.0 if settlement > 0 else 0.0,
+                "evaluated_at": str(p.get("evaluated_at", "")),
+            }
+        )
     return sorted(rows, key=lambda r: (r["evaluated_at"], r["fixture_id"], r["market"])), {
         "excluded_rows": excluded_rows,
         "excluded_fixtures": len(excluded_fixture_ids),
@@ -372,7 +410,15 @@ def main() -> None:
     for pair, details in oof.items():
         selected_metrics = details["candidates"][details["selected"]]
         if selected_metrics["n"] >= 50 and abs(selected_metrics["cal_gap"]) > 0.05:
-            stopping_pairs.append({"market": pair[0], "selection": pair[1], "n": selected_metrics["n"], "selected": details["selected"], "cal_gap": selected_metrics["cal_gap"]})
+            stopping_pairs.append(
+                {
+                    "market": pair[0],
+                    "selection": pair[1],
+                    "n": selected_metrics["n"],
+                    "selected": details["selected"],
+                    "cal_gap": selected_metrics["cal_gap"],
+                }
+            )
     pair_rows = {
         pair: [row for row in rows if (row["market"], row["selection"]) == pair]
         for pair in global_curves
@@ -397,22 +443,32 @@ def main() -> None:
                 calibrated = float(row["model_probability"])
             elif model == "platt":
                 # final Platt baseline is fit on all TRAIN rows of this pair
-                calibrated = predict_platt(platt_models[(market, selection)], float(row["model_probability"]))
+                calibrated = predict_platt(
+                    platt_models[(market, selection)], float(row["model_probability"])
+                )
             else:
                 calibrated = _predict_hierarchical(row, global_curves, cell_curves, k, n)
             calibrated_rows.append((row, calibrated))
             cell_calibrated.append((row, calibrated))
         raw_gap = sum(r["model_probability"] - r["y"] for r in cell) / n
         cal_gap = sum(c - r["y"] for r, c in cell_calibrated) / n
-        cells.append({
-            "competition_id": key[0], "market": market, "selection": selection,
-            "n": n, "weight": round(w, 12), "continuous_shrinkage": True,
-            "raw_cal_gap": round(raw_gap, 12), "calibrated_cal_gap": round(cal_gap, 12),
-            "raw_abs_cal_gap": round(abs(raw_gap), 12), "calibrated_abs_cal_gap": round(abs(cal_gap), 12),
-            "curve": _curve_json(cell_curve),
-            "global_curve": _curve_json(pair_curve),
-            "selected_model": model,
-        })
+        cells.append(
+            {
+                "competition_id": key[0],
+                "market": market,
+                "selection": selection,
+                "n": n,
+                "weight": round(w, 12),
+                "continuous_shrinkage": True,
+                "raw_cal_gap": round(raw_gap, 12),
+                "calibrated_cal_gap": round(cal_gap, 12),
+                "raw_abs_cal_gap": round(abs(raw_gap), 12),
+                "calibrated_abs_cal_gap": round(abs(cal_gap), 12),
+                "curve": _curve_json(cell_curve),
+                "global_curve": _curve_json(pair_curve),
+                "selected_model": model,
+            }
+        )
     raw_gap = sum(r["model_probability"] - r["y"] for r in rows) / len(rows)
     cal_gap = sum(c - r["y"] for r, c in calibrated_rows) / len(rows)
     overall_status = "TERMINATED_AFTER_TWO_ITERATIONS" if stopping_pairs else "FITTED_CALIBRATED"
@@ -421,9 +477,14 @@ def main() -> None:
         "protocol_revision": "TRACK_B_V2_RAW_FAMILY",
         "status": overall_status,
         "stopping_rule": {
-            "threshold": "any major market×selection cell with n>=50 and abs(selected OOF cal_gap)>0.05",
+            "threshold": (
+                "any major market×selection cell with n>=50 and "
+                "abs(selected OOF cal_gap)>0.05"
+            ),
             "triggered": bool(stopping_pairs),
-            "decision": "TERMINATED_AFTER_TWO_ITERATIONS" if stopping_pairs else "CONTINUE_NOT_TRIGGERED",
+            "decision": "TERMINATED_AFTER_TWO_ITERATIONS"
+            if stopping_pairs
+            else "CONTINUE_NOT_TRIGGERED",
             "triggered_pairs": stopping_pairs,
             "third_iteration_forbidden": bool(stopping_pairs),
         },
@@ -438,20 +499,69 @@ def main() -> None:
             "shrinkage": "p_cal = n/(n+k)*p_cell + k/(n+k)*p_market_selection_global",
             "k": 20,
             "continuous_weight": "n/(n+k), all n",
-            "selection_rule": "expanding-time OOF over raw, hierarchical_isotonic, and platt; Brier then NLL then model name",
+            "selection_rule": (
+                "expanding-time OOF over raw, hierarchical_isotonic, and platt; "
+                "Brier then NLL then model name"
+            ),
             "oof_folds": 4,
         },
-        "manifest": {"evaluation_sha256": sha256(args.evaluations), "home_away_sha256": sha256(args.home_away), "team_xg_sha256": sha256(args.team_xg), "independent_rows": len(rows), "fixtures": len({r["fixture_id"] for r in rows}), "cells": len(cells), **exclusions},
-        "global_curves": {f"{market}|{selection}": _curve_json(curve) for (market, selection), curve in global_curves.items()},
-        "platt_models": {f"{market}|{selection}": params for (market, selection), params in platt_models.items()},
-        "selected_models": {f"{market}|{selection}": model for (market, selection), model in selected_models.items()},
-        "oof_selection": {f"{market}|{selection}": details for (market, selection), details in oof.items()},
-        "training_metrics": {"raw_cal_gap": round(raw_gap, 12), "calibrated_cal_gap": round(cal_gap, 12), "raw_abs_cal_gap": round(abs(raw_gap), 12), "calibrated_abs_cal_gap": round(abs(cal_gap), 12), "cells_abs_gap_improved": sum(c["calibrated_abs_cal_gap"] < c["raw_abs_cal_gap"] for c in cells), "cells_abs_gap_not_improved": sum(c["calibrated_abs_cal_gap"] >= c["raw_abs_cal_gap"] for c in cells)},
+        "manifest": {
+            "evaluation_sha256": sha256(args.evaluations),
+            "home_away_sha256": sha256(args.home_away),
+            "team_xg_sha256": sha256(args.team_xg),
+            "independent_rows": len(rows),
+            "fixtures": len({r["fixture_id"] for r in rows}),
+            "cells": len(cells),
+            **exclusions,
+        },
+        "global_curves": {
+            f"{market}|{selection}": _curve_json(curve)
+            for (market, selection), curve in global_curves.items()
+        },
+        "platt_models": {
+            f"{market}|{selection}": params for (market, selection), params in platt_models.items()
+        },
+        "selected_models": {
+            f"{market}|{selection}": model for (market, selection), model in selected_models.items()
+        },
+        "oof_selection": {
+            f"{market}|{selection}": details for (market, selection), details in oof.items()
+        },
+        "training_metrics": {
+            "raw_cal_gap": round(raw_gap, 12),
+            "calibrated_cal_gap": round(cal_gap, 12),
+            "raw_abs_cal_gap": round(abs(raw_gap), 12),
+            "calibrated_abs_cal_gap": round(abs(cal_gap), 12),
+            "cells_abs_gap_improved": sum(
+                c["calibrated_abs_cal_gap"] < c["raw_abs_cal_gap"] for c in cells
+            ),
+            "cells_abs_gap_not_improved": sum(
+                c["calibrated_abs_cal_gap"] >= c["raw_abs_cal_gap"] for c in cells
+            ),
+        },
         "cells": cells,
-        "safety": {"provider_calls": 0, "production_writes": 0, "deployments": 0, "calibration_ledger_writes": 0, "holdout_test_accessed": False, "production_status": "BASELINE_PRIOR"},
+        "safety": {
+            "provider_calls": 0,
+            "production_writes": 0,
+            "deployments": 0,
+            "calibration_ledger_writes": 0,
+            "holdout_test_accessed": False,
+            "production_status": "BASELINE_PRIOR",
+        },
     }
     args.output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps({"status": payload["status"], "independent_rows": len(rows), "fixtures": payload["manifest"]["fixtures"], "cells": len(cells), "training_metrics": payload["training_metrics"]}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "status": payload["status"],
+                "independent_rows": len(rows),
+                "fixtures": payload["manifest"]["fixtures"],
+                "cells": len(cells),
+                "training_metrics": payload["training_metrics"],
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 if __name__ == "__main__":

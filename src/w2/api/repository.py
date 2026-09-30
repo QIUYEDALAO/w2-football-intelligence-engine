@@ -1307,6 +1307,7 @@ class ReadModelRepository:
 
     def __init__(self, engine: Engine | None = None) -> None:
         self._engine = engine
+        self._competition_ids_cache: tuple[float, tuple[str, ...]] | None = None
 
     def _database_engine(self) -> Engine:
         if self._engine is None:
@@ -1316,7 +1317,7 @@ class ReadModelRepository:
     def _dashboard_competition_ids(self) -> tuple[str, ...]:
         # PERF-01 续：白名单在同一请求内被读多次（fixtures 窗口、date strip 等），
         # 用 60s 实例缓存避免重复查 CompetitionRegistry。
-        cached = getattr(self, "_competition_ids_cache", None)
+        cached = self._competition_ids_cache
         if cached is not None and monotonic() - cached[0] <= 60:
             return cached[1]
         try:
@@ -1695,7 +1696,7 @@ class ReadModelRepository:
         summaries: list[dict[str, Any]] = []
         for row in rows:
             tier = str(row.decision_tier or "NOT_READY")
-            selected_candidate = (
+            candidate_payload = (
                 {
                     "market": row.selected_market,
                     "selection": row.selected_selection,
@@ -1750,11 +1751,11 @@ class ReadModelRepository:
                     "next_eval_at": row.next_eval_at,
                     "recommendation": (
                         {
-                            **selected_candidate,
+                            **candidate_payload,
                             "decision_tier": tier,
                             "formal_recommendation": tier == "RECOMMEND",
                         }
-                        if selected_candidate is not None
+                        if candidate_payload is not None
                         and tier in {"RECOMMEND", "ANALYSIS_PICK"}
                         else None
                     ),
@@ -2984,15 +2985,18 @@ class ReadModelService:
         now = datetime.now(UTC)
         with Session(self.repository._database_engine()) as session:
             clock = session.get(ForwardClockModel, CLOCK_ID)
-            counts = dict(session.execute(
-                select(RecommendationReviewLedgerModel.pit_status, func.count())
-                .group_by(RecommendationReviewLedgerModel.pit_status)
-            ).all())
+            counts: dict[str, int] = {
+                str(status): int(count)
+                for status, count in session.execute(
+                    select(RecommendationReviewLedgerModel.pit_status, func.count())
+                    .group_by(RecommendationReviewLedgerModel.pit_status)
+                )
+            }
             last_event_at = session.scalar(
                 select(func.max(RecommendationReviewLedgerModel.created_at))
             )
             write_gap_count = 0
-            bias_rows = []
+            bias_rows: list[tuple[datetime, Mapping[str, Any], str]] = []
             if clock is not None:
                 write_gap_count = int(session.scalar(
                     select(func.count())
@@ -3011,7 +3015,9 @@ class ReadModelService:
                 ) or 0)
                 current_identity = current_validation_calibration_identity(session)
                 if current_identity is not None:
-                    bias_rows = session.execute(
+                    bias_rows = [
+                        (evaluated_at, payload, settlement)
+                        for evaluated_at, payload, settlement in session.execute(
                         select(
                             DynamicPrematchEvaluationModel.evaluated_at,
                             DynamicPrematchEvaluationModel.payload,
@@ -3029,7 +3035,8 @@ class ReadModelService:
                             == clock.model_identity,
                             ValidationSampleModel.calibration_identity == current_identity,
                         )
-                    ).all()
+                        )
+                    ]
         total = sum(int(value) for value in counts.values()) + write_gap_count
         provable = int(counts.get("PROVABLE", 0))
         unprovable = int(counts.get("PIT_UNPROVABLE", 0))
@@ -3187,7 +3194,9 @@ class ReadModelService:
                 ValidationSampleModel.calibration_identity == current_identity
                 if current_identity is not None else false()
             )
-            rows = list(session.execute(stmt))
+            rows: list[tuple[ValidationSampleModel, datetime | None]] = [
+                (row, kickoff_utc) for row, kickoff_utc in session.execute(stmt)
+            ]
             # 缺则从赛果源补比分：results 表按 api_football 前缀 join，去掉前缀作 key。
             score_map = {
                 str(fixture_id.removeprefix("api_football:")): f"{home_goals}-{away_goals}"

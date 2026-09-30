@@ -1,7 +1,7 @@
 """R3 原子事务 + cohort 幂等 + SKIP 落库单测。"""
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import create_engine, select
