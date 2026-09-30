@@ -11,6 +11,11 @@ on:
         description: Exact lowercase source commit SHA
         required: true
         type: string
+      candidate_base_sha:
+        description: Optional exact ancestor for cumulative post-merge candidate validation
+        required: false
+        default: ""
+        type: string
       force_full:
         description: Require the complete quality matrix
         required: true
@@ -66,6 +71,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr_number }}
           EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}
+          CANDIDATE_BASE_SHA: ${{ inputs.candidate_base_sha }}
           FORCE_FULL: ${{ inputs.force_full }}
           DEPLOYABLE: ${{ inputs.deployable }}
         run: |
@@ -77,8 +83,15 @@ jobs:
           if [ "$PR_NUMBER" = 0 ]; then
             test "$EXPECTED_HEAD_SHA" = "$base_main_sha"
             base_main_sha="$(git rev-parse "${EXPECTED_HEAD_SHA}^1")"
+            if [ -n "$CANDIDATE_BASE_SHA" ]; then
+              [[ "$CANDIDATE_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+              test "$CANDIDATE_BASE_SHA" != "$EXPECTED_HEAD_SHA"
+              git merge-base --is-ancestor "$CANDIDATE_BASE_SHA" "$EXPECTED_HEAD_SHA"
+              base_main_sha="$CANDIDATE_BASE_SHA"
+            fi
             python3 scripts/classify_ci.py --base "$base_main_sha" --head "$EXPECTED_HEAD_SHA" --force-full --github-output "$RUNNER_TEMP/classification"
           else
+            test -z "$CANDIDATE_BASE_SHA"
             pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
             test "$(jq -r .state <<<"$pr_json")" = open
             test "$(jq -r .base.ref <<<"$pr_json")" = codex/w2-authority-20260916

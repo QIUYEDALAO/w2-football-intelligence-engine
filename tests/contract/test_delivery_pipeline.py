@@ -159,3 +159,16 @@ def test_context_records_release_candidate_promotion_without_changing_next_actio
     assert "required_approving_review_count: 0" in receipt
     assert "allow_force_pushes: false" in receipt
     assert "allow_deletions: false" in receipt
+
+
+def test_cumulative_candidate_base_is_exact_ancestor_and_only_postmerge() -> None:
+    from pathlib import Path
+
+    workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/release-candidate.yml").read_text()
+    assert "candidate_base_sha:" in workflow
+    assert '[[ "$CANDIDATE_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]' in workflow
+    assert 'test "$CANDIDATE_BASE_SHA" != "$EXPECTED_HEAD_SHA"' in workflow
+    assert 'git merge-base --is-ancestor "$CANDIDATE_BASE_SHA" "$EXPECTED_HEAD_SHA"' in workflow
+    assert 'test -z "$CANDIDATE_BASE_SHA"' in workflow
+    assert 'test "$EXPECTED_HEAD_SHA" = "$base_main_sha"' in workflow
+    assert 'test "$DEPLOYABLE" = "$deployable"' in workflow
