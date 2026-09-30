@@ -181,6 +181,7 @@ jobs:
         ports: ["6379:6379"]
         options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
     env:
+      W2_RUN_PRIVILEGED_TESTS: "1"
       W2_DATABASE_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
       W2_TEST_POSTGRES_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
       W2_REDIS_URL: redis://127.0.0.1:6379/0
