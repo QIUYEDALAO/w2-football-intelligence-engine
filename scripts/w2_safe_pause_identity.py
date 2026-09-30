@@ -115,8 +115,12 @@ assert sys.argv[1] in allowed, "SAFE_PAUSE_SCHEMA_UNSUPPORTED"
     }
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", default="w2-staging")
     args = parser.parse_args()
     print(json.dumps(read_identity(args.project), sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()
