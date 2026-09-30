@@ -1209,3 +1209,31 @@ def test_readback_h_requires_progress_not_zero() -> None:
     assert '"$h_n1" = "0"' not in section
     assert "deploy_done_epoch + drain_max_wait_sec" in section
     assert "drain_max_wait_sec" in section
+
+
+def test_scheduler_stops_before_active_claim_gate_without_clearing_claims() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    begin = source.index('echo "== running image/source integrity =="')
+    section = source[begin:source.index('echo "== baseline =="', begin)]
+    assert section.index('SAFE_PAUSE_IDENTITY_RECHECK') < section.index(
+        '"${compose[@]}" stop -t 60 scheduler'
+    ) < section.index('echo "== checkpoint gate =="')
+    assert section.index('echo "== release.env backup + candidate =="') < section.index(
+        'OLD_STOPPED=1'
+    )
+    assert 'UPDATE matchday_checkpoint_plans' not in section
+    assert 'SET claim_expires_at' not in section
+    assert 'SCHEDULER_STILL_RUNNING_BEFORE_DRAIN' in section
+
+
+def test_offline_baseline_uses_verified_candidate_repository_without_public_restart() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    section = source.split('echo "== pre-migration dashboard baseline =="', 1)[1].split(
+        'echo "== old recommendation OFF before migration =="', 1
+    )[0]
+    offline = section.split('if [ "$safe_pause_resume" = 1 ]; then', 1)[1].split('else', 1)[0]
+    assert '"$py_ref" /app/scripts/w2_safe_pause_identity.py' in offline
+    assert '--dashboard-baseline' in offline
+    assert 'SAFE_PAUSE_DASHBOARD_BASELINE_FAILED' in offline
+    assert 'curl' not in offline and ' up ' not in offline
+    assert 'matches=[]' not in offline

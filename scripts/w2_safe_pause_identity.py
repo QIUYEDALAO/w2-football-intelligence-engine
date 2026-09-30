@@ -9,6 +9,7 @@ import argparse
 import json
 import re
 import subprocess
+from datetime import UTC, datetime
 
 
 def run(command):
@@ -115,11 +116,38 @@ assert sys.argv[1] in allowed, "SAFE_PAUSE_SCHEMA_UNSUPPORTED"
     }
 
 
+def dashboard_baseline():
+    """Only the existing fixture read path; no current recommendation consumer."""
+    from w2.api.repository import ReadModelRepository, ReadModelService
+    from w2.dashboard.date_window import default_football_day, football_day_window
+    from w2.infrastructure.database import create_engine
+
+    engine = create_engine().execution_options(
+        isolation_level="REPEATABLE READ", postgresql_readonly=True
+    )
+    repository = ReadModelRepository(engine=engine)
+    day = default_football_day(datetime.now(UTC))
+    start, end = football_day_window(day)
+    fixtures = repository.dashboard_fixtures_for_window(start=start, end=end)
+    matches = ReadModelService(repository)._filter_dashboard_cards(
+        fixtures, requested_date=day, window="today"
+    )
+    engine.dispose()
+    return {
+        "schema_version": "w2.release_fixture_baseline.v1",
+        "source": "readonly_dashboard_fixture_repository",
+        "football_day_start_utc": start.isoformat().replace("+00:00", "Z"),
+        "matches": [{"fixture_id": row["fixture_id"]} for row in matches],
+    }
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", default="w2-staging")
+    parser.add_argument("--dashboard-baseline", action="store_true")
     args = parser.parse_args()
-    print(json.dumps(read_identity(args.project), sort_keys=True))
+    result = dashboard_baseline() if args.dashboard_baseline else read_identity(args.project)
+    print(json.dumps(result, sort_keys=True))
 
 
 if __name__ == "__main__":

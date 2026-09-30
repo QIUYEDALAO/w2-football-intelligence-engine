@@ -31,7 +31,7 @@ BLOCKED_WINDOW="${W2_RELEASE_BLOCKED_WINDOW:-}"
 STABILIZE_SEC="${W2_RELEASE_STABILIZE_SEC:-60}"
 GATE_MAX_WAIT_SEC="${W2_RELEASE_GATE_MAX_WAIT_SEC:-3600}"
 GATE_POLL_SEC="${W2_RELEASE_GATE_POLL_SEC:-30}"
-ACTIVE_CLAIM_MAX_WAIT_SEC="${W2_RELEASE_ACTIVE_CLAIM_MAX_WAIT_SEC:-120}"
+ACTIVE_CLAIM_MAX_WAIT_SEC="${W2_RELEASE_ACTIVE_CLAIM_MAX_WAIT_SEC:-1800}"
 ACTIVE_CLAIM_POLL_SEC="${W2_RELEASE_ACTIVE_CLAIM_POLL_SEC:-5}"
 DRAIN_MAX_WAIT_SEC="${W2_RELEASE_DRAIN_MAX_WAIT_SEC:-600}"
 DRAIN_POLL_SEC="${W2_RELEASE_DRAIN_POLL_SEC:-30}"
@@ -809,6 +809,38 @@ for old_service in api worker worker-heavy scheduler; do
   fi
 done
 
+echo "== release.env backup + candidate =="
+stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+backup="/opt/w2/shared/release.pre-${stamp}.env"
+candidate="/opt/w2/shared/release.candidate-${stamp}.env"
+cp /opt/w2/shared/release.env "$backup"
+cp /opt/w2/shared/release.env "$candidate"
+sed -i \
+  -e "s|^W2_PYTHON_IMAGE=.*|W2_PYTHON_IMAGE=${py_ref}|" \
+  -e "s|^W2_WEB_IMAGE=.*|W2_WEB_IMAGE=${web_ref}|" \
+  -e "s|^W2_GIT_SHA=.*|W2_GIT_SHA=${release_sha}|" \
+  -e "s|^W2_BUILD_TIME=.*|W2_BUILD_TIME=${build_time}|" \
+  -e "s|^W2_RELEASE_ID=.*|W2_RELEASE_ID=${release_sha}|" \
+  -e "s|^W2_API_IMAGE_ID=.*|W2_API_IMAGE_ID=${python_digest}|" \
+  -e "s|^W2_API_OCI_DIGEST=.*|W2_API_OCI_DIGEST=${python_digest}|" \
+  -e "s|^W2_API_REGISTRY_DIGEST=.*|W2_API_REGISTRY_DIGEST=${python_digest}|" \
+  "$candidate"
+for key in W2_PYTHON_IMAGE W2_WEB_IMAGE W2_GIT_SHA W2_BUILD_TIME W2_RELEASE_ID W2_API_IMAGE_ID W2_API_OCI_DIGEST W2_API_REGISTRY_DIGEST; do
+  grep -Eq "^${key}=.+" "$candidate" || fail "candidate 缺 ${key}"
+done
+
+# Stop new lease acquisition before draining existing work. A scheduler kept
+# running during this gate can renew the same 15-minute claims indefinitely.
+# Candidate identity and source have already been verified; on any subsequent
+# failure only paused candidate collectors may resume, never the old services.
+pre_schema="$(Q "SELECT version_num FROM alembic_version")"
+OLD_STOPPED=1
+echo "== stop scheduler before claim drain =="
+"${compose[@]}" stop -t 60 scheduler || fail "SCHEDULER_DRAIN_STOP_FAILED"
+scheduler_running="$(docker inspect w2-staging-scheduler-1 --format '{{.State.Running}}')"
+[ "$scheduler_running" = false ] || fail "SCHEDULER_STILL_RUNNING_BEFORE_DRAIN"
+echo "SCHEDULER_OFF_BEFORE_CLAIM_DRAIN=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
 echo "== checkpoint gate =="
 active_claim_deadline=$(( $(date +%s) + active_claim_max_wait_sec ))
 while true; do
@@ -839,31 +871,23 @@ for c in api web worker worker-heavy scheduler postgres redis; do
   printf -v "pre_${c//-/_}" '%s' "$_s"
 done
 
-echo "== release.env backup + candidate =="
-stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-backup="/opt/w2/shared/release.pre-${stamp}.env"
-candidate="/opt/w2/shared/release.candidate-${stamp}.env"
-cp /opt/w2/shared/release.env "$backup"
-cp /opt/w2/shared/release.env "$candidate"
-sed -i \
-  -e "s|^W2_PYTHON_IMAGE=.*|W2_PYTHON_IMAGE=${py_ref}|" \
-  -e "s|^W2_WEB_IMAGE=.*|W2_WEB_IMAGE=${web_ref}|" \
-  -e "s|^W2_GIT_SHA=.*|W2_GIT_SHA=${release_sha}|" \
-  -e "s|^W2_BUILD_TIME=.*|W2_BUILD_TIME=${build_time}|" \
-  -e "s|^W2_RELEASE_ID=.*|W2_RELEASE_ID=${release_sha}|" \
-  -e "s|^W2_API_IMAGE_ID=.*|W2_API_IMAGE_ID=${python_digest}|" \
-  -e "s|^W2_API_OCI_DIGEST=.*|W2_API_OCI_DIGEST=${python_digest}|" \
-  -e "s|^W2_API_REGISTRY_DIGEST=.*|W2_API_REGISTRY_DIGEST=${python_digest}|" \
-  "$candidate"
-for key in W2_PYTHON_IMAGE W2_WEB_IMAGE W2_GIT_SHA W2_BUILD_TIME W2_RELEASE_ID W2_API_IMAGE_ID W2_API_OCI_DIGEST W2_API_REGISTRY_DIGEST; do
-  grep -Eq "^${key}=.+" "$candidate" || fail "candidate 缺 ${key}"
-done
-
 # 迁移前基线：旧代码与旧数据库仍然一致。这个响应也是发布后 c/d
 # 回读使用的同一工作台接口口径；任何字段缺失都必须在迁移前停止。
 echo "== pre-migration dashboard baseline =="
 pre_schema="$(Q "SELECT version_num FROM alembic_version" 2>/dev/null || true)"
-pre_workspace_json="$(curl -fsS --max-time 90 "http://127.0.0.1:${api_port}/v1/dashboard/intelligence-workspace" 2>/dev/null || true)"
+if [ "$safe_pause_resume" = 1 ]; then
+  # Public API remains OFF throughout recovery. Read the same fixture window
+  # through the trusted candidate's repository in PostgreSQL read-only mode;
+  # do not revive the obsolete API or replace the baseline with an empty list.
+  pg_password="$(grep -E '^POSTGRES_PASSWORD=' /opt/w2/shared/.env | head -1 | cut -d= -f2-)"
+  pre_workspace_json="$(docker run --rm --network w2-staging_w2-staging \
+    -e "W2_DATABASE_URL=postgresql+psycopg://w2_user:${pg_password}@postgres:5432/w2" \
+    --entrypoint python "$py_ref" /app/scripts/w2_safe_pause_identity.py \
+    --dashboard-baseline)" || fail "SAFE_PAUSE_DASHBOARD_BASELINE_FAILED"
+  echo "SAFE_PAUSE_DASHBOARD_BASELINE $pre_workspace_json"
+else
+  pre_workspace_json="$(curl -fsS --max-time 90 "http://127.0.0.1:${api_port}/v1/dashboard/intelligence-workspace" 2>/dev/null || true)"
+fi
 pre_workspace_meta="$(printf '%s' "$pre_workspace_json" | python3 -c '
 import json,sys
 try:

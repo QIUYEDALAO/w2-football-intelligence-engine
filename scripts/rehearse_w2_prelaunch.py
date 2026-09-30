@@ -691,6 +691,28 @@ def case(root: Path, *, fault: str, candidate: str, old: str, web: str) -> dict:
                     )
                     == "false"
                 )
+        # Recovery baseline runs while API/Web remain stopped. It uses the
+        # real candidate image/PG, never an obsolete public container.
+        baseline = json.loads(run([
+            "docker", "run", "--rm", "--network", network,
+            "-e", "W2_DATABASE_URL=postgresql+psycopg://w2_user:placeholder_password@postgres:5432/w2",
+            "--entrypoint", "python", candidate,
+            "/app/scripts/w2_safe_pause_identity.py", "--dashboard-baseline",
+        ]))
+        assert baseline["source"] == "readonly_dashboard_fixture_repository", baseline
+        assert isinstance(baseline["matches"], list), baseline
+        (path / "offline-fixture-baseline.json").write_text(json.dumps(baseline, indent=2))
+        if fault == "normal":
+            api_port = run([*compose, "port", "api", "8000"]).rsplit(":", 1)[1]
+            actual = httpx.get(
+                f"http://127.0.0.1:{api_port}/v1/dashboard/intelligence-workspace",
+                timeout=90, trust_env=False,
+            )
+            assert actual.status_code == 200, actual.text
+            assert actual.json()["football_day_start_utc"] == baseline["football_day_start_utc"]
+            assert {r["fixture_id"] for r in actual.json()["matches"]} == {
+                r["fixture_id"] for r in baseline["matches"]
+            }
         for name in ("worker", "worker-heavy", "scheduler"):
             assert (
                 run(
@@ -704,6 +726,40 @@ def case(root: Path, *, fault: str, candidate: str, old: str, web: str) -> dict:
                 )
                 == f"{candidate} true"
             )
+        # Execute the actual release stop/drain block with real Docker/PG.
+        # This owned replica's expiring lease is never deleted or reset by the
+        # gate; the PostgreSQL clock must expire it while scheduler stays OFF.
+        source = (ROOT / "ops/host/w2-release").read_text()
+        drain_block = source[
+            source.index('echo "== stop scheduler before claim drain =="'):
+            source.index('echo "== baseline =="')
+        ].replace("w2-staging", project)
+        run([
+            *ledger_query,
+            "UPDATE matchday_checkpoint_plans SET status='DUE', "
+            "claim_expires_at=now()+interval '3 seconds' "
+            "WHERE plan_id=(SELECT plan_id FROM matchday_checkpoint_plans LIMIT 1)",
+        ])
+        import shlex
+
+        drain_script = path / "actual-claim-drain.sh"
+        drain_script.write_text(
+            "set -euo pipefail\n"
+            + "compose=(" + " ".join(map(shlex.quote, compose)) + ")\n"
+            + f'Q() {{ docker exec {containers[0]} psql -XAt -U w2_user -d w2 -c "$1"; }}\n'
+            + 'fail() { echo "FAIL:$1" >&2; exit 2; }\n'
+            + 'active_claim_max_wait_sec=15\nactive_claim_poll_sec=1\n'
+            + drain_block
+        )
+        if platform.system() == "Linux":
+            drained = run(["bash", str(drain_script)])
+            assert "active_claims=0" in drained, drained
+            assert "SCHEDULER_OFF_BEFORE_CLAIM_DRAIN" in drained, drained
+            (path / "actual-claim-drain.log").write_text(drained)
+        else:
+            # The full mandatory workflow executes this real block on Linux.
+            # macOS Docker does not bind this host path into daemon containers.
+            print(json.dumps({"linux_claim_drain": "NOT_EXECUTED_MACOS"}), flush=True)
         if future is not None:
             run(
                 [
