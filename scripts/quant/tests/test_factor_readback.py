@@ -14,8 +14,10 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.dynamic_prematch_models import DynamicPrematchEvaluationModel
 from w2.prematch.lifecycle import (
     ATTEMPT_IDENTITY_FACTOR_VERSION,
     ATTEMPT_IDENTITY_INPUT_VERSION,
@@ -107,10 +109,26 @@ def test_second_append_of_the_same_identity_returns_the_verdict_field_for_field(
     repository = DynamicPrematchRepository(_engine())
     original = bind_evaluation_opportunity(classify_evaluation(_input(**VERDICT)), _context())
 
+    # A real pre-retirement payload is retained in the old table. Current
+    # consumers may read and retry that identity, but cannot create a new
+    # current AH/OU evaluation.
+    with Session(repository.engine) as session:
+        session.add(DynamicPrematchEvaluationModel(
+            evaluation_id=original.evaluation_id,
+            identity_hash=original.identity_hash,
+            fixture_id=original.fixture_id,
+            market=original.market,
+            selection=original.selection,
+            checkpoint=original.checkpoint,
+            evaluated_at=original.evaluated_at,
+            original_state=original.state.value,
+            payload=original.as_dict(),
+        ))
+        session.commit()
     first, created_first = repository.append_evaluation(original)
     second, created_second = repository.append_evaluation(original)
 
-    assert (created_first, created_second) == (True, False)
+    assert (created_first, created_second) == (False, False)
     # the second return came off the stored payload, not the object we passed in
     assert second is not original
     for field in FACTOR_FIELDS:

@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
+from tests.legacy_v4_repository import LegacyDynamicPrematchRepository as DynamicPrematchRepository
 
 from w2.domain.canonical_serialization import (
     CURRENT_SERIALIZER_VERSION,
@@ -34,11 +35,7 @@ from w2.prematch.lifecycle import (
     classify_evaluation,
     select_t30_validation_snapshot,
 )
-from w2.prematch.repository import (
-    DynamicPrematchRepository,
-    _version_from_payload,
-    project_exact_eval_02b_pairs,
-)
+from w2.prematch.repository import _version_from_payload, project_exact_eval_02b_pairs
 
 NOW = datetime(2026, 7, 22, 12, tzinfo=UTC)
 PAIR_NOW = datetime(2026, 8, 1, 10, tzinfo=UTC)

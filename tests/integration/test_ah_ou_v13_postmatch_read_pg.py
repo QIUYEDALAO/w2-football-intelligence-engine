@@ -17,7 +17,7 @@ from w2.infrastructure.persistence.ah_ou_postmatch_models import (
     AhOuV3ValidationSampleModel,
 )
 from w2.prematch.analysis_calculator import ReadModelService
-from w2.prematch.candidate_notifications import enqueue_daily_settlement_in_session
+from w2.prematch.candidate_notifications import enqueue_v3_daily_settlement_in_session
 
 pytest_plugins = ["tests.integration.test_ah_ou_v9_system_pg"]
 
@@ -34,7 +34,7 @@ def _daily_at(day):
 
 def _daily_probe(repo, day):
     with Session(repo.engine) as session:
-        value = enqueue_daily_settlement_in_session(session, now=_daily_at(day))
+        value = enqueue_v3_daily_settlement_in_session(session, now=_daily_at(day))
         session.rollback()  # Keep the daily writer available for the tamper probe.
         return value
 

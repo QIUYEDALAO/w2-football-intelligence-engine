@@ -762,12 +762,7 @@ def _refresh_model_forecast_analysis_cards(
 
 @celery_app.task(name="w2.candidate_notification_schedule", bind=True)
 def candidate_notification_schedule(self: object) -> dict[str, object]:
-    """推送排程（每日名单 / 验证样本推送 / 每日结算）的定时排程。
-
-   从 scheduler 主循环移出：scheduler 只做检查点派发，不再每 30s 全量计算
-   推送排程（这会让 scheduler CPU 飙高、阻塞评估档位派发）。改由 worker 的
-   beat 每 2 分钟调度，读 validation_samples 表。
-    """
+    """Schedule the v3 daily settlement from verified decision IDs only."""
 
     del self  # 未使用
     from w2.prematch.candidate_notifications import (
@@ -1311,22 +1306,11 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
             "unresolved_fixture_ids": [],
         }
     )
-    track_d_settlement: dict[str, Any]
-    try:
-        from sqlalchemy.orm import Session as _OrmSession
-
-        from w2.tracking.forward_evidence import (
-            settle_track_d_validation_signals_in_session,
-        )
-
-        with _OrmSession(repository.engine) as _fade_session:
-            track_d_settlement = settle_track_d_validation_signals_in_session(
-                _fade_session, now=evaluated_at
-            )
-            _fade_session.commit()
-    except Exception as _exc:  # pragma: no cover - writer must not block refresh
-        logger.exception("TRACK_D_SETTLEMENT_PROJECTION_FAILED")
-        track_d_settlement = {"error": f"{type(_exc).__name__}: {_exc}"}
+    # Track D belongs to the retired V4 recommendation generation. Its rows
+    # remain queryable as historical evidence; post-event writes stop here.
+    track_d_settlement: dict[str, Any] = {
+        "status": "HISTORICAL_READ_ONLY", "db_writes": 0
+    }
     # F1R-C: the same natural writer, on the other natural result-materialisation
     # path. Materialsing results without materialising the facts they prove would
     # leave this branch with fewer facts than the refresh branch, for no reason a
@@ -1340,18 +1324,10 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
     # 避免每次请求对推荐表全量重算。结果刷新 + 结算回填之后才物化，保证
     # settlement / profit_units / settled_at 已随结果落库。物化失败不阻断
     # ledger 主流程（每 10 分钟重试，最终一致），但把错误带进返回值供监控。
-    validation_sample_report: dict[str, Any] = {"window_rows": 0, "deleted": 0}
-    try:
-        validation_sample_report = _materialize_validation_sample_projections(
-            repository.engine, evaluated_at=evaluated_at
-        )
-    except Exception:
-        # A confirmed v3 selection with no validation row is not a successful
-        # result task. The failure is surfaced to the runtime audit and retried
-        # only through the idempotent post-event writer.
-        raise
-    v3_sample_report = validation_sample_report.get("v3")
-    if isinstance(v3_sample_report, dict) and v3_sample_report.get("status") == "BLOCKED":
+    validation_sample_report: dict[str, Any] = _settle_v3_postmatch(
+        repository.engine, evaluated_at=evaluated_at
+    )
+    if (validation_sample_report.get("v3") or {}).get("status") == "BLOCKED":
         return {"status": "BLOCKED", "source_cursor": work.source_cursor,
                 "validation_samples": validation_sample_report,
                 "pending_settlement_count": settlement.get("unresolved_count", 0),
@@ -1381,13 +1357,17 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         writer_status_is_clean,
     )
 
-    status = "BLOCKED" if materialization["status"] == "BLOCKED" else capture["status"]
+    status = (
+        "BLOCKED" if materialization["status"] == "BLOCKED"
+        else "PASS" if capture["status"] == "HISTORICAL_READ_ONLY"
+        else capture["status"]
+    )
     if not writer_status_is_clean(ah_fact_report):
         status = f"{status}_WITH_AH_FACT_INCOMPLETE"
     return {
         **capture,
         "status": status,
-        "candidate": os.environ.get("W2_CANDIDATE_ENABLED", "false").lower() == "true",
+        "candidate": False,
         "formal_recommendation": False,
         "lock": False,
         "production": False,
@@ -1415,46 +1395,11 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
 
 
 def _materialize_validation_sample_projections(
-    engine: Any,
-    *,
-    evaluated_at: datetime,
+    engine: Any, *, evaluated_at: datetime
 ) -> dict[str, object]:
-    """Materialize legacy and calibrated samples in isolated transactions.
-
-    The legacy projection is a protected write path.  It must commit before
-    the optional EV-ONLINE projection is imported or executed, so an error in
-    the parallel projection can never roll back the legacy rows.  Calibrated
-    failures are recorded and intentionally swallowed so the worker tick keeps
-    its existing non-blocking behavior.
-    """
-    from sqlalchemy.orm import Session as _OrmSession
-
-    from w2.prematch.candidate_notifications import materialize_validation_samples
-
-    with _OrmSession(engine) as _legacy_session:
-        validation_sample_report: dict[str, Any] = materialize_validation_samples(
-            _legacy_session, now=evaluated_at
-        )
-        _legacy_session.commit()
-
-    try:
-        # Import only after the protected projection has committed.  This keeps
-        # the ordering explicit for both the transaction and the optional code.
-        from w2.strategy.online_calibration_filter import (
-            materialize_calibrated_validation_samples,
-        )
-
-        with _OrmSession(engine) as _calibrated_session:
-            calibrated_report = materialize_calibrated_validation_samples(
-                _calibrated_session
-            )
-            _calibrated_session.commit()
-        validation_sample_report["calibrated"] = calibrated_report
-    except Exception as _exc:  # pragma: no cover - defensive worker isolation
-        validation_sample_report["calibrated_error"] = (
-            f"{type(_exc).__name__}: {_exc}"
-        )
-    return validation_sample_report
+    """Historical entry retained for callers; no old sample writes are allowed."""
+    del engine, evaluated_at
+    return {"status": "HISTORICAL_READ_ONLY", "window_rows": 0, "deleted": 0}
 
 
 def _materialize_outcome_results(
@@ -1494,8 +1439,23 @@ def _run_result_materialize(
     if result["status"] == "BLOCKED":
         return result
     from w2.infrastructure.database import create_engine as _engine
-    result["validation_samples"] = _materialize_validation_sample_projections(
+    result["validation_samples"] = _settle_v3_postmatch(
         _engine(), evaluated_at=now or datetime.now(UTC))
     if (result["validation_samples"].get("v3") or {}).get("status") == "BLOCKED":
         result["status"] = "BLOCKED"
     return result
+
+
+def _settle_v3_postmatch(engine: Any, *, evaluated_at: datetime) -> dict[str, Any]:
+    """Commit v3 settlement and validation sample together after trusted FT."""
+    from sqlalchemy.orm import Session as _OrmSession
+
+    from w2.tracking.ah_ou_v3_postmatch import settle_ah_ou_v3_in_session
+
+    with _OrmSession(engine) as session:
+        report: dict[str, object] = settle_ah_ou_v3_in_session(session, now=evaluated_at)
+        if report["status"] == "BLOCKED":
+            session.rollback()
+        else:
+            session.commit()
+    return {"status": str(report["status"]), "v3": report}

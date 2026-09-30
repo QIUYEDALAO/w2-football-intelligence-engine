@@ -162,10 +162,12 @@ def test_dashboard_empty_response_has_actionable_diagnostics() -> None:
 
 
 def test_public_release_sync_endpoints_are_available(monkeypatch) -> None:
+    read_service = ReadModelService(repository=cast(Any, EmptyReleaseRepository()))
+    monkeypatch.setattr(read_service, "dashboard_ah_ou_v3_public", lambda: [], raising=False)
     monkeypatch.setattr(
         routers,
         "service",
-        ReadModelService(repository=cast(Any, EmptyReleaseRepository())),
+        read_service,
     )
     client = TestClient(app)
 
@@ -180,10 +182,12 @@ def test_public_release_sync_endpoints_are_available(monkeypatch) -> None:
 
 
 def test_public_dashboard_defaults_to_lightweight_response(monkeypatch) -> None:
+    read_service = ReadModelService(repository=cast(Any, EmptyReleaseRepository()))
+    monkeypatch.setattr(read_service, "dashboard_ah_ou_v3_public", lambda: [], raising=False)
     monkeypatch.setattr(
         routers,
         "service",
-        ReadModelService(repository=cast(Any, EmptyReleaseRepository())),
+        read_service,
     )
     client = TestClient(app)
 
@@ -224,10 +228,12 @@ def test_dashboard_dedupe_prefers_terminal_provider_result_over_stale_matchday_c
 
 
 def test_public_dashboard_summary_returns_aggregate_without_cards(monkeypatch) -> None:
+    public_service = ReadModelService(repository=cast(Any, FutureFixtureRepository()))
+    public_service.dashboard_ah_ou_v3_public = lambda: []  # type: ignore[attr-defined,method-assign]
     monkeypatch.setattr(
         routers,
         "service",
-        ReadModelService(repository=cast(Any, FutureFixtureRepository())),
+        public_service,
     )
     client = TestClient(app)
 
@@ -242,6 +248,7 @@ def test_public_dashboard_summary_returns_aggregate_without_cards(monkeypatch) -
         "all": 2,
     }
     assert "performance" in summary
+    assert summary["performance"]["schema_version"] == "w2.ah_ou_v3_public_performance.v1"
     assert "debug" not in summary
     assert "all" not in summary
     assert "upcoming" not in summary
@@ -249,10 +256,12 @@ def test_public_dashboard_summary_returns_aggregate_without_cards(monkeypatch) -
 
 
 def test_public_validation_summary_returns_layered_sample_status(monkeypatch) -> None:
+    public_service = ReadModelService(repository=cast(Any, FutureFixtureRepository()))
+    public_service.dashboard_ah_ou_v3_public = lambda: []  # type: ignore[attr-defined,method-assign]
     monkeypatch.setattr(
         routers,
         "service",
-        ReadModelService(repository=cast(Any, FutureFixtureRepository())),
+        public_service,
     )
     client = TestClient(app)
 
@@ -260,13 +269,10 @@ def test_public_validation_summary_returns_layered_sample_status(monkeypatch) ->
 
     assert summary["date"] == "2026-06-26"
     assert summary["window"] == "all"
-    assert summary["validation"]["beats_market"] is False
-    assert summary["validation"]["official"]["hit_rate"] is None
-    assert summary["validation"]["official"]["label"] == "official 样本不足，暂不计算命中率"
-    assert (
-        summary["validation"]["analysis_shadow"]["label"]
-        == "analysis_shadow 样本不足，暂不计算命中率"
-    )
+    assert summary["validation"]["schema_version"] == "w2.ah_ou_v3_public_performance.v1"
+    assert summary["validation"]["selected_count"] == 0
+    assert summary["validation"]["settled_count"] == 0
+    assert summary["validation"]["last_30_days"]["hit_rate"] is None
     assert "all" not in summary
     assert "debug" not in summary
 

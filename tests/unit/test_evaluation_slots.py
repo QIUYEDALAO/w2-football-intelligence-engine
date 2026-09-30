@@ -303,7 +303,9 @@ def _opportunity_test_engine():
 
 
 def _persist_tracks(engine, tracks: tuple[str, ...], *, retry: bool = False) -> None:
-    from w2.prematch.repository import DynamicPrematchRepository
+    from tests.legacy_v4_repository import (
+        LegacyDynamicPrematchRepository as DynamicPrematchRepository,
+    )
 
     repository = DynamicPrematchRepository(engine)
     for track in tracks:
@@ -383,7 +385,9 @@ def test_repository_keeps_two_capture_tracks_as_twenty_opportunities() -> None:
 
 def test_repository_does_not_merge_a_second_model_family_on_shared_quote() -> None:
     engine = _opportunity_test_engine()
-    from w2.prematch.repository import DynamicPrematchRepository
+    from tests.legacy_v4_repository import (
+        LegacyDynamicPrematchRepository as DynamicPrematchRepository,
+    )
 
     repository = DynamicPrematchRepository(engine)
     for track in ("exact-dc", "baseline-dc"):
@@ -411,11 +415,13 @@ def test_ordinary_dynamic_row_cannot_supersede_official_attempt() -> None:
 
     from sqlalchemy import select
     from sqlalchemy.orm import Session
+    from tests.legacy_v4_repository import (
+        LegacyDynamicPrematchRepository as DynamicPrematchRepository,
+    )
 
     from w2.infrastructure.persistence.dynamic_prematch_models import (
         DynamicPrematchSupersessionModel,
     )
-    from w2.prematch.repository import DynamicPrematchRepository
 
     engine = _opportunity_test_engine()
     official = _repository_evaluation(

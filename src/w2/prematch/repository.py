@@ -198,6 +198,12 @@ class DynamicPrematchRepository:
             if _versions_conflict(prior, version):
                 raise ValueError("EVALUATION_IDENTITY_CONFLICT") from None
             return prior, False
+        # AH/OU current recommendations have moved to the v3.1 frozen ledger.
+        # Preserve same-content retries of historical evaluations above, but no
+        # new V4 evaluation/opportunity, Track D signal or notification may be
+        # materialized by scheduled or manual checkpoint replay.
+        if version.market in _PAIR_MARKETS:
+            return version, False
         persisted = replace(version, recorded_at=datetime.now(UTC))
         payload = persisted.as_dict()
         # Supersession is scoped to one evaluation slot.  Keyed on fixture x market
@@ -425,6 +431,8 @@ class DynamicPrematchRepository:
         identity = opportunity_identity_hash(context, market=market)
         existing = session.get(DynamicPrematchOpportunityModel, identity)
         if existing is not None:
+            return False
+        if market in _PAIR_MARKETS:
             return False
         session.add(
             DynamicPrematchOpportunityModel(

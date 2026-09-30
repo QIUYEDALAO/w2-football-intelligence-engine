@@ -228,10 +228,9 @@ def test_matrix_6_blocked_ah_is_absent_from_official_recommendations() -> None:
 
     rows = _funnel(engine, results={})
 
-    picks = {(row["fixture_id"], row["market"]) for row in rows}
-    assert ("1490401", "ASIAN_HANDICAP") in picks
-    assert ("1490402", "ASIAN_HANDICAP") not in picks
-    assert len(rows) == 1
+    # The old funnel is historical for AH/OU even when the factor admitted an
+    # old attempt. Neither it nor the vetoed attempt may become current.
+    assert rows == []
 
 
 # --- matrix 7: a blocked AH raises no candidate notification ----------------
@@ -242,9 +241,8 @@ def test_matrix_7_blocked_ah_emits_no_candidate_notification() -> None:
         events = list(session.scalars(select(CandidateNotificationOutboxModel)))
 
     assert admitted.opportunity_identity_hash != vetoed.opportunity_identity_hash
-    assert [event.event_type for event in events] == ["VALIDATION_SAMPLE_CONFIRMED"]
-    assert events[0].payload["fixture_id"] == admitted.fixture_id
-    assert events[0].attempt_identity_hash is None
+    assert admitted.fixture_id != vetoed.fixture_id
+    assert events == []
 
 
 # --- matrix 8: a blocked AH contributes no profit-and-loss row --------------
@@ -259,8 +257,4 @@ def test_matrix_8_blocked_ah_contributes_no_profit_and_loss_row() -> None:
 
     rows = _funnel(engine, results=results)
 
-    settled = {(row["fixture_id"], row["market"]): row for row in rows}
-    assert set(settled) == {("1490401", "ASIAN_HANDICAP")}
-    assert settled[("1490401", "ASIAN_HANDICAP")]["settlement"] == "LOSS"
-    total = sum(Decimal(str(row["profit_units"])) for row in rows)
-    assert total == Decimal("-1.0")
+    assert rows == []

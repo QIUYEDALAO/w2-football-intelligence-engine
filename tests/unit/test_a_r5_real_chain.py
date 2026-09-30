@@ -11,8 +11,10 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
+from tests.legacy_v4_repository import install_legacy_v4_writer
 
 from w2.domain.canonical_serialization import HashDomain, _canonical_hash, canonical_sha256
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
@@ -68,6 +70,12 @@ from w2.tracking.model_forecast_ledger import (
     _capture_model,
     run_model_forecast_capture,
 )
+
+
+@pytest.fixture(autouse=True)
+def _historical_v4_writer_for_a_r5(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep this archived R5 writer chain while current AH/OU writes stay closed."""
+    install_legacy_v4_writer(monkeypatch)
 
 FIXTURE_ID = "1576804"
 # Everything after T0 so the forward clock accepts the evaluation time.

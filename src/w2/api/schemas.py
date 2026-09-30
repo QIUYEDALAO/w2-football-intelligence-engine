@@ -203,6 +203,7 @@ class DashboardDayViewResponse(BaseModel):
     performance: dict[str, Any] | None = None
     date_strip: list[dict[str, Any]] = Field(min_length=15, max_length=15)
     cards: list[dict[str, Any]]
+    recommendations: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class WorkspaceReadContract(BaseModel):
@@ -524,7 +525,7 @@ class WorkspaceShadowCandidate(BaseModel):
 
     status: Literal["ACTIVE", "NOT_READY", "OFF"]
     mode: Literal["SHADOW_ONLY"]
-    authority: Literal["RECOMMENDATION_DECISION_V4"]
+    authority: Literal["HISTORICAL_RECOMMENDATION_DECISION_V4"]
     decision_tier: Literal["NOT_READY", "NO_EDGE", "ANALYSIS_PICK", "FORMAL_RECOMMEND"]
     reason_code: str | None
     reason_message: str | None
@@ -653,7 +654,7 @@ class WorkspaceEvidence(BaseModel):
     artifact_hash: str | None
     source: str | None
     source_event_at: str | None
-    decision_role: Literal["PRODUCT_AUTHORITY"]
+    decision_role: Literal["DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY"]
 
 
 class WorkspaceMatchOutcome(BaseModel):
@@ -1139,6 +1140,7 @@ class WorkspaceMatchSummary(BaseModel):
 
     projection_scope: Literal["SUMMARY"]
     fixture_id: str
+    ah_ou_v3_recommendations: list[dict[str, Any]] = Field(default_factory=list)
     competition_id: str | None
     competition_name: str | None
     kickoff_utc: datetime | str | None
@@ -1933,6 +1935,7 @@ class DashboardIntelligenceCalibratedValidationResponse(BaseModel):
 
     request_id: str
     schema_version: Literal["w2.dashboard-intelligence-validation-calibrated.v1"]
+    authority_scope: Literal["HISTORICAL_READ_ONLY"]
     generated_at: datetime | str | None
     date: str | None
     forward_start: datetime | str | None = None
@@ -2217,6 +2220,7 @@ class PerformanceResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     request_id: str
+    authority_role: Literal["HISTORICAL_READ_ONLY"] = "HISTORICAL_READ_ONLY"
     projection_version: Literal["eval-02a.v1"]
     scoring_window_anchor: datetime
     selected_window: Literal["7d", "30d", "90d"]

@@ -1129,16 +1129,23 @@ def test_07_the_wiring_did_not_touch_a_forbidden_path() -> None:
         # Exact postmatch lineage paths authorised by the V11 R2/R3 contract.
         # No quant-recorder wiring is allowed in these files (asserted above).
         "migrations/versions/0086_ahou_v3_postmatch_chain.py",
+        # Prelaunch A03's one-way old-writer fence is separately authorised.
+        "migrations/versions/0087_ahou_legacy_current_fence.py",
         "src/w2/api/repository.py",
         "src/w2/api/routers.py",
         "src/w2/api/schemas.py",
         # V12's exact current-public projection; the frozen quant packages
         # and every other dashboard path remain forbidden.
         "src/w2/dashboard/ah_ou_v3_public.py",
+        # Prelaunch A05 labels the workspace's former current projection as
+        # historical. The factor-recorder guard still covers every other path.
+        "src/w2/dashboard/workspace.py",
         "migrations/versions/0078_quant_asof_role_isolation.py",
         "src/w2/strategy/ah_ou_decision.py",
         "src/w2/strategy/ah_ou_quote_selector.py",
         "src/w2/strategy/ah_ou_decision_ledger.py",
+        # Prelaunch A03 retires old online AH/OU sample materialisation.
+        "src/w2/strategy/online_calibration_filter.py",
     }
     # The successor package is new. Every frozen package stays untouchable: the
     # exemption is the successor's own directory, not the whole tree.

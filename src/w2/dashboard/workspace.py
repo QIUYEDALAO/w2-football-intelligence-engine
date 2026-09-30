@@ -1325,7 +1325,7 @@ def _match(
             "source_event_at": _optional_text(
                 _mapping(card.get("frozen_artifact_provenance")).get("source_event_at")
             ),
-            "decision_role": "PRODUCT_AUTHORITY",
+            "decision_role": "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY",
         },
     }
 
@@ -1385,7 +1385,7 @@ def _shadow_candidate(
     return {
         "status": "ACTIVE" if active else "NOT_READY" if enabled else "OFF",
         "mode": "SHADOW_ONLY",
-        "authority": "RECOMMENDATION_DECISION_V4",
+        "authority": "HISTORICAL_RECOMMENDATION_DECISION_V4",
         "decision_tier": "ANALYSIS_PICK" if active else _text(decision.get("outcome"), "NOT_READY"),
         "reason_code": _optional_text(reason.get("code")),
         "reason_message": _optional_text(reason.get("message")),

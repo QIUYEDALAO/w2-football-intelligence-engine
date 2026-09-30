@@ -734,7 +734,7 @@ def test_checkpoint_missed_is_immutable_and_planned_due_becomes_missed() -> None
         raise AssertionError("MISSED -> CAPTURED must fail closed")
 
 
-def test_registered_missed_checkpoint_writes_two_opportunities_without_attempts() -> None:
+def test_registered_missed_checkpoint_keeps_plan_but_no_old_ah_ou_opportunities() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     repository = MatchdayRuntimeRepository(engine=engine)
@@ -780,11 +780,9 @@ def test_registered_missed_checkpoint_writes_two_opportunities_without_attempts(
     with Session(engine) as session:
         opportunities = list(session.scalars(select(DynamicPrematchOpportunityModel)))
         attempts = list(session.scalars(select(DynamicPrematchEvaluationModel)))
-    assert {row.market for row in opportunities} == {"ASIAN_HANDICAP", "TOTALS"}
-    assert {row.state for row in opportunities} == {"MISSED_CHECKPOINT"}
-    assert all(row.evaluated_at is None for row in opportunities)
-    assert all(row.latest_attempt_identity_hash is None for row in opportunities)
-    assert all(row.payload["blocker"] == "CHECKPOINT_WINDOW_MISSED" for row in opportunities)
+        stored_plan = session.get(MatchdayCheckpointPlanModel, stable_hash(plan.natural_identity))
+    assert stored_plan is not None and stored_plan.status == "MISSED"
+    assert opportunities == []  # the retired V4 AH/OU denominator is read-only
     assert attempts == []
 
 

@@ -22,6 +22,7 @@ from typing import Any
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
+from tests.legacy_v4_repository import LegacyDynamicPrematchRepository as DynamicPrematchRepository
 
 from w2.domain import calibration_authority
 from w2.domain.calibration_validation_registry import calibration_identity
@@ -32,9 +33,6 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchOpportunityModel,
 )
 from w2.markets.market_candidate import build_market_candidates
-from w2.prematch.candidate_notifications import (
-    VALIDATION_SAMPLE_CONFIRMED,
-)
 from w2.prematch.lifecycle import (
     CHECKPOINT_OPPORTUNITY_SCOPE,
     MODEL_FORECAST_DENOMINATOR_SCOPE,
@@ -47,7 +45,6 @@ from w2.prematch.lifecycle import (
     opportunity_identity_hash,
 )
 from w2.prematch.read_model_projection import _dynamic_evaluations
-from w2.prematch.repository import DynamicPrematchRepository
 from w2.strategy.calibration import CALIBRATION_VERSION, LambdaCalibrationParams
 
 NOW = datetime(2026, 8, 26, 18, 30, tzinfo=UTC)
@@ -451,7 +448,7 @@ def test_e_downgrade_updates_opportunity_without_unfrozen_notification() -> None
     assert opportunities[0].state == OpportunityState.BLOCKED_BY_GATE.value
     assert opportunities[0].opportunity_identity_hash == formed.opportunity_identity_hash
 
-    assert [event.event_type for event in outbox] == [VALIDATION_SAMPLE_CONFIRMED]
+    assert outbox == []  # retired old AH/OU notification writer
 
 
 def test_e_upgrade_on_the_same_opportunity_is_its_own_attempt() -> None:
@@ -561,17 +558,12 @@ def test_f_market_candidate_stamps_the_evidence_with_the_authority() -> None:
         assert evidence["calibration_recommendation_admissible"] is False
 
 
-def test_f_notification_comes_from_the_frozen_attempt_not_the_card() -> None:
-    """A candidate attempt with no card-level V4 still reaches the outbox.
-
-    Production cards never carry a usable V4 candidate (measured 2026-09-15:
-    1219/1219 NOT_READY with selected_candidate null), so conditioning the push
-    on one silenced every candidate push from 2026-09-04 onward.
-    """
+def test_f_historical_attempt_cannot_enqueue_current_notification() -> None:
+    """Even a historical active attempt cannot reopen the old AH/OU outbox."""
     engine = _engine()
     DynamicPrematchRepository(engine).append_evaluation(_attempt("PRODUCTION_VALIDATED"))
     events = _outbox(engine)
-    assert [event.event_type for event in events] == [VALIDATION_SAMPLE_CONFIRMED]
+    assert events == []
 
 
 # --- (h) EV_SE and EV minus SE are different numbers -------------------------

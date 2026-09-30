@@ -475,6 +475,8 @@ def _write_fake_vps_bin(
     post_snapshot: bool = True,
     baseline_invalid: bool = False,
     rollback_not_ready: bool = False,
+    runtime_drift: bool = False,
+    source_drift: bool = False,
 ) -> Path:
     bin_dir = tmp_path / "vps-bin"
     bin_dir.mkdir()
@@ -496,7 +498,13 @@ exec /usr/bin/install "$@"
 state_file="{state_file}"
 log_file="{install_log}"
 case "$1" in
-  compose) exit 0 ;;
+  compose)
+    echo "docker $*" >> "$log_file"
+    case "$*" in
+      *" stop "*) touch "{tmp_path / "old-stopped"}" ;;
+      *" up "*) rm -f "{tmp_path / "old-stopped"}" ;;
+    esac
+    exit 0 ;;
   inspect)
     fmt=""
     prev=""
@@ -507,13 +515,18 @@ case "$1" in
     case "$fmt" in
       *StartedAt*) echo "2026-09-18T00:00:00.000000000Z" ;;
       *Health.Status*) echo "healthy" ;;
+      *State.Running*)
+        if [ -f "{tmp_path / "old-stopped"}" ]; then echo false; else echo true; fi ;;
       *RepoDigests*) echo "127.0.0.1:5000/w2/python@sha256:fake0000000000000000000000000000000000000000000000000000000000000000" ;;
+      *Image*) echo "sha256:fake0000000000000000000000000000000000000000000000000000000000000000" ;;
       *) echo "healthy" ;;
     esac
     exit 0 ;;
   run)
     echo "docker $*" >> "$log_file"
     case "$*" in
+      *" alembic "*" heads"*) echo "aaa (head)"; exit 0 ;;
+      *" --entrypoint python "*) echo "srcimg"; exit 0 ;;
       *" downgrade "*)
         if [ "{migration_mode}" = "downgrade_fail" ]; then exit 1; fi
         if [ "{migration_mode}" != "downgrade_mismatch" ]; then printf 'aaa\\n' > "$state_file"; fi
@@ -525,15 +538,21 @@ case "$1" in
       *) exit 0 ;;
     esac ;;
   exec)
+    case "$*" in
+      *" alembic heads"*) echo "{"bbb" if runtime_drift else "aaa"} (head)"; exit 0 ;;
+      *" python -c"*) echo "{"srcdrift" if source_drift else "srcimg"}"; exit 0 ;;
+    esac
     sql=""
     prev=""
     for a in "$@"; do
       if [ "$prev" = "-c" ]; then sql="$a"; break; fi
       prev="$a"
     done
+    echo "sql $sql" >> "$log_file"
     case "$sql" in
       *"matchday_checkpoint_plans WHERE status"*) echo "0" ;;
       *"matchday_checkpoint_plans WHERE checkpoint IN"*) ;;  # 切换前档位复查：返回空（无冲突）
+      *"SELECT count(*) FROM candidate_notification_outbox"*) echo "0" ;;
       *"candidate_notification_outbox"*) echo "0|0|0" ;;
       "SELECT version_num FROM alembic_version") cat "$state_file" ;;
       *) echo "0" ;;
@@ -566,6 +585,8 @@ case "$url" in
     if [ "{"1" if rollback_not_ready else "0"}" = "1" ] && [ -f "{tmp_path / "restored-old"}" ]; then exit 1; fi
     echo '{{}}' ;;
   */v1/version) echo '{{"release_id":"{online}","api_git_sha":"{online}"}}' ;;
+  */v1/dashboard/intelligence-workspace/list)
+    echo '{{"today_recommendations":[],"performance_summary":{{"schema_version":"w2.ah_ou_v3_public_performance.v1"}}}}' ;;
   */v1/dashboard/intelligence-workspace)
     dash_count_file="{tmp_path / "dash-count"}"
     dash_count=0
@@ -681,6 +702,8 @@ def _run_release_with_vps(
     post_snapshot: bool = True,
     baseline_invalid: bool = False,
     rollback_not_ready: bool = False,
+    runtime_drift: bool = False,
+    source_drift: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], Path]:
     tmp_path.mkdir(parents=True, exist_ok=True)
     repo, base, target = _make_repo(tmp_path, with_migration=with_migration)
@@ -700,6 +723,8 @@ def _run_release_with_vps(
         post_snapshot=post_snapshot,
         baseline_invalid=baseline_invalid,
         rollback_not_ready=rollback_not_ready,
+        runtime_drift=runtime_drift,
+        source_drift=source_drift,
     )
     fake_ssh, _vps_file = _write_fake_ssh_run_heredoc(tmp_path, vps_bin, online=base)
     fake_git, _git_log = _write_fake_git(tmp_path)
@@ -733,16 +758,50 @@ def _run_release_with_vps(
     return r, install_log
 
 
-def test_api_ready_timeout_rolls_back_release_env(tmp_path: Path) -> None:
+def test_api_ready_timeout_pauses_without_old_reactivation(tmp_path: Path) -> None:
     r, install_log = _run_release_with_vps(
         tmp_path, with_migration=False, fail_ready=True, fail_migration=False
     )
     assert r.returncode == 1
-    assert "ROLLBACK" in r.stdout
+    assert "SAFE_PAUSE_START" in r.stdout
+    assert "old_recommendation_reactivation=FORBIDDEN" in r.stdout
     lines = install_log.read_text(encoding="utf-8").splitlines() if install_log.exists() else []
-    # 切换：candidate -> release.env；回滚：backup -> release.env（恢复旧内容）
     assert any("release.candidate-" in line and "release.env" in line for line in lines)
-    assert any("release.pre-" in line and "release.env" in line for line in lines)
+    assert not any("release.pre-" in line and "release.env" in line for line in lines)
+    assert any(" stop -t 60 scheduler worker worker-heavy api web" in line for line in lines)
+
+
+def test_runtime_source_drift_refuses_release_before_stop_or_migration(tmp_path: Path) -> None:
+    r, install_log = _run_release_with_vps(
+        tmp_path,
+        with_migration=True,
+        fail_ready=False,
+        fail_migration=False,
+        runtime_drift=True,
+    )
+    assert r.returncode == 1
+    assert "PREEXISTING_SOURCE_HEAD service=api image=aaa container=bbb" in r.stdout
+    assert "PREEXISTING_RUNTIME_SOURCE_DRIFT:api" in r.stdout
+    assert "OLD_RECOMMENDATION_OFF_AT=" not in r.stdout
+    assert not any(" upgrade " in call for call in _docker_calls(install_log))
+
+
+def test_non_migration_source_drift_refuses_release_before_stop_or_migration(
+    tmp_path: Path,
+) -> None:
+    r, install_log = _run_release_with_vps(
+        tmp_path,
+        with_migration=True,
+        fail_ready=False,
+        fail_migration=False,
+        source_drift=True,
+    )
+    assert r.returncode == 1
+    assert "PREEXISTING_SOURCE_HEAD service=api image=aaa container=aaa" in r.stdout
+    assert "PREEXISTING_SOURCE_HASH service=api image=srcimg container=srcdrift" in r.stdout
+    assert "PREEXISTING_RUNTIME_SOURCE_DRIFT:api" in r.stdout
+    assert "OLD_RECOMMENDATION_OFF_AT=" not in r.stdout
+    assert not any(" upgrade " in call for call in _docker_calls(install_log))
 
 
 def test_migration_fail_does_not_switch(tmp_path: Path) -> None:
@@ -754,6 +813,33 @@ def test_migration_fail_does_not_switch(tmp_path: Path) -> None:
     lines = install_log.read_text(encoding="utf-8").splitlines() if install_log.exists() else []
     # 迁移失败 → 不切换：install 日志里没有 candidate -> release.env
     assert not any("release.candidate-" in line and "release.env" in line for line in lines)
+
+
+def test_old_stops_before_migration_and_outbox_isolated_before_new_start(tmp_path: Path) -> None:
+    r, install_log = _run_release_with_vps(
+        tmp_path, with_migration=True, fail_ready=False, fail_migration=False
+    )
+    lines = install_log.read_text(encoding="utf-8").splitlines()
+    stop = next(
+        i
+        for i, line in enumerate(lines)
+        if " stop -t 60 scheduler worker worker-heavy api web" in line
+    )
+    migration = next(
+        i
+        for i, line in enumerate(lines)
+        if line.startswith("docker run ") and " upgrade head" in line
+    )
+    suppress = next(
+        i
+        for i, line in enumerate(lines)
+        if line.startswith("sql UPDATE candidate_notification_outbox")
+    )
+    restart = next(
+        i for i, line in enumerate(lines) if " up -d --no-deps --force-recreate worker" in line
+    )
+    assert stop < migration < suppress < restart
+    assert "OLD_OUTBOX_PENDING_AFTER_SUPPRESSION=0" in r.stdout
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -785,8 +871,8 @@ def test_t1_migration_readback_d_fail_ready_keeps_new_without_downgrade(tmp_path
         post_matches=0,
     )
     assert r.returncode == 1
-    assert "READBACK_FAILED_KEPT_NEW" in r.stdout
-    assert "MANUAL_DECISION_REQUIRED" in r.stdout
+    assert "SAFE_PAUSE_START" in r.stdout
+    assert "SAFE_PAUSE_REQUIRES_MANUAL_RECOVERY" in r.stdout
     assert not any(" downgrade " in call for call in _docker_calls(install_log))
     assert "W2_GIT_SHA=" in _release_env(tmp_path)
     assert "W2_GIT_SHA=old" not in _release_env(tmp_path)
@@ -796,7 +882,7 @@ def test_t1_migration_readback_d_fail_ready_keeps_new_without_downgrade(tmp_path
     )
 
 
-def test_t2_migration_readback_failure_ready_503_downgrades_before_restore(tmp_path: Path) -> None:
+def test_t2_migration_readback_failure_ready_503_pauses_without_old_restore(tmp_path: Path) -> None:
     r, install_log = _run_release_with_vps(
         tmp_path,
         with_migration=True,
@@ -807,15 +893,12 @@ def test_t2_migration_readback_failure_ready_503_downgrades_before_restore(tmp_p
         post_matches=0,
     )
     assert r.returncode == 1
-    assert "ROLLBACK_SCHEMA_OK aaa" in r.stdout
-    assert "ROLLBACK_DONE" in r.stdout
+    assert "SAFE_PAUSE_START" in r.stdout
+    assert "SAFE_PAUSE_SCHEMA pre=aaa current=bbb target=bbb" in r.stdout
     lines = install_log.read_text().splitlines()
-    downgrade_index = next(i for i, line in enumerate(lines) if " downgrade aaa" in line)
-    restore_index = next(
-        i for i, line in enumerate(lines) if "release.pre-" in line and "release.env" in line
-    )
-    assert downgrade_index < restore_index
-    assert "W2_GIT_SHA=old" in _release_env(tmp_path)
+    assert not any(" downgrade aaa" in line for line in lines)
+    assert not any("release.pre-" in line and "release.env" in line for line in lines)
+    assert "W2_GIT_SHA=old" not in _release_env(tmp_path)
 
 
 def test_t3_migration_downgrade_failure_blocks_code_rollback(tmp_path: Path) -> None:
@@ -830,7 +913,8 @@ def test_t3_migration_downgrade_failure_blocks_code_rollback(tmp_path: Path) -> 
         post_matches=0,
     )
     assert r.returncode == 1
-    assert "ROLLBACK_BLOCKED_SCHEMA" in r.stdout
+    assert "SAFE_PAUSE_START" in r.stdout
+    assert not any(" downgrade " in call for call in _docker_calls(install_log))
     assert not any(
         "release.pre-" in line and "release.env" in line
         for line in install_log.read_text().splitlines()
@@ -850,15 +934,15 @@ def test_t4_migration_downgrade_schema_mismatch_blocks_code_rollback(tmp_path: P
         post_matches=0,
     )
     assert r.returncode == 1
-    assert "ROLLBACK_BLOCKED_SCHEMA" in r.stdout
-    assert "current=bbb" in r.stdout
+    assert "SAFE_PAUSE_SCHEMA pre=aaa current=bbb target=bbb" in r.stdout
+    assert not any(" downgrade " in call for call in _docker_calls(install_log))
     assert not any(
         "release.pre-" in line and "release.env" in line
         for line in install_log.read_text().splitlines()
     )
 
 
-def test_t5_no_migration_readback_failure_keeps_existing_rollback_behavior(tmp_path: Path) -> None:
+def test_t5_no_migration_readback_failure_still_pauses_old_services(tmp_path: Path) -> None:
     r, install_log = _run_release_with_vps(
         tmp_path,
         with_migration=False,
@@ -868,15 +952,15 @@ def test_t5_no_migration_readback_failure_keeps_existing_rollback_behavior(tmp_p
         post_matches=0,
     )
     assert r.returncode == 1
-    assert "ROLLBACK_DONE" in r.stdout
+    assert "SAFE_PAUSE_START" in r.stdout
     assert not any(" downgrade " in call for call in _docker_calls(install_log))
-    assert any(
+    assert not any(
         "release.pre-" in line and "release.env" in line
         for line in install_log.read_text().splitlines()
     )
 
 
-def test_t6_rollback_old_version_not_ready_is_failure(tmp_path: Path) -> None:
+def test_t6_rollback_old_version_not_ready_never_restarts_old(tmp_path: Path) -> None:
     r, _install_log = _run_release_with_vps(
         tmp_path,
         with_migration=False,
@@ -887,7 +971,8 @@ def test_t6_rollback_old_version_not_ready_is_failure(tmp_path: Path) -> None:
         post_matches=0,
     )
     assert r.returncode == 1
-    assert "ROLLBACK_FAILED_NOT_READY" in r.stdout
+    assert "SAFE_PAUSE_START" in r.stdout
+    assert "OLD_RECOMMENDATION_OFF_AT=" in r.stdout
 
 
 def test_t7_empty_both_d_passes_without_snapshot_check(tmp_path: Path) -> None:
@@ -1079,8 +1164,7 @@ def test_release_syncs_override_and_verifies_sha_before_activation() -> None:
     assert "override_after_sha" in text
     assert (
         "OVERRIDE_SYNC before_sha=$override_before_sha "
-        "repo_sha=$override_repo_sha after_sha=$override_after_sha"
-        in text
+        "repo_sha=$override_repo_sha after_sha=$override_after_sha" in text
     )
 
 

@@ -373,7 +373,7 @@ def test_intelligence_workspace_200_with_complete_recommendation_fields(monkeypa
     from datetime import UTC, datetime, timedelta
 
     from fastapi.testclient import TestClient
-    from sqlalchemy import create_engine
+    from sqlalchemy import create_engine, select
     from sqlalchemy.orm import Session
     from sqlalchemy.pool import StaticPool
 
@@ -383,6 +383,7 @@ def test_intelligence_workspace_200_with_complete_recommendation_fields(monkeypa
     from w2.infrastructure.persistence.dynamic_prematch_models import (
         DynamicPrematchEvaluationModel,
         DynamicPrematchOpportunityModel,
+        ValidationSampleModel,
     )
     from w2.infrastructure.persistence.league_models import LeagueSeasonModel
     from w2.infrastructure.persistence.matchday_intake_models import (
@@ -487,7 +488,7 @@ def test_intelligence_workspace_200_with_complete_recommendation_fields(monkeypa
     assert response.status_code == 200
     payload = response.json()
     recommendations = payload["validation"]["model_forecast"]["official_recommendations"]
-    assert len(recommendations) >= 1
-    assert recommendations[0]["fixture_id"] == "1523202"
-    assert recommendations[0]["competition_id"] == "chinese_super_league"
-    assert recommendations[0]["quote_captured_at"] is not None
+    assert recommendations == []
+    with Session(engine) as session:
+        assert session.get(DynamicPrematchEvaluationModel, "eval-1") is not None
+        assert session.scalar(select(ValidationSampleModel)) is None

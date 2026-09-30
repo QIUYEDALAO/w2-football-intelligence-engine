@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy import event as sa_event
 from sqlalchemy.orm import Session
+from tests.legacy_v4_repository import install_legacy_v4_writer
 
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.dynamic_prematch_models import (
@@ -45,6 +46,12 @@ from w2.prematch.read_model_projection import (
     write_frozen_analysis_artifacts,
 )
 from w2.prematch.repository import DynamicPrematchRepository
+
+
+@pytest.fixture(autouse=True)
+def _historical_v4_writer_for_frozen_projection(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exercise the archived V4 projection contract without reopening production writes."""
+    install_legacy_v4_writer(monkeypatch)
 
 
 class ScopedRepository:

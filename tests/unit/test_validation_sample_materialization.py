@@ -138,6 +138,22 @@ def _seed_result(session: Session, *, fixture_id: str, home: int, away: int) -> 
     )
 
 
+def _seed_historical_materialized_row(
+    session: Session, *, fixture_id: str, kickoff: datetime,
+    market: str = "ASIAN_HANDICAP", settled: bool = False,
+) -> None:
+    session.add(ValidationSampleModel(
+        fixture_id=fixture_id, market=market,
+        selection="HOME" if market == "ASIAN_HANDICAP" else "OVER",
+        exact_line="-0.5" if market == "ASIAN_HANDICAP" else "2.5",
+        decimal_odds=1.9, evaluation_id=f"eval-{fixture_id}-{market}",
+        settlement="WIN" if settled else "PENDING",
+        profit_units=0.9 if settled else None, projected_at=NOW,
+        evaluated_at=kickoff - timedelta(hours=3), kickoff_utc=kickoff,
+        competition_id="chinese_super_league",
+    ))
+
+
 def test_materialize_writes_in_window_samples() -> None:
     engine = _engine()
     with Session(engine) as session:
@@ -151,15 +167,11 @@ def test_materialize_writes_in_window_samples() -> None:
         )
         session.commit()
 
-    assert report["window_fixtures"] == 1
-    assert report["window_rows"] == 1
+    assert report["status"] == "HISTORICAL_READ_ONLY"
+    assert report["window_rows"] == 0
     with Session(engine) as session:
         rows = list(session.scalars(select(ValidationSampleModel)))
-        assert len(rows) == 1
-        assert rows[0].fixture_id == "1523202"
-        assert rows[0].market == "ASIAN_HANDICAP"
-        assert rows[0].settlement == "PENDING"
-        assert rows[0].profit_units is None
+        assert rows == []
 
 
 def test_materialize_settles_with_result() -> None:
@@ -176,9 +188,7 @@ def test_materialize_settles_with_result() -> None:
 
     with Session(engine) as session:
         row = session.scalar(select(ValidationSampleModel))
-        assert row.settlement == "WIN"
-        assert row.profit_units is not None
-        assert row.settled_at is not None
+        assert row is None
 
 
 def test_materialize_freezes_out_of_window_rows() -> None:
@@ -187,6 +197,7 @@ def test_materialize_freezes_out_of_window_rows() -> None:
         _seed_competition(session)
         _seed_fixture(session, fixture_id="1523202", kickoff=NOW)
         _seed_sample(session, fixture_id="1523202", evaluated_at=NOW - timedelta(hours=3))
+        _seed_historical_materialized_row(session, fixture_id="1523202", kickoff=NOW)
         session.commit()
         materialize_validation_samples(session, now=NOW, window_before_days=3, window_after_days=1)
         session.commit()
@@ -219,6 +230,7 @@ def test_materialize_deletes_window_row_no_longer_a_sample() -> None:
         _seed_competition(session)
         _seed_fixture(session, fixture_id="1523202", kickoff=NOW)
         _seed_sample(session, fixture_id="1523202", evaluated_at=NOW - timedelta(hours=3))
+        _seed_historical_materialized_row(session, fixture_id="1523202", kickoff=NOW)
         session.commit()
         materialize_validation_samples(session, now=NOW, window_before_days=3, window_after_days=1)
         session.commit()
@@ -234,10 +246,10 @@ def test_materialize_deletes_window_row_no_longer_a_sample() -> None:
         )
         session.commit()
         assert report["window_rows"] == 0
-        assert report["deleted"] == 1
+        assert report["deleted"] == 0
 
     with Session(engine) as session:
-        assert session.scalar(select(ValidationSampleModel)) is None
+        assert session.scalar(select(ValidationSampleModel)) is not None
 
 
 def test_materialize_filters_withdrawn_competition() -> None:
@@ -268,8 +280,14 @@ def test_snapshot_sorted_desc_with_ah_before_totals() -> None:
             market="ASIAN_HANDICAP",
             evaluated_at=NOW - timedelta(hours=2),
         )
+        _seed_historical_materialized_row(
+            session, fixture_id="early", kickoff=NOW - timedelta(hours=1)
+        )
         _seed_sample(
             session, fixture_id="early", market="TOTALS", evaluated_at=NOW - timedelta(hours=2)
+        )
+        _seed_historical_materialized_row(
+            session, fixture_id="early", kickoff=NOW - timedelta(hours=1), market="TOTALS"
         )
         _seed_sample(
             session,
@@ -277,6 +295,7 @@ def test_snapshot_sorted_desc_with_ah_before_totals() -> None:
             market="ASIAN_HANDICAP",
             evaluated_at=NOW - timedelta(hours=2),
         )
+        _seed_historical_materialized_row(session, fixture_id="late", kickoff=NOW)
         session.commit()
         materialize_validation_samples(session, now=NOW, window_before_days=3, window_after_days=1)
         session.commit()
@@ -298,6 +317,9 @@ def test_snapshot_pagination_and_totals() -> None:
             fid = f"fix{index}"
             _seed_fixture(session, fixture_id=fid, kickoff=NOW + timedelta(minutes=index))
             _seed_sample(session, fixture_id=fid, evaluated_at=NOW - timedelta(hours=3))
+            _seed_historical_materialized_row(
+                session, fixture_id=fid, kickoff=NOW + timedelta(minutes=index)
+            )
         session.commit()
         materialize_validation_samples(session, now=NOW, window_before_days=3, window_after_days=1)
         session.commit()
@@ -322,6 +344,9 @@ def test_reconcile_table_matches_projection() -> None:
         _seed_fixture(session, fixture_id="1523202", kickoff=NOW)
         _seed_sample(session, fixture_id="1523202", evaluated_at=NOW - timedelta(hours=3))
         _seed_result(session, fixture_id="1523202", home=2, away=1)
+        _seed_historical_materialized_row(
+            session, fixture_id="1523202", kickoff=NOW, settled=True
+        )
         session.commit()
 
         materialize_validation_samples(session, now=NOW, window_before_days=3, window_after_days=1)

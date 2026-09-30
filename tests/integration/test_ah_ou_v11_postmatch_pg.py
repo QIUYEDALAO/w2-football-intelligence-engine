@@ -28,7 +28,10 @@ from w2.ingestion.future_refresh import sha256_payload
 from w2.matchday.intake_v2 import endpoint_capture_contract
 from w2.matchday.repository import MatchdayRuntimeRepository
 from w2.prematch.analysis_calculator import ReadModelService
-from w2.prematch.candidate_notifications import enqueue_daily_settlement_in_session
+from w2.prematch.candidate_notifications import (
+    _verify_current_outbox_in_session,
+    enqueue_v3_daily_settlement_in_session,
+)
 from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
 from w2.tracking.outcome_ledger_runtime import OutcomeLedgerRuntimeRepository
 from w2.tracking.outcome_result_refresh import run_outcome_result_refresh
@@ -82,6 +85,29 @@ def test_v3_selected_ft_capture_natural_result_worker_and_validation(chain):
         item["hit_rate"] is None and item["hit_rate_denominator"] == 0
         for item in pending_public["by_market"].values()
     )
+    from apps.api.main import app
+
+    football_day = football_day_for_kickoff(
+        datetime.fromisoformat(future["fixture"]["date"]).astimezone(UTC)
+    )
+    client = TestClient(app)
+    home_before = client.get(
+        "/v1/dashboard/intelligence-workspace/list", params={"date": football_day.isoformat()}
+    )
+    assert home_before.status_code == 200, home_before.text
+    assert {row["decision_id"] for row in home_before.json()["today_recommendations"]} == {
+        row.decision_id for row in decisions
+    }
+    day_before = client.get("/v1/dashboard/day-view", params={"date": football_day.isoformat()})
+    assert day_before.status_code == 200, day_before.text
+    assert {row["decision_id"] for row in day_before.json()["recommendations"]} == {
+        row.decision_id for row in decisions
+    }
+    detail_before = client.get("/v1/dashboard/intelligence-workspace/matches/1489404")
+    assert detail_before.status_code == 200, detail_before.text
+    assert {row["decision_id"] for row in detail_before.json()["ah_ou_v3_recommendations"]} == {
+        row.decision_id for row in decisions
+    }
     capture = _ft_capture(repo, future)
     # The natural result worker runs the shared settlement and sample writer.
     result = result_materialize.run(fixture_ids=["api_football:1489404"])
@@ -141,8 +167,6 @@ def test_v3_selected_ft_capture_natural_result_worker_and_validation(chain):
     assert all(
         item["pending"] == 0 and item["settled"] == 1 for item in public["by_market"].values()
     )
-    from apps.api.main import app
-
     http = TestClient(app).get("/v1/dashboard/intelligence-workspace/validation")
     assert http.status_code == 200, http.text
     displayed = http.json()["ah_ou_v3"]
@@ -150,20 +174,38 @@ def test_v3_selected_ft_capture_natural_result_worker_and_validation(chain):
         row.decision_id for row in decisions
     }
     assert displayed["by_market"] == public["by_market"]
+    home_after = client.get(
+        "/v1/dashboard/intelligence-workspace/list", params={"date": football_day.isoformat()}
+    )
+    assert home_after.status_code == 200, home_after.text
+    assert home_after.json()["performance_summary"]["total_profit_units"] == pytest.approx(
+        sum(float(row["net_units"]) for row in public["rows"] if row["state"] == "SETTLED")
+    )
+    assert http.json()["cumulative_profit_units"] == pytest.approx(
+        home_after.json()["performance_summary"]["total_profit_units"]
+    )
     kickoff = datetime.fromisoformat(future["fixture"]["date"]).astimezone(UTC)
     football_day = football_day_for_kickoff(kickoff)
     daily_at = datetime.combine(
         football_day + timedelta(days=1), time(12), tzinfo=FOOTBALL_DAY_TZ
     ).astimezone(UTC)
     with Session(repo.engine) as session, session.begin():
-        event_id = enqueue_daily_settlement_in_session(session, now=daily_at)
+        event_id = enqueue_v3_daily_settlement_in_session(session, now=daily_at)
         assert event_id
     with Session(repo.engine) as session:
         daily = session.get(CandidateNotificationOutboxModel, event_id)
-        assert daily and daily.payload["ah_ou_v3"]["selected"] == 2
-        assert {item["decision_id"] for item in daily.payload["ah_ou_v3"]["items"]} == {
+        assert daily and daily.payload["selected"] == 2
+        assert {item["decision_id"] for item in daily.payload["items"]} == {
             row.decision_id for row in decisions
         }
+        _verify_current_outbox_in_session(session, daily)
+        changed = CandidateNotificationOutboxModel(
+            notification_event_id=daily.notification_event_id,
+            event_type=daily.event_type,
+            payload={**daily.payload, "net_units": "999"},
+        )
+        with pytest.raises(ValueError, match="V3_DAILY_CONTENT_CONFLICT"):
+            _verify_current_outbox_in_session(session, changed)
     with pytest.raises(DBAPIError, match="AH_OU_POSTMATCH_FROZEN_CONTENT_CONFLICT"):
         with Session(repo.engine) as session, session.begin():
             session.execute(update(AhOuV3SettlementModel).values(net_units="999"))
@@ -259,7 +301,7 @@ def test_v3_validation_failure_cannot_mark_natural_workers_success(chain, monkey
     def fail_validation(*args, **kwargs):
         raise RuntimeError("V3_VALIDATION_WRITE_FAILED")
 
-    monkeypatch.setattr(worker, "_materialize_validation_sample_projections", fail_validation)
+    monkeypatch.setattr(worker, "_settle_v3_postmatch", fail_validation)
     with pytest.raises(RuntimeError, match="V3_VALIDATION_WRITE_FAILED"):
         result_materialize.run(fixture_ids=["api_football:1489404"])
     dispatch = OutcomeLedgerRuntimeRepository(repo.engine).prepare_dispatch(

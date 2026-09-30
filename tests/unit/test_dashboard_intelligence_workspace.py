@@ -905,7 +905,7 @@ def test_shadow_candidate_activation_reuses_v4_and_stays_non_production() -> Non
     assert candidate == {
         "status": "ACTIVE",
         "mode": "SHADOW_ONLY",
-        "authority": "RECOMMENDATION_DECISION_V4",
+        "authority": "HISTORICAL_RECOMMENDATION_DECISION_V4",
         "decision_tier": "ANALYSIS_PICK",
         "reason_code": "ANALYSIS_ONLY",
         "reason_message": "当前仅提供影子候选",

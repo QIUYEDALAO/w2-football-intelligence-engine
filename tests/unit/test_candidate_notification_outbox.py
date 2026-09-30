@@ -274,7 +274,7 @@ def test_same_frozen_v4_pick_reaches_api_dashboard_and_notification() -> None:
         environment="staging",
     )["cards"][0]
     _append(DynamicPrematchRepository(engine), attempt)
-    notification = _events(engine)[0].payload
+    assert _events(engine) == []  # V4 direction is historical, never enqueued.
 
     assert api_card["decision_tier"] == dashboard["decision_tier"] == "ANALYSIS_PICK"
     assert (
@@ -288,20 +288,13 @@ def test_same_frozen_v4_pick_reaches_api_dashboard_and_notification() -> None:
         dashboard["pick"]["line"],
         dashboard["pick"]["odds"],
     )
-    assert notification["market"] == api_card["pick"]["market"]
-    assert (
-        str(notification["direction"]).removesuffix("_AH")
-        == api_card["pick"]["selection"]
-    )
-    assert float(notification["line"]) == float(api_card["pick"]["line"])
-    assert float(notification["decimal_odds"]) == float(api_card["pick"]["odds"])
+    assert api_card["pick"]["market"] == "ASIAN_HANDICAP"
 
 
 
 def test_delivery_health_keeps_failure_distinct_from_zero_candidates() -> None:
     engine = _engine()
-    repository = DynamicPrematchRepository(engine)
-    _append(repository, _attempt("T15_ODDS", "a"))
+    enqueue_test_message(request_id="health", created_at=NOW, engine=engine)
     event = _events(engine)[0]
 
     with Session(engine) as session:
@@ -338,13 +331,8 @@ def test_outbox_write_rolls_back_with_evaluation_transaction(monkeypatch) -> Non
     def fail(*_args, **_kwargs):  # type: ignore[no-untyped-def]
         raise RuntimeError("OUTBOX_WRITE_FAILED")
 
-    monkeypatch.setattr("w2.prematch.candidate_notifications._insert", fail)
-    try:
-        _append(repository, _attempt("T15_ODDS", "a"))
-    except RuntimeError as exc:
-        assert str(exc) == "OUTBOX_WRITE_FAILED"
-    else:
-        raise AssertionError("transaction must fail closed")
+    # The retired AH writer must never reach the outbox insert boundary.
+    _append(repository, _attempt("T15_ODDS", "a"))
 
     with Session(engine) as session:
         assert session.scalar(select(DynamicPrematchEvaluationModel)) is None
@@ -367,10 +355,9 @@ def test_v4_attempt_identity_guard_still_rolls_back_evaluation() -> None:
     version = _attempt("T3_ODDS", "mismatch", line=-0.5)
     decision = _v4(_attempt("T3_ODDS", "different", line=-0.25))
 
-    with pytest.raises(ValueError, match="CANDIDATE_NOTIFICATION_V4_ATTEMPT_IDENTITY_MISMATCH"):
-        DynamicPrematchRepository(engine).append_evaluation(
-            version, recommendation_decision_v4=decision
-        )
+    DynamicPrematchRepository(engine).append_evaluation(
+        version, recommendation_decision_v4=decision
+    )
 
     with Session(engine) as session:
         assert session.scalar(select(DynamicPrematchEvaluationModel)) is None
@@ -725,19 +712,7 @@ def test_track_d_validation_signal_uses_separate_bark_group_and_channel_price(
         event_id = candidate_notifications.enqueue_validation_signal_in_session(
             session, signal=signal, now=NOW
         )
-        assert event_id is not None
-        event = session.get(CandidateNotificationOutboxModel, event_id)
-        assert event.event_type == candidate_notifications.VALIDATION_SIGNAL
-        assert event.delivery_status == candidate_notifications.PENDING
-        assert event.payload["candidate_kind"] == "TRACK_D_FADE"
-        assert event.payload["official_recommendation"] is False
-        rendered = render_bark_message(event.payload)
-        assert rendered["title"].startswith("[验证信号] 中超 上海海港vs大连英博 OVER2.5")
-        assert "验证期信号 · 非正式推荐 · 不计入档位" in rendered["body"]
-        assert "市场水位 1.93（Pinnacle 参考）" in rendered["body"]
-        assert "模型参考概率 55.0%" in rendered["body"]
-        assert "渠道参考价 1.92" in rendered["body"]
-        assert "重点" not in rendered["body"]
+        assert event_id is None
         assert candidate_notifications.enqueue_validation_signal_in_session(
             session, signal=signal, now=NOW
         ) is None
@@ -746,19 +721,8 @@ def test_track_d_validation_signal_uses_separate_bark_group_and_channel_price(
             candidate_notifications.enqueue_validation_signal_in_session(
                 session, signal=invalid, now=NOW
             )
-        payload = event.payload
         session.commit()
-
-    sent: list[dict[str, object]] = []
-    monkeypatch.setenv("W2_BARK_ENDPOINT", "https://example.test")
-    monkeypatch.setenv("W2_BARK_DEVICE_KEY", "test-device")
-    monkeypatch.setattr(
-        candidate_notifications, "_post_bark_device",
-        lambda _endpoint, request: sent.append(dict(request)),
-    )
-    candidate_notifications._send_bark(payload)
-    assert sent[0]["group"] == "W2验证信号"
-    assert sent[0]["level"] == "active"
+    assert _events(engine) == []
 
 
 def test_new_evaluation_enqueues_track_d_signal_in_the_same_transaction(
@@ -777,9 +741,7 @@ def test_new_evaluation_enqueues_track_d_signal_in_the_same_transaction(
     _append(DynamicPrematchRepository(engine), _attempt("T3_ODDS", "fade"))
 
     events = _events(engine)
-    assert len(events) == 1
-    assert events[0].event_type == candidate_notifications.VALIDATION_SIGNAL
-    assert events[0].payload["evaluation_id"] == "fade-evaluation-1"
+    assert events == []
 
 
 def _insert_model_track(
@@ -883,11 +845,7 @@ def test_daily_candidate_list_enqueues_and_renders_n0() -> None:
         event_id = candidate_notifications.enqueue_daily_candidate_list_in_session(
             session, now=now
         )
-        assert event_id is not None
-        event = session.get(CandidateNotificationOutboxModel, event_id)
-        assert event.payload["match_count"] == 0
-        rendered = render_bark_message(event.payload)
-        assert rendered["title"] == "[今日候选] 8月20日 共 0 场待评估"
+        assert event_id is None
         session.commit()
 
     # Idempotent: a second call in the same day does not re-enqueue.
@@ -909,7 +867,7 @@ def test_validation_sample_confirmed_only_when_final_state_is_candidate() -> Non
         for event in _events(engine)
     )
 
-    # T3 no-edge, T15 candidate → final is CANDIDATE → 推
+    # T3 no-edge, T15 candidate remains historical and must not push.
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
     _append(repository, _attempt("T3_ODDS", "a", ev=-0.01))
@@ -919,24 +877,36 @@ def test_validation_sample_confirmed_only_when_final_state_is_candidate() -> Non
         for event in _events(engine)
         if event.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
     ]
-    assert len(confirmed) == 1
-    assert confirmed[0].payload["decimal_odds"] == 1.91
-    assert confirmed[0].payload["market"] == "ASIAN_HANDICAP"
+    assert confirmed == []
 
 
 def test_historical_v4_confirmation_remains_readable_but_cannot_push_as_current(
     monkeypatch,
 ) -> None:
     engine = _engine()
-    repository = DynamicPrematchRepository(engine)
-    _append(repository, _attempt("T15_ODDS", "legacy"))
+    with Session(engine) as session:
+        session.add(CandidateNotificationOutboxModel(
+            notification_event_id="historical-v4-confirmation",
+            event_type=candidate_notifications.VALIDATION_SAMPLE_CONFIRMED,
+            current_state="EVALUATED_CANDIDATE",
+            payload={
+                "event_type": candidate_notifications.VALIDATION_SAMPLE_CONFIRMED,
+                "fixture_id": "1523202", "competition": "中超",
+                "match": {"home": "上海海港", "away": "大连英博"},
+                "market": "ASIAN_HANDICAP", "direction": "HOME",
+                "line": "-0.25", "decimal_odds": "1.91",
+            },
+            created_at=NOW, delivery_status=candidate_notifications.PENDING,
+            delivery_attempt_count=0,
+        ))
+        session.commit()
     legacy = next(
         row for row in _events(engine)
         if row.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
     )
     assert "[推荐]" in render_bark_message(legacy.payload)["title"]
     assert candidate_notifications.delivery_route(legacy) == (
-        "SUPPRESS", "HISTORICAL_V4_RECOMMENDATION"
+        "SUPPRESS", "HISTORICAL_AH_OU_EVENT"
     )
     monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app")
     monkeypatch.setenv("W2_BARK_DEVICE_KEY", "owner-device-test-key")
@@ -956,7 +926,7 @@ def test_validation_sample_confirmed_is_idempotent() -> None:
         for event in _events(engine)
         if event.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
     ]
-    assert len(confirmed) == 1
+    assert confirmed == []
 
     # A manual re-enqueue is a no-op (per fixture x market).
     with Session(engine) as session:
@@ -975,7 +945,7 @@ def test_validation_sample_confirmed_is_idempotent() -> None:
                 if event.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
             ]
         )
-        == 1
+        == 0
     )
 
 
@@ -1005,21 +975,14 @@ def test_validation_sample_fallback_uses_last_real_evaluation_at_kickoff_minus_5
             )
             == []
         )
-    # At kickoff-5min the last real evaluation confirms the sample.
+    # At kickoff-5min the retired fallback still cannot enqueue a recommendation.
     with Session(engine) as session:
         inserted = candidate_notifications.enqueue_validation_sample_fallbacks_in_session(
             session, now=kickoff - timedelta(minutes=5)
         )
-        assert len(inserted) == 1
+        assert inserted == []
         session.commit()
-    confirmed = next(
-        event
-        for event in _events(engine)
-        if event.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
-    )
-    assert confirmed.payload["decimal_odds"] == 1.91
-    # ② 推送必须携带联赛中文名，不得出现「未知联赛」。
-    assert confirmed.payload["competition"] == "中超"
+    assert _events(engine) == []
 
 
 def test_validation_sample_confirmed_skips_totals() -> None:
@@ -1039,9 +1002,7 @@ def test_validation_sample_confirmed_skips_totals() -> None:
 
 
 def test_worker_heavy_push_schedule_runs_validation_sample_fallback(monkeypatch) -> None:
-    # RESULT-STUCK：CAP-MISS 之后推送排程移到 worker-heavy 的
-    # w2.candidate_notification_schedule 任务；确认该入口 enqueue_scheduled_notifications
-    # 仍然会触发 ② fallback（T15 缺评估时按最后一次真实评估推送），而不是被重构遗漏。
+    # The natural scheduler must never resurrect a retired T15 fallback.
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
     kickoff = NOW + timedelta(hours=2)
@@ -1059,26 +1020,32 @@ def test_worker_heavy_push_schedule_runs_validation_sample_fallback(monkeypatch)
         blocker="CHECKPOINT_WINDOW_MISSED",
     )
 
-    # 隔离 ① ③，只验证排程入口对 ② fallback 的调用链。
+    def retired_called(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("RETIRED_NOTIFICATION_SCHEDULED")
+
     monkeypatch.setattr(
         candidate_notifications,
         "enqueue_daily_candidate_list_in_session",
-        lambda *args, **kwargs: [],
+        retired_called,
     )
     monkeypatch.setattr(
         candidate_notifications,
         "enqueue_daily_settlement_in_session",
-        lambda *args, **kwargs: None,
+        retired_called,
+    )
+    monkeypatch.setattr(
+        candidate_notifications,
+        "enqueue_validation_sample_fallbacks_in_session",
+        retired_called,
     )
 
     inserted = candidate_notifications.enqueue_scheduled_notifications(
         now=kickoff - timedelta(minutes=5), engine=engine
     )
-    assert inserted
-    assert any(
-        event.event_type == candidate_notifications.VALIDATION_SAMPLE_CONFIRMED
-        for event in _events(engine)
-    )
+    assert len(inserted) == 1
+    assert {event.event_type for event in _events(engine)} == {
+        candidate_notifications.V3_DAILY_SETTLEMENT
+    }
 
 
 def test_daily_settlement_settles_and_marks_pending() -> None:
@@ -1104,16 +1071,7 @@ def test_daily_settlement_settles_and_marks_pending() -> None:
     now = datetime(2026, 8, 20, 12, 0, tzinfo=candidate_notifications.BEIJING)
     with Session(engine) as session:
         event_id = candidate_notifications.enqueue_daily_settlement_in_session(session, now=now)
-        assert event_id is not None
-        event = session.get(CandidateNotificationOutboxModel, event_id)
-        assert event.payload["item_count"] == 1
-        assert event.payload["items"][0]["competition"] == "中超"
-        assert event.payload["items"][0]["profit_units"] is None
-        assert event.payload["pending"] == [
-            {"fixture_id": "1523202", "market": "ASIAN_HANDICAP"}
-        ]
-        assert event.payload["total_profit_units"] == 0.0
-        assert event.payload["total_profit_units_with_rebate"] == 0.0
+        assert event_id is None
         session.commit()
 
     # Add the result, then the next day's settlement carries it as 补结算.
@@ -1139,17 +1097,9 @@ def test_daily_settlement_settles_and_marks_pending() -> None:
         event_id = candidate_notifications.enqueue_daily_settlement_in_session(
             session, now=next_day
         )
-        assert event_id is not None
-        event = session.get(CandidateNotificationOutboxModel, event_id)
-        assert event.payload["item_count"] == 1
-        item = event.payload["items"][0]
-        assert item["supplementary"] is True
-        assert item["settlement"] == "WIN"
-        assert item["profit_units"] == 0.91
-        assert event.payload["win_count"] == 1
-        assert event.payload["total_profit_units"] == 0.91
-        assert event.payload["total_profit_units_with_rebate"] == 0.93275
+        assert event_id is None
         session.commit()
+    assert _events(engine) == []
 
 
 def test_daily_settlement_triggers_at_1130() -> None:
@@ -1172,7 +1122,7 @@ def test_daily_settlement_triggers_at_1130() -> None:
     with Session(engine) as session:
         assert (
             candidate_notifications.enqueue_daily_settlement_in_session(session, now=at)
-            is not None
+            is None
         )
         session.commit()
 
@@ -1182,12 +1132,9 @@ def test_daily_settlement_zero_note_day() -> None:
     at = datetime(2026, 8, 20, 11, 30, tzinfo=candidate_notifications.BEIJING)
     with Session(engine) as session:
         event_id = candidate_notifications.enqueue_daily_settlement_in_session(session, now=at)
-        assert event_id is not None
-        event = session.get(CandidateNotificationOutboxModel, event_id)
-        rendered = render_bark_message(event.payload)
-        assert rendered["title"] == "[AH/OU v3 结算] 8月19日 当天无 v3 推荐"
-        assert "当前 AH/OU v3.1：选中 0 条" in rendered["body"]
+        assert event_id is None
         session.commit()
+    assert _events(engine) == []
 
 
 def test_daily_settlement_cumulative_matches_dashboard_current_model() -> None:
@@ -1215,12 +1162,8 @@ def test_daily_settlement_cumulative_matches_dashboard_current_model() -> None:
         event_id = candidate_notifications.enqueue_daily_settlement_in_session(
             session, now=datetime(2026, 8, 20, 11, 30, tzinfo=candidate_notifications.BEIJING)
         )
-        assert event_id is not None
-        payload = session.get(CandidateNotificationOutboxModel, event_id).payload
+        assert event_id is None
         assert candidate_notifications.current_validation_calibration_identity(session) == "v2"
-        assert payload["cumulative_settled_count"] == 3  # includes the pending v2 bet
-        assert payload["cumulative_profit_units"] == pytest.approx(-0.1)
-        assert payload["cumulative_profit_units_with_rebate"] == pytest.approx(-0.0525)
 
     class Repo:
         def _database_engine(self):  # type: ignore[no-untyped-def]
@@ -1229,10 +1172,8 @@ def test_daily_settlement_cumulative_matches_dashboard_current_model() -> None:
     from w2.api.repository import ReadModelService
 
     summary = ReadModelService(repository=Repo()).dashboard_validation_profit_summary()
-    assert payload["cumulative_profit_units"] == pytest.approx(summary["profit_units"])
-    assert round(payload["cumulative_profit_units_with_rebate"], 3) == (
-        summary["profit_units_with_rebate"]
-    )
+    assert summary["profit_units"] == pytest.approx(-0.1)
+    assert _events(engine) == []
 
 
 def test_validation_sample_fallback_skips_out_of_day_samples() -> None:
@@ -1396,4 +1337,4 @@ def test_dashboard_projection_does_not_detach_capture_at() -> None:
     _materialize_validation_samples(engine, now=NOW)
 
     result = ReadModelRepository(engine=engine).dashboard_model_forecast_validation_progress()
-    assert len(result["official_recommendations"]) >= 1
+    assert result["official_recommendations"] == []

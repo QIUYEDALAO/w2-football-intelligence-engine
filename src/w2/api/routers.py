@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from datetime import UTC, datetime, time, timedelta
 from typing import Annotated, Any, Literal
 from uuid import uuid4
@@ -336,14 +335,44 @@ def dashboard(
     include_debug: bool = False,
 ) -> dict[str, Any]:
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
+    payload = service.public_dashboard(
+        target_date=date,
+        window=normalized_window,
+        timezone=timezone,
+        include_debug=include_debug,
+    )
+    anchor = datetime.fromisoformat(str(payload["date"])).date()
+    current = public_v3_home_projection(service.dashboard_ah_ou_v3_public(), anchor=anchor)
+    # This older response remains for schedule/fixture compatibility. Its
+    # recommendation fields are public, so remove V4 directions rather than
+    # relying on the newer workspace UI to ignore them.
+    for key in ("all", "upcoming", "finished"):
+        payload[key] = [
+            {
+                **card,
+                "pick": None,
+                "recommendation": None,
+                "candidate": False,
+                "formal_recommendation": False,
+                "recommendation_authority": "AH_OU_V3_FROZEN_LEDGER",
+                "recommendation_decision_v4_role": "HISTORICAL_READ_ONLY",
+                "recommendation_decision_v4": None,
+                "secondary_picks": [],
+                "scoreline_picks": [],
+                "decision_contract": {
+                    **(card.get("decision_contract") or {}),
+                    "decision_tier": "WATCH",
+                    "pick": None,
+                    "outcome_tracked": False,
+                },
+            }
+            for card in payload[key]
+        ]
+    payload["recommendations"] = current["today_recommendations"]
+    payload["performance"] = current["performance_summary"]
     return {
         "request_id": request_id(request),
-        **service.public_dashboard(
-            target_date=date,
-            window=normalized_window,
-            timezone=timezone,
-            include_debug=include_debug,
-        ),
+        **payload,
     }
 
 
@@ -356,6 +385,7 @@ def performance(
 ) -> dict[str, Any]:
     return {
         "request_id": request_id(request),
+        "authority_role": "HISTORICAL_READ_ONLY",
         **service.performance(window=window, league=league, tier=tier),
     }
 
@@ -378,11 +408,45 @@ def dashboard_day_view(
         payload,
         environment=get_settings().environment.value,
     )
-    day_view["performance"] = payload.get("performance")
+    _retire_legacy_public_picks(day_view)
+    anchor = datetime.fromisoformat(str(day_view["date"])).date()
+    current = public_v3_home_projection(service.dashboard_ah_ou_v3_public(), anchor=anchor)
+    selected = current["today_recommendations"]
+    by_fixture: dict[str, list[dict[str, Any]]] = {}
+    for row in selected:
+        by_fixture.setdefault(str(row["fixture_id"]).removeprefix("api_football:"), []).append(row)
+    for card in day_view["cards"]:
+        fixture_id = str(card.get("fixture_id") or "").removeprefix("api_football:")
+        card["current_recommendations"] = by_fixture.get(fixture_id, [])
+        card["recommendation_authority"] = "AH_OU_V3_FROZEN_LEDGER"
+        card["recommendation_decision_v4_role"] = "HISTORICAL_READ_ONLY"
+        card["pick"] = None
+        card["recommendation"] = None
+        card["candidate"] = False
+        card["formal_recommendation"] = False
+    day_view["recommendations"] = selected
+    day_view["counts"]["recommend"] = len(selected)
+    day_view["performance"] = current["performance_summary"]
     return {
         "request_id": request_id(request),
         **day_view,
     }
+
+
+def _retire_legacy_public_picks(day_view: dict[str, Any]) -> None:
+    """Remove V4 recommendation fields before any current workspace projection."""
+    for card in day_view["cards"]:
+        card["pick"] = None
+        card["recommendation"] = None
+        card["candidate"] = False
+        card["formal_recommendation"] = False
+        card["recommendation_authority"] = "AH_OU_V3_FROZEN_LEDGER"
+        card["recommendation_decision_v4_role"] = "HISTORICAL_READ_ONLY"
+        if card.get("decision_tier") in {"RECOMMEND", "ANALYSIS_PICK"}:
+            card["decision_tier"] = "WATCH"
+    day_view["recommendations"] = []
+    day_view["recommendation_decision_v4_role"] = "HISTORICAL_READ_ONLY"
+    day_view["counts"]["recommend"] = 0
 
 
 @public_router.get(
@@ -408,6 +472,7 @@ def dashboard_intelligence_workspace(
             payload,
             environment=get_settings().environment.value,
         )
+        _retire_legacy_public_picks(day_view)
         replay = build_replay_front_door(
             football_day=day_view["football_day"],
             environment=day_view["environment"],
@@ -422,6 +487,17 @@ def dashboard_intelligence_workspace(
                 "capabilities"
             ],
         )
+        selected = public_v3_home_projection(
+            service.dashboard_ah_ou_v3_public(),
+            anchor=datetime.fromisoformat(str(day_view["date"])).date(),
+        )["today_recommendations"]
+        for match in workspace["matches"]:
+            match["recommendation_status"] = None
+            match["ah_ou_v3_recommendations"] = [
+                row for row in selected
+                if str(row["fixture_id"]).removeprefix("api_football:")
+                == str(match["fixture_id"]).removeprefix("api_football:")
+            ]
         return {
             "request_id": request_id(request),
             **workspace,
@@ -437,6 +513,7 @@ def dashboard_intelligence_workspace(
         payload,
         environment=get_settings().environment.value,
     )
+    _retire_legacy_public_picks(day_view)
     fixture_ids = [str(card.get("fixture_id") or "") for card in day_view["cards"]]
     outcomes = service.dashboard_outcomes_for_fixtures(fixture_ids)
     model_forecasts = service.dashboard_model_forecasts_for_fixtures(fixture_ids)
@@ -460,11 +537,22 @@ def dashboard_intelligence_workspace(
         replay=replay,
         model_forecasts=model_forecasts,
         model_forecast_progress=model_forecast_progress,
-        candidate_enabled=os.environ.get("W2_CANDIDATE_ENABLED", "false").lower() == "true",
+        candidate_enabled=False,
         recommendation_capabilities=load_recommendation_capability_manifest().public_summary()[
             "capabilities"
         ],
     )
+    workspace["validation"]["model_forecast"]["official_recommendations"] = []
+    kickoff_day = datetime.fromisoformat(str(day_view["date"])).date()
+    selected = public_v3_home_projection(
+        service.dashboard_ah_ou_v3_public(), anchor=kickoff_day
+    )["today_recommendations"]
+    for match in workspace["matches"]:
+        match["ah_ou_v3_recommendations"] = [
+            row for row in selected
+            if str(row["fixture_id"]).removeprefix("api_football:")
+            == str(match["fixture_id"]).removeprefix("api_football:")
+        ]
     return {
         "request_id": request_id(request),
         **_isolate_workspace_match_projection_failures(workspace),
@@ -492,6 +580,7 @@ def dashboard_intelligence_workspace_list(
         payload,
         environment=get_settings().environment.value,
     )
+    _retire_legacy_public_picks(day_view)
     workspace = build_dashboard_intelligence_workspace_list(
         day_view,
         recommendation_capabilities=load_recommendation_capability_manifest().public_summary()[
@@ -504,6 +593,13 @@ def dashboard_intelligence_workspace_list(
     workspace.update(public_v3_home_projection(
         service.dashboard_ah_ou_v3_public(), anchor=anchor,
     ))
+    for match in workspace["matches"]:
+        match["recommendation_status"] = None
+        match["ah_ou_v3_recommendations"] = [
+            row for row in workspace["today_recommendations"]
+            if str(row["fixture_id"]).removeprefix("api_football:")
+            == str(match["fixture_id"]).removeprefix("api_football:")
+        ]
     workspace["system_status"] = {
         "data": (
             "实时数据"
@@ -559,42 +655,48 @@ def dashboard_intelligence_validation(
         day_view,
         model_forecast_progress=service.dashboard_model_forecast_validation_progress(),
     )
-    sample_reader = getattr(service, "dashboard_validation_samples", None)
-    samples, total = (
-        sample_reader(
-            anchor=datetime.fromisoformat(str(day_view["date"])).date(),
-            days=days, limit=limit, offset=offset,
-        ) if callable(sample_reader) else ([], 0)
-    )
-    profit_reader = getattr(service, "dashboard_validation_profit_summary", None)
-    profit_summary = profit_reader() if callable(profit_reader) else {
-        "profit_units": 0.0, "profit_units_with_rebate": 0.0
-    }
-    validation_signal_reader = getattr(service, "dashboard_track_d_validation_signals", None)
-    validation_signals = (
-        validation_signal_reader() if callable(validation_signal_reader) else {
-            "watermark": "验证期信号 · 非正式推荐 · 不计入档位",
-            "candidate_kind": "TRACK_D_FADE",
-            "display_state": "VALIDATION_SIGNAL",
-            "count": 0,
-            "settled_count": 0,
-            "hit_rate": None,
-            "profit_units_channel": 0.0,
-            "rebate_rate": 0.025,
-            "rows": [],
-            "small_sample_leagues": [],
-        }
+    # Current review and profit use the same verified v3.1 rows as the home
+    # page. Legacy validation and Track D remain available only on explicit
+    # historical endpoints; they cannot fill a missing current sample.
+    v3 = service.dashboard_ah_ou_v3_validation()
+    all_public_rows = service.dashboard_ah_ou_v3_public()
+    anchor = datetime.fromisoformat(str(day_view["date"])).date()
+    public_rows = all_public_rows
+    if days is not None:
+        public_rows = [row for row in public_rows if (
+            football_day_for_kickoff(datetime.fromisoformat(str(row["kickoff_utc"])))
+            >= anchor - timedelta(days=days - 1)
+        )]
+    public_rows.sort(key=lambda row: (row["kickoff_utc"], row["decision_id"]), reverse=True)
+    total = len(public_rows)
+    page = public_rows[offset:offset + limit] if limit is not None else public_rows[offset:]
+    samples = [{
+        "decision_id": row["decision_id"],
+        "fixture_id": row["fixture_id"],
+        "kickoff_utc": row["kickoff_utc"],
+        "date": str(row["kickoff_utc"])[:10],
+        "league": row.get("competition_id"),
+        "match": f"{row['home']} vs {row['away']}",
+        "recommendation": f"{row['market']} {row['selection']} {row['exact_line']}",
+        "market": row["market"],
+        "decimal_odds": row["decimal_odds"],
+        "score": None,
+        "result": row["settlement"] if row["state"] == "SETTLED" else row["state"],
+        "profit_units": float(row["net_units"]) if row["state"] == "SETTLED" else None,
+    } for row in page]
+    net_units = sum(
+        float(row["net_units"]) for row in all_public_rows if row["state"] == "SETTLED"
     )
     return {
         "request_id": request_id(request),
         "schema_version": "w2.dashboard-intelligence-validation.v1",
         "generated_at": day_view.get("generated_at"),
         "validation": validation,
-        "samples": [review_row(row) for row in samples],
-        "cumulative_profit_units": profit_summary["profit_units"],
-        "cumulative_profit_units_with_rebate": profit_summary["profit_units_with_rebate"],
-        "validation_signals": validation_signals,
-        "ah_ou_v3": service.dashboard_ah_ou_v3_validation(),
+        "samples": samples,
+        "cumulative_profit_units": net_units,
+        "cumulative_profit_units_with_rebate": net_units,
+        "validation_signals": {},
+        "ah_ou_v3": v3,
         "pagination": {"days": days, "limit": limit, "offset": offset, "total": total},
         "read_contract": {
             "provider_calls": int(day_view.get("provider_calls") or 0),
@@ -731,6 +833,7 @@ def dashboard_intelligence_validation_calibrated(
     return {
         "request_id": request_id(request),
         "schema_version": "w2.dashboard-intelligence-validation-calibrated.v1",
+        "authority_scope": "HISTORICAL_READ_ONLY",
         "generated_at": datetime.now(UTC),
         "date": date,
         "forward_start": FORWARD_START_UTC,
@@ -865,10 +968,7 @@ def dashboard_intelligence_replay(
     response_model=WorkspaceMatch,
 )
 def dashboard_intelligence_match(fixture_id: str) -> dict[str, Any]:
-    match = service.dashboard_intelligence_match(
-        fixture_id,
-        candidate_enabled=os.environ.get("W2_CANDIDATE_ENABLED", "false").lower() == "true",
-    )
+    match = service.dashboard_intelligence_match(fixture_id, candidate_enabled=False)
     if match is None:
         raise HTTPException(status_code=404, detail="dashboard match not found")
     kickoff = datetime.fromisoformat(str(match["kickoff_utc"]).replace("Z", "+00:00"))
@@ -891,14 +991,16 @@ def dashboard_summary(
     timezone: str = "Asia/Shanghai",
 ) -> dict[str, Any]:
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
-    return {
-        "request_id": request_id(request),
-        **service.public_dashboard_summary(
+    payload = service.public_dashboard_summary(
             target_date=date,
             window=normalized_window,
             timezone=timezone,
-        ),
-    }
+    )
+    anchor = datetime.fromisoformat(str(payload["date"])).date()
+    current = public_v3_home_projection(service.dashboard_ah_ou_v3_public(), anchor=anchor)
+    payload["totals"]["recommendations"] = len(current["today_recommendations"])
+    payload["performance"] = current["performance_summary"]
+    return {"request_id": request_id(request), **payload}
 
 
 @public_router.get("/validation/summary", response_model=ValidationSummaryResponse)
@@ -909,14 +1011,18 @@ def validation_summary(
     timezone: str = "Asia/Shanghai",
 ) -> dict[str, Any]:
     normalized_window = window if window in DASHBOARD_WINDOWS else "today"
-    return {
-        "request_id": request_id(request),
-        **service.public_validation_summary(
+    payload = service.public_validation_summary(
             target_date=date,
             window=normalized_window,
             timezone=timezone,
-        ),
+    )
+    anchor = datetime.fromisoformat(str(payload["date"])).date()
+    current = public_v3_home_projection(service.dashboard_ah_ou_v3_public(), anchor=anchor)
+    payload["validation"] = {
+        "schema_version": "w2.ah_ou_v3_public_validation.v1",
+        **current["performance_summary"],
     }
+    return {"request_id": request_id(request), **payload}
 
 
 @public_router.get("/formal/tracking/summary", response_model=FormalTrackingSummaryResponse)

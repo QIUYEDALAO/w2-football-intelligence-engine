@@ -19,8 +19,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from tests.legacy_v4_repository import install_legacy_v4_writer
 
 from w2.infrastructure.persistence.dynamic_prematch_models import DynamicPrematchEvaluationModel
 from w2.prematch import read_model_projection as current
@@ -54,6 +56,13 @@ def _load_historical_module(sha: str, name: str) -> types.ModuleType:
     return module
 
 
+def _historical_write(module: types.ModuleType, engine: Any, artifact: Any) -> None:
+    """The pinned historical producer writes; current consumer retries later."""
+    with pytest.MonkeyPatch.context() as patch:
+        install_legacy_v4_writer(patch)
+        module.write_frozen_analysis_artifacts(engine, [artifact])
+
+
 def _materializer(module: types.ModuleType, engine: Any) -> Any:
     def calculate(repository: Any, fixture_id: str, evaluated_at: datetime):
         del repository, evaluated_at
@@ -84,7 +93,7 @@ def _build_shadow(engine: Any, module: types.ModuleType) -> tuple[Any, Any]:
     artifact = materializer.build(
         _real["FIXTURE_ID"], evaluated_at=_real["EVALUATED_AT"], source_event=None
     )
-    module.write_frozen_analysis_artifacts(engine, [artifact])
+    _historical_write(module, engine, artifact)
     reader = _real["ReadModelService"](repository=_real["FrozenReaderRepository"](engine))
     card = reader.public_analysis_card_bounded(
         _real["FIXTURE_ID"], use_frozen_canary=True
@@ -123,7 +132,7 @@ def _build_shadow(engine: Any, module: types.ModuleType) -> tuple[Any, Any]:
 
 
 def _write_and_read_back(engine: Any, module: types.ModuleType, artifact: Any) -> Any:
-    module.write_frozen_analysis_artifacts(engine, [artifact])
+    _historical_write(module, engine, artifact)
     with Session(engine) as session:
         rows = list(
             session.scalars(select(DynamicPrematchEvaluationModel)).all()
@@ -191,7 +200,7 @@ def test_r8_02_same_identity_retry_idempotent_per_generation() -> None:
     for name, module in (("r5", r5), ("r6", r6), ("r7", current)):
         engine = _new_engine()
         _, artifact = _build_shadow(engine, module)
-        module.write_frozen_analysis_artifacts(engine, [artifact])
+        _historical_write(module, engine, artifact)
         with Session(engine) as session:
             row = session.scalar(select(DynamicPrematchEvaluationModel))
         evaluation = _version_from_payload(dict(row.payload))
@@ -214,7 +223,7 @@ def test_r8_02_a_r6_unmarked_content_old_to_new_retry() -> None:
     _, artifact = _build_shadow(engine, r6)
 
     # Old (A-R6) module writes with content.
-    r6.write_frozen_analysis_artifacts(engine, [artifact])
+    _historical_write(r6, engine, artifact)
 
     # Current reader replays the marker-less artifact; the write path re-attaches
     # the frozen content so the retry does not conflict.

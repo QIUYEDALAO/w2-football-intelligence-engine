@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from starlette.requests import Request
+from tests.legacy_v4_repository import load_historical_module
 
 from w2.api.repository import ReadModelService
 from w2.api.routers import _calibrated_sample_projection
@@ -25,8 +26,11 @@ from w2.strategy.online_calibration_filter import (
     PARAM_VERSION,
     evaluate_fast_criteria,
     fast_criteria_rows,
-    materialize_calibrated_validation_samples,
 )
+
+materialize_calibrated_validation_samples = load_historical_module(
+    "src/w2/strategy/online_calibration_filter.py", "w2_historical_calibration_6eb3ffa8"
+).materialize_calibrated_validation_samples
 
 
 def _session():

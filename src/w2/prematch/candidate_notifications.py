@@ -66,6 +66,7 @@ V3_RECOMMENDATION_CONFIRMED = "AH_OU_V3_RECOMMENDATION_CONFIRMED"
 VALIDATION_SIGNAL = "VALIDATION_SIGNAL"
 VALIDATION_SIGNAL_WATERMARK = "验证期信号 · 非正式推荐 · 不计入档位"
 DAILY_SETTLEMENT = "DAILY_SETTLEMENT"
+V3_DAILY_SETTLEMENT = "AH_OU_V3_DAILY_SETTLEMENT"
 
 PENDING = "PENDING"
 RETRY_PENDING = "RETRY_PENDING"
@@ -261,20 +262,21 @@ def _aware(moment: datetime) -> datetime:
 
 _ALWAYS_PUSH = frozenset(
     {
-        DAILY_CANDIDATE_LIST,
         V3_RECOMMENDATION_CONFIRMED,
-        VALIDATION_SIGNAL,
-        DAILY_SETTLEMENT,
+        V3_DAILY_SETTLEMENT,
         TEST_MESSAGE,
     }
 )
-_HEALTH_RELEVANT = _ALWAYS_PUSH | {VALIDATION_SAMPLE_CONFIRMED}
+_HEALTH_RELEVANT = _ALWAYS_PUSH
 
 
 def delivery_route(row: CandidateNotificationOutboxModel) -> tuple[str, str]:
     """Only current v3 recommendations and operational digests reach the phone."""
-    if str(row.event_type) == VALIDATION_SAMPLE_CONFIRMED:
-        return "SUPPRESS", "HISTORICAL_V4_RECOMMENDATION"
+    if str(row.event_type) in {
+        DAILY_CANDIDATE_LIST, VALIDATION_SAMPLE_CONFIRMED, VALIDATION_SIGNAL,
+        DAILY_SETTLEMENT,
+    }:
+        return "SUPPRESS", "HISTORICAL_AH_OU_EVENT"
     if str(row.event_type) in _ALWAYS_PUSH:
         return "SEND", "ACTIONABLE"
     return "SUPPRESS", "EVENT_TYPE_RETIRED"
@@ -321,6 +323,15 @@ def deliver_pending_notifications(
                 suppressed_count += 1
                 session.commit()
                 continue
+            if row.event_type in {V3_RECOMMENDATION_CONFIRMED, V3_DAILY_SETTLEMENT}:
+                try:
+                    _verify_current_outbox_in_session(session, row)
+                except Exception as exc:
+                    row.delivery_status = FAILED
+                    row.last_error = f"V3_OUTBOX_READ_REJECTED:{type(exc).__name__}:{exc}"[:512]
+                    failed_count += 1
+                    session.commit()
+                    continue
             try:
                 send(row.payload)
             except Exception as exc:  # sender boundary; persist only a safe class name
@@ -565,113 +576,11 @@ def materialize_validation_samples(
     now: datetime,
     window_before_days: int = 3,
     window_after_days: int = 1,
-) -> dict[str, int]:
-    """Materialize the post-match validation sample set into ``validation_samples``.
-
-    Covers fixtures whose kickoff falls in [now - window_before_days, now +
-    window_after_days]. Uses the same projection 口径 as
-    ``_official_funnel_recommendations``, then upserts the in-window rows and
-    deletes in-window rows that are no longer samples. Rows outside the window
-    are frozen and never touched.
-    """
-
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=UTC)
-    now = now.astimezone(UTC)
-    window_start = now - timedelta(days=window_before_days)
-    window_end = now + timedelta(days=window_after_days)
-
-    # 窗口内的 api_football fixture（provider_fixture_id 为纯数字，与投影结果一致）。
-    window_provider_ids = {
-        str(row.provider_fixture_id)
-        for row in session.scalars(
-            select(MatchdayFixtureIdentityModel).where(
-                MatchdayFixtureIdentityModel.provider == "api_football",
-                MatchdayFixtureIdentityModel.kickoff_utc >= window_start,
-                MatchdayFixtureIdentityModel.kickoff_utc < window_end,
-            )
-        )
-    }
-
-    # 同一口径全量投影，再按窗口过滤（口径不变；性能由每 10 分钟一次的写入承担）。
-    active_competitions = _active_competitions(session)
-    recommendations = _official_recommendations_dashboard_scope(
-        session, active_competitions=active_competitions
-    )
-    window_rows = [
-        row for row in recommendations if row["fixture_id"] in window_provider_ids
-    ]
-
-    # 现有窗口内的样本行（用于 upsert 与删除不再属于样本的行）。
-    existing = {
-        (row.fixture_id, row.market): row
-        for row in session.scalars(
-            select(ValidationSampleModel).where(
-                ValidationSampleModel.kickoff_utc >= window_start,
-                ValidationSampleModel.kickoff_utc < window_end,
-            )
-        )
-    }
-
-    projected_now = now
-    new_keys: set[tuple[str, str]] = set()
-    for row in window_rows:
-        key = (row["fixture_id"], row["market"])
-        new_keys.add(key)
-        sample = existing.get(key)
-        if sample is None:
-            sample = ValidationSampleModel(
-                fixture_id=row["fixture_id"],
-                market=row["market"],
-                selection=row["selection"],
-                exact_line=row["exact_line"],
-                decimal_odds=row["decimal_odds"],
-                evaluation_id=row["evaluation_id"],
-                settlement=row["settlement"],
-                projected_at=projected_now,
-            )
-            session.add(sample)
-        sample.competition_id = row.get("competition_id")
-        sample.kickoff_utc = _parse_iso_utc(row.get("kickoff_utc"))
-        sample.selection = row["selection"]
-        sample.exact_line = row["exact_line"]
-        sample.decimal_odds = row["decimal_odds"]
-        sample.bookmaker_id = row.get("bookmaker_id")
-        sample.first_checkpoint = row.get("first_checkpoint")
-        sample.final_checkpoint = row.get("final_checkpoint")
-        sample.evaluation_id = row["evaluation_id"]
-        sample.calibration_identity = row.get("calibration_identity")
-        sample.settlement = row["settlement"]
-        sample.profit_units = row.get("profit_units")
-        sample.score = row.get("score")
-        sample.projected_at = projected_now
-        sample.settled_at = _parse_iso_utc(row.get("settled_at"))
-        sample.evaluated_at = _parse_iso_utc(row.get("evaluated_at"))
-        sample.quote_captured_at = _parse_iso_utc(row.get("quote_captured_at"))
-        sample.current_ev = row.get("current_ev")
-        sample.home_team_label = row.get("home_team_label")
-        sample.away_team_label = row.get("away_team_label")
-        sample.later_unassessed_checkpoints = row.get("later_unassessed_checkpoints")
-        sample.lifecycle_note_zh = row.get("lifecycle_note_zh")
-
-    deleted = 0
-    for key, sample in list(existing.items()):
-        if key not in new_keys:
-            session.delete(sample)
-            deleted += 1
-
-    # New v3 samples are projected from immutable v3.1 decision + settlement
-    # identities. The legacy writer above remains its original versioned reader.
-    from w2.tracking.ah_ou_v3_postmatch import settle_ah_ou_v3_in_session
-    v3_report = settle_ah_ou_v3_in_session(session, now=now)
-    session.flush()
-    report: dict[str, Any] = {
-        "window_fixtures": len(window_provider_ids),
-        "window_rows": len(window_rows),
-        "deleted": deleted,
-        "v3": v3_report,
-    }
-    return report
+) -> dict[str, Any]:
+    """Retired AH/OU writer. Existing validation rows remain historical read-only."""
+    del session, now, window_before_days, window_after_days
+    return {"status": "HISTORICAL_READ_ONLY", "window_fixtures": 0,
+            "window_rows": 0, "deleted": 0}
 
 
 def _iso_or_none(value: datetime | None) -> str | None:
@@ -1034,10 +943,52 @@ def enqueue_v3_recommendation_confirmed_in_session(
     if (
         existing is None
         or existing.event_type != V3_RECOMMENDATION_CONFIRMED
-        or existing.payload != payload
+        or {key: value for key, value in existing.payload.items() if key != "_delivery"}
+        != payload
     ):
         raise ValueError("V3_NOTIFICATION_EVENT_FIELD_CONFLICT")
     return None
+
+
+def _verify_current_outbox_in_session(
+    session: Session, row: CandidateNotificationOutboxModel
+) -> None:
+    """Queued events must still match verified frozen decisions before send."""
+    if row.event_type == V3_RECOMMENDATION_CONFIRMED:
+        decision_id = str((row.payload or {}).get("decision_id") or "")
+        decision = session.get(AhOuDecisionLedgerModel, decision_id)
+        if decision is None or not decision.selected:
+            raise ValueError("V3_NOTIFICATION_DECISION_MISSING")
+        enqueue_v3_recommendation_confirmed_in_session(session, decision=decision)
+        return
+    if row.event_type != V3_DAILY_SETTLEMENT:
+        raise ValueError("V3_NOTIFICATION_EVENT_TYPE_INVALID")
+    payload = row.payload or {}
+    if payload.get("schema_version") != "w2.ah_ou_v3_daily_settlement.v1":
+        raise ValueError("V3_DAILY_SCHEMA_INVALID")
+    try:
+        day = date.fromisoformat(str(payload["football_day"]))
+    except (ValueError, KeyError) as exc:
+        raise ValueError("V3_DAILY_DAY_INVALID") from exc
+    if row.notification_event_id != _event_id(day.isoformat(), V3_DAILY_SETTLEMENT):
+        raise ValueError("V3_DAILY_EVENT_ID_INVALID")
+    from w2.tracking.ah_ou_v3_postmatch import v3_validation_snapshot
+
+    start, end = football_day_window(day)
+    current = [
+        item for item in v3_validation_snapshot(session)["rows"]
+        if (kickoff := _parse_time(item.get("kickoff_utc"))) is not None
+        and start <= kickoff < end
+    ]
+    expected_items = [
+        {**item, "net_units": str(item["net_units"]) if item["net_units"] is not None else None}
+        for item in current
+    ]
+    if payload.get("items") != expected_items or payload.get("net_units") != str(sum(
+        (Decimal(str(item["net_units"])) for item in current if item["state"] == "SETTLED"),
+        Decimal(0),
+    )):
+        raise ValueError("V3_DAILY_CONTENT_CONFLICT")
 
 
 def enqueue_validation_sample_confirmed_in_session(
@@ -1437,18 +1388,60 @@ def enqueue_daily_settlement(
 
 
 def enqueue_scheduled_notifications_in_session(session: Session, *, now: datetime) -> list[str]:
-    """① ②(fallback) ③ scheduled enqueues, for the scheduler tick."""
+    """Schedule only the current v3 digest; old outbox rows remain historical."""
 
     inserted: list[str] = []
-    candidate = enqueue_daily_candidate_list_in_session(session, now=now)
-    if candidate:
-        inserted.append(candidate)
-    fallbacks = enqueue_validation_sample_fallbacks_in_session(session, now=now)
-    inserted.extend(fallbacks)
-    settlement = enqueue_daily_settlement_in_session(session, now=now)
+    settlement = enqueue_v3_daily_settlement_in_session(session, now=now)
     if settlement:
         inserted.append(settlement)
     return inserted
+
+
+def enqueue_v3_daily_settlement_in_session(session: Session, *, now: datetime) -> str | None:
+    """One immutable daily report derived from verified v3 decisions only."""
+    if (now.astimezone(BEIJING).hour, now.astimezone(BEIJING).minute) < (
+        DAILY_SETTLEMENT_HOUR, DAILY_SETTLEMENT_MINUTE
+    ):
+        return None
+    day = now.astimezone(BEIJING).date() - timedelta(days=1)
+    event_id = _event_id(day.isoformat(), V3_DAILY_SETTLEMENT)
+    if session.get(CandidateNotificationOutboxModel, event_id) is not None:
+        return None
+    from w2.tracking.ah_ou_v3_postmatch import v3_validation_snapshot
+
+    start, end = football_day_window(day)
+    snapshot = v3_validation_snapshot(session)
+    rows = [
+        row for row in snapshot["rows"]
+        if (kickoff := _parse_time(row.get("kickoff_utc"))) is not None
+        and start <= kickoff < end
+    ]
+    items = [
+        {**row, "net_units": str(row["net_units"]) if row["net_units"] is not None else None}
+        for row in rows
+    ]
+    settled = [row for row in rows if row["state"] == "SETTLED"]
+    net_units = sum((Decimal(str(row["net_units"])) for row in settled), Decimal(0))
+    payload = {
+        "schema_version": "w2.ah_ou_v3_daily_settlement.v1",
+        "event_type": V3_DAILY_SETTLEMENT,
+        "football_day": day.isoformat(),
+        "selected": len(rows),
+        "pending": sum(row["state"] == "PENDING" for row in rows),
+        "blocked": sum(row["state"] == "BLOCKED" for row in rows),
+        "void": sum(row["state"] == "VOID" for row in rows),
+        "settled": len(settled),
+        "net_units": str(net_units),
+        "items": items,
+        "dashboard_url": _dashboard_day_url(day.isoformat()),
+        "created_at": _iso(now),
+    }
+    return event_id if _insert(
+        session, event_id=event_id, opportunity_identity_hash=None,
+        attempt_identity_hash=None, event_type=V3_DAILY_SETTLEMENT,
+        previous_state=None, current_state="SETTLED", payload=payload,
+        created_at=now,
+    ) else None
 
 
 def enqueue_scheduled_notifications(
@@ -1724,6 +1717,11 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
     elif event_type == VALIDATION_SIGNAL:
         competition = str(payload.get("competition") or "未知联赛")
         title = f"[验证信号] {competition} {home}vs{away} OVER{line} @{odds}"
+    elif event_type == V3_DAILY_SETTLEMENT:
+        title = (
+            f"[AH/OU v3.1 结算] {payload.get('football_day')} "
+            f"{payload.get('selected')}条 · 已结算{payload.get('settled')}"
+        )
     elif event_type == DAILY_SETTLEMENT:
         day_str = str(payload.get("football_day") or "")
         try:
@@ -1922,6 +1920,21 @@ def _message_body(payload: Mapping[str, Any]) -> str:
                 f"报价时间：{payload.get('quote_captured_at') or '未知'}",
             )
         )
+    if event_type == V3_DAILY_SETTLEMENT:
+        lines = [
+            f"v3.1 冻结决策 {payload.get('selected')} 条 · "
+            f"已结算 {payload.get('settled')} 条 · "
+            f"待赛果 {payload.get('pending')} 条 · "
+            f"净单位 {payload.get('net_units')}"
+        ]
+        for row in payload.get("items") or []:
+            if isinstance(row, Mapping):
+                lines.append(
+                    f"{row.get('market')} {row.get('selection')} "
+                    f"{row.get('exact_line')} · {row.get('state')} · "
+                    f"{row.get('net_units')} 单位 · 决策 {row.get('decision_id')}"
+                )
+        return "\n".join(lines)
     if event_type == DAILY_SETTLEMENT:
         v3 = payload.get("ah_ou_v3")
         if isinstance(v3, Mapping):
@@ -2258,6 +2271,10 @@ def _insert(
     payload: dict[str, Any],
     created_at: datetime,
 ) -> bool:
+    if event_type not in {
+        V3_RECOMMENDATION_CONFIRMED, V3_DAILY_SETTLEMENT, TEST_MESSAGE,
+    }:
+        return False
     if session.get(CandidateNotificationOutboxModel, event_id) is not None:
         return False
     session.add(

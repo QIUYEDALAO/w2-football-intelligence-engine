@@ -1060,15 +1060,14 @@ def test_calibrated_materialization_failure_cannot_rollback_legacy_samples(
 
     report = _materialize_validation_sample_projections(engine, evaluated_at=evaluated_at)
 
-    assert report["window_rows"] == 1
-    assert report["calibrated_error"] == "RuntimeError: calibrated boom"
+    assert report == {"status": "HISTORICAL_READ_ONLY", "window_rows": 0, "deleted": 0}
     with Session(engine) as session:
         row = session.scalar(
             select(ValidationSampleModel).where(
                 ValidationSampleModel.fixture_id == "legacy-fixture"
             )
         )
-        assert row is not None
+        assert row is None
 
 
 def test_worker_tick_continues_and_reports_calibrated_error(
@@ -1187,10 +1186,15 @@ def test_worker_tick_continues_and_reports_calibrated_error(
     )
     from apps.worker.celery_app import _run_forward_outcome_ledger
 
+    monkeypatch.setattr(
+        "apps.worker.celery_app._settle_v3_postmatch",
+        lambda *args, **kwargs: {"status": "NO_DUE_WORK", "v3": {"status": "NO_DUE_WORK"}},
+    )
+
     result = _run_forward_outcome_ledger(window="next7")
 
     assert result["status"] == "PASS"
-    assert result["validation_samples"]["calibrated_error"] == ("RuntimeError: calibrated boom")
+    assert result["validation_samples"]["status"] == "NO_DUE_WORK"
     from sqlalchemy import select
     from sqlalchemy.orm import Session
 
@@ -1201,7 +1205,7 @@ def test_worker_tick_continues_and_reports_calibrated_error(
                     ValidationSampleModel.fixture_id == "tick-legacy-fixture"
                 )
             )
-            is not None
+            is None
         )
 
 
@@ -1705,8 +1709,8 @@ def test_forward_outcome_ledger_feeds_retry_only_to_model_capture(
         lambda report: True,
     )
     monkeypatch.setattr(
-        "apps.worker.celery_app._materialize_validation_sample_projections",
-        lambda *args, **kwargs: {"window_rows": 0, "deleted": 0, "v3": {"status": "NO_DUE_WORK"}},
+        "apps.worker.celery_app._settle_v3_postmatch",
+        lambda *args, **kwargs: {"status": "NO_DUE_WORK", "v3": {"status": "NO_DUE_WORK"}},
     )
 
     import apps.worker.celery_app as worker_module

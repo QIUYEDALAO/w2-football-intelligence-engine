@@ -114,16 +114,6 @@ function capabilityLabel(capability: IntelligenceWorkspaceList["runtime"]["recom
   return capability.feature_enabled ? "开" : "关";
 }
 
-function opportunityStateLabel(value: WorkspaceMatch["evaluation_execution"]["latest_candidates"][number]["final_state"]): string {
-  if (!value) return "最终状态待确认";
-  return {
-    EVALUATED_CANDIDATE: "最终仍有效",
-    EVALUATED_NO_EDGE: "后续评估为无优势",
-    BLOCKED_BY_GATE: "后续被门禁阻断",
-    MISSED_CHECKPOINT: "后续检查点错过，技术失效",
-    EVALUATION_ERROR: "后续评估错误，技术失效",
-  }[value];
-}
 
 function selectedDaySemantics(workspace: IntelligenceWorkspaceList) {
   return workspace.date_strip.find((entry) => entry.football_day === workspace.date)?.public_semantics
@@ -410,7 +400,7 @@ function Header({ date, loading, onDateChange, onRefresh, workspace, tab, onTabC
       </span>
       <time className="v41-updated">更新 {clock(workspace.generated_at)}</time>
       <nav className="v41-tabs" aria-label="工作台视图" role="tablist">
-        {([["matches", "比赛列表", "比赛"], ["validation", "赛后验证", "战绩复盘"], ["validation-calibrated", "校准复盘", "校准版"], ["replay", "回放记录", "回放记录"]] as const).map(([value, name, text]) => <button aria-label={name} aria-selected={tab === value} key={value} onClick={() => onTabChange(value)} role="tab" type="button">{text}{value === "validation" && validationCount !== undefined ? ` · ${validationCount}` : ""}</button>)}
+        {([["matches", "比赛列表", "比赛"], ["validation", "赛后验证", "战绩复盘"], ["validation-calibrated", "历史校准复盘", "历史校准"], ["replay", "回放记录", "回放记录"]] as const).map(([value, name, text]) => <button aria-label={name} aria-selected={tab === value} key={value} onClick={() => onTabChange(value)} role="tab" type="button">{text}{value === "validation" && validationCount !== undefined ? ` · ${validationCount}` : ""}</button>)}
       </nav>
       <button className="v41-theme-btn" onClick={() => setTheme(effectiveTheme === "light" ? "dark" : "light")} title="切换明暗主题" type="button">{effectiveTheme === "light" ? "☀️ 浅白" : "🌙 暗黑"}</button>
     </header>
@@ -469,14 +459,14 @@ function TodaySummary({ workspace }: { workspace: IntelligenceWorkspaceList }) {
     const marketBlockedCount = matches.filter((match) => match.readiness.market_evidence_status === "NOT_READY").length;
     const limitedCount = selectedCause && marketBlockedCount === matches.length ? marketBlockedCount : 0;
     const calmCount = !selectedCause && !workspace.selected_fixture_id ? workspace.today_summary.match_count : 0;
-    const candidateCount = matches.filter((match) => match.evaluation_execution.status === "CANDIDATE").length;
+    const candidateCount = workspace.today_recommendations?.length ?? 0;
     return <section className="v41-today" aria-label={`${dayNoun}比赛摘要`}>
       <div className="v41-today-primary">
         <div><strong>{workspace.today_summary.match_count}</strong><span>场{dayNoun}比赛</span></div>
         <p>{limitedCount ? <><span className="is-accent"><b>{workspace.today_summary.match_count}</b> 场可查看赛程</span><span className={presentation.tone === "neutral" ? "is-accent" : "is-warning"}><b>0</b> 场可进行市场分析</span></> : <><span className={readyCount ? "is-accent" : "is-warning"}><b>{readyCount}</b> 场候选输入全部就绪</span>{partialCount ? <span className="is-warning"><b>{partialCount}</b> 场候选输入部分就绪</span> : null}{candidateBlockedCount ? <span className="is-critical"><b>{candidateBlockedCount}</b> 场候选输入均未就绪</span> : null}{marketBlockedCount ? <span className="is-critical"><b>{marketBlockedCount}</b> 场尚无市场证据</span> : null}</>}</p>
       </div>
       {limitedCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{limitedCount} 场可查看赛程；{presentation.label}</b></p></div> : calmCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{calmCount} 场均未触发优先复核</b></p></div> : Object.keys(counts).length ? <div className="v41-today-other"><span>优先复核</span><p>{Object.entries(counts).slice(0, 3).map(([reason, count]) => <b key={reason}>{count} 场{REASON_LABELS[reason] || label(reason)}</b>)}</p></div> : null}
-      <div className="v41-today-day"><strong>共 {workspace.today_summary.match_count} 场 · {candidateCount} 场检查点漏斗最终候选 · {workspace.today_summary.competition_count || workspace.runtime.active_whitelist_count} 联赛{projectionErrorCount ? ` · ${projectionErrorCount} 场投影异常` : ""}{workspace.today_summary.pending_owner_review_team_count ? ` · ${workspace.today_summary.pending_owner_review_team_count} 支候选译名待审` : ""}</strong><small>{footballDayWindow(workspace)}</small></div>
+      <div className="v41-today-day"><strong>共 {workspace.today_summary.match_count} 场 · {candidateCount} 条 v3.1 冻结推荐 · {workspace.today_summary.competition_count || workspace.runtime.active_whitelist_count} 联赛{projectionErrorCount ? ` · ${projectionErrorCount} 场投影异常` : ""}{workspace.today_summary.pending_owner_review_team_count ? ` · ${workspace.today_summary.pending_owner_review_team_count} 支候选译名待审` : ""}</strong><small>{footballDayWindow(workspace)}</small></div>
     </section>;
   }
   return (
@@ -929,9 +919,6 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
   const finished = match.outcome.is_finished;
   const collectionWarning = !finished && match.market_collection.public_semantics.cause === "AWAITING_COLLECTION";
   const candidate = match.shadow_candidate;
-  const candidateLine = candidate.market === "ASIAN_HANDICAP"
-    ? formatAhRecommendationHandicap(candidate.selection, candidate.exact_line) || candidate.exact_line
-    : candidate.exact_line;
   return (
     <article className="v41-focus" data-focus-type="MATCH" data-fixture-id={match.fixture_id}>
       <header className="v41-focus-header">
@@ -946,24 +933,10 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
           <MarketEvidenceDetails latestSnapshotAt={match.market_collection.latest_snapshot_at} latestSnapshotCheckpoint={match.market_collection.latest_snapshot_checkpoint} markets={markets} />
         </div>
         <div className="v41-focus-meaning">
-          {candidate.status === "ACTIVE" ? <section className="v41-candidate" data-candidate-status={candidate.status}>
-            <header><span>影子候选 · 非正式推荐</span><b>验证中</b></header>
-            <div><strong>{candidate.market ? MARKET_LABELS[candidate.market] : "市场待确认"} · 推荐{SELECTION_LABELS[candidate.selection || ""] || candidate.selection}</strong><span>盘口 {candidate.market === "ASIAN_HANDICAP" ? `${ahRecommendationTeamLabel(candidate.selection, match.home_team_label?.display_name, match.away_team_label?.display_name)}${candidateLine}` : candidateLine} · 赔率 {price(candidate.decimal_odds)}</span><small>已按 V4 身份进入统一前向账本；赛后自动结算并累计验证。</small></div>
-            <footer>Formal、Lock、Production 与实盘保持关闭；达到既有证据门槛后另行提交 Owner 审批。</footer>
-          </section> : null}
-          {match.evaluation_execution.latest_candidates.length ? <section className="v41-candidate v41-candidate--official" data-final-active={String(match.evaluation_execution.status === "CANDIDATE")}>
-            <header><span>检查点漏斗候选</span><b>{match.evaluation_execution.status === "CANDIDATE" ? "最终仍有效" : evaluationStatusLabel(match.evaluation_execution.status)}</b></header>
-            {match.evaluation_execution.latest_candidates.map((item) => {
-              const itemLine = item.market === "ASIAN_HANDICAP"
-                ? formatAhRecommendationHandicap(item.selection, item.exact_line) || item.exact_line
-                : item.exact_line;
-              return <div key={item.market}>
-                <strong>{MARKET_LABELS[item.market]} · 盘口 {item.market === "ASIAN_HANDICAP" ? `${ahRecommendationTeamLabel(item.selection, match.home_team_label?.display_name, match.away_team_label?.display_name)}${itemLine ?? "待确认"}` : itemLine ?? "待确认"} · 推荐{item.selection ? SELECTION_LABELS[item.selection] || item.selection : "方向待确认"} {item.decimal_odds === null ? "" : `@${item.decimal_odds.toFixed(2)}`}</strong>
-                <span>{item.first_checkpoint} 形成 · {opportunityStateLabel(item.final_state)}{item.later_unassessed_checkpoints.length ? ` · 此后 ${item.later_unassessed_checkpoints.join(" / ")} 未产出评估，不影响确认` : ""}</span>
-              </div>;
-            })}
-            <footer>{match.evaluation_execution.summary_zh}</footer>
-          </section> : null}
+          {(match.ah_ou_v3_recommendations || []).map((row) => <section className="v41-candidate v41-candidate--official" key={row.decision_id || `${row.fixture_id}-${row.market}`} data-v3-decision-id={row.decision_id}>
+            <header><span>AH/OU v3.1 冻结推荐</span><b>{row.status}</b></header>
+            <div><strong>{MARKET_LABELS[row.market as "ASIAN_HANDICAP" | "TOTALS"] || row.market} · {SELECTION_LABELS[row.selection || ""] || row.selection} {row.line}</strong><span>入场赔率 {row.odds} · 决策 {row.decision_id}</span></div>
+          </section>)}
           {match.evaluation_execution.diagnosis.status !== "CANDIDATE_ACTIVE" ? <EvaluationDiagnosis match={match} /> : null}
           <details className="v41-semantic-audit">
             <summary>语义与生命周期说明</summary>
@@ -1115,7 +1088,7 @@ function ValidationCenter({ response }: { response: IntelligenceValidationRespon
         <div><span className="v41-eyebrow">跨比赛日累计证据</span><h2 id="validation-title">赛后验证</h2><p>先看系统是否可用；审计口径与历史记账默认折叠。</p></div>
       </header>
       <section className="v41-official-recommendations" aria-labelledby="official-recommendations-title">
-        <h3 id="official-recommendations-title">推荐与赛果</h3>
+        <h3 id="official-recommendations-title">历史 V4 推荐与赛果（只读）</h3>
         <p className="v41-validation-verdict"><strong>开赛前最后状态仍为候选且已结算 {officialSettledCount} 注，合计 {officialProfit >= 0 ? "+" : ""}{officialProfit.toFixed(3)} 单位。</strong><span>样本量远不足以判断模型好坏。</span></p>
         <ul className="v41-validation-counts"><li><span>曾形成候选</span><strong>{modelForecast.ever_formed_candidate_count}</strong></li><li><span>最终仍有效</span><strong>{modelForecast.final_candidate_count}</strong></li><li><span>后续失效</span><strong>{modelForecast.invalidated_candidate_count}</strong></li></ul>
         {officialRecommendations.length ? <ol className="v41-match-grid">{officialRecommendations.map((row) => {
@@ -1210,7 +1183,7 @@ function CalibratedValidationCenter({ response }: { response: IntelligenceCalibr
     return "球队待确认";
   };
   return <section className="v41-validation-center" id="secondary-validation-calibrated" aria-labelledby="validation-calibrated-title">
-    <header><div><span className="v41-eyebrow">旁路、独立数据源</span><h2 id="validation-calibrated-title">赛后验证（校准版）</h2><p>只读在线 bias 过滤层；被过滤的注也保留在本页。</p></div></header>
+    <header><div><span className="v41-eyebrow">旧代际历史只读</span><h2 id="validation-calibrated-title">历史校准复盘</h2><p>此处是旧在线 bias 过滤样本，不计入当前 v3 推荐、结算或战绩；被过滤的注仍保留供历史核查。</p></div></header>
     <ul className="v41-validation-counts"><li><span>总样本</span><strong>{response.counts.total}</strong></li><li><span>热身直通</span><strong>{response.counts.warmup_kept}</strong></li><li><span>非热身 KEPT</span><strong>{response.counts.non_warmup_kept}</strong></li><li><span>非热身 FILTERED</span><strong>{response.counts.non_warmup_filtered}</strong></li><li><span>前向进度</span><strong>{String(response.forward_progress.kept ?? 0)} / {String(response.forward_progress.target ?? 300)}</strong></li></ul>
     {response.samples.length ? <ol className="v41-match-grid">{response.samples.map((row) => <li key={`${row.fixture_id}-${row.market}`} data-filter-decision={row.filter_decision} data-fixture-id={row.fixture_id} data-warmup={String(row.warmup)}>
       <div className="v41-match-card__head"><span className="v41-match-card__meta"><span className="v41-league-tag">{row.competition_id || "赛事待确认"}</span><time>{localDateTime(row.kickoff_utc)}</time><em>{row.forward ? "前向" : "回溯"}</em></span><b className={row.filter_decision === "KEPT" ? "v41-result-badge" : "v41-result-badge is-muted"}>{row.filter_decision}</b></div>

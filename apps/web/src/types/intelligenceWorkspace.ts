@@ -379,7 +379,7 @@ export interface WorkspaceMatch {
   shadow_candidate: {
     status: "ACTIVE" | "NOT_READY" | "OFF";
     mode: "SHADOW_ONLY";
-    authority: "RECOMMENDATION_DECISION_V4";
+    authority: "HISTORICAL_RECOMMENDATION_DECISION_V4";
     decision_tier: string;
     reason_code: string | null;
     reason_message: string | null;
@@ -731,6 +731,7 @@ export interface ValidationSignalsProjection {
 }
 
 export interface ValidationReviewSample {
+  decision_id?: string;
   fixture_id: string;
   kickoff_utc: string | null;
   date: string | null;
@@ -784,6 +785,7 @@ export interface CalibratedValidationSample {
 export interface IntelligenceCalibratedValidationResponse {
   request_id: string;
   schema_version: "w2.dashboard-intelligence-validation-calibrated.v1";
+  authority_scope?: "HISTORICAL_READ_ONLY";
   generated_at: string | null;
   date: string | null;
   forward_start: string | null;

@@ -262,44 +262,24 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
             capture_output=True,
             text=True,
         )
-        assert result.returncode == 0, result.stderr
-        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-        assert {key: value["delta"] for key, value in evidence["artifact_counts"].items()} == {
-            "provider_calls": 5,
-            "raw_payload": 4,
-            "endpoint_capture": 5,
-            "lineup_event": 1,
-            "dynamic_evaluation_v2": 2,
-            "five_state_snapshot": 2,
-            "exact_pair": 1,
-            "bootstrap_seed_evidence": 1,
-        }
-        # The pair exists because both evaluations are complete, not because
-        # either became recommendable. The factor gate refused both, and that
-        # refusal has to survive into the persisted rows: a pair projected off
-        # rows that had been rewritten to an active or no-edge state would be
-        # measuring something the gate never allowed.
+        # Gate A still collects the authorised upstream payload, but its old
+        # AH/OU dynamic evaluation is retired. The historical Gate A evidence
+        # contract must fail closed rather than report a successful canary
+        # using a missing evaluation/pair.
+        assert result.returncode != 0
+        assert "ANY_REQUIRED_ARTIFACT_DELTA_ZERO:dynamic_evaluation_v2" in result.stderr
         with create_engine(database_url_text).connect() as connection:
-            persisted = connection.execute(
-                text(
-                    "SELECT original_state, payload FROM dynamic_prematch_evaluations "
-                    "ORDER BY evaluated_at"
-                )
-            ).all()
-        assert [row[0] for row in persisted] == ["BLOCKED_BY_FACTOR", "BLOCKED_BY_FACTOR"]
-        for _, persisted_payload in persisted:
-            assert persisted_payload["blockers"] == [
-                "FACTOR_SCORE_UNAVAILABLE",
-                "MODEL_FORECAST_CAPTURE_UNRESOLVED",
-            ]
-            assert persisted_payload["state"] == "BLOCKED_BY_FACTOR"
-            assert persisted_payload.get("opportunity_state") in {None, "BLOCKED_BY_GATE"}
-            # gate_results is None outside the denominator scope, which the
-            # staged bootstrap is; either way it must not claim a candidate.
-            assert (persisted_payload.get("gate_results") or {}).get("candidate") is not True
-
-        assert evidence["lineage"]["fixture_selection"]["selected_fixture_id"] == FIXTURE_ID
-        assert evidence["lineage"]["fixture_selection"]["eligible_candidate_count"] == 2
+            counts = connection.execute(text(
+                "SELECT "
+                "(SELECT count(*) FROM gate_a_provider_calls), "
+                "(SELECT count(*) FROM matchday_endpoint_captures), "
+                "(SELECT count(*) FROM dynamic_prematch_evaluations), "
+                "(SELECT count(*) FROM dynamic_prematch_opportunities), "
+                "(SELECT count(*) FROM candidate_notification_outbox)"
+            )).one()
+        assert counts[0] == 5
+        assert counts[1] == 5
+        assert tuple(counts[2:]) == (0, 0, 0)
         assert [path.split("?", 1)[0] for path in _FakeProviderHandler.requests] == [
             "/status",
             "/fixtures",

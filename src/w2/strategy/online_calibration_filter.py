@@ -195,90 +195,10 @@ def _frozen_decision(row: CalibratedValidationSampleModel) -> tuple[Any, ...]:
     )
 
 
-def materialize_calibrated_validation_samples(session: Session) -> dict[str, int]:
-    samples = list(session.scalars(select(ValidationSampleModel)))
-    evaluation_ids = {row.evaluation_id for row in samples}
-    evaluations = (
-        list(session.scalars(select(DynamicPrematchEvaluationModel).where(
-            DynamicPrematchEvaluationModel.evaluation_id.in_(evaluation_ids))))
-        if evaluation_ids else []
-    )
-    fixture_ids = {
-        value
-        for row in samples
-        for value in (
-            row.fixture_id, _fixture_key(row.fixture_id),
-            f"api_football:{_fixture_key(row.fixture_id)}",
-        )
-    }
-    results = list(session.scalars(select(ResultModel).where(
-        ResultModel.fixture_id.in_(fixture_ids)))) if fixture_ids else []
-    capture_ids = {row.source_capture_id for row in results if row.source_capture_id}
-    captures = list(session.scalars(select(MatchdayEndpointCaptureModel).where(
-        MatchdayEndpointCaptureModel.capture_id.in_(capture_ids)))) if capture_ids else []
-    knowable = result_capture_times(
-        results, captures)
-    pool = build_bias_pool(samples, evaluations, knowable)
-    evaluation_by_id = {row.evaluation_id: row for row in evaluations}
-    existing = {(row.fixture_id, row.market): row
-        for row in session.scalars(select(CalibratedValidationSampleModel))}
-    kept = filtered = frozen_conflicts = rewritten_v2 = 0
-    for sample in samples:
-        evaluation = evaluation_by_id.get(sample.evaluation_id)
-        evaluated_at = _utc(evaluation.evaluated_at if evaluation else sample.evaluated_at)
-        target_at = evaluated_at or datetime.min.replace(tzinfo=UTC)
-        prior = _prior_observations(market=sample.market, selection=sample.selection,
-            calibration_identity=sample.calibration_identity, evaluated_at=target_at,
-            observations=pool)
-        bias = bias_at_decision(market=sample.market, selection=sample.selection,
-            calibration_identity=sample.calibration_identity, evaluated_at=target_at,
-            observations=pool)
-        decision, stored_bias, corrected, warmup = decision_from_bias(
-            raw_ev=sample.current_ev, decimal_odds=sample.decimal_odds, bias=bias,
-            history_count=len(prior),
-        )
-        candidate = _copy_sample(
-            sample,
-            observed=_utc(knowable.get(_fixture_key(sample.fixture_id))),
-            bias=stored_bias, decision=decision, ev_corrected=corrected, warmup=warmup)
-        old = existing.get((sample.fixture_id, sample.market))
-        if old is None:
-            session.add(candidate)
-        elif old.param_version == PARAM_VERSION:
-            if _frozen_decision(old) != _frozen_decision(candidate):
-                frozen_conflicts += 1
-                logger.warning("calibrated v3 decision frozen fixture=%s market=%s",
-                    sample.fixture_id, sample.market)
-            frozen = {
-                name: getattr(old, name)
-                for name in (
-                    "filter_decision", "bias_at_decision", "ev_corrected",
-                    "warmup", "param_version",
-                )
-            }
-            for column in ValidationSampleModel.__table__.columns:
-                if column.name not in {"fixture_id", "market"}:
-                    setattr(old, column.name, getattr(candidate, column.name))
-            for name, value in frozen.items():
-                setattr(old, name, value)
-            decision = old.filter_decision
-        else:
-            rewritten_v2 += 1
-            for key, value in candidate.__dict__.items():
-                if key not in {"_sa_instance_state", "fixture_id", "market"}:
-                    setattr(old, key, value)
-        kept += decision == "KEPT"
-        filtered += decision == "FILTERED"
-    seen = {(sample.fixture_id, sample.market) for sample in samples}
-    deleted = 0
-    for identity, row in existing.items():
-        if identity not in seen:
-            session.delete(row)
-            deleted += 1
-    session.flush()
-    return {"source_rows": len(samples), "pool_rows": len(pool), "kept": kept,
-        "filtered": filtered, "rewritten_v2": rewritten_v2,
-        "frozen_conflicts": frozen_conflicts, "deleted": deleted}
+def materialize_calibrated_validation_samples(session: Session) -> dict[str, Any]:
+    """Historical online-calibration rows are read-only after the v3 cutover."""
+    del session
+    return {"kept": 0, "filtered": 0, "deleted": 0, "status": "HISTORICAL_READ_ONLY"}
 
 
 def calibrated_sample_projection(row: CalibratedValidationSampleModel) -> dict[str, Any]:

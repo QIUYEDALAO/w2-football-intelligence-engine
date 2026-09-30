@@ -36,8 +36,8 @@ def main() -> int:
     parser.add_argument("--confirm-write")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
-    if args.write_db and args.dry_run:
-        parser.error("--write-db requires --no-dry-run")
+    if args.write_db:
+        parser.error("LEGACY_AH_OU_OUTCOME_WRITER_RETIRED")
     if args.legacy_recovery_manifest is not None and not args.import_runtime_ledger:
         parser.error("--legacy-recovery-manifest requires --import-runtime-ledger")
 

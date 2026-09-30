@@ -24,6 +24,7 @@ from w2.domain.five_state_pricing import (
     expected_value,
 )
 from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.dynamic_prematch_models import DynamicPrematchEvaluationModel
 from w2.prematch.lifecycle import (
     CHECKPOINT_OPPORTUNITY_SCOPE,
     DynamicEvaluationInput,
@@ -384,6 +385,23 @@ def _attempt(suffix: str, **verdict):  # type: ignore[no-untyped-def]
     )
 
 
+def _seed_historical_evaluation(engine, version) -> None:  # type: ignore[no-untyped-def]
+    """Represent an immutable pre-retirement row for current retry checks."""
+    with Session(engine) as session:
+        session.add(DynamicPrematchEvaluationModel(
+            evaluation_id=version.evaluation_id,
+            identity_hash=version.identity_hash,
+            fixture_id=version.fixture_id,
+            market=version.market,
+            selection=version.selection,
+            checkpoint=version.checkpoint,
+            evaluated_at=version.evaluated_at,
+            original_state=version.state.value,
+            payload=version.as_dict(),
+        ))
+        session.commit()
+
+
 def test_20_replaying_the_same_evaluation_leaves_every_stored_row_untouched() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -395,7 +413,7 @@ def test_20_replaying_the_same_evaluation_leaves_every_stored_row_untouched() ->
         factor_input_identity="f" * 64,
         factor_input_identity_hash="f" * 64,
     )
-    repository.append_evaluation(admitted)
+    _seed_historical_evaluation(engine, admitted)
     before = _snapshot(engine)
     assert any(rows for rows in before.values())
 
@@ -407,7 +425,7 @@ def test_20_replaying_the_same_evaluation_leaves_every_stored_row_untouched() ->
     assert _snapshot(engine) == before
 
 
-def test_20_a_later_verdict_appends_a_new_row_without_editing_the_old_one() -> None:
+def test_20_a_later_verdict_cannot_append_old_current_row_or_edit_history() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     repository = DynamicPrematchRepository(engine)
@@ -422,7 +440,7 @@ def test_20_a_later_verdict_appends_a_new_row_without_editing_the_old_one() -> N
         factor_input_identity="f" * 64,
         factor_input_identity_hash="f" * 64,
     )
-    repository.append_evaluation(first)
+    _seed_historical_evaluation(engine, first)
     with Session(engine) as session:
         original = session.scalar(
             select(DynamicPrematchEvaluationModel).where(
@@ -440,11 +458,12 @@ def test_20_a_later_verdict_appends_a_new_row_without_editing_the_old_one() -> N
         factor_input_identity="e" * 64,
         factor_input_identity_hash="e" * 64,
     )
-    repository.append_evaluation(second)
+    _, created = repository.append_evaluation(second)
+    assert created is False
 
     assert second.identity_hash != first.identity_hash
     with Session(engine) as session:
         rows = list(session.scalars(select(DynamicPrematchEvaluationModel)))
         kept = next(row for row in rows if row.identity_hash == first.identity_hash)
         assert dict(kept.payload) == original_payload
-    assert len(rows) == 2
+    assert len(rows) == 1

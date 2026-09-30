@@ -31,6 +31,18 @@ def run_forward_outcome_ledger(
     write_db: bool = False,
     captured_at: datetime | None = None,
 ) -> dict[str, Any]:
+    if write_db:
+        # The V4 capture ledger is historical. The worker still refreshes raw
+        # results and then settles v3, but no current AH/OU pick is captured
+        # through this legacy entry (including manual CLI calls).
+        return {
+            "schema_version": SCHEMA_VERSION, "status": "HISTORICAL_READ_ONLY",
+            "dry_run": bool(dry_run), "write_db": False, "provider_calls": 0,
+            "db_writes": 0, "lock_capture_write": False,
+            "settlement_write": False, "source": "HISTORICAL_READ_ONLY",
+            "record_count": 0, "written": 0, "skipped_existing": 0,
+            "records": [],
+        }
     resolved_captured_at = (captured_at or datetime.now(UTC)).astimezone(UTC)
     records = build_forward_outcome_records(
         day_view,
@@ -67,7 +79,9 @@ def append_capture_supersessions(
     dry_run: bool = True,
     write_db: bool = False,
 ) -> dict[str, Any]:
-    """Append invalidations without mutating or deleting original captures."""
+    """Append invalidations only during historical dry-run review."""
+    if write_db:
+        raise ValueError("LEGACY_AH_OU_CAPTURE_WRITER_RETIRED")
     resolved_at = (superseded_at or datetime.now(UTC)).astimezone(UTC)
     timestamp = resolved_at.isoformat().replace("+00:00", "Z")
     records: list[dict[str, Any]] = []
@@ -226,6 +240,18 @@ def backfill_outcomes(
     settled_at: datetime | None = None,
     fixture_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
+    if write_db:
+        return {
+            "schema_version": SCHEMA_VERSION, "status": "NO_DUE_WORK",
+            "dry_run": bool(dry_run), "write_db": False,
+            "provider_calls": 0, "db_reads": 0, "db_writes": 0,
+            "lock_capture_write": False, "settlement_write": False,
+            "source": "HISTORICAL_READ_ONLY", "result_fixture_count": 0,
+            "pending_count": 0, "unresolved_count": 0,
+            "unresolved_fixture_ids": [], "record_count": 0,
+            "processed_fixture_counts": {}, "written": 0,
+            "skipped_existing": 0, "records": [],
+        }
     repo = repository or OutcomeLedgerRepository()
     resolved_settled_at = (settled_at or datetime.now(UTC)).astimezone(UTC)
     pending_before = _pending_entries(

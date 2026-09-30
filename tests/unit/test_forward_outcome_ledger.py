@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+from tests.legacy_v4_repository import load_historical_module
 
 from w2.domain.canonical_serialization import CURRENT_SERIALIZER_VERSION
 from w2.domain.recommendation_decision_v4 import (
@@ -19,17 +20,19 @@ from w2.domain.recommendation_decision_v4 import (
 )
 from w2.infrastructure.persistence.models import ResultModel
 from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
-from w2.tracking.forward_outcome_ledger import (
-    append_capture_supersessions,
-    backfill_outcomes,
-    build_forward_outcome_records,
-    pending_outcome_entries,
-    run_forward_outcome_ledger,
-)
 from w2.tracking.outcome_ledger_repository import (
     OutcomeLedgerError,
     OutcomeLedgerRepository,
 )
+
+_historical = load_historical_module(
+    "src/w2/tracking/forward_outcome_ledger.py", "w2_historical_forward_outcome_6eb3ffa8"
+)
+append_capture_supersessions = _historical.append_capture_supersessions
+backfill_outcomes = _historical.backfill_outcomes
+build_forward_outcome_records = _historical.build_forward_outcome_records
+pending_outcome_entries = _historical.pending_outcome_entries
+run_forward_outcome_ledger = _historical.run_forward_outcome_ledger
 
 
 def _day_view() -> dict[str, object]:
@@ -462,8 +465,7 @@ def test_forward_outcome_ledger_captures_and_settles_independent_ou_shadow(
     assert capture["written"] == 2
     capture_rows = repository.records({"capture"})
     assert {
-        (row["shadow_pick"]["market"], row["shadow_pick"]["selection"])
-        for row in capture_rows
+        (row["shadow_pick"]["market"], row["shadow_pick"]["selection"]) for row in capture_rows
     } == {("ASIAN_HANDICAP", "HOME_AH"), ("TOTALS", "OVER")}
     assert all(row["shadow_pick"]["not_a_recommendation"] is True for row in capture_rows)
     assert all(row["shadow_pick"]["not_displayed"] is True for row in capture_rows)
@@ -635,10 +637,10 @@ def test_forward_outcome_ledger_cli_import_dry_run_text_and_json(
     assert payload["reconciliation_status"] == "PASS"
 
 
-def test_forward_outcome_ledger_cli_write_and_idempotent_text_exit_zero(
+def test_forward_outcome_ledger_historical_cli_write_is_idempotent_and_current_is_retired(
     tmp_path: Path,
 ) -> None:
-    _repository(tmp_path)
+    repository = _repository(tmp_path)
     source_root = tmp_path / "runtime"
     ledger_root = source_root / "forward_outcome_ledger"
     ledger_root.mkdir(parents=True)
@@ -653,14 +655,20 @@ def test_forward_outcome_ledger_cli_write_and_idempotent_text_exit_zero(
         "EVAL_01A_IMPORT_RUNTIME_LEDGER",
     )
 
-    first = _run_import_cli(tmp_path, source_root, *write_args)
-    second = _run_import_cli(tmp_path, source_root, *write_args)
+    current = _run_import_cli(tmp_path, source_root, *write_args)
+    assert current.returncode == 2
+    assert "LEGACY_AH_OU_OUTCOME_WRITER_RETIRED" in current.stderr
+    assert repository.records() == []
+
+    first = _run_import_cli(tmp_path, source_root, *write_args, historical=True)
+    second = _run_import_cli(tmp_path, source_root, *write_args, historical=True)
 
     assert first.returncode == 0
     assert "db_writes=1" in first.stdout
     assert second.returncode == 0
     assert "already_imported=1" in second.stdout
     assert "db_writes=0" in second.stdout
+    assert len(repository.records()) == 1
 
 
 def test_forward_outcome_ledger_cli_import_failures_exit_nonzero(
@@ -1047,11 +1055,27 @@ def _run_import_cli(
     root: Path,
     source_root: Path,
     *args: str,
+    historical: bool = False,
 ) -> subprocess.CompletedProcess[str]:
+    script = Path("scripts/run_w2_forward_outcome_ledger.py")
+    if historical:
+        archived = subprocess.run(
+            [
+                "git",
+                "show",
+                "6eb3ffa8cc0a5085d6ace70b9cc926e4d582c9ce:scripts/run_w2_forward_outcome_ledger.py",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        script = root / "scripts" / "run_w2_forward_outcome_ledger.py"
+        script.parent.mkdir(exist_ok=True)
+        script.write_text(archived, encoding="utf-8")
     return subprocess.run(
         [
             sys.executable,
-            "scripts/run_w2_forward_outcome_ledger.py",
+            str(script),
             "--import-runtime-ledger",
             "--source-root",
             str(source_root),
