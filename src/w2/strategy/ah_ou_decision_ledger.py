@@ -29,11 +29,16 @@ from w2.domain.ah_ou_decision_identity import (
     build_ah_ou_decision_id,
 )
 from w2.domain.ah_ou_decision_identity import (
+    build_ah_ou_input_hash as build_ah_ou_input_hash,
+)
+from w2.domain.ah_ou_decision_identity import (
+    canonical_decision_score_text as canonical_decision_score_text,
+)
+from w2.domain.ah_ou_decision_identity import (
     canonical_decision_time as _iso,
 )
 from w2.domain.canonical_serialization import HashDomain, canonical_sha256
 from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
-    AH_OU_DECISION_LEDGER_SCHEMA,
     AH_OU_FROZEN_TERMS_SCHEMA,
     AhOuCohortModel,
     AhOuDecisionLedgerModel,
@@ -42,15 +47,7 @@ from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
 _DECISION_HASH_DOMAIN = HashDomain.RECOMMENDATION_DECISION_V4
 
 
-def _decimal_text(value: Any) -> str:
-    if value is None:
-        return "0"
-    if isinstance(value, Decimal):
-        return str(value)
-    return format(float(value), ".8f")
-
-
-canonical_decision_score_text = _decimal_text
+_decimal_text = canonical_decision_score_text
 
 
 def _frozen_json(value: Any) -> str:
@@ -126,35 +123,6 @@ def _frozen_field_mismatch(
     return None
 
 
-def build_ah_ou_input_hash(
-    *,
-    features: dict[str, Any],
-    home_snapshot: dict[str, Any],
-    away_snapshot: dict[str, Any],
-    meetings: list[dict[str, Any]],
-    quote: dict[str, Any],
-) -> str:
-    """Freeze step: canonical digest of everything the softmax consumed."""
-    body = {
-        "contract": AH_OU_DECISION_LEDGER_SCHEMA,
-        "features": features,
-        "home_snapshot_id": home_snapshot.get("snapshot_id"),
-        "away_snapshot_id": away_snapshot.get("snapshot_id"),
-        "meetings": [
-            {
-                "fixture_id": m.get("fixture_id"),
-                "goals_for": m.get("goals_for"),
-                "goals_against": m.get("goals_against"),
-            }
-            for m in meetings
-        ],
-        "quote_capture_id": quote.get("capture_id"),
-        "quote_line": str(quote.get("line")),
-        "quote_side_prices": quote.get("side_prices"),
-    }
-    return canonical_sha256(body, domain=_DECISION_HASH_DOMAIN)
-
-
 def write_ah_ou_decision(
     session: Session,
     *,
@@ -181,6 +149,12 @@ def write_ah_ou_decision(
     created_at: datetime,
 ) -> AhOuDecisionLedgerModel:
     """Idempotent write: identical re-run is a no-op; slot conflict raises."""
+    if decision_contract == "w2.ah_ou_decision.v3.1":
+        from w2.prematch.current_recommendation_control import (
+            require_current_recommendations_running,
+        )
+
+        require_current_recommendations_running()
     score_text = _decimal_text(score)
     if decision_contract == "w2.ah_ou_decision.v3.1":
         if selected:
@@ -425,6 +399,9 @@ def write_ah_ou_decision_batch(
     one-sided AH ledger row, and the cohort is never committed without both
     markets (or their SKIP reasons) in the same transaction.
     """
+    from w2.prematch.current_recommendation_control import require_current_recommendations_running
+
+    require_current_recommendations_running()
     cohort_row = upsert_cohort(session, **cohort)
     written = [write_ah_ou_decision(session, **decision) for decision in decisions]
     return {"cohort_id": cohort_row.cohort_id,

@@ -3254,8 +3254,12 @@ class ReadModelService:
         missing or inconsistent binding is an unavailable read, never a reason
         to fill the public surface with the older V4 pick or v2 sample.
         """
+        from w2.domain.decision_contract import DecisionContractViolation
+        from w2.prematch.current_recommendation_control import current_recommendations_paused
         from w2.tracking.ah_ou_v3_postmatch import v3_validation_snapshot
 
+        if current_recommendations_paused():
+            return []
         with Session(self.repository._database_engine()) as session:
             rows = v3_validation_snapshot(session)["rows"]
             fixture_ids = {
@@ -3291,7 +3295,7 @@ class ReadModelService:
                     "selection", "exact_line", "decimal_odds", "terms_hash",
                     "quote_capture_id", "quote_raw_sha256",
                 )):
-                    raise ValueError("V3_PUBLIC_FROZEN_TERMS_INCOMPLETE")
+                    raise DecisionContractViolation("V3_PUBLIC_FROZEN_TERMS_INCOMPLETE")
                 fixture_id = str(row["fixture_id"])
                 identity = identities.get(
                     "api_football:" + fixture_id.removeprefix("api_football:")
@@ -3302,14 +3306,14 @@ class ReadModelService:
                     or identity.away_w2_team_id != row["away_team_id"]
                     or identity.kickoff_utc != datetime.fromisoformat(row["kickoff_utc"])
                 ):
-                    raise ValueError("V3_PUBLIC_FIXTURE_TEAM_BINDING_INVALID")
+                    raise DecisionContractViolation("V3_PUBLIC_FIXTURE_TEAM_BINDING_INVALID")
                 home = teams.get(row["home_team_id"])
                 away = teams.get(row["away_team_id"])
                 if home is None or away is None:
-                    raise ValueError("V3_PUBLIC_CANONICAL_TEAM_MISSING")
+                    raise DecisionContractViolation("V3_PUBLIC_CANONICAL_TEAM_MISSING")
                 labels = labels_by_fixture.get(identity.fixture_id)
                 if not labels:
-                    raise ValueError("V3_PUBLIC_TEAM_LABEL_MISSING")
+                    raise DecisionContractViolation("V3_PUBLIC_TEAM_LABEL_MISSING")
                 home_label = (
                     labels["home"].get("display_name")
                     or labels["home"].get("raw_provider_name")
@@ -3321,7 +3325,7 @@ class ReadModelService:
                     or away.display_name
                 )
                 if not home_label or not away_label:
-                    raise ValueError("V3_PUBLIC_TEAM_LABEL_MISSING")
+                    raise DecisionContractViolation("V3_PUBLIC_TEAM_LABEL_MISSING")
                 projected.append({
                     **row,
                     "competition_id": identity.competition_id,

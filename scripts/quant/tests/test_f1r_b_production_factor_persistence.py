@@ -1131,6 +1131,9 @@ def test_07_the_wiring_did_not_touch_a_forbidden_path() -> None:
         "migrations/versions/0086_ahou_v3_postmatch_chain.py",
         # Prelaunch A03's one-way old-writer fence is separately authorised.
         "migrations/versions/0087_ahou_legacy_current_fence.py",
+        # A06 and the 2026-10-01 remediation explicitly authorize this exact
+        # v3 outbox envelope guard; the migration prefix remains forbidden.
+        "migrations/versions/0088_ahou_v3_outbox_immutable.py",
         "src/w2/api/repository.py",
         "src/w2/api/routers.py",
         "src/w2/api/schemas.py",

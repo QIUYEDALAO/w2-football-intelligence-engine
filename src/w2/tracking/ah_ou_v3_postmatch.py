@@ -15,7 +15,12 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from w2.domain.ah_ou_decision_identity import build_ah_ou_decision_id
+from w2.domain.ah_ou_decision_identity import (
+    build_ah_ou_decision_id,
+    build_ah_ou_input_hash,
+    canonical_decision_score_text,
+    canonical_decision_time,
+)
 from w2.domain.canonical_serialization import HashDomain, SerializerVersion, canonical_sha256
 from w2.domain.decision_contract import DecisionContractViolation
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
@@ -28,10 +33,15 @@ from w2.infrastructure.persistence.ah_ou_postmatch_models import (
     AhOuV3SettlementModel,
     AhOuV3ValidationSampleModel,
 )
-from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
+from w2.infrastructure.persistence.factor_model_models import CanonicalTeamMatchHistoryModel
+from w2.infrastructure.persistence.future_refresh_models import (
+    RawPayloadModel,
+    TeamXgRollingSnapshotModel,
+)
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEndpointCaptureModel,
     MatchdayFixtureIdentityModel,
+    MatchdayMarketObservationModel,
 )
 from w2.infrastructure.persistence.models import ResultModel
 from w2.tracking.outcome_ledger_repository import _result_hash
@@ -124,18 +134,22 @@ def _business_fields(row: Any, fields: dict[str, Any]) -> bool:
     return all(getattr(row, key) == value for key, value in fields.items())
 
 
-def _expected_postmatch_fields(
-    session: Session, decision: AhOuDecisionLedgerModel, result: ResultModel
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Derive both immutable postmatch records from prematch terms and FT source."""
+def _verify_v3_frozen_decision_in_session(
+    session: Session, decision: AhOuDecisionLedgerModel
+) -> dict[str, Any]:
+    """Read-only admission shared by public reads, writers and notification delivery.
+
+    Validate before looking for FT. A missing result cannot make a corrupt
+    prematch decision eligible for publication or sending.
+    """
     if decision.decision_contract != "w2.ah_ou_decision.v3.1" or not decision.selected:
-        raise ValueError("V3_SELECTED_CONTRACT_INVALID")
+        raise DecisionContractViolation("V3_SELECTED_CONTRACT_INVALID")
     terms = decision.frozen_terms
     if not isinstance(terms, dict) or terms.get("schema_version") != AH_OU_FROZEN_TERMS_SCHEMA:
-        raise ValueError("V3_SELECTED_TERMS_INCOMPLETE")
+        raise DecisionContractViolation("V3_SELECTED_TERMS_INCOMPLETE")
     terms_hash = canonical_sha256(terms, domain=HashDomain.RECOMMENDATION_DECISION_V4)
     if terms_hash != decision.terms_hash:
-        raise ValueError("V3_SELECTED_TERMS_CONFLICT:terms_hash")
+        raise DecisionContractViolation("V3_PUBLIC_FROZEN_TERMS_HASH_MISMATCH")
     bindings = {
         "selection": decision.direction,
         "quote_identity_hash": decision.quote_identity_hash,
@@ -147,9 +161,48 @@ def _expected_postmatch_fields(
     }
     for field, expected in bindings.items():
         if terms.get(field) != expected:
-            raise ValueError(f"V3_SELECTED_TERMS_CONFLICT:{field}")
+            raise DecisionContractViolation("V3_PUBLIC_FROZEN_TERMS_BINDING_INVALID")
     if decision.skip_reason is not None or decision.direction is None:
-        raise ValueError("V3_SELECTED_DECISION_STATE_INVALID")
+        raise DecisionContractViolation("V3_SELECTED_DECISION_STATE_INVALID")
+    if decision.source_id != decision.capture_id:
+        raise DecisionContractViolation("V3_PUBLIC_SOURCE_ID_MISMATCH")
+    allowed = {"ASIAN_HANDICAP": {"HOME", "AWAY"}, "TOTALS": {"OVER", "UNDER"}}
+    if decision.direction not in allowed.get(decision.market, set()):
+        raise DecisionContractViolation("V3_PUBLIC_MARKET_DIRECTION_INVALID")
+    odds = Decimal(str(terms.get("entry_odds")))
+    line = Decimal(str(terms.get("selected_line")))
+    source_line = Decimal(
+        str(terms.get("home_line" if decision.market == "ASIAN_HANDICAP" else "total_line"))
+    )
+    expected_line = (
+        -source_line
+        if decision.market == "ASIAN_HANDICAP" and (decision.direction == "AWAY")
+        else source_line
+    )
+    if (
+        not odds.is_finite()
+        or odds <= 1
+        or not line.is_finite()
+        or not source_line.is_finite()
+        or line != expected_line
+        or line * 4 != (line * 4).to_integral_value()
+    ):
+        raise DecisionContractViolation("V3_PUBLIC_QUOTE_TERMS_INVALID")
+    score = Decimal(str(decision.score))
+    if not score.is_finite():
+        raise DecisionContractViolation("V3_PUBLIC_SCORE_INVALID")
+    fixture = session.get(
+        MatchdayFixtureIdentityModel,
+        "api_football:" + decision.fixture_id.removeprefix("api_football:"),
+    )
+    if (
+        fixture is None
+        or fixture.home_w2_team_id != decision.home_team_id
+        or fixture.away_w2_team_id != decision.away_team_id
+        or canonical_decision_time(fixture.kickoff_utc - timedelta(hours=2))
+        != canonical_decision_time(decision.decision_at)
+    ):
+        raise DecisionContractViolation("V3_PUBLIC_FIXTURE_TEAM_BINDING_INVALID")
     expected_id = build_ah_ou_decision_id(
         fixture_id=decision.fixture_id,
         market=decision.market,
@@ -166,7 +219,182 @@ def _expected_postmatch_fields(
         terms_hash=terms_hash,
     )
     if decision.decision_id != expected_id:
-        raise ValueError("V3_PUBLIC_DECISION_ID_MISMATCH")
+        raise DecisionContractViolation("V3_PUBLIC_DECISION_ID_MISMATCH")
+    capture = session.get(MatchdayEndpointCaptureModel, decision.capture_id)
+    if (
+        capture is None
+        or capture.endpoint != "odds"
+        or capture.capture_status != "CAPTURED"
+        or not 200 <= capture.status_code < 300
+        or capture.provider_captured_at > decision.decision_at
+    ):
+        raise DecisionContractViolation("V3_PUBLIC_QUOTE_CAPTURE_INVALID")
+    raw = session.get(RawPayloadModel, capture.raw_payload_sha256)
+    if raw is None or raw.endpoint != "odds" or not isinstance(raw.payload, dict):
+        raise DecisionContractViolation("V3_PUBLIC_QUOTE_RAW_MISSING")
+    if (
+        canonical_sha256(
+            raw.payload,
+            domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+            version=SerializerVersion.LEGACY_V1,
+        )
+        != raw.sha256
+        or canonical_sha256(raw.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
+        != decision.source_capture_sha256
+        or raw.captured_at != capture.provider_captured_at
+    ):
+        raise DecisionContractViolation("V3_PUBLIC_QUOTE_RAW_BINDING_INVALID")
+    observations = list(
+        session.scalars(
+            select(MatchdayMarketObservationModel).where(
+                MatchdayMarketObservationModel.capture_id == decision.capture_id,
+                MatchdayMarketObservationModel.fixture_id == fixture.fixture_id,
+                MatchdayMarketObservationModel.bookmaker_id == "4",
+                MatchdayMarketObservationModel.canonical_market == decision.market,
+                MatchdayMarketObservationModel.canonical_selection == decision.direction,
+            )
+        )
+    )
+    matching = [
+        row
+        for row in observations
+        if row.line is not None and Decimal(row.line) == Decimal(str(terms.get("selected_line")))
+    ]
+    if len(matching) != 1:
+        raise DecisionContractViolation("V3_PUBLIC_QUOTE_SELECTED_ROW_INVALID")
+    observed = matching[0]
+    raw_values = [
+        value
+        for item in raw.payload.get("response", [])
+        if str((item.get("fixture") or {}).get("id")) == fixture.provider_fixture_id
+        for company in item.get("bookmakers", [])
+        if str(company.get("id")) == "4"
+        for bet in company.get("bets", [])
+        if str(bet.get("id")) == observed.provider_bet_id
+        for value in bet.get("values", [])
+        if value.get("value") == observed.provider_selection
+    ]
+    if (
+        len(raw_values) != 1
+        or raw_values[0].get("odd") is None
+        or Decimal(str(raw_values[0]["odd"])) != Decimal(str(terms.get("entry_odds")))
+        or Decimal(observed.decimal_odds) != Decimal(str(terms.get("entry_odds")))
+        or observed.raw_payload_sha256 != raw.sha256
+        or observed.captured_at != capture.provider_captured_at
+        or observed.live
+        or observed.suspended
+        or terms.get("bookmaker_id") != "4"
+        or terms.get("captured_at") != capture.provider_captured_at.isoformat()
+    ):
+        raise DecisionContractViolation("V3_PUBLIC_QUOTE_TERMS_CONFLICT")
+    distribution = decision.full_distribution
+    selection = distribution.get("selection") if isinstance(distribution, dict) else None
+    if (
+        not isinstance(selection, dict)
+        or selection.get("selected") is not True
+        or distribution.get("market") != decision.market
+        or (decision.market == "ASIAN_HANDICAP" and selection.get("side") != decision.direction)
+    ):
+        raise DecisionContractViolation("V3_PUBLIC_DISTRIBUTION_BINDING_INVALID")
+    value = selection.get("score" if decision.market == "ASIAN_HANDICAP" else "edge")
+    if canonical_decision_score_text(value) != decision.score:
+        raise DecisionContractViolation("V3_PUBLIC_DISTRIBUTION_SCORE_MISMATCH")
+    # Reconstruct the original input digest from frozen features and the actual
+    # source identities. No model is re-evaluated during a public read.
+    snapshots = list(
+        session.scalars(
+            select(TeamXgRollingSnapshotModel).where(
+                TeamXgRollingSnapshotModel.as_of_fixture_id == fixture.provider_fixture_id,
+                TeamXgRollingSnapshotModel.team_id.in_(
+                    [
+                        fixture.home_provider_team_id,
+                        fixture.away_provider_team_id,
+                    ]
+                ),
+            )
+        )
+    )
+    by_team = {row.team_id: row for row in snapshots}
+    if len(snapshots) != 2 or set(by_team) != {
+        fixture.home_provider_team_id,
+        fixture.away_provider_team_id,
+    }:
+        raise DecisionContractViolation("V3_PUBLIC_INPUT_SOURCE_BINDING_INVALID")
+    history = list(
+        session.scalars(
+            select(CanonicalTeamMatchHistoryModel)
+            .where(
+                CanonicalTeamMatchHistoryModel.team_w2_id == decision.home_team_id,
+                CanonicalTeamMatchHistoryModel.opponent_w2_id == decision.away_team_id,
+                CanonicalTeamMatchHistoryModel.fixture_status == "FT",
+                CanonicalTeamMatchHistoryModel.kickoff_utc < decision.decision_at,
+                CanonicalTeamMatchHistoryModel.captured_at <= decision.decision_at,
+            )
+            .order_by(
+                CanonicalTeamMatchHistoryModel.kickoff_utc.desc(),
+                CanonicalTeamMatchHistoryModel.provider_fixture_id.desc(),
+            )
+            .limit(10)
+        )
+    )
+    history.reverse()
+    sides = ("HOME", "AWAY") if decision.market == "ASIAN_HANDICAP" else ("OVER", "UNDER")
+    prices = {}
+    for side in sides:
+        side_line = -source_line if side == "AWAY" else source_line
+        pair_rows = list(
+            session.scalars(
+                select(MatchdayMarketObservationModel).where(
+                    MatchdayMarketObservationModel.capture_id == decision.capture_id,
+                    MatchdayMarketObservationModel.fixture_id == fixture.fixture_id,
+                    MatchdayMarketObservationModel.bookmaker_id == "4",
+                    MatchdayMarketObservationModel.canonical_market == decision.market,
+                    MatchdayMarketObservationModel.canonical_selection == side,
+                )
+            )
+        )
+        pair_rows = [
+            row for row in pair_rows if row.line is not None and Decimal(row.line) == side_line
+        ]
+        if len(pair_rows) != 1:
+            raise DecisionContractViolation("V3_PUBLIC_QUOTE_PAIR_INVALID")
+        prices[side.lower()] = float(pair_rows[0].decimal_odds)
+    features = distribution.get("features")
+    if not isinstance(features, dict):
+        raise DecisionContractViolation("V3_PUBLIC_INPUT_CONTENT_HASH_MISMATCH")
+    expected_input_hash = build_ah_ou_input_hash(
+        features=features,
+        home_snapshot={"snapshot_id": by_team[fixture.home_provider_team_id].snapshot_id},
+        away_snapshot={"snapshot_id": by_team[fixture.away_provider_team_id].snapshot_id},
+        # The v3 input contract stores scores here; fixture identity is carried
+        # by the history source, not by the legacy meeting feature projection.
+        meetings=[
+            {"goals_for": row.goals_for, "goals_against": row.goals_against} for row in history
+        ],
+        quote={"capture_id": decision.capture_id, "line": source_line, "side_prices": prices},
+    )
+    if expected_input_hash != decision.input_hash:
+        raise DecisionContractViolation("V3_PUBLIC_INPUT_CONTENT_HASH_MISMATCH")
+    return terms
+
+
+def verify_v3_frozen_decision_in_session(
+    session: Session, decision: AhOuDecisionLedgerModel
+) -> dict[str, Any]:
+    try:
+        return _verify_v3_frozen_decision_in_session(session, decision)
+    except DecisionContractViolation:
+        raise
+    except (ValueError, TypeError, KeyError, ArithmeticError) as exc:
+        raise DecisionContractViolation("V3_PUBLIC_FROZEN_CONTENT_INVALID") from exc
+
+
+def _expected_postmatch_fields(
+    session: Session, decision: AhOuDecisionLedgerModel, result: ResultModel
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Derive both immutable postmatch records from prematch terms and FT source."""
+    terms = verify_v3_frozen_decision_in_session(session, decision)
+    terms_hash = decision.terms_hash
     fixture = session.get(
         MatchdayFixtureIdentityModel,
         "api_football:" + decision.fixture_id.removeprefix("api_football:"),
@@ -242,6 +470,7 @@ def _verify_public_postmatch(
     settlement: AhOuV3SettlementModel | None,
     sample: AhOuV3ValidationSampleModel | None,
 ) -> None:
+    verify_v3_frozen_decision_in_session(session, decision)
     if result is None:
         if settlement is not None or sample is not None:
             raise DecisionContractViolation("V3_PUBLIC_POSTMATCH_WITHOUT_RESULT")
@@ -255,10 +484,14 @@ def _verify_public_postmatch(
     if settlement is None or sample is None:
         raise DecisionContractViolation("V3_PUBLIC_POSTMATCH_PAIR_INCOMPLETE")
     if settlement.settlement_hash != canonical_sha256(
-        {"decision_id": settlement.decision_id, **{
-            field: getattr(settlement, field)
-            for field in expected_settlement if field != "settlement_hash"
-        }},
+        {
+            "decision_id": settlement.decision_id,
+            **{
+                field: getattr(settlement, field)
+                for field in expected_settlement
+                if field != "settlement_hash"
+            },
+        },
         domain=HashDomain.RECOMMENDATION_DECISION_V4,
     ):
         raise DecisionContractViolation("V3_PUBLIC_SETTLEMENT_HASH_MISMATCH")

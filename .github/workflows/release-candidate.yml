@@ -201,6 +201,9 @@ jobs:
           files="$(uv run python scripts/ci_shards.py show --kind unit-contract --count 4 --index "$SHARD")"
           test -n "$files"
           uv run pytest -q $files
+      - name: Frozen quant quality gate (Linux)
+        if: matrix.shard == 0
+        run: uv run pytest -q -ra scripts/quant/tests
 
   integration:
     needs: identity
@@ -260,6 +263,14 @@ jobs:
       - run: uv sync --python 3.12 --all-groups --frozen
       - run: uv run pytest -q tests/integration/test_future_refresh_staging_parity.py tests/integration/test_future_refresh_e2e_smoke.py
       - run: uv run python scripts/check_w2_future_refresh_staging_contract.py
+      - name: Linux service, migration and recovery rehearsal
+        run: uv run python scripts/rehearse_w2_prelaunch.py --output "$RUNNER_TEMP/w2-prelaunch-replica"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prelaunch-replica-${{ inputs.expected_head_sha }}
+          path: ${{ runner.temp }}/w2-prelaunch-replica
+
 
   migration-schema:
     needs: identity

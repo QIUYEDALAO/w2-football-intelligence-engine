@@ -3,10 +3,20 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Any
 
 from w2.domain.canonical_serialization import HashDomain, canonical_sha256
 
 AH_OU_DECISION_LEDGER_SCHEMA = "w2.ah_ou_decision_ledger.v3"
+
+
+def canonical_decision_score_text(value: Any) -> str:
+    if value is None:
+        return "0"
+    if isinstance(value, Decimal):
+        return str(value)
+    return format(float(value), ".8f")
 
 
 def canonical_decision_time(value: datetime) -> str:
@@ -50,4 +60,33 @@ def build_ah_ou_decision_id(
     }
     if terms_hash:
         body["terms_hash"] = terms_hash
+    return canonical_sha256(body, domain=HashDomain.RECOMMENDATION_DECISION_V4)
+
+
+def build_ah_ou_input_hash(
+    *,
+    features: dict[str, Any],
+    home_snapshot: dict[str, Any],
+    away_snapshot: dict[str, Any],
+    meetings: list[dict[str, Any]],
+    quote: dict[str, Any],
+) -> str:
+    """Freeze step: canonical digest of everything the softmax consumed."""
+    body = {
+        "contract": AH_OU_DECISION_LEDGER_SCHEMA,
+        "features": features,
+        "home_snapshot_id": home_snapshot.get("snapshot_id"),
+        "away_snapshot_id": away_snapshot.get("snapshot_id"),
+        "meetings": [
+            {
+                "fixture_id": m.get("fixture_id"),
+                "goals_for": m.get("goals_for"),
+                "goals_against": m.get("goals_against"),
+            }
+            for m in meetings
+        ],
+        "quote_capture_id": quote.get("capture_id"),
+        "quote_line": str(quote.get("line")),
+        "quote_side_prices": quote.get("side_prices"),
+    }
     return canonical_sha256(body, domain=HashDomain.RECOMMENDATION_DECISION_V4)

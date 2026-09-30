@@ -5,7 +5,7 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import MetaData, Table, create_engine, select, text
 from sqlalchemy.orm import Session
 from tests.integration import test_future_refresh_db_persistence as harness
 from tests.integration.test_ah_ou_v3_real_chain import PinnacleAhOuClient
@@ -26,20 +26,25 @@ from w2.prematch.analysis_calculator import ReadModelService
 from w2.providers.api_football import LiveApiFootballResponse
 
 
-def _build_chain(tmp_path, monkeypatch):
+def _build_chain(tmp_path, monkeypatch, *, existing_database_url=None, environment="test"):
     import os
     import subprocess
 
     url = os.environ.get("W2_TEST_POSTGRES_URL")
     if not url:
         pytest.skip("W2_TEST_POSTGRES_URL required")
-    admin = create_engine(url, isolation_level="AUTOCOMMIT")
-    name = "w2_v9chain_" + uuid.uuid4().hex[:12]
-    with admin.connect() as c:
-        c.execute(text(f'CREATE DATABASE "{name}"'))
-    db = url.rsplit("/", 1)[0] + "/" + name
+    if existing_database_url is None:
+        admin = create_engine(url, isolation_level="AUTOCOMMIT")
+        name = "w2_v9chain_" + uuid.uuid4().hex[:12]
+        with admin.connect() as c:
+            c.execute(text(f'CREATE DATABASE "{name}"'))
+        db = url.rsplit("/", 1)[0] + "/" + name
+    else:
+        # A replica rehearsal supplies its own dedicated, already-migrated DB.
+        # It still runs every producer/capture/freeze operation below unchanged.
+        db = existing_database_url
     monkeypatch.setenv("W2_DATABASE_URL", db)
-    monkeypatch.setenv("W2_ENVIRONMENT", "test")
+    monkeypatch.setenv("W2_ENVIRONMENT", environment)
     monkeypatch.setenv("W2_FUTURE_REFRESH_PERSISTENCE", "db")
     get_settings.cache_clear()
     # The public router is imported once per pytest process. Bind its read
@@ -63,7 +68,7 @@ def _build_chain(tmp_path, monkeypatch):
     )
 
     repo = FutureRefreshDbRepository()
-    seed_competition_runtime_authority(repo.engine, environment="test", now=now)
+    seed_competition_runtime_authority(repo.engine, environment=environment, now=now)
     apply_collection_policy_update(repo.engine, updated_by="v9-isolated", now=now)
     harness.seed_odds_checkpoint("1489404", with_identity=True)
     from w2.matchday.repository import MatchdayRuntimeRepository
@@ -188,7 +193,44 @@ def _build_chain(tmp_path, monkeypatch):
         == 6
     )
     repo._v9_h2h_client = H2H()
-    yield repo, future, plan, producer
+    try:
+        yield repo, future, plan, producer
+    finally:
+        evidence_dir = os.environ.get("W2_PG_EVIDENCE_DIR")
+        if evidence_dir:
+            import json
+            from pathlib import Path
+
+            from sqlalchemy import inspect
+
+            output = Path(evidence_dir)
+            output.mkdir(parents=True, exist_ok=True)
+            tables = (
+                "raw_payloads",
+                "matchday_endpoint_captures",
+                "matchday_market_observations",
+                "team_xg_rolling_snapshot",
+                "canonical_team_match_history",
+                "ah_ou_decision_ledger",
+                "ah_ou_forward_cohort",
+                "results",
+                "ah_ou_v3_settlement",
+                "ah_ou_v3_validation_sample",
+                "candidate_notification_outbox",
+            )
+            with repo.engine.connect() as connection:
+                snapshot = {
+                    table: [
+                        dict(row)
+                        for row in connection.execute(
+                            select(Table(table, MetaData(), autoload_with=connection))
+                        ).mappings()
+                    ]
+                    for table in tables
+                    if inspect(connection).has_table(table)
+                }
+            target = output / (str(repo.engine.url.database) + "-" + uuid.uuid4().hex + ".json")
+            target.write_text(json.dumps(snapshot, default=str, sort_keys=True, indent=2))
 
 
 @pytest.fixture

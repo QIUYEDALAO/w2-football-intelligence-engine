@@ -18,6 +18,7 @@
 #   W2_RELEASE_STABILIZE_SEC   部署后稳定等待秒数（默认 180）
 #   W2_RELEASE_BASE_TAG         runtime-base 标签（默认 4d5f257daa500878）
 #   W2_RELEASE_GIT              git 命令（默认 git）
+#   W2_RELEASE_SOURCE_RECOVERY_SHA256  显式恢复已封存的源码漂移；默认仍拒绝漂移
 set -uo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -36,6 +37,11 @@ DRAIN_MAX_WAIT_SEC="${W2_RELEASE_DRAIN_MAX_WAIT_SEC:-600}"
 DRAIN_POLL_SEC="${W2_RELEASE_DRAIN_POLL_SEC:-30}"
 BASE_TAG="${W2_RELEASE_BASE_TAG:-4d5f257daa500878}"
 GIT_CMD="${W2_RELEASE_GIT:-git}"
+SOURCE_RECOVERY_SHA256="${W2_RELEASE_SOURCE_RECOVERY_SHA256:-}"
+if [ -n "$SOURCE_RECOVERY_SHA256" ] && ! [[ "$SOURCE_RECOVERY_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "FAIL: RECOVERY_MANIFEST_DIGEST_INVALID" >&2
+  exit 2
+fi
 NGINX_BASE="${W2_RELEASE_NGINX_BASE:-1.27.5-alpine}"
 
 # VPS 侧固定路径（与现行部署布局一致）
@@ -591,7 +597,7 @@ UTC_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOCAL_LOG="/tmp/w2-release-${UTC_STAMP}.log"
 REMOTE_LOG="${VPS_REPORTS_DIR}/release-${UTC_STAMP}.log"
 
-vps "sudo bash -s -- '${TARGET}' '${py_ref}' '${web_ref}' '${python_digest}' '${web_digest}' '${BUILD_TIME}' '${STABILIZE_SEC}' '${API_PORT}' '${WEB_PORT}' '${BASE_TAG}' '${need_backup}' '${online_release}' '${target_head}' '${SKIP_WINDOW}' '${GATE_MAX_WAIT_SEC}' '${GATE_POLL_SEC}' '${override_remote_candidate}' '${override_repo_sha}' '${DRAIN_MAX_WAIT_SEC}' '${DRAIN_POLL_SEC}' '${ACTIVE_CLAIM_MAX_WAIT_SEC}' '${ACTIVE_CLAIM_POLL_SEC}'" <<'VPS_SCRIPT' 2>&1 | tee "$LOCAL_LOG"
+vps "sudo bash -s -- '${TARGET}' '${py_ref}' '${web_ref}' '${python_digest}' '${web_digest}' '${BUILD_TIME}' '${STABILIZE_SEC}' '${API_PORT}' '${WEB_PORT}' '${BASE_TAG}' '${need_backup}' '${online_release}' '${target_head}' '${SKIP_WINDOW}' '${GATE_MAX_WAIT_SEC}' '${GATE_POLL_SEC}' '${override_remote_candidate}' '${override_repo_sha}' '${DRAIN_MAX_WAIT_SEC}' '${DRAIN_POLL_SEC}' '${ACTIVE_CLAIM_MAX_WAIT_SEC}' '${ACTIVE_CLAIM_POLL_SEC}' '${SOURCE_RECOVERY_SHA256}'" <<'VPS_SCRIPT' 2>&1 | tee "$LOCAL_LOG"
 set -euo pipefail
 # 注意：heredoc 通过 `bash -s` 逐行读入 stdin，任何从 stdin 读取的子进程都会
 # 吞掉后续脚本（导致提前结束、误报成功）。因此这里绝不能 `exec 0</dev/null`，
@@ -604,6 +610,7 @@ gate_max_wait_sec="${15}"; gate_poll_sec="${16}"
 override_candidate="${17}"; override_repo_sha="${18}"
 drain_max_wait_sec="${19}"; drain_poll_sec="${20}"
 active_claim_max_wait_sec="${21}"; active_claim_poll_sec="${22}"
+source_recovery_sha256="${23:-}"
 
 compose=(docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml -f /opt/w2/deploy/controlled-future-refresh.override.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env)
 Q() { docker exec w2-staging-postgres-1 psql -XAt -U w2_user -d w2 -c "$1"; }
@@ -636,6 +643,54 @@ rollback() {
     done
     current_schema="$(Q "SELECT version_num FROM alembic_version" 2>/dev/null || echo unknown)"
     echo "SAFE_PAUSE_SCHEMA pre=${pre_schema:-unknown} current=${current_schema} target=${target_head}"
+    if ! docker run --rm --entrypoint python "$py_ref" -c '
+import sys
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+script = ScriptDirectory.from_config(Config("/app/alembic.ini"))
+current, target = sys.argv[1:]
+assert script.get_current_head() == target
+supported = {row.revision for row in script.walk_revisions(
+    base="0076_forward_review_evidence", head=target)}
+assert current in supported, "RECOVERY_SCHEMA_UNSUPPORTED"
+' "$current_schema" "$target_head"; then
+      echo "SAFE_PAUSE_COLLECTION_RECOVERY_FAILED:SCHEMA_UNSUPPORTED" >&2
+      return 0
+    fi
+    # Restart only the candidate collectors. The separate override closes all
+    # current write/public/send outlets but leaves raw capture and FT processing
+    # available. Never restore release.pre-* or start the old API/Web image.
+    recovery_override="/opt/w2/deploy/current-recommendations-paused.override.yml"
+    printf 'services:\n' > "$recovery_override"
+    for c in worker worker-heavy scheduler; do
+      printf '  %s:\n    environment:\n      W2_CURRENT_RECOMMENDATIONS_PAUSED: "true"\n' "$c" >> "$recovery_override"
+      if [ "$current_schema" != "$target_head" ]; then
+        # Partial schema: disable the two stages that require the complete PG
+        # fence. Queued independent XG still fails its head check before IO.
+        printf '      W2_H2H_AUTO_CAPTURE_ENABLED: "false"\n      W2_XG_AUTO_CAPTURE_ENABLED: "false"\n' >> "$recovery_override"
+      fi
+    done
+    recovery_compose=("${compose[@]}" -f "$recovery_override" --env-file "$candidate")
+    if "${recovery_compose[@]}" up -d --no-deps --force-recreate worker worker-heavy scheduler; then
+      recovery_valid=1
+      for c in worker worker-heavy scheduler; do
+        running="$(docker inspect "w2-staging-${c}-1" --format '{{.State.Running}}' 2>/dev/null || echo unknown)"
+        image="$(docker inspect "w2-staging-${c}-1" --format '{{.Config.Image}}' 2>/dev/null || echo unknown)"
+        paused="$(docker inspect "w2-staging-${c}-1" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -Fx 'W2_CURRENT_RECOMMENDATIONS_PAUSED=true' || true)"
+        echo "SAFE_PAUSE_COLLECTOR ${c} running=${running} image=${image} paused=${paused}"
+        if [ "$running" != true ] || [ "$image" != "$py_ref" ] || [ -z "$paused" ]; then
+          recovery_valid=0
+        fi
+      done
+      if [ "$recovery_valid" != 1 ]; then
+        "${recovery_compose[@]}" stop -t 60 worker worker-heavy scheduler || true
+        echo "SAFE_PAUSE_COLLECTION_RECOVERY_FAILED" >&2
+      else
+        echo "SAFE_PAUSE_COLLECTION_RESTORED candidate=${release_sha}"
+      fi
+    else
+      echo "SAFE_PAUSE_COLLECTION_RECOVERY_FAILED" >&2
+    fi
     echo "SAFE_PAUSE_REQUIRES_MANUAL_RECOVERY old_release_env_not_reactivated=1"
     return 0
   fi
@@ -696,10 +751,21 @@ for old_service in api worker worker-heavy scheduler; do
   container_src="$(docker exec "w2-staging-${old_service}-1" python -c "$_src_fingerprint" 2>/dev/null)"
   echo "PREEXISTING_SOURCE_HEAD service=${old_service} image=${image_head:-unknown} container=${container_head:-unknown}"
   echo "PREEXISTING_SOURCE_HASH service=${old_service} image=${image_src:-unknown} container=${container_src:-unknown}"
-  [ -n "$image_head" ] && [ "$image_head" = "$container_head" ] || \
-    fail "PREEXISTING_RUNTIME_SOURCE_DRIFT:${old_service}"
-  [ -n "$image_src" ] && [ -n "$container_src" ] && [ "$image_src" = "$container_src" ] || \
-    fail "PREEXISTING_RUNTIME_SOURCE_DRIFT:${old_service}"
+  if [ -z "$image_head" ] || [ "$image_head" != "$container_head" ] || \
+     [ -z "$image_src" ] || [ -z "$container_src" ] || [ "$image_src" != "$container_src" ]; then
+    [ -n "$source_recovery_sha256" ] || fail "PREEXISTING_RUNTIME_SOURCE_DRIFT:${old_service}"
+    # A recovery admits only a SHA-bound snapshot of this exact runtime source.
+    # It never adopts that source: the trusted candidate still replaces every
+    # old process after the drain gate and before any migration or public ON.
+    docker run --rm --user 0 \
+      --mount type=bind,src=/opt/w2/shared/runtime/reports,dst=/evidence,readonly \
+      --entrypoint python "$py_ref" /app/scripts/w2_runtime_source_recovery.py verify \
+      --manifest "/evidence/source-drift-recovery-${release_sha}.json" \
+      --sha256 "$source_recovery_sha256" --target "$release_sha" --service "$old_service" \
+      --database-revision "$(Q 'SELECT version_num FROM alembic_version')" \
+      "$old_image" "$image_head" "$container_head" "$image_src" "$container_src" || \
+      fail "PREEXISTING_RUNTIME_SOURCE_RECOVERY_INVALID:${old_service}"
+  fi
 done
 
 echo "== checkpoint gate =="

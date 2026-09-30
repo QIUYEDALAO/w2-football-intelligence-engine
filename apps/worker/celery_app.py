@@ -1448,10 +1448,20 @@ def _run_result_materialize(
 
 def _settle_v3_postmatch(engine: Any, *, evaluated_at: datetime) -> dict[str, Any]:
     """Commit v3 settlement and validation sample together after trusted FT."""
+    from sqlalchemy import inspect as _inspect
     from sqlalchemy.orm import Session as _OrmSession
 
     from w2.tracking.ah_ou_v3_postmatch import settle_ah_ou_v3_in_session
 
+    # A failed migration can leave the recovery collectors on the trusted 0076
+    # schema. FT materialization remains useful; v3 settlement is explicitly
+    # blocked until its tables exist, rather than losing the already persisted
+    # result or reporting a successful empty v3 reconciliation.
+    required = ("ah_ou_decision_ledger", "ah_ou_v3_settlement", "ah_ou_v3_validation_sample")
+    if not all(_inspect(engine).has_table(table) for table in required):
+        return {"status": "BLOCKED", "v3": {
+            "status": "BLOCKED", "reason": "V3_POSTMATCH_SCHEMA_UNAVAILABLE",
+        }}
     with _OrmSession(engine) as session:
         report: dict[str, object] = settle_ah_ou_v3_in_session(session, now=evaluated_at)
         if report["status"] == "BLOCKED":

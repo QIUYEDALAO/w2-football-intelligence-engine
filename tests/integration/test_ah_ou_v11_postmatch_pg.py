@@ -202,6 +202,8 @@ def test_v3_selected_ft_capture_natural_result_worker_and_validation(chain):
         changed = CandidateNotificationOutboxModel(
             notification_event_id=daily.notification_event_id,
             event_type=daily.event_type,
+            created_at=daily.created_at,
+            current_state=daily.current_state,
             payload={**daily.payload, "net_units": "999"},
         )
         with pytest.raises(ValueError, match="V3_DAILY_CONTENT_CONFLICT"):

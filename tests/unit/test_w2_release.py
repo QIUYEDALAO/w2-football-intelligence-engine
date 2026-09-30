@@ -811,8 +811,12 @@ def test_migration_fail_does_not_switch(tmp_path: Path) -> None:
     assert r.returncode == 1
     assert "alembic upgrade head 失败" in r.stdout
     lines = install_log.read_text(encoding="utf-8").splitlines() if install_log.exists() else []
-    # 迁移失败 → 不切换：install 日志里没有 candidate -> release.env
-    assert not any("release.candidate-" in line and "release.env" in line for line in lines)
+    # 迁移失败不能切换 release.env；恢复采集可用单独的 candidate env。
+    assert not any(
+        "release.candidate-" in line and "release.env" in line
+        for line in lines if not line.startswith("docker ")
+    )
+    assert "W2_GIT_SHA=old" in _release_env(tmp_path)
 
 
 def test_old_stops_before_migration_and_outbox_isolated_before_new_start(tmp_path: Path) -> None:

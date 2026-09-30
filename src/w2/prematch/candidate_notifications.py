@@ -277,6 +277,12 @@ def delivery_route(row: CandidateNotificationOutboxModel) -> tuple[str, str]:
         DAILY_SETTLEMENT,
     }:
         return "SUPPRESS", "HISTORICAL_AH_OU_EVENT"
+    from w2.prematch.current_recommendation_control import current_recommendations_paused
+
+    if row.event_type in {V3_RECOMMENDATION_CONFIRMED, V3_DAILY_SETTLEMENT} and (
+        current_recommendations_paused()
+    ):
+        return "HOLD", "CURRENT_RECOMMENDATIONS_PAUSED"
     if str(row.event_type) in _ALWAYS_PUSH:
         return "SEND", "ACTIONABLE"
     return "SUPPRESS", "EVENT_TYPE_RETIRED"
@@ -304,6 +310,7 @@ def deliver_pending_notifications(
     delivered_count = 0
     failed_count = 0
     suppressed_count = 0
+    held_count = 0
     with Session(engine or create_engine()) as session:
         rows = list(
             session.scalars(
@@ -317,6 +324,9 @@ def deliver_pending_notifications(
         due_rows = [row for row in rows if _delivery_due(row, resolved_now)][: max(limit, 1)]
         for row in due_rows:
             route, reason = delivery_route(row)
+            if route == "HOLD":
+                held_count += 1
+                continue  # Keep the original event pending for verified resumption.
             if route != "SEND":
                 row.delivery_status = SUPPRESSED
                 row.last_error = reason[:512]
@@ -359,11 +369,14 @@ def deliver_pending_notifications(
         if failed_count
         else "ROUTED"
         if suppressed_count
+        else "PAUSED"
+        if held_count
         else "IDLE",
         "channel": BARK_CHANNEL,
         "delivered": delivered_count,
         "failed_attempts": failed_count,
         "suppressed": suppressed_count,
+        **({"held": held_count} if held_count else {}),
     }
 
 
@@ -877,34 +890,15 @@ def _team_display_name(label: Mapping[str, Any], fallback: str) -> str:
     return name or fallback
 
 
-def enqueue_v3_recommendation_confirmed_in_session(
-    session: Session, *, decision: AhOuDecisionLedgerModel
-) -> str | None:
-    """Queue the current recommendation from its committed v3.1 identity.
+def _v3_recommendation_payload(
+    session: Session, decision: AhOuDecisionLedgerModel
+) -> dict[str, Any]:
+    from w2.tracking.ah_ou_v3_postmatch import verify_v3_frozen_decision_in_session
 
-    The caller places this in the cohort/decision transaction. Historical V4
-    sample-confirmation events remain readable, but never supply a current v3
-    selection or price.
-    """
-    if not decision.selected or decision.decision_contract != "w2.ah_ou_decision.v3.1":
-        return None
-    terms = decision.frozen_terms
-    if not isinstance(terms, dict) or not decision.terms_hash:
-        raise ValueError("V3_NOTIFICATION_FROZEN_TERMS_MISSING")
-    if (
-        terms.get("selection") != decision.direction
-        or terms.get("capture_id") != decision.capture_id
-        or terms.get("model_version") != decision.model_version
-        or terms.get("calibration_version") != decision.calibration_version
-    ):
-        raise ValueError("V3_NOTIFICATION_FROZEN_TERMS_BINDING_INVALID")
+    terms = verify_v3_frozen_decision_in_session(session, decision)
     identity = _fixture_identity(session, str(decision.fixture_id))
-    if identity is None or (
-        identity.home_w2_team_id != decision.home_team_id
-        or identity.away_w2_team_id != decision.away_team_id
-    ):
+    if identity is None:
         raise ValueError("V3_NOTIFICATION_FIXTURE_IDENTITY_INVALID")
-    event_id = _event_id(decision.decision_id, V3_RECOMMENDATION_CONFIRMED)
     payload = {
         "schema_version": "w2.ah_ou_v3_recommendation_notification.v1",
         "event_type": V3_RECOMMENDATION_CONFIRMED,
@@ -927,6 +921,20 @@ def enqueue_v3_recommendation_confirmed_in_session(
         "dashboard_url": _dashboard_fixture_url(str(decision.fixture_id), identity.kickoff_utc),
         "created_at": _iso(decision.created_at),
     }
+    return payload
+
+
+def enqueue_v3_recommendation_confirmed_in_session(
+    session: Session, *, decision: AhOuDecisionLedgerModel
+) -> str | None:
+    """Queue only selected v3.1 decisions in their original commit transaction."""
+    from w2.prematch.current_recommendation_control import require_current_recommendations_running
+
+    require_current_recommendations_running()
+    if not decision.selected or decision.decision_contract != "w2.ah_ou_decision.v3.1":
+        return None
+    payload = _v3_recommendation_payload(session, decision)
+    event_id = _event_id(decision.decision_id, V3_RECOMMENDATION_CONFIRMED)
     if _insert(
         session,
         event_id=event_id,
@@ -959,7 +967,16 @@ def _verify_current_outbox_in_session(
         decision = session.get(AhOuDecisionLedgerModel, decision_id)
         if decision is None or not decision.selected:
             raise ValueError("V3_NOTIFICATION_DECISION_MISSING")
-        enqueue_v3_recommendation_confirmed_in_session(session, decision=decision)
+        expected = _v3_recommendation_payload(session, decision)
+        if (
+            row.notification_event_id != _event_id(decision.decision_id, row.event_type)
+            or row.current_state != "CONFIRMED"
+            or row.previous_state is not None
+            or row.opportunity_identity_hash is not None
+            or row.attempt_identity_hash is not None
+            or {key: value for key, value in row.payload.items() if key != "_delivery"} != expected
+        ):
+            raise ValueError("V3_NOTIFICATION_EVENT_FIELD_CONFLICT")
         return
     if row.event_type != V3_DAILY_SETTLEMENT:
         raise ValueError("V3_NOTIFICATION_EVENT_TYPE_INVALID")
@@ -972,23 +989,18 @@ def _verify_current_outbox_in_session(
         raise ValueError("V3_DAILY_DAY_INVALID") from exc
     if row.notification_event_id != _event_id(day.isoformat(), V3_DAILY_SETTLEMENT):
         raise ValueError("V3_DAILY_EVENT_ID_INVALID")
-    from w2.tracking.ah_ou_v3_postmatch import v3_validation_snapshot
-
-    start, end = football_day_window(day)
-    current = [
-        item for item in v3_validation_snapshot(session)["rows"]
-        if (kickoff := _parse_time(item.get("kickoff_utc"))) is not None
-        and start <= kickoff < end
-    ]
-    expected_items = [
-        {**item, "net_units": str(item["net_units"]) if item["net_units"] is not None else None}
-        for item in current
-    ]
-    if payload.get("items") != expected_items or payload.get("net_units") != str(sum(
-        (Decimal(str(item["net_units"])) for item in current if item["state"] == "SETTLED"),
-        Decimal(0),
-    )):
-        raise ValueError("V3_DAILY_CONTENT_CONFLICT")
+    expected = _v3_daily_payload(session, day=day, created_at=row.created_at)
+    actual = {key: value for key, value in payload.items() if key != "_delivery"}
+    for field, value in expected.items():
+        if actual.get(field) != value:
+            raise ValueError(f"V3_DAILY_CONTENT_CONFLICT:{field}")
+    if actual.keys() != expected.keys() or (
+        row.current_state != "SETTLED"
+        or row.previous_state is not None
+        or row.opportunity_identity_hash is not None
+        or row.attempt_identity_hash is not None
+    ):
+        raise ValueError("V3_DAILY_ENVELOPE_CONFLICT")
 
 
 def enqueue_validation_sample_confirmed_in_session(
@@ -1397,16 +1409,10 @@ def enqueue_scheduled_notifications_in_session(session: Session, *, now: datetim
     return inserted
 
 
-def enqueue_v3_daily_settlement_in_session(session: Session, *, now: datetime) -> str | None:
-    """One immutable daily report derived from verified v3 decisions only."""
-    if (now.astimezone(BEIJING).hour, now.astimezone(BEIJING).minute) < (
-        DAILY_SETTLEMENT_HOUR, DAILY_SETTLEMENT_MINUTE
-    ):
-        return None
-    day = now.astimezone(BEIJING).date() - timedelta(days=1)
-    event_id = _event_id(day.isoformat(), V3_DAILY_SETTLEMENT)
-    if session.get(CandidateNotificationOutboxModel, event_id) is not None:
-        return None
+def _v3_daily_payload(
+    session: Session, *, day: date, created_at: datetime
+) -> dict[str, Any]:
+    """Derive the complete current-generation report envelope without writing."""
     from w2.tracking.ah_ou_v3_postmatch import v3_validation_snapshot
 
     start, end = football_day_window(day)
@@ -1422,7 +1428,7 @@ def enqueue_v3_daily_settlement_in_session(session: Session, *, now: datetime) -
     ]
     settled = [row for row in rows if row["state"] == "SETTLED"]
     net_units = sum((Decimal(str(row["net_units"])) for row in settled), Decimal(0))
-    payload = {
+    return {
         "schema_version": "w2.ah_ou_v3_daily_settlement.v1",
         "event_type": V3_DAILY_SETTLEMENT,
         "football_day": day.isoformat(),
@@ -1434,14 +1440,37 @@ def enqueue_v3_daily_settlement_in_session(session: Session, *, now: datetime) -
         "net_units": str(net_units),
         "items": items,
         "dashboard_url": _dashboard_day_url(day.isoformat()),
-        "created_at": _iso(now),
+        "created_at": _iso(created_at),
     }
-    return event_id if _insert(
+
+def enqueue_v3_daily_settlement_in_session(session: Session, *, now: datetime) -> str | None:
+    """One immutable report; same identity requires the same business envelope."""
+    from w2.prematch.current_recommendation_control import current_recommendations_paused
+
+    if current_recommendations_paused():
+        return None
+    if (now.astimezone(BEIJING).hour, now.astimezone(BEIJING).minute) < (
+        DAILY_SETTLEMENT_HOUR, DAILY_SETTLEMENT_MINUTE
+    ):
+        return None
+    day = now.astimezone(BEIJING).date() - timedelta(days=1)
+    event_id = _event_id(day.isoformat(), V3_DAILY_SETTLEMENT)
+    existing = session.get(CandidateNotificationOutboxModel, event_id)
+    if existing is not None:
+        _verify_current_outbox_in_session(session, existing)
+        return None
+    payload = _v3_daily_payload(session, day=day, created_at=now)
+    if _insert(
         session, event_id=event_id, opportunity_identity_hash=None,
         attempt_identity_hash=None, event_type=V3_DAILY_SETTLEMENT,
-        previous_state=None, current_state="SETTLED", payload=payload,
-        created_at=now,
-    ) else None
+        previous_state=None, current_state="SETTLED", payload=payload, created_at=now,
+    ):
+        return event_id
+    existing = session.get(CandidateNotificationOutboxModel, event_id)
+    if existing is None:
+        raise ValueError("V3_DAILY_EVENT_MISSING_AFTER_CONFLICT")
+    _verify_current_outbox_in_session(session, existing)
+    return None
 
 
 def enqueue_scheduled_notifications(

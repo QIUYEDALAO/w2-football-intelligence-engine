@@ -27,6 +27,8 @@ def migrated_database(monkeypatch):
     db_url = url.rsplit("/", 1)[0] + "/" + name
     monkeypatch.setenv("W2_DATABASE_URL", db_url)
     monkeypatch.setenv("W2_ENVIRONMENT", "test")
+    from w2.config import get_settings
+    get_settings.cache_clear()
     env = os.environ.copy()
     subprocess.run([".venv/bin/alembic", "upgrade", "0076_forward_review_evidence"],
                    check=True, env=env, capture_output=True)
@@ -65,7 +67,7 @@ def test_old_ah_rows_preserved_and_new_current_writes_refused(migrated_database)
         """)).one()
         assert before.identity_hash == "a" * 64
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0087_ahou_legacy_fence"
+            "0088_ahou_v3_outbox"
         )
     with pytest.raises(DBAPIError, match="LEGACY_AH_OU_WRITER_RETIRED"):
         with engine.begin() as connection:
@@ -152,7 +154,7 @@ def test_old_pending_event_can_only_be_suppressed(migrated_database):
 def test_alembic_down_up_keeps_legacy_writer_fence(migrated_database):
     engine = migrated_database
     env = os.environ.copy()
-    subprocess.run([".venv/bin/alembic", "downgrade", "-1"],
+    subprocess.run([".venv/bin/alembic", "downgrade", "0086_ahou_v3_postmatch"],
                    check=True, env=env, capture_output=True)
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
@@ -171,7 +173,7 @@ def test_alembic_down_up_keeps_legacy_writer_fence(migrated_database):
                    check=True, env=env, capture_output=True)
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0087_ahou_legacy_fence"
+            "0088_ahou_v3_outbox"
         )
         assert connection.scalar(text("""
             SELECT count(*) FROM dynamic_prematch_evaluations
