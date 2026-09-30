@@ -672,6 +672,12 @@ def case(root: Path, *, fault: str, candidate: str, old: str, web: str) -> dict:
                     ]
                 )
             assert "SAFE_PAUSE_COLLECTION_RESTORED" in result, result
+            identity = json.loads(run([
+                "python3", str(ROOT / "scripts/w2_safe_pause_identity.py"), "--project", project
+            ]))
+            assert identity["release_id"] == source_sha, identity
+            assert identity["public_services_stopped"], identity
+            (path / "safe-pause-resume-identity.json").write_text(json.dumps(identity, indent=2))
             for name in ("api", "web"):
                 assert (
                     run(
@@ -773,7 +779,8 @@ assert v['result']['validation_samples']['v3']['idempotent']==2,v
                 assert home.json()["performance_summary"]["total_profit_units"] == 1.15, home.text
                 (path / "postmatch-home.json").write_text(home.text)
                 validation = httpx.get(
-                    f"http://127.0.0.1:{port}/v1/dashboard/validation", trust_env=False
+                    f"http://127.0.0.1:{port}/v1/dashboard/intelligence-workspace/validation",
+                    trust_env=False,
                 )
                 assert validation.status_code == 200, validation.text
                 current = validation.json()["ah_ou_v3"]

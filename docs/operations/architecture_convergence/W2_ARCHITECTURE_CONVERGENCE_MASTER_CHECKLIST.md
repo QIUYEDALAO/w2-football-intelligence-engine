@@ -717,7 +717,7 @@ DELETED_PACKAGE_COUNT = 0
 | `settlement` | 3 | apps:0;scripts:2;migrations:0;tests:2 | dashboard,prematch,tracking | domain,infrastructure | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `shadow` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | strategy | - | w2-shadow-comparison-import | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT;COMPARISON_IMPORT |
 | `strategy` | 21 | apps:0;scripts:8;migrations:0;tests:41 | dashboard,gates,ingestion,markets,matchday,operations,prematch,pricing,quant_research,shadow | competitions,domain,features,formal,infrastructure,markets,matchday,models,prematch,pricing | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `tracking` | 19 | apps:2;scripts:6;migrations:0;tests:31 | api,audit_export,domain,prematch,replay | domain,infrastructure,ingestion,markets,prematch,settlement | SCC-1 | w2-finished-match-scoring | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `tracking` | 19 | apps:2;scripts:6;migrations:0;tests:32 | api,audit_export,domain,prematch,replay | domain,infrastructure,ingestion,markets,prematch,settlement | SCC-1 | w2-finished-match-scoring | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 
 ```text
 ROLE_COUNTS = RUNTIME_ENTRYPOINT:1;RUNTIME_LIBRARY:20;WRITE_SIDE_PROJECTION:6;PUBLIC_READ:2;OFFLINE_TOOL:10;MIGRATION_ONLY:1;AUDIT_EXPORT:1;DEAD:0

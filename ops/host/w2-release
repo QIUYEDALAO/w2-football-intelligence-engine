@@ -306,12 +306,27 @@ log "目标提交存在：$TARGET"
 
 # 1d. 当前线上 release 可读
 online_release=""
+SAFE_PAUSE_RESUME=0
 if vps "curl -fsS --max-time 10 http://127.0.0.1:${API_PORT}/v1/version" > /tmp/w2-release-version.json 2>/dev/null; then
   online_release="$(python3 -c 'import json,sys; print(json.load(open("/tmp/w2-release-version.json")).get("release_id",""))' 2>/dev/null || echo "")"
 fi
 if [ -z "$online_release" ]; then
-  warn "当前线上 release 不可读（ssh/curl /v1/version 失败）"
-  exit 2
+  # A previous failed release deliberately stopped API/Web. Resume directly
+  # from verified paused candidate collectors; never restart an old public API
+  # just to obtain /v1/version, or trust the stale release.env as live identity.
+  if ! pause_proof="$("$GIT_CMD" show "${TARGET}:scripts/w2_safe_pause_identity.py" | \
+      $SSH_CMD "$SSH_HOST" 'python3 -')"; then
+    warn "当前线上 release 不可读，且无法证明安全暂停身份"
+    exit 2
+  fi
+  online_release="$(printf '%s' "$pause_proof" | python3 -c \
+    'import json,sys; print(json.load(sys.stdin)["release_id"])' 2>/dev/null || true)"
+  if ! [[ "$online_release" =~ ^[0-9a-f]{40}$ ]]; then
+    warn "SAFE_PAUSE_RELEASE_IDENTITY_INVALID"
+    exit 2
+  fi
+  SAFE_PAUSE_RESUME=1
+  log "SAFE_PAUSE_RESUME_IDENTITY $pause_proof"
 fi
 log "当前线上 release：$online_release"
 
@@ -351,7 +366,7 @@ fi
 
 # 1f. 目标与线上是否相同
 ALREADY_LATEST=0
-if [ "$TARGET" = "$online_release" ]; then
+if [ "$TARGET" = "$online_release" ] && [ "$SAFE_PAUSE_RESUME" = 0 ]; then
   ALREADY_LATEST=1
   log "目标提交 == 线上 release（已是最新，无需发布）"
 fi
@@ -587,6 +602,15 @@ scp_to_vps "$override_local_tmp" "$SSH_HOST:${override_remote_candidate}" >/dev/
   || { rm -f "$override_local_tmp"; warn "scp controlled-future-refresh override 到 VPS 失败"; exit 2; }
 rm -f "$override_local_tmp"
 log "仓库 override sha256：$override_repo_sha"
+pause_identity_path=""; pause_identity_sha=""
+if [ "$SAFE_PAUSE_RESUME" = 1 ]; then
+  pause_identity_local="$(mktemp)"
+  "$GIT_CMD" show "${TARGET}:scripts/w2_safe_pause_identity.py" > "$pause_identity_local" || exit 2
+  pause_identity_sha="$(shasum -a 256 "$pause_identity_local" | awk '{print $1}')"
+  pause_identity_path="/tmp/w2-safe-pause-${TARGET}.py"
+  scp_to_vps "$pause_identity_local" "$SSH_HOST:$pause_identity_path" >/dev/null || exit 2
+  rm -f "$pause_identity_local"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 步骤 4+5：部署 + 回读（在 VPS 上一个会话内完成，输出回读结果）
@@ -597,7 +621,7 @@ UTC_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOCAL_LOG="/tmp/w2-release-${UTC_STAMP}.log"
 REMOTE_LOG="${VPS_REPORTS_DIR}/release-${UTC_STAMP}.log"
 
-vps "sudo bash -s -- '${TARGET}' '${py_ref}' '${web_ref}' '${python_digest}' '${web_digest}' '${BUILD_TIME}' '${STABILIZE_SEC}' '${API_PORT}' '${WEB_PORT}' '${BASE_TAG}' '${need_backup}' '${online_release}' '${target_head}' '${SKIP_WINDOW}' '${GATE_MAX_WAIT_SEC}' '${GATE_POLL_SEC}' '${override_remote_candidate}' '${override_repo_sha}' '${DRAIN_MAX_WAIT_SEC}' '${DRAIN_POLL_SEC}' '${ACTIVE_CLAIM_MAX_WAIT_SEC}' '${ACTIVE_CLAIM_POLL_SEC}' '${SOURCE_RECOVERY_SHA256}'" <<'VPS_SCRIPT' 2>&1 | tee "$LOCAL_LOG"
+vps "sudo bash -s -- '${TARGET}' '${py_ref}' '${web_ref}' '${python_digest}' '${web_digest}' '${BUILD_TIME}' '${STABILIZE_SEC}' '${API_PORT}' '${WEB_PORT}' '${BASE_TAG}' '${need_backup}' '${online_release}' '${target_head}' '${SKIP_WINDOW}' '${GATE_MAX_WAIT_SEC}' '${GATE_POLL_SEC}' '${override_remote_candidate}' '${override_repo_sha}' '${DRAIN_MAX_WAIT_SEC}' '${DRAIN_POLL_SEC}' '${ACTIVE_CLAIM_MAX_WAIT_SEC}' '${ACTIVE_CLAIM_POLL_SEC}' '${SOURCE_RECOVERY_SHA256}' '${SAFE_PAUSE_RESUME}' '${pause_identity_path}' '${pause_identity_sha}'" <<'VPS_SCRIPT' 2>&1 | tee "$LOCAL_LOG"
 set -euo pipefail
 # 注意：heredoc 通过 `bash -s` 逐行读入 stdin，任何从 stdin 读取的子进程都会
 # 吞掉后续脚本（导致提前结束、误报成功）。因此这里绝不能 `exec 0</dev/null`，
@@ -611,6 +635,8 @@ override_candidate="${17}"; override_repo_sha="${18}"
 drain_max_wait_sec="${19}"; drain_poll_sec="${20}"
 active_claim_max_wait_sec="${21}"; active_claim_poll_sec="${22}"
 source_recovery_sha256="${23:-}"
+safe_pause_resume="${24:-0}"
+pause_identity_path="${25:-}"; pause_identity_sha="${26:-}"
 
 compose=(docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml -f /opt/w2/deploy/controlled-future-refresh.override.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env)
 Q() { docker exec w2-staging-postgres-1 psql -XAt -U w2_user -d w2 -c "$1"; }
@@ -731,6 +757,15 @@ W2_BASE_TAG="$base_tag" /opt/w2/deploy/w2-release-sync-preflight "$py_ref" "$web
 # immutable image. /ready=503 with DB 0076 and in-container head 0084 was one
 # such case. Do not treat an environment SHA label as source verification.
 echo "== running image/source integrity =="
+if [ "$safe_pause_resume" = 1 ]; then
+  [ -f "$pause_identity_path" ] || fail "SAFE_PAUSE_IDENTITY_SCRIPT_MISSING"
+  [ "$(sha256sum "$pause_identity_path" | awk '{print $1}')" = "$pause_identity_sha" ] || \
+    fail "SAFE_PAUSE_IDENTITY_SCRIPT_CONFLICT"
+  resume_proof="$(python3 "$pause_identity_path")" || fail "SAFE_PAUSE_IDENTITY_RECHECK_FAILED"
+  resume_release="$(printf '%s' "$resume_proof" | python3 -c 'import json,sys; print(json.load(sys.stdin)["release_id"])')"
+  [ "$resume_release" = "$online_release" ] || fail "SAFE_PAUSE_RELEASE_CHANGED"
+  echo "SAFE_PAUSE_IDENTITY_RECHECK $resume_proof"
+fi
 # Alembic heads only cover migrations/versions. A non-migration source file
 # modified in a container's writable layer (routers.py, repository.py, ...)
 # keeps the head identical while changing behaviour, so also fingerprint the
@@ -743,6 +778,12 @@ for p in files:
     h.update(p.relative_to(base).as_posix().encode()); h.update(b"\0"); h.update(p.read_bytes()); h.update(b"\0")
 print(h.hexdigest())'
 for old_service in api worker worker-heavy scheduler; do
+  if [ "$safe_pause_resume" = 1 ] && [ "$old_service" = api ]; then
+    # The rechecked identity requires API/Web OFF. Their stopped writable
+    # layers are not live authorities and will be replaced, never restarted.
+    echo "SAFE_PAUSE_PUBLIC_SOURCE_OFF:${old_service}"
+    continue
+  fi
   old_image="$(docker inspect "w2-staging-${old_service}-1" --format '{{.Image}}' 2>/dev/null || true)"
   [ -n "$old_image" ] || fail "PREEXISTING_IMAGE_UNKNOWN:${old_service}"
   image_head="$(docker run --rm --entrypoint alembic "$old_image" heads 2>/dev/null | awk '{print $1}' | head -1)"
