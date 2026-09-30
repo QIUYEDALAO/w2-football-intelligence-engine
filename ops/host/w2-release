@@ -882,6 +882,7 @@ if [ "$safe_pause_resume" = 1 ]; then
   pg_password="$(grep -E '^POSTGRES_PASSWORD=' /opt/w2/shared/.env | head -1 | cut -d= -f2-)"
   pre_workspace_json="$(docker run --rm --network w2-staging_w2-staging \
     -e "W2_DATABASE_URL=postgresql+psycopg://w2_user:${pg_password}@postgres:5432/w2" \
+    -e "W2_ENVIRONMENT=staging" \
     --entrypoint python "$py_ref" /app/scripts/w2_safe_pause_identity.py \
     --dashboard-baseline)" || fail "SAFE_PAUSE_DASHBOARD_BASELINE_FAILED"
   echo "SAFE_PAUSE_DASHBOARD_BASELINE $pre_workspace_json"

@@ -1234,6 +1234,7 @@ def test_offline_baseline_uses_verified_candidate_repository_without_public_rest
     offline = section.split('if [ "$safe_pause_resume" = 1 ]; then', 1)[1].split('else', 1)[0]
     assert '"$py_ref" /app/scripts/w2_safe_pause_identity.py' in offline
     assert '--dashboard-baseline' in offline
+    assert 'W2_ENVIRONMENT=staging' in offline
     assert 'SAFE_PAUSE_DASHBOARD_BASELINE_FAILED' in offline
     assert 'curl' not in offline and ' up ' not in offline
     assert 'matches=[]' not in offline

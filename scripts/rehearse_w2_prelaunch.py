@@ -696,6 +696,7 @@ def case(root: Path, *, fault: str, candidate: str, old: str, web: str) -> dict:
         baseline = json.loads(run([
             "docker", "run", "--rm", "--network", network,
             "-e", "W2_DATABASE_URL=postgresql+psycopg://w2_user:placeholder_password@postgres:5432/w2",
+            "-e", "W2_ENVIRONMENT=staging",
             "--entrypoint", "python", candidate,
             "/app/scripts/w2_safe_pause_identity.py", "--dashboard-baseline",
         ]))
