@@ -685,6 +685,14 @@ assert v['result']['validation_samples']['v3']['idempotent']==2,v
 
                 tool = runpy.run_path(str(ROOT / "scripts/w2_runtime_source_recovery.py"))
                 capture = tool["capture"]
+                # Only this owned replica's attack channel uses root. The service
+                # keeps its normal unprivileged user throughout the rehearsal.
+                source_write = ["docker", "exec", "--user", "0", f"{project}-api-1", "python", "-c"]
+                unchanged_source = (
+                    "from pathlib import Path;"
+                    "Path('/app/source_drift_probe.py').write_text('# isolated control\\n')"
+                )
+                run([*source_write, unchanged_source])
                 proof = capture(source_sha, path / "source-proof-noop", project)
                 record = json.loads(proof.read_text())
                 entry = record["services"]["api"]
@@ -714,13 +722,15 @@ assert v['result']['validation_samples']['v3']['idempotent']==2,v
                     head,
                 ]
                 run([*command, *[entry[k] for k in keys]])
+                run([*source_write, unchanged_source])
+                noop_hash = run(
+                    ["docker", "exec", f"{project}-api-1", "python", "-c", tool["FINGERPRINT"]]
+                )
+                assert noop_hash == entry["container_hash"]
+                run([*command, *[entry[k] for k in keys[:-1]], noop_hash])
                 run(
                     [
-                        "docker",
-                        "exec",
-                        f"{project}-api-1",
-                        "python",
-                        "-c",
+                        *source_write,
                         "from pathlib import Path;"
                         "Path('/app/source_drift_probe.py').write_text('# isolated drift\\n')",
                     ]
