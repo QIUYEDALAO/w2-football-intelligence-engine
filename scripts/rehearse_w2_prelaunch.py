@@ -238,6 +238,8 @@ def case(root: Path, *, fault: str, candidate: str, old: str, web: str) -> dict:
                 network,
                 "-e",
                 "W2_DATABASE_URL=postgresql+psycopg://w2_user:placeholder_password@postgres:5432/w2",
+                "-e",
+                "W2_ENVIRONMENT=staging",
                 "--entrypoint",
                 "alembic",
                 candidate,
