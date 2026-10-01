@@ -816,8 +816,20 @@ from datetime import UTC,datetime
 from apps.worker.celery_app import celery_app
 from w2.tracking.outcome_ledger_runtime import OutcomeLedgerRuntimeRepository
 tid=str(uuid.uuid4())
-d=OutcomeLedgerRuntimeRepository().prepare_dispatch(now=datetime.now(UTC),task_id=tid)
-assert d.status=='QUEUED', d
+runtime=OutcomeLedgerRuntimeRepository()
+# Expiring the owned lease does not complete its prematch checkpoint. Exercise
+# the real scheduler's bounded deferral policy before dispatching the worker;
+# never erase or mark that checkpoint complete to make the probe pass.
+for attempt in range(4):
+ d=runtime.prepare_dispatch(now=datetime.now(UTC),task_id=tid)
+ print({'dispatch_attempt':attempt+1,'decision':str(d)},flush=True)
+ if attempt<3:
+  assert d.status=='DEFERRED_FOR_PREMATCH_CHECKPOINT',d
+  assert d.reason=='UNFINISHED_PREMATCH_DUE',d
+  assert d.consecutive_deferrals==attempt+1,d
+ else:
+  assert d.status=='QUEUED' and d.forced,d
+  assert d.reason=='UNFINISHED_PREMATCH_DUE',d
 r=celery_app.send_task('w2.forward_outcome_ledger', kwargs={'window':'next7'}, task_id=tid)
 v=r.get(timeout=60);print(v);assert v['status']!='BLOCKED',v
 assert v['result']['validation_samples']['v3']['idempotent']==2,v
