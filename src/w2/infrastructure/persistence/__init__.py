@@ -6,6 +6,10 @@ from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
     AhOuCohortModel,
     AhOuDecisionLedgerModel,
 )
+from w2.infrastructure.persistence.ah_ou_monitoring_models import (
+    AhOuV3MonitoringFactModel,
+    AhOuV3MonitoringReportModel,
+)
 from w2.infrastructure.persistence.ah_ou_postmatch_models import (
     AhOuV3SettlementModel,
     AhOuV3ValidationSampleModel,
@@ -135,6 +139,8 @@ __all__ = [
     "AhOuCohortModel",
     "AhOuV3SettlementModel",
     "AhOuV3ValidationSampleModel",
+    "AhOuV3MonitoringFactModel",
+    "AhOuV3MonitoringReportModel",
     "FixtureModel",
     "ForwardAhFactorObservationModel",
     "HistoricalMarketSourceSnapshotModel",

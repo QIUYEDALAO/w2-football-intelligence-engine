@@ -3917,6 +3917,7 @@ class ReadModelService:
             canonical_decision_score_text,
         )
         from w2.strategy.ah_ou_softmax import load_ah_model, load_ou_model
+        from w2.tracking.ah_ou_v3_monitoring_prediction import monitoring_class_probabilities
 
         model_version = canonical_sha256(
             {
@@ -3932,6 +3933,9 @@ class ReadModelService:
         away_snapshot = dict(result.get("away_snapshot") or {})
         meetings = list(result.get("meetings") or [])
         created_at = datetime.now(UTC)
+        frozen_reader = getattr(repository, "frozen_ah_ou_distributions", None)
+        frozen_distributions = (frozen_reader(fixture_id=fixture_id, decision_at=decision_at)
+                                if callable(frozen_reader) else {})
 
         decisions: list[dict[str, Any]] = []
         input_hashes: list[tuple[str, str]] = []
@@ -3995,9 +3999,11 @@ class ReadModelService:
                 skip_reason = None
             frozen_terms = None
             terms_hash = None
-            if selected:
+            monitoring_terms = None
+            if isinstance(selection, dict):
                 try:
-                    selected_side = str(direction or "")
+                    selected_side = str(
+                        selection.get("side") if market == "ASIAN_HANDICAP" else "OVER")
                     line = Decimal(str(quote["line"]))
                     side_prices = quote["side_prices"]
                     side_rows = quote["side_rows"]
@@ -4015,7 +4021,7 @@ class ReadModelService:
                         -line if market == "ASIAN_HANDICAP" and selected_side == "AWAY"
                         else line
                     )
-                    frozen_terms = {
+                    monitoring_terms = {
                         "schema_version": AH_OU_FROZEN_TERMS_SCHEMA,
                         "selection": selected_side,
                         "home_line": str(line) if market == "ASIAN_HANDICAP" else None,
@@ -4031,8 +4037,10 @@ class ReadModelService:
                         "calibration_version": calibration_version,
                         "input_hash": input_hash,
                     }
-                    terms_hash = canonical_sha256(
-                        frozen_terms, domain=HashDomain.RECOMMENDATION_DECISION_V4)
+                    if selected:
+                        frozen_terms = monitoring_terms
+                        terms_hash = canonical_sha256(
+                            frozen_terms, domain=HashDomain.RECOMMENDATION_DECISION_V4)
                 except (KeyError, TypeError, ValueError, ArithmeticError):
                     selected = False
                     direction = None
@@ -4046,6 +4054,11 @@ class ReadModelService:
                     market_reasons[market] = skip_reason
             capture_by_market[market] = (capture_id, source_capture_sha256)
             input_hashes.append((market, input_hash))
+            old_distribution = frozen_distributions.get(market)
+            attach_monitoring = monitoring_terms is not None and not (
+                isinstance(old_distribution, dict)
+                and "monitoring_terms" not in old_distribution
+            )
             decisions.append(
                 {
                     "fixture_id": fixture_id,
@@ -4058,6 +4071,12 @@ class ReadModelService:
                         "market": market,
                         "features": features,
                         "selection": selection,
+                        **({
+                            "monitoring_terms": monitoring_terms,
+                            "monitoring_pair_prices": dict(quote["side_prices"]),
+                            "monitoring_probabilities": monitoring_class_probabilities(
+                                features, market),
+                        } if attach_monitoring else {}),
                     },
                     "decision_contract": "w2.ah_ou_decision.v3.1",
                     "frozen_terms": frozen_terms,

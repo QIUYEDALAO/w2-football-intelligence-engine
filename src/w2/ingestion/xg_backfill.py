@@ -81,6 +81,9 @@ class XgBackfillRepository(Protocol):
     def upsert_team_xg_rolling_snapshots(self, snapshots: list[dict[str, Any]]) -> int:
         pass
 
+    def team_xg_rolling_snapshots(self) -> list[dict[str, Any]]:
+        pass
+
     def request_count_since(self, since: datetime) -> int:
         pass
 
@@ -127,6 +130,8 @@ class XgBackfillResult:
     candidate: bool = False
     formal_recommendation: bool = False
     dry_run: bool = False
+    frozen_snapshot_no_ops: int = 0
+    unproven_snapshot_no_ops: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -148,6 +153,8 @@ class XgBackfillResult:
             "candidate": False,
             "formal_recommendation": False,
             "dry_run": self.dry_run,
+            "frozen_snapshot_no_ops": self.frozen_snapshot_no_ops,
+            "unproven_snapshot_no_ops": self.unproven_snapshot_no_ops,
         }
 
 
@@ -392,15 +399,19 @@ class XgHistoryBackfillService:
             blockers.append(str(exc))
             xg_rows = []
         match_rows = [self._xg_match_dict(row) for row in xg_rows]
-        persisted_xg_rows = self._persisted_xg_matches()
-        rolling_inputs = {row.id: row for row in [*persisted_xg_rows, *xg_rows]}
-        snapshot_rows = self._rolling_snapshot_rows(
-            future_fixtures=future_fixtures,
-            materialized_matches=list(rolling_inputs.values()),
-        )
         try:
             upserted_matches = self.repository.upsert_team_xg_matches(match_rows)
-            upserted_snapshots = self.repository.upsert_team_xg_rolling_snapshots(snapshot_rows)
+            # Repeated collection does not replace the first persisted capture
+            # of an unchanged match. Build from the committed facts, rather than
+            # today's response timestamps for those same fixture/team identities.
+            snapshot_rows = self._rolling_snapshot_rows(
+                future_fixtures=future_fixtures,
+                materialized_matches=self._persisted_xg_matches(),
+            )
+            pending, frozen_no_ops, unproven_no_ops = self._unfrozen_snapshot_rows(snapshot_rows)
+            upserted_snapshots = (
+                self.repository.upsert_team_xg_rolling_snapshots(pending) + frozen_no_ops
+            )
         except FutureRefreshPersistenceError as exc:
             raise XgBackfillError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
         return XgBackfillResult(
@@ -412,6 +423,8 @@ class XgHistoryBackfillService:
             ),
             team_xg_match_rows=upserted_matches,
             rolling_snapshot_rows=upserted_snapshots,
+            frozen_snapshot_no_ops=frozen_no_ops,
+            unproven_snapshot_no_ops=unproven_no_ops,
             remaining_quota=self._remaining_quota,
             blockers=blockers,
             requests=self._audit,
@@ -443,14 +456,24 @@ class XgHistoryBackfillService:
                 upserted_matches = self.repository.upsert_team_xg_matches(
                     [self._xg_match_dict(row) for row in new_rows]
                 )
-                upserted_snapshots = self.repository.upsert_team_xg_rolling_snapshots(
-                    list(plan.rolling_snapshots)
+                snapshots = self._rolling_snapshot_rows(
+                    future_fixtures=[
+                        item
+                        for item in self.repository.fixture_payloads()
+                        if self._is_target_future_fixture(item)
+                    ],
+                    materialized_matches=self._persisted_xg_matches(),
+                )
+                pending, frozen_no_ops, unproven_no_ops = self._unfrozen_snapshot_rows(snapshots)
+                upserted_snapshots = (
+                    self.repository.upsert_team_xg_rolling_snapshots(pending) + frozen_no_ops
                 )
             except FutureRefreshPersistenceError as exc:
                 raise XgBackfillError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
         else:
             upserted_matches = len(new_rows)
             upserted_snapshots = len(plan.rolling_snapshots)
+            frozen_no_ops = unproven_no_ops = 0
         return XgBackfillResult(
             generated_at_utc=self.now,
             team_count=len(
@@ -460,6 +483,8 @@ class XgHistoryBackfillService:
             statistics_request_count=0,
             team_xg_match_rows=upserted_matches,
             rolling_snapshot_rows=upserted_snapshots,
+            frozen_snapshot_no_ops=frozen_no_ops,
+            unproven_snapshot_no_ops=unproven_no_ops,
             remaining_quota=None,
             blockers=list(plan.blockers),
             requests=[],
@@ -763,6 +788,34 @@ class XgHistoryBackfillService:
             ):
                 rows.append(item)
         return rows
+
+    def _unfrozen_snapshot_rows(
+        self, rows: list[dict[str, Any]]
+    ) -> tuple[list[dict[str, Any]], int, int]:
+        """An existing target is a frozen fact, never a refresh destination.
+
+        Keep the strict writer's all-field comparison for explicit submissions.
+        A collector may observe the same historical inputs again, or new inputs
+        for a previously frozen target; neither permits updating that target's
+        capture, window or PIT proof. Historical NULL proof remains NULL. The
+        public source verifier still decides whether the retained fact is usable.
+        """
+        frozen = {
+            (str(row["team_id"]), str(row["as_of_fixture_id"])): row
+            for row in self.repository.team_xg_rolling_snapshots()
+        }
+        pending: list[dict[str, Any]] = []
+        no_ops = unproven = 0
+        for row in rows:
+            existing = frozen.get((str(row["team_id"]), str(row["as_of_fixture_id"])))
+            if existing is None:
+                pending.append(row)
+                continue
+            if existing["snapshot_id"] != row["snapshot_id"]:
+                raise FutureRefreshPersistenceError("TEAM_XG_SNAPSHOT_IDENTITY_CONFLICT")
+            no_ops += 1
+            unproven += not bool(existing.get("pit_proven"))
+        return pending, no_ops, unproven
 
     def _rolling_snapshot_rows(
         self,

@@ -135,23 +135,25 @@ def _business_fields(row: Any, fields: dict[str, Any]) -> bool:
 
 
 def _verify_v3_frozen_decision_in_session(
-    session: Session, decision: AhOuDecisionLedgerModel
+    session: Session, decision: AhOuDecisionLedgerModel, *, monitoring: bool = False
 ) -> dict[str, Any]:
     """Read-only admission shared by public reads, writers and notification delivery.
 
     Validate before looking for FT. A missing result cannot make a corrupt
     prematch decision eligible for publication or sending.
     """
-    if decision.decision_contract != "w2.ah_ou_decision.v3.1" or not decision.selected:
+    if decision.decision_contract != "w2.ah_ou_decision.v3.1":
         raise DecisionContractViolation("V3_SELECTED_CONTRACT_INVALID")
-    terms = decision.frozen_terms
+    if not monitoring and not decision.selected:
+        raise DecisionContractViolation("V3_SELECTED_CONTRACT_INVALID")
+    terms = (decision.full_distribution.get("monitoring_terms")
+             if monitoring and not decision.selected else decision.frozen_terms)
     if not isinstance(terms, dict) or terms.get("schema_version") != AH_OU_FROZEN_TERMS_SCHEMA:
         raise DecisionContractViolation("V3_SELECTED_TERMS_INCOMPLETE")
     terms_hash = canonical_sha256(terms, domain=HashDomain.RECOMMENDATION_DECISION_V4)
-    if terms_hash != decision.terms_hash:
+    if decision.selected and terms_hash != decision.terms_hash:
         raise DecisionContractViolation("V3_PUBLIC_FROZEN_TERMS_HASH_MISMATCH")
     bindings = {
-        "selection": decision.direction,
         "quote_identity_hash": decision.quote_identity_hash,
         "model_version": decision.model_version,
         "calibration_version": decision.calibration_version,
@@ -162,12 +164,15 @@ def _verify_v3_frozen_decision_in_session(
     for field, expected in bindings.items():
         if terms.get(field) != expected:
             raise DecisionContractViolation("V3_PUBLIC_FROZEN_TERMS_BINDING_INVALID")
-    if decision.skip_reason is not None or decision.direction is None:
+    direction = terms.get("selection")
+    if decision.selected and direction != decision.direction:
+        raise DecisionContractViolation("V3_PUBLIC_FROZEN_TERMS_BINDING_INVALID")
+    if decision.skip_reason is not None or direction is None:
         raise DecisionContractViolation("V3_SELECTED_DECISION_STATE_INVALID")
     if decision.source_id != decision.capture_id:
         raise DecisionContractViolation("V3_PUBLIC_SOURCE_ID_MISMATCH")
     allowed = {"ASIAN_HANDICAP": {"HOME", "AWAY"}, "TOTALS": {"OVER", "UNDER"}}
-    if decision.direction not in allowed.get(decision.market, set()):
+    if direction not in allowed.get(decision.market, set()):
         raise DecisionContractViolation("V3_PUBLIC_MARKET_DIRECTION_INVALID")
     odds = Decimal(str(terms.get("entry_odds")))
     line = Decimal(str(terms.get("selected_line")))
@@ -176,7 +181,7 @@ def _verify_v3_frozen_decision_in_session(
     )
     expected_line = (
         -source_line
-        if decision.market == "ASIAN_HANDICAP" and (decision.direction == "AWAY")
+        if decision.market == "ASIAN_HANDICAP" and (direction == "AWAY")
         else source_line
     )
     if (
@@ -216,7 +221,7 @@ def _verify_v3_frozen_decision_in_session(
         score=decision.score,
         skip_reason=decision.skip_reason,
         selected=decision.selected,
-        terms_hash=terms_hash,
+        terms_hash=decision.terms_hash,
     )
     if decision.decision_id != expected_id:
         raise DecisionContractViolation("V3_PUBLIC_DECISION_ID_MISMATCH")
@@ -251,7 +256,7 @@ def _verify_v3_frozen_decision_in_session(
                 MatchdayMarketObservationModel.fixture_id == fixture.fixture_id,
                 MatchdayMarketObservationModel.bookmaker_id == "4",
                 MatchdayMarketObservationModel.canonical_market == decision.market,
-                MatchdayMarketObservationModel.canonical_selection == decision.direction,
+                MatchdayMarketObservationModel.canonical_selection == direction,
             )
         )
     )
@@ -291,9 +296,9 @@ def _verify_v3_frozen_decision_in_session(
     selection = distribution.get("selection") if isinstance(distribution, dict) else None
     if (
         not isinstance(selection, dict)
-        or selection.get("selected") is not True
+        or selection.get("selected") is not decision.selected
         or distribution.get("market") != decision.market
-        or (decision.market == "ASIAN_HANDICAP" and selection.get("side") != decision.direction)
+        or (decision.market == "ASIAN_HANDICAP" and selection.get("side") != direction)
     ):
         raise DecisionContractViolation("V3_PUBLIC_DISTRIBUTION_BINDING_INVALID")
     value = selection.get("score" if decision.market == "ASIAN_HANDICAP" else "edge")
@@ -387,6 +392,23 @@ def verify_v3_frozen_decision_in_session(
         raise
     except (ValueError, TypeError, KeyError, ArithmeticError) as exc:
         raise DecisionContractViolation("V3_PUBLIC_FROZEN_CONTENT_INVALID") from exc
+
+
+def verify_v3_monitoring_input_in_session(
+    session: Session, decision: AhOuDecisionLedgerModel
+) -> dict[str, Any]:
+    """Validate an eligible frozen input without granting recommendation rights.
+
+    Below-threshold decisions count toward the per-market observation cohort.
+    They keep selected=false, direction=NULL and no recommendation entry terms.
+    Historic rows lacking this prematch projection cannot be backfilled from FT.
+    """
+    try:
+        return _verify_v3_frozen_decision_in_session(session, decision, monitoring=True)
+    except DecisionContractViolation:
+        raise
+    except (ValueError, TypeError, KeyError, ArithmeticError) as exc:
+        raise DecisionContractViolation("V3_MONITORING_FROZEN_CONTENT_INVALID") from exc
 
 
 def _expected_postmatch_fields(

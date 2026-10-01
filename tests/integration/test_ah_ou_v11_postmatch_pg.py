@@ -16,6 +16,7 @@ from w2.api.repository import ReadModelService as ApiReadModelService
 from w2.dashboard.date_window import FOOTBALL_DAY_TZ, football_day_for_kickoff
 from w2.domain.canonical_serialization import HashDomain
 from w2.infrastructure.persistence.ah_ou_decision_ledger_models import AhOuDecisionLedgerModel
+from w2.infrastructure.persistence.ah_ou_monitoring_models import AhOuV3MonitoringFactModel
 from w2.infrastructure.persistence.ah_ou_postmatch_models import (
     AhOuV3SettlementModel,
     AhOuV3ValidationSampleModel,
@@ -54,13 +55,13 @@ def _ft_capture(repo, future, *, home=2, away=1, status="FT"):
     writer.save_raw_payload(sha256=source_sha, endpoint="fixtures", captured_at=at, payload=raw)
     capture = endpoint_capture_contract(
         endpoint="fixtures",
-        params={"id": "1489404"},
+        params={"id": str(future["fixture"]["id"])},
         requested_at=at,
         provider_captured_at=at,
         status_code=200,
         elapsed_ms=1,
         payload=raw,
-        fixture_id="api_football:1489404",
+        fixture_id="api_football:" + str(future["fixture"]["id"]),
         competition_id="allsvenskan",
         checkpoint="POSTMATCH_RESULT",
     )
@@ -123,6 +124,12 @@ def test_v3_selected_ft_capture_natural_result_worker_and_validation(chain):
         assert {row.decision_id for row in settled} == {row.decision_id for row in decisions}
         assert {row.decision_id for row in samples} == {row.decision_id for row in decisions}
         assert all(row.result_raw_sha256 == capture["raw_payload_sha256"] for row in settled)
+        facts = list(session.scalars(select(AhOuV3MonitoringFactModel)))
+        assert len(facts) == 2
+        assert all(row.payload["eligible"] and row.payload["selected"] for row in facts)
+        assert {row.payload["decision_id"] for row in facts} == {
+            row.decision_id for row in decisions}
+        assert {row.market for row in facts} == {"ASIAN_HANDICAP", "TOTALS"}
         frozen = {
             row.decision_id: (
                 row.terms_hash,
@@ -159,6 +166,7 @@ def test_v3_selected_ft_capture_natural_result_worker_and_validation(chain):
     forward = forward_outcome_ledger.run(window="next7")
     assert forward["status"] not in {"BLOCKED", "ACTIVE_OR_RESERVED"}, forward
     assert forward["result"]["validation_samples"]["v3"]["idempotent"] == 2
+    assert forward["result"]["validation_samples"]["v3"]["monitoring"]["created_facts"] == 0
     public = ApiReadModelService().dashboard_ah_ou_v3_validation()
     assert public["registered_cohorts"] == 1
     assert public["completed_decisions"] == public["selected"] == 2

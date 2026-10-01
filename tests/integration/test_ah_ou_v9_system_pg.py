@@ -26,7 +26,8 @@ from w2.prematch.analysis_calculator import ReadModelService
 from w2.providers.api_football import LiveApiFootballResponse
 
 
-def _build_chain(tmp_path, monkeypatch, *, existing_database_url=None, environment="test"):
+def _build_chain(tmp_path, monkeypatch, *, existing_database_url=None, environment="test",
+                 market_prices=None):
     import os
     import subprocess
 
@@ -86,6 +87,11 @@ def _build_chain(tmp_path, monkeypatch, *, existing_database_url=None, environme
                 values = raw["response"][0]["bookmakers"][0]["bets"][0]["values"]
                 values[0]["odd"] = "1.25"
                 values[1]["odd"] = "4.50"
+                if market_prices:
+                    for market, bet in zip(("ASIAN_HANDICAP", "TOTALS"),
+                                          raw["response"][0]["bookmakers"][0]["bets"], strict=True):
+                        for value, price in zip(bet["values"], market_prices[market], strict=True):
+                            value["odd"] = price
             return raw
 
         def request_live(self, endpoint, params):
@@ -216,6 +222,8 @@ def _build_chain(tmp_path, monkeypatch, *, existing_database_url=None, environme
                 "results",
                 "ah_ou_v3_settlement",
                 "ah_ou_v3_validation_sample",
+                "ah_ou_v3_monitoring_fact",
+                "ah_ou_v3_monitoring_report",
                 "candidate_notification_outbox",
             )
             with repo.engine.connect() as connection:
@@ -553,3 +561,66 @@ def test_f6_source_freeze_four_steps(chain):
             for row in session.scalars(select(CanonicalTeamMatchHistoryModel))
         ]
     assert stored == payloads
+
+
+def test_actual_producers_repeat_later_capture_without_overwriting_frozen_sources(chain):
+    from dataclasses import replace
+
+    from w2.infrastructure.persistence.factor_model_models import CanonicalTeamMatchHistoryModel
+    from w2.infrastructure.persistence.future_refresh_models import TeamXgRollingSnapshotModel
+    from w2.infrastructure.persistence.matchday_intake_models import MatchdayEndpointCaptureModel
+
+    repo, _, _, producer = chain
+
+    def frozen_readback():
+        with Session(repo.engine) as session:
+            return {
+                model.__tablename__: [
+                    {column.name: getattr(row, column.name) for column in model.__table__.columns}
+                    for row in session.scalars(
+                        select(model).order_by(*model.__table__.primary_key.columns))
+                ]
+                for model in (CanonicalTeamMatchHistoryModel, TeamXgRollingSnapshotModel)
+            }
+
+    before = frozen_readback()
+    original = repo._v9_h2h_client.request_live("h2h", {"h2h": "10-20", "last": "10"})
+
+    class LaterCapture:
+        def request_live(self, endpoint, params):
+            return replace(original, captured_at=original.captured_at + timedelta(minutes=1),
+                           requested_at=original.captured_at + timedelta(minutes=1))
+
+    # Same-path empty-change control, then a genuinely new observation identity.
+    for client in (repo._v9_h2h_client, LaterCapture()):
+        assert capture_h2h_for_pair(
+            home_provider_team_id="10", away_provider_team_id="20",
+            competition_id="allsvenskan", season="2026", client=client,
+        ) == 0
+        assert frozen_readback() == before
+    result = XgHistoryBackfillService(
+        repository=repo, client=object(), now=producer.now + timedelta(minutes=1),
+        config=producer.config,
+    ).run_saved_raw()
+    assert result.frozen_snapshot_no_ops == 2
+    assert result.statistics_request_count == 0
+    assert frozen_readback() == before
+    with Session(repo.engine) as session:
+        captures = session.scalars(select(MatchdayEndpointCaptureModel).where(
+            MatchdayEndpointCaptureModel.endpoint == "h2h")).all()
+        assert len(captures) == 2
+
+    class ChangedScore:
+        def request_live(self, endpoint, params):
+            payload = deepcopy(original.payload)
+            payload["response"][0]["goals"]["home"] += 1
+            return replace(original, payload=payload,
+                           captured_at=original.captured_at + timedelta(minutes=2),
+                           requested_at=original.captured_at + timedelta(minutes=2))
+
+    with pytest.raises(RuntimeError, match="F6_HISTORY_FIELD_CONFLICT:goals_for"):
+        capture_h2h_for_pair(
+            home_provider_team_id="10", away_provider_team_id="20",
+            competition_id="allsvenskan", season="2026", client=ChangedScore(),
+        )
+    assert frozen_readback() == before

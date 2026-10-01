@@ -2889,6 +2889,23 @@ class FutureRefreshDbRepository:
                 for r in rows
             }
 
+    def frozen_ah_ou_distributions(
+        self, *, fixture_id: str, decision_at: datetime
+    ) -> dict[str, dict[str, Any]]:
+        """Read frozen slots so new optional monitoring metadata is never backfilled."""
+        from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+            AhOuDecisionLedgerModel,
+        )
+
+        with Session(self.engine) as session:
+            return {
+                row.market: dict(row.full_distribution)
+                for row in session.scalars(select(AhOuDecisionLedgerModel).where(
+                    AhOuDecisionLedgerModel.fixture_id == fixture_id,
+                    AhOuDecisionLedgerModel.decision_at == decision_at,
+                ))
+            }
+
     def write_ah_ou_decision(self, **kwargs: Any) -> Any:
         """Write an AH/OU v3 decision ledger row (idempotent, slot-conflict-stopped).
 

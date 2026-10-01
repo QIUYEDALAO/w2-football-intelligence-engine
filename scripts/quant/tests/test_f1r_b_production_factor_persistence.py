@@ -1134,6 +1134,7 @@ def test_07_the_wiring_did_not_touch_a_forbidden_path() -> None:
         # A06 and the 2026-10-01 remediation explicitly authorize this exact
         # v3 outbox envelope guard; the migration prefix remains forbidden.
         "migrations/versions/0088_ahou_v3_outbox_immutable.py",
+        "migrations/versions/0089_ahou_v3_monitoring.py",
         "src/w2/api/repository.py",
         "src/w2/api/routers.py",
         "src/w2/api/schemas.py",

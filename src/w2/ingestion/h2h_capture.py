@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any, cast
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -58,8 +58,11 @@ def _league_mapping(session: Session) -> dict[str, str]:
 
 
 def _persist_capture(
-    session: Session, response: LiveApiFootballResponse, *, fixture_id: str | None,
-    competition_id: str
+    session: Session,
+    response: LiveApiFootballResponse,
+    *,
+    fixture_id: str | None,
+    competition_id: str,
 ) -> str:
     payload_hash = sha256_payload(response.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
     captured_at = response.captured_at.astimezone(UTC)
@@ -150,6 +153,45 @@ def _freeze_h2h_history_row(session: Session, payload: dict[str, Any]) -> bool:
         return False
 
 
+def _record_h2h_observation(session: Session, payload: dict[str, Any]) -> bool:
+    """Retain the first source when another capture observes the same FT fact.
+
+    The capture and raw observation are stored independently. Their new identity
+    cannot overwrite the canonical row's original source or make a historical
+    unproven row PIT-eligible. Actual fixture/team/score changes still conflict.
+    Explicit frozen-object retries retain their strict all-field writer below.
+    """
+    if session.get_bind().dialect.name == "postgresql":
+        session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:identity, 0))"),
+            {"identity": "f6-history:" + str(payload["history_id"])},
+        )
+    existing = session.get(CanonicalTeamMatchHistoryModel, payload["history_id"])
+    if existing is None or existing.endpoint_capture_id == payload["endpoint_capture_id"]:
+        return _freeze_h2h_history_row(session, payload)
+    observation_fields = {
+        "endpoint_capture_id",
+        "captured_at",
+        "status_first_visible_at",
+        "source_raw_hash",
+        "history_hash",
+        "payload",
+        "pit_proven",
+    }
+    for field, expected in payload.items():
+        if field in observation_fields:
+            continue
+        actual = getattr(existing, field)
+        if isinstance(expected, datetime) and isinstance(actual, datetime):
+            expected, actual = (
+                value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+                for value in (expected, actual)
+            )
+        if actual != expected:
+            raise RuntimeError(f"F6_HISTORY_FIELD_CONFLICT:{field}")
+    return False
+
+
 def capture_h2h_for_pair(
     *,
     home_provider_team_id: str,
@@ -166,7 +208,12 @@ def capture_h2h_for_pair(
     response = provider.request_live(
         "h2h", {"h2h": f"{home_provider_team_id}-{away_provider_team_id}", "last": "10"}
     )
-    if response.status_code >= 400:
+    if (
+        not 200 <= response.status_code < 300
+        or response.endpoint != "h2h"
+        or response.params.get("h2h") != f"{home_provider_team_id}-{away_provider_team_id}"
+        or not isinstance(response.payload.get("response"), list)
+    ):
         raise RuntimeError("F6_H2H_CAPTURE_FAILED")
     now = datetime.now(UTC)
     inserted = 0
@@ -180,6 +227,12 @@ def capture_h2h_for_pair(
             competition_id=competition_id,
         )
         for item in finished_fixture_items(response.payload, now=now):
+            teams = item.get("teams") or {}
+            actual_pair = {
+                str((teams.get(side) or {}).get("id") or "") for side in ("home", "away")
+            }
+            if actual_pair != {home_provider_team_id, away_provider_team_id}:
+                raise RuntimeError("F6_H2H_CAPTURE_TEAM_MISMATCH")
             lg = item.get("league") or {}
             lid = str(lg.get("id") or "").strip()
             meeting_comp = league_to_comp.get(lid, competition_id)
@@ -193,7 +246,7 @@ def capture_h2h_for_pair(
                 captured_at=response.captured_at.astimezone(UTC),
                 provider_to_w2=mapping,
             ):
-                if _freeze_h2h_history_row(session, payload):
+                if _record_h2h_observation(session, payload):
                     inserted += 1
 
         session.commit()

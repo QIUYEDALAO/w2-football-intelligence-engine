@@ -292,15 +292,24 @@ class FakeRepository:
         return []
 
     def upsert_team_xg_matches(self, matches: list[dict[str, Any]]) -> int:
-        self.matches = matches
+        by_id = {row["id"]: row for row in self.matches}
+        for row in matches:
+            by_id.setdefault(row["id"], row)
+        self.matches = list(by_id.values())
         return len(matches)
 
     def team_xg_matches(self) -> list[dict[str, Any]]:
         return self.matches
 
     def upsert_team_xg_rolling_snapshots(self, snapshots: list[dict[str, Any]]) -> int:
-        self.snapshots = snapshots
+        by_id = {row["snapshot_id"]: row for row in self.snapshots}
+        for row in snapshots:
+            by_id.setdefault(row["snapshot_id"], row)
+        self.snapshots = list(by_id.values())
         return len(snapshots)
+
+    def team_xg_rolling_snapshots(self) -> list[dict[str, Any]]:
+        return self.snapshots
 
     def request_count_since(self, since: datetime) -> int:
         return self.request_count_today
@@ -455,6 +464,30 @@ def test_saved_statistics_raw_materializes_xg_and_is_idempotent() -> None:
     assert first.rolling_snapshot_rows == 2
     assert second.team_xg_match_rows == 0
     assert second.rolling_snapshot_rows == 2
+    assert second.frozen_snapshot_no_ops == 2
+
+
+def test_later_saved_raw_run_preserves_first_frozen_snapshot_and_missing_proof() -> None:
+    from copy import deepcopy
+
+    repository = SavedRawRepository()
+    service = XgHistoryBackfillService(
+        client=NoCallClient(), repository=repository,
+        config=XgBackfillConfig(min_rolling_matches=3), now=NOW,
+    )
+    service.run_saved_raw()
+    # Historical missing proof must not be upgraded by a later collector run.
+    for row in repository.snapshots:
+        row["pit_proven"] = False
+        row["first_committed_at"] = None
+    frozen = deepcopy(repository.snapshots)
+    later = XgHistoryBackfillService(
+        client=NoCallClient(), repository=repository,
+        config=XgBackfillConfig(min_rolling_matches=3), now=NOW + timedelta(minutes=30),
+    ).run_saved_raw()
+    assert repository.snapshots == frozen
+    assert later.frozen_snapshot_no_ops == later.unproven_snapshot_no_ops == 2
+    assert later.as_dict()["provider_calls"] == 0
 
 
 def test_saved_statistics_raw_materializes_registered_historical_season() -> None:

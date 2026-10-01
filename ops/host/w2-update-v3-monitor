@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Update only the existing read-only monitor; never invoke Provider or release.
+set -euo pipefail
+target_sha="${1:-}"
+schema="${2:-}"
+mode="${3:-}"
+if ! [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]] || ! [[ "$schema" =~ ^[a-z0-9_]{1,64}$ ]]; then
+  echo 'MONITOR_TARGET_IDENTITY_INVALID' >&2
+  exit 2
+fi
+repo_root="$(git rev-parse --show-toplevel)"
+if [ "$(git rev-parse HEAD)" != "$target_sha" ] || [ -n "$(git status --porcelain)" ]; then
+  echo 'MONITOR_SOURCE_NOT_FIXED_CLEAN_HEAD' >&2
+  exit 2
+fi
+source_file="$repo_root/ops/host/w2-v3-readonly-monitor.py"
+remote_dir="/opt/w2/deploy/v3-monitor-$target_sha"
+if [ "$mode" = '--dry-run' ]; then
+  echo "MONITOR_UPDATE_PLAN sha=$target_sha schema=$schema directory=$remote_dir"
+  exit 0
+fi
+if [ -n "$mode" ]; then
+  echo 'MONITOR_MODE_INVALID' >&2
+  exit 2
+fi
+source_hash="$(shasum -a 256 "$source_file" | cut -d ' ' -f 1)"
+temporary="$(mktemp -d)"
+trap 'rm -rf "$temporary"' EXIT
+cat > "$temporary/wrapper" <<EOF
+#!/usr/bin/env bash
+set -uo pipefail
+report_root=/opt/w2/shared/runtime/reports/v3-monitor
+stamp="\$(date -u +%Y%m%dT%H%M%SZ)-\$\$"
+report="\$report_root/\$stamp.json"
+export W2_MONITOR_LOCAL=1
+python3 '$remote_dir/monitor.py' "\$report" '$target_sha' '$schema' > "\$report_root/\$stamp.stdout" 2> "\$report_root/\$stamp.stderr"
+result=\$?
+printf '%s\n' "\$result" > "\$report_root/\$stamp.exitcode"
+ln -sfn "\$stamp.exitcode" "\$report_root/latest.exitcode"
+if [ -f "\$report" ]; then ln -sfn "\$stamp.json" "\$report_root/latest.json"; fi
+cat "\$report_root/\$stamp.stdout"
+if [ "\$result" -ne 0 ]; then cat "\$report_root/\$stamp.stderr" >&2; fi
+exit "\$result"
+EOF
+ssh w2-hk "mkdir -p '$remote_dir'"
+scp "$source_file" "w2-hk:$remote_dir/monitor.py.incoming"
+scp "$temporary/wrapper" "w2-hk:$remote_dir/wrapper.incoming"
+ssh w2-hk "set -eu
+echo '$source_hash  $remote_dir/monitor.py.incoming' | sha256sum -c -
+if [ -f '$remote_dir/monitor.py' ]; then
+  echo '$source_hash  $remote_dir/monitor.py' | sha256sum -c -
+  rm '$remote_dir/monitor.py.incoming'
+else
+  mv '$remote_dir/monitor.py.incoming' '$remote_dir/monitor.py'
+fi
+python3 -m py_compile '$remote_dir/monitor.py'
+bash -n '$remote_dir/wrapper.incoming'
+install -m 755 '$remote_dir/wrapper.incoming' /usr/local/bin/w2-v3-readonly-monitor.next
+mv /usr/local/bin/w2-v3-readonly-monitor.next /usr/local/bin/w2-v3-readonly-monitor
+systemctl is-active w2-v3-readonly-monitor.timer"
+echo "MONITOR_UPDATED sha=$target_sha schema=$schema source_sha256=$source_hash"
