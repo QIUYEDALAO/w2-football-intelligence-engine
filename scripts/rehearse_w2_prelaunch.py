@@ -759,6 +759,10 @@ def case(root: Path, *, fault: str, candidate: str, old: str, web: str) -> dict:
             assert "active_claims=0" in drained, drained
             assert "SCHEDULER_OFF_BEFORE_CLAIM_DRAIN" in drained, drained
             (path / "actual-claim-drain.log").write_text(drained)
+            # Subsequent source-drift controls inspect all live candidate
+            # processes. Resume this same verified candidate after the drain,
+            # just as activation does; never bring the obsolete image back.
+            run([*compose, "start", "scheduler"])
         else:
             # The full mandatory workflow executes this real block on Linux.
             # macOS Docker does not bind this host path into daemon containers.
