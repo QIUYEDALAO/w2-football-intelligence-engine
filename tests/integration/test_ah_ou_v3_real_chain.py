@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Any
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from tests.integration.test_future_refresh_db_persistence import (
@@ -296,6 +297,89 @@ def test_v3_wiring_real_chain_writes_ledger(tmp_path: Any, monkeypatch: Any) -> 
     assert cohorts[0].ah_capture_id
     assert cohorts[0].ou_capture_id
     assert cohorts[0].frozen_identity
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        pytest.param("missing_identity_row", id="missing-identity-row"),
+        pytest.param("missing_w2_team_id", id="missing-w2-team-id"),
+    ],
+)
+def test_fixture_identity_not_ready_fails_closed_with_structured_skip(
+    tmp_path: Any, monkeypatch: Any, mode: str,
+) -> None:
+    """Single-variable attack: only the fixture-identity readiness differs from
+    the happy path. When the w2 team crosswalk is missing (or the identity row is
+    absent), the AH/OU softmax must fail closed: persist a
+    FIXTURE_IDENTITY_NOT_READY SKIP (direction 0) with no provider team id in the
+    ledger — never fall back to the provider id domain.
+    """
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    repository = FutureRefreshDbRepositoryForTest()
+    seed_odds_checkpoint(FIXTURE_ID, with_identity=True)
+    checkpoints = repository_claim_checkpoints()
+    client = PinnacleAhOuClient()
+    run_direct_checkpoint(tmp_path, client, *checkpoints)
+
+    # Happy-path F9/F6 + READY identity, then single-variable revert only the
+    # fixture identity readiness.
+    _seed_identity_and_repository(repository.engine, repository)
+    with Session(repository.engine) as session:
+        identity = session.scalar(
+            select(MatchdayFixtureIdentityModel).where(
+                MatchdayFixtureIdentityModel.fixture_id == f"api_football:{FIXTURE_ID}"
+            )
+        )
+        assert identity is not None
+        if mode == "missing_identity_row":
+            session.delete(identity)
+        else:
+            identity.home_w2_team_id = None
+            identity.away_w2_team_id = None
+            identity.team_identity_status = "REVIEW_REQUIRED"
+        session.commit()
+
+    item = FakeApiFootballClient().payload("fixtures", {})["response"][0]
+    item["fixture"]["id"] = int(FIXTURE_ID)
+    item["fixture"]["date"] = KICKOFF.isoformat()
+    item["league"] = {"id": 113, "name": "Allsvenskan", "season": 2026}
+
+    observations = repository.latest_market_observations_for_fixtures([FIXTURE_ID])
+
+    service = ReadModelService(repository=repository)
+    card = service._db_analysis_card_from_fixture(item, observations)  # noqa: SLF001
+
+    # The card is still produced (EV evidence for inspection), but the AH/OU
+    # decision is a structured SKIP with no direction.
+    assert card is not None
+    markets = {
+        market["market"]: market
+        for market in card.get("markets", [])
+        if isinstance(market, dict)
+    }
+    assert markets["ASIAN_HANDICAP"]["decision"] == "SKIP"
+    assert markets["TOTALS"]["decision"] == "SKIP"
+
+    with Session(repository.engine) as session:
+        rows = list(
+            session.scalars(
+                select(AhOuDecisionLedgerModel).where(
+                    AhOuDecisionLedgerModel.fixture_id == FIXTURE_ID
+                )
+            )
+        )
+
+    assert {row.market for row in rows} == {"ASIAN_HANDICAP", "TOTALS"}
+    for row in rows:
+        assert row.selected is False
+        assert row.direction is None
+        assert row.skip_reason == "FIXTURE_IDENTITY_NOT_READY"
+        # Fail-closed must never persist the provider team id (10/20) fallback.
+        assert row.home_team_id in ("", None)
+        assert row.away_team_id in ("", None)
+        assert row.home_team_id not in ("10", "20")
+        assert row.away_team_id not in ("10", "20")
 
 
 def FutureRefreshDbRepositoryForTest() -> Any:  # noqa: N802

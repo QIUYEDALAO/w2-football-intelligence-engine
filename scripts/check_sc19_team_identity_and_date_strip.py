@@ -43,8 +43,8 @@ def main() -> None:
     assert "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY" in date_strip
     assert "def persisted_date_strip(" in repository
     assert "session.commit" not in repository[repository.index("def persisted_date_strip(") :]
-    assert "workspace.date_strip.slice" in console
-    assert "不额外查询 Provider" in console
+    assert "workspace.date_strip.find" in console
+    assert "本页面不发起任何 Provider 请求" in console
     print("SC19 team identity and date strip check PASS")
 
 

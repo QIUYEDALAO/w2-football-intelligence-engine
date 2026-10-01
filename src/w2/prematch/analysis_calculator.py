@@ -3327,6 +3327,7 @@ class ReadModelService:
             competition_id=competition_id,
             season=season,
             mainline_selection=mainline_selection,
+            canonical_ready=canonical_ready,
         )
         card = build_multi_market_analysis(
             fixture_id=fixture_id,
@@ -3689,6 +3690,7 @@ class ReadModelService:
         competition_id: str,
         season: str,
         mainline_selection: dict[str, dict[str, Any]],
+        canonical_ready: bool = True,
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, str]:
         """Run the F9+F6 softmax admission + selection for AH and OU.
 
@@ -3697,8 +3699,23 @@ class ReadModelService:
         kickoff - 2h, FT-only same-opponent <=10 F6 meetings, unique F9 binding
         and two-sided prices). Returns ``(ah_selection, ou_selection, status)``;
         a non-``READY`` status carries ``None`` selections (direction 0).
+
+        ``canonical_ready=False`` fails the decision closed: the softmax never
+        runs on provider team ids (which would write a second ID domain into the
+        AH/OU ledger and later surface a false F9_ROLLING_SNAPSHOT_NOT_UNIQUE).
         """
         self._ah_ou_result = None
+        if not canonical_ready:
+            # Fail-closed on fixture identity: persist a structured SKIP for both
+            # markets with direction 0 and an EMPTY team id (never the provider
+            # team id fallback) and stop before any w2-domain lookup.
+            self._persist_ah_ou_skip(
+                repository=repository, fixture_id=fixture_id, home_id="", away_id="",
+                kickoff=kickoff,
+                mainline_selection={"ASIAN_HANDICAP": {}, "TOTALS": {}},
+                status="FIXTURE_IDENTITY_NOT_READY",
+            )
+            return None, None, "FIXTURE_IDENTITY_NOT_READY"
         if not (
             callable(getattr(repository, "team_xg_rolling_snapshots_for_w2_teams", None))
             and callable(getattr(repository, "canonical_match_history_for_teams", None))
