@@ -473,6 +473,7 @@ def _write_fake_vps_bin(
     pre_football_day: str = "2026-09-18T00:00:00Z",
     post_football_day: str = "2026-09-18T00:00:00Z",
     post_snapshot: bool = True,
+    pre_snapshot: bool = True,
     baseline_invalid: bool = False,
     rollback_not_ready: bool = False,
     runtime_drift: bool = False,
@@ -602,7 +603,9 @@ case "$url" in
       matches="{post_matches}"; day="{post_football_day}"
     fi
     if [ "$matches" -gt 0 ]; then
-      if [ "{"1" if post_snapshot else "0"}" = "1" ]; then
+      snapshot="{"1" if post_snapshot else "0"}"
+      if [ "$dash_count" -eq 1 ]; then snapshot="{"1" if pre_snapshot else "0"}"; fi
+      if [ "$snapshot" = "1" ]; then
         radar='{{"markets":{{"AH":{{"snapshot_count":1}}}}}}'
       else
         radar='{{"markets":{{"AH":{{"snapshot_count":0}}}}}}'
@@ -700,6 +703,7 @@ def _run_release_with_vps(
     pre_football_day: str = "2026-09-18T00:00:00Z",
     post_football_day: str = "2026-09-18T00:00:00Z",
     post_snapshot: bool = True,
+    pre_snapshot: bool = True,
     baseline_invalid: bool = False,
     rollback_not_ready: bool = False,
     runtime_drift: bool = False,
@@ -721,6 +725,7 @@ def _run_release_with_vps(
         pre_football_day=pre_football_day,
         post_football_day=post_football_day,
         post_snapshot=post_snapshot,
+        pre_snapshot=pre_snapshot,
         baseline_invalid=baseline_invalid,
         rollback_not_ready=rollback_not_ready,
         runtime_drift=runtime_drift,
@@ -1045,6 +1050,36 @@ def test_t10_post_matches_snapshot判定保持通过和失败(tmp_path: Path) ->
     )
     assert "READBACK d=FAIL" in r_fail.stdout
     assert "mode=SNAPSHOT" in r_fail.stdout
+
+
+def test_unchanged_missing_quotes_are_pending_but_existing_quote_loss_is_refused(
+    tmp_path: Path,
+) -> None:
+    available_control, _ = _run_release_with_vps(
+        tmp_path / "available-control", with_migration=False, fail_ready=False,
+        fail_migration=False, pre_matches=1, post_matches=1,
+        pre_snapshot=True, post_snapshot=True,
+    )
+    assert "READBACK d=PASS" in available_control.stdout
+    assert "mode=SNAPSHOT" in available_control.stdout
+    control, _ = _run_release_with_vps(
+        tmp_path / "control", with_migration=False, fail_ready=False,
+        fail_migration=False, pre_matches=1, post_matches=1,
+        pre_snapshot=False, post_snapshot=False,
+    )
+    # This shell harness intentionally stubs the unrelated image/readiness
+    # checks; the same-path control is the actual d business readback.
+    assert "READBACK d=PASS" in control.stdout
+    assert "quote_validation=PENDING_SOURCE" in control.stdout
+    assert "no_recommendation_inferred=1" in control.stdout
+    attack, _ = _run_release_with_vps(
+        tmp_path / "attack", with_migration=False, fail_ready=False,
+        fail_migration=False, pre_matches=1, post_matches=1,
+        pre_snapshot=True, post_snapshot=False,
+    )
+    assert attack.returncode != 0
+    assert "AVAILABLE_SNAPSHOT_REGRESSED" in attack.stdout
+    assert "READBACK d=FAIL" in attack.stdout
 
 
 def test_t11_baseline_capture_failure_stops_before_migration(tmp_path: Path) -> None:

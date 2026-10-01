@@ -78,6 +78,8 @@ def pipeline_issues(state: dict) -> list[str]:
         issues.append("PROVIDER_STAGE_STALE_ATTEMPTING")
     if state.get("done_without_forward"):
         issues.append("TASK_DONE_WITHOUT_REFRESH_FORWARD")
+    for row in state.get("failed_task_results", []):
+        issues.append("TASK_RESULT_FAILED:" + str(row["stored_status"]))
     if any(row["status"] == "FAILED" for row in state.get("checkpoint_health", [])):
         issues.append("CHECKPOINT_FAILED")
     return sorted(set(issues))
@@ -233,6 +235,13 @@ def main() -> None:
         "SELECT task_id FROM provider_side_effect_fence t WHERE t.stage='task' AND "
         "t.state='DONE' AND NOT EXISTS (SELECT 1 FROM provider_side_effect_fence f WHERE "
         "f.task_id=t.task_id AND f.stage='refresh_forward' AND f.state='DONE')"
+    )
+    state["failed_task_results"] = rows(
+        "SELECT task_id,stored_result->>'status' AS stored_status,"
+        "stored_result->'result'->'blockers' AS blockers,updated_at FROM "
+        "provider_side_effect_fence WHERE stage='task' AND state='DONE' AND "
+        "(stored_result->>'status' LIKE 'BLOCKED%' OR stored_result->>'status' "
+        "IN ('FAILED','PARTIAL_FAILED')) ORDER BY updated_at DESC LIMIT 100"
     )
     state["old_events_pending"] = rows(
         "SELECT event_type,count(*) FROM candidate_notification_outbox WHERE event_type "

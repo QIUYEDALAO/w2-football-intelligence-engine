@@ -1103,6 +1103,7 @@ import json,sys
 try:
     d=json.load(sys.stdin)
     current=json.loads(sys.argv[3])
+    before=json.loads(sys.argv[4])
 except Exception as e:
     print("JSON_ERROR", e); sys.exit(0)
 recs=current.get("today_recommendations")
@@ -1162,12 +1163,44 @@ elif post_matches >= 1:
             has_snapshot=True
     d_ok = int(d_ok and has_snapshot)
     d_detail=f"mode=SNAPSHOT pre={pre_matches} post={post_matches} sample={snaps}"
+    # A release must preserve available data; it cannot create absent Provider
+    # quotes. Accept only an unchanged, explicit empty quote baseline for the
+    # identical fixture set. Existing snapshot loss and unknown baselines fail.
+    def coverage(rows):
+        result={}
+        for row in rows:
+            fixture=row.get("fixture_id")
+            radar=row.get("market_radar")
+            if not fixture or fixture in result or not isinstance(radar,dict):
+                return None
+            markets=radar.get("markets")
+            if not isinstance(markets,dict):
+                return None
+            if any(not isinstance(v,dict) for v in markets.values()):
+                return None
+            counts=[v.get("snapshot_count") for v in markets.values()]
+            if any(type(c) is not int or c < 0 for c in counts):
+                return None
+            result[fixture]=max(counts,default=0)
+        return result
+    pre_coverage=coverage(before.get("matches",[]))
+    post_coverage=coverage(matches)
+    if pre_coverage is not None and post_coverage is not None:
+        missing=[f for f,n in pre_coverage.items() if n>0 and post_coverage.get(f,0)==0]
+        if missing:
+            d_ok=0
+            d_detail=f"mode=SNAPSHOT reason=AVAILABLE_SNAPSHOT_REGRESSED fixtures={missing}"
+        elif (pre_matches==post_matches and pre_matches>0
+              and pre_coverage==post_coverage and not any(pre_coverage.values())):
+            d_ok=1
+            d_detail=(f"mode=UNCHANGED_EMPTY_QUOTES pre={pre_matches} post={post_matches} "
+                      "quote_validation=PENDING_SOURCE no_recommendation_inferred=1")
 else:
     d_ok=0
     d_detail=f"reason=INVALID_MATCH_COUNTS pre={pre_matches} post={post_matches}"
 print(f"c_ok={int(c_ok)} recs={len(recs)} noninc={int(noninc)}")
 print(f"d_ok={int(d_ok)} post_matches={post_matches} post_football_day={post_football_day} {d_detail}")
-' "$pre_matches" "$pre_football_day" "$current_json")"
+' "$pre_matches" "$pre_football_day" "$current_json" "$pre_workspace_json")"
 c_ok="$(printf '%s' "$c_d_result" | sed -n 's/^c_ok=\([01]\).*/\1/p' | head -1)"
 d_ok="$(printf '%s' "$c_d_result" | sed -n 's/^d_ok=\([01]\).*/\1/p' | head -1)"
 rb "c" "$c_ok" "$(printf '%s' "$c_d_result" | grep '^c_ok=' | head -1)"

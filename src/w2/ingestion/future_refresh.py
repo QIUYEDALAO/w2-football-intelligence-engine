@@ -1151,7 +1151,9 @@ class FutureFixtureRefreshService:
         except Exception as exc:
             error_code = (
                 str(exc)
-                if self.runtime_authorization is not None or isinstance(exc, FrozenAnalysisError)
+                if self.runtime_authorization is not None or isinstance(
+                    exc, (FrozenAnalysisError, FutureRefreshPersistenceError)
+                )
                 else exc.__class__.__name__
             )
             blockers.append(error_code)

@@ -21,8 +21,18 @@ def tool():
 
 def test_offline_fixture_baseline_matches_real_api_and_noop_preserves_source(chain):
     from apps.api.main import app
+    from apps.worker.celery_app import _project_and_record_factors
 
-    repo, _, _, _ = chain
+    from w2.prematch.read_model_projection import ProjectionSourceEvent
+
+    repo, _, _, producer = chain
+    # Populate the existing projection through the real worker path. Compare
+    # its display counts exactly, including an explicit unavailable quote state;
+    # selected v3 quotes and this diagnostic projection are separate fields.
+    _project_and_record_factors([ProjectionSourceEvent.create(
+        fixture_id="1489404", event_type="ODDS_CHANGED", event_id="release-baseline",
+        event_at=producer.now, payload={"fixture_id": "1489404"},
+    )])
     before = repo.engine.connect()
     original = before.execute(text(
         "SELECT fixture_id,kickoff_utc FROM matchday_fixture_identities ORDER BY fixture_id"
@@ -40,6 +50,20 @@ def test_offline_fixture_baseline_matches_real_api_and_noop_preserves_source(cha
     assert {row["fixture_id"] for row in baseline["matches"]} == {
         row["fixture_id"] for row in public["matches"]
     }
+    assert baseline["matches"]
+    baseline_counts = {
+        row["fixture_id"]: {
+            market: value["snapshot_count"]
+            for market, value in row["market_radar"]["markets"].items()
+        } for row in baseline["matches"]
+    }
+    public_counts = {
+        row["fixture_id"]: {
+            market: value["snapshot_count"]
+            for market, value in row["market_radar"]["markets"].items()
+        } for row in public["matches"]
+    }
+    assert baseline_counts == public_counts
     with repo.engine.connect() as connection:
         assert connection.execute(text(
             "SELECT fixture_id,kickoff_utc FROM matchday_fixture_identities ORDER BY fixture_id"

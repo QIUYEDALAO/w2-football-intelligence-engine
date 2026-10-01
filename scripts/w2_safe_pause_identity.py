@@ -137,7 +137,17 @@ def dashboard_baseline():
         "schema_version": "w2.release_fixture_baseline.v1",
         "source": "readonly_dashboard_fixture_repository",
         "football_day_start_utc": start.isoformat().replace("+00:00", "Z"),
-        "matches": [{"fixture_id": row["fixture_id"]} for row in matches],
+        "matches": [
+            {
+                "fixture_id": row["fixture_id"],
+                "kickoff_utc": row.get("kickoff_utc"),
+                "market_radar": (
+                    (row.get("_analysis_card_projection") or {}).get("market_radar")
+                    or {"markets": {}}
+                ),
+            }
+            for row in matches
+        ],
     }
 
 

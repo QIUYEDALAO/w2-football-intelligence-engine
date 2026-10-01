@@ -35,6 +35,7 @@ from w2.ingestion.future_refresh import (
     refresh_progress_status,
     run_future_refresh_task,
 )
+from w2.ingestion.future_refresh_repository import FutureRefreshPersistenceError
 from w2.markets.quote_identity import evaluate_quote_freshness, project_quote_identity
 from w2.operations.gate_a import (
     GATE_A_SELECTION_POLICY_VERSION,
@@ -917,6 +918,33 @@ def test_future_refresh_saves_lineups_raw_before_materialization_failure(
         item["endpoint"] == "lineups" and item["raw_payload_persisted"] is True
         for item in audit["requests"]
     )
+
+
+def test_future_refresh_preserves_specific_persistence_failure_in_result_and_audit(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    reason = "LINEUP_BASELINE_CONFLICT"
+
+    def fail_projection(**_kwargs: Any) -> list[dict[str, Any]]:
+        raise FutureRefreshPersistenceError(reason)
+
+    monkeypatch.setattr(
+        "w2.ingestion.future_refresh.project_ledger_to_read_model", fail_projection,
+    )
+    result = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="file"),
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+    audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+    assert result.status == "PARTIAL_FAILED"
+    assert result.error_code == reason
+    assert reason in result.blockers
+    assert audit["status"] == "PARTIAL_FAILED"
+    assert audit["error_code"] == reason
+    assert result.request_count == 3
 
 
 def test_future_refresh_lineups_empty_diagnostic(tmp_path: Path, monkeypatch) -> None:

@@ -31,6 +31,8 @@ def test_monitor_empty_change_control_and_completed_pipeline():
     ({"stale_provider_stages": [{"state": "ATTEMPTING"}]},
      "PROVIDER_STAGE_STALE_ATTEMPTING"),
     ({"done_without_forward": [{"task_id": "incomplete"}]}, "TASK_DONE_WITHOUT_REFRESH_FORWARD"),
+    ({"failed_task_results": [{"stored_status": "BLOCKED_WITH_RECORDING_INCOMPLETE"}]},
+     "TASK_RESULT_FAILED:BLOCKED_WITH_RECORDING_INCOMPLETE"),
     ({"checkpoint_health": [{"status": "FAILED"}]}, "CHECKPOINT_FAILED"),
 ])
 def test_monitor_no_selected_rows_cannot_hide_pipeline_fault(state, reason):
