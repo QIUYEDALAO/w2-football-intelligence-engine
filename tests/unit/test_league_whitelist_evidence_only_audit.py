@@ -181,7 +181,7 @@ def _payload(endpoint: str) -> dict[str, Any]:
                         {
                             "name": "BookB",
                             "bets": [
-                                {"name": "Asian Handicap", "values": [{"value": "Away +0.25"}]},
+                                {"name": "Asian Handicap", "values": [{"value": "Away -0.25"}]},
                             ],
                         },
                         {

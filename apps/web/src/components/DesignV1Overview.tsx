@@ -18,7 +18,6 @@ type Props = {
   renderInputDiagnostics?: (match: WorkspaceMatch) => ReactNode;
   historicalQuality?: ReactNode;
   capabilityStatus?: ReactNode;
-  dateNavigation?: ReactNode;
   dayContext?: ReactNode;
 };
 
@@ -182,9 +181,15 @@ function FixtureList({ workspace, picks, onSelect }: { workspace: IntelligenceWo
       || String(left.kickoff_utc || "").localeCompare(String(right.kickoff_utc || ""))
       || left.fixture_id.localeCompare(right.fixture_id);
   });
-  const leagues = Array.from(new Set(allMatches.map((match) => match.competition_name || match.competition_id || "赛事待确认")));
-  const matches = league === "全部" ? allMatches : allMatches.filter((match) => (match.competition_name || match.competition_id || "赛事待确认") === league);
-  return <div className="w2-match-browser">{leagues.length > 1 ? <div className="w2-match-filters" role="toolbar" aria-label="按联赛筛选比赛"><button type="button" aria-pressed={league === "全部"} onClick={() => setLeague("全部")}>全部 {allMatches.length}</button>{leagues.map((name) => <button type="button" aria-pressed={league === name} key={name} onClick={() => setLeague(name)}>{name} {allMatches.filter((match) => (match.competition_name || match.competition_id || "赛事待确认") === name).length}</button>)}</div> : null}<ul className="w2-fixtures">{matches.length ? matches.map((match) => {
+  const competitionKey = (match: WorkspaceMatchItem) => match.competition_name || match.competition_id || "赛事待确认";
+  const leagueLabels = new Map<string, string>();
+  for (const match of allMatches) {
+    const key = competitionKey(match);
+    if (!leagueLabels.has(key)) leagueLabels.set(key, translateCompetition(key, match.competition_id));
+  }
+  const leagues = Array.from(leagueLabels.keys());
+  const matches = league === "全部" ? allMatches : allMatches.filter((match) => competitionKey(match) === league);
+  return <div className="w2-match-browser">{leagues.length > 1 ? <div className="w2-match-filters" role="toolbar" aria-label="按联赛筛选比赛"><button type="button" aria-pressed={league === "全部"} onClick={() => setLeague("全部")}>全部 {allMatches.length}</button>{leagues.map((name) => <button type="button" aria-pressed={league === name} key={name} onClick={() => setLeague(name)}>{leagueLabels.get(name)} {allMatches.filter((match) => competitionKey(match) === name).length}</button>)}</div> : null}<ul className="w2-fixtures">{matches.length ? matches.map((match) => {
     const [home, away] = matchTeams(match);
     const radar = "market_radar" in match ? match.market_radar : null;
     const ah = radar?.markets?.ASIAN_HANDICAP;
@@ -201,7 +206,7 @@ function FixtureList({ workspace, picks, onSelect }: { workspace: IntelligenceWo
   }) : <li className="w2-empty-row">当前足球日没有持久化比赛。</li>}</ul></div>;
 }
 
-export function DesignV1Overview({ workspace, date, initialFixtureId, onDateChange, onRefresh, loading, activeTab, onTabChange, tabContent, renderInputDiagnostics, historicalQuality, capabilityStatus, dateNavigation, dayContext }: Props) {
+export function DesignV1Overview({ workspace, date, initialFixtureId, onDateChange, onRefresh, loading, activeTab, onTabChange, tabContent, renderInputDiagnostics, historicalQuality, capabilityStatus, dayContext }: Props) {
   const summary = performance(workspace);
   const publicAvailable = summary.schema_version === "w2.ah_ou_v3_public_performance.v1" && Array.isArray(workspace.today_recommendations);
   const picks = publicAvailable ? recommendations(workspace) : [];
@@ -317,7 +322,6 @@ export function DesignV1Overview({ workspace, date, initialFixtureId, onDateChan
         <p className="w2-kpis-note">战绩统计口径：AH/OU v3.1 冻结决策 · 每条 decision_id 单独计数 · 待赛果和无效盘不进命中率分母</p>
         {summary.by_market ? <p className="w2-kpis-note">让球 {summary.by_market.ASIAN_HANDICAP?.match_count ?? 0} 条已结算 · 命中 {percent(summary.by_market.ASIAN_HANDICAP?.hit_rate)} · 净 {signed(summary.by_market.ASIAN_HANDICAP?.profit_units)}；大小球 {summary.by_market.TOTALS?.match_count ?? 0} 条已结算 · 命中 {percent(summary.by_market.TOTALS?.hit_rate)} · 净 {signed(summary.by_market.TOTALS?.profit_units)}</p> : null}
       </section>
-      {dateNavigation}
       <div className="w2-grid">
         <section className="w2-panel" data-mviews="picks" aria-labelledby="picksTitle">
           <div className="w2-panel__head"><h2 className="section-title" id="picksTitle">今日推荐</h2><div className="w2-chips" role="group" aria-label="按联赛筛选">{leagues.map((league) => <button type="button" className="w2-chip" aria-pressed={league === activeLeague} key={league} onClick={() => setActiveLeague(league)}>{league}</button>)}</div></div>

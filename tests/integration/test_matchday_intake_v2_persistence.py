@@ -1337,7 +1337,7 @@ def _odds_payload() -> dict[str, object]:
                                 "name": "Asian Handicap",
                                 "values": [
                                     {"value": "Home -0.25", "odd": "1.91"},
-                                    {"value": "Away 0.25", "odd": "1.95"},
+                                    {"value": "Away -0.25", "odd": "1.95"},
                                 ],
                             },
                             {

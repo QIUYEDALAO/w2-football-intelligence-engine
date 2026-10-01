@@ -1350,7 +1350,7 @@ test("refresh keeps the current workspace visible while the read is pending", as
   await expect(refresh).toBeEnabled();
 });
 
-test("SC19 date strip exposes persisted counts and collection-window truth", async ({ page }) => {
+test("SC19 day status exposes collection-window truth", async ({ page }) => {
   const payload = workspace();
   const selected = payload.date_strip.find((item) => item.football_day === payload.date)!;
   selected.market_evidence_fixture_count = 1;
@@ -1359,45 +1359,12 @@ test("SC19 date strip exposes persisted counts and collection-window truth", asy
   await page.route("**/v1/dashboard/intelligence-workspace/list?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
-  const strip = page.getByRole("navigation", { name: "近七日比赛浏览" });
-  await expect(strip.getByText("已持久化赛程", { exact: true })).toBeVisible();
-  await expect(strip.getByText("1/13 联赛", { exact: false }).first()).toBeVisible();
-  await expect(strip).toContainText("已落盘市场观察（含历史）1/3 场");
-  await expect(strip.locator('[aria-current="date"] .v41-recent-days-title')).toHaveText("2026-08-09 · 3 场 · 今天");
   await expect(page.locator(".w2-day-status")).toHaveAttribute("data-public-cause", "AWAITING_COLLECTION");
   await expect(page.locator(".w2-day-status")).toContainText("已到采集时点，证据待采集");
-  await expect(strip).not.toContainText("市场证据可用");
-  await expect(strip.getByText("W2 计划采集尚未开始", { exact: false }).first()).toBeVisible();
-  await expect(strip).toContainText("每次只读取所选日期，不额外查询 Provider");
-  await strip.getByRole("button", { name: "查看更晚日期" }).click();
-  await expect(strip.getByText("2026-08-16", { exact: true })).toBeVisible();
+  await expect(page.locator(".w2-day-status")).not.toContainText("市场证据可用");
 });
 
-test("mobile date strip keeps every status inside its own card", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await installWorkspace(page);
-  await page.goto("/");
-  const strip = page.getByRole("navigation", { name: "近七日比赛浏览" });
-  const statuses = strip.locator("button em");
-  await expect(statuses).toHaveCount(7);
-  const contained = await statuses.evaluateAll((items) => items.every((item) => {
-    const card = item.closest("button")!.getBoundingClientRect();
-    const status = item.getBoundingClientRect();
-    return status.left >= card.left && status.right <= card.right
-      && status.top >= card.top && status.bottom <= card.bottom
-      && item.scrollWidth <= item.clientWidth && item.scrollHeight <= item.clientHeight;
-  }));
-  expect(contained).toBe(true);
-  const selectedVisible = await strip.locator("[aria-current=date]").evaluate((item) => {
-    const stripBounds = item.closest("nav")!.getBoundingClientRect();
-    const itemBounds = item.getBoundingClientRect();
-    return itemBounds.left >= stripBounds.left && itemBounds.right <= stripBounds.right;
-  });
-  expect(selectedVisible).toBe(true);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-});
-
-test("mobile selected date remains visible after the workspace replaces date-strip nodes", async ({ page }) => {
+test("mobile selected date updates the top football-day selector after workspace replacement", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-08-12T06:00:00Z"));
   await page.setViewportSize({ width: 390, height: 844 });
   const initial = workspace();
@@ -1427,13 +1394,6 @@ test("mobile selected date remains visible after the workspace replaces date-str
   await page.goto("/");
   await page.getByLabel("选择比赛日").fill(selected.date);
   await expect(page.getByLabel("选择比赛日")).toHaveValue("2026-08-14");
-  const strip = page.getByRole("navigation", { name: "近七日比赛浏览" });
-  const selectedVisible = await strip.locator("[aria-current=date]").evaluate((item) => {
-    const stripBounds = item.closest("nav")!.getBoundingClientRect();
-    const itemBounds = item.getBoundingClientRect();
-    return itemBounds.left >= stripBounds.left && itemBounds.right <= stripBounds.right;
-  });
-  expect(selectedVisible).toBe(true);
 });
 
 test("V41 empty-day adjacent controls change the requested football day", async ({ page }) => {
@@ -1649,7 +1609,7 @@ test("recorded match outcomes render only the persisted outcome semantics", asyn
 test("V41 primary controls meet the bounded minimum target size", async ({ page }) => {
   await installWorkspace(page);
   await page.goto("/");
-  for (const selector of [".w2-day button", ".w2-day input", ".v41-recent-days button"]) {
+  for (const selector of [".w2-day button", ".w2-day input"]) {
     const box = await page.locator(selector).first().boundingBox();
     expect(box?.height, selector).toBeGreaterThanOrEqual(38);
   }

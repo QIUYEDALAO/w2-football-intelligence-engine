@@ -65,7 +65,7 @@ class PinnacleAhOuClient(FakeApiFootballClient):
                                         "name": "Asian Handicap",
                                         "values": [
                                             {"value": "Home -0.5", "odd": "1.80"},
-                                            {"value": "Away +0.5", "odd": "2.05"},
+                                            {"value": "Away -0.5", "odd": "2.05"},
                                         ],
                                     },
                                     {

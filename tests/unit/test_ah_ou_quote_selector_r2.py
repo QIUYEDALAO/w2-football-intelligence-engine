@@ -19,7 +19,7 @@ CAPTURE_ID = "cap-1"
 
 def _raw(*, fixture: str = FIXTURE_ID, ah: list[tuple[str, str]] | None = None,
           ou: list[tuple[str, str]] | None = None) -> dict:
-    ah = ah or [("Home -0.5", "1.80"), ("Away +0.5", "2.05")]
+    ah = ah or [("Home -0.5", "1.80"), ("Away -0.5", "2.05")]
     ou = ou or [("Over 2.5", "1.90"), ("Under 2.5", "1.90")]
     return {
         "response": [
@@ -187,7 +187,7 @@ def test_non_pinnacle_is_refused() -> None:
 
 
 def test_ah_wrong_line_is_refused() -> None:
-    raw = _raw(ah=[("Home -0.5", "1.80"), ("Away +0.25", "2.05")])
+    raw = _raw(ah=[("Home -0.5", "1.80"), ("Away -0.25", "2.05")])
     rows = _obs(raw)
     rows[1]["line"] = "0.25"  # away 线与 home 线既不相等也不互补
     result = select_v3_ah_ou_quotes(
@@ -218,10 +218,11 @@ def test_same_capture_two_ou_lines_selects_mainline() -> None:
 
 
 def test_ah_away_repeated_home_perspective_line_is_accepted() -> None:
-    # AH 线语义：away 侧也可以是 home 视角同线（重复 L），canonical 仍是 home 视角 L
+    # API-Football 会在两侧重复 home 视角同线（away 值带 home 的盘口符号），
+    # 采集归一后 away 落库为 team 视角（取反），canonical 仍是 home 视角 L。
     raw = _raw(ah=[("Home -0.5", "1.80"), ("Away -0.5", "2.05")])
     rows = _obs(raw)
-    rows[1]["line"] = "-0.5"  # away 重复 home 视角同线
+    rows[1]["line"] = "0.5"  # away 归一为 team 视角（home -0.5 → away +0.5）
     result = select_v3_ah_ou_quotes(
         rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
         raw_payloads={CAPTURE_ID: raw},

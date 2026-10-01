@@ -20,7 +20,6 @@ import type {
   WorkspaceMatchSummary,
   WorkspaceMatchItem,
   WorkspaceMatchProjectionError,
-  WorkspaceDateStripEntry,
   WorkspacePublicTeamLabel,
 } from "../types/intelligenceWorkspace";
 
@@ -404,42 +403,6 @@ function Header({ date, loading, onDateChange, onRefresh, workspace, tab, onTabC
       </nav>
       <button className="v41-theme-btn" onClick={() => setTheme(effectiveTheme === "light" ? "dark" : "light")} title="切换明暗主题" type="button">{effectiveTheme === "light" ? "☀️ 浅白" : "🌙 暗黑"}</button>
     </header>
-  );
-}
-
-function dateStripLabel(entry: WorkspaceDateStripEntry): string {
-  return publicPresentation(entry.public_semantics, {
-    fixtureCount: entry.fixture_count,
-    competitionCount: entry.competition_count,
-    marketObservationCount: entry.market_evidence_fixture_count,
-    finishedCount: entry.finished_fixture_count,
-  }).label;
-}
-
-function RecentDateNav({ date, onDateChange, workspace }: Pick<Props, "date" | "onDateChange" | "workspace">) {
-  const [sliceStart, setSliceStart] = useState(4);
-  const selectedDateRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => setSliceStart(4), [date]);
-  useEffect(() => {
-    selectedDateRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
-  }, [date, sliceStart, workspace.date_strip]);
-  const dates = workspace.date_strip.slice(sliceStart, sliceStart + 7);
-  return (
-    <nav className="v41-recent-days" aria-label="近七日比赛浏览">
-      <span>已持久化赛程</span>
-      <button aria-label="查看更早日期" className="v41-window-control" disabled={sliceStart === 0} onClick={() => setSliceStart(Math.max(0, sliceStart - 4))} type="button">‹</button>
-      {dates.map((item) => (
-        <button aria-current={item.football_day === date ? "date" : undefined} key={item.football_day} onClick={() => onDateChange(item.football_day)} ref={item.football_day === date ? selectedDateRef : undefined} type="button">
-          <span className="v41-recent-days-title">
-            <small>{item.football_day}</small>
-            <b>{` · ${item.fixture_count} 场${item.football_day === footballDayShanghai() ? " · 今天" : item.football_day === date ? " · 当前" : ""}`}</b>
-          </span>
-          <em>{dateStripLabel(item)}{item.competition_count ? ` · ${item.competition_count}/13 联赛` : ""}</em>
-        </button>
-      ))}
-      <button aria-label="查看更晚日期" className="v41-window-control" disabled={sliceStart + 7 >= workspace.date_strip.length} onClick={() => setSliceStart(Math.min(workspace.date_strip.length - 7, sliceStart + 4))} type="button">›</button>
-      <span className="v41-recent-days-note">每次只读取所选日期，不额外查询 Provider</span>
-    </nav>
   );
 }
 
@@ -1308,5 +1271,5 @@ export function IntelligenceConsole(props: Props) {
     : tab === "validation-calibrated" && calibratedValidation ? <Suspense fallback={<p className="w2-pending">正在加载校准复盘…</p>}><DesignV1CalibratedValidationView response={calibratedValidation} onPageChange={setReviewOffset} /></Suspense>
     : tab === "replay" && replay ? <Suspense fallback={<p className="w2-pending">正在加载回放记录…</p>}><DesignV1ReplayView response={replay} />{replay.history_replay ? <section aria-label="旧代际历史回放" data-legacy-replay><p>以下是旧代际历史回放，不作为当前 AH/OU v3 推荐权威。</p><ReplayCenter response={replay} /></section> : null}</Suspense>
     : null;
-  return <DesignV1Overview workspace={workspace} date={props.date} initialFixtureId={props.initialFixtureId} onDateChange={props.onDateChange} onRefresh={props.onRefresh} loading={props.loading} activeTab={tab} onTabChange={selectTab} tabContent={tabContent} dateNavigation={<RecentDateNav date={props.date} onDateChange={props.onDateChange} workspace={workspace} />} dayContext={workspace.global_focus ? <GlobalFocus date={props.date} onDateChange={props.onDateChange} workspace={workspace} /> : null} capabilityStatus={<CapabilityStatus workspace={workspace} />} historicalQuality={<QualityRail workspace={workspace} />} renderInputDiagnostics={(match) => <PrematchInputDiagnostics generatedAt={workspace.generated_at} match={match} thresholdRatio={workspace.runtime.market_price_attention_threshold_ratio} />} />;
+  return <DesignV1Overview workspace={workspace} date={props.date} initialFixtureId={props.initialFixtureId} onDateChange={props.onDateChange} onRefresh={props.onRefresh} loading={props.loading} activeTab={tab} onTabChange={selectTab} tabContent={tabContent} dayContext={workspace.global_focus ? <GlobalFocus date={props.date} onDateChange={props.onDateChange} workspace={workspace} /> : null} capabilityStatus={<CapabilityStatus workspace={workspace} />} historicalQuality={<QualityRail workspace={workspace} />} renderInputDiagnostics={(match) => <PrematchInputDiagnostics generatedAt={workspace.generated_at} match={match} thresholdRatio={workspace.runtime.market_price_attention_threshold_ratio} />} />;
 }

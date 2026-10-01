@@ -382,16 +382,6 @@ summary {
   text-decoration: none;
 }
 
-.v41-recent-days {
-  display: flex;
-  align-items: stretch;
-  gap: 5px;
-  padding: 8px 22px;
-  border-bottom: 1px solid var(--v41-line-faint);
-  background: var(--v41-bg);
-  overflow-x: auto;
-}
-
 .v41-tabs {
   display: flex;
   margin-left: auto;
@@ -432,84 +422,6 @@ summary {
 .v41-theme-btn:hover {
   border-color: var(--v41-accent);
   color: var(--v41-accent);
-}
-
-.v41-recent-days > span:first-child {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  margin-right: 5px;
-  color: var(--v41-ink-2);
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.v41-recent-days button {
-  display: grid;
-  min-width: 132px;
-  min-height: 56px;
-  place-content: center;
-  gap: 1px;
-  padding: 3px 10px;
-  border: 1px solid var(--v41-line-soft);
-  border-radius: 3px;
-  background: transparent;
-  color: var(--v41-ink-2);
-  cursor: pointer;
-  overflow: hidden;
-}
-
-.v41-recent-days button:hover,
-.v41-recent-days button[aria-current="date"] {
-  border-color: var(--v41-accent-line);
-  background: var(--v41-accent-soft);
-  color: var(--v41-ink);
-}
-
-.v41-recent-days button small {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-}
-
-.v41-recent-days-title {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 4px;
-  white-space: nowrap;
-}
-
-.v41-recent-days button b {
-  color: var(--v41-accent);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.v41-recent-days button em {
-  width: 100%;
-  min-width: 0;
-  color: var(--v41-ink-3);
-  font-size: 11px;
-  font-style: normal;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-  text-align: center;
-  white-space: normal;
-}
-
-.v41-recent-days .v41-window-control {
-  min-width: 30px;
-  padding: 3px;
-  font-size: 18px;
-}
-
-.v41-recent-days-note {
-  display: flex;
-  align-items: center;
-  margin-left: auto;
-  color: var(--v41-ink-3);
-  font-size: 12px;
 }
 
 .v41-secondary-nav a::after,
@@ -2355,17 +2267,6 @@ summary {
 
 .v41-secondary-nav { gap: 10px; }
 
-.v41-recent-days {
-  gap: 4px;
-  padding: 5px 14px;
-}
-
-.v41-recent-days button {
-  min-width: 152px;
-  min-height: 52px;
-  padding: 2px 7px;
-}
-
 .v41-today {
   gap: 22px;
   min-height: 0;
@@ -2560,16 +2461,6 @@ summary {
 
   .v41-capabilities { padding-right: 18px; padding-left: 18px; flex-wrap: wrap; }
   .v41-capabilities small { width: 100%; margin-left: 0; }
-
-  .v41-recent-days {
-    padding-right: 18px;
-    padding-left: 18px;
-    overflow-x: auto;
-  }
-
-  .v41-recent-days-note {
-    display: none;
-  }
 
   .v41-main {
     display: block;

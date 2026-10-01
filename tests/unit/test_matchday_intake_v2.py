@@ -24,6 +24,7 @@ from w2.matchday.intake_v2 import (
     materialize_evidence_manifest,
     name_only_crosswalk_review,
     normalize_matchday_odds_payload,
+    parse_selection,
     public_manifest_read,
     team_crosswalk_contract,
     validate_manifest_identity,
@@ -582,7 +583,7 @@ def _odds_payload() -> dict[str, object]:
                                 "name": "Asian Handicap",
                                 "values": [
                                     {"value": "Home -0.25", "odd": "1.91"},
-                                    {"value": "Away 0.25", "odd": "1.95"},
+                                    {"value": "Away -0.25", "odd": "1.95"},
                                 ],
                             },
                             {
@@ -599,3 +600,18 @@ def _odds_payload() -> dict[str, object]:
             }
         ],
     }
+
+
+def test_ah_away_line_normalized_to_team_perspective() -> None:
+    # API-Football repeats the home-side handicap on both selections, so the
+    # away side must be negated to its own team-perspective line.
+    assert parse_selection("Home -2.5", "ASIAN_HANDICAP") == ("HOME", "-2.5")
+    assert parse_selection("Away -2", "ASIAN_HANDICAP") == ("AWAY", "2")
+    assert parse_selection("Away 0.25", "ASIAN_HANDICAP") == ("AWAY", "-0.25")
+    assert parse_selection("Away 0", "ASIAN_HANDICAP") == ("AWAY", "0")
+    assert parse_selection("Home 1", "ASIAN_HANDICAP") == ("HOME", "1")
+
+
+def test_totals_line_keeps_provider_sign() -> None:
+    assert parse_selection("Over 2.5", "TOTALS") == ("OVER", "2.5")
+    assert parse_selection("Under 2.5", "TOTALS") == ("UNDER", "2.5")

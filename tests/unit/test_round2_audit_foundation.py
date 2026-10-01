@@ -331,7 +331,7 @@ class Round2Requester:
                                     {
                                         "name": "Asian Handicap",
                                         "values": [
-                                            {"value": "Away +0.25", "odd": "1.95"}
+                                            {"value": "Away -0.25", "odd": "1.95"}
                                         ],
                                     }
                                 ],

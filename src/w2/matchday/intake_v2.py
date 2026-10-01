@@ -997,7 +997,11 @@ def parse_selection(text: str, market: str) -> tuple[str, str | None]:
         if head in {"home", "1"} and line is not None:
             return "HOME", line
         if head in {"away", "2"} and line is not None:
-            return "AWAY", line
+            # API-Football expresses the AH value from the home side (the
+            # handicap the home team gives).  Normalize the away side to its own
+            # team-perspective line (the negation), so both selections are
+            # stored under one canonical perspective.
+            return "AWAY", _negate_line(line)
         raise ValueError("INVALID_LINE" if line is None else "INVALID_SELECTION")
     raise ValueError("UNSUPPORTED_MARKET")
 
@@ -1010,6 +1014,10 @@ def decimal_line(value: Any) -> str | None:
     if parsed * Decimal("4") != (parsed * Decimal("4")).to_integral_value():
         return None
     return str(parsed.normalize())
+
+
+def _negate_line(value: str) -> str:
+    return str((-Decimal(value)).normalize())
 
 
 def decimal_odds(value: Any) -> str | None:

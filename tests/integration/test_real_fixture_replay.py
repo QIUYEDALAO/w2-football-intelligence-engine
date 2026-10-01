@@ -101,7 +101,7 @@ class _SavedSequenceSource:
                                         "name": "Asian Handicap",
                                         "values": [
                                             {"value": "Home -0.5", "odd": "1.91"},
-                                            {"value": "Away +0.5", "odd": "1.93"},
+                                            {"value": "Away -0.5", "odd": "1.93"},
                                         ],
                                     }
                                 ],

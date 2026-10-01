@@ -678,7 +678,7 @@ def _payload(endpoint: str, params: dict[str, str], requester: FakeRequester) ->
                         {
                             "name": "BookB",
                             "bets": [
-                                {"name": "Asian Handicap", "values": [{"value": "Away +0.25"}]},
+                                {"name": "Asian Handicap", "values": [{"value": "Away -0.25"}]},
                             ],
                         },
                         {
