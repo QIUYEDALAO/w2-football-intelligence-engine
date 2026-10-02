@@ -1110,6 +1110,54 @@ def xg_history_backfill(
     }
 
 
+@celery_app.task(name="w2.ah_ou_decision_forward", bind=True)
+def ah_ou_decision_forward(
+    self: object,
+    fixture_id: str | None = None,
+    queued_at_utc: str | None = None,
+) -> dict[str, object]:
+    """决策点自动 forward：对单个 fixture 跑 build_ah_ou_selections 落账本。
+
+    由 scheduler 的 ah_ou_decision_forward_tick 在 decision_at(=kickoff-2h) 到点
+    且账本尚未决策时派发。复用 ReadModelService 卡片构建链（F9/F6 softmax →
+    写 ah_ou_decision_ledger + cohort），不经 HTTP 读取、不依赖打开 Dashboard。
+    """
+    from w2.prematch.analysis_calculator import ReadModelService
+
+    task_id = str(getattr(getattr(self, "request", None), "id", None) or "ah-ou-decision-forward")
+    fixture = str(fixture_id or "")
+    if not fixture:
+        return {
+            "task_id": task_id,
+            "status": "BLOCKED",
+            "reason": "FIXTURE_ID_MISSING",
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    try:
+        card = ReadModelService().public_analysis_card_bounded(
+            fixture, use_frozen_canary=False
+        )
+    except Exception as exc:
+        return {
+            "task_id": task_id,
+            "fixture_id": fixture,
+            "status": "BLOCKED",
+            "reason": f"{type(exc).__name__}:{exc}"[:512],
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    return {
+        "task_id": task_id,
+        "fixture_id": fixture,
+        "queued_at_utc": queued_at_utc,
+        "status": "COMPLETED",
+        "card_built": card is not None,
+        "candidate": False,
+        "formal_recommendation": False,
+    }
+
+
 @celery_app.task(name="w2.forward_outcome_ledger", bind=True)
 def forward_outcome_ledger(
     self: object,

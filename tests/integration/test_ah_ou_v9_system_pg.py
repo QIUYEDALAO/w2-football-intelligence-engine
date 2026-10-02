@@ -699,3 +699,35 @@ def test_unproven_legacy_snapshot_reproven_on_reseal(chain):
         decision = datetime.fromisoformat(r["decision_at"])
         assert first_captured <= decision
         assert first_committed <= decision
+
+
+def test_ah_ou_decision_forward_task_writes_ledger(chain):
+    """决策点自动 forward 任务对就绪 fixture 落账本（AH/OU 两行），无需读取调用。"""
+    from apps.worker.celery_app import ah_ou_decision_forward
+
+    from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+        AhOuDecisionLedgerModel,
+    )
+
+    repo, _item, _plan, _producer = chain
+    # 清掉 chain seed 阶段（checkpoint 路径）已落的账本，隔离验证「任务」路径。
+    with repo.engine.begin() as c:
+        c.execute(text("DELETE FROM ah_ou_decision_ledger"))
+        c.execute(text("DELETE FROM ah_ou_forward_cohort"))
+
+    result = ah_ou_decision_forward(fixture_id="1489404")
+    assert result["status"] == "COMPLETED", result
+    assert result["card_built"] is True
+
+    with Session(repo.engine) as session:
+        rows = list(
+            session.scalars(
+                select(AhOuDecisionLedgerModel).where(
+                    AhOuDecisionLedgerModel.fixture_id == "1489404"
+                )
+            )
+        )
+    assert {row.market for row in rows} == {"ASIAN_HANDICAP", "TOTALS"}, [
+        (r.market, r.skip_reason) for r in rows
+    ]
+    assert all(row.selected for row in rows), [(r.market, r.skip_reason) for r in rows]

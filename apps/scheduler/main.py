@@ -28,6 +28,7 @@ DEFAULT_FIXTURE_DISCOVERY_INTERVAL_SECONDS = 5 * 60
 DEFAULT_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS = 7
 DEFAULT_CANDIDATE_NOTIFICATION_POLL_SECONDS = 5
 DEFAULT_FACTOR_READINESS_INTERVAL_SECONDS = 24 * 60 * 60
+DEFAULT_AH_OU_DECISION_FORWARD_INTERVAL_SECONDS = 60
 
 
 @dataclass(frozen=True)
@@ -82,6 +83,25 @@ def forward_outcome_ledger_enabled() -> bool:
 
 def factor_readiness_enabled() -> bool:
     return os.environ.get("W2_FACTOR_READINESS_ENABLED", "false").lower() == "true"
+
+
+def ah_ou_decision_forward_enabled() -> bool:
+    return os.environ.get("W2_AH_OU_DECISION_FORWARD_ENABLED", "false").lower() == "true"
+
+
+def ah_ou_decision_forward_interval_seconds() -> int:
+    try:
+        return max(
+            int(
+                os.environ.get(
+                    "W2_AH_OU_DECISION_FORWARD_INTERVAL_SECONDS",
+                    str(DEFAULT_AH_OU_DECISION_FORWARD_INTERVAL_SECONDS),
+                )
+            ),
+            10,
+        )
+    except ValueError:
+        return DEFAULT_AH_OU_DECISION_FORWARD_INTERVAL_SECONDS
 
 
 def factor_readiness_interval_seconds() -> int:
@@ -806,6 +826,86 @@ def forward_outcome_ledger_tick() -> dict[str, object]:
     }
 
 
+def ah_ou_decision_forward_tick() -> dict[str, object]:
+    """决策点自动 forward：decision_at(=kickoff-2h) 已到且尚未决策的 fixture 自动落账本。
+
+    计划书 line 157/224 硬要求「repository→自动 forward」。此前账本只在读取
+    analysis card 时 lazy 触发，未到点的比赛从不自动决策。这里扫描
+    kickoff-2h 已到且 kickoff 未到的 fixture（账本尚无任何 market 行），逐个
+    派发 w2.ah_ou_decision_forward，由 worker 跑 build_ah_ou_selections 落账本，
+    不依赖打开 Dashboard、不依赖 top7 的 T30 边角触发。
+    """
+    if not ah_ou_decision_forward_enabled():
+        return {
+            "status": "DISABLED",
+            "candidate": False,
+            "formal_recommendation": False,
+            "provider_calls": 0,
+            "db_writes": 0,
+        }
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+
+    from apps.worker.celery_app import celery_app
+    from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+        AhOuDecisionLedgerModel,
+    )
+    from w2.infrastructure.persistence.matchday_intake_models import (
+        MatchdayFixtureIdentityModel,
+    )
+    from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+
+    now = datetime.now(UTC)
+    engine = FutureRefreshDbRepository().engine
+    with Session(engine) as session:
+        decided = set(session.scalars(select(AhOuDecisionLedgerModel.fixture_id)))
+        due_rows = list(
+            session.scalars(
+                select(MatchdayFixtureIdentityModel).where(
+                    # kickoff - 2h <= now 且 kickoff > now（decision_at 到点且未开赛）
+                    MatchdayFixtureIdentityModel.kickoff_utc <= now + timedelta(hours=2),
+                    MatchdayFixtureIdentityModel.kickoff_utc > now,
+                )
+            )
+        )
+    due_ids = [
+        str(row.provider_fixture_id)
+        for row in due_rows
+        if str(row.provider_fixture_id) not in decided
+    ]
+    if not due_ids:
+        return {
+            "status": "NOTHING_DUE",
+            "fixture_ids": [],
+            "candidate": False,
+            "formal_recommendation": False,
+            "provider_calls": 0,
+            "db_writes": 0,
+        }
+    task_ids = []
+    for fixture_id in due_ids:
+        task_id = f"ah-ou-decision-forward:{fixture_id}:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
+        celery_app.send_task(
+            "w2.ah_ou_decision_forward",
+            kwargs={
+                "fixture_id": fixture_id,
+                "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+            },
+            task_id=task_id,
+        )
+        task_ids.append(task_id)
+    return {
+        "status": "QUEUED",
+        "task_id": task_ids[0],
+        "task_ids": task_ids,
+        "fixture_ids": due_ids,
+        "candidate": False,
+        "formal_recommendation": False,
+        "provider_calls": 0,
+        "db_writes": 0,
+    }
+
+
 def run_forever() -> None:
     interval_seconds = int(os.environ.get("W2_SCHEDULER_HEARTBEAT_INTERVAL_SECONDS", "30"))
     next_refresh_at = datetime.now(UTC)
@@ -813,6 +913,7 @@ def run_forever() -> None:
     next_forward_outcome_ledger_at = datetime.now(UTC)
     next_fixture_discovery_at = datetime.now(UTC)
     next_factor_readiness_at = datetime.now(UTC)
+    next_ah_ou_decision_forward_at = datetime.now(UTC)
     Thread(
         target=candidate_notification_delivery_loop,
         name="candidate-notification-delivery",
@@ -911,6 +1012,18 @@ def run_forever() -> None:
             next_factor_readiness_at = datetime.now(UTC).replace(tzinfo=UTC)
             next_factor_readiness_at = next_factor_readiness_at.fromtimestamp(
                 next_factor_readiness_at.timestamp() + factor_readiness_interval_seconds(),
+                tz=UTC,
+            )
+        if ah_ou_decision_forward_enabled() and datetime.now(UTC) >= next_ah_ou_decision_forward_at:
+            try:
+                result = ah_ou_decision_forward_tick()
+                logger.info("w2 ah-ou decision forward %s", result)
+            except Exception:
+                logger.exception("w2 ah-ou decision forward failed")
+            next_ah_ou_decision_forward_at = datetime.now(UTC).replace(tzinfo=UTC)
+            next_ah_ou_decision_forward_at = next_ah_ou_decision_forward_at.fromtimestamp(
+                next_ah_ou_decision_forward_at.timestamp()
+                + ah_ou_decision_forward_interval_seconds(),
                 tz=UTC,
             )
         # CAP-MISS 验收：记录每轮主循环耗时，确认 CPU 不再被全量推送排程占用。
