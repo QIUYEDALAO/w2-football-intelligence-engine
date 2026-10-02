@@ -27,7 +27,7 @@ from w2.providers.api_football import LiveApiFootballResponse
 
 
 def _build_chain(tmp_path, monkeypatch, *, existing_database_url=None, environment="test",
-                 market_prices=None):
+                 market_prices=None, ah_line="-0.5"):
     import os
     import subprocess
 
@@ -77,6 +77,9 @@ def _build_chain(tmp_path, monkeypatch, *, existing_database_url=None, environme
     plans = MatchdayRuntimeRepository().claim_due_checkpoint_plans(now=now, worker_id="v9")
 
     class Odds(PinnacleAhOuClient):
+        def __init__(self) -> None:
+            super().__init__(ah_line=ah_line)
+
         def payload(self, endpoint, params):
             raw = super().payload(endpoint, params)
             if endpoint == "fixtures":
@@ -244,6 +247,21 @@ def _build_chain(tmp_path, monkeypatch, *, existing_database_url=None, environme
 @pytest.fixture
 def chain(tmp_path, monkeypatch):
     yield from _build_chain(tmp_path, monkeypatch)
+
+
+@pytest.mark.parametrize("ah_line", ["-0.25", "-0.75", "-1.25", "-1", "-2"])
+def test_quarter_increment_line_selected_full_chain(tmp_path, monkeypatch, ah_line):
+    """Quarter/integer AH lines must enter the recommendation (selected), not be
+    refused by the old hemisphere-line gate."""
+    built = _build_chain(tmp_path, monkeypatch, ah_line=ah_line)
+    repo, item, _, _ = next(built)
+    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
+    with Session(repo.engine) as session:
+        rows = {row.market: row for row in session.scalars(select(AhOuDecisionLedgerModel))}
+    assert rows["ASIAN_HANDICAP"].selected is True
+    assert rows["ASIAN_HANDICAP"].skip_reason is None
+    assert rows["ASIAN_HANDICAP"].direction in {"HOME", "AWAY"}
 
 
 def test_selected_full_chain_and_source_four_steps(chain):

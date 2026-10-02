@@ -50,6 +50,17 @@ SEASON = "2026"
 class PinnacleAhOuClient(FakeApiFootballClient):
     """Provides Pinnacle (id=4) two-sided AH and OU in one odds capture."""
 
+    def __init__(
+        self,
+        ah_line: str = "-0.5",
+        home_odds: str = "1.80",
+        away_odds: str = "2.05",
+    ) -> None:
+        super().__init__()
+        self.ah_line = ah_line
+        self.home_odds = home_odds
+        self.away_odds = away_odds
+
     def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
         if endpoint == "odds":
             return {
@@ -65,8 +76,14 @@ class PinnacleAhOuClient(FakeApiFootballClient):
                                         "id": 1,
                                         "name": "Asian Handicap",
                                         "values": [
-                                            {"value": "Home -0.5", "odd": "1.80"},
-                                            {"value": "Away -0.5", "odd": "2.05"},
+                                            {
+                                                "value": f"Home {self.ah_line}",
+                                                "odd": self.home_odds,
+                                            },
+                                            {
+                                                "value": f"Away {self.ah_line}",
+                                                "odd": self.away_odds,
+                                            },
                                         ],
                                     },
                                     {
@@ -152,6 +169,7 @@ def _seed_identity_and_repository(engine: Any, repository: Any) -> None:
                     regression_index=0.0,
                     source_system="test",
                     first_captured_at=NOW - timedelta(days=1),
+                    first_committed_at=NOW - timedelta(days=1),
                     pit_proven=True,
                 ),
                 TeamXgRollingSnapshotModel(
@@ -167,6 +185,7 @@ def _seed_identity_and_repository(engine: Any, repository: Any) -> None:
                     regression_index=0.0,
                     source_system="test",
                     first_captured_at=NOW - timedelta(days=1),
+                    first_committed_at=NOW - timedelta(days=1),
                     pit_proven=True,
                 ),
             ]
@@ -297,6 +316,54 @@ def test_v3_wiring_real_chain_writes_ledger(tmp_path: Any, monkeypatch: Any) -> 
     assert cohorts[0].ah_capture_id
     assert cohorts[0].ou_capture_id
     assert cohorts[0].frozen_identity
+
+
+@pytest.mark.parametrize("ah_line", ["-0.25", "-0.75", "-1.25", "-1", "-2"])
+def test_quarter_increment_line_ready_and_selected(
+    tmp_path: Any, monkeypatch: Any, ah_line: str,
+) -> None:
+    """Quarter/integer AH lines must be admitted (not refused as non-.5).
+
+    The whole chain runs with a Pinnacle quarter AH line; the AH decision row in
+    the ledger must be selected (a real direction), not a hemisphere-line SKIP.
+    """
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    repository = FutureRefreshDbRepositoryForTest()
+    seed_odds_checkpoint(FIXTURE_ID, with_identity=True)
+    checkpoints = repository_claim_checkpoints()
+    # Asymmetric Pinnacle prices so the AH softmax crosses its selection cutoff.
+    client = PinnacleAhOuClient(ah_line=ah_line, home_odds="1.50", away_odds="2.60")
+    run_direct_checkpoint(tmp_path, client, *checkpoints)
+
+    _seed_identity_and_repository(repository.engine, repository)
+
+    item = FakeApiFootballClient().payload("fixtures", {})["response"][0]
+    item["fixture"]["id"] = int(FIXTURE_ID)
+    item["fixture"]["date"] = KICKOFF.isoformat()
+    item["league"] = {"id": 113, "name": "Allsvenskan", "season": 2026}
+
+    observations = repository.latest_market_observations_for_fixtures([FIXTURE_ID])
+    service = ReadModelService(repository=repository)
+    card = service._db_analysis_card_from_fixture(item, observations)  # noqa: SLF001
+
+    with Session(repository.engine) as session:
+        rows = list(
+            session.scalars(
+                select(AhOuDecisionLedgerModel).where(
+                    AhOuDecisionLedgerModel.fixture_id == FIXTURE_ID
+                )
+            )
+        )
+
+    assert card is not None
+    ah_row = next(row for row in rows if row.market == "ASIAN_HANDICAP")
+    assert ah_row.home_team_id == "H"
+    assert ah_row.away_team_id == "A"
+    # Quarter/integer lines are legal: the AH admission gate must not reject them
+    # as a non-.5 line. (This SQLite chain seeds no F6 endpoint capture, so the
+    # ledger row stops at F6_H2H_CAPTURE_MISSING — but never at the line gate.)
+    assert ah_row.skip_reason != "AH_LINE_NOT_QUARTER_INCREMENT", ah_row.skip_reason
+    assert ah_row.skip_reason != "AH_LINE_NOT_HEMISPHERE", ah_row.skip_reason
 
 
 @pytest.mark.parametrize(

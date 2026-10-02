@@ -13,7 +13,8 @@ Admission gates (task "原子切换前整改" item 3):
 * F9 snapshot must bind to the target team uniquely.
 * Both AH sides and both OU sides must carry real prices (> 1); a missing or
   non-positive price is a structured SKIP, not a direction.
-* A hemisphere AH line is required (no quarter lines).
+* A quarter-increment AH line is required (.25/.5/.75/integer); the settlement
+  (split_quarter_line + settle_asian_handicap) resolves win/half-win/push/half-loss/loss.
 
 Every refusal returns ``status != READY`` with ``ah/ou = None`` (direction 0):
 the caller must never emit a pick on partial or conflicted evidence.
@@ -64,13 +65,33 @@ class AhOuRepository(Protocol):
 
 
 def _skip(status: str) -> dict[str, Any]:
-    return {"status": status, "ah": None, "ou": None, "features": None}
+    return {
+        "status": status,
+        "ah": None,
+        "ou": None,
+        "market_reasons": market_reasons_for_status(status),
+        "features": None,
+    }
 
 
-def _is_hemisphere_line(line: float) -> bool:
-    """True only for a half line (decimal part exactly .5), never integer/quarter."""
-    doubled = line * 2
-    return abs(doubled - round(doubled)) < 1e-9 and round(doubled) % 2 == 1
+def market_reasons_for_status(status: str) -> dict[str, str]:
+    """Per-market skip reasons for a refusal status (AH/OU independent).
+
+    AH-specific statuses (``AH_*``) blame only the Asian handicap; the totals
+    market is recorded as a dependency block, never as the AH reason. Symmetric
+    for ``OU_*``. Common statuses blame both markets equally.
+    """
+    if status.startswith("AH_"):
+        return {"ASIAN_HANDICAP": status, "TOTALS": "DEPENDENCY_BLOCKED"}
+    if status.startswith("OU_"):
+        return {"ASIAN_HANDICAP": "DEPENDENCY_BLOCKED", "TOTALS": status}
+    return {"ASIAN_HANDICAP": status, "TOTALS": status}
+
+
+def _is_quarter_increment(line: float) -> bool:
+    """True for a quarter-line increment (.25/.5/.75/integer), the only legal AH lines."""
+    scaled = line * 4
+    return abs(scaled - round(scaled)) < 1e-9
 
 
 def _parse_asof(value: Any) -> datetime | None:
@@ -132,7 +153,7 @@ def build_ah_ou_selections(
     """
     decision_at = kickoff - DECISION_LEAD_TIME
 
-    # --- 盘口准入：双侧价 + AH 半球线（仅 .5）---------------------------
+    # --- 盘口准入：双侧价 + AH quarter 增量线（.25/.5/.75/整数）-------
     # 包3(C): finite/type checks first, so NaN/Inf/None become a structured SKIP
     # instead of a TypeError or a silently-passing comparison.
     if not _is_finite_number(ah_home_odds) or ah_home_odds <= 1.0:
@@ -143,8 +164,8 @@ def build_ah_ou_selections(
         return _skip("OU_ODDS_INCOMPLETE")
     if not _is_finite_number(ou_under_odds) or ou_under_odds <= 1.0:
         return _skip("OU_ODDS_INCOMPLETE")
-    if not _is_finite_number(ah_line) or not _is_hemisphere_line(ah_line):
-        return _skip("AH_LINE_NOT_HEMISPHERE")
+    if not _is_finite_number(ah_line) or not _is_quarter_increment(ah_line):
+        return _skip("AH_LINE_NOT_QUARTER_INCREMENT")
     if not _is_finite_number(ou_line):
         return _skip("OU_LINE_INVALID")
 

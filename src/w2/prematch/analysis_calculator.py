@@ -143,7 +143,11 @@ from w2.prematch.simulation_reconciliation import canonical_public_simulation
 from w2.pricing.shadow import build_pricing_shadow
 from w2.providers.quota import api_football_quota_policy, parse_int
 from w2.ratings.elo import rating_from_history
-from w2.strategy.ah_ou_decision import DECISION_LEAD_TIME, build_ah_ou_selections
+from w2.strategy.ah_ou_decision import (
+    DECISION_LEAD_TIME,
+    build_ah_ou_selections,
+    market_reasons_for_status,
+)
 from w2.strategy.analysis_recommendation import (
     DISCLAIMER,
     AnalysisBuildInputs,
@@ -4198,9 +4202,13 @@ class ReadModelService:
             ) for market in ("ASIAN_HANDICAP", "TOTALS")
         }
         quote_blocked = any(reasons.values())
+        base_reasons = market_reasons_for_status(status)
         skip_result = {
             "market_reasons": {
-                market: reason or ("DEPENDENCY_BLOCKED" if quote_blocked else status)
+                market: (
+                    reason
+                    or ("DEPENDENCY_BLOCKED" if quote_blocked else base_reasons[market])
+                )
                 for market, reason in reasons.items()
             },
             "global_blockers": [status],

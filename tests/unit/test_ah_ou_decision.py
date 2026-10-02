@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from w2.strategy.ah_ou_decision import build_ah_ou_selections
 from w2.strategy.analysis_recommendation import (
     AnalysisDecision,
@@ -350,3 +352,66 @@ def test_f6_duplicate_meeting_is_refused() -> None:
     repo = _ready_repository()
     repo.history[1]["fixture_id"] = repo.history[0]["fixture_id"]
     assert _run(repo)["status"] == "F6_H2H_DUPLICATE_MEETING"
+
+
+@pytest.mark.parametrize("line", [-0.25, -0.75, -1.25, -1.0, -2.0, -0.5])
+def test_build_ah_ou_selections_quarter_increment_ready(line: float) -> None:
+    result = build_ah_ou_selections(
+        _ready_repository(),
+        fixture_id=FIXTURE_ID,
+        home_team_id="H",
+        away_team_id="A",
+        kickoff=KICKOFF,
+        competition_id="c",
+        season="s",
+        ah_line=line,
+        ah_home_odds=1.8,
+        ah_away_odds=2.2,
+        ou_line=2.5,
+        ou_over_odds=1.9,
+        ou_under_odds=1.9,
+    )
+    assert result["status"] == "READY"
+    assert result["ah"] is not None
+
+
+def test_build_ah_ou_selections_non_quarter_line_refused() -> None:
+    result = build_ah_ou_selections(
+        _ready_repository(),
+        fixture_id=FIXTURE_ID,
+        home_team_id="H",
+        away_team_id="A",
+        kickoff=KICKOFF,
+        competition_id="c",
+        season="s",
+        ah_line=0.3,
+        ah_home_odds=1.8,
+        ah_away_odds=2.2,
+        ou_line=2.5,
+        ou_over_odds=1.9,
+        ou_under_odds=1.9,
+    )
+    assert result["status"] == "AH_LINE_NOT_QUARTER_INCREMENT"
+    assert result["ah"] is None
+    assert result["ou"] is None
+    assert result["market_reasons"] == {
+        "ASIAN_HANDICAP": "AH_LINE_NOT_QUARTER_INCREMENT",
+        "TOTALS": "DEPENDENCY_BLOCKED",
+    }
+
+
+def test_market_reasons_for_status_ah_ou_independent() -> None:
+    from w2.strategy.ah_ou_decision import market_reasons_for_status
+
+    assert market_reasons_for_status("AH_LINE_NOT_QUARTER_INCREMENT") == {
+        "ASIAN_HANDICAP": "AH_LINE_NOT_QUARTER_INCREMENT",
+        "TOTALS": "DEPENDENCY_BLOCKED",
+    }
+    assert market_reasons_for_status("OU_LINE_INVALID") == {
+        "ASIAN_HANDICAP": "DEPENDENCY_BLOCKED",
+        "TOTALS": "OU_LINE_INVALID",
+    }
+    assert market_reasons_for_status("FIXTURE_IDENTITY_NOT_READY") == {
+        "ASIAN_HANDICAP": "FIXTURE_IDENTITY_NOT_READY",
+        "TOTALS": "FIXTURE_IDENTITY_NOT_READY",
+    }
