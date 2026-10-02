@@ -1098,12 +1098,18 @@ rb "b" "$b_ok" "release_id=$rid api_sha=$api_sha web_sha=$web_sha"
 # c+d. 工作台（推荐倒序 + 发布前后 matches/足球日对比）
 ws_json="$(curl -fsS --max-time 90 "http://127.0.0.1:${api_port}/v1/dashboard/intelligence-workspace" 2>/dev/null)"
 current_json="$(curl -fsS --max-time 90 "http://127.0.0.1:${api_port}/v1/dashboard/intelligence-workspace/list" 2>/dev/null)"
+# 大盘 JSON 走 argv 会触发 "Argument list too long"（sys.argv 长度上限），
+# 落临时文件后按路径读取，避免大 JSON 塞进命令行。
+current_file="$(mktemp)"
+pre_file="$(mktemp)"
+printf '%s' "$current_json" > "$current_file"
+printf '%s' "$pre_workspace_json" > "$pre_file"
 c_d_result="$(printf '%s' "$ws_json" | python3 -c '
 import json,sys
 try:
     d=json.load(sys.stdin)
-    current=json.loads(sys.argv[3])
-    before=json.loads(sys.argv[4])
+    current=json.load(open(sys.argv[3], encoding="utf-8"))
+    before=json.load(open(sys.argv[4], encoding="utf-8"))
 except Exception as e:
     print("JSON_ERROR", e); sys.exit(0)
 recs=current.get("today_recommendations")
@@ -1200,7 +1206,8 @@ else:
     d_detail=f"reason=INVALID_MATCH_COUNTS pre={pre_matches} post={post_matches}"
 print(f"c_ok={int(c_ok)} recs={len(recs)} noninc={int(noninc)}")
 print(f"d_ok={int(d_ok)} post_matches={post_matches} post_football_day={post_football_day} {d_detail}")
-' "$pre_matches" "$pre_football_day" "$current_json" "$pre_workspace_json")"
+' "$pre_matches" "$pre_football_day" "$current_file" "$pre_file")"
+rm -f "$current_file" "$pre_file"
 c_ok="$(printf '%s' "$c_d_result" | sed -n 's/^c_ok=\([01]\).*/\1/p' | head -1)"
 d_ok="$(printf '%s' "$c_d_result" | sed -n 's/^d_ok=\([01]\).*/\1/p' | head -1)"
 rb "c" "$c_ok" "$(printf '%s' "$c_d_result" | grep '^c_ok=' | head -1)"
