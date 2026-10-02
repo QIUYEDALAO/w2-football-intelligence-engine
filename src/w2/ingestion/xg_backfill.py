@@ -792,13 +792,14 @@ class XgHistoryBackfillService:
     def _unfrozen_snapshot_rows(
         self, rows: list[dict[str, Any]]
     ) -> tuple[list[dict[str, Any]], int, int]:
-        """An existing target is a frozen fact, never a refresh destination.
+        """A proven target is a frozen fact; an unproven legacy is re-proven.
 
         Keep the strict writer's all-field comparison for explicit submissions.
         A collector may observe the same historical inputs again, or new inputs
-        for a previously frozen target; neither permits updating that target's
-        capture, window or PIT proof. Historical NULL proof remains NULL. The
-        public source verifier still decides whether the retained fact is usable.
+        for a previously frozen target; neither permits updating a proven
+        target's capture, window or PIT proof. An unproven legacy target
+        (pit_proven=false) is re-materialised from the new captured_before_cutoff
+        code path so it can be re-proven without backfilling fabricated times.
         """
         frozen = {
             (str(row["team_id"]), str(row["as_of_fixture_id"])): row
@@ -813,8 +814,13 @@ class XgHistoryBackfillService:
                 continue
             if existing["snapshot_id"] != row["snapshot_id"]:
                 raise FutureRefreshPersistenceError("TEAM_XG_SNAPSHOT_IDENTITY_CONFLICT")
-            no_ops += 1
-            unproven += not bool(existing.get("pit_proven"))
+            if existing.get("pit_proven"):
+                # 已证明（pit=true）快照是冻结事实，永不刷新。
+                no_ops += 1
+                continue
+            # 未证明遗留（pit=false）→ 纳入 pending，由 upsert 层 DELETE+INSERT 覆盖重证。
+            unproven += 1
+            pending.append(row)
         return pending, no_ops, unproven
 
     def _rolling_snapshot_rows(

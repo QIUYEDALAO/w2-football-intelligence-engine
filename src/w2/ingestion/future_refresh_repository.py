@@ -3224,7 +3224,10 @@ class FutureRefreshDbRepository:
                     "formal_recommendation": False,
                 }
                 existing = session.get(TeamXgRollingSnapshotModel, values["snapshot_id"])
-                if existing is not None:
+                if existing is not None and (
+                    existing.pit_proven or existing.first_committed_at is not None
+                ):
+                    # 已证明（或已提交可读）的快照不可变：字段漂移 → fail-closed。
                     for key, value in values.items():
                         actual = getattr(existing, key)
                         if isinstance(value, datetime) and isinstance(actual, datetime):
@@ -3234,6 +3237,11 @@ class FutureRefreshDbRepository:
                                 f"TEAM_XG_SNAPSHOT_FIELD_CONFLICT:{key}"
                             )
                     continue
+                # existing is None → 新增；existing 是未证明遗留（pit_proven=false 且
+                # first_committed_at=NULL）→ 下方独立重建后覆盖重证。覆盖时
+                # first_captured_at / decision_at 用组件真实采集时刻 / 真实决策点，
+                # first_committed_at / pit_proven 由确认事务用 clock_timestamp() 重算，
+                # 绝不回填伪造时间。
                 # 独立确定全集（V10/B）：由持久化层从 DB 查询目标球队在
                 # decision_at 前全部合格（raw 可证明）的最近比赛，按固定策略窗口
                 # 选源；提交的来源集合、顺序、数量及聚合必须与独立重建完全一致，
@@ -3330,6 +3338,13 @@ class FutureRefreshDbRepository:
                 # 与时点检查在确认事务里计算。
                 values["source_pit_requested"] = source_valid
                 pending = identity_valid
+                if existing is not None:
+                    # 覆盖未证明遗留快照：内容字段由 PG trigger 冻结、不可 UPDATE，
+                    # 故删除旧行后按 INSERT 路径重建（INSERT 触发 trigger 强制
+                    # first_committed_at=NULL、pit_proven=false，随后确认事务用
+                    # clock_timestamp() 重算），绝不回填伪造时间。
+                    session.delete(existing)
+                    session.flush()
                 session.add(
                     TeamXgRollingSnapshotModel(
                         **values, first_committed_at=None, pit_proven=False, proof_pending=pending

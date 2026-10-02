@@ -467,7 +467,7 @@ def test_saved_statistics_raw_materializes_xg_and_is_idempotent() -> None:
     assert second.frozen_snapshot_no_ops == 2
 
 
-def test_later_saved_raw_run_preserves_first_frozen_snapshot_and_missing_proof() -> None:
+def test_later_saved_raw_run_preserves_proven_snapshot_reproves_unproven() -> None:
     from copy import deepcopy
 
     repository = SavedRawRepository()
@@ -476,18 +476,28 @@ def test_later_saved_raw_run_preserves_first_frozen_snapshot_and_missing_proof()
         config=XgBackfillConfig(min_rolling_matches=3), now=NOW,
     )
     service.run_saved_raw()
-    # Historical missing proof must not be upgraded by a later collector run.
-    for row in repository.snapshots:
-        row["pit_proven"] = False
-        row["first_committed_at"] = None
+
+    # 已证明（pit=true）快照在 later run 中保持 no-op，不被覆盖。
     frozen = deepcopy(repository.snapshots)
     later = XgHistoryBackfillService(
         client=NoCallClient(), repository=repository,
         config=XgBackfillConfig(min_rolling_matches=3), now=NOW + timedelta(minutes=30),
     ).run_saved_raw()
     assert repository.snapshots == frozen
-    assert later.frozen_snapshot_no_ops == later.unproven_snapshot_no_ops == 2
+    assert later.frozen_snapshot_no_ops == 2
+    assert later.unproven_snapshot_no_ops == 0
     assert later.as_dict()["provider_calls"] == 0
+
+    # 未证明遗留（pit=false）在 later run 中纳入 pending 重证（不再 no-op）。
+    for row in repository.snapshots:
+        row["pit_proven"] = False
+        row["first_committed_at"] = None
+    reprove = XgHistoryBackfillService(
+        client=NoCallClient(), repository=repository,
+        config=XgBackfillConfig(min_rolling_matches=3), now=NOW + timedelta(hours=1),
+    ).run_saved_raw()
+    assert reprove.frozen_snapshot_no_ops == 0
+    assert reprove.unproven_snapshot_no_ops == 2
 
 
 def test_saved_statistics_raw_materializes_registered_historical_season() -> None:

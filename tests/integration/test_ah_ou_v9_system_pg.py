@@ -642,3 +642,60 @@ def test_actual_producers_repeat_later_capture_without_overwriting_frozen_source
             competition_id="allsvenskan", season="2026", client=ChangedScore(),
         )
     assert frozen_readback() == before
+
+
+def test_unproven_legacy_snapshot_reproven_on_reseal(chain):
+    """旧代码遗留的 pit=false 快照被新口径覆盖重证，不再 fail-closed 冲突。"""
+    from w2.infrastructure.persistence.future_refresh_models import TeamXgRollingSnapshotModel
+
+    repo, _item, plan, _producer = chain
+    frozen = repo.team_xg_rolling_snapshots(fixture_id="1489404")
+    assert all(r["pit_proven"] and r["first_committed_at"] for r in frozen), frozen
+
+    # 模拟 489f160f 前旧代码遗留：内容字段由 PG trigger 冻结、不可 UPDATE，
+    # 故 DELETE 已证明行后 INSERT 未证明行（PIT 字段全空、pit=false）。
+    with Session(repo.engine) as session, session.begin():
+        for row in list(session.scalars(select(TeamXgRollingSnapshotModel))):
+            session.delete(row)
+        session.flush()
+        for r in frozen:
+            session.add(
+                TeamXgRollingSnapshotModel(
+                    snapshot_id=r["snapshot_id"],
+                    team_id=r["team_id"],
+                    as_of_fixture_id=r["as_of_fixture_id"],
+                    as_of_time=datetime.fromisoformat(r["as_of_time"]),
+                    match_count=r["match_count"],
+                    rolling_xg_for=r["rolling_xg_for"],
+                    rolling_xg_against=r["rolling_xg_against"],
+                    rolling_goals_for=r["rolling_goals_for"],
+                    rolling_goals_against=r["rolling_goals_against"],
+                    regression_index=r["regression_index"],
+                    source_system=r["source_system"],
+                    candidate=False,
+                    formal_recommendation=False,
+                    first_captured_at=None,
+                    first_committed_at=None,
+                    pit_proven=False,
+                    decision_at=None,
+                    source_matches=None,
+                    proof_pending=False,
+                    source_pit_requested=False,
+                )
+            )
+
+    legacy = repo.team_xg_rolling_snapshots(fixture_id="1489404")
+    assert all(not r["pit_proven"] and r["first_committed_at"] is None for r in legacy)
+
+    # 新口径重新 upsert：覆盖重证，不抛 FIELD_CONFLICT。
+    repo.upsert_team_xg_rolling_snapshots(list(plan.rolling_snapshots))
+
+    reproven = repo.team_xg_rolling_snapshots(fixture_id="1489404")
+    assert all(r["pit_proven"] and r["first_committed_at"] for r in reproven), reproven
+    for r in reproven:
+        assert r["first_captured_at"] and r["decision_at"]
+        first_captured = datetime.fromisoformat(r["first_captured_at"])
+        first_committed = datetime.fromisoformat(r["first_committed_at"])
+        decision = datetime.fromisoformat(r["decision_at"])
+        assert first_captured <= decision
+        assert first_committed <= decision
