@@ -301,10 +301,35 @@ _XG_ROLLING_WINDOW = 5
 _XG_ROLLING_MIN_MATCHES = 3
 
 
+def _index_fixture_sources(
+    fixture_raw: list[Any], needed_fixture_ids: set[str]
+) -> dict[str, list[tuple[Any, Any, Any]]]:
+    """Index fixtures raw payloads by fixture_id, restricted to ``needed_fixture_ids``.
+
+    Replaces the O(components × fixtures) scan: build the index once per target
+    snapshot (over the already-loaded fixtures raw payloads) instead of re-hashing
+    every fixtures payload for every component. Each entry is
+    ``(captured_at, fixture_item, raw_payload)``.
+    """
+    index: dict[str, list[tuple[Any, Any, Any]]] = {}
+    for source in fixture_raw:
+        payload = source.payload or {}
+        for item in payload.get("response") or []:
+            fixture_id = str((item.get("fixture") or {}).get("id") or "")
+            if fixture_id and fixture_id in needed_fixture_ids:
+                index.setdefault(fixture_id, []).append((source.captured_at, item, source))
+    return index
+
+
 def _verify_persisted_xg_match(
-    session: Any, fact: Any, fixture_raw: list[Any]
+    session: Any, fact: Any, fixture_sources: dict[str, list[tuple[Any, Any, Any]]]
 ) -> TeamXgMatch | None:
     """Verify a persisted TeamXgMatch against its raw statistics/fixture payloads.
+
+    ``fixture_sources`` is a ``fixture_id -> [(captured_at, item, raw_payload)]``
+    index over the fixtures raw payloads (see ``_index_fixture_sources``). It
+    replaces the previous O(components × fixtures) scan that re-hashed every
+    fixtures payload for every component, which OOMs on production scale.
 
     Returns the rebuilt TeamXgMatch when every raw hash domain, serializer
     version, capture time, team/match identity and xG value is provable from the
@@ -328,8 +353,8 @@ def _verify_persisted_xg_match(
     ):
         return None
     candidates = []
-    for fixture_source in fixture_raw:
-        if parse_db_datetime(fixture_source.captured_at) > parse_db_datetime(fact.captured_at):
+    for captured_at, item, fixture_source in fixture_sources.get(fact.fixture_id, ()):
+        if parse_db_datetime(captured_at) > parse_db_datetime(fact.captured_at):
             continue
         if (
             canonical_sha256(
@@ -340,9 +365,7 @@ def _verify_persisted_xg_match(
             != fixture_source.sha256
         ):
             continue
-        for item in fixture_source.payload.get("response", []):
-            if str((item.get("fixture") or {}).get("id")) == fact.fixture_id:
-                candidates.append((fixture_source.captured_at, item))
+        candidates.append((captured_at, item))
     if not candidates:
         return None
     latest_source = max(candidates, key=lambda item: item[0])[1]
@@ -3192,6 +3215,14 @@ class FutureRefreshDbRepository:
         """
         inserted = []
         with Session(self.engine) as session, session.begin():
+            # 循环外一次性加载 fixtures raw payloads（identity map 缓存），每个
+            # 快照只做按需索引（_index_fixture_sources），避免 O(snapshots ×
+            # fixtures) 的重复查询与重复 hash。
+            fixture_raw = list(
+                session.scalars(
+                    select(RawPayloadModel).where(RawPayloadModel.endpoint == "fixtures")
+                )
+            )
             for row in snapshots:
                 values: dict[str, Any] = {
                     "snapshot_id": str(row["snapshot_id"]),
@@ -3271,11 +3302,6 @@ class FutureRefreshDbRepository:
                 )
                 verified_matches: list[TeamXgMatch] = []
                 if source_valid:
-                    fixture_raw = list(
-                        session.scalars(
-                            select(RawPayloadModel).where(RawPayloadModel.endpoint == "fixtures")
-                        )
-                    )
                     independent_facts = list(
                         session.scalars(
                             select(TeamXgMatchModel).where(
@@ -3285,8 +3311,11 @@ class FutureRefreshDbRepository:
                             )
                         )
                     )
+                    fixture_sources = _index_fixture_sources(
+                        fixture_raw, {fact.fixture_id for fact in independent_facts}
+                    )
                     for fact in independent_facts:
-                        verified = _verify_persisted_xg_match(session, fact, fixture_raw)
+                        verified = _verify_persisted_xg_match(session, fact, fixture_sources)
                         if verified is None:
                             source_valid = False
                             break

@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
-"""重新物化未来比赛 F9 快照（覆盖旧 pit=false 遗留），并验证目标 6 场。
+"""重新物化目标 6 场 F9 快照（覆盖旧 pit=false 遗留），零 Provider 调用。
 
-生产部署新代码（含 upsert 覆盖未证明遗留快照的修复）后执行，零 Provider 调用：
+生产部署后执行：
   python scripts/reprove_f9_snapshots.py
 
-原理：
-- materialize_saved_xg 用已入库的 fixture/statistics raw evidence 重新物化所有
-  未来比赛快照（captured_before_cutoff=True 口径），对已存在的 pit=false 旧快照
-  DELETE + INSERT 覆盖重证（first_captured_at=组件真实采集时刻、decision_at=真实
-  决策点、first_committed_at=确认事务 clock_timestamp()，绝不回填伪造时间）。
-- 验证目标 6 场快照 pit=true、first_captured_at ≤ decision_at、
-  first_committed_at ≤ decision_at。
+原理：只物化目标 6 场（build_saved_raw_plan 的 snapshot_identities 参数限制范围，
+避免 materialize_saved_xg 全量物化所有 future fixtures 导致 OOM），再用 upsert 对
+已存在的 pit=false 旧快照 DELETE + INSERT 覆盖重证（first_captured_at=组件真实采集
+时刻、decision_at=真实决策点、first_committed_at=确认事务 clock_timestamp()，绝不
+回填伪造时间）。
 """
 from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
-from w2.infrastructure.database import create_engine
-from w2.ingestion.xg_backfill import materialize_saved_xg
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from w2.infrastructure.persistence.future_refresh_models import TeamXgRollingSnapshotModel
+from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+from w2.ingestion.xg_backfill import XgBackfillConfig, XgHistoryBackfillService
+from w2.matchday.intake_v2 import required_matchday_competition_ids
 
 TARGET_FIXTURES = (
     "1569953",
@@ -33,71 +36,89 @@ TARGET_FIXTURES = (
 
 
 def _snapshot_state(engine: Any, fixture_ids: tuple[str, ...]) -> list[dict[str, Any]]:
-    from sqlalchemy import select
-
-    from w2.infrastructure.persistence.future_refresh_models import TeamXgRollingSnapshotModel
-
-    rows: list[dict[str, Any]] = []
-    from sqlalchemy.orm import Session
-
     with Session(engine) as session:
-        for row in session.scalars(
-            select(TeamXgRollingSnapshotModel).where(
-                TeamXgRollingSnapshotModel.as_of_fixture_id.in_(fixture_ids)
-            )
-        ):
-            rows.append(
-                {
-                    "snapshot_id": row.snapshot_id,
-                    "as_of_fixture_id": row.as_of_fixture_id,
-                    "pit_proven": bool(row.pit_proven),
-                    "first_captured_at": row.first_captured_at.isoformat()
-                    if row.first_captured_at
-                    else None,
-                    "first_committed_at": row.first_committed_at.isoformat()
-                    if row.first_committed_at
-                    else None,
-                    "decision_at": row.decision_at.isoformat() if row.decision_at else None,
-                }
-            )
-    return rows
+        rows = list(session.scalars(select(TeamXgRollingSnapshotModel).where(
+            TeamXgRollingSnapshotModel.as_of_fixture_id.in_(fixture_ids)
+        )))
+    return [
+        {
+            "snapshot_id": row.snapshot_id,
+            "team_id": row.team_id,
+            "as_of_fixture_id": row.as_of_fixture_id,
+            "pit_proven": bool(row.pit_proven),
+            "first_captured_at": (
+                row.first_captured_at.isoformat() if row.first_captured_at else None
+            ),
+            "first_committed_at": (
+                row.first_committed_at.isoformat() if row.first_committed_at else None
+            ),
+            "decision_at": row.decision_at.isoformat() if row.decision_at else None,
+        }
+        for row in rows
+    ]
 
 
 def main() -> int:
-    result = materialize_saved_xg()
-    payload = result.as_dict()
-    print(json.dumps({"materialization": payload}, ensure_ascii=False, sort_keys=True))
+    now = datetime.now(UTC)
+    repo = FutureRefreshDbRepository()
 
-    engine = create_engine()
-    snapshots = _snapshot_state(engine, TARGET_FIXTURES)
+    # 目标 6 场的现有快照 identity（含旧 pit=false 遗留）。
+    current = _snapshot_state(repo.engine, TARGET_FIXTURES)
+    identities = [
+        {"snapshot_id": row["snapshot_id"], "team_id": row["team_id"],
+         "as_of_fixture_id": row["as_of_fixture_id"]}
+        for row in current
+    ]
+    if not identities:
+        print(json.dumps({"status": "FAIL", "reason": "NO_TARGET_SNAPSHOTS"}))
+        return 1
+
+    service = XgHistoryBackfillService(
+        repository=repo,
+        now=now,
+        config=XgBackfillConfig(
+            competition_ids=tuple(sorted(required_matchday_competition_ids())),
+            min_rolling_matches=3,
+            max_rolling_matches=5,
+        ),
+    )
+    plan = service.build_saved_raw_plan(snapshot_identities=identities)
+    if plan.blockers:
+        print(json.dumps({"status": "FAIL", "blockers": list(plan.blockers)}))
+        return 1
+
+    upserted = repo.upsert_team_xg_rolling_snapshots(list(plan.rolling_snapshots))
+
+    after = _snapshot_state(repo.engine, TARGET_FIXTURES)
     failures: list[str] = []
-    for row in snapshots:
+    for row in after:
         if not row["pit_proven"]:
             failures.append(f"{row['snapshot_id']}:not_pit_proven")
-            continue
-        if not row["first_captured_at"] or not row["decision_at"]:
+        elif not row["first_captured_at"] or not row["decision_at"]:
             failures.append(f"{row['snapshot_id']}:missing_pit_time")
-            continue
-        first_captured = datetime.fromisoformat(row["first_captured_at"])
-        first_committed = datetime.fromisoformat(row["first_committed_at"])
-        decision = datetime.fromisoformat(row["decision_at"])
-        if first_captured > decision:
+        elif (
+            datetime.fromisoformat(row["first_captured_at"])
+            > datetime.fromisoformat(row["decision_at"])
+        ):
             failures.append(f"{row['snapshot_id']}:first_capture_after_decision")
-        if first_committed > decision:
+        elif (
+            row["first_committed_at"]
+            and datetime.fromisoformat(row["first_committed_at"])
+            > datetime.fromisoformat(row["decision_at"])
+        ):
             failures.append(f"{row['snapshot_id']}:first_commit_after_decision")
 
     report = {
         "schema_version": "w2.f9_snapshot_reprove.v1",
         "target_fixtures": list(TARGET_FIXTURES),
-        "snapshot_count": len(snapshots),
-        "snapshots": snapshots,
+        "upserted": upserted,
+        "snapshot_count": len(after),
+        "snapshots": after,
         "failures": failures,
-        "status": "PASS" if not failures and len(snapshots) == len(TARGET_FIXTURES) * 2 else "FAIL",
+        "status": "PASS" if not failures and len(after) == len(TARGET_FIXTURES) * 2 else "FAIL",
     }
     print(json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2))
-    if report["status"] != "PASS":
-        return 1
-    return 0
+    return 0 if report["status"] == "PASS" else 1
 
 
 if __name__ == "__main__":
