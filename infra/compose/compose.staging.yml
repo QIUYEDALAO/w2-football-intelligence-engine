@@ -269,6 +269,7 @@ services:
       W2_BARK_ENDPOINT: ${W2_BARK_ENDPOINT:-}
       W2_BARK_DEVICE_KEY: ${W2_BARK_DEVICE_KEY:-}
       W2_DASHBOARD_PUBLIC_BASE_URL: ${W2_DASHBOARD_PUBLIC_BASE_URL:-}
+      W2_AH_OU_DECISION_FORWARD_ENABLED: "${W2_AH_OU_DECISION_FORWARD_ENABLED:-false}"
     depends_on:
       redis:
         condition: service_healthy
