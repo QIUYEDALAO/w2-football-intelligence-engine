@@ -27,6 +27,13 @@ logger = logging.getLogger(__name__)
 #: recording for that call.
 _UNSET: Any = object()
 
+#: A committed ATTEMPTING stage whose ``updated_at`` has not advanced for this
+#: many seconds is a stale claim (worker died before the terminal audit ran).
+#: Re-entry then fails closed by flipping it to SIDE_EFFECT_UNCERTAIN instead of
+#: leaving it stuck ATTEMPTING forever. Matches the read-only monitor's
+#: STALE_ATTEMPTING 30-minute threshold.
+FENCE_ATTEMPTING_STALE_SECONDS = 30 * 60
+
 
 def _fence_stage(
     task_id: str,
@@ -80,6 +87,30 @@ def _fence_stage(
         if state == "ATTEMPTING":
             existing = session.get(Fence, (task_id, stage, 1))
             if existing is not None:
+                if (
+                    existing.state == "ATTEMPTING"
+                    and (datetime.now(UTC) - existing.updated_at).total_seconds()
+                    > FENCE_ATTEMPTING_STALE_SECONDS
+                ):
+                    # 残留 ATTEMPTING 超时无推进（worker 崩溃未走 terminal audit）：
+                    # fail-closed 转 SIDE_EFFECT_UNCERTAIN，避免永久卡死；provider
+                    # 副作用不确定，绝不自动重试。
+                    session.execute(
+                        update(Fence)
+                        .where(
+                            Fence.task_id == task_id,
+                            Fence.stage == stage,
+                            Fence.attempt == 1,
+                            Fence.state == "ATTEMPTING",
+                        )
+                        .values(
+                            state="SIDE_EFFECT_UNCERTAIN",
+                            error="STALE_ATTEMPTING_TIMEOUT",
+                            updated_at=datetime.now(UTC),
+                        )
+                    )
+                    session.commit()
+                    return observed(session.get(Fence, (task_id, stage, 1)))
                 return observed(existing)
             token = uuid4().hex
             now = datetime.now(UTC)

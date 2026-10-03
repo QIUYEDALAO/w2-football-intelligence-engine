@@ -1400,9 +1400,16 @@ def enqueue_daily_settlement(
 
 
 def enqueue_scheduled_notifications_in_session(session: Session, *, now: datetime) -> list[str]:
-    """Schedule only the current v3 digest; old outbox rows remain historical."""
+    """Schedule ① daily candidate list plus the current v3 digest; old outbox rows remain historical.
+
+    NOTIF-04 要求保留的三类定时推送。5c248935 误删了 ① 每日候选名单与 ② 验证样本
+    fallback；本轮恢复 ①。② fallback 是否恢复待 Owner 确认（暂不恢复）。
+    """
 
     inserted: list[str] = []
+    candidate = enqueue_daily_candidate_list_in_session(session, now=now)
+    if candidate:
+        inserted.append(candidate)
     settlement = enqueue_v3_daily_settlement_in_session(session, now=now)
     if settlement:
         inserted.append(settlement)
@@ -2302,6 +2309,7 @@ def _insert(
 ) -> bool:
     if event_type not in {
         V3_RECOMMENDATION_CONFIRMED, V3_DAILY_SETTLEMENT, TEST_MESSAGE,
+        DAILY_CANDIDATE_LIST,
     }:
         return False
     if session.get(CandidateNotificationOutboxModel, event_id) is not None:

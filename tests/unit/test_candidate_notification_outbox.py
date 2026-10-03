@@ -845,7 +845,11 @@ def test_daily_candidate_list_enqueues_and_renders_n0() -> None:
         event_id = candidate_notifications.enqueue_daily_candidate_list_in_session(
             session, now=now
         )
-        assert event_id is None
+        assert event_id is not None
+        event = session.get(CandidateNotificationOutboxModel, event_id)
+        assert event.payload["match_count"] == 0
+        rendered = render_bark_message(event.payload)
+        assert rendered["title"] == "[今日候选] 8月20日 共 0 场待评估"
         session.commit()
 
     # Idempotent: a second call in the same day does not re-enqueue.
@@ -1002,7 +1006,9 @@ def test_validation_sample_confirmed_skips_totals() -> None:
 
 
 def test_worker_heavy_push_schedule_runs_validation_sample_fallback(monkeypatch) -> None:
-    # The natural scheduler must never resurrect a retired T15 fallback.
+    # The natural scheduler must never resurrect a retired T15 fallback or the
+    # legacy daily settlement, but it must still enqueue ① the daily candidate
+    # list (NOTIF-04 requirement restored after 5c248935 dropped it).
     engine = _engine()
     repository = DynamicPrematchRepository(engine)
     kickoff = NOW + timedelta(hours=2)
@@ -1025,11 +1031,6 @@ def test_worker_heavy_push_schedule_runs_validation_sample_fallback(monkeypatch)
 
     monkeypatch.setattr(
         candidate_notifications,
-        "enqueue_daily_candidate_list_in_session",
-        retired_called,
-    )
-    monkeypatch.setattr(
-        candidate_notifications,
         "enqueue_daily_settlement_in_session",
         retired_called,
     )
@@ -1042,10 +1043,13 @@ def test_worker_heavy_push_schedule_runs_validation_sample_fallback(monkeypatch)
     inserted = candidate_notifications.enqueue_scheduled_notifications(
         now=kickoff - timedelta(minutes=5), engine=engine
     )
-    assert len(inserted) == 1
     assert {event.event_type for event in _events(engine)} == {
-        candidate_notifications.V3_DAILY_SETTLEMENT
+        candidate_notifications.DAILY_CANDIDATE_LIST,
+        candidate_notifications.V3_DAILY_SETTLEMENT,
     }
+    assert sorted(inserted) == sorted(
+        event.notification_event_id for event in _events(engine)
+    )
 
 
 def test_daily_settlement_settles_and_marks_pending() -> None:

@@ -246,3 +246,46 @@ def test_future_task_done_replays_stored_result_without_reentry(fence_pg, monkey
     assert {row.stage: row.state for row in rows} == {
         "task": "DONE", "refresh_forward": "DONE",
     }
+
+
+def test_stale_attempting_fails_closed_to_side_effect_uncertain(fence_pg):
+    from w2.infrastructure.persistence.provider_side_effect_fence_models import (
+        ProviderSideEffectFenceModel as Fence,
+    )
+    key = "v11-stale-attempting"
+    with Session(create_engine(fence_pg)) as session, session.begin():
+        session.add(Fence(
+            task_id=key, stage="xg", attempt=1, state="ATTEMPTING",
+            owner_token="stale-token",
+            created_at=datetime.now(UTC) - timedelta(minutes=45),
+            updated_at=datetime.now(UTC) - timedelta(minutes=45),
+        ))
+
+    claim = worker._fence_stage(key, "xg", "ATTEMPTING")
+    # fail-closed：不重新 CLAIM，返回 BLOCKED，残留行被转 SIDE_EFFECT_UNCERTAIN。
+    assert claim["status"] == "BLOCKED"
+    assert claim["reason"] == "SIDE_EFFECT_UNCERTAIN"
+    with Session(create_engine(fence_pg)) as session:
+        row = session.get(Fence, (key, "xg", 1))
+        assert row.state == "SIDE_EFFECT_UNCERTAIN"
+        assert row.error == "STALE_ATTEMPTING_TIMEOUT"
+
+
+def test_fresh_attempting_still_blocks_without_transition(fence_pg):
+    from w2.infrastructure.persistence.provider_side_effect_fence_models import (
+        ProviderSideEffectFenceModel as Fence,
+    )
+    key = "v11-fresh-attempting"
+    with Session(create_engine(fence_pg)) as session, session.begin():
+        session.add(Fence(
+            task_id=key, stage="xg", attempt=1, state="ATTEMPTING",
+            owner_token="fresh-token",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        ))
+
+    claim = worker._fence_stage(key, "xg", "ATTEMPTING")
+    assert claim["status"] == "ALREADY_ATTEMPTING"
+    with Session(create_engine(fence_pg)) as session:
+        row = session.get(Fence, (key, "xg", 1))
+        assert row.state == "ATTEMPTING"
