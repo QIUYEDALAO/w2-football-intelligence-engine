@@ -769,3 +769,54 @@ def test_ah_ou_decision_forward_task_writes_ledger(chain):
         (r.market, r.skip_reason) for r in rows
     ]
     assert all(row.selected for row in rows), [(r.market, r.skip_reason) for r in rows]
+
+
+def test_forward_reevaluates_old_skip_fixture(chain):
+    """旧 SKIP（selected=false）未开赛 fixture → forward 重新评估覆盖 → selected=true。"""
+    from apps.worker.celery_app import ah_ou_decision_forward
+
+    from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+        AhOuDecisionLedgerModel,
+    )
+
+    repo, item, _plan, _producer = chain
+    kickoff = datetime.fromisoformat(item["fixture"]["date"])
+    decision_at = kickoff - timedelta(hours=2)  # DECISION_LEAD_TIME
+
+    # 清掉 chain seed 已落的账本，seed 一条旧 SKIP 行（旧代码留下的 AH_LINE_NOT_HEMISPHERE）。
+    with repo.engine.begin() as c:
+        c.execute(text("DELETE FROM ah_ou_decision_ledger"))
+        c.execute(text("DELETE FROM ah_ou_forward_cohort"))
+        c.execute(
+            text(
+                """
+                INSERT INTO ah_ou_decision_ledger
+                (decision_id, fixture_id, market, decision_at, model_version,
+                 calibration_version, input_hash, full_distribution,
+                 quote_identity_hash, source_capture_sha256, capture_id, source_id,
+                 home_team_id, away_team_id, selected, score, skip_reason, created_at)
+                VALUES (:did, '1489404', 'ASIAN_HANDICAP', :at, 'm', 'c',
+                        'x', '{}', 'q', 's', 'cap', 'src', 'H', 'A',
+                        false, '0', 'AH_LINE_NOT_HEMISPHERE', :at)
+                """
+            ),
+            {"did": "d" * 64, "at": decision_at},
+        )
+
+    result = ah_ou_decision_forward(fixture_id="1489404")
+    assert result["status"] == "COMPLETED", result
+    assert result["card_built"] is True
+
+    with Session(repo.engine) as session:
+        rows = list(
+            session.scalars(
+                select(AhOuDecisionLedgerModel).where(
+                    AhOuDecisionLedgerModel.fixture_id == "1489404"
+                )
+            )
+        )
+    # 旧 SKIP 被覆盖，新决策落两市场且 selected=true。
+    assert {row.market for row in rows} == {"ASIAN_HANDICAP", "TOTALS"}, [
+        (r.market, r.skip_reason, r.selected) for r in rows
+    ]
+    assert all(row.selected for row in rows), [(r.market, r.skip_reason) for r in rows]

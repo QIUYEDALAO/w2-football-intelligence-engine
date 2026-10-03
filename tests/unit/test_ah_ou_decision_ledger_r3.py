@@ -72,10 +72,12 @@ def _cohort(**overrides) -> dict:
 
 def test_batch_is_atomic_on_ou_conflict() -> None:
     engine = _engine()
-    # 预写一条 OU 账本占 slot（模拟已有版本，input_hash 不同 → 不同 decision_id）
+    # 预写一条 selected=true 的 OU 账本占 slot（已选中不可重决策 → 冲突触发 rollback）
     with Session(engine) as session:
         with session.begin():
-            write_ah_ou_decision(session, **_decision(market="TOTALS", input_hash="x" * 64))
+            write_ah_ou_decision(
+                session, **_decision(market="TOTALS", input_hash="x" * 64, selected=True)
+            )
 
     # batch：cohort + AH + OU，其中 OU 冲突 → 整个 batch rollback
     with pytest.raises(ValueError, match="AH_OU_DECISION_SLOT_CONFLICT"):
@@ -155,11 +157,11 @@ def test_conflicting_cohort_on_same_slot_is_refused() -> None:
                 session,
                 cohort=_cohort(),
                 decisions=[
-                    _decision(market="ASIAN_HANDICAP"),
-                    _decision(market="TOTALS"),
+                    _decision(market="ASIAN_HANDICAP", selected=True),
+                    _decision(market="TOTALS", selected=True),
                 ],
             )
-    # 同 slot 不同 cohort_id → 冲突，且不落任何新行
+    # 同 slot 已 selected=true → 不同 cohort_id 重决策 → 冲突，且不落任何新行
     with pytest.raises(ValueError, match="AH_OU_COHORT_SLOT_CONFLICT"):
         with Session(engine) as session:
             with session.begin():

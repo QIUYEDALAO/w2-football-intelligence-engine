@@ -858,7 +858,16 @@ def ah_ou_decision_forward_tick() -> dict[str, object]:
     now = datetime.now(UTC)
     engine = FutureRefreshDbRepository().engine
     with Session(engine) as session:
-        decided = set(session.scalars(select(AhOuDecisionLedgerModel.fixture_id)))
+        # 幂等过严修复：只把「有 selected=true 最终决策行」的 fixture 视为已决策。
+        # 旧代码留下的 SKIP 行（selected=false，如 AH_LINE_NOT_HEMISPHERE）不再阻断
+        # 重新评估——quarter 线 / F6 修复后的新代码应对这些场次重新落账本。
+        decided = set(
+            session.scalars(
+                select(AhOuDecisionLedgerModel.fixture_id).where(
+                    AhOuDecisionLedgerModel.selected.is_(True)
+                )
+            )
+        )
         due_rows = list(
             session.scalars(
                 select(MatchdayFixtureIdentityModel).where(

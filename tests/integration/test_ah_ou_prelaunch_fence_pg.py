@@ -67,7 +67,7 @@ def test_old_ah_rows_preserved_and_new_current_writes_refused(migrated_database)
         """)).one()
         assert before.identity_hash == "a" * 64
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0090_ahou_daily_candidate_list_restore"
+            "0091_ahou_decision_skip_reevaluate"
         )
     with pytest.raises(DBAPIError, match="LEGACY_AH_OU_WRITER_RETIRED"):
         with engine.begin() as connection:
@@ -182,7 +182,7 @@ def test_alembic_down_up_keeps_legacy_writer_fence(migrated_database):
                    check=True, env=env, capture_output=True)
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0090_ahou_daily_candidate_list_restore"
+            "0091_ahou_decision_skip_reevaluate"
         )
         assert connection.scalar(text("""
             SELECT count(*) FROM dynamic_prematch_evaluations

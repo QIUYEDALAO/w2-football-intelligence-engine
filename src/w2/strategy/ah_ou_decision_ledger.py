@@ -235,10 +235,16 @@ def write_ah_ou_decision(
         )
     )
     if slot_row is not None:
-        raise ValueError(
-            "AH_OU_DECISION_SLOT_CONFLICT:"
-            f"{fixture_id}/{market}/{_iso(decision_at)} already has {slot_row.decision_id}"
-        )
+        if slot_row.selected:
+            # 已 selected=true 的最终决策不可重决策（幂等防线）。
+            raise ValueError(
+                "AH_OU_DECISION_SLOT_CONFLICT:"
+                f"{fixture_id}/{market}/{_iso(decision_at)} already has {slot_row.decision_id}"
+            )
+        # 旧 SKIP（selected=false）→ 重新评估覆盖：删除旧 SKIP 行后按新 identity 写入。
+        # 幂等仍由 decision_id 的 existing 检查保证（同输入走 no-op，不会到这里）。
+        session.delete(slot_row)
+        session.flush()
 
     row = AhOuDecisionLedgerModel(
         decision_id=decision_id,
@@ -361,12 +367,24 @@ def upsert_cohort(
         )
     )
     if slot_row is not None:
-        if slot_row.cohort_id != cohort_id:
+        if slot_row.cohort_id == cohort_id:
+            return slot_row
+        # 不同 identity（重新评估）：已 selected=true 的 slot 不可覆盖（不重决策）；
+        # 旧 SKIP 允许覆盖（删除旧 cohort 后按新 identity 写入）。
+        has_selected = session.scalar(
+            select(AhOuDecisionLedgerModel.decision_id).where(
+                AhOuDecisionLedgerModel.fixture_id == fixture_id,
+                AhOuDecisionLedgerModel.decision_at == decision_at,
+                AhOuDecisionLedgerModel.selected.is_(True),
+            ).limit(1)
+        )
+        if has_selected is not None:
             raise ValueError(
                 "AH_OU_COHORT_SLOT_CONFLICT:"
-                f"{fixture_id}/{_iso(decision_at)} already has {slot_row.cohort_id}"
+                f"{fixture_id}/{_iso(decision_at)} already has a selected decision"
             )
-        return slot_row
+        session.delete(slot_row)
+        session.flush()
     row = AhOuCohortModel(
         cohort_id=cohort_id,
         fixture_id=fixture_id,
@@ -402,6 +420,10 @@ def write_ah_ou_decision_batch(
     from w2.prematch.current_recommendation_control import require_current_recommendations_running
 
     require_current_recommendations_running()
+    # 幂等过严修复由 upsert_cohort / write_ah_ou_decision 各自承担：
+    # - 同 identity（同 cohort_id / 同 decision_id）→ no-op；
+    # - 不同 identity + 已有 selected=true → 冲突（不重决策）；
+    # - 不同 identity + 旧 SKIP → 覆盖（删除旧 SKIP 行后重新写入）。
     cohort_row = upsert_cohort(session, **cohort)
     written = [write_ah_ou_decision(session, **decision) for decision in decisions]
     return {"cohort_id": cohort_row.cohort_id,

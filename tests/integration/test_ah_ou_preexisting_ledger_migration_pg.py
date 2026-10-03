@@ -94,7 +94,7 @@ def test_0076_existing_ledger_preservation_or_exact_structure_rejection(monkeypa
             revision = conn.scalar(text("SELECT version_num FROM alembic_version"))
             if attack == "noop":
                 assert result.returncode == 0, result.stderr
-                assert revision == "0090_ahou_daily_candidate_list_restore"
+                assert revision == "0091_ahou_decision_skip_reevaluate"
                 got = conn.scalar(
                     text(
                         "SELECT "
@@ -234,7 +234,7 @@ def test_minimal_capture_result_archive_keeps_unproven_rows_and_refuses_unknowns
                 assert result.returncode == 0, result.stderr
                 assert (
                     conn.scalar(text("SELECT version_num FROM alembic_version"))
-                    == "0090_ahou_daily_candidate_list_restore"
+                    == "0091_ahou_decision_skip_reevaluate"
                 )
                 assert conn.execute(
                     text(

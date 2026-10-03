@@ -1137,6 +1137,8 @@ def test_07_the_wiring_did_not_touch_a_forbidden_path() -> None:
         "migrations/versions/0089_ahou_v3_monitoring.py",
         # 2026-10-03 三回归修复恢复 ① 每日候选名单写入（NOTIF-04）。
         "migrations/versions/0090_ahou_daily_candidate_list_restore.py",
+        # 2026-10-04 决策 forward 幂等过严修复：允许 prematch SKIP 行重新评估覆盖。
+        "migrations/versions/0091_ahou_decision_skip_reevaluate.py",
         "src/w2/api/repository.py",
         "src/w2/api/routers.py",
         "src/w2/api/schemas.py",

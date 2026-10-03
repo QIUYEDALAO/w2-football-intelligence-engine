@@ -79,8 +79,10 @@ def test_ah_ou_decision_forward_tick_scans_only_due_undecided(
     now = datetime.now(UTC)
     _seed_identity(monkeypatch, "1001", now + timedelta(hours=1))  # 到点未决策
     _seed_identity(monkeypatch, "1002", now + timedelta(hours=5))  # 未到点
-    _seed_identity(monkeypatch, "1003", now + timedelta(hours=1))  # 到点已决策
+    _seed_identity(monkeypatch, "1003", now + timedelta(hours=1))  # 到点已 SKIP（旧决策）
+    _seed_identity(monkeypatch, "1004", now + timedelta(hours=1))  # 到点已 selected
     with engine.begin() as c:
+        # 1003: 旧 SKIP（selected=false）→ 幂等过严修复后允许重新评估，仍应派发。
         c.execute(
             text(
                 """
@@ -91,6 +93,20 @@ def test_ah_ou_decision_forward_tick_scans_only_due_undecided(
                  home_team_id, away_team_id, selected, score, created_at)
                 VALUES ('d-1003', '1003', 'ASIAN_HANDICAP', now(), 'm1', 'c1',
                         'x', '{}', 'q', 's', 'cap', 'src', 'H', 'A', false, '0', now())
+                """
+            )
+        )
+        # 1004: 已 selected=true → 不重决策，应被跳过。
+        c.execute(
+            text(
+                """
+                INSERT INTO ah_ou_decision_ledger
+                (decision_id, fixture_id, market, decision_at, model_version,
+                 calibration_version, input_hash, full_distribution,
+                 quote_identity_hash, source_capture_sha256, capture_id, source_id,
+                 home_team_id, away_team_id, selected, score, created_at)
+                VALUES ('d-1004', '1004', 'ASIAN_HANDICAP', now(), 'm1', 'c1',
+                        'x', '{}', 'q', 's', 'cap', 'src', 'H', 'A', true, '0', now())
                 """
             )
         )
@@ -106,8 +122,8 @@ def test_ah_ou_decision_forward_tick_scans_only_due_undecided(
 
     result = ah_ou_decision_forward_tick()
     assert result["status"] == "QUEUED", result
-    assert result["fixture_ids"] == ["1001"], result
-    assert sent == ["1001"], sent
+    assert set(result["fixture_ids"]) == {"1001", "1003"}, result
+    assert set(sent) == {"1001", "1003"}, sent
 
 
 def test_ah_ou_decision_forward_tick_nothing_due(forward_pg: None, monkeypatch: Any) -> None:

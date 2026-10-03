@@ -112,3 +112,53 @@ def test_identity_field_change_is_slot_conflict(field, new_value) -> None:
     with Session(engine) as session:
         with pytest.raises(ValueError, match="AH_OU_DECISION_SLOT_CONFLICT"):
             _write(session, **{field: new_value})
+
+
+def test_skip_row_overwritten_by_new_decision() -> None:
+    """旧 SKIP（selected=false）→ 重新评估（不同 identity）→ 覆盖，不再 SLOT_CONFLICT。"""
+    engine = _engine()
+    with Session(engine) as session:
+        skip_row = _write(
+            session,
+            selected=False,
+            direction=None,
+            score=0.0,
+            skip_reason="AH_LINE_NOT_HEMISPHERE",
+        )
+        skip_id = skip_row.decision_id
+        session.commit()
+    with Session(engine) as session:
+        new_row = _write(session)  # selected=True，不同 identity
+        new_id = new_row.decision_id
+        session.commit()
+    assert new_id != skip_id
+    with Session(engine) as session:
+        rows = list(session.scalars(select(AhOuDecisionLedgerModel)))
+        assert len(rows) == 1
+        assert rows[0].selected is True
+        assert rows[0].decision_id == new_id
+
+
+def test_skip_overwrite_then_rerun_is_idempotent() -> None:
+    """覆盖后同 identity 重跑 → no-op，不重复堆积账本行。"""
+    engine = _engine()
+    with Session(engine) as session:
+        _write(
+            session,
+            selected=False,
+            direction=None,
+            score=0.0,
+            skip_reason="AH_LINE_NOT_HEMISPHERE",
+        )
+        session.commit()
+    with Session(engine) as session:
+        first = _write(session)
+        first_id = first.decision_id
+        session.commit()
+    with Session(engine) as session:
+        second = _write(session)  # 同 identity 重跑
+        second_id = second.decision_id
+        session.commit()
+    assert first_id == second_id
+    with Session(engine) as session:
+        assert len(list(session.scalars(select(AhOuDecisionLedgerModel)))) == 1

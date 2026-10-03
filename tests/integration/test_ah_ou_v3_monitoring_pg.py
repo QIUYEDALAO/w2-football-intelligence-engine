@@ -159,7 +159,7 @@ def test_200_actual_frozen_fixtures_natural_worker_creates_separate_market_repor
     assert "V3_MONITORING_EVIDENCE_PREVENTS_SCHEMA_DOWNGRADE" in downgrade.stderr
     with Session(repo.engine) as session:
         assert session.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0090_ahou_daily_candidate_list_restore")
+            "0091_ahou_decision_skip_reevaluate")
         assert {row.report_id: row.payload for row in session.scalars(
             select(AhOuV3MonitoringReportModel))} == frozen
 
