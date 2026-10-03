@@ -487,6 +487,45 @@ def test_f6_actual_source_attacks_have_ready_controls(chain, attack, reason):
     assert result["ah"] is None and result["ou"] is None
 
 
+def test_f6_subsecond_raw_capture_time_diff_accepted_pg(chain):
+    # 隔离 PG：provider_captured_at 秒级（api_football 返回）、raw_captured_at
+    # 微秒级（本地 raw 入库时钟），差 0.737811s 亚秒差异 → F6 准入通过，不再误拒。
+    from w2.infrastructure.persistence.factor_model_models import CanonicalTeamMatchHistoryModel
+    from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
+    from w2.infrastructure.persistence.matchday_intake_models import MatchdayEndpointCaptureModel
+    from w2.strategy.ah_ou_decision import build_ah_ou_selections
+
+    repo, item, _, _ = chain
+    kwargs = dict(
+        fixture_id="1489404",
+        home_team_id="H",
+        away_team_id="A",
+        kickoff=datetime.fromisoformat(item["fixture"]["date"]),
+        competition_id="allsvenskan",
+        season="2026",
+        ah_line=-0.5,
+        ah_home_odds=1.25,
+        ah_away_odds=4.5,
+        ou_line=2.5,
+        ou_over_odds=1.9,
+        ou_under_odds=1.9,
+    )
+    assert build_ah_ou_selections(repo, **kwargs)["status"] == "READY"
+    with Session(repo.engine) as session, session.begin():
+        h = session.scalar(
+            select(CanonicalTeamMatchHistoryModel).where(
+                CanonicalTeamMatchHistoryModel.team_w2_id == "H"
+            )
+        )
+        cap = session.get(MatchdayEndpointCaptureModel, h.endpoint_capture_id)
+        raw = session.get(RawPayloadModel, cap.raw_payload_sha256)
+        base = cap.provider_captured_at
+        # provider 秒级、raw 微秒级，差 0.737811s。
+        cap.provider_captured_at = base.replace(microsecond=0)
+        raw.captured_at = base.replace(microsecond=737811)
+    assert build_ah_ou_selections(repo, **kwargs)["status"] == "READY"
+
+
 @pytest.mark.parametrize(
     "attack,ah_reason,ou_reason",
     [
