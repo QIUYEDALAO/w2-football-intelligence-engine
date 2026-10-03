@@ -1135,6 +1135,8 @@ def test_07_the_wiring_did_not_touch_a_forbidden_path() -> None:
         # v3 outbox envelope guard; the migration prefix remains forbidden.
         "migrations/versions/0088_ahou_v3_outbox_immutable.py",
         "migrations/versions/0089_ahou_v3_monitoring.py",
+        # 2026-10-03 三回归修复恢复 ① 每日候选名单写入（NOTIF-04）。
+        "migrations/versions/0090_ahou_daily_candidate_list_restore.py",
         "src/w2/api/repository.py",
         "src/w2/api/routers.py",
         "src/w2/api/schemas.py",

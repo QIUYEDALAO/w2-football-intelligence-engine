@@ -67,7 +67,7 @@ def test_old_ah_rows_preserved_and_new_current_writes_refused(migrated_database)
         """)).one()
         assert before.identity_hash == "a" * 64
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0089_ahou_v3_monitoring"
+            "0090_ahou_daily_candidate_list_restore"
         )
     with pytest.raises(DBAPIError, match="LEGACY_AH_OU_WRITER_RETIRED"):
         with engine.begin() as connection:
@@ -120,13 +120,22 @@ def test_old_pending_event_can_only_be_suppressed(migrated_database):
             notification_event_id="old-event", event_type=row.event_type,
             delivery_status=row.delivery_status, payload=row.payload,
         )) == ("SUPPRESS", "HISTORICAL_AH_OU_EVENT")
+    # ① 每日候选名单恢复写入（0090 恢复）；② 验证样本确认仍退休。
+    with engine.begin() as connection:
+        connection.execute(text("""
+            INSERT INTO candidate_notification_outbox
+              (notification_event_id, event_type, current_state, payload,
+               created_at, delivery_status, delivery_attempt_count)
+            VALUES ('late-candidate', 'DAILY_CANDIDATE_LIST', 'PLANNED', '{}',
+                    now(), 'PENDING', 0)
+        """))
     with pytest.raises(DBAPIError, match="LEGACY_AH_OU_EVENT_RETIRED"):
         with engine.begin() as connection:
             connection.execute(text("""
                 INSERT INTO candidate_notification_outbox
                   (notification_event_id, event_type, current_state, payload,
                    created_at, delivery_status, delivery_attempt_count)
-                VALUES ('late-old', 'DAILY_CANDIDATE_LIST', 'PLANNED', '{}',
+                VALUES ('late-confirm', 'VALIDATION_SAMPLE_CONFIRMED', 'CONFIRMED', '{}',
                         now(), 'PENDING', 0)
             """))
     with engine.begin() as connection:
@@ -173,7 +182,7 @@ def test_alembic_down_up_keeps_legacy_writer_fence(migrated_database):
                    check=True, env=env, capture_output=True)
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0089_ahou_v3_monitoring"
+            "0090_ahou_daily_candidate_list_restore"
         )
         assert connection.scalar(text("""
             SELECT count(*) FROM dynamic_prematch_evaluations
