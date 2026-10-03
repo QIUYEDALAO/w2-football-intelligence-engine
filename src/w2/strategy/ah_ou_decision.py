@@ -291,10 +291,10 @@ def build_ah_ou_selections(
         if not isinstance(raw, dict) or not raw:
             return _skip("F6_H2H_RAW_MISSING")
         raw_time = _parse_asof(cap.get("raw_captured_at"))
-        # provider_captured_at 是秒级（api_football 返回），raw_captured_at 是本地入库
-        # 微秒级时钟，两者是「同一次采集」的 provider 时点 + 本地入库时点，亚秒差异正常。
-        # 保留「缺失/回填导致差异 > 容差」仍 fail-closed，不放宽时间防线。
-        if raw_time is None or abs((raw_time - source_time).total_seconds()) > 1.0:
+        # h2h raw 按 sha256 去重：重复采集时 raw.captured_at 停在首次入库（可能早数天），
+        # provider_captured_at 是本次采集。raw 早于 provider（去重）合法，不再 MISMATCH；
+        # raw 晚于 provider（回填/篡改）仍拒。核心防线是 source_time <= decision_at（line 288）。
+        if raw_time is None or raw_time > source_time:
             return _skip("F6_H2H_RAW_CAPTURE_TIME_MISMATCH")
         from w2.domain.canonical_serialization import (
             HashDomain,

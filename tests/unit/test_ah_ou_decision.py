@@ -354,17 +354,17 @@ def test_f6_duplicate_meeting_is_refused() -> None:
     assert _run(repo)["status"] == "F6_H2H_DUPLICATE_MEETING"
 
 
-def test_f6_subsecond_raw_capture_time_diff_is_accepted() -> None:
-    # 生产：provider_captured_at 秒级（api_football 返回），raw_captured_at 微秒级
-    # （本地 raw 入库时钟），差 0.7s 属同一次采集的亚秒差异，应放行而非误拒。
+def test_f6_raw_earlier_than_provider_is_accepted() -> None:
+    # 去重场景：h2h raw 按 sha256 去重，raw.captured_at 停在首次入库（早 5 天），
+    # provider_captured_at 是本次采集。raw 早于 provider 合法，不再 MISMATCH。
     repo = _ready_repository()
     repo.captures["cap-1"]["provider_captured_at"] = "2026-07-03T12:00:00+00:00"
-    repo.captures["cap-1"]["raw_captured_at"] = "2026-07-03T12:00:00.737811+00:00"
+    repo.captures["cap-1"]["raw_captured_at"] = "2026-06-28T12:00:00+00:00"
     assert _run(repo)["status"] == "READY"
 
 
-def test_f6_raw_capture_time_mismatch_still_refused() -> None:
-    # 攻击：raw_captured_at 回填/差数分钟 → 时间防线未失效，仍 fail-closed。
+def test_f6_raw_later_than_provider_is_refused() -> None:
+    # 攻击：raw_captured_at 晚于 provider（回填/篡改）→ 仍拒，防线未失效。
     repo = _ready_repository()
     repo.captures["cap-1"]["raw_captured_at"] = "2026-07-03T12:05:00+00:00"
     assert _run(repo)["status"] == "F6_H2H_RAW_CAPTURE_TIME_MISMATCH"

@@ -477,7 +477,7 @@ def test_f6_actual_source_attacks_have_ready_controls(chain, attack, reason):
         elif attack == "fixture":
             cap.fixture_id = "api_football:foreign"
         elif attack == "raw_time":
-            # 回填/差数分钟（远超 1s 容差）→ 时间防线仍未失效。
+            # raw 晚于 provider（回填/篡改）→ 时间防线仍未失效。
             session.get(RawPayloadModel, cap.raw_payload_sha256).captured_at += timedelta(minutes=5)
         elif attack == "raw_hash":
             source = session.get(RawPayloadModel, cap.raw_payload_sha256)
@@ -487,9 +487,9 @@ def test_f6_actual_source_attacks_have_ready_controls(chain, attack, reason):
     assert result["ah"] is None and result["ou"] is None
 
 
-def test_f6_subsecond_raw_capture_time_diff_accepted_pg(chain):
-    # 隔离 PG：provider_captured_at 秒级（api_football 返回）、raw_captured_at
-    # 微秒级（本地 raw 入库时钟），差 0.737811s 亚秒差异 → F6 准入通过，不再误拒。
+def test_f6_raw_earlier_than_provider_accepted_pg(chain):
+    # 隔离 PG：h2h raw 按 sha256 去重，raw.captured_at 停在首次入库（早 5 天），
+    # provider_captured_at 是本次采集。raw 早于 provider 合法，不再 MISMATCH。
     from w2.infrastructure.persistence.factor_model_models import CanonicalTeamMatchHistoryModel
     from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
     from w2.infrastructure.persistence.matchday_intake_models import MatchdayEndpointCaptureModel
@@ -519,10 +519,8 @@ def test_f6_subsecond_raw_capture_time_diff_accepted_pg(chain):
         )
         cap = session.get(MatchdayEndpointCaptureModel, h.endpoint_capture_id)
         raw = session.get(RawPayloadModel, cap.raw_payload_sha256)
-        base = cap.provider_captured_at
-        # provider 秒级、raw 微秒级，差 0.737811s。
-        cap.provider_captured_at = base.replace(microsecond=0)
-        raw.captured_at = base.replace(microsecond=737811)
+        # raw 早于 provider 5 天（去重场景），provider 是本次采集。
+        raw.captured_at = cap.provider_captured_at - timedelta(days=5)
     assert build_ah_ou_selections(repo, **kwargs)["status"] == "READY"
 
 
