@@ -15,8 +15,9 @@ if [ "$(git rev-parse HEAD)" != "$target_sha" ] || [ -n "$(git status --porcelai
 fi
 source_file="$repo_root/ops/host/w2-v3-readonly-monitor.py"
 # The read-only monitor lives at a stable path: its source is versioned by the
-# git SHA it was synced from (checked below), while the release SHA it must
-# reconcile is read at run time from release.env's W2_GIT_SHA (deploy intent).
+# git SHA it was synced from (checked below), while the release SHA and schema
+# head it must reconcile are read at run time from release.env's W2_GIT_SHA /
+# W2_SCHEMA_HEAD (deploy intent), never hard-coded.
 remote_dir="/opt/w2/deploy/v3-monitor"
 if [ "$mode" = '--dry-run' ]; then
   echo "MONITOR_UPDATE_PLAN sha=$target_sha schema=$schema directory=$remote_dir"
@@ -37,7 +38,8 @@ stamp="\$(date -u +%Y%m%dT%H%M%SZ)-\$\$"
 report="\$report_root/\$stamp.json"
 export W2_MONITOR_LOCAL=1
 expected_sha="\$(grep -E '^W2_GIT_SHA=' /opt/w2/shared/release.env | cut -d= -f2)"
-python3 '$remote_dir/monitor.py' "\$report" "\$expected_sha" '$schema' > "\$report_root/\$stamp.stdout" 2> "\$report_root/\$stamp.stderr"
+expected_schema="\$(grep -E '^W2_SCHEMA_HEAD=' /opt/w2/shared/release.env | cut -d= -f2)"
+python3 '$remote_dir/monitor.py' "\$report" "\$expected_sha" "\$expected_schema" > "\$report_root/\$stamp.stdout" 2> "\$report_root/\$stamp.stderr"
 result=\$?
 printf '%s\n' "\$result" > "\$report_root/\$stamp.exitcode"
 ln -sfn "\$stamp.exitcode" "\$report_root/latest.exitcode"

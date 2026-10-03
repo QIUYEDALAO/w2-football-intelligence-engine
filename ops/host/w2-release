@@ -821,11 +821,12 @@ sed -i \
   -e "s|^W2_GIT_SHA=.*|W2_GIT_SHA=${release_sha}|" \
   -e "s|^W2_BUILD_TIME=.*|W2_BUILD_TIME=${build_time}|" \
   -e "s|^W2_RELEASE_ID=.*|W2_RELEASE_ID=${release_sha}|" \
+  -e "s|^W2_SCHEMA_HEAD=.*|W2_SCHEMA_HEAD=${target_head}|" \
   -e "s|^W2_API_IMAGE_ID=.*|W2_API_IMAGE_ID=${python_digest}|" \
   -e "s|^W2_API_OCI_DIGEST=.*|W2_API_OCI_DIGEST=${python_digest}|" \
   -e "s|^W2_API_REGISTRY_DIGEST=.*|W2_API_REGISTRY_DIGEST=${python_digest}|" \
   "$candidate"
-for key in W2_PYTHON_IMAGE W2_WEB_IMAGE W2_GIT_SHA W2_BUILD_TIME W2_RELEASE_ID W2_API_IMAGE_ID W2_API_OCI_DIGEST W2_API_REGISTRY_DIGEST; do
+for key in W2_PYTHON_IMAGE W2_WEB_IMAGE W2_GIT_SHA W2_BUILD_TIME W2_RELEASE_ID W2_SCHEMA_HEAD W2_API_IMAGE_ID W2_API_OCI_DIGEST W2_API_REGISTRY_DIGEST; do
   grep -Eq "^${key}=.+" "$candidate" || fail "candidate 缺 ${key}"
 done
 
