@@ -354,6 +354,22 @@ def test_f6_duplicate_meeting_is_refused() -> None:
     assert _run(repo)["status"] == "F6_H2H_DUPLICATE_MEETING"
 
 
+def test_f6_subsecond_raw_capture_time_diff_is_accepted() -> None:
+    # 生产：provider_captured_at 秒级（api_football 返回），raw_captured_at 微秒级
+    # （本地 raw 入库时钟），差 0.7s 属同一次采集的亚秒差异，应放行而非误拒。
+    repo = _ready_repository()
+    repo.captures["cap-1"]["provider_captured_at"] = "2026-07-03T12:00:00+00:00"
+    repo.captures["cap-1"]["raw_captured_at"] = "2026-07-03T12:00:00.737811+00:00"
+    assert _run(repo)["status"] == "READY"
+
+
+def test_f6_raw_capture_time_mismatch_still_refused() -> None:
+    # 攻击：raw_captured_at 回填/差数分钟 → 时间防线未失效，仍 fail-closed。
+    repo = _ready_repository()
+    repo.captures["cap-1"]["raw_captured_at"] = "2026-07-03T12:05:00+00:00"
+    assert _run(repo)["status"] == "F6_H2H_RAW_CAPTURE_TIME_MISMATCH"
+
+
 @pytest.mark.parametrize("line", [-0.25, -0.75, -1.25, -1.0, -2.0, -0.5])
 def test_build_ah_ou_selections_quarter_increment_ready(line: float) -> None:
     result = build_ah_ou_selections(

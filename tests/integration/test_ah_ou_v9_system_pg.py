@@ -477,7 +477,8 @@ def test_f6_actual_source_attacks_have_ready_controls(chain, attack, reason):
         elif attack == "fixture":
             cap.fixture_id = "api_football:foreign"
         elif attack == "raw_time":
-            session.get(RawPayloadModel, cap.raw_payload_sha256).captured_at += timedelta(seconds=1)
+            # 回填/差数分钟（远超 1s 容差）→ 时间防线仍未失效。
+            session.get(RawPayloadModel, cap.raw_payload_sha256).captured_at += timedelta(minutes=5)
         elif attack == "raw_hash":
             source = session.get(RawPayloadModel, cap.raw_payload_sha256)
             source.payload = {**source.payload, "tampered": True}
