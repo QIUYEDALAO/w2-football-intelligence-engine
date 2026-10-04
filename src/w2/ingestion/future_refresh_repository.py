@@ -353,7 +353,10 @@ def _verify_persisted_xg_match(
         or str((raw.payload.get("parameters") or {}).get("fixture")) != fact.fixture_id
         or xg.get(fact.team_id) != fact.xg_for
         or xg.get(fact.opponent_team_id) != fact.xg_against
-        or parse_db_datetime(raw.captured_at) != parse_db_datetime(fact.captured_at)
+        or abs(
+            (parse_db_datetime(raw.captured_at) - parse_db_datetime(fact.captured_at)).total_seconds()
+        )
+        > 1.0
     ):
         return None
     candidates = []

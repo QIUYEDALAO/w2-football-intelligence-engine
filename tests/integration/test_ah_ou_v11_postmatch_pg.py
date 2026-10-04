@@ -235,6 +235,55 @@ def test_v3_selected_ft_capture_natural_result_worker_and_validation(chain):
                 )
 
 
+def _shift_raw_capture_times(repo, delta, endpoint=None):
+    """odds/fixtures raw 入库时间平移 delta，模拟本地微秒时钟 vs 秒级 provider 时点。
+
+    statistics raw 有永久保留保护；h2h raw 属于已修的 F6 交锋时间防线，均不改。
+    """
+    from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
+
+    with Session(repo.engine) as session, session.begin():
+        for raw in session.scalars(select(RawPayloadModel)):
+            if raw.endpoint not in ("odds", "fixtures"):
+                continue
+            if endpoint is not None and raw.endpoint != endpoint:
+                continue
+            raw.captured_at = raw.captured_at + delta
+
+
+def test_v3_subsecond_raw_capture_time_diff_is_accepted(chain):
+    """亚秒差异（raw 微秒 vs provider 秒级）→ 决策/结算校验放行。"""
+    from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
+
+    repo, future, _, _ = chain
+    _shift_raw_capture_times(repo, timedelta(microseconds=370_000))
+
+    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
+
+    capture = _ft_capture(repo, future)
+    with Session(repo.engine) as session, session.begin():
+        raw = session.get(RawPayloadModel, capture["raw_payload_sha256"])
+        raw.captured_at = raw.captured_at + timedelta(microseconds=370_000)
+
+    result = result_materialize.run(fixture_ids=["api_football:1489404"])
+    assert result["status"] == "PASS", result
+    with Session(repo.engine) as session:
+        assert len(list(session.scalars(select(AhOuV3SettlementModel)))) == 2
+        assert len(list(session.scalars(select(AhOuV3ValidationSampleModel)))) == 2
+
+
+def test_v3_large_raw_capture_time_diff_is_refused(chain):
+    """大差异（odds raw.captured_at 差 5min）→ 决策落账本被 249 行拒（防线不失效）。"""
+    repo, future, _, _ = chain
+    # 只改 odds raw（决策报价 raw binding），fixtures raw 保持一致，精确触发 249 行。
+    _shift_raw_capture_times(repo, timedelta(minutes=5), endpoint="odds")
+
+    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    assert card["ah_ou_result"]["recording"]["status"] == "NOT_RECORDED"
+    assert "V3_PUBLIC_QUOTE_RAW_BINDING_INVALID" in card["ah_ou_result"]["recording"]["error"]
+
+
 @pytest.mark.parametrize(
     "corruption, reason",
     [

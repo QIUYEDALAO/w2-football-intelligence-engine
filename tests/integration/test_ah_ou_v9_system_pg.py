@@ -1073,3 +1073,36 @@ def test_timeline_bounds_by_capture_instant_not_row_count(chain):
         (r.market, r.skip_reason) for r in rows
     ]
     assert all(row.selected for row in rows), [(r.market, r.skip_reason) for r in rows]
+
+
+def test_verify_persisted_xg_match_time_tolerance(chain):
+    """356：xg 校验 raw 微秒 vs fact 秒级放行；大差异仍 fail-closed。"""
+    from w2.infrastructure.persistence.future_refresh_models import (
+        RawPayloadModel,
+        TeamXgMatchModel,
+    )
+    from w2.ingestion.future_refresh_repository import (
+        _index_fixture_sources,
+        _verify_persisted_xg_match,
+    )
+
+    repo, _item, _plan, _producer = chain
+    with Session(repo.engine) as session:
+        fact = session.scalars(
+            select(TeamXgMatchModel).order_by(TeamXgMatchModel.fixture_id)
+        ).first()
+        assert fact is not None
+        fixture_raw = list(
+            session.scalars(
+                select(RawPayloadModel).where(RawPayloadModel.endpoint == "fixtures")
+            )
+        )
+        fixture_sources = _index_fixture_sources(fixture_raw, {fact.fixture_id})
+
+        # 亚秒差异（fact 微秒 vs raw 秒级）→ 放行
+        fact.captured_at = fact.captured_at + timedelta(microseconds=370_000)
+        assert _verify_persisted_xg_match(session, fact, fixture_sources) is not None
+
+        # 大差异（再 +5min）→ 拒（None，fail-closed）
+        fact.captured_at = fact.captured_at + timedelta(minutes=5)
+        assert _verify_persisted_xg_match(session, fact, fixture_sources) is None

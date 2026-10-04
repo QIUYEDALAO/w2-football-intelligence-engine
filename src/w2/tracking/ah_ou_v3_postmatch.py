@@ -50,6 +50,30 @@ SETTLEMENT_SCHEMA = "w2.ah_ou_v3_settlement.v1"
 VALIDATION_SCHEMA = "w2.ah_ou_v3_validation_sample.v1"
 
 
+def _as_dt(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
+def _times_differ(left: Any, right: Any) -> bool:
+    """秒级 provider 时间 vs 微秒级入库/派生时间：差 > 1s 才判不一致。
+
+    两者是「同一次采集」的 provider 时点 + 本地入库时点，亚秒差异正常；缺失或
+    回填导致差 > 1s 仍 fail-closed。
+    """
+    left_dt = _as_dt(left)
+    right_dt = _as_dt(right)
+    if left_dt is None or right_dt is None:
+        return True
+    return abs((left_dt - right_dt).total_seconds()) > 1.0
+
+
 def _result_source(session: Session, result: ResultModel) -> dict[str, Any]:
     if result.result_status not in {"FT", "AET", "PEN"}:
         raise ValueError("V3_RESULT_STATUS_INVALID")
@@ -73,8 +97,8 @@ def _result_source(session: Session, result: ResultModel) -> dict[str, Any]:
         or capture.capture_status != "CAPTURED"
         or capture.status_code is None
         or not 200 <= capture.status_code < 300
-        or capture.provider_captured_at != raw.captured_at
-        or capture.provider_captured_at != result.confirmed_at
+        or _times_differ(capture.provider_captured_at, raw.captured_at)
+        or _times_differ(capture.provider_captured_at, result.confirmed_at)
     ):
         raise ValueError("V3_RESULT_CAPTURE_INVALID")
     provider_id = result.fixture_id.removeprefix("api_football:")
@@ -246,7 +270,7 @@ def _verify_v3_frozen_decision_in_session(
         != raw.sha256
         or canonical_sha256(raw.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
         != decision.source_capture_sha256
-        or raw.captured_at != capture.provider_captured_at
+        or _times_differ(raw.captured_at, capture.provider_captured_at)
     ):
         raise DecisionContractViolation("V3_PUBLIC_QUOTE_RAW_BINDING_INVALID")
     observations = list(
