@@ -105,6 +105,24 @@ function matchTeams(match: WorkspaceMatchItem): [string, string] {
   const item = match as unknown as Record<string, unknown>;
   return [teamName(item.home_team_label || item.home_team_name), teamName(item.away_team_label || item.away_team_name)];
 }
+const LIVE_STATUSES = new Set(["1H", "2H", "HT", "ET", "BT", "P", "LIVE", "IN_PLAY"]);
+const FINISHED_STATUSES = new Set(["FT", "AET", "PEN", "FINISHED"]);
+// 列表是赛前视角：标签按开球状态区分，未开赛/进行中不再落到赛果语义。
+function fixtureStatusTag(match: WorkspaceMatchItem, v3Count: number): string {
+  if ("projection_error" in match) return "投影异常";
+  if (v3Count) return `${v3Count} 条 v3 推荐`;
+  const raw = (match.status || "").toUpperCase();
+  if (match.outcome.is_finished || FINISHED_STATUSES.has(raw)) {
+    return publicPresentation(match.outcome.public_semantics, {
+      subject: "赛果",
+      fixtureCount: 1,
+      finishedCount: match.outcome.is_finished ? 1 : 0,
+      outcomeRecorded: match.outcome.is_recorded,
+    }).label;
+  }
+  if (LIVE_STATUSES.has(raw)) return "进行中";
+  return "未开赛";
+}
 function performance(workspace: IntelligenceWorkspaceList): PerformanceSummary {
   return workspace.performance_summary || EMPTY_PERFORMANCE;
 }
@@ -202,7 +220,7 @@ function FixtureList({ workspace, picks, onSelect }: { workspace: IntelligenceWo
       <div className="w2-fixture__teams" aria-label={`${home} vs ${away}`}><span>{home}</span>{" "}<span className="faint">vs</span>{" "}<span>{away}</span></div>
       <div className="w2-market"><span>让球 <span className="num">{formatAhMarketHandicap(ah?.main_line) ?? "—"}</span></span><span className="num">{ah?.status === "READY" ? "市场已就绪" : "数据待补"}</span></div>
       <div className="w2-market"><span>大小 <span className="num">{totals?.main_line ?? "—"}</span></span><span className="num">{totals?.status === "READY" ? "市场已就绪" : "数据待补"}</span></div>
-      <span className={`w2-tag${v3Count ? " w2-tag--pick" : ""}`}>{"projection_error" in match ? "投影异常" : v3Count ? `${v3Count} 条 v3 推荐` : publicPresentation(match.outcome.public_semantics, { subject: "赛果", fixtureCount: 1, finishedCount: match.outcome.is_finished ? 1 : 0, outcomeRecorded: match.outcome.is_recorded }).label}</span>
+      <span className={`w2-tag${v3Count ? " w2-tag--pick" : ""}`}>{fixtureStatusTag(match, v3Count)}</span>
     </li>;
   }) : <li className="w2-empty-row">当前足球日没有持久化比赛。</li>}</ul></div>;
 }
