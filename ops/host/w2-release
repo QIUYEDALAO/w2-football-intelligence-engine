@@ -25,7 +25,7 @@ set -uo pipefail
 # 常量
 # ─────────────────────────────────────────────────────────────────────────────
 BRANCH="${W2_RELEASE_BRANCH:-codex/w2-authority-20260916}"
-REMOTE="${W2_RELEASE_REMOTE:-github-w2}"
+REMOTE="${W2_RELEASE_REMOTE:-origin}"
 SSH_HOST="${W2_RELEASE_SSH_HOST:-w2-hk}"
 BLOCKED_WINDOW="${W2_RELEASE_BLOCKED_WINDOW:-}"
 STABILIZE_SEC="${W2_RELEASE_STABILIZE_SEC:-60}"
