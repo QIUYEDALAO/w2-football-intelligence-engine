@@ -8,8 +8,8 @@
 # 用法：
 #   w2-release [--target <sha，默认 HEAD>] [--dry-run] [--skip-window-check]
 #
-# 本脚本在 Mac 本机运行；构建 python 镜像在 VPS、web 镜像在 Mac buildx，
-# 部署与回读都通过 ssh 在 VPS 上执行。--dry-run 只打印计划不产生副作用。
+# 本脚本在 Mac 本机运行；python 与 web 镜像都在 VPS 原生构建（web 不再走
+# Mac buildx 交叉编译），部署与回读都通过 ssh 在 VPS 上执行。--dry-run 只打印计划不产生副作用。
 #
 # 可用环境变量（测试注入点，均可在 shell 中覆盖）：
 #   W2_RELEASE_SSH_HOST         ssh 目标（默认 w2-hk）
@@ -495,7 +495,7 @@ if [ "$DRY_RUN" = "1" ]; then
   else
     log "  2. 备份：$([ "$need_backup" = "yes" ] && echo "pg_dump -Fc → ${HOME}/Desktop/W2文档/backups" || echo "无迁移，跳过")"
     log "  2b. schema head：${target_head}（从目标 migrations 动态解析，不写死）"
-    log "  3. 构建：python 镜像（VPS, Dockerfile.release, base=${BASE_TAG}）+ web 镜像（Mac buildx amd64, nginx=${NGINX_BASE}），均打 revision=${TARGET}，推本地 registry"
+    log "  3. 构建：python 镜像（VPS, Dockerfile.release, base=${BASE_TAG}）+ web 镜像（VPS, Dockerfile.web, nginx=${NGINX_BASE}），均打 revision=${TARGET}，推本地 registry"
     if [ "$need_backup" = "yes" ]; then
       log "  3b. 迁移：新镜像 alembic upgrade head → 校验 schema == ${target_head}（失败则停止且不切换）"
     fi
@@ -568,18 +568,15 @@ python_digest="$(vps "docker image inspect 127.0.0.1:5000/w2/python:${TARGET} --
 [ -n "$python_digest" ] || { warn "无法获取 python 镜像 digest"; exit 2; }
 log "python digest：$python_digest"
 
-# 3b. web 镜像（Mac buildx amd64）
-log "构建 web 镜像（Mac buildx amd64）..."
-$DOCKER_CMD buildx build --platform linux/amd64 -f Dockerfile.web \
-  --build-context "nginxinc/nginx-unprivileged:1.27-alpine=docker-image://nginxinc/nginx-unprivileged:${NGINX_BASE}" \
-  --build-arg VITE_GIT_SHA="${TARGET}" --build-arg VITE_BUILD_TIME="${BUILD_TIME}" --build-arg W2_RELEASE_ID="${TARGET}" \
-  -t "127.0.0.1:5000/w2/web:${TARGET}" --load --progress=plain . \
-  || { warn "web 镜像构建失败"; exit 2; }
-web_tar="w2-web-${TARGET}.tar.gz"
-$DOCKER_CMD save "127.0.0.1:5000/w2/web:${TARGET}" | gzip > "/tmp/${web_tar}" || { warn "docker save web 失败"; exit 2; }
-scp_to_vps "/tmp/${web_tar}" "$SSH_HOST:/tmp/${web_tar}" >/dev/null || { warn "scp web 镜像到 VPS 失败"; exit 2; }
-vps "docker load < /tmp/${web_tar} && docker push 127.0.0.1:5000/w2/web:${TARGET}" \
-  || { warn "web 镜像 load/push 失败"; exit 2; }
+# 3b. web 镜像（VPS 原生 x86，与 python 镜像同路径；不再 Mac buildx + save/scp/load）
+# 用 buildx build 触发 BuildKit 的 per-Dockerfile dockerignore（Dockerfile.web.dockerignore），
+# 它保留 apps/web 供 web 镜像 COPY，全局 .dockerignore 排除 apps/web 仅供 python 镜像。
+log "构建 web 镜像（VPS）..."
+vps "cd ${build_dir} && docker buildx build -f Dockerfile.web \
+  --build-arg NGINX_BASE_IMAGE=nginxinc/nginx-unprivileged:${NGINX_BASE} \
+  --build-arg VITE_GIT_SHA=${TARGET} --build-arg VITE_BUILD_TIME=${BUILD_TIME} --build-arg W2_RELEASE_ID=${TARGET} \
+  -t 127.0.0.1:5000/w2/web:${TARGET} --load . && docker push 127.0.0.1:5000/w2/web:${TARGET}" \
+  || { warn "web 镜像构建/推送失败"; exit 2; }
 web_digest="$(vps "docker image inspect 127.0.0.1:5000/w2/web:${TARGET} --format '{{index .RepoDigests 0}}' 2>/dev/null" | sed 's|^.*@||')"
 [ -n "$web_digest" ] || { warn "无法获取 web 镜像 digest"; exit 2; }
 log "web digest：$web_digest"
