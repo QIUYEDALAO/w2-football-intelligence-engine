@@ -1167,7 +1167,7 @@ def ah_ou_decision_forward(
         }
     try:
         card = ReadModelService().public_analysis_card_bounded(
-            fixture, use_frozen_canary=False
+            fixture, use_frozen_canary=False, use_timeline_observations=True
         )
     except Exception as exc:
         return {

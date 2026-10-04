@@ -2396,6 +2396,7 @@ class ReadModelService:
         *,
         evaluation_time: datetime | None = None,
         use_frozen_canary: bool = True,
+        use_timeline_observations: bool = False,
     ) -> dict[str, Any] | None:
         """Build a public card with request-local, fixture-scoped observations."""
         # Verified frozen database artifacts remain a canary authority. Local
@@ -2411,7 +2412,15 @@ class ReadModelService:
             if evaluation_time.tzinfo is None:
                 raise ValueError("analysis-card evaluation_time must be timezone-aware")
             request_service._analysis_evaluation_time_override = evaluation_time.astimezone(UTC)
-        reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
+        # 决策路径（use_timeline_observations=True）读历史捕获时间线：最新投影
+        # 只含最新一次采集，会漏掉 decision_at 前的合法报价。selector 自身已
+        # 过滤 captured <= decision_at 并选决策点前最新，这里只负责喂入完整历史。
+        reader_name = (
+            "market_observation_timeline_for_fixtures"
+            if use_timeline_observations
+            else "future_market_observations_for_fixtures"
+        )
+        reader = getattr(self.repository, reader_name, None)
         if not callable(reader):
             return request_service._bounded_analysis_card_failure(
                 fixture_id,

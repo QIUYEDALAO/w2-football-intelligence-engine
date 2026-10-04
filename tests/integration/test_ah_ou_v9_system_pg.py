@@ -820,3 +820,147 @@ def test_forward_reevaluates_old_skip_fixture(chain):
         (r.market, r.skip_reason, r.selected) for r in rows
     ]
     assert all(row.selected for row in rows), [(r.market, r.skip_reason) for r in rows]
+
+
+def test_forward_uses_timeline_not_latest_projection(chain):
+    """决策报价读取用时间线：decision_at 前有合法报价 + 后又晚到采集 → 选决策前报价。
+
+    最新投影只含最新一次采集（晚于 decision_at）会漏掉决策前报价 → AFTER_DECISION；
+    时间线含历史捕获，selector 正确过滤 captured<=decision_at 选决策点前最新。
+    """
+    from apps.worker.celery_app import ah_ou_decision_forward
+
+    from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+        AhOuDecisionLedgerModel,
+    )
+
+    repo, item, _plan, _producer = chain
+    kickoff = datetime.fromisoformat(item["fixture"]["date"])
+    decision_at = kickoff - timedelta(hours=2)  # now + 5h
+
+    # 清账本，隔离验证「任务」路径。
+    with repo.engine.begin() as c:
+        c.execute(text("DELETE FROM ah_ou_decision_ledger"))
+        c.execute(text("DELETE FROM ah_ou_forward_cohort"))
+
+    # 决策前报价 seed 阶段 captured_at=now (< decision_at)。构造一份「晚到采集」：
+    # 新的 endpoint capture + observation（captured_at 晚于 decision_at，capture_id
+    # 前缀 late-），复用原 raw payload，避免复用 capture_id 触发同名重复行。
+    late_at = decision_at + timedelta(hours=1)
+    with repo.engine.begin() as c:
+        c.execute(
+            text(
+                """
+                INSERT INTO matchday_endpoint_captures
+                (capture_id, fixture_id, competition_id, checkpoint, endpoint, sanitized_params,
+                 params_hash, request_task_key, attempt, requested_at, provider_captured_at,
+                 status_code, elapsed_ms, response_count, quota_values, raw_payload_sha256,
+                 provider_event_time, capture_status, error_code)
+                SELECT 'late-' || left(capture_id, 59), fixture_id, competition_id, checkpoint, endpoint,
+                       sanitized_params, params_hash, request_task_key, attempt, requested_at, :late_at,
+                       status_code, elapsed_ms, response_count, quota_values, raw_payload_sha256,
+                       provider_event_time, capture_status, error_code
+                FROM matchday_endpoint_captures
+                WHERE fixture_id = 'api_football:1489404' AND endpoint = 'odds'
+                """
+            ),
+            {"late_at": late_at},
+        )
+        c.execute(
+            text(
+                """
+                INSERT INTO matchday_market_observations
+                (observation_id, fixture_id, provider_fixture_id, competition_id, provider,
+                 bookmaker_id, bookmaker_name, capture_id, provider_bet_id, raw_market_label,
+                 canonical_market, canonical_selection, provider_selection, line, decimal_odds,
+                 suspended, live, provider_updated_at, captured_at, ingested_at,
+                 raw_payload_sha256, source_revision)
+                SELECT 'late-' || left(observation_id, 59), fixture_id, provider_fixture_id, competition_id, provider,
+                       bookmaker_id, bookmaker_name, 'late-' || left(capture_id, 59), provider_bet_id, raw_market_label,
+                       canonical_market, canonical_selection, provider_selection, line, decimal_odds,
+                       suspended, live, provider_updated_at, :late_at, ingested_at,
+                       raw_payload_sha256, source_revision
+                FROM matchday_market_observations
+                WHERE fixture_id = 'api_football:1489404'
+                """
+            ),
+            {"late_at": late_at},
+        )
+
+    def parsed(value: str) -> datetime:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+    # 最新投影只含晚到采集（复现根因）：全部 captured_at 晚于 decision_at。
+    latest = repo.latest_market_observations_for_fixtures(["1489404"])
+    assert latest, "最新投影应含晚到采集"
+    assert all(parsed(r["captured_at"]) > decision_at for r in latest), (
+        "最新投影只应含最新（晚到）采集"
+    )
+    # 时间线含决策前 + 晚到。
+    timeline = repo.market_observation_timeline_for_fixtures(["1489404"])
+    timeline_times = [parsed(r["captured_at"]) for r in timeline]
+    assert any(t <= decision_at for t in timeline_times), "时间线应含 decision_at 前报价"
+
+    result = ah_ou_decision_forward(fixture_id="1489404")
+    assert result["status"] == "COMPLETED", result
+    assert result["card_built"] is True
+
+    with Session(repo.engine) as session:
+        rows = list(
+            session.scalars(
+                select(AhOuDecisionLedgerModel).where(
+                    AhOuDecisionLedgerModel.fixture_id == "1489404"
+                )
+            )
+        )
+    assert {row.market for row in rows} == {"ASIAN_HANDICAP", "TOTALS"}, [
+        (r.market, r.skip_reason) for r in rows
+    ]
+    assert all(row.selected for row in rows), [(r.market, r.skip_reason) for r in rows]
+
+
+def test_forward_timeline_only_late_still_after_decision(chain):
+    """防线不失效：时间线里所有报价都晚于 decision_at → 仍 AFTER_DECISION 拒。"""
+    from apps.worker.celery_app import ah_ou_decision_forward
+
+    from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+        AhOuDecisionLedgerModel,
+    )
+
+    repo, item, _plan, _producer = chain
+    kickoff = datetime.fromisoformat(item["fixture"]["date"])
+    decision_at = kickoff - timedelta(hours=2)
+
+    with repo.engine.begin() as c:
+        c.execute(text("DELETE FROM ah_ou_decision_ledger"))
+        c.execute(text("DELETE FROM ah_ou_forward_cohort"))
+        # 把决策前报价整体改成晚于 decision_at → 时间线只剩晚到报价。
+        c.execute(
+            text(
+                """
+                UPDATE matchday_market_observations
+                SET captured_at = :late_at
+                WHERE fixture_id = 'api_football:1489404'
+                """
+            ),
+            {"late_at": decision_at + timedelta(minutes=5)},
+        )
+
+    result = ah_ou_decision_forward(fixture_id="1489404")
+    assert result["status"] == "COMPLETED", result
+
+    with Session(repo.engine) as session:
+        rows = list(
+            session.scalars(
+                select(AhOuDecisionLedgerModel).where(
+                    AhOuDecisionLedgerModel.fixture_id == "1489404"
+                )
+            )
+        )
+    assert {row.market for row in rows} == {"ASIAN_HANDICAP", "TOTALS"}, [
+        (r.market, r.skip_reason) for r in rows
+    ]
+    assert not any(row.selected for row in rows)
+    assert all(
+        row.skip_reason.endswith("_QUOTE_CAPTURED_AFTER_DECISION") for row in rows
+    ), [(r.market, r.skip_reason) for r in rows]
