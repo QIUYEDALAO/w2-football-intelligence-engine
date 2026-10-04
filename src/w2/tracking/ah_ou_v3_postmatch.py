@@ -107,7 +107,7 @@ def _result_source(session: Session, result: ResultModel) -> dict[str, Any]:
         identity is None
         or identity.provider != "api_football"
         or identity.provider_fixture_id != provider_id
-        or capture.fixture_id != result.fixture_id
+        or (capture.fixture_id and capture.fixture_id != result.fixture_id)
         or str(capture.sanitized_params.get("id") or "") != provider_id
     ):
         raise ValueError("V3_RESULT_FIXTURE_BINDING_INVALID")
@@ -706,20 +706,29 @@ def v3_validation_snapshot(session: Session) -> dict[str, Any]:
         settlement = settlements.get(decision.decision_id)
         sample = samples.get(decision.decision_id)
         result = results.get("api_football:" + decision.fixture_id.removeprefix("api_football:"))
-        _verify_public_postmatch(session, decision, result, settlement, sample)
-        if settlement is not None and sample is None:
-            state = "BLOCKED"
-        elif sample is not None and settlement is None:
-            state = "BLOCKED"
-        elif settlement is not None and sample is not None:
-            if sample.settlement_hash != settlement.settlement_hash:
+        try:
+            _verify_public_postmatch(session, decision, result, settlement, sample)
+        except DecisionContractViolation as exc:
+            # 止血：仅 FT result source 校验失败（V3_RESULT_*）降级为该场 BLOCKED，
+            # 不拖垮整个 Dashboard 读（不 503）；决策字段/结算字段篡改等校验仍拒绝。
+            if str(exc).startswith("V3_RESULT_"):
                 state = "BLOCKED"
             else:
-                state = "VOID" if settlement.outcome == "VOID" else "SETTLED"
-        elif result is not None:
-            state = "BLOCKED"
+                raise
         else:
-            state = "PENDING"
+            if settlement is not None and sample is None:
+                state = "BLOCKED"
+            elif sample is not None and settlement is None:
+                state = "BLOCKED"
+            elif settlement is not None and sample is not None:
+                if sample.settlement_hash != settlement.settlement_hash:
+                    state = "BLOCKED"
+                else:
+                    state = "VOID" if settlement.outcome == "VOID" else "SETTLED"
+            elif result is not None:
+                state = "BLOCKED"
+            else:
+                state = "PENDING"
         terms = decision.frozen_terms or {}
         if decision.decision_contract == "w2.ah_ou_decision.v3.1":
             if (

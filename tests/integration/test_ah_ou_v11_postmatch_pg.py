@@ -40,7 +40,7 @@ from w2.tracking.outcome_result_refresh import run_outcome_result_refresh
 pytest_plugins = ["tests.integration.test_ah_ou_v9_system_pg"]
 
 
-def _ft_capture(repo, future, *, home=2, away=1, status="FT"):
+def _ft_capture(repo, future, *, home=2, away=1, status="FT", fill_fixture_id=True):
     kickoff = datetime.fromisoformat(future["fixture"]["date"]).astimezone(UTC)
     at = kickoff + timedelta(hours=2)
     ft = {
@@ -61,7 +61,7 @@ def _ft_capture(repo, future, *, home=2, away=1, status="FT"):
         status_code=200,
         elapsed_ms=1,
         payload=raw,
-        fixture_id="api_football:" + str(future["fixture"]["id"]),
+        fixture_id=("api_football:" + str(future["fixture"]["id"])) if fill_fixture_id else None,
         competition_id="allsvenskan",
         checkpoint="POSTMATCH_RESULT",
     )
@@ -336,6 +336,92 @@ def test_v3_result_source_corruption_blocks_natural_worker(chain, corruption, re
     with Session(repo.engine) as session:
         assert not list(session.scalars(select(AhOuV3SettlementModel)))
         assert not list(session.scalars(select(AhOuV3ValidationSampleModel)))
+
+
+def test_v3_bulk_capture_empty_fixture_id_binds_via_sanitized_params(chain):
+    """fixtures 批量采集 capture.fixture_id 空 → 绑定校验用 sanitized_params.id 通过。"""
+    repo, future, _, _ = chain
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
+    assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
+    capture = _ft_capture(repo, future, fill_fixture_id=False)
+    assert capture["fixture_id"] is None  # 批量采集：capture 层无单一 fixture_id
+    materialized = run_outcome_result_refresh(
+        repository=OutcomeLedgerRepository(repo.engine),
+        fixture_ids=["api_football:1489404"],
+        dry_run=False,
+        write_db=True,
+    )
+    assert materialized["status"] == "PASS"
+    result = result_materialize.run(fixture_ids=["api_football:1489404"])
+    assert result["status"] == "PASS", result
+    with Session(repo.engine) as session:
+        settled = list(session.scalars(select(AhOuV3SettlementModel)))
+        samples = list(session.scalars(select(AhOuV3ValidationSampleModel)))
+        assert len(settled) == len(samples) == 2
+        assert all(row.result_raw_sha256 == capture["raw_payload_sha256"] for row in settled)
+    public = ApiReadModelService().dashboard_ah_ou_v3_validation()
+    assert all(row["state"] == "SETTLED" for row in public["rows"])
+
+
+def test_v3_tampered_sanitized_params_id_rejected(chain):
+    """篡改 sanitized_params.id → 仍拒绝（防线不失效）。"""
+    repo, future, _, _ = chain
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
+    assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
+    capture = _ft_capture(repo, future, fill_fixture_id=False)
+    materialized = run_outcome_result_refresh(
+        repository=OutcomeLedgerRepository(repo.engine),
+        fixture_ids=["api_football:1489404"],
+        dry_run=False,
+        write_db=True,
+    )
+    assert materialized["status"] == "PASS"
+    with Session(repo.engine) as session, session.begin():
+        session.execute(
+            update(MatchdayEndpointCaptureModel)
+            .where(MatchdayEndpointCaptureModel.capture_id == capture["capture_id"])
+            .values(sanitized_params={"id": "999999"})
+        )
+    with pytest.raises(ValueError, match="V3_RESULT_FIXTURE_BINDING_INVALID"):
+        result_materialize.run(fixture_ids=["api_football:1489404"])
+    with Session(repo.engine) as session:
+        assert not list(session.scalars(select(AhOuV3SettlementModel)))
+        assert not list(session.scalars(select(AhOuV3ValidationSampleModel)))
+
+
+def test_v3_validation_snapshot_isolates_postmatch_failure(chain):
+    """止血：单个场次赛后校验失败不抛 503，降级 BLOCKED，其余场次正常返回。"""
+    repo, future, _, _ = chain
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
+    assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
+    capture = _ft_capture(repo, future, fill_fixture_id=False)
+    materialized = run_outcome_result_refresh(
+        repository=OutcomeLedgerRepository(repo.engine),
+        fixture_ids=["api_football:1489404"],
+        dry_run=False,
+        write_db=True,
+    )
+    assert materialized["status"] == "PASS"
+    # 篡改 sanitized_params.id → 赛后绑定校验失败（写路径会拒绝）。
+    with Session(repo.engine) as session, session.begin():
+        session.execute(
+            update(MatchdayEndpointCaptureModel)
+            .where(MatchdayEndpointCaptureModel.capture_id == capture["capture_id"])
+            .values(sanitized_params={"id": "999999"})
+        )
+    # 读路径不抛异常：该场降级 BLOCKED，而不是整个 snapshot 抛 503。
+    public = ApiReadModelService().dashboard_ah_ou_v3_validation()
+    assert public["rows"]
+    assert all(row["state"] == "BLOCKED" for row in public["rows"])
+    # 公开推荐读路径走同一 snapshot，同样不抛（返回列表）。
+    public_list = ApiReadModelService().dashboard_ah_ou_v3_public()
+    assert isinstance(public_list, list)
 
 
 @pytest.mark.parametrize("terminal_status", ["AET", "PEN"])
