@@ -964,3 +964,112 @@ def test_forward_timeline_only_late_still_after_decision(chain):
     assert all(
         row.skip_reason.endswith("_QUOTE_CAPTURED_AFTER_DECISION") for row in rows
     ), [(r.market, r.skip_reason) for r in rows]
+
+
+def test_timeline_bounds_by_capture_instant_not_row_count(chain):
+    """时间线按「捕获时间点」截断：单次大采集（>128 行）不挤掉 decision_at 前历史。
+
+    生产 1569954 最新一次采集就有 128+ 行 AH，若按行数截断会把 decision_at 前的
+    合法报价挤掉 → 决策仍 AFTER_DECISION。这里插入 130 行晚到大采集，断言时间线
+    仍返回 decision_at 前的捕获时间点，且决策 forward 落账本 selected=true。
+    """
+    from apps.worker.celery_app import ah_ou_decision_forward
+
+    from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+        AhOuDecisionLedgerModel,
+    )
+    from w2.infrastructure.persistence.matchday_intake_models import (
+        MatchdayMarketObservationModel,
+    )
+
+    repo, item, _plan, _producer = chain
+    kickoff = datetime.fromisoformat(item["fixture"]["date"])
+    decision_at = kickoff - timedelta(hours=2)
+    late_at = decision_at + timedelta(hours=1)
+
+    with repo.engine.begin() as c:
+        c.execute(text("DELETE FROM ah_ou_decision_ledger"))
+        c.execute(text("DELETE FROM ah_ou_forward_cohort"))
+
+    with Session(repo.engine) as session:
+        template = session.scalars(
+            select(MatchdayMarketObservationModel).where(
+                MatchdayMarketObservationModel.fixture_id == "api_football:1489404",
+                MatchdayMarketObservationModel.canonical_market == "ASIAN_HANDICAP",
+                MatchdayMarketObservationModel.bookmaker_id == "4",
+            )
+        ).first()
+        assert template is not None
+        fields = {
+            "fid": template.fixture_id,
+            "pfid": template.provider_fixture_id,
+            "cid": template.competition_id,
+            "provider": template.provider,
+            "raw": template.raw_payload_sha256,
+            "src": template.source_revision,
+        }
+
+    with repo.engine.begin() as c:
+        c.execute(
+            text(
+                """
+                INSERT INTO matchday_endpoint_captures
+                (capture_id, fixture_id, competition_id, checkpoint, endpoint, sanitized_params,
+                 params_hash, request_task_key, attempt, requested_at, provider_captured_at,
+                 status_code, elapsed_ms, response_count, quota_values, raw_payload_sha256,
+                 provider_event_time, capture_status, error_code)
+                VALUES ('latebig', :fid, :cid, NULL, 'odds', '{}', 'p', 'k', 1,
+                        :late_at, :late_at, 200, 1, 130, '{}', :raw, NULL, 'CAPTURED', NULL)
+                """
+            ),
+            {**fields, "late_at": late_at},
+        )
+        c.execute(
+            text(
+                """
+                INSERT INTO matchday_market_observations
+                (observation_id, fixture_id, provider_fixture_id, competition_id, provider,
+                 bookmaker_id, bookmaker_name, capture_id, provider_bet_id, raw_market_label,
+                 canonical_market, canonical_selection, provider_selection, line, decimal_odds,
+                 suspended, live, provider_updated_at, captured_at, ingested_at,
+                 raw_payload_sha256, source_revision)
+                SELECT 'big-' || lpad(g::text, 58, '0'),
+                       :fid, :pfid, :cid, :provider,
+                       '4', 'Pinnacle', 'latebig', 'bet', 'Asian Handicap',
+                       'ASIAN_HANDICAP',
+                       CASE WHEN g % 2 = 0 THEN 'HOME' ELSE 'AWAY' END,
+                       CASE WHEN g % 2 = 0 THEN 'Home' ELSE 'Away' END,
+                       (g / 2)::text, '1.90', false, false, '2026', :late_at, :late_at,
+                       :raw, :src
+                FROM generate_series(1, 130) AS g
+                """
+            ),
+            {**fields, "late_at": late_at},
+        )
+
+    timeline = repo.market_observation_timeline_for_fixtures(["1489404"])
+    ah_times = {
+        r["captured_at"]
+        for r in timeline
+        if r.get("canonical_market") == "ASIAN_HANDICAP"
+    }
+    assert len(ah_times) >= 2, ah_times  # 决策前 now + 晚到 late_at
+    assert any(
+        datetime.fromisoformat(t.replace("Z", "+00:00")) <= decision_at for t in ah_times
+    ), ah_times
+
+    result = ah_ou_decision_forward(fixture_id="1489404")
+    assert result["status"] == "COMPLETED", result
+
+    with Session(repo.engine) as session:
+        rows = list(
+            session.scalars(
+                select(AhOuDecisionLedgerModel).where(
+                    AhOuDecisionLedgerModel.fixture_id == "1489404"
+                )
+            )
+        )
+    assert {row.market for row in rows} == {"ASIAN_HANDICAP", "TOTALS"}, [
+        (r.market, r.skip_reason) for r in rows
+    ]
+    assert all(row.selected for row in rows), [(r.market, r.skip_reason) for r in rows]

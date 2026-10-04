@@ -100,6 +100,10 @@ class FutureRefreshPersistenceError(RuntimeError):
 
 
 SCOPED_OBSERVATION_ROWS_PER_MARKET = 128
+#: 决策时间线按「捕获时间点」（每个 market 的 distinct captured_at）截断，而非按
+#: 行数截断：单次大采集（多 bookmaker × 多 line）可超过行数上限，若按行截断会把
+#: decision_at 前的历史报价挤掉。32 个时间点足够覆盖赛前多轮采集 + 决策后最新。
+SCOPED_OBSERVATION_CAPTURE_TIMES_PER_MARKET = 32
 ROUND3_EVIDENCE_ROWS_PER_FIXTURE = 4096
 
 
@@ -2144,33 +2148,38 @@ class FutureRefreshDbRepository:
         self,
         fixture_ids: list[str],
     ) -> list[dict[str, Any]]:
-        """Read bounded canonical odds history without using the current projection."""
+        """Read bounded canonical odds history without using the current projection.
+
+        The bound is per capture *instant* (distinct captured_at per market), not
+        per row: one large capture can carry more rows than a row bound and must
+        not crowd out the earlier decision_at-before quotes the selector needs.
+        """
         ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
         if not ids or len(ids) > 64:
             return []
         canonical_ids = {
             value if value.startswith("api_football:") else f"api_football:{value}" for value in ids
         }
-        ranked = (
+        capture_instants = (
             select(
-                MatchdayMarketObservationModel.observation_id.label("observation_id"),
-                func.row_number()
+                MatchdayMarketObservationModel.fixture_id.label("fixture_id"),
+                MatchdayMarketObservationModel.canonical_market.label("canonical_market"),
+                MatchdayMarketObservationModel.captured_at.label("captured_at"),
+                func.dense_rank()
                 .over(
                     partition_by=(
                         MatchdayMarketObservationModel.fixture_id,
                         MatchdayMarketObservationModel.canonical_market,
                     ),
-                    order_by=(
-                        MatchdayMarketObservationModel.captured_at.desc(),
-                        MatchdayMarketObservationModel.observation_id.desc(),
-                    ),
+                    order_by=MatchdayMarketObservationModel.captured_at.desc(),
                 )
-                .label("row_number"),
+                .label("capture_rank"),
             )
             .where(
                 MatchdayMarketObservationModel.fixture_id.in_(canonical_ids),
                 MatchdayMarketObservationModel.canonical_market.in_(("ASIAN_HANDICAP", "TOTALS")),
             )
+            .distinct()
             .subquery()
         )
         with Session(self.engine) as session:
@@ -2178,10 +2187,20 @@ class FutureRefreshDbRepository:
                 session.scalars(
                     select(MatchdayMarketObservationModel)
                     .join(
-                        ranked,
-                        MatchdayMarketObservationModel.observation_id == ranked.c.observation_id,
+                        capture_instants,
+                        and_(
+                            MatchdayMarketObservationModel.fixture_id
+                            == capture_instants.c.fixture_id,
+                            MatchdayMarketObservationModel.canonical_market
+                            == capture_instants.c.canonical_market,
+                            MatchdayMarketObservationModel.captured_at
+                            == capture_instants.c.captured_at,
+                        ),
                     )
-                    .where(ranked.c.row_number <= SCOPED_OBSERVATION_ROWS_PER_MARKET)
+                    .where(
+                        capture_instants.c.capture_rank
+                        <= SCOPED_OBSERVATION_CAPTURE_TIMES_PER_MARKET
+                    )
                     .order_by(
                         MatchdayMarketObservationModel.captured_at,
                         MatchdayMarketObservationModel.observation_id,
