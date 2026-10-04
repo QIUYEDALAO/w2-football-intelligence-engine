@@ -83,7 +83,9 @@ def _update_below_trigger(repo, model, field, value):
 )
 def test_all_public_consumers_reject_single_field_tamper(chain, model, field, value, reason):
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     _ft_capture(repo, future)
     assert result_materialize.run(fixture_ids=["api_football:1489404"])["status"] == "PASS"
@@ -132,7 +134,9 @@ def test_all_public_consumers_reject_single_field_tamper(chain, model, field, va
 
 def test_rehashed_child_cannot_rebind_original_decision_and_sample(chain):
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     _ft_capture(repo, future)
     assert result_materialize.run(fixture_ids=["api_football:1489404"])["status"] == "PASS"
@@ -180,7 +184,9 @@ def test_rehashed_child_cannot_rebind_original_decision_and_sample(chain):
 
 def test_database_trigger_rejects_ordinary_settlement_update(chain):
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     _ft_capture(repo, future)
     assert result_materialize.run(fixture_ids=["api_football:1489404"])["status"] == "PASS"

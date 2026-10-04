@@ -16,6 +16,10 @@ expected_sha: str
 expected_schema: str
 commands: list[dict] = []
 
+#: T2 xG 新鲜度阈值：team_xg_match 最新 captured_at 落后于最近已 FT 比赛 kickoff
+#: 的小时数超过此值即报 XG_STALE（断供静默检测，旧 stale_teams 恒为 0 假健康）。
+XG_STALE_LAG_THRESHOLD_HOURS = 12.0
+
 
 def ssh(command):
     argv = (
@@ -83,6 +87,22 @@ def pipeline_issues(state: dict) -> list[str]:
     if any(row["status"] == "FAILED" for row in state.get("checkpoint_health", [])):
         issues.append("CHECKPOINT_FAILED")
     return sorted(set(issues))
+
+
+def xg_stale_issue(
+    xg_lag_rows: list[dict],
+    threshold: float = XG_STALE_LAG_THRESHOLD_HOURS,
+) -> str | None:
+    """T2：最新 xG 抓取滞后超阈值返回 XG_STALE issue，否则 None。"""
+    if not xg_lag_rows:
+        return None
+    raw = xg_lag_rows[0].get("lag_hours")
+    if raw is None:
+        return None
+    lag = float(raw)
+    if lag > threshold:
+        return "XG_STALE:lag_hours=" + f"{lag:.2f}"
+    return None
 
 
 def main() -> None:
@@ -253,6 +273,16 @@ def main() -> None:
     state["role_source_read"] = sql(
         "SET LOCAL ROLE quant_asof_reader_role; SELECT count(*) FROM ah_ou_history_capture_sources"
     )
+    # T2：team_xg_match 最新 captured_at 落后于最近已 FT 比赛 kickoff 的小时数。
+    # 断供时两者差持续拉大，超阈值报 XG_STALE，避免 stale_teams 恒 0 假健康。
+    state["xg_lag"] = rows(
+        "SELECT COALESCE(EXTRACT(EPOCH FROM ("
+        "(SELECT MAX(mfi.kickoff_utc) FROM matchday_fixture_identities mfi "
+        "JOIN results r ON r.fixture_id = mfi.fixture_id "
+        "AND r.result_status IN ('FT','AET','PEN'))"
+        " - (SELECT MAX(captured_at) FROM team_xg_match)"
+        "))/3600.0, -1)::numeric(10,2) AS lag_hours"
+    )
     deny_command = (
         "docker exec w2-staging-postgres-1 psql -XqAt -v ON_ERROR_STOP=1 -U w2_user -d "
         "w2 -c 'BEGIN READ ONLY; SET LOCAL ROLE quant_asof_reader_role; SELECT count(*) "
@@ -270,6 +300,11 @@ def main() -> None:
         "stderr": denied.stderr,
     }
     issues = pipeline_issues(state)
+    # T2 xG 新鲜度：最新 xG 抓取落后于最近已 FT 比赛 kickoff 超阈值报 XG_STALE，
+    # 写入 latest.json 的 issues 使巡检可读，防止断供静默（旧 stale_teams 恒为 0 假健康）。
+    xg_stale = xg_stale_issue(state.get("xg_lag") or [])
+    if xg_stale:
+        issues.append(xg_stale)
     if state["schema"] != expected_schema:
         issues.append("SCHEMA_HEAD_CONFLICT")
     if any(

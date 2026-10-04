@@ -122,7 +122,9 @@ def _live_api_to_web_probe(*, day: str, phase: str) -> None:
 
 def test_v3_selected_both_markets_reach_public_today(chain):
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     with Session(repo.engine) as session:
         decisions = list(session.scalars(select(AhOuDecisionLedgerModel)))
@@ -330,7 +332,9 @@ def test_v3_selected_both_markets_reach_public_today(chain):
 
 def test_v3_public_frozen_terms_tamper_has_same_path_control(chain):
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     day = football_day_for_kickoff(datetime.fromisoformat(future["fixture"]["date"]))
     url = "/v1/dashboard/intelligence-workspace/list"
@@ -366,7 +370,9 @@ def test_v3_public_frozen_terms_tamper_has_same_path_control(chain):
 
 def test_historical_opposite_pick_never_replaces_or_fills_missing_v3(chain):
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     day = football_day_for_kickoff(datetime.fromisoformat(future["fixture"]["date"]))
     with Session(repo.engine) as session:

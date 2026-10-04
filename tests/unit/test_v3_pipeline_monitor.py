@@ -38,3 +38,20 @@ def test_monitor_empty_change_control_and_completed_pipeline():
 def test_monitor_no_selected_rows_cannot_hide_pipeline_fault(state, reason):
     state["decisions"] = []
     assert monitor.pipeline_issues(state) == [reason]
+
+
+def test_xg_stale_issue_frozen_data_reports_stale():
+    # 冻结场景：最新 xG 抓取落后 100 小时 → XG_STALE。
+    assert monitor.xg_stale_issue([{"lag_hours": 100}]) == "XG_STALE:lag_hours=100.00"
+
+
+def test_xg_stale_issue_fresh_data_reports_none():
+    # 正常场景：滞后 1 小时（< 阈值 12）→ 无 issue。
+    assert monitor.xg_stale_issue([{"lag_hours": 1}]) is None
+
+
+def test_xg_stale_issue_empty_or_missing_lag_reports_none():
+    # 空 / 缺 lag_hours → 不误报。
+    assert monitor.xg_stale_issue([]) is None
+    assert monitor.xg_stale_issue([{"lag_hours": None}]) is None
+    assert monitor.xg_stale_issue([{}]) is None

@@ -25,7 +25,9 @@ pytest_plugins = ["tests.integration.test_ah_ou_v9_system_pg"]
 
 def test_v3_selected_matches_enter_postmatch_validation(chain):
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     with Session(repo.engine) as session:
         selected = list(

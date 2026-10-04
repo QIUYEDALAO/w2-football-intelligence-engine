@@ -255,7 +255,10 @@ def test_quarter_increment_line_selected_full_chain(tmp_path, monkeypatch, ah_li
     refused by the old hemisphere-line gate."""
     built = _build_chain(tmp_path, monkeypatch, ah_line=ah_line)
     repo, item, _, _ = next(built)
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    kickoff = datetime.fromisoformat(item["fixture"]["date"])
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=kickoff
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     with Session(repo.engine) as session:
         rows = {row.market: row for row in session.scalars(select(AhOuDecisionLedgerModel))}
@@ -279,8 +282,11 @@ def test_selected_full_chain_and_source_four_steps(chain):
     changed["source_matches"][0]["raw_serializer_version"] = "w2.canonical-json.v2"
     with pytest.raises(RuntimeError, match="FIELD_CONFLICT"):
         repo.upsert_team_xg_rolling_snapshots([changed])
+    kickoff = datetime.fromisoformat(item["fixture"]["date"])
     service = ReadModelService()
-    card = service.public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = service.public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=kickoff
+    )
     assert card is not None
     with Session(repo.engine) as session:
         rows = list(session.scalars(select(AhOuDecisionLedgerModel)))
@@ -298,7 +304,9 @@ def test_selected_full_chain_and_source_four_steps(chain):
             assert public[row.market]["score"] == row.score
             assert public[row.market]["decision_hash"] == row.decision_id
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
-    repeat = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    repeat = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=kickoff
+    )
     assert repeat is not None
     markets = {"ASIAN_HANDICAP", "TOTALS"}
     assert {
@@ -541,7 +549,10 @@ def test_market_reason_selector_public_and_new_session(
     repo, item, _, _ = chain
     # Commit the legal public control, then use a fresh isolated PG database for
     # the attack. Frozen decision rows must never be deleted to reset a test.
-    control = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    control_kickoff = datetime.fromisoformat(item["fixture"]["date"])
+    control = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=control_kickoff
+    )
     assert control["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     assert all(
         m["selected"] for m in control["markets"] if m["market"] in ("ASIAN_HANDICAP", "TOTALS")
@@ -568,7 +579,10 @@ def test_market_reason_selector_public_and_new_session(
         decision_at=decision,
         raw_payloads=repo.raw_payloads_for_captures(captures),
     )
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    attack_kickoff = datetime.fromisoformat(item["fixture"]["date"])
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=attack_kickoff
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     with Session(repo.engine) as session:
         ledger = {row.market: row for row in session.scalars(select(AhOuDecisionLedgerModel))}
@@ -747,13 +761,16 @@ def test_ah_ou_decision_forward_task_writes_ledger(chain):
         AhOuDecisionLedgerModel,
     )
 
-    repo, _item, _plan, _producer = chain
+    repo, item, _plan, _producer = chain
+    decision_at = datetime.fromisoformat(item["fixture"]["date"]) - timedelta(hours=2)
     # 清掉 chain seed 阶段（checkpoint 路径）已落的账本，隔离验证「任务」路径。
     with repo.engine.begin() as c:
         c.execute(text("DELETE FROM ah_ou_decision_ledger"))
         c.execute(text("DELETE FROM ah_ou_forward_cohort"))
 
-    result = ah_ou_decision_forward(fixture_id="1489404")
+    result = ah_ou_decision_forward(
+        fixture_id="1489404", queued_at_utc=decision_at.isoformat()
+    )
     assert result["status"] == "COMPLETED", result
     assert result["card_built"] is True
 
@@ -769,6 +786,124 @@ def test_ah_ou_decision_forward_task_writes_ledger(chain):
         (r.market, r.skip_reason) for r in rows
     ]
     assert all(row.selected for row in rows), [(r.market, r.skip_reason) for r in rows]
+
+
+def test_predecision_read_does_not_record(chain):
+    """T1 ②：decision_at 前读取 → PREDECISION_NOT_RECORDED，不落正式账本（不锁槽）。"""
+    from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+        AhOuDecisionLedgerModel,
+    )
+
+    repo, item, _plan, _producer = chain
+    kickoff = datetime.fromisoformat(item["fixture"]["date"])
+    decision_at = kickoff - timedelta(hours=2)
+    # 读取路径在决策点前触发（真实墙钟 now < decision_at）。
+    before = datetime.now(UTC)
+    with repo.engine.begin() as c:
+        c.execute(text("DELETE FROM ah_ou_decision_ledger"))
+        c.execute(text("DELETE FROM ah_ou_forward_cohort"))
+
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=before
+    )
+    assert card["ah_ou_result"]["recording"]["status"] == "PREDECISION_NOT_RECORDED", card[
+        "ah_ou_result"
+    ]
+    assert card["ah_ou_result"]["recording"]["reason"] == "BEFORE_DECISION_AT"
+    assert card["ah_ou_result"]["recording"]["decision_at"] == decision_at.isoformat()
+    # 不落正式账本（不锁槽）：账本无任何行。
+    with Session(repo.engine) as session:
+        rows = list(session.scalars(select(AhOuDecisionLedgerModel)))
+    assert rows == [], [(r.fixture_id, r.market, r.selected) for r in rows]
+
+
+def test_selected_slot_not_overwritten_after_decision(chain):
+    """T1 ③：已 selected 槽位在到点后重复 forward 不被覆盖/重决策。"""
+    from apps.worker.celery_app import ah_ou_decision_forward
+
+    from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+        AhOuDecisionLedgerModel,
+    )
+
+    repo, item, _plan, _producer = chain
+    decision_at = datetime.fromisoformat(item["fixture"]["date"]) - timedelta(hours=2)
+    with repo.engine.begin() as c:
+        c.execute(text("DELETE FROM ah_ou_decision_ledger"))
+        c.execute(text("DELETE FROM ah_ou_forward_cohort"))
+
+    first = ah_ou_decision_forward(
+        fixture_id="1489404", queued_at_utc=decision_at.isoformat()
+    )
+    assert first["status"] == "COMPLETED"
+    with Session(repo.engine) as session:
+        first_rows = {
+            row.market: row
+            for row in session.scalars(
+                select(AhOuDecisionLedgerModel).where(
+                    AhOuDecisionLedgerModel.fixture_id == "1489404"
+                )
+            )
+        }
+    assert {row.market for row in first_rows.values()} == {"ASIAN_HANDICAP", "TOTALS"}
+    assert all(row.selected for row in first_rows.values())
+
+    # 再次 forward（同一到点）→ 幂等，decision_id / selected / created_at 均不变。
+    second = ah_ou_decision_forward(
+        fixture_id="1489404", queued_at_utc=decision_at.isoformat()
+    )
+    assert second["status"] == "COMPLETED"
+    with Session(repo.engine) as session:
+        second_rows = {
+            row.market: row
+            for row in session.scalars(
+                select(AhOuDecisionLedgerModel).where(
+                    AhOuDecisionLedgerModel.fixture_id == "1489404"
+                )
+            )
+        }
+    for market in first_rows:
+        assert second_rows[market].decision_id == first_rows[market].decision_id
+        assert second_rows[market].selected == first_rows[market].selected
+        assert second_rows[market].created_at == first_rows[market].created_at
+
+
+def test_forward_created_at_is_current_not_early(chain):
+    """T1 ④：forward 落账本 created_at 是到点后的当前墙钟，不再提前数天。"""
+    from apps.worker.celery_app import ah_ou_decision_forward
+
+    from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+        AhOuDecisionLedgerModel,
+    )
+
+    repo, item, _plan, _producer = chain
+    decision_at = datetime.fromisoformat(item["fixture"]["date"]) - timedelta(hours=2)
+    with repo.engine.begin() as c:
+        c.execute(text("DELETE FROM ah_ou_decision_ledger"))
+        c.execute(text("DELETE FROM ah_ou_forward_cohort"))
+
+    t0 = datetime.now(UTC)
+    ah_ou_decision_forward(fixture_id="1489404", queued_at_utc=decision_at.isoformat())
+    t1 = datetime.now(UTC)
+
+    with Session(repo.engine) as session:
+        rows = list(
+            session.scalars(
+                select(AhOuDecisionLedgerModel).where(
+                    AhOuDecisionLedgerModel.fixture_id == "1489404"
+                )
+            )
+        )
+    assert rows
+    for row in rows:
+        created = row.created_at
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=UTC)
+        assert t0 - timedelta(minutes=1) <= created <= t1 + timedelta(minutes=1), (
+            row.market,
+            created,
+            t0,
+            t1,
+        )
 
 
 def test_forward_reevaluates_old_skip_fixture(chain):
@@ -803,7 +938,9 @@ def test_forward_reevaluates_old_skip_fixture(chain):
             {"did": "d" * 64, "at": decision_at},
         )
 
-    result = ah_ou_decision_forward(fixture_id="1489404")
+    result = ah_ou_decision_forward(
+        fixture_id="1489404", queued_at_utc=decision_at.isoformat()
+    )
     assert result["status"] == "COMPLETED", result
     assert result["card_built"] is True
 
@@ -901,7 +1038,9 @@ def test_forward_uses_timeline_not_latest_projection(chain):
     timeline_times = [parsed(r["captured_at"]) for r in timeline]
     assert any(t <= decision_at for t in timeline_times), "时间线应含 decision_at 前报价"
 
-    result = ah_ou_decision_forward(fixture_id="1489404")
+    result = ah_ou_decision_forward(
+        fixture_id="1489404", queued_at_utc=decision_at.isoformat()
+    )
     assert result["status"] == "COMPLETED", result
     assert result["card_built"] is True
 
@@ -946,7 +1085,9 @@ def test_forward_timeline_only_late_still_after_decision(chain):
             {"late_at": decision_at + timedelta(minutes=5)},
         )
 
-    result = ah_ou_decision_forward(fixture_id="1489404")
+    result = ah_ou_decision_forward(
+        fixture_id="1489404", queued_at_utc=decision_at.isoformat()
+    )
     assert result["status"] == "COMPLETED", result
 
     with Session(repo.engine) as session:
@@ -1058,7 +1199,9 @@ def test_timeline_bounds_by_capture_instant_not_row_count(chain):
         datetime.fromisoformat(t.replace("Z", "+00:00")) <= decision_at for t in ah_times
     ), ah_times
 
-    result = ah_ou_decision_forward(fixture_id="1489404")
+    result = ah_ou_decision_forward(
+        fixture_id="1489404", queued_at_utc=decision_at.isoformat()
+    )
     assert result["status"] == "COMPLETED", result
 
     with Session(repo.engine) as session:
@@ -1073,6 +1216,67 @@ def test_timeline_bounds_by_capture_instant_not_row_count(chain):
         (r.market, r.skip_reason) for r in rows
     ]
     assert all(row.selected for row in rows), [(r.market, r.skip_reason) for r in rows]
+
+
+def test_xg_lag_stale_and_fresh(chain):
+    """T2：team_xg_match 冻结 vs 最近 FT kickoff 超阈值报 XG_STALE；正常/无 FT 不报。"""
+    import importlib.util
+    from pathlib import Path
+
+    repo, _item, _plan, _producer = chain
+    now = datetime.now(UTC)
+
+    source = Path(__file__).resolve().parents[2] / "ops/host/w2-v3-readonly-monitor.py"
+    spec = importlib.util.spec_from_file_location("v3_readonly_monitor", source)
+    assert spec is not None and spec.loader is not None
+    monitor = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(monitor)
+
+    def lag_sql() -> float:
+        with repo.engine.connect() as c:
+            return float(
+                c.execute(
+                    text(
+                        "SELECT COALESCE(EXTRACT(EPOCH FROM ("
+                        "(SELECT MAX(mfi.kickoff_utc) FROM matchday_fixture_identities mfi "
+                        "JOIN results r ON r.fixture_id = mfi.fixture_id "
+                        "AND r.result_status IN ('FT','AET','PEN'))"
+                        " - (SELECT MAX(captured_at) FROM team_xg_match)"
+                        "))/3600.0, -1)::numeric(10,2)"
+                    )
+                ).scalar()
+            )
+
+    # 正常/无 FT 结果 → lag 非正，不报 XG_STALE。
+    assert monitor.xg_stale_issue([{"lag_hours": lag_sql()}]) is None
+
+    # 冻结：最近 FT 比赛 kickoff 很近 + team_xg_match 最新 captured_at 冻结 30 天。
+    with repo.engine.begin() as c:
+        c.execute(
+            text(
+                "INSERT INTO matchday_fixture_identities "
+                "(fixture_id, provider, provider_fixture_id, competition_id, provider_league_id, "
+                " season, kickoff_utc, fixture_status, home_provider_team_id, away_provider_team_id, "
+                " home_w2_team_id, away_w2_team_id, team_identity_status, raw_payload_sha256, "
+                " captured_at, identity_hash, payload) "
+                "VALUES ('api_football:ft-1', 'api_football', 'ft-1', 'allsvenskan', '113', '2026', "
+                " :kickoff, 'FT', '10', '20', 'H', 'A', 'READY', :sha, now(), :hash, '{}')"
+            ),
+            {"kickoff": now - timedelta(hours=1), "sha": "a" * 64, "hash": "b" * 64},
+        )
+        c.execute(
+            text(
+                "INSERT INTO results (id, fixture_id, home_goals, away_goals, result_status, "
+                " confirmed_at, source_payload_sha256, result_hash) "
+                "VALUES ('result-ft-1', 'api_football:ft-1', 2, 1, 'FT', :kickoff, :sha, :hash)"
+            ),
+            {"kickoff": now - timedelta(hours=1), "sha": "c" * 64, "hash": "d" * 64},
+        )
+        c.execute(text("UPDATE team_xg_match SET captured_at = captured_at - interval '30 days'"))
+
+    lag = lag_sql()
+    assert lag > 12, lag  # 冻结 30 天 ≈ 719 小时
+    assert monitor.xg_stale_issue([{"lag_hours": lag}]) == f"XG_STALE:lag_hours={lag:.2f}"
 
 
 def test_verify_persisted_xg_match_time_tolerance(chain):

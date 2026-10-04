@@ -61,6 +61,19 @@ stale=$(docker exec w2-staging-postgres-1 psql -U w2_user -d w2 -A -t -c \
      JOIN (SELECT team_id, max(as_of_time) m FROM team_xg_rolling_snapshot GROUP BY team_id) s
        ON s.team_id = x.team_id WHERE x.kickoff_at > s.m GROUP BY x.team_id) q;" 2>/dev/null | tr -d ' ')
 
+# T2 xG 新鲜度：team_xg_match 最新 captured_at 落后于最近已 FT 比赛 kickoff 的滞后（小时）。
+# 旧 stale_teams 只比对「快照 vs 组件表一致性」，断供时两者同样旧、恒为 0，无法暴露
+# 「组件表 vs 已结束比赛日历」的滞后，故新增数据滞后维度，超阈值报 XG_STALE。
+XG_LAG_THRESHOLD_HOURS=${XG_LAG_THRESHOLD_HOURS:-12}
+lag_hours=$(docker exec w2-staging-postgres-1 psql -U w2_user -d w2 -A -t -c \
+  "SELECT COALESCE(EXTRACT(EPOCH FROM (
+       (SELECT MAX(mfi.kickoff_utc) FROM matchday_fixture_identities mfi
+          JOIN results r ON r.fixture_id = mfi.fixture_id
+             AND r.result_status IN ('FT','AET','PEN'))
+       -
+       (SELECT MAX(captured_at) FROM team_xg_match)
+     ))/3600.0, -1)::numeric(10,2);" 2>/dev/null | tr -d ' ')
+
 # team_xg_match must not move: this path materialises snapshots from evidence
 # already stored, and any change there means it did something it should not.
 if [ "$before_match" != "$after_match" ]; then
@@ -76,6 +89,14 @@ if [ "$visible" != "$after_rows" ]; then
   exit 2
 fi
 
-echo "XG_MATERIALIZE_OK rc=$rc snapshots=${before_rows}->${after_rows} visible=$visible team_xg_match=$after_match stale_teams=$stale"
+# T2 C2：数据滞后超阈值报 XG_STALE 并 exit 3，避免断供静默（旧 stale_teams 恒 0 假健康）。
+if [ -n "$lag_hours" ] && awk -v lag="$lag_hours" -v thr="$XG_LAG_THRESHOLD_HOURS" \
+    'BEGIN{exit !(lag+0 > thr+0)}'; then
+  echo "XG_STALE lag_hours=$lag_hours threshold=$XG_LAG_THRESHOLD_HOURS"
+  logger -t w2-xg-materialize "xG data lag ${lag_hours}h exceeds threshold ${XG_LAG_THRESHOLD_HOURS}h"
+  exit 3
+fi
+
+echo "XG_MATERIALIZE_OK rc=$rc snapshots=${before_rows}->${after_rows} visible=$visible team_xg_match=$after_match stale_teams=$stale lag_hours=$lag_hours"
 [ "${stale:-0}" -gt 0 ] && logger -t w2-xg-materialize "stale_teams=$stale after materialize"
 exit 0

@@ -96,7 +96,9 @@ def current_http(day):
 def test_recommendation_sender_rejects_invalid_frozen_authority(chain, monkeypatch, field, bad):
     configure_sender(monkeypatch)
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     day = football_day_for_kickoff(datetime.fromisoformat(future["fixture"]["date"]))
     with Session(repo.engine) as session:
@@ -164,7 +166,9 @@ def test_recommendation_sender_rejects_invalid_frozen_authority(chain, monkeypat
 def test_daily_sender_reconciles_all_business_counts(chain, monkeypatch, field):
     configure_sender(monkeypatch)
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     _ft_capture(repo, future)
     settled = result_materialize.run(fixture_ids=["api_football:1489404"])

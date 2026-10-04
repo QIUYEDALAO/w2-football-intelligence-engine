@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 from copy import deepcopy
+from datetime import datetime
 from decimal import Decimal
 
 import pytest
@@ -114,7 +115,9 @@ def test_200_actual_frozen_fixtures_natural_worker_creates_separate_market_repor
     assert result.rolling_snapshot_rows == 400
     for item in [original, *upstream]:
         card = ReadModelService().public_analysis_card_bounded(
-            str(item["fixture"]["id"]), use_frozen_canary=False
+            str(item["fixture"]["id"]),
+            use_frozen_canary=False,
+            evaluation_time=datetime.fromisoformat(item["fixture"]["date"]),
         )
         assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED", card
     # 199 FT per market must not trigger; the 200th is a natural worker event.
@@ -175,7 +178,11 @@ def test_below_threshold_eligible_inputs_count_without_becoming_recommendations(
             "TOTALS": ("1.01", "50.00"),
         },
     ) as (repo, future, _, _):
-        card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+        card = ReadModelService().public_analysis_card_bounded(
+            "1489404",
+            use_frozen_canary=False,
+            evaluation_time=datetime.fromisoformat(future["fixture"]["date"]),
+        )
         assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
         with Session(repo.engine) as session:
             decisions = session.scalars(select(AhOuDecisionLedgerModel)).all()

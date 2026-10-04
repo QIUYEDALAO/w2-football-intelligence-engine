@@ -53,7 +53,9 @@ def read(day):
 )
 def test_pending_homepage_rejects_frozen_decision_field_conflicts(chain, field):
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     day = football_day_for_kickoff(datetime.fromisoformat(future["fixture"]["date"]))
     with Session(repo.engine) as session:
@@ -132,7 +134,9 @@ def test_pending_public_rejects_feature_distribution_change_under_original_input
     from copy import deepcopy
 
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["ah"]["selected"]
     day = football_day_for_kickoff(datetime.fromisoformat(future["fixture"]["date"]))
     with Session(repo.engine) as session:

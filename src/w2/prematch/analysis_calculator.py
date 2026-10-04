@@ -3451,7 +3451,31 @@ class ReadModelService:
                     direction=row["direction"], tendency=tendency, decision=decision,
                     analysis_decision=decision, decision_hash=row["decision_id"],
                 )
-            if result.get("recording", {}).get("status") != "COMMITTED":
+            recording_status = result.get("recording", {}).get("status")
+            if recording_status != "COMMITTED":
+                if recording_status == "PREDECISION_NOT_RECORDED":
+                    # 决策点未到的预评估：保留 softmax 方向仅供展示（不落账本、不锁槽）。
+                    # SKIP（selection 缺失/未 selected）补 selected=False；候选补 selected=True
+                    # 及方向。reason 已在前面按 market_reasons 保留。
+                    if "selected" not in market:
+                        selection = result.get("ah" if name == "ASIAN_HANDICAP" else "ou")
+                        if isinstance(selection, dict) and selection.get("selected"):
+                            side = (
+                                selection.get("side")
+                                if name == "ASIAN_HANDICAP"
+                                else "OVER"
+                            )
+                            market.update(
+                                selected=True,
+                                direction=side,
+                                tendency=f"{side}_AH" if name == "ASIAN_HANDICAP" else "OVER",
+                                decision="ANALYSIS_PICK",
+                            )
+                        else:
+                            market.update(
+                                selected=False, tendency=None, direction=None, decision="SKIP"
+                            )
+                    continue
                 market.update(
                     selected=False, tendency=None, direction=None,
                     decision="SKIP", reason="WRITE_FAILED",
@@ -3958,6 +3982,19 @@ class ReadModelService:
         )
         calibration_version = "w2.ah_ou.softmax.calibrated.v3"
         decision_at = kickoff - DECISION_LEAD_TIME
+        # T1 决策时间语义修复：决策只在 decision_at 到点（forward tick）时落正式账本。
+        # 读取路径（卡片构建）在决策点前触发属于「预评估」，不落账本、不锁槽、
+        # 不推通知、不参与结算、不进 selected；仅保留 softmax 方向供展示。
+        evaluated_at = self._analysis_evaluation_time_override or datetime.now(UTC)
+        if evaluated_at < decision_at:
+            result["recording"] = {
+                "status": "PREDECISION_NOT_RECORDED",
+                "reason": "BEFORE_DECISION_AT",
+                "decision_at": decision_at.isoformat(),
+                "evaluated_at": evaluated_at.isoformat(),
+            }
+            self._ah_ou_result = result
+            return True  # 非失败：调用方保留预评估方向，不触发 WRITE_FAILED 降级
         features = dict(result.get("features") or {})
         home_snapshot = dict(result.get("home_snapshot") or {})
         away_snapshot = dict(result.get("away_snapshot") or {})

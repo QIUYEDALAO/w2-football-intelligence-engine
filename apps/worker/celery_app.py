@@ -1166,8 +1166,21 @@ def ah_ou_decision_forward(
             "formal_recommendation": False,
         }
     try:
+        # 决策点评估时刻 = scheduler 派发时刻（queued_at_utc）。生产上前者约等于
+        # decision_at（kickoff-2h），但若 scheduler 误提前派发，仍以 queued_at 与
+        # decision_at 的真实先后关系兜底：queued_at < decision_at 时该 fixture 落
+        # PREDECISION_NOT_RECORDED，不会提前锁槽。测试/回放可通过 queued_at 显式
+        # 注入「决策点已到」的评估时刻，无需改真实墙钟或 fixture kickoff。
+        evaluation_time = (
+            datetime.fromisoformat(queued_at_utc.replace("Z", "+00:00")).astimezone(UTC)
+            if queued_at_utc
+            else None
+        )
         card = ReadModelService().public_analysis_card_bounded(
-            fixture, use_frozen_canary=False, use_timeline_observations=True
+            fixture,
+            use_frozen_canary=False,
+            use_timeline_observations=True,
+            evaluation_time=evaluation_time,
         )
     except Exception as exc:
         return {

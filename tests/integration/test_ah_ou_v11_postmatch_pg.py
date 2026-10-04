@@ -72,7 +72,9 @@ def _ft_capture(repo, future, *, home=2, away=1, status="FT"):
 
 def test_v3_selected_ft_capture_natural_result_worker_and_validation(chain):
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     with Session(repo.engine) as session:
         decisions = list(session.scalars(select(AhOuDecisionLedgerModel)))
@@ -258,7 +260,9 @@ def test_v3_subsecond_raw_capture_time_diff_is_accepted(chain):
     repo, future, _, _ = chain
     _shift_raw_capture_times(repo, timedelta(microseconds=370_000))
 
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
 
     capture = _ft_capture(repo, future)
@@ -279,7 +283,9 @@ def test_v3_large_raw_capture_time_diff_is_refused(chain):
     # 只改 odds raw（决策报价 raw binding），fixtures raw 保持一致，精确触发 249 行。
     _shift_raw_capture_times(repo, timedelta(minutes=5), endpoint="odds")
 
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "NOT_RECORDED"
     assert "V3_PUBLIC_QUOTE_RAW_BINDING_INVALID" in card["ah_ou_result"]["recording"]["error"]
 
@@ -294,7 +300,9 @@ def test_v3_large_raw_capture_time_diff_is_refused(chain):
 )
 def test_v3_result_source_corruption_blocks_natural_worker(chain, corruption, reason):
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     capture = _ft_capture(repo, future)
     materialized = run_outcome_result_refresh(
@@ -333,7 +341,9 @@ def test_v3_result_source_corruption_blocks_natural_worker(chain, corruption, re
 @pytest.mark.parametrize("terminal_status", ["AET", "PEN"])
 def test_v3_extra_time_or_penalties_void_in_natural_worker(chain, terminal_status):
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     _ft_capture(repo, future, status=terminal_status)
     result = result_materialize.run(fixture_ids=["api_football:1489404"])
@@ -353,7 +363,9 @@ def test_v3_extra_time_or_penalties_void_in_natural_worker(chain, terminal_statu
 
 def test_v3_validation_failure_cannot_mark_natural_workers_success(chain, monkeypatch):
     repo, future, _, _ = chain
-    card = ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
     assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
     _ft_capture(repo, future)
 

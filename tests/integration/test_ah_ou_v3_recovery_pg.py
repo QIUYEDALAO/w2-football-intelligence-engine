@@ -25,9 +25,11 @@ def test_pause_preserves_ft_and_pending_messages_without_reopening_current_outpu
 ):
     repo, future, _, _ = chain
     assert (
-        ReadModelService().public_analysis_card_bounded("1489404", use_frozen_canary=False)[
-            "ah_ou_result"
-        ]["recording"]["status"]
+        ReadModelService().public_analysis_card_bounded(
+            "1489404",
+            use_frozen_canary=False,
+            evaluation_time=datetime.fromisoformat(future["fixture"]["date"]),
+        )["ah_ou_result"]["recording"]["status"]
         == "COMMITTED"
     )
     public = ApiReadModelService().dashboard_ah_ou_v3_public()
