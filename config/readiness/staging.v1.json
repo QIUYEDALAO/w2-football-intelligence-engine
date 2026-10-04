@@ -3,7 +3,7 @@
   "required_artifacts": [
     {
       "path": "config/policies/future_fixture_refresh.v1.json",
-      "sha256": "cfed81ae8c0857c75b16a2faed9c689fd5e3b4c3ae9cd1a56ca0f89558a3b21d",
+      "sha256": "433374c2991ccf7e7aa17a4de8aed92c6fcda32ea5aa9a877b31541d5e37db34",
       "required": true
     },
     {

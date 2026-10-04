@@ -181,7 +181,7 @@ def test_quota_blocked_does_not_call_provider() -> None:
     client = FakeIndependentSignalClient()
 
     result = service(client).run(
-        config(dry_run=False, write_artifacts=True, remaining_quota_override=1499)
+        config(dry_run=False, write_artifacts=True, remaining_quota_override=1100)
     )
 
     assert result["status"] == "blocked"

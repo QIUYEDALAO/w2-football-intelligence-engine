@@ -146,8 +146,8 @@ def test_api_football_quota_policy_freezes_w2_default_budget() -> None:
     policy = api_football_quota_policy(6774)
 
     assert policy["daily_budget"] == 7500
-    assert policy["reserve_bucket"] == 1500
-    assert policy["available_after_reserve"] == 5274
+    assert policy["reserve_bucket"] == 500
+    assert policy["available_after_reserve"] == 6274
     assert policy["reserve_locked"] is False
     assert policy["upgrade_evaluation_daily_budget"] == 75000
     assert policy["upgrade_enabled"] is False
@@ -158,7 +158,7 @@ def test_api_football_quota_policy_handles_unknown_remaining_quota() -> None:
         policy = api_football_quota_policy(remaining_quota)
 
         assert policy["daily_budget"] == 7500
-        assert policy["reserve_bucket"] == 1500
+        assert policy["reserve_bucket"] == 500
         assert policy["available_after_reserve"] is None
         assert policy["reserve_locked"] is None
         assert policy["upgrade_evaluation_daily_budget"] == 75000
@@ -197,12 +197,12 @@ def test_provider_status_handles_unknown_empty_and_null_remaining_quota() -> Non
 
 
 def test_quota_guard_blocks_backfill_before_it_reaches_live_reserve() -> None:
-    decision = quota_guard_decision(remaining_quota=1499, task_type="xg_backfill")
+    # backfill 阈值 = max(reserve 500, backfill_stop 1125) = 1125。
+    decision = quota_guard_decision(remaining_quota=1100, task_type="xg_backfill")
 
     assert decision["allowed"] is False
     assert decision["blocker"] == "BACKFILL_QUOTA_GUARD"
     assert decision["mode"] == "BACKFILL_STOPPED"
-    assert decision["reserve_locked"] is True
 
 
 def test_quota_guard_keeps_core_matchday_tasks_available_at_low_quota() -> None:
@@ -236,6 +236,35 @@ def test_provider_daily_hard_cap_blocks_before_exceeding_reserve() -> None:
     assert decision["blocker"] == "PROVIDER_RESERVE_PROTECTED"
     assert decision["projected_total"] == 6100
     assert decision["remaining_after_plan"] == 1400
+
+
+def test_provider_daily_hard_cap_allows_backfill_5500_with_reserve_500() -> None:
+    # Owner 批准放行 Pro Statistics 回填：reserve 降到 500，回填 5500 + 已用 926 = 6426，
+    # 剩余 1074 >= 500 → 放行，不再 PROVIDER_RESERVE_PROTECTED。
+    decision = provider_daily_hard_cap_decision(
+        actual_calls_today=926,
+        planned_calls=5500,
+        daily_cap=7500,
+        reserve_bucket=500,
+    )
+
+    assert decision["allowed"] is True
+    assert decision["blocker"] is None
+    assert decision["projected_total"] == 6426
+    assert decision["remaining_after_plan"] == 1074
+
+
+def test_provider_daily_hard_cap_still_exceeds_when_over_7500() -> None:
+    # 硬上限未失效：planned 大到 projected_total > 7500 → 仍 DAILY_PROVIDER_HARD_CAP_EXCEEDED。
+    decision = provider_daily_hard_cap_decision(
+        actual_calls_today=926,
+        planned_calls=7000,
+        daily_cap=7500,
+        reserve_bucket=500,
+    )
+
+    assert decision["allowed"] is False
+    assert decision["blocker"] == "DAILY_PROVIDER_HARD_CAP_EXCEEDED"
 
 
 def test_postmatch_result_quota_spends_reserved_bucket_with_independent_cap() -> None:
@@ -466,9 +495,10 @@ def test_independent_signal_budget_protects_reserve_and_core_only_thresholds() -
         "squad_value_mapping",
         "ratings_backfill",
     ):
+        # backfill 阈值 = max(reserve 500, backfill_stop 1125) = 1125。
         assert (
             independent_signal_quota_decision(
-                remaining_quota=1499,
+                remaining_quota=1100,
                 task_type=task_type,
             )["allowed"]
             is False

@@ -105,12 +105,12 @@ class XgBackfillConfig:
     )
     recent_match_count: int = 5
     request_budget: int = 120
-    quota_reserve: int = 1500
+    quota_reserve: int = 500
     min_rolling_matches: int = 3
     max_rolling_matches: int = 5
     source_revision: str = "LOCAL_UNDEPLOYED"
     daily_hard_cap: int = 7500
-    daily_reserve: int = 1500
+    daily_reserve: int = 500
     statistics_daily_hard_cap: int = 5500
     actual_provider_calls_today: int | None = None
 
@@ -218,7 +218,7 @@ class ProStatisticsBackfillConfig:
     request_budget: int = 5500
     daily_request_limit: int = 5500
     requests_per_minute: int = 60
-    quota_reserve: int = 1500
+    quota_reserve: int = 500
     pilot_per_competition: int = 3
     ensure_fixture_manifests: bool = True
 
@@ -1427,9 +1427,9 @@ def run_xg_history_backfill(
             competition_ids=(requested_competition_id,),
             recent_match_count=int(os.environ.get("W2_XG_BACKFILL_RECENT_MATCHES", "5")),
             request_budget=int(os.environ.get("W2_XG_BACKFILL_REQUEST_BUDGET", "120")),
-            quota_reserve=int(os.environ.get("W2_API_MINIMUM_RESERVE", "1500")),
+            quota_reserve=int(os.environ.get("W2_API_MINIMUM_RESERVE", "500")),
             daily_hard_cap=env_int("W2_PROVIDER_DAILY_HARD_CAP", default=7500),
-            daily_reserve=env_int("W2_PROVIDER_DAILY_RESERVE", default=1500),
+            daily_reserve=env_int("W2_PROVIDER_DAILY_RESERVE", default=500),
             statistics_daily_hard_cap=env_int(
                 "W2_STATISTICS_DAILY_HARD_CAP",
                 default=5500,

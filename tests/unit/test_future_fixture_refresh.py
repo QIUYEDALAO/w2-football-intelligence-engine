@@ -1939,7 +1939,7 @@ def test_world_cup_future_refresh_policy_uses_zero_trickle_backfill_budget() -> 
 
     assert config.daily_hard_cap == 7500
     assert config.daily_unallocated_buffer == 0
-    assert config.daily_reserve == 1500
+    assert config.daily_reserve == 500
     assert config.request_budget == 30
     assert config.checkpoint_mode == "matchday_checkpoint_plan"
     assert config.trickle_backfill_daily_budget == 120

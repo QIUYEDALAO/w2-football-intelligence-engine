@@ -126,7 +126,7 @@ class FutureRefreshConfig:
     horizon_days: int = 4
     max_fixture_candidates: int = 20
     max_odds_requests: int = 20
-    quota_reserve: int = 1500
+    quota_reserve: int = 500
     market_freshness_seconds: int = 3600
     request_budget: int = 40
     feature_enrichment_enabled: bool = False
@@ -138,7 +138,7 @@ class FutureRefreshConfig:
     persistence: str = "db"
     daily_hard_cap: int = 7500
     daily_unallocated_buffer: int = API_FOOTBALL_FREE_UNALLOCATED_BUFFER
-    daily_reserve: int = 1500
+    daily_reserve: int = 500
     daily_usage_scope: str = "w2_ledger"
     checkpoint_mode: str = "matchday_checkpoint_plan"
     trickle_backfill_daily_budget: int = 0

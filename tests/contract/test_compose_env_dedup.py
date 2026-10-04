@@ -72,6 +72,7 @@ EXPECTED_UNIQUE = {
             "W2_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS",
             "W2_FORWARD_OUTCOME_LEDGER_WINDOW",
             "W2_FUTURE_FIXTURE_REFRESH_ENABLED",
+            "W2_AH_OU_DECISION_FORWARD_ENABLED",
         },
     },
     LITE: {
@@ -135,10 +136,11 @@ def test_service_only_environment_variables_do_not_leak(path: Path) -> None:
 # service in both compose files.
 AUTHORIZED_PROVIDER_ENV = {
     "W2_PROVIDER_DAILY_HARD_CAP": "7500",
-    "W2_PROVIDER_DAILY_RESERVE": "1500",
+    "W2_PROVIDER_DAILY_RESERVE": "500",
     "W2_PROVIDER_DAILY_UNALLOCATED_BUFFER": "0",
     "W2_PROVIDER_ENDPOINT_ALLOWLIST": "status,fixtures,odds,lineups,statistics",
     "W2_STATISTICS_DAILY_HARD_CAP": "5500",
+    "W2_API_MINIMUM_RESERVE": "500",
 }
 
 # Provider timeout policy and the xG backfill budget are set by the formal
@@ -155,6 +157,9 @@ AUTHORIZED_FORMAL_ONLY_ENV = {
 # The scheduler's forward-outcome ledger window narrowed from the open-ended
 # "future" to "next7".
 AUTHORIZED_SCHEDULER_ENV = {"W2_FORWARD_OUTCOME_LEDGER_WINDOW": "next7"}
+
+# 决策自动 forward 开关只在正式 staging 的 scheduler 上（lite 不携带）。
+AUTHORIZED_FORMAL_ONLY_SCHEDULER_ENV = {"W2_AH_OU_DECISION_FORWARD_ENABLED": "false"}
 
 # Market-timeline refresh was retired; the scheduler no longer carries its
 # settings or the ledger ordering flag that depended on it.
@@ -314,6 +319,8 @@ def test_compose_expansion_matches_authorized_runtime_delta(
             expected.update(AUTHORIZED_FORMAL_ONLY_ENV)
         if service == "scheduler":
             expected.update(AUTHORIZED_SCHEDULER_ENV)
+            if path == FORMAL:
+                expected.update(AUTHORIZED_FORMAL_ONLY_SCHEDULER_ENV)
             for name in RETIRED_MARKET_TIMELINE_ENV:
                 expected.pop(name, None)
         assert current_services[service]["environment"] == expected
