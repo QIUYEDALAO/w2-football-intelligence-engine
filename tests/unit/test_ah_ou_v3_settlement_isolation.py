@@ -17,11 +17,13 @@ from sqlalchemy.orm import Session
 from w2.domain.decision_contract import DecisionContractViolation
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.ah_ou_decision_ledger_models import AhOuDecisionLedgerModel
+from w2.infrastructure.persistence.ah_ou_monitoring_models import AhOuV3MonitoringFactModel
 from w2.infrastructure.persistence.ah_ou_postmatch_models import (
     AhOuV3SettlementModel,
     AhOuV3ValidationSampleModel,
 )
 from w2.infrastructure.persistence.models import ResultModel
+from w2.tracking import ah_ou_v3_monitoring as monitoring
 from w2.tracking import ah_ou_v3_postmatch as postmatch
 
 DECISION_AT = datetime(2026, 8, 1, 10, 0, tzinfo=UTC)
@@ -185,3 +187,90 @@ def test_idempotent_when_no_due_work(monkeypatch):
         assert second["status"] == "PASS"
     with Session(engine) as session:
         assert len(list(session.scalars(select(AhOuV3SettlementModel)))) == 1
+
+
+def test_monitoring_dedupes_same_slot_decisions(monkeypatch):
+    """同 (fixture, market, model, calibration) 双决策（旧 SKIP 重评估）→ 监控只写一条 fact。
+
+    监控 fact 唯一约束是 (fixture_id, market, model_version, calibration_version)，
+    但同一 slot 因 SKIP 重评估可能有多条 decision_id。append_monitoring_in_session
+    必须去重，否则 INSERT 第二条撞 UniqueViolation 连坐整轮结算。
+    """
+    engine = _engine()
+    with Session(engine) as session:
+        # 同一 slot（同 fixture/market/model/calibration）两条 SKIP 决策。
+        for decision_id, decision_at in (
+            ("d-old", DECISION_AT),
+            ("d-new", datetime(2026, 8, 2, 10, 0, tzinfo=UTC)),
+        ):
+            session.add(
+                AhOuDecisionLedgerModel(
+                    decision_id=decision_id,
+                    fixture_id="FIX1",
+                    market="TOTALS",
+                    decision_at=decision_at,
+                    model_version="m1",
+                    calibration_version="c1",
+                    input_hash="i" * 64,
+                    full_distribution={"selection": {"selected": False, "edge": 0.1}},
+                    decision_contract="w2.ah_ou_decision.v3.1",
+                    frozen_terms=None,
+                    terms_hash=None,
+                    quote_identity_hash="q" * 64,
+                    source_capture_sha256="s" * 64,
+                    capture_id="cap-1",
+                    source_id="src-1",
+                    home_team_id="H",
+                    away_team_id="A",
+                    selected=False,
+                    direction=None,
+                    score="0.1",
+                    skip_reason=None,
+                    created_at=CREATED_AT,
+                )
+            )
+        session.add(
+            ResultModel(
+                id="r-FIX1",
+                fixture_id="api_football:FIX1",
+                home_goals=2,
+                away_goals=1,
+                result_status="FT",
+                confirmed_at=CREATED_AT,
+                source_payload_sha256="p" * 64,
+                source_capture_id=None,
+                result_hash="rh-FIX1",
+            )
+        )
+        session.commit()
+
+    def fake_fact(session, decision, result):
+        return {
+            "schema_version": monitoring.FACT_SCHEMA,
+            "decision_id": decision.decision_id,
+            "fixture_id": decision.fixture_id,
+            "market": decision.market,
+            "model_version": decision.model_version,
+            "calibration_version": decision.calibration_version,
+            "selected": decision.selected,
+            "eligible": True,
+            "exclusion_reason": None,
+            "result_hash": result.result_hash,
+            "result_source": {"raw_sha256": "r", "capture_id": "c"},
+            "home_goals": result.home_goals,
+            "away_goals": result.away_goals,
+            "competition": "c",
+            "month": "2026-08",
+        }
+
+    monkeypatch.setattr(monitoring, "_fact", fake_fact)
+
+    with Session(engine) as session:
+        report = monitoring.append_monitoring_in_session(session)
+        session.commit()
+    # 去重后只写最新那条（decision_at 最大）的 fact，不撞 unique 约束。
+    assert report["created_facts"] == 1, report
+    with Session(engine) as session:
+        facts = list(session.scalars(select(AhOuV3MonitoringFactModel)))
+        assert len(facts) == 1
+        assert facts[0].decision_id == "d-new"

@@ -257,11 +257,46 @@ def append_monitoring_in_session(
     else:
         observed = now or datetime.now(UTC)
     created = excluded = reports = 0
-    for decision in session.scalars(
-        select(AhOuDecisionLedgerModel)
-        .where(AhOuDecisionLedgerModel.decision_contract == "w2.ah_ou_decision.v3.1")
-        .order_by(AhOuDecisionLedgerModel.decision_id)
-    ):
+    decisions = list(
+        session.scalars(
+            select(AhOuDecisionLedgerModel)
+            .where(AhOuDecisionLedgerModel.decision_contract == "w2.ah_ou_decision.v3.1")
+            .order_by(
+                AhOuDecisionLedgerModel.decision_id,
+            )
+        )
+    )
+    # 监控 fact 的唯一约束是 (fixture_id, market, model_version, calibration_version)，
+    # 但同一 slot 可能因「旧 SKIP 重评估」存在多条决策（不同 decision_id）。监控只记录
+    # 该 slot 的最终决策状态：优先 selected，否则取最新（decision_at 最大）。
+    by_slot: dict[tuple[str, str, str, str], AhOuDecisionLedgerModel] = {}
+    for decision in decisions:
+        key = (
+            decision.fixture_id,
+            decision.market,
+            decision.model_version,
+            decision.calibration_version,
+        )
+        existing = by_slot.get(key)
+        if existing is None or (
+            decision.selected,
+            decision.decision_at,
+            decision.decision_id,
+        ) > (
+            existing.selected,
+            existing.decision_at,
+            existing.decision_id,
+        ):
+            by_slot[key] = decision
+    for decision in decisions:
+        key = (
+            decision.fixture_id,
+            decision.market,
+            decision.model_version,
+            decision.calibration_version,
+        )
+        if by_slot.get(key) is not decision:
+            continue
         result = session.scalar(
             select(ResultModel).where(
                 ResultModel.fixture_id
