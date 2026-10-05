@@ -558,8 +558,12 @@ def settle_ah_ou_v3_in_session(
     """Reconcile all selected decisions with confirmed results in one transaction.
 
     The caller commits only if this function and its legacy projections succeed.
-    Missing FT is PENDING; a confirmed result with invalid provenance is an
-    explicit error, never a successful empty projection.
+    Missing FT is PENDING. A confirmed result whose provenance fails
+    (``V3_RESULT_*``) degrades that single fixture to BLOCKED with an exposed
+    reason instead of failing the whole transaction -- the same per-fixture
+    isolation as the read path's ``v3_validation_snapshot``. Decision-term
+    tampering (``DecisionContractViolation`` / ``V3_PUBLIC_*`` / field conflicts)
+    still fails closed.
     """
     ids = set(fixture_ids) if fixture_ids is not None else None
     stmt = select(AhOuDecisionLedgerModel).where(AhOuDecisionLedgerModel.selected.is_(True))
@@ -577,6 +581,7 @@ def settle_ah_ou_v3_in_session(
         "idempotent": 0,
         "legacy_terms_missing": 0,
     }
+    blocked_reasons: list[dict[str, str]] = []
     observed_at = now or datetime.now(UTC)
     for decision in decisions:
         if decision.decision_contract != "w2.ah_ou_decision.v3.1":
@@ -598,7 +603,19 @@ def settle_ah_ou_v3_in_session(
         if result is None:
             counts["pending"] += 1
             continue
-        settlement_fields, sample_fields = _expected_postmatch_fields(session, decision, result)
+        try:
+            settlement_fields, sample_fields = _expected_postmatch_fields(session, decision, result)
+        except ValueError as exc:
+            # 逐 fixture 隔离：仅赛果溯源失败（V3_RESULT_*）降级该场 blocked，
+            # 其余场次照常结算；决策字段篡改（DecisionContractViolation）与
+            # 结算字段冲突仍 fail-closed，不在此捕获。
+            if str(exc).startswith("V3_RESULT_"):
+                counts["blocked"] += 1
+                blocked_reasons.append(
+                    {"decision_id": decision.decision_id, "reason": str(exc)}
+                )
+                continue
+            raise
         outcome = settlement_fields["outcome"]
         stored = session.get(AhOuV3SettlementModel, decision.decision_id)
         if stored is None:
@@ -635,6 +652,7 @@ def settle_ah_ou_v3_in_session(
         "schema_version": SETTLEMENT_SCHEMA,
         "status": "BLOCKED" if counts["blocked"] else "PASS",
         **counts,
+        "blocked_reasons": blocked_reasons,
     }
 
 

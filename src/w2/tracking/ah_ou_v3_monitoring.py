@@ -270,7 +270,14 @@ def append_monitoring_in_session(
         )
         if result is None:
             continue
-        payload = _fact(session, decision, result)
+        try:
+            payload = _fact(session, decision, result)
+        except ValueError as exc:
+            # 逐 fixture 隔离：赛果溯源失败（V3_RESULT_*）跳过该场监控 fact，
+            # 不阻塞其余场次；与结算隔离口径一致。
+            if str(exc).startswith("V3_RESULT_"):
+                continue
+            raise
         stored = session.get(AhOuV3MonitoringFactModel, decision.decision_id)
         if stored is None:
             session.add(

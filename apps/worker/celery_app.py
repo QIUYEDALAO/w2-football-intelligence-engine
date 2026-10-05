@@ -1593,9 +1593,9 @@ def _settle_v3_postmatch(engine: Any, *, evaluated_at: datetime) -> dict[str, An
                 text("SELECT pg_advisory_xact_lock(hashtextextended('v3-postmatch', 0))")
             )
         report: dict[str, object] = settle_ah_ou_v3_in_session(session, now=evaluated_at)
-        if report["status"] == "BLOCKED":
-            session.rollback()
-        else:
-            report["monitoring"] = append_monitoring_in_session(session, now=evaluated_at)
-            session.commit()
+        # 逐 fixture 隔离后，blocked 只是「部分场次未结算」，其余场次已正常
+        # settle 且幂等，必须 commit 而非整轮回滚（否则又变成一坏全滚连坐）。
+        # 真正的失败（决策字段篡改 / 字段冲突）在函数内已抛异常，走 except 回滚。
+        report["monitoring"] = append_monitoring_in_session(session, now=evaluated_at)
+        session.commit()
     return {"status": str(report["status"]), "v3": report}

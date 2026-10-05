@@ -337,8 +337,15 @@ def test_v3_result_source_corruption_blocks_natural_worker(chain, corruption, re
                 .where(MatchdayEndpointCaptureModel.capture_id == capture["capture_id"])
                 .values(raw_payload_sha256="0" * 64)
             )
-    with pytest.raises(ValueError, match=reason):
-        result_materialize.run(fixture_ids=["api_football:1489404"])
+    # 逐 fixture 隔离：单场赛果溯源损坏不再整轮抛错，而是该场降级 blocked
+    # （settlement 零落库），其余场次照常结算。此处单场损坏，故 blocked=2、
+    # 零 settlement，且对外 status=BLOCKED（不静默，但不连坐）。
+    result = result_materialize.run(fixture_ids=["api_football:1489404"])
+    assert result["status"] == "BLOCKED", result
+    v3 = result["result"]["validation_samples"]["v3"]
+    assert v3["blocked"] == 2, v3
+    assert v3["created"] == 0, v3
+    assert {row["reason"] for row in v3["blocked_reasons"]} == {reason}, v3
     with Session(repo.engine) as session:
         assert not list(session.scalars(select(AhOuV3SettlementModel)))
         assert not list(session.scalars(select(AhOuV3ValidationSampleModel)))
@@ -392,8 +399,14 @@ def test_v3_tampered_sanitized_params_id_rejected(chain):
             .where(MatchdayEndpointCaptureModel.capture_id == capture["capture_id"])
             .values(sanitized_params={"id": "999999"})
         )
-    with pytest.raises(ValueError, match="V3_RESULT_FIXTURE_BINDING_INVALID"):
-        result_materialize.run(fixture_ids=["api_football:1489404"])
+    # 逐 fixture 隔离：绑定失败该场 blocked（不抛错、不连坐），settlement 零落库。
+    result = result_materialize.run(fixture_ids=["api_football:1489404"])
+    assert result["status"] == "BLOCKED", result
+    v3 = result["result"]["validation_samples"]["v3"]
+    assert v3["blocked"] == 2, v3
+    assert {row["reason"] for row in v3["blocked_reasons"]} == {
+        "V3_RESULT_FIXTURE_BINDING_INVALID"
+    }, v3
     with Session(repo.engine) as session:
         assert not list(session.scalars(select(AhOuV3SettlementModel)))
         assert not list(session.scalars(select(AhOuV3ValidationSampleModel)))
@@ -603,9 +616,14 @@ def test_v3_settlement_sweep_retries_after_failure(chain):
             .where(MatchdayEndpointCaptureModel.capture_id == capture["capture_id"])
             .values(sanitized_params={"id": "999999"})
         )
-    # 重扫失败显式抛出（不静默），settlement 零落库。
-    with pytest.raises(ValueError, match="V3_RESULT_FIXTURE_BINDING_INVALID"):
-        ah_ou_v3_settlement_sweep.run()
+    # 逐 fixture 隔离：绑定失败该场 blocked（不抛错、不静默、不连坐），
+    # settlement 零落库，blocked_reasons 曝光具体 reason。
+    sweep_blocked = ah_ou_v3_settlement_sweep.run()
+    assert sweep_blocked["status"] == "BLOCKED", sweep_blocked
+    assert sweep_blocked["v3"]["blocked"] == 2, sweep_blocked["v3"]
+    assert {row["reason"] for row in sweep_blocked["v3"]["blocked_reasons"]} == {
+        "V3_RESULT_FIXTURE_BINDING_INVALID"
+    }, sweep_blocked["v3"]
     with Session(repo.engine) as session:
         assert not list(session.scalars(select(AhOuV3SettlementModel)))
         assert not list(session.scalars(select(AhOuV3ValidationSampleModel)))
