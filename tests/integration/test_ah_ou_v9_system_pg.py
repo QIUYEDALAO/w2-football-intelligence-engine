@@ -598,6 +598,54 @@ def test_market_reason_selector_public_and_new_session(
             )
 
 
+def test_t3_stale_quote_real_chain(chain, tmp_path, monkeypatch):
+    """T3 报价新鲜度上界（真实链）：7 天前报价 → STALE_QUOTE，卡片/账本 SKIP。"""
+    from w2.infrastructure.persistence.matchday_intake_models import MatchdayMarketObservationModel
+    from w2.strategy.ah_ou_quote_selector import select_v3_ah_ou_quotes
+
+    repo, item, _, _ = chain
+    # 空操作控制：合法报价正常入选（COMMITTED + selected）。
+    control_kickoff = datetime.fromisoformat(item["fixture"]["date"])
+    control = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=control_kickoff
+    )
+    assert control["ah_ou_result"]["recording"]["status"] == "COMMITTED"
+    assert all(
+        m["selected"] for m in control["markets"] if m["market"] in ("ASIAN_HANDICAP", "TOTALS")
+    )
+    # 单变量攻击：独立 DB，把报价 captured_at 改成 7 天前（只改时间）。
+    attack_root = tmp_path / "t3_stale_attack"
+    attack_root.mkdir()
+    attack_chain = _build_chain(attack_root, monkeypatch)
+    repo, item, _, _ = next(attack_chain)
+    decision = datetime.fromisoformat(item["fixture"]["date"]) - timedelta(hours=2)
+    with Session(repo.engine) as session, session.begin():
+        for row in session.scalars(select(MatchdayMarketObservationModel)):
+            row.captured_at = decision - timedelta(days=7)
+    observations = repo.latest_market_observations_for_fixtures(["1489404"])
+    captures = list({r["capture_id"] for r in observations})
+    selector = select_v3_ah_ou_quotes(
+        observations, fixture_id="1489404", decision_at=decision,
+        raw_payloads=repo.raw_payloads_for_captures(captures),
+    )
+    assert selector["ah"]["status"] == "ASIAN_HANDICAP_STALE_QUOTE"
+    assert selector["ou"]["status"] == "TOTALS_STALE_QUOTE"
+    attack_kickoff = datetime.fromisoformat(item["fixture"]["date"])
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=attack_kickoff
+    )
+    assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
+    with Session(repo.engine) as session:
+        ledger = {row.market: row for row in session.scalars(select(AhOuDecisionLedgerModel))}
+        public = {m["market"]: m for m in card["markets"]}
+        for market, reason in [
+            ("ASIAN_HANDICAP", "ASIAN_HANDICAP_STALE_QUOTE"),
+            ("TOTALS", "TOTALS_STALE_QUOTE"),
+        ]:
+            assert public[market]["reason"] == ledger[market].skip_reason == reason
+            assert not public[market]["selected"] and not ledger[market].selected
+
+
 def test_f6_source_freeze_four_steps(chain):
     from w2.infrastructure.persistence.factor_model_models import CanonicalTeamMatchHistoryModel
     from w2.ingestion.h2h_capture import _freeze_h2h_history_row

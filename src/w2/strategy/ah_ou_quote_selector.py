@@ -20,7 +20,7 @@ Selection contract (all fail closed):
 from __future__ import annotations
 
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -35,6 +35,9 @@ from w2.matchday.intake_v2 import normalize_matchday_odds_payload
 AH_MARKET = "ASIAN_HANDICAP"
 OU_MARKET = "TOTALS"
 PINNACLE_BOOKMAKER_ID = "4"
+# T3 报价新鲜度上界：决策点前「最新」报价不能太旧（Owner 拍板 24h），否则
+# 7 天前的报价也会被当成当前可执行盘口进入决策。超阈值按 STALE_QUOTE SKIP。
+QUOTE_MAX_AGE = timedelta(hours=24)
 
 
 def _parse_utc(value: Any) -> datetime | None:
@@ -270,6 +273,10 @@ def _select_one_market(
         return {"status": f"{market}_QUOTE_UNAVAILABLE", "quote": None}
 
     latest = max(item[0] for item in scoped)
+    # T3: 报价新鲜度上界——决策点前最新报价若早于 24h，按 STALE_QUOTE SKIP，
+    # 不进入主线选择（修复「7 天前报价合法变推荐」）。
+    if decision_at - latest > QUOTE_MAX_AGE:
+        return {"status": f"{market}_STALE_QUOTE", "quote": None}
     latest_rows = [row for captured, row in scoped if captured == latest]
     if not latest_rows:
         return {"status": f"{market}_QUOTE_UNAVAILABLE", "quote": None}

@@ -229,3 +229,44 @@ def test_ah_away_repeated_home_perspective_line_is_accepted() -> None:
     )
     assert result["ah"]["status"] == "READY"
     assert result["ah"]["quote"]["line"] == __import__("decimal").Decimal("-0.5")
+
+
+def test_t3_stale_quote_over_24h_is_refused() -> None:
+    # T3 报价新鲜度上界：7 天前报价不得进入主线（STALE_QUOTE）。
+    raw = _raw()
+    rows = _obs(raw)
+    for row in rows:
+        row["captured_at"] = (DECISION_AT - timedelta(days=7)).isoformat()
+    result = select_v3_ah_ou_quotes(
+        rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+        raw_payloads={CAPTURE_ID: raw},
+    )
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_STALE_QUOTE"
+    assert result["ou"]["status"] == "TOTALS_STALE_QUOTE"
+    assert result["status"] == "QUOTE_SELECTION_FAILED"
+
+
+def test_t3_quote_within_24h_is_selected() -> None:
+    # T3：阈值内（23h）报价正常入选。
+    raw = _raw()
+    rows = _obs(raw)
+    for row in rows:
+        row["captured_at"] = (DECISION_AT - timedelta(hours=23)).isoformat()
+    result = select_v3_ah_ou_quotes(
+        rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+        raw_payloads={CAPTURE_ID: raw},
+    )
+    assert result["status"] == "READY"
+
+
+def test_t3_quote_exactly_24h_is_selected_boundary() -> None:
+    # T3 边界：恰好 24h 视为「≤ 阈值」，准入（> 24h 才 STALE_QUOTE）。
+    raw = _raw()
+    rows = _obs(raw)
+    for row in rows:
+        row["captured_at"] = (DECISION_AT - timedelta(hours=24)).isoformat()
+    result = select_v3_ah_ou_quotes(
+        rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+        raw_payloads={CAPTURE_ID: raw},
+    )
+    assert result["status"] == "READY"

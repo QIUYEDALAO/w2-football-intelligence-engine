@@ -642,3 +642,37 @@ def test_v3_settlement_sweep_retries_after_failure(chain):
         assert len(list(session.scalars(select(AhOuV3ValidationSampleModel)))) == 2
     public = ApiReadModelService().dashboard_ah_ou_v3_validation()
     assert all(row["state"] == "SETTLED" for row in public["rows"])
+
+
+def test_n2_selected_short_circuit_no_conflict(chain):
+    """N2：已 selected fixture 再次评估 → 短路返回原决策，零 COHORT_SLOT_CONFLICT。"""
+    repo, future, _, _ = chain
+    kickoff = datetime.fromisoformat(future["fixture"]["date"]).astimezone(UTC)
+    first = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=kickoff
+    )
+    assert first["ah_ou_result"]["recording"]["status"] == "COMMITTED"
+    with Session(repo.engine) as session:
+        before = {
+            row.market: row.decision_id for row in session.scalars(select(AhOuDecisionLedgerModel))
+        }
+    assert len(before) == 2 and all(before.values())
+    # 第二次评估（决策点已到）：评估入口先读回已 selected 冻结决策短路返回，
+    # 不再走到 upsert_cohort 撞 AH_OU_COHORT_SLOT_CONFLICT。
+    second = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=kickoff
+    )
+    recording = second["ah_ou_result"]["recording"]
+    assert recording["status"] == "COMMITTED", recording
+    assert recording["reason"] == "ALREADY_SELECTED_SHORT_CIRCUIT", recording
+    assert recording["receipt"]["short_circuit"] is True, recording
+    markets = {m["market"]: m for m in second["markets"] if m["market"] in before}
+    for market, decision_id in before.items():
+        assert markets[market]["decision_hash"] == decision_id, markets[market]
+        assert markets[market]["selected"] is True
+    # 账本零新增：决策 id 不变，幂等/结算不受影响。
+    with Session(repo.engine) as session:
+        after = {
+            row.market: row.decision_id for row in session.scalars(select(AhOuDecisionLedgerModel))
+        }
+    assert after == before

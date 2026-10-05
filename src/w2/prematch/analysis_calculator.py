@@ -3998,6 +3998,49 @@ class ReadModelService:
             }
             self._ah_ou_result = result
             return True  # 非失败：调用方保留预评估方向，不触发 WRITE_FAILED 降级
+        # N2: 已 selected 的 (fixture, decision_at) 在评估入口先读回冻结决策短路返回，
+        # 不再走到 upsert_cohort 撞 AH_OU_COHORT_SLOT_CONFLICT（那会让卡片误标 WRITE_FAILED、
+        # 与账本里的合法推荐自相矛盾，并刷屏冲突日志）。用原决策覆盖本轮 softmax 结果，
+        # 保证卡片展示与账本一致；账本零改动，幂等/结算不受影响。
+        selected_reader = getattr(repository, "selected_ah_ou_decisions", None)
+        existing_selected = (
+            selected_reader(fixture_id=fixture_id, decision_at=decision_at)
+            if callable(selected_reader) else {}
+        )
+        if existing_selected:
+            for market, decision in existing_selected.items():
+                selection = decision.get("selection")
+                if not isinstance(selection, dict):
+                    continue
+                market_result = (
+                    result.get("ah") if market == "ASIAN_HANDICAP" else result.get("ou")
+                )
+                if isinstance(market_result, dict):
+                    market_result.clear()
+                    market_result.update(selection)
+            # 复用 COMMITTED 展示路径：把读回的冻结决策写进 receipt，卡片据此展示原决策
+            # （selected/direction/score/decision_hash），与账本一致、不自相矛盾。
+            result["recording"] = {
+                "status": "COMMITTED",
+                "reason": "ALREADY_SELECTED_SHORT_CIRCUIT",
+                "receipt": {
+                    "cohort_id": None,
+                    "short_circuit": True,
+                    "decisions": [
+                        {
+                            "market": market,
+                            "decision_id": decision["decision_id"],
+                            "selected": True,
+                            "direction": decision["direction"],
+                            "score": decision["score"],
+                            "skip_reason": None,
+                        }
+                        for market, decision in existing_selected.items()
+                    ],
+                },
+            }
+            self._ah_ou_result = result
+            return True  # 非失败：调用方保留已有决策方向，不触发 WRITE_FAILED 降级
         features = dict(result.get("features") or {})
         home_snapshot = dict(result.get("home_snapshot") or {})
         away_snapshot = dict(result.get("away_snapshot") or {})

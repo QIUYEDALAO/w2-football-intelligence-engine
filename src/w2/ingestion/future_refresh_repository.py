@@ -2986,6 +2986,34 @@ class FutureRefreshDbRepository:
                 ))
             }
 
+    def selected_ah_ou_decisions(
+        self, *, fixture_id: str, decision_at: datetime
+    ) -> dict[str, dict[str, Any]]:
+        """已 selected=true 的冻结决策读回（N2 短路）。
+
+        评估入口据此短路返回原决策，不重复评估、不撞 ``AH_OU_COHORT_SLOT_CONFLICT``。
+        ``selection`` 复用 full_distribution 里的 ah_select/ou_select 原输出，保证
+        卡片展示与账本一致。
+        """
+        from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+            AhOuDecisionLedgerModel,
+        )
+
+        with Session(self.engine) as session:
+            return {
+                row.market: {
+                    "decision_id": row.decision_id,
+                    "selection": (row.full_distribution or {}).get("selection"),
+                    "direction": row.direction,
+                    "score": row.score,
+                }
+                for row in session.scalars(select(AhOuDecisionLedgerModel).where(
+                    AhOuDecisionLedgerModel.fixture_id == fixture_id,
+                    AhOuDecisionLedgerModel.decision_at == decision_at,
+                    AhOuDecisionLedgerModel.selected.is_(True),
+                ))
+            }
+
     def write_ah_ou_decision(self, **kwargs: Any) -> Any:
         """Write an AH/OU v3 decision ledger row (idempotent, slot-conflict-stopped).
 
