@@ -675,6 +675,12 @@ export interface AhOuV3ValidationView {
   registered_cohorts: number;
   completed_decisions: number;
   selected: number;
+  skipped: number;
+  skip_reasons: {
+    F9_SNAPSHOT_STALE: number;
+    STALE_QUOTE: number;
+    other: number;
+  };
   by_market: Record<string, {
     registered_cohorts: number;
     completed_decisions: number;

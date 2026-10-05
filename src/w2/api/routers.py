@@ -680,7 +680,7 @@ def dashboard_intelligence_validation(
         "recommendation": f"{row['market']} {row['selection']} {row['exact_line']}",
         "market": row["market"],
         "decimal_odds": row["decimal_odds"],
-        "score": None,
+        "score": row.get("score"),
         "result": row["settlement"] if row["state"] == "SETTLED" else row["state"],
         "profit_units": float(row["net_units"]) if row["state"] == "SETTLED" else None,
     } for row in page]

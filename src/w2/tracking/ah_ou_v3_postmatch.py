@@ -795,6 +795,13 @@ def v3_validation_snapshot(session: Session) -> dict[str, Any]:
                 "terms_hash": decision.terms_hash,
                 "result_hash": result.result_hash if result else None,
                 "result_capture_id": result.source_capture_id if result else None,
+                "score": (
+                    f"{result.home_goals}-{result.away_goals}"
+                    if result is not None
+                    and result.home_goals is not None
+                    and result.away_goals is not None
+                    else None
+                ),
                 "settlement_hash": settlement.settlement_hash if settlement else None,
                 "settlement": settlement.outcome if settlement else None,
                 "net_units": settlement.net_units if settlement else None,
@@ -833,11 +840,20 @@ def v3_validation_snapshot(session: Session) -> dict[str, Any]:
         }
         if by_market[market]["hit_rate"] is not None:
             by_market[market]["hit_rate"] = float(by_market[market]["hit_rate"])
+    skip_rows = [row for row in all_decisions if not row.selected and row.skip_reason]
+    stale_f9 = sum(row.skip_reason == "F9_SNAPSHOT_STALE" for row in skip_rows)
+    stale_quote = sum("STALE_QUOTE" in (row.skip_reason or "") for row in skip_rows)
     return {
         "schema_version": "w2.ah_ou_v3_validation_view.v1",
         "rows": rows,
         "registered_cohorts": len(cohorts),
         "completed_decisions": len(all_decisions),
         "selected": len(decisions),
+        "skipped": len(skip_rows),
+        "skip_reasons": {
+            "F9_SNAPSHOT_STALE": stale_f9,
+            "STALE_QUOTE": stale_quote,
+            "other": len(skip_rows) - stale_f9 - stale_quote,
+        },
         "by_market": by_market,
     }

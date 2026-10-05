@@ -1,4 +1,5 @@
 import type { AhOuV3ValidationView, IntelligenceCalibratedValidationResponse, IntelligenceValidationResponse } from "../types/intelligenceWorkspace";
+import { CANONICAL_COMPETITION_LABELS } from "../lib/labels";
 
 function kickoffLabel(value: string | null | undefined): string {
   if (!value || Number.isNaN(Date.parse(value))) return "—";
@@ -22,31 +23,47 @@ function Pagination({ page, rows, onPageChange }: { page?: { limit: number | nul
   return <div className="w2-review-head"><span className="w2-counts">{page.total ? page.offset + 1 : 0}–{Math.min(page.offset + rows, page.total)} / {page.total}</span><button type="button" className="w2-link" disabled={page.offset <= 0} onClick={() => onPageChange(Math.max(0, page.offset - step))}>上一页</button><button type="button" className="w2-link" disabled={page.offset + rows >= page.total} onClick={() => onPageChange(page.offset + step)}>下一页</button></div>;
 }
 
+const FIVE_STATE: Record<string, { label: string; icon: string }> = {
+  WIN: { label: "赢", icon: "✓" },
+  HALF_WIN: { label: "赢半", icon: "↑" },
+  PUSH: { label: "走盘", icon: "–" },
+  HALF_LOSS: { label: "输半", icon: "↓" },
+  LOSS: { label: "输", icon: "✗" },
+};
+
 function Result({ result, profit }: { result: string | null | undefined; profit: number | null | undefined }) {
-  const label = ({ WIN: "赢", HALF_WIN: "赢一半", PUSH: "走盘", HALF_LOSS: "输一半", LOSS: "输" } as Record<string, string>)[result || ""] || result || "—";
+  const state = FIVE_STATE[result || ""];
+  const label = state?.label || result || "—";
+  const icon = state?.icon || "–";
   const kind = result === "WIN" || result === "HALF_WIN" ? "win" : result === "PUSH" ? "push" : "lose";
-  return <span className={`w2-result w2-result--${kind}`}><span className="w2-result__icon" aria-hidden="true">{kind === "win" ? "✓" : kind === "lose" ? "✗" : "–"}</span>{label}{profit == null ? null : <span className="num"> {profit >= 0 ? "+" : "−"}{Math.abs(profit).toFixed(2)}</span>}</span>;
+  return <span className={`w2-result w2-result--${kind}`}><span className="w2-result__icon" aria-hidden="true">{icon}</span>{label}{profit == null ? null : <span className="num"> {profit >= 0 ? "+" : "−"}{Math.abs(profit).toFixed(2)}</span>}</span>;
 }
 
 function AhOuV3ValidationSummary({ view }: { view?: AhOuV3ValidationView }) {
   if (!view) return <section data-ah-ou-v3 className="w2-validation-signals"><h3>战绩复盘 · AH/OU v3.1</h3><p>v3 验证数据不可用。</p></section>;
   const marketNames: Record<string, string> = { ASIAN_HANDICAP: "亚洲让球", TOTALS: "大小球" };
+  const reasons = view.skip_reasons || { F9_SNAPSHOT_STALE: 0, STALE_QUOTE: 0, other: 0 };
   return <section data-ah-ou-v3 className="w2-validation-signals">
     <h3>战绩复盘 · AH/OU v3.1</h3>
-    <p>按冻结盘口和入场赔率结算；待赛果、作废及阻断均不计入命中率分母。</p>
-    <div className="w2-counts"><span>注册 cohort <b>{view.registered_cohorts}</b></span><span>完成决策 <b>{view.completed_decisions}</b></span><span>选中 <b>{view.selected}</b></span></div>
-    {Object.entries(view.by_market).map(([market, stats]) => <div className="w2-review-head" key={market} data-v3-market={market}>
-      <strong>{marketNames[market] || market}</strong>
-      <div className="w2-counts">
-        <span>选中 <b>{stats.selected}</b></span>
-        <span>待赛果 <b>{stats.pending}</b></span>
-        <span>已结算 <b>{stats.settled}</b></span>
-        <span>作废 <b>{stats.void}</b></span>
-        <span>阻断 <b>{stats.blocked}</b></span>
-        <span>命中率 <b>{stats.hit_rate == null ? "—" : `${(stats.hit_rate * 100).toFixed(1)}%`}</b>（分母 {stats.hit_rate_denominator}）</span>
-        <span>净单位 <b className="num">{stats.net_units}</b></span>
-      </div>
-    </div>)}
+    <p>按推荐时的赔率结算；待赛果、作废及阻断均不计入命中率分母。</p>
+    <div className="w2-counts"><span>决策槽位 <b>{view.registered_cohorts}</b></span><span>完成决策 <b>{view.completed_decisions}</b></span><span>选中 <b>{view.selected}</b></span><span>跳过 <b>{view.skipped}</b>（断供 {reasons.F9_SNAPSHOT_STALE} / 报价旧 {reasons.STALE_QUOTE} / 其他 {reasons.other}）</span></div>
+    {Object.entries(view.by_market).map(([market, stats]) => {
+      const empty = stats.selected === 0 && stats.settled === 0 && stats.pending === 0 && stats.blocked === 0 && stats.void === 0;
+      if (empty) {
+        return <div className="w2-review-head" key={market} data-v3-market={market}><strong>{marketNames[market] || market}</strong><span className="faint">暂无{marketNames[market] || market}推荐</span></div>;
+      }
+      return <div className="w2-review-head" key={market} data-v3-market={market}>
+        <strong>{marketNames[market] || market}</strong>
+        <div className="w2-counts">
+          <span>选中 <b>{stats.selected}</b></span>
+          <span>待赛果 <b>{stats.pending}</b></span>
+          <span>已结算 <b>{stats.settled}</b></span>
+          <span>作废 <b>{stats.void}</b></span>
+          <span>阻断 <b>{stats.blocked}</b></span>
+          <span>命中率 <b>{stats.hit_rate == null ? "—" : `${(stats.hit_rate * 100).toFixed(1)}%`}</b>（分母 {stats.hit_rate_denominator}）</span>
+        </div>
+      </div>;
+    })}
   </section>;
 }
 
@@ -55,7 +72,7 @@ export function DesignV1ValidationView({ response, onPageChange }: { response: I
   return <div data-design-v1-review>
     <AhOuV3ValidationSummary view={response.ah_ou_v3} />
     <div className="w2-review-head"><span className="faint">逐场明细</span><div className="w2-counts"><span>累计净单位 <b className="num">{response.cumulative_profit_units >= 0 ? "+" : "−"}{Math.abs(response.cumulative_profit_units).toFixed(2)}</b></span><span>选中决策 <b>{response.ah_ou_v3?.selected ?? rows.length}</b></span></div></div>
-    <div className="w2-table-wrap w2-table-wrap--review"><table className="w2-table"><thead><tr><th>开球时间</th><th>联赛</th><th>对阵</th><th>冻结选择</th><th>赔率</th><th>五态 / 结算</th></tr></thead><tbody>{rows.length ? rows.map((row) => <tr key={row.decision_id || `${row.fixture_id}-${row.market}`} data-v3-decision-id={row.decision_id}><td className="num">{kickoffLabel(row.kickoff_utc)}</td><td><span className="w2-league">{row.league || "—"}</span></td><td>{row.match || "—"}</td><td className="w2-pick">{row.recommendation || "—"}</td><td className="num">{row.decimal_odds ?? "—"}</td><td><Result result={row.result} profit={row.profit_units} /></td></tr>) : <tr><td colSpan={6}>目前没有选中的 v3.1 决策。</td></tr>}</tbody></table></div>
+    <div className="w2-table-wrap w2-table-wrap--review"><table className="w2-table"><thead><tr><th>开球时间</th><th>联赛</th><th>对阵</th><th>比分</th><th>冻结选择</th><th>入场赔率</th><th>五态 / 结算</th></tr></thead><tbody>{rows.length ? rows.map((row) => <tr key={row.decision_id || `${row.fixture_id}-${row.market}`} data-v3-decision-id={row.decision_id}><td className="num">{kickoffLabel(row.kickoff_utc)}</td><td><span className="w2-league">{CANONICAL_COMPETITION_LABELS[row.league || ""] || row.league || "—"}</span></td><td>{row.match || "—"}</td><td className="num">{row.score || "—"}</td><td className="w2-pick">{row.recommendation || "—"}</td><td className="num">{row.decimal_odds ?? "—"}</td><td><Result result={row.result} profit={row.profit_units} /></td></tr>) : <tr><td colSpan={7}>目前没有选中的 v3.1 决策。</td></tr>}</tbody></table></div>
     <Pagination page={response.pagination} rows={rows.length} onPageChange={onPageChange} />
   </div>;
 }
