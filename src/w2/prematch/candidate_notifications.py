@@ -67,6 +67,7 @@ VALIDATION_SIGNAL = "VALIDATION_SIGNAL"
 VALIDATION_SIGNAL_WATERMARK = "验证期信号 · 非正式推荐 · 不计入档位"
 DAILY_SETTLEMENT = "DAILY_SETTLEMENT"
 V3_DAILY_SETTLEMENT = "AH_OU_V3_DAILY_SETTLEMENT"
+TODAY_RECOMMEND_HEALTH = "TODAY_RECOMMEND_HEALTH"
 
 PENDING = "PENDING"
 RETRY_PENDING = "RETRY_PENDING"
@@ -265,6 +266,7 @@ _ALWAYS_PUSH = frozenset(
         V3_RECOMMENDATION_CONFIRMED,
         V3_DAILY_SETTLEMENT,
         TEST_MESSAGE,
+        TODAY_RECOMMEND_HEALTH,
     }
 )
 _HEALTH_RELEVANT = _ALWAYS_PUSH
@@ -1399,6 +1401,99 @@ def enqueue_daily_settlement(
     return [inserted] if inserted else []
 
 
+def _today_health_recommendation(
+    session: Session, decision: AhOuDecisionLedgerModel
+) -> dict[str, Any]:
+    """selected 决策的推送明细（fixture/方向/盘口）。"""
+    terms = decision.frozen_terms or {}
+    identity = _fixture_identity(session, str(decision.fixture_id))
+    return {
+        "fixture_id": decision.fixture_id,
+        "market": decision.market,
+        "direction": decision.direction,
+        "line": terms.get("selected_line"),
+        "decimal_odds": terms.get("entry_odds"),
+        "competition": _competition_zh_name(identity.competition_id) if identity else "未知联赛",
+        "home": _team_name(identity, "home") if identity else "主队",
+        "away": _team_name(identity, "away") if identity else "客队",
+    }
+
+
+def enqueue_today_recommend_health_in_session(session: Session, *, now: datetime) -> str | None:
+    """今日推荐健康度：每日决策点后检查一次，有问题主动推 Bark。
+
+    幂等 identity = (football_day, TODAY_RECOMMEND_HEALTH)。规则：
+    - RED：有 SKIP 且全部是 F9_SNAPSHOT_STALE（xG 断供）→ 警示；
+    - YELLOW：有 selected → 推荐明细；
+    - SILENT：无比赛 / 无决策点。
+    纯读账本 + 快照 + 比赛日历，无 Provider 调用。
+    """
+    from w2.prematch.current_recommendation_control import current_recommendations_paused
+
+    if current_recommendations_paused():
+        return None
+    day = football_day_for_kickoff(now)
+    start, end = football_day_window(day)
+    lo = start - timedelta(hours=2)
+    hi = end - timedelta(hours=2)
+    rows = list(
+        session.scalars(
+            select(AhOuDecisionLedgerModel).where(
+                AhOuDecisionLedgerModel.decision_at >= lo,
+                AhOuDecisionLedgerModel.decision_at < hi,
+            )
+        )
+    )
+    if not rows:
+        return None  # 无比赛 → 静默
+    due = [row for row in rows if _utc(row.decision_at) <= now]
+    if not due:
+        return None  # 无决策点 → 静默
+    selected = [row for row in rows if row.selected]
+    skips = [row for row in rows if not row.selected and row.skip_reason]
+    stale_f9 = sum(row.skip_reason == "F9_SNAPSHOT_STALE" for row in skips)
+    stale_quote = sum("STALE_QUOTE" in (row.skip_reason or "") for row in skips)
+    other = len(skips) - stale_f9 - stale_quote
+    if skips and stale_f9 == len(skips) and not selected:
+        level = "RED"
+    else:
+        level = "YELLOW"
+    event_id = _event_id(day.isoformat(), TODAY_RECOMMEND_HEALTH)
+    if session.get(CandidateNotificationOutboxModel, event_id) is not None:
+        return None
+    payload = {
+        "schema_version": "w2.today_recommend_health.v1",
+        "event_type": TODAY_RECOMMEND_HEALTH,
+        "football_day": day.isoformat(),
+        "level": level,
+        "match_count": len({row.fixture_id for row in rows}),
+        "decision_due_count": len({row.fixture_id for row in due}),
+        "selected_count": len(selected),
+        "skip_count": len(skips),
+        "skip_reasons": {
+            "F9_SNAPSHOT_STALE": stale_f9,
+            "STALE_QUOTE": stale_quote,
+            "other": other,
+        },
+        "recommendations": [_today_health_recommendation(session, row) for row in selected],
+        "dashboard_url": _dashboard_day_url(day.isoformat()),
+        "created_at": _iso(now),
+    }
+    if _insert(
+        session,
+        event_id=event_id,
+        opportunity_identity_hash=None,
+        attempt_identity_hash=None,
+        event_type=TODAY_RECOMMEND_HEALTH,
+        previous_state=None,
+        current_state="CONFIRMED",
+        payload=payload,
+        created_at=now,
+    ):
+        return event_id
+    return None
+
+
 def enqueue_scheduled_notifications_in_session(session: Session, *, now: datetime) -> list[str]:
     """Schedule ① daily candidate list plus the current v3 digest; old outbox rows remain historical.
 
@@ -1413,6 +1508,9 @@ def enqueue_scheduled_notifications_in_session(session: Session, *, now: datetim
     settlement = enqueue_v3_daily_settlement_in_session(session, now=now)
     if settlement:
         inserted.append(settlement)
+    health = enqueue_today_recommend_health_in_session(session, now=now)
+    if health:
+        inserted.append(health)
     return inserted
 
 
@@ -1790,6 +1888,23 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
                 f"{int(payload.get('win_count') or 0)}赢 "
                 f"{int(payload.get('loss_count') or 0)}输"
             )
+    elif event_type == TODAY_RECOMMEND_HEALTH:
+        day_str = str(payload.get("football_day") or "")
+        try:
+            day = date.fromisoformat(day_str)
+            day_label = f"{day.month}月{day.day}日"
+        except ValueError:
+            day_label = day_str or "未知日期"
+        if payload.get("level") == "RED":
+            title = (
+                f"[今日推荐健康] {day_label} {int(payload.get('skip_count') or 0)} 场 "
+                f"全被 xG 断供 SKIP，请检查数据源"
+            )
+        else:
+            title = (
+                f"[今日推荐健康] {day_label} 推荐 {int(payload.get('selected_count') or 0)} 场，"
+                f"数据正常"
+            )
     elif event_type == TEST_MESSAGE:
         title = "[测试] W2 Bark 通道"
     else:
@@ -2058,6 +2173,38 @@ def _message_body(payload: Mapping[str, Any]) -> str:
             f"含返水 {_format_settlement_units(total_with_rebate)} 单位"
         )
         return "\n".join(lines)
+    if event_type == TODAY_RECOMMEND_HEALTH:
+        reasons = payload.get("skip_reasons") or {}
+        lines = [
+            f"今日比赛 {payload.get('match_count')} 场 · 到决策点 "
+            f"{payload.get('decision_due_count')} 场 · 出推荐 "
+            f"{payload.get('selected_count')} 场 · SKIP {payload.get('skip_count')} 场"
+        ]
+        if payload.get("level") == "RED":
+            lines.append(
+                "SKIP 原因：F9_SNAPSHOT_STALE（xG 断供）"
+                f"{int(reasons.get('F9_SNAPSHOT_STALE') or 0)} 场，请检查数据源。"
+            )
+        else:
+            for item in payload.get("recommendations") or []:
+                if not isinstance(item, Mapping):
+                    continue
+                lines.append(
+                    f"{item.get('competition', '未知联赛')} {item.get('home', '主队')} vs "
+                    f"{item.get('away', '客队')} · {_market_label(item.get('market'))} "
+                    f"{_direction_label(item.get('direction'))} {_format_line(item.get('line'))} "
+                    f"@{_format_odds(item.get('decimal_odds'))}"
+                )
+            skip_parts: list[str] = []
+            if reasons.get("F9_SNAPSHOT_STALE"):
+                skip_parts.append(f"xG断供 {reasons['F9_SNAPSHOT_STALE']}")
+            if reasons.get("STALE_QUOTE"):
+                skip_parts.append(f"报价旧 {reasons['STALE_QUOTE']}")
+            if reasons.get("other"):
+                skip_parts.append(f"其他 {reasons['other']}")
+            if skip_parts:
+                lines.append("SKIP 分布：" + "、".join(skip_parts))
+        return "\n".join(lines)
     if event_type == TEST_MESSAGE:
         return "W2 Bark 外发通道测试消息"
     raise ValueError("NOTIFICATION_EVENT_TYPE_RETIRED")
@@ -2318,7 +2465,7 @@ def _insert(
 ) -> bool:
     if event_type not in {
         V3_RECOMMENDATION_CONFIRMED, V3_DAILY_SETTLEMENT, TEST_MESSAGE,
-        DAILY_CANDIDATE_LIST,
+        DAILY_CANDIDATE_LIST, TODAY_RECOMMEND_HEALTH,
     }:
         return False
     if session.get(CandidateNotificationOutboxModel, event_id) is not None:
