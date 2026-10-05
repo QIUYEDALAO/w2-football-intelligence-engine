@@ -2491,6 +2491,13 @@ class ReadModelRepository:
         row = self.checkpoint("dashboard:forward_status")
         return None if row is None else deepcopy(row.payload)
 
+    def system_health(self, *, now: datetime | None = None) -> dict[str, Any]:
+        """只读聚合五项系统健康信号（零 Provider 调用、零写入）。"""
+        from w2.dashboard.system_health import build_system_health
+
+        with Session(self._database_engine()) as session:
+            return build_system_health(session, now=now)
+
     def analysis_card_projection(self, fixture_id: str) -> dict[str, Any] | None:
         rows = self.dashboard_fixtures_for_window(
             start=None,
@@ -4514,6 +4521,9 @@ class ReadModelService:
             "current_settled_n": int((payload or {}).get("current_settled_n") or 0),
             "target_n": int((payload or {}).get("target_n") or 50),
         }
+
+    def system_health(self) -> dict[str, Any]:
+        return self.repository.system_health()
 
     def operations_items(self, name: str) -> list[dict[str, Any]]:
         return self.repository.operation_payloads(name)

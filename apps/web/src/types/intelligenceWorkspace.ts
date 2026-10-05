@@ -979,17 +979,42 @@ export type IntelligenceWorkspaceList = Omit<IntelligenceWorkspace, "validation"
   today_recommendations?: TodayRecommendation[];
   system_status?: { data?: string; recommendations?: string };
   upcoming_football_days?: UpcomingFootballDay[];
-  forward_wait_monitor?: ForwardWaitMonitor;
 };
 
-export interface ForwardWaitMonitor {
-  clock: { status: string; started_at: string | null; code_revision: string | null; model_identity: string | null };
-  sample_progress: { status: string; pit_provable_evaluations: number; sealed_validation: number; sealed_test: number; target_each: number };
-  exclusions: { pit_unprovable: number; write_gap_count: number; status: string };
-  shadow: { status: string; last_run_at: string | null; r1_last_event_at: string | null };
-  capture_completeness: { complete: number; total: number; rate: number | null; status: string };
-  bias_drift: { status: string; n: number; bias_7d: number | null; bias_30d: number | null };
-  data_source: { status: string; provider_calls_on_read: number };
+export interface SystemHealth {
+  schema_version: string;
+  generated_at: string;
+  football_day: string;
+  overall: string;
+  data_freshness: {
+    status: string;
+    ok: boolean;
+    lag_hours: number | null;
+    threshold_hours: number;
+    latest_ft_kickoff: string | null;
+    latest_xg_capture: string | null;
+  };
+  recommendation_chain: {
+    match_count: number;
+    decision_due_count: number;
+    selected_count: number;
+    skip_count: number;
+    skip_reasons: { F9_SNAPSHOT_STALE: number; STALE_QUOTE: number; other: number };
+    ok: boolean;
+  };
+  collection_quota: {
+    provider: string;
+    status: string;
+    remaining_quota: number | null;
+    reserve_bucket: number;
+    ok: boolean;
+  };
+  settlement: {
+    settled_count: number;
+    anomaly_count: number;
+    ok: boolean;
+  };
+  alerts: Array<{ type: string; severity: string; detail: string }>;
 }
 
 export interface PerformanceWindow {

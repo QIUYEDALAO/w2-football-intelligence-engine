@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { fetchIntelligenceMatch } from "../lib/intelligenceWorkspaceApi";
+import { fetchIntelligenceMatch, fetchSystemHealth } from "../lib/intelligenceWorkspaceApi";
 import { footballDayShanghai, translateCompetition } from "../lib/formatters";
 import { publicPresentation } from "../lib/publicPresentation";
 import { formatAhMarketHandicap } from "../lib/pricingDisplay";
-import type { ForwardWaitMonitor as ForwardWaitMonitorData, IntelligenceWorkspaceList, PerformanceSummary, TodayRecommendation, WorkspaceMatch, WorkspaceMatchItem, WorkspaceMatchProjectionError } from "../types/intelligenceWorkspace";
+import type { IntelligenceWorkspaceList, PerformanceSummary, SystemHealth, TodayRecommendation, WorkspaceMatch, WorkspaceMatchItem, WorkspaceMatchProjectionError } from "../types/intelligenceWorkspace";
 
 type Tab = "matches" | "validation" | "validation-calibrated" | "replay";
 type Props = {
@@ -130,23 +130,49 @@ function recommendations(workspace: IntelligenceWorkspaceList): TodayRecommendat
   return workspace.today_recommendations || [];
 }
 
-function dataSourceStatusLabel(status: string): string {
-  return ({ AVAILABLE: "数据源可用", NOT_AVAILABLE: "当前数据源不可用", STALE: "数据源已过期", INCOMPLETE: "数据源待补" } as Record<string, string>)[status] || "数据源状态待核实";
-}
-
-function ForwardWaitMonitor({ value }: { value?: ForwardWaitMonitorData }) {
-  if (!value?.clock || !value.sample_progress || !value.data_source || !value.exclusions || !value.shadow || !value.capture_completeness || !value.bias_drift) {
-    return <details className="w2-forward-monitor"><summary>前向等待期监测 <span>只读 · 不自动调参</span></summary><p className="w2-forward-monitor__empty">监测证据尚未接入。</p></details>;
+function SystemHealthPanel() {
+  const [health, setHealth] = useState<SystemHealth | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchSystemHealth(controller.signal)
+      .then((payload) => {
+        setHealth(payload);
+        setState("ready");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setState("error");
+      });
+    return () => controller.abort();
+  }, []);
+  if (state === "loading") {
+    return <details className="w2-system-health"><summary>系统健康 <span>只读 · 不调用 Provider</span></summary><p className="w2-system-health__empty">正在读取系统健康状态…</p></details>;
   }
-  const items = value ? [
-    { label: "样本进度", detail: `密封验证 ${value.sample_progress.sealed_validation}/${value.sample_progress.target_each} · 测试 ${value.sample_progress.sealed_test}/${value.sample_progress.target_each}；PIT 可证明评估 ${value.sample_progress.pit_provable_evaluations}（不等于密封样本）`, alert: false },
-    { label: "Shadow 运行", detail: value.shadow.status === "F1_RUN_NOT_REGISTERED" ? "尚无 F1 运行登记" : value.shadow.status, alert: false },
-    { label: "采集字段落库率", detail: value.capture_completeness.rate === null ? "证据不足" : `${value.capture_completeness.complete}/${value.capture_completeness.total} · ${percent(value.capture_completeness.rate)}`, alert: value.capture_completeness.status === "ANOMALY" },
-    { label: "样本排除", detail: `PIT 不可证明 ${value.exclusions.pit_unprovable} · 写入缺口 ${value.exclusions.write_gap_count}`, alert: value.exclusions.status === "ANOMALY" },
-    { label: "bias 漂移", detail: value.bias_drift.status === "INSUFFICIENT_FORWARD_SETTLEMENTS" ? "前向结算样本不足，暂无 7/30 天 bias" : `7 天 ${percent(value.bias_drift.bias_7d)} · 30 天 ${percent(value.bias_drift.bias_30d)}`, alert: false },
-    { label: "数据源状态", detail: `${dataSourceStatusLabel(value.data_source.status)} · 页面读取不调用 Provider`, alert: value.data_source.status !== "AVAILABLE" },
-  ] : [];
-  return <details className="w2-forward-monitor"><summary>前向等待期监测 <span>只读 · 不自动调参</span></summary>{value ? <div className="w2-forward-monitor__grid"><p className="w2-forward-monitor__clock">前向时钟：{value.clock.status === "STARTED" ? `已启动 ${localDate(value.clock.started_at, { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : "未启动"}</p>{items.map((item) => <div className={`w2-forward-monitor__item${item.alert ? " is-alert" : ""}`} key={item.label}><strong>{item.label}</strong><span>{item.detail}</span></div>)}</div> : <p className="w2-forward-monitor__empty">监测证据尚未接入。</p>}</details>;
+  if (state === "error" || !health) {
+    return <details className="w2-system-health"><summary>系统健康 <span>只读 · 不调用 Provider</span></summary><p className="w2-system-health__empty">系统健康状态暂不可用。</p></details>;
+  }
+  const items = [
+    { label: "数据新鲜度", ok: health.data_freshness.ok, detail: health.data_freshness.lag_hours === null ? "xG 断供（无数据）" : `xG 滞后 ${health.data_freshness.lag_hours.toFixed(1)}h · 阈值 ${health.data_freshness.threshold_hours}h` },
+    { label: "推荐链路", ok: health.recommendation_chain.ok, detail: `今日 ${health.recommendation_chain.match_count} 场 · 到决策点 ${health.recommendation_chain.decision_due_count} 场 · 推荐 ${health.recommendation_chain.selected_count} 场 · SKIP ${health.recommendation_chain.skip_count} 场` },
+    { label: "采集额度", ok: health.collection_quota.ok, detail: health.collection_quota.remaining_quota === null ? "额度未知" : `Provider 剩余 ${health.collection_quota.remaining_quota} · 保留桶 ${health.collection_quota.reserve_bucket}` },
+    { label: "结算", ok: health.settlement.ok, detail: `已结算 ${health.settlement.settled_count} 场 · 异常 ${health.settlement.anomaly_count} 场` },
+    { label: "告警", ok: health.alerts.length === 0, detail: health.alerts.length ? `${health.alerts.length} 条活跃告警` : "无活跃告警" },
+  ];
+  return (
+    <details className="w2-system-health">
+      <summary>系统健康 <span>只读 · 不调用 Provider</span></summary>
+      <div className="w2-system-health__grid">
+        {items.map((item) => (
+          <div className={`w2-system-health__item${item.ok ? " is-ok" : " is-warn"}`} key={item.label}>
+            <strong>{item.ok ? "✓" : "!"} {item.label}</strong>
+            <span>{item.detail}</span>
+          </div>
+        ))}
+        {health.alerts.length ? <p className="w2-system-health__alert">{health.alerts.map((alert) => `${alert.type}：${alert.detail}`).join("；")}</p> : null}
+      </div>
+    </details>
+  );
 }
 
 function Result({ value, profit }: { value?: string | null; profit?: number | null }) {
@@ -363,7 +389,7 @@ export function DesignV1Overview({ workspace, date, initialFixtureId, onDateChan
         <div className="w2-tabs w2-tabs-desktop" role="tablist" aria-label="视图"><button type="button" className="w2-tab" role="tab" aria-selected={activeTab === "matches"} onClick={() => onTabChange("matches")}>比赛列表</button><button type="button" className="w2-tab" role="tab" aria-selected={activeTab === "validation" || activeTab === "validation-calibrated"} onClick={() => onTabChange("validation")}>战绩复盘</button><button type="button" className="w2-tab" role="tab" aria-selected={activeTab === "replay"} onClick={() => onTabChange("replay")}>回放记录</button></div>
         {activeTab === "matches" ? <div className="w2-tabpanel"><FixtureList workspace={workspace} picks={picks} onSelect={setSelectedFixtureId} /></div> : <div className="w2-tabpanel">{activeTab === "validation" || activeTab === "validation-calibrated" ? <div className="w2-review-head"><div className="w2-seg" role="group" aria-label="复盘口径"><button type="button" aria-pressed={activeTab === "validation"} onClick={() => onTabChange("validation")}>原始</button><button type="button" aria-pressed={activeTab === "validation-calibrated"} onClick={() => onTabChange("validation-calibrated")}>校准</button></div></div> : null}{tabContent}</div>}
       </section>
-      <details className="w2-system" data-mviews="more" onToggle={(event) => loadWebVersion(event.currentTarget.open)}><summary>系统详情 <span>运行状态、版本、采集与规则</span></summary><div className="w2-system__grid"><div className="w2-system__block"><h3>运行状态</h3><dl className="w2-kv"><dt>数据</dt><dd>{workspace.system_status?.data || "—"}</dd><dt>推荐</dt><dd>{workspace.system_status?.recommendations || "—"}</dd><dt>正式推荐</dt><dd>{workspace.runtime.formal === "OFF" ? "关闭" : workspace.runtime.formal}</dd><dt>联赛白名单</dt><dd className="num">{workspace.runtime.active_whitelist_count}</dd></dl></div><div className="w2-system__block"><h3>版本与采集</h3><dl className="w2-kv"><dt>版本</dt><dd className="num">{webVersion ? webVersion.slice(0, 8) : "—"}</dd><dt>数据库</dt><dd className="num">—</dd><dt>今日采集</dt><dd>—</dd><dt>读取</dt><dd>只读 · 不调用 Provider</dd></dl></div><div className="w2-system__block"><h3>推荐规则</h3><dl className="w2-kv"><dt>推荐权威</dt><dd>AH/OU v3.1 冻结决策账本</dd><dt>模型分数</dt><dd>赛前冻结，不是 EV 档位</dd><dt>结算</dt><dd>按冻结盘口与入场赔率</dd><dt>数据读取</dt><dd>只读所选足球日</dd></dl></div></div>{capabilityStatus}<div className="w2-historical-quality"><p>旧代际模型质量历史证据；不参与当前 AH/OU v3 战绩。</p>{historicalQuality}</div><ForwardWaitMonitor value={workspace.forward_wait_monitor} /></details>
+      <details className="w2-system" data-mviews="more" onToggle={(event) => loadWebVersion(event.currentTarget.open)}><summary>系统详情 <span>运行状态、版本、采集与规则</span></summary><div className="w2-system__grid"><div className="w2-system__block"><h3>运行状态</h3><dl className="w2-kv"><dt>数据</dt><dd>{workspace.system_status?.data || "—"}</dd><dt>推荐</dt><dd>{workspace.system_status?.recommendations || "—"}</dd><dt>正式推荐</dt><dd>{workspace.runtime.formal === "OFF" ? "关闭" : workspace.runtime.formal}</dd><dt>联赛白名单</dt><dd className="num">{workspace.runtime.active_whitelist_count}</dd></dl></div><div className="w2-system__block"><h3>版本与采集</h3><dl className="w2-kv"><dt>版本</dt><dd className="num">{webVersion ? webVersion.slice(0, 8) : "—"}</dd><dt>数据库</dt><dd className="num">—</dd><dt>今日采集</dt><dd>—</dd><dt>读取</dt><dd>只读 · 不调用 Provider</dd></dl></div><div className="w2-system__block"><h3>推荐规则</h3><dl className="w2-kv"><dt>推荐权威</dt><dd>AH/OU v3.1 冻结决策账本</dd><dt>模型分数</dt><dd>赛前冻结，不是 EV 档位</dd><dt>结算</dt><dd>按冻结盘口与入场赔率</dd><dt>数据读取</dt><dd>只读所选足球日</dd></dl></div></div>{capabilityStatus}<div className="w2-historical-quality"><p>旧代际模型质量历史证据；不参与当前 AH/OU v3 战绩。</p>{historicalQuality}</div><SystemHealthPanel /></details>
     </main>
     {selectedFixtureId ? <><div className="w2-scrim" onClick={() => setSelectedFixtureId(null)} /><aside className="w2-drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle"><div className="w2-drawer__head"><span className="w2-league">{translateCompetition(selectedDetail?.competition_name || workspace.matches.find((match) => match.fixture_id === selectedFixtureId)?.competition_name || selectedDetail?.competition_id || "赛事待确认", selectedDetail?.competition_id || workspace.matches.find((match) => match.fixture_id === selectedFixtureId)?.competition_id)}</span><span className="faint num">{localTime(selectedDetail?.kickoff_utc)}</span><button type="button" className="w2-link" onClick={() => setSelectedFixtureId(null)}>关闭</button></div><div className="w2-drawer__body">{selectedFailure ? <section className="w2-projection-error" role="alert"><h3>单场投影已隔离</h3><p>{selectedFailure.projection_error.message}</p><small>{selectedFailure.projection_error.code}</small></section> : detailState === "loading" ? <p>正在读取比赛详情…</p> : detailState === "error" ? <p>比赛详情暂不可用，请稍后重试。</p> : selectedDetail ? <><div className="w2-drawer__intro"><div><div className="w2-drawer__teams" id="drawerTitle">{teamName(selectedDetail.home_team_label)} vs {teamName(selectedDetail.away_team_label)}</div><span className="faint">{localDate(selectedDetail.kickoff_utc, { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span></div></div><div className="w2-drawer__pick"><div className="w2-stat"><span>让球</span><strong>{formatAhMarketHandicap(selectedDetail.market_radar.markets.ASIAN_HANDICAP.main_line) || "—"}</strong></div><div className="w2-stat"><span>大小</span><strong>{selectedDetail.market_radar.markets.TOTALS.main_line || "—"}</strong></div><div className="w2-stat"><span>最终状态</span><strong>{finalStatusLabel(selectedDetail.evaluation_execution.status)}</strong></div></div><section><h3 className="section-title">本场 AH/OU v3 冻结推荐</h3>{selectedDetail.ah_ou_v3_recommendations ? selectedDetail.ah_ou_v3_recommendations.length ? <ul className="w2-v3-detail-recommendations">{selectedDetail.ah_ou_v3_recommendations.map((pick) => <li key={pick.decision_id} data-decision-id={pick.decision_id} data-market={pick.market || undefined}><strong>{marketLabel(pick.market)} {sideLabel(pick.selection)} {pick.line} @{pick.odds}</strong><span>模型分数 {pick.score} · {statusLabel(pick.status)}{pick.result ? ` · ${resultLabel(pick.result)} ${signed(Number(pick.net_units))} 单位` : ""}</span><code>{pick.decision_id}</code></li>)}</ul> : <p>本场没有 AH/OU v3 选中决策。</p> : <p role="alert">本场 v3 推荐读模型不可用。</p>}</section><section><h3 className="section-title">分析摘要</h3><p>{selectedDetail.factual_summary || "暂无摘要"}</p></section>{renderInputDiagnostics ? <details className="w2-input-diagnostics"><summary>赛前输入与风险诊断（不构成当前推荐）</summary>{renderInputDiagnostics(selectedDetail)}</details> : null}</> : null}</div></aside></> : null}
     <nav className="w2-bottomnav" aria-label="主导航"><div className="w2-bottomnav__inner"><button type="button" aria-current={mobileView === "picks" ? "page" : undefined} onClick={() => selectMobile("picks")}>☰<span>推荐</span></button><button type="button" aria-current={mobileView === "matches" ? "page" : undefined} onClick={() => selectMobile("matches")}>◉<span>比赛</span></button><button type="button" aria-current={mobileView === "review" ? "page" : undefined} onClick={() => selectMobile("review")}>↗<span>复盘</span></button><button type="button" aria-current={mobileView === "more" ? "page" : undefined} onClick={() => selectMobile("more")}>•••<span>更多</span></button></div></nav>

@@ -3,6 +3,7 @@ import type {
   IntelligenceValidationResponse,
   IntelligenceCalibratedValidationResponse,
   IntelligenceWorkspaceList,
+  SystemHealth,
   WorkspaceMatch,
 } from "../types/intelligenceWorkspace";
 import { API_BASE } from "./labels";
@@ -24,6 +25,19 @@ export async function fetchIntelligenceWorkspace(
     throw new Error(`intelligence-workspace -> HTTP ${response.status}`);
   }
   return response.json() as Promise<IntelligenceWorkspaceList>;
+}
+
+export async function fetchSystemHealth(
+  signal?: AbortSignal,
+): Promise<SystemHealth> {
+  const response = await fetch(
+    `${API_BASE}/dashboard/system-health`,
+    { headers: { Accept: "application/json" }, signal },
+  );
+  if (!response.ok) {
+    throw new Error(`system-health -> HTTP ${response.status}`);
+  }
+  return response.json() as Promise<SystemHealth>;
 }
 
 export async function fetchIntelligenceValidation(

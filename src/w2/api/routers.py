@@ -48,6 +48,7 @@ from w2.api.schemas import (
     ProbabilityResponse,
     ProviderStatusResponse,
     ReleaseReadinessResponse,
+    SystemHealthResponse,
     ResearchCardResponse,
     RetentionStatusResponse,
     ValidationSummaryResponse,
@@ -1237,6 +1238,11 @@ def model_probabilities(fixture_id: str, request: Request) -> dict[str, Any]:
 @public_router.get("/data-health", response_model=DataHealthResponse)
 def data_health(request: Request) -> dict[str, Any]:
     return {"request_id": request_id(request), **service.data_health()}
+
+
+@public_router.get("/dashboard/system-health", response_model=SystemHealthResponse)
+def dashboard_system_health(request: Request) -> dict[str, Any]:
+    return {"request_id": request_id(request), **service.system_health()}
 
 
 @public_router.get("/providers/status", response_model=ProviderStatusResponse)

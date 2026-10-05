@@ -2297,6 +2297,19 @@ class ProviderStatusResponse(BaseModel):
     quota_policy: dict[str, Any] = Field(default_factory=dict)
 
 
+class SystemHealthResponse(BaseModel):
+    request_id: str
+    schema_version: str
+    generated_at: str
+    football_day: str
+    overall: str
+    data_freshness: dict[str, Any]
+    recommendation_chain: dict[str, Any]
+    collection_quota: dict[str, Any]
+    settlement: dict[str, Any]
+    alerts: list[dict[str, Any]]
+
+
 class BacktestLatestResponse(BaseModel):
     request_id: str
     status: str
