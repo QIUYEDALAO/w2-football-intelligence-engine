@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { footballDayShanghai, translateCompetition, translateReason } from "../lib/formatters";
 import { fetchIntelligenceCalibratedValidation, fetchIntelligenceReplay, fetchIntelligenceValidation } from "../lib/intelligenceWorkspaceApi";
 import { PUBLIC_ENUM_LABELS, PUBLIC_REASON_LABELS } from "../lib/labels";
-import { ahRecommendationTeamLabel, formatAhMarketHandicap, formatAhRecommendationHandicap } from "../lib/pricingDisplay";
+import { formatAhMarketHandicap } from "../lib/pricingDisplay";
 import { publicPresentation } from "../lib/publicPresentation";
 import { DesignV1Overview } from "./DesignV1Overview";
 import type {
@@ -48,14 +48,6 @@ const SELECTION_LABELS: Record<string, string> = {
   AWAY: "客队",
   OVER: "大球",
   UNDER: "小球",
-};
-
-const SETTLEMENT_LABELS: Record<string, string> = {
-  WIN: "赢",
-  HALF_WIN: "赢一半",
-  PUSH: "走盘",
-  HALF_LOSS: "输一半",
-  LOSS: "输",
 };
 
 const RISK_LABELS: Record<RiskAxisName, string> = {
@@ -1035,88 +1027,6 @@ function QualityRail({ workspace }: { workspace: IntelligenceWorkspaceList }) {
   );
 }
 
-function ValidationCenter({ response }: { response: IntelligenceValidationResponse }) {
-  const modelForecast = response.validation.model_forecast;
-  const evaluationFunnel = modelForecast.market_evaluation_funnel;
-  const officialRecommendations = modelForecast.official_recommendations;
-  const officialSettledCount = officialRecommendations.filter((row) => row.settlement !== "PENDING").length;
-  const officialProfit = officialRecommendations.reduce((sum, row) => sum + (row.profit_units ?? 0), 0);
-  const records = response.validation.forward_validation_records;
-  const outcomes = records.outcomes;
-  const settledCandidateCount = typeof outcomes.settled_sample_count === "number" ? outcomes.settled_sample_count : 0;
-  const legacyAnalysisPickCount = Math.max(0, settledCandidateCount - modelForecast.current_flow_settled_count);
-  return (
-    <section className="v41-validation-center" id="secondary-validation" aria-labelledby="validation-title">
-      <header>
-        <div><span className="v41-eyebrow">跨比赛日累计证据</span><h2 id="validation-title">赛后验证</h2><p>先看系统是否可用；审计口径与历史记账默认折叠。</p></div>
-      </header>
-      <section className="v41-official-recommendations" aria-labelledby="official-recommendations-title">
-        <h3 id="official-recommendations-title">历史 V4 推荐与赛果（只读）</h3>
-        <p className="v41-validation-verdict"><strong>开赛前最后状态仍为候选且已结算 {officialSettledCount} 注，合计 {officialProfit >= 0 ? "+" : ""}{officialProfit.toFixed(3)} 单位。</strong><span>样本量远不足以判断模型好坏。</span></p>
-        <ul className="v41-validation-counts"><li><span>曾形成候选</span><strong>{modelForecast.ever_formed_candidate_count}</strong></li><li><span>最终仍有效</span><strong>{modelForecast.final_candidate_count}</strong></li><li><span>后续失效</span><strong>{modelForecast.invalidated_candidate_count}</strong></li></ul>
-        {officialRecommendations.length ? <ol className="v41-match-grid">{officialRecommendations.map((row) => {
-          const recommendation = row.market === "ASIAN_HANDICAP"
-            ? `让球 ${ahRecommendationTeamLabel(row.selection, row.home_team_label?.display_name, row.away_team_label?.display_name)}${formatAhRecommendationHandicap(row.selection, row.exact_line) || row.exact_line} · 推荐${SELECTION_LABELS[row.selection]}`
-            : `${SELECTION_LABELS[row.selection]} ${row.exact_line}`;
-          return <li key={`${row.fixture_id}-${row.market}`} data-fixture-id={row.fixture_id} data-market={row.market} data-settlement={row.settlement}>
-            <div className="v41-match-card__head">
-              <span className="v41-match-card__meta"><span className="v41-league-tag">{translateCompetition(row.competition_id || "赛事待确认", row.competition_id)}</span><time>{localDateTime(row.kickoff_utc)}</time></span>
-              <b className="v41-result-badge">{row.settlement === "PENDING" ? "待结算" : SETTLEMENT_LABELS[row.settlement]}</b>
-            </div>
-            <strong className="v41-match-card__teams"><span className="v41-match-name"><TeamLabel team={row.home_team_label} /><span className="v41-versus"> vs </span><TeamLabel team={row.away_team_label} /></span></strong>
-            <div className="v41-match-card__detail">
-              <span className="v41-match-card__pick">{recommendation}{row.lifecycle_note_zh ? <small>{row.lifecycle_note_zh}</small> : null}<span className="v41-match-card__odds">@{row.decimal_odds.toFixed(2)}</span></span>
-              <span className="v41-match-card__score-group"><span className="v41-match-card__score">{row.score ?? "待结算"}</span><em className="v41-match-card__profit">{row.profit_units === null ? "待结算" : `${row.profit_units > 0 ? "+" : ""}${row.profit_units.toFixed(3)}`}</em></span>
-            </div>
-          </li>;
-        })}</ol> : <p className="v41-validation-empty">当日无检查点漏斗候选。</p>}
-      </section>
-      <ul className="v41-validation-counts v41-validation-t30"><li><span>T-30 候选评估</span><strong>{modelForecast.t30_evaluated_candidate_count}</strong></li><li><span>T-30 正式档位成功</span><strong>{modelForecast.t30_confirmed_candidate_count}</strong></li></ul>
-      <p className="v41-validation-context">候选评估与正式档位终态是两层证据；端点明细仍分别保留 CAPTURED / PROVIDER_EMPTY。</p>
-      <details className="v41-validation-audit v41-validation-audit--group">
-        <summary>审计与历史记账</summary>
-        <div className="v41-validation-layout">
-          <section>
-            <h3>模型预测验证账本</h3>
-            <ul className="v41-validation-counts"><li><span>Capture</span><strong>{modelForecast.capture_count}</strong></li><li><span>Settled</span><strong>{modelForecast.settled_count}</strong></li><li><span>Pending</span><strong>{modelForecast.pending_count}</strong></li></ul>
-            <p className="v41-validation-context">作用域：不依赖报价的模型预测账本。</p>
-            <ul className="v41-validation-counts"><li><span>已有 ≥{modelForecast.min_xg_matches} 场历史的球队</span><strong>{modelForecast.xg_ready_team_count}</strong></li><li><span>未来 7 天双方均就绪</span><strong>{modelForecast.next_7d_xg_ready_fixture_count}</strong></li></ul>
-            <ul className="v41-validation-counts v41-model-forecast-buckets">{([['LT_6H', '<6h'], ['H6_TO_LT_24H', '6–24h'], ['D1_TO_D3', '1–3d'], ['GT_3D', '>3d']] as const).map(([bucket, bucketLabel]) => <li key={bucket}><span>{bucketLabel}</span><strong>{modelForecast.lead_time_buckets[bucket].settled_count}/{modelForecast.lead_time_buckets[bucket].capture_count}</strong></li>)}</ul>
-            <ul className="v41-validation-counts">{Object.entries(modelForecast.data_versions).map(([version, rows]) => <li key={version}><span>{rows.team_xg_match_count === null ? version : `xG 数据版本 ${rows.team_xg_match_count.toLocaleString()} 行`}</span><strong>{rows.settled_count}/{rows.capture_count}</strong></li>)}</ul>
-            <p className="v41-validation-context">lead-time 与数据版本数字均为 Settled / Capture；可复现性标记属于同级审计证据，不参与顶部可用性结论。</p>
-          </section>
-          <section>
-            <h3>历史已结算 ANALYSIS_PICK</h3>
-            <ul className="v41-validation-counts"><li><span>历史已结算 ANALYSIS_PICK</span><strong>{legacyAnalysisPickCount}</strong></li></ul>
-            <p className="v41-validation-warning"><strong>历史遗留，非当前流程产出。</strong>不显示命中率：n={legacyAnalysisPickCount}、选择过程尚未审计，且与 Phase 0.5 全量回测的 NO_EDGE 结论相反。</p>
-            <h3>当前流程逐门覆盖（评估机会 {evaluationFunnel.opportunity_count}）</h3>
-            {evaluationFunnel.measurement_status === "INVALID" ? (
-              <p className="v41-validation-warning"><strong>机会记录损坏，无法测量。</strong>有 {evaluationFunnel.invalid_opportunity_row_count} 条记录声明为正式评估机会，但未通过契约校验：{Object.entries(evaluationFunnel.invalid_opportunity_reasons).map(([reason, count]) => `${reason} ${count}`).join('、')}。这不是"尚未发生"，是写入端有缺陷。</p>
-            ) : evaluationFunnel.measurement_status === "NOT_MEASURABLE" ? (
-              <p className="v41-validation-warning"><strong>当前不可测量。</strong>尚无任何检查点评估机会记录，因此没有逐门通过率。这不表示各门失败——系统还不知道这些比赛会卡在哪一门。已冻结模型预测 {evaluationFunnel.capture_count} 场。</p>
-            ) : (<>
-              <ul className="v41-validation-counts">{([
-                ['model_ready', '模型就绪'],
-                ['mainline_parsed', '主盘解析'],
-                ['bookmaker_depth', '深度通过'],
-                ['quote_fresh', '时效通过'],
-                ['evaluated', '实际评估'],
-                ['no_edge', 'NO_EDGE'],
-                ['candidate', '动态评估候选判定'],
-              ] as const).map(([gate, gateLabel]) => <li key={gate}><span>{gateLabel}</span><strong>{evaluationFunnel.gate_counts[gate] ?? 0}/{evaluationFunnel.opportunity_count}</strong></li>)}</ul>
-              <p className="v41-validation-context">分母为预注册评估时点 × AH/TOTALS 的实际机会数，不由已冻结场次推算；带真实写入时刻 {evaluationFunnel.recorded_at_count}。动态评估候选判定不等于已在 T-30 锁定为候选。</p>
-            </>)}
-            <ul className="v41-validation-counts"><li><span>赛果基表记录</span><strong>{records.validation_count}</strong></li><li><span>旧账本纳入统计</span><strong>{records.eligible_count}</strong></li><li><span>候选待结算</span><strong>{records.pending_count}</strong></li><li><span>无 Pick / 入场报价</span><strong>{records.excluded_count}</strong></li></ul>
-            <p className="v41-validation-context">作用域：跨比赛日历史记账；不混入所选比赛日的前向记录与赛果缺口。</p>
-          </section>
-        </div>
-      </details>
-      {response.validation.league_performance.length ? <details className="v41-validation-leagues"><summary>按联赛查看验证状态（{response.validation.league_performance.length}）</summary><ul>{response.validation.league_performance.slice(0, 13).map((league) => <li key={`${league.competition_id}-${league.source_league}`}><strong>{translateCompetition(league.competition_name || league.league, league.canonical_competition_id || league.competition_id)}</strong><span>{league.only_record_reason === "PROBABILITY_QUALITY_NOT_READY" ? "概率质量待就绪" : league.only_record_reason === "AGGREGATION_CONFLICT" ? "聚合冲突" : league.only_record_reason === "SAMPLE_INSUFFICIENT" ? "样本不足" : "可用"}</span></li>)}</ul></details> : null}
-      <details className="v41-validation-technical"><summary>技术证据详情</summary><p>读取合同：<code>provider_calls={response.read_contract.provider_calls}</code> <code>db_writes={response.read_contract.db_writes}</code> <code>no_call_on_read={String(response.read_contract.no_call_on_read)}</code></p></details>
-    </section>
-  );
-}
-
 function ReplayCenter({ response }: { response: IntelligenceReplayResponse }) {
   const replay = response.history_replay;
   const recordLabel = historyRecordLabel(replay.record_kind);
@@ -1267,7 +1177,7 @@ export function IntelligenceConsole(props: Props) {
   };
   const tabContent = tabState === "loading" ? <p className="w2-pending">正在按需读取…</p>
     : tabState === "error" ? <p className="w2-pending">该视图暂不可用。<button type="button" className="w2-link" onClick={() => { setTabState("idle"); setRequestAttempt((value) => value + 1); }}>重试</button></p>
-    : tab === "validation" && validation ? <Suspense fallback={<p className="w2-pending">正在加载战绩复盘…</p>}><DesignV1ValidationView response={validation} onPageChange={setReviewOffset} />{validation.validation?.model_forecast ? <section aria-label="旧代际历史验证" data-legacy-validation><p>以下是旧代际历史验证，仅供审计；当前 AH/OU 推荐与战绩以上方 v3 冻结账本为准。</p><ValidationCenter response={validation} /></section> : null}</Suspense>
+    : tab === "validation" && validation ? <Suspense fallback={<p className="w2-pending">正在加载战绩复盘…</p>}><DesignV1ValidationView response={validation} onPageChange={setReviewOffset} /></Suspense>
     : tab === "validation-calibrated" && calibratedValidation ? <Suspense fallback={<p className="w2-pending">正在加载校准复盘…</p>}><DesignV1CalibratedValidationView response={calibratedValidation} onPageChange={setReviewOffset} /></Suspense>
     : tab === "replay" && replay ? <Suspense fallback={<p className="w2-pending">正在加载回放记录…</p>}><DesignV1ReplayView response={replay} />{replay.history_replay ? <section aria-label="旧代际历史回放" data-legacy-replay><p>以下是旧代际历史回放，不作为当前 AH/OU v3 推荐权威。</p><ReplayCenter response={replay} /></section> : null}</Suspense>
     : null;
