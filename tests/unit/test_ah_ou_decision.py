@@ -20,6 +20,8 @@ class FakeRepository:
     def __init__(self, snapshots: dict, history: list) -> None:
         self.snapshots = snapshots
         self.history = history
+        # F9 新鲜度门：默认无「最近 FT」记录（休赛），供既有测试走「跳过门」路径。
+        self.latest_ft_kickoffs: dict[str, datetime] = {}
         # Immutable synthetic source controls; later attacks mutate the
         # projection only, never rewrite its source oracle.
         from w2.domain.canonical_serialization import (
@@ -91,9 +93,16 @@ class FakeRepository:
             and r.get("fixture_status") == fixture_status
         ]
 
+    def latest_finished_fixture_kickoffs_for_teams(self, team_ids, *, before):
+        return {
+            team_id: kickoff
+            for team_id, kickoff in self.latest_ft_kickoffs.items()
+            if team_id in team_ids
+        }
 
-def _snapshot(team_id: str) -> dict:
-    return {
+
+def _snapshot(team_id: str, *, source_matches: list[dict] | None = None) -> dict:
+    snapshot = {
         "team_id": team_id,
         "as_of_fixture_id": FIXTURE_ID,
         "as_of_time": (KICKOFF - timedelta(days=1)).isoformat(),
@@ -105,6 +114,9 @@ def _snapshot(team_id: str) -> dict:
         "rolling_goals_for": 1.1,
         "rolling_goals_against": 0.7,
     }
+    if source_matches is not None:
+        snapshot["source_matches"] = source_matches
+    return snapshot
 
 
 def _meetings() -> list[dict]:
@@ -290,6 +302,9 @@ def test_f6_capture_lookup_port_is_required_and_fail_closed() -> None:
     missing = SimpleNamespace(
         team_xg_rolling_snapshots_for_w2_teams=control.team_xg_rolling_snapshots_for_w2_teams,
         canonical_match_history_for_teams=control.canonical_match_history_for_teams,
+        latest_finished_fixture_kickoffs_for_teams=(
+            control.latest_finished_fixture_kickoffs_for_teams
+        ),
     )
     assert _run(missing)["status"] == "F6_H2H_CAPTURE_LOOKUP_REQUIRED"
     control.endpoint_captures_for_ids = lambda ids: (_ for _ in ()).throw(
@@ -431,3 +446,77 @@ def test_market_reasons_for_status_ah_ou_independent() -> None:
         "ASIAN_HANDICAP": "FIXTURE_IDENTITY_NOT_READY",
         "TOTALS": "FIXTURE_IDENTITY_NOT_READY",
     }
+
+
+def _match(kickoff: datetime, fixture_id: str = "PAST-M") -> dict:
+    return {"fixture_id": fixture_id, "kickoff_at": kickoff.isoformat()}
+
+
+def test_f9_stale_snapshot_is_refused() -> None:
+    """断供：比赛日历最新 FT 比快照 xG 覆盖到的最新比赛更新 → SKIP F9_SNAPSHOT_STALE。"""
+    repo = _ready_repository()
+    # 快照 xG 覆盖到 09-20（source_matches 最新一场），但球队 09-27 又打了一场 FT。
+    repo.snapshots["H"] = _snapshot(
+        "H", source_matches=[_match(KICKOFF - timedelta(days=10))]
+    )
+    repo.snapshots["A"] = _snapshot(
+        "A", source_matches=[_match(KICKOFF - timedelta(days=10))]
+    )
+    repo.latest_ft_kickoffs = {
+        "H": KICKOFF - timedelta(days=3),  # 09-27 比 09-20 新
+        "A": KICKOFF - timedelta(days=3),
+    }
+    result = _run(repo)
+    assert result["status"] == "F9_SNAPSHOT_STALE"
+    assert result["ah"] is None and result["ou"] is None
+    assert result["market_reasons"] == {
+        "ASIAN_HANDICAP": "F9_SNAPSHOT_STALE",
+        "TOTALS": "F9_SNAPSHOT_STALE",
+    }
+
+
+def test_f9_recess_snapshot_not_refused() -> None:
+    """休赛：快照 xG 覆盖到最新 FT（相等）→ 不 SKIP（不误杀冬歇/国际比赛日）。"""
+    repo = _ready_repository()
+    repo.snapshots["H"] = _snapshot(
+        "H", source_matches=[_match(KICKOFF - timedelta(days=10))]
+    )
+    repo.snapshots["A"] = _snapshot(
+        "A", source_matches=[_match(KICKOFF - timedelta(days=10))]
+    )
+    # 最新 FT == 快照 xG 覆盖到的最后一场（无更新 FT）→ 休赛，不 SKIP。
+    repo.latest_ft_kickoffs = {
+        "H": KICKOFF - timedelta(days=10),
+        "A": KICKOFF - timedelta(days=10),
+    }
+    assert _run(repo)["status"] == "READY"
+
+
+def test_f9_fresh_snapshot_not_refused() -> None:
+    """正常：每轮都有 xG，快照 xG 覆盖跟上最新 FT → 不 SKIP。"""
+    repo = _ready_repository()
+    # 快照 xG 覆盖到 09-27（最新 FT 也到 09-27，相等）→ 正常。
+    repo.snapshots["H"] = _snapshot(
+        "H", source_matches=[_match(KICKOFF - timedelta(days=3))]
+    )
+    repo.snapshots["A"] = _snapshot(
+        "A", source_matches=[_match(KICKOFF - timedelta(days=3))]
+    )
+    repo.latest_ft_kickoffs = {
+        "H": KICKOFF - timedelta(days=3),
+        "A": KICKOFF - timedelta(days=3),
+    }
+    assert _run(repo)["status"] == "READY"
+
+
+def test_f9_no_ft_history_not_refused() -> None:
+    """无 FT 比赛（latest_ft 为空）→ 无法判断断供，跳过门，由其他门把关。"""
+    repo = _ready_repository()
+    repo.snapshots["H"] = _snapshot(
+        "H", source_matches=[_match(KICKOFF - timedelta(days=10))]
+    )
+    repo.snapshots["A"] = _snapshot(
+        "A", source_matches=[_match(KICKOFF - timedelta(days=10))]
+    )
+    repo.latest_ft_kickoffs = {}  # 无 FT 记录
+    assert _run(repo)["status"] == "READY"

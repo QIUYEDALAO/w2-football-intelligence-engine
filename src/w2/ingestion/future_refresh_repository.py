@@ -2474,6 +2474,41 @@ class FutureRefreshDbRepository:
             )
         return [self._canonical_match_history_dict(row) for row in rows]
 
+    def latest_finished_fixture_kickoffs_for_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+    ) -> dict[str, datetime]:
+        """每个球队在 ``before`` 之前最近一场已完赛 (FT) 比赛的 kickoff。
+
+        F9 新鲜度门用「比赛日历最新 FT」对比「F9 快照 xG 覆盖到的最新比赛」，
+        区分「数据源断供（打了 FT 却无 xG）」和「休赛（本就无新 FT）」。AS-OF
+        口径下仍只读 canonical 比赛历史，不接触赛果/结算表。
+        """
+        ids = [team_id for team_id in dict.fromkeys(team_ids) if team_id]
+        if not ids:
+            return {}
+        with self._asof_scoped_session() as session:
+            rows = session.execute(
+                select(
+                    CanonicalTeamMatchHistoryModel.team_w2_id,
+                    func.max(CanonicalTeamMatchHistoryModel.kickoff_utc),
+                )
+                .where(
+                    CanonicalTeamMatchHistoryModel.team_w2_id.in_(ids),
+                    CanonicalTeamMatchHistoryModel.fixture_status == "FT",
+                    CanonicalTeamMatchHistoryModel.kickoff_utc < before,
+                )
+                .group_by(CanonicalTeamMatchHistoryModel.team_w2_id)
+            )
+            result = {
+                str(team_id): kickoff
+                for team_id, kickoff in rows
+                if kickoff is not None
+            }
+        return result
+
     def team_rating_snapshots_for_w2_teams(
         self,
         team_ids: list[str],

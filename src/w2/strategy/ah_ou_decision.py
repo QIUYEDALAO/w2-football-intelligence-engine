@@ -55,6 +55,16 @@ class AhOuRepository(Protocol):
         fixture_status: str = "FT",
     ) -> list[dict[str, Any]]: ...
 
+    # F9 新鲜度门（断供 vs 休赛）: 每个球队在 ``before`` 之前最近一场已完赛
+    # (FT) 比赛的 kickoff。用于对比 F9 快照 xG 数据实际覆盖到的最新比赛，区分
+    # 「数据源断供（有 FT 却无 xG）」和「休赛（本就无新 FT）」。返回 {team_w2_id: kickoff}。
+    def latest_finished_fixture_kickoffs_for_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+    ) -> dict[str, datetime]: ...
+
     # Optional AS-OF role scoping (task 整改 item 4): when present, the reads
     # are performed under ``quant_asof_reader_role`` so the softmax path cannot
     # see result/settlement tables. Implementations may no-op if unsupported.
@@ -124,6 +134,28 @@ def _is_finite_number(value: Any) -> bool:
         return math.isfinite(float(value))
     except (TypeError, ValueError):
         return False
+
+
+def _latest_source_match_kickoff(snapshot: dict[str, Any]) -> datetime | None:
+    """The latest kickoff among a snapshot's source matches (xG coverage frontier).
+
+    ``source_matches`` records the rolling window's constituent fixtures; its
+    latest ``kickoff_at`` is the newest match whose xG actually entered the
+    snapshot. This is the correct "xG 采到哪场" anchor -- ``as_of_time`` is the
+    capture/available instant, not a match time, so it cannot be compared to the
+    match calendar. ``None`` when the frontier cannot be derived (historical
+    BACKTEST rows already fail ``pit_proven`` and never reach this gate).
+    """
+    matches = snapshot.get("source_matches")
+    if not isinstance(matches, (list, tuple)):
+        return None
+    kickoffs = [
+        parsed
+        for item in matches
+        if isinstance(item, dict)
+        if (parsed := _parse_asof(item.get("kickoff_at"))) is not None
+    ]
+    return max(kickoffs) if kickoffs else None
 
 
 def build_ah_ou_selections(
@@ -221,6 +253,28 @@ def build_ah_ou_selections(
             ):
                 if not _is_finite_number(snapshot.get(field)):
                     return _skip("F9_SNAPSHOT_NON_FINITE")
+
+        # --- F9 新鲜度门：断供 vs 休赛 -----------------------------------
+        # 「比赛日历最近 FT」比「快照 xG 覆盖到的最新比赛」更新 → 该场 FT 有赛果
+        # 却没有对应 xG（数据源断供），快照已陈旧，必须 SKIP；相等或更旧 → 休赛 /
+        # 正常，不误杀。用 source_matches 最新 kickoff 作 xG 覆盖边界（as_of_time
+        # 是采集时点不是比赛时点，不能与比赛日历对齐）。
+        latest_ft_kickoffs = repository.latest_finished_fixture_kickoffs_for_teams(
+            [home_team_id, away_team_id],
+            before=decision_at,
+        )
+        for snapshot, team_id in (
+            (home_snapshot, home_team_id),
+            (away_snapshot, away_team_id),
+        ):
+            latest_ft_kickoff = latest_ft_kickoffs.get(team_id)
+            snapshot_latest = _latest_source_match_kickoff(snapshot)
+            if latest_ft_kickoff is None or snapshot_latest is None:
+                # 无 FT 比赛（休赛）或历史 BACKTEST 快照无 source_matches：无法
+                # 判断供，交由既有 pit_proven 等门继续把关，不误杀。
+                continue
+            if latest_ft_kickoff > snapshot_latest:
+                return _skip("F9_SNAPSHOT_STALE")
 
         # --- F6 准入：FT + 同对手（先筛再取 ≤10 场）--------------------
         history = repository.canonical_match_history_for_teams(

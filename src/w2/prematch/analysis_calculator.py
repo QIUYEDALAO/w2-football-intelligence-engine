@@ -3756,6 +3756,9 @@ class ReadModelService:
         if not (
             callable(getattr(repository, "team_xg_rolling_snapshots_for_w2_teams", None))
             and callable(getattr(repository, "canonical_match_history_for_teams", None))
+            and callable(
+                getattr(repository, "latest_finished_fixture_kickoffs_for_teams", None)
+            )
         ):
             # A: a missing reader is a structured refusal, not a silent card that
             # later gets revived by the market-candidate pipeline. Persist both
