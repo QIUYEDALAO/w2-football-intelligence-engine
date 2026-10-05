@@ -1451,7 +1451,12 @@ def _v3_daily_payload(
     }
 
 def enqueue_v3_daily_settlement_in_session(session: Session, *, now: datetime) -> str | None:
-    """One immutable report; same identity requires the same business envelope."""
+    """One immutable report; same identity requires the same business envelope.
+
+    A report already DELIVERED is frozen append-only evidence: settlement fixes
+    landing after its push cannot rewrite it, so re-entry is idempotent and skips
+    the content re-verification instead of raising V3_DAILY_CONTENT_CONFLICT.
+    """
     from w2.prematch.current_recommendation_control import current_recommendations_paused
 
     if current_recommendations_paused():
@@ -1464,6 +1469,8 @@ def enqueue_v3_daily_settlement_in_session(session: Session, *, now: datetime) -
     event_id = _event_id(day.isoformat(), V3_DAILY_SETTLEMENT)
     existing = session.get(CandidateNotificationOutboxModel, event_id)
     if existing is not None:
+        if existing.delivery_status == "DELIVERED":
+            return None
         _verify_current_outbox_in_session(session, existing)
         return None
     payload = _v3_daily_payload(session, day=day, created_at=now)
@@ -1476,6 +1483,8 @@ def enqueue_v3_daily_settlement_in_session(session: Session, *, now: datetime) -
     existing = session.get(CandidateNotificationOutboxModel, event_id)
     if existing is None:
         raise ValueError("V3_DAILY_EVENT_MISSING_AFTER_CONFLICT")
+    if existing.delivery_status == "DELIVERED":
+        return None
     _verify_current_outbox_in_session(session, existing)
     return None
 
