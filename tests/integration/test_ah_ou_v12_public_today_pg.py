@@ -169,7 +169,12 @@ def test_v3_selected_both_markets_reach_public_today(chain):
         assert notice["terms_hash"] == decision.terms_hash
         rendered = render_bark_message(notice)
         assert "v3 推荐" in rendered["title"]
-        assert decision.decision_id in rendered["body"]
+        # 推送去哈希：正文不含 decision_id / quote_capture_id（哈希仅保留在 outbox 供溯源）。
+        assert decision.decision_id not in rendered["body"]
+        assert str(notice["quote_capture_id"]) not in rendered["body"]
+        assert "冻结盘口" in rendered["body"]
+        assert "入场赔率" in rendered["body"]
+        assert "模型分数" in rendered["body"]
         assert "EV" not in rendered["body"]
     day = football_day_for_kickoff(datetime.fromisoformat(future["fixture"]["date"]))
     response = TestClient(app).get(

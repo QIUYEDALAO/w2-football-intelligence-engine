@@ -153,7 +153,7 @@ function SystemHealthPanel() {
     return <details className="w2-system-health"><summary>系统健康 <span>只读 · 不调用 Provider</span></summary><p className="w2-system-health__empty">系统健康状态暂不可用。</p></details>;
   }
   const items = [
-    { label: "数据新鲜度", ok: health.data_freshness.ok, detail: health.data_freshness.lag_hours === null ? "xG 断供（无数据）" : `xG 滞后 ${health.data_freshness.lag_hours.toFixed(1)}h · 阈值 ${health.data_freshness.threshold_hours}h` },
+    { label: "数据新鲜度", ok: health.data_freshness.ok, detail: health.data_freshness.f9_snapshot_lag_hours === null ? "F9 快照断供（无快照）" : `F9 快照滞后 ${health.data_freshness.f9_snapshot_lag_hours.toFixed(1)}h · 阈值 ${health.data_freshness.threshold_hours}h` },
     { label: "推荐链路", ok: health.recommendation_chain.ok, detail: `今日 ${health.recommendation_chain.match_count} 场 · 到决策点 ${health.recommendation_chain.decision_due_count} 场 · 推荐 ${health.recommendation_chain.selected_count} 场 · SKIP ${health.recommendation_chain.skip_count} 场` },
     { label: "采集额度", ok: health.collection_quota.ok, detail: health.collection_quota.remaining_quota === null ? "额度未知" : `Provider 剩余 ${health.collection_quota.remaining_quota} · 保留桶 ${health.collection_quota.reserve_bucket}` },
     { label: "结算", ok: health.settlement.ok, detail: `已结算 ${health.settlement.settled_count} 场 · 异常 ${health.settlement.anomaly_count} 场` },

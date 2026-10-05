@@ -1297,14 +1297,14 @@ def test_pro_backfill_batch_4_caps_2025_season_at_60_per_league(
     assert len(client.calls) == 60
 
 
-def test_pro_backfill_batch_4_2026_requires_never_fetched(monkeypatch: Any) -> None:
+def test_pro_backfill_batch_4_2026_skips_complete_xg(monkeypatch: Any) -> None:
+    """已采到完整双边 xG 的 2026 fixture 不重复采（幂等）。"""
     monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
 
-    class FetchedRepository(ProBackfillRepository):
-        def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
-            if endpoint != "statistics":
-                return []
-            return [{"payload": {"parameters": {"fixture": "ec-2026-fetched"}}}]
+    class CompleteXgRepository(ProBackfillRepository):
+        def raw_statistics_fixture_ids(self) -> set[str]:
+            # ec-2026-fetched 已有完整双边 xG 证据 → 应跳过
+            return {"ec-2026-fetched"}
 
     fixtures = [
         pro_fixture_season(
@@ -1320,7 +1320,7 @@ def test_pro_backfill_batch_4_2026_requires_never_fetched(monkeypatch: Any) -> N
             kickoff=NOW - timedelta(days=20),
         ),
     ]
-    repository = FetchedRepository(fixtures)
+    repository = CompleteXgRepository(fixtures)
     client = ProBackfillClient()
 
     ProStatisticsBackfillService(
@@ -1334,8 +1334,57 @@ def test_pro_backfill_batch_4_2026_requires_never_fetched(monkeypatch: Any) -> N
         now=NOW,
     ).run()
 
-    # 已抓过的 ec-2026-fetched 被过滤；从未抓过的 ec-2026-new 保留
+    # 已有完整 xG 的 ec-2026-fetched 被过滤；缺 xG 的 ec-2026-new 保留
     assert client.calls == ["ec-2026-new"]
+
+
+def test_pro_backfill_batch_4_2026_recaptures_incomplete_xg(monkeypatch: Any) -> None:
+    """expected_goals 延迟发布：statistics raw 已存在但 xG 不完整 → 仍须重采。
+
+    这是「延迟重采」的核心：实时采集当天/次日采到 raw 但 expected_goals 为空
+    （延迟 3-4 天发布），跳过键必须是「完整双边 xG」（raw_statistics_fixture_ids），
+    而不是「有 statistics raw」（_statistics_fixture_ids_any），否则永远漏采。
+    """
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+
+    class IncompleteXgRepository(ProBackfillRepository):
+        def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+            if endpoint != "statistics":
+                return []
+            # ec-2026-stale 有 statistics raw，但 response 无 expected_goals（延迟发布）。
+            return [
+                {
+                    "payload": {
+                        "parameters": {"fixture": "ec-2026-stale"},
+                        "response": [],
+                    }
+                }
+            ]
+
+    fixtures = [
+        pro_fixture_season(
+            "ec-2026-stale",
+            league_id=40,
+            season="2026",
+            kickoff=NOW - timedelta(days=30),
+        ),
+    ]
+    repository = IncompleteXgRepository(fixtures)
+    client = ProBackfillClient(with_xg=True)
+
+    ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=4,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    # raw 存在但 xG 不完整 → raw_statistics_fixture_ids 不含它 → 不被跳过 → 重采。
+    assert client.calls == ["ec-2026-stale"]
 
 
 def test_pro_backfill_batch_4_pilot_uses_2025_not_2026(monkeypatch: Any) -> None:

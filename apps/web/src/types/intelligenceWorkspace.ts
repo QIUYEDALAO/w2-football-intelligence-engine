@@ -989,9 +989,11 @@ export interface SystemHealth {
   data_freshness: {
     status: string;
     ok: boolean;
-    lag_hours: number | null;
+    f9_snapshot_lag_hours: number | null;
+    raw_xg_lag_hours: number | null;
     threshold_hours: number;
     latest_ft_kickoff: string | null;
+    latest_snapshot_kickoff: string | null;
     latest_xg_capture: string | null;
   };
   recommendation_chain: {

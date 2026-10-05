@@ -208,8 +208,11 @@ PRO_BACKFILL_SEASON_LIMIT_BY_BATCH: dict[int, dict[str, int]] = {
     4: {"2025": 60},
 }
 # Batch 4 (2026 season) targets only finished fixtures kicked off at least this
-# many days ago and with no statistics raw payload yet.
-PRO_BACKFILL_2026_MIN_AGE_DAYS: int = 7
+# many days ago and with no complete two-sided xG evidence yet. expected_goals is
+# published ~3-4 days after kickoff (Football-API: 4d full / 3d mostly / 2d none),
+# so the delayed re-capture window is 3 days — real-time capture on the day of /
+# next day misses expected_goals and would otherwise be silently skipped forever.
+PRO_BACKFILL_2026_MIN_AGE_DAYS: int = 3
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -1268,10 +1271,15 @@ class ProStatisticsBackfillService:
         Part 2 (2025) is the xG probe source: capped at 60 finished fixtures per
         league (newest-first), and the 3-fixture pilot is drawn from its newest
         rows. Part 1 (2026) is never probed: only finished fixtures at least
-        PRO_BACKFILL_2026_MIN_AGE_DAYS old with no statistics raw payload yet.
+        PRO_BACKFILL_2026_MIN_AGE_DAYS old with no complete two-sided xG evidence
+        yet. The skip key is ``raw_statistics_fixture_ids`` (complete numeric
+        two-sided expected_goals), NOT ``_statistics_fixture_ids_any`` (any
+        statistics raw): a raw captured on the day of the match with empty
+        expected_goals is "fetched but not complete", so it must be re-captured
+        after the 3-day publish lag instead of being silently skipped.
         Part 2 precedes part 1 so the pilot picks the 2025 rows.
         """
-        already_fetched = self._statistics_fixture_ids_any()
+        already_fetched = self.repository.raw_statistics_fixture_ids()
         min_age = timedelta(days=PRO_BACKFILL_2026_MIN_AGE_DAYS)
         part2: list[dict[str, Any]] = []
         part1: list[dict[str, Any]] = []

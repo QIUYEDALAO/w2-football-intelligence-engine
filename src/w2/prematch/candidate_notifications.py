@@ -2045,14 +2045,12 @@ def _message_body(payload: Mapping[str, Any]) -> str:
             )
         return "\n".join(lines)
     if event_type == V3_RECOMMENDATION_CONFIRMED:
-        return "\n".join(
-            (
-                f"冻结盘口 {_format_line(payload.get('line'))} · "
-                f"入场赔率 {_format_odds(payload.get('decimal_odds'))} · "
-                f"模型分数 {payload.get('score')}",
-                f"决策 {payload.get('decision_id')}",
-                f"报价 capture {payload.get('quote_capture_id')}",
-            )
+        # 推送正文只保留对用户有意义的一行；decision_id / quote_capture_id 仍保留在
+        # outbox payload（DB）里供审计溯源，仅不展示在推送正文。
+        return (
+            f"冻结盘口 {_format_line(payload.get('line'))} · "
+            f"入场赔率 {_format_odds(payload.get('decimal_odds'))} · "
+            f"模型分数 {payload.get('score')}"
         )
     if event_type == VALIDATION_SAMPLE_CONFIRMED:
         bookmaker = _as_mapping(payload.get("bookmaker"))
