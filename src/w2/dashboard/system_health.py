@@ -112,8 +112,8 @@ def _recommendation_chain(session: Session, *, now: datetime, day: Any) -> dict[
     stale_f9 = sum(row.skip_reason == "F9_SNAPSHOT_STALE" for row in skips)
     stale_quote = sum("STALE_QUOTE" in (row.skip_reason or "") for row in skips)
     other = len(skips) - stale_f9 - stale_quote
-    # 健康 = 有比赛且（有推荐，或没有全断供的 SKIP）；无比赛/无决策点视为「待运行」非故障。
-    ok = match_count == 0 or decision_due_count == 0 or bool(selected) or stale_f9 != len(skips)
+    # 健康 = 有比赛且（无决策点 → 待运行非故障；有决策点则必须产出推荐）。
+    ok = match_count == 0 or decision_due_count == 0 or bool(selected)
     return {
         "match_count": match_count,
         "decision_due_count": decision_due_count,
@@ -202,11 +202,26 @@ def build_system_health(session: Session, *, now: datetime | None = None) -> dic
             "severity": "YELLOW",
             "detail": f"{fence_uncertain} 条 Provider 副作用状态不确定",
         })
-    if not quota["ok"]:
+    if quota["remaining_quota"] is None:
+        alerts.append({
+            "type": "QUOTA_UNKNOWN",
+            "severity": "YELLOW",
+            "detail": "Provider 额度未知（status 缓存无 remaining_quota）",
+        })
+    elif not quota["ok"]:
         alerts.append({
             "type": "LOW_QUOTA",
             "severity": "YELLOW",
             "detail": f"Provider 剩余额度 {quota['remaining_quota']} 已触达保留桶 {quota['reserve_bucket']}",
+        })
+    if not chain["ok"]:
+        alerts.append({
+            "type": "NO_RECOMMENDATION_TODAY",
+            "severity": "YELLOW",
+            "detail": (
+                f"今日 {chain['match_count']} 场、{chain['decision_due_count']} 场已到决策点，"
+                f"推荐 0 场（SKIP {chain['skip_count']}）"
+            ),
         })
     if not settlement["ok"]:
         alerts.append({
