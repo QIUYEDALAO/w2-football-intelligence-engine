@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, time, timedelta
+from decimal import Decimal
 
 import pytest
 from apps.worker import celery_app as worker
-from apps.worker.celery_app import forward_outcome_ledger, result_materialize
+from apps.worker.celery_app import (
+    ah_ou_v3_settlement_sweep,
+    forward_outcome_ledger,
+    result_materialize,
+)
 from fastapi.testclient import TestClient
 from sqlalchemy import select, update
 from sqlalchemy.exc import DBAPIError
@@ -15,6 +20,7 @@ from sqlalchemy.orm import Session
 from w2.api.repository import ReadModelService as ApiReadModelService
 from w2.dashboard.date_window import FOOTBALL_DAY_TZ, football_day_for_kickoff
 from w2.domain.canonical_serialization import HashDomain
+from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.infrastructure.persistence.ah_ou_decision_ledger_models import AhOuDecisionLedgerModel
 from w2.infrastructure.persistence.ah_ou_monitoring_models import AhOuV3MonitoringFactModel
 from w2.infrastructure.persistence.ah_ou_postmatch_models import (
@@ -472,3 +478,149 @@ def test_v3_validation_failure_cannot_mark_natural_workers_success(chain, monkey
         assert state and state.status == "FAILED"
         assert not list(session.scalars(select(AhOuV3SettlementModel)))
         assert not list(session.scalars(select(AhOuV3ValidationSampleModel)))
+
+
+def _expected_settlement(market: str, home: int, away: int, terms: dict) -> dict:
+    """独立结算 oracle：不 import 生产结算 writer，只复用领域结算权威 + 手算净单位。
+
+    五态支付（计划书 §五）：WIN=odds-1、HALF_WIN=(odds-1)/2、PUSH/VOID=0、
+    HALF_LOSS=-0.5、LOSS=-1。2:2 平局按盘口结算据此核对。
+    """
+    if market == "ASIAN_HANDICAP":
+        outcome = settle_asian_handicap(
+            home, away, terms["selection"], Decimal(str(terms["selected_line"]))
+        ).value
+    elif market == "TOTALS":
+        outcome = settle_total_goals(
+            home + away, terms["selection"], Decimal(str(terms["selected_line"]))
+        ).value
+    else:  # pragma: no cover - defensive
+        raise AssertionError(f"unexpected market {market}")
+    odds = Decimal(str(terms["entry_odds"]))
+    if outcome == "WIN":
+        net = str(odds - 1)
+    elif outcome == "HALF_WIN":
+        net = str((odds - 1) / 2)
+    elif outcome in {"PUSH", "VOID"}:
+        net = "0"
+    elif outcome == "HALF_LOSS":
+        net = "-0.5"
+    elif outcome == "LOSS":
+        net = "-1"
+    else:  # pragma: no cover - defensive
+        raise AssertionError(f"unexpected outcome {outcome}")
+    return {"outcome": outcome, "net_units": net}
+
+
+def test_v3_settlement_sweep_recovers_unsettled_selected(chain):
+    """周期重扫：result 已落库但 settlement 未落 → 下轮重扫补结算；已结算幂等跳过。"""
+    repo, future, _, _ = chain
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
+    assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
+    # 2:2 平局，对齐生产 1569956（TOTALS OVER 按盘口结算）。
+    capture = _ft_capture(repo, future, home=2, away=2)
+    # 仅物化赛果（result 落库），不触发结算 → 构造「selected + result 已落 + 未结算」。
+    materialized = run_outcome_result_refresh(
+        repository=OutcomeLedgerRepository(repo.engine),
+        fixture_ids=["api_football:1489404"],
+        dry_run=False,
+        write_db=True,
+    )
+    assert materialized["status"] == "PASS"
+    with Session(repo.engine) as session:
+        decisions = {
+            row.market: row for row in session.scalars(select(AhOuDecisionLedgerModel))
+        }
+        assert len(decisions) == 2 and all(row.selected for row in decisions.values())
+        assert session.scalar(
+            select(ResultModel).where(ResultModel.fixture_id == "api_football:1489404")
+        )
+        assert not list(session.scalars(select(AhOuV3SettlementModel)))
+        assert not list(session.scalars(select(AhOuV3ValidationSampleModel)))
+        outbox_before = len(list(session.scalars(select(CandidateNotificationOutboxModel))))
+    # 下轮重扫 → 补结算 + 验证样本。
+    sweep = ah_ou_v3_settlement_sweep.run()
+    assert sweep["status"] == "PASS", sweep
+    assert sweep["v3"]["created"] == 2, sweep["v3"]
+    with Session(repo.engine) as session:
+        settled = {
+            row.market: row for row in session.scalars(select(AhOuV3SettlementModel))
+        }
+        samples = {
+            row.market: row for row in session.scalars(select(AhOuV3ValidationSampleModel))
+        }
+        assert set(settled) == {"ASIAN_HANDICAP", "TOTALS"}
+        assert set(samples) == {"ASIAN_HANDICAP", "TOTALS"}
+        for market, decision in decisions.items():
+            expected = _expected_settlement(market, 2, 2, decision.frozen_terms)
+            assert settled[market].outcome == expected["outcome"], (market, settled[market].outcome)
+            assert settled[market].net_units == expected["net_units"], (
+                market, settled[market].net_units,
+            )
+            assert settled[market].result_raw_sha256 == capture["raw_payload_sha256"]
+        frozen = {
+            row.decision_id: (row.settlement_hash, row.outcome, row.net_units)
+            for row in settled.values()
+        }
+        # 重扫不重复生成通知 outbox。
+        assert len(list(session.scalars(select(CandidateNotificationOutboxModel)))) == outbox_before
+    # 再次重扫 → 幂等：不新增、不覆盖已结算。
+    sweep2 = ah_ou_v3_settlement_sweep.run()
+    assert sweep2["status"] == "PASS", sweep2
+    assert sweep2["v3"]["created"] == 0 and sweep2["v3"]["idempotent"] == 2, sweep2["v3"]
+    with Session(repo.engine) as session:
+        assert len(list(session.scalars(select(AhOuV3SettlementModel)))) == 2
+        assert len(list(session.scalars(select(AhOuV3ValidationSampleModel)))) == 2
+        assert {
+            row.decision_id: (row.settlement_hash, row.outcome, row.net_units)
+            for row in session.scalars(select(AhOuV3SettlementModel))
+        } == frozen
+    public = ApiReadModelService().dashboard_ah_ou_v3_validation()
+    assert all(row["state"] == "SETTLED" for row in public["rows"])
+
+
+def test_v3_settlement_sweep_retries_after_failure(chain):
+    """结算失败不再静默：绑定失败重扫拒绝并暴露；恢复绑定后下次重扫补结算。"""
+    repo, future, _, _ = chain
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=datetime.fromisoformat(future["fixture"]["date"])
+    )
+    assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
+    capture = _ft_capture(repo, future, fill_fixture_id=False)
+    materialized = run_outcome_result_refresh(
+        repository=OutcomeLedgerRepository(repo.engine),
+        fixture_ids=["api_football:1489404"],
+        dry_run=False,
+        write_db=True,
+    )
+    assert materialized["status"] == "PASS"
+    # 篡改 sanitized_params.id → fixture 绑定失败（复现 b5d875d3 前 1569956 的失败）。
+    with Session(repo.engine) as session, session.begin():
+        session.execute(
+            update(MatchdayEndpointCaptureModel)
+            .where(MatchdayEndpointCaptureModel.capture_id == capture["capture_id"])
+            .values(sanitized_params={"id": "999999"})
+        )
+    # 重扫失败显式抛出（不静默），settlement 零落库。
+    with pytest.raises(ValueError, match="V3_RESULT_FIXTURE_BINDING_INVALID"):
+        ah_ou_v3_settlement_sweep.run()
+    with Session(repo.engine) as session:
+        assert not list(session.scalars(select(AhOuV3SettlementModel)))
+        assert not list(session.scalars(select(AhOuV3ValidationSampleModel)))
+    # 恢复绑定（等价 b5d875d3 修复后）→ 下次重扫补结算。
+    with Session(repo.engine) as session, session.begin():
+        session.execute(
+            update(MatchdayEndpointCaptureModel)
+            .where(MatchdayEndpointCaptureModel.capture_id == capture["capture_id"])
+            .values(sanitized_params={"id": str(future["fixture"]["id"])})
+        )
+    sweep = ah_ou_v3_settlement_sweep.run()
+    assert sweep["status"] == "PASS", sweep
+    assert sweep["v3"]["created"] == 2, sweep["v3"]
+    with Session(repo.engine) as session:
+        assert len(list(session.scalars(select(AhOuV3SettlementModel)))) == 2
+        assert len(list(session.scalars(select(AhOuV3ValidationSampleModel)))) == 2
+    public = ApiReadModelService().dashboard_ah_ou_v3_validation()
+    assert all(row["state"] == "SETTLED" for row in public["rows"])

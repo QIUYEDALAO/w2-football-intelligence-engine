@@ -207,6 +207,12 @@ celery_app.conf.update(
             "schedule": 120.0,
             "options": {"queue": "heavy"},
         },
+        # 结算重扫：定期对「selected=true 且结果已落库但 settlement 未落」的 v3 决策补结算，
+        # 独立于赛果物化的一次性触发；已结算幂等跳过。纯 DB 对账，无 Provider 调用。
+        "ah-ou-v3-settlement-sweep": {
+            "task": "w2.ah_ou_v3_settlement_sweep",
+            "schedule": 300.0,
+        },
     },
 )
 
@@ -807,6 +813,26 @@ def candidate_notification_schedule(self: object) -> dict[str, object]:
         "brewing_digest_ids": [],
         "scheduled_notification_ids": scheduled,
         "db_writes": len(scheduled),
+        "provider_calls": 0,
+    }
+
+
+@celery_app.task(name="w2.ah_ou_v3_settlement_sweep", bind=True)
+def ah_ou_v3_settlement_sweep(self: object) -> dict[str, object]:
+    """Periodic idempotent re-scan of settled-but-missed v3.1 decisions.
+
+    Reconciles every selected v3.1 decision that has a confirmed result but no
+    settlement yet. Runs independently of result materialisation, so a decision
+    whose settlement failed once (and rolled back) is retried on the next tick
+    instead of staying missed forever. Pure DB reconciliation: no Provider call.
+    """
+    del self  # 未使用
+    from w2.infrastructure.database import create_engine
+
+    report = _settle_v3_postmatch(create_engine(), evaluated_at=datetime.now(UTC))
+    return {
+        "status": report["status"],
+        "v3": report["v3"],
         "provider_calls": 0,
     }
 
@@ -1540,7 +1566,7 @@ def _run_result_materialize(
 
 def _settle_v3_postmatch(engine: Any, *, evaluated_at: datetime) -> dict[str, Any]:
     """Commit v3 settlement and validation sample together after trusted FT."""
-    from sqlalchemy import inspect as _inspect
+    from sqlalchemy import inspect as _inspect, text
     from sqlalchemy.orm import Session as _OrmSession
 
     from w2.tracking.ah_ou_v3_monitoring import append_monitoring_in_session
@@ -1557,6 +1583,15 @@ def _settle_v3_postmatch(engine: Any, *, evaluated_at: datetime) -> dict[str, An
             "status": "BLOCKED", "reason": "V3_POSTMATCH_SCHEMA_UNAVAILABLE",
         }}
     with _OrmSession(engine) as session:
+        # Single-flight across every settlement entrypoint (result materialise,
+        # forward outcome ledger and the periodic sweep). The settlement INSERT
+        # happens before the monitoring advisory lock, so it needs its own
+        # transaction-scoped claim to keep concurrent sweeps from racing the
+        # same decision_id primary key.
+        if session.get_bind().dialect.name == "postgresql":
+            session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended('v3-postmatch', 0))")
+            )
         report: dict[str, object] = settle_ah_ou_v3_in_session(session, now=evaluated_at)
         if report["status"] == "BLOCKED":
             session.rollback()
