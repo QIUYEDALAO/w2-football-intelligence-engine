@@ -3811,8 +3811,8 @@ class ReadModelService:
                 mainline_selection=mainline_selection, status="OU_SIDE_PRICES_INCOMPLETE",
             )
             return None, None, "OU_SIDE_PRICES_INCOMPLETE"
-        # Quote identity + timing (整改 item 5): Pinnacle bookmaker_id=4, both
-        # sides from one capture, captured_at <= decision_at.
+        # Quote identity + timing (整改 item 5): both sides from one capture,
+        # any bookmaker (mainline aligned to backtest), captured_at <= decision_at.
         decision_at = kickoff - DECISION_LEAD_TIME
         for label, selection in (("AH", ah), ("OU", ou)):
             rows = selection.get("authoritative_quote_rows")
@@ -3834,15 +3834,14 @@ class ReadModelService:
                         status=f"{label}_QUOTE_ROW_INVALID",
                     )
                     return None, None, f"{label}_QUOTE_ROW_INVALID"
-                bookmaker_id = str(row.get("bookmaker_id") or "")
-                if bookmaker_id != "4":
+                if not str(row.get("bookmaker_id") or ""):
                     self._persist_ah_ou_skip(
                         repository=repository, fixture_id=fixture_id, home_id=home_id,
                         away_id=away_id, kickoff=kickoff,
                         mainline_selection=mainline_selection,
-                        status=f"{label}_QUOTE_NOT_PINNACLE",
+                        status=f"{label}_QUOTE_BOOKMAKER_MISSING",
                     )
-                    return None, None, f"{label}_QUOTE_NOT_PINNACLE"
+                    return None, None, f"{label}_QUOTE_BOOKMAKER_MISSING"
                 captured = parse_provider_time(
                     row.get("captured_at") or row.get("captured_at_utc")
                 )
@@ -4415,7 +4414,7 @@ class ReadModelService:
                 "line": self._format_decimal_line(line),
                 "observations": list(side_rows.values()),
                 "bookmaker_count": 1,
-                "selection_policy": "v3_same_capture_two_sided_pinnacle",
+                "selection_policy": "v3_same_capture_two_sided_mainline",
                 "side_prices": side_prices,
                 "authoritative_quote_rows": side_rows,
                 "source_capture_sha256": quote.get("source_capture_sha256"),

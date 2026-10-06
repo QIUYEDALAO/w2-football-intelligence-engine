@@ -208,7 +208,7 @@ class ShortHistoryFakeClient(FakeClient):
                 "response": [
                     finished_fixture(
                         f"{team}-new",
-                        NOW - timedelta(days=1),
+                        NOW - timedelta(days=3),
                         home=team,
                         away=opponent,
                     )
@@ -1701,3 +1701,54 @@ def test_pro_backfill_run_skips_materialize_when_no_capture(monkeypatch: Any) ->
     assert "called" not in captured
     assert result.team_xg_match_rows == 0
     assert result.rolling_snapshot_rows == 0
+
+
+class RecentFinishedFakeClient(FakeClient):
+    """fixtures 返回赛后 < 48h 的 FT（expected_goals 延迟发布，2 天内全无）。"""
+
+    def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        self.calls.append((endpoint, params))
+        if endpoint == "fixtures":
+            team = params["team"]
+            opponent = "20" if team == "10" else "10"
+            payload = {
+                "response": [
+                    finished_fixture(
+                        f"{team}-recent",
+                        NOW - timedelta(days=1),
+                        home=team,
+                        away=opponent,
+                    )
+                ]
+            }
+        else:
+            payload = statistics()
+        return LiveApiFootballResponse(
+            endpoint=endpoint,
+            params=params,
+            status_code=200,
+            elapsed_ms=1,
+            payload=payload,
+            headers={"x-apisports-requests-remaining": "6000"},
+            captured_at=NOW,
+        )
+
+
+def test_xg_backfill_skips_recent_finished_before_postmatch_min_age() -> None:
+    """任务2 验收①③：赛后 < 48h 的 FT 缺 xG → 跳过补采，避免 expected_goals 未发布时白采。
+
+    单变量攻击：fixtures 只返回 1 场 1 天前 FT（< 48h），其它变量不变；
+    核对 statistics 端点零调用（下次 tick 再试）。
+    """
+    repository = FakeRepository()
+    client = RecentFinishedFakeClient()
+    XgHistoryBackfillService(
+        client=client,
+        repository=repository,
+        config=XgBackfillConfig(request_budget=20, min_rolling_matches=3),
+        now=NOW,
+    ).run()
+    statistics_calls = [p for e, p in client.calls if e == "statistics"]
+    assert statistics_calls == []
+    # fixtures 端点仍被调用（为 future fixtures 扫历史），只是不补采 statistics。
+    assert any(e == "fixtures" for e, _p in client.calls)

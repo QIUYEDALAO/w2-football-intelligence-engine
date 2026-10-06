@@ -537,7 +537,7 @@ def test_f6_raw_earlier_than_provider_accepted_pg(chain):
     [
         ("ah_late", "ASIAN_HANDICAP_QUOTE_CAPTURED_AFTER_DECISION", "DEPENDENCY_BLOCKED"),
         ("ou_late", "DEPENDENCY_BLOCKED", "TOTALS_QUOTE_CAPTURED_AFTER_DECISION"),
-        ("different", "ASIAN_HANDICAP_QUOTE_CAPTURED_AFTER_DECISION", "TOTALS_QUOTE_NOT_PINNACLE"),
+        ("different", "ASIAN_HANDICAP_QUOTE_CAPTURED_AFTER_DECISION", "TOTALS_QUOTE_SOURCE_CONTENT_MISMATCH"),
     ],
 )
 def test_market_reason_selector_public_and_new_session(

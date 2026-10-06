@@ -174,16 +174,35 @@ def test_late_price_is_refused() -> None:
     assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_CAPTURED_AFTER_DECISION"
 
 
-def test_non_pinnacle_is_refused() -> None:
+def test_non_pinnacle_same_bookmaker_is_accepted() -> None:
+    """任务1：非 Pinnacle 但属主流主线的报价 → 正常准入（不再 QUOTE_NOT_PINNACLE）。"""
     raw = _raw()
+    raw["response"][0]["bookmakers"][0]["id"] = 8
+    raw["response"][0]["bookmakers"][0]["name"] = "Bet365"
     rows = _obs(raw)
-    for row in rows[:2]:
+    for row in rows:
         row["bookmaker_id"] = "8"
     result = select_v3_ah_ou_quotes(
         rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
         raw_payloads={CAPTURE_ID: raw},
     )
-    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_NOT_PINNACLE"
+    assert result["status"] == "READY"
+    assert result["ah"]["status"] == "READY"
+    assert result["ou"]["status"] == "READY"
+
+
+def test_cross_bookmaker_pair_is_refused() -> None:
+    """任务1 验收③：两侧不同 bookmaker → 拒绝，不引入跨 bookmaker 报价漂移。"""
+    raw = _raw()
+    rows = _obs(raw)
+    rows[1]["bookmaker_id"] = "8"  # AH away 改成另一 bookmaker，home 仍是 4
+    result = select_v3_ah_ou_quotes(
+        rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+        raw_payloads={CAPTURE_ID: raw},
+    )
+    # AH 双侧 bookmaker 不一致 → 配不出对 → SIDE_INCOMPLETE；OU 仍 READY（同 bookmaker）。
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_SIDE_INCOMPLETE"
+    assert result["ou"]["status"] == "READY"
 
 
 def test_ah_wrong_line_is_refused() -> None:

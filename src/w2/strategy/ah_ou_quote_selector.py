@@ -1,15 +1,16 @@
 """v3 专用同源双侧盘口选择器（AH/OU 终验 S2）。
 
-与旧的 ``select_canonical_ah_mainline`` / ``select_canonical_totals_mainline``
-（多 bookmaker 投票选主线）不同，v3 决策只认 Pinnacle，并要求两侧价格来自
-*同一次原始捕获*，以此保证 AH 方向与 OU 价值判断建立在同一时点的真实盘口上。
+对齐回测「主流 bookmaker 主线」（``select_canonical_ah_mainline`` /
+``select_canonical_totals_mainline``）——不再只认 Pinnacle：任一双侧来自同一
+bookmaker 且同一时点（同 capture）的报价都可准入，避免「回测多 bookmaker 投票、
+生产只认 Pinnacle」的报价源自相矛盾。
 
 Selection contract (all fail closed):
-1. canonical fixture + Pinnacle (bookmaker_id == "4") + not live/suspended.
+1. canonical fixture + any bookmaker + not live/suspended.
 2. ``captured_at <= decision_at``, and only the *latest* capture before the
    decision instant is considered.
 3. Both complementary sides must come from the exact same
-   ``(fixture_id, capture_id, captured_at, line)``.
+   ``(fixture_id, capture_id, captured_at, bookmaker_id, line)``.
 4. Every field of ``side_prices`` is re-derived from the two raw rows and must
    match the raw ``decimal_odds``/``line``/``selection``/``market``/``fixture``/
    raw-hash -- any disagreement is a refusal, never a silent pick.
@@ -34,7 +35,6 @@ from w2.matchday.intake_v2 import normalize_matchday_odds_payload
 
 AH_MARKET = "ASIAN_HANDICAP"
 OU_MARKET = "TOTALS"
-PINNACLE_BOOKMAKER_ID = "4"
 # T3 报价新鲜度上界：决策点前「最新」报价不能太旧（Owner 拍板 24h），否则
 # 7 天前的报价也会被当成当前可执行盘口进入决策。超阈值按 STALE_QUOTE SKIP。
 QUOTE_MAX_AGE = timedelta(hours=24)
@@ -186,7 +186,6 @@ def _source_content_matches(
         )
     scoped = [n for n in normalized
               if str(n.get("fixture_id") or "").removeprefix("api_football:") == fixture
-              and str(n.get("bookmaker_id") or "") == PINNACLE_BOOKMAKER_ID
               and str(n.get("canonical_market") or "").upper() == market
               and str(n.get("capture_id") or "") == capture_id]
     return Counter(map(signature, scoped)) == Counter(map(signature, rows))
@@ -241,16 +240,12 @@ def _select_one_market(
     side_a, side_b = _complementary_sides(market)
 
     scoped: list[tuple[datetime, dict[str, Any]]] = []
-    saw_not_pinnacle = False
     saw_live_suspended = False
     saw_late = False
     for row in observations:
         if str(row.get("fixture_id") or "") != fixture_id:
             continue
         if str(row.get("canonical_market") or row.get("market") or "").upper() != market:
-            continue
-        if str(row.get("bookmaker_id") or "") != PINNACLE_BOOKMAKER_ID:
-            saw_not_pinnacle = True
             continue
         if row.get("suspended") or row.get("live"):
             saw_live_suspended = True
@@ -268,8 +263,6 @@ def _select_one_market(
             return {"status": f"{market}_QUOTE_CAPTURED_AFTER_DECISION", "quote": None}
         if saw_live_suspended:
             return {"status": f"{market}_QUOTE_LIVE_OR_SUSPENDED", "quote": None}
-        if saw_not_pinnacle:
-            return {"status": f"{market}_QUOTE_NOT_PINNACLE", "quote": None}
         return {"status": f"{market}_QUOTE_UNAVAILABLE", "quote": None}
 
     latest = max(item[0] for item in scoped)
@@ -306,6 +299,7 @@ def _select_one_market(
             home_line = _decimal(home_row.get("line"))
             if home_line is None:
                 return {"status": f"{market}_QUOTE_LINE_INVALID", "quote": None}
+            home_bookmaker = str(home_row.get("bookmaker_id") or "")
             for away_row in away_rows:
                 away_price = _float(away_row.get("decimal_odds") or away_row.get("executable_odds"))
                 if away_price is None or away_price <= 1.0:
@@ -313,6 +307,10 @@ def _select_one_market(
                 away_line = _decimal(away_row.get("line"))
                 if away_line is None:
                     return {"status": f"{market}_QUOTE_LINE_INVALID", "quote": None}
+                # 对齐回测 per-bookmaker 双侧配对：两侧必须来自同一 bookmaker，
+                # 且 bookmaker 非空（避免跨 bookmaker 报价漂移）。
+                if not home_bookmaker or home_bookmaker != str(away_row.get("bookmaker_id") or ""):
+                    continue
                 if away_line not in {home_line, -home_line}:
                     continue
                 pair = _make_pair(
@@ -341,6 +339,11 @@ def _select_one_market(
             group[side] = row
         for group in line_groups.values():
             if set(group) != {side_a, side_b}:
+                continue
+            # 对齐回测 per-bookmaker 双侧配对：两侧必须来自同一 bookmaker。
+            if not str(group[side_a].get("bookmaker_id") or "") or str(
+                group[side_a].get("bookmaker_id") or ""
+            ) != str(group[side_b].get("bookmaker_id") or ""):
                 continue
             line = _decimal(group[side_a].get("line"))
             if line is None:

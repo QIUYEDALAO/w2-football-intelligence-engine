@@ -203,16 +203,16 @@ PRO_BACKFILL_SEASONS_BY_BATCH: dict[int, frozenset[str]] = {
 # Per-season target cap applied inside a batch.  Batch 4 caps the 2025 season at
 # 60 finished fixtures per league (newest-first); every batch 1-3 season stays
 # uncapped. The 2026 season in batch 4 is bounded separately by a minimum age and
-# a "never fetched" gate (see PRO_BACKFILL_2026_MIN_AGE_DAYS).
+# a "no complete xG" gate (see XG_POSTMATCH_MIN_AGE).
 PRO_BACKFILL_SEASON_LIMIT_BY_BATCH: dict[int, dict[str, int]] = {
     4: {"2025": 60},
 }
-# Batch 4 (2026 season) targets only finished fixtures kicked off at least this
-# many days ago and with no complete two-sided xG evidence yet. expected_goals is
-# published ~3-4 days after kickoff (Football-API: 4d full / 3d mostly / 2d none),
-# so the delayed re-capture window is 3 days — real-time capture on the day of /
-# next day misses expected_goals and would otherwise be silently skipped forever.
-PRO_BACKFILL_2026_MIN_AGE_DAYS: int = 3
+# 增量补采最小等待：实时采集 tick（XgHistoryBackfillService）与 batch 4 扫
+# 「FT 但缺完整 xG」的比赛时，赛后不足该时长的比赛不急于补采（expected_goals
+# 延迟发布，Football-API 实测：4 天全有 / 3 天大部分有 / 2 天全无），下次 tick
+# 再试，避免白采浪费 Provider 额度。48h（2 天）比「固定延迟 3 天」更早尝试，
+# 一周双赛时上一场 xG 一旦发布（约 3 天）即在下一决策点前补上。
+XG_POSTMATCH_MIN_AGE = timedelta(hours=48)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -377,6 +377,12 @@ class XgHistoryBackfillService:
             cached_statistics = self.repository.raw_statistics_fixture_ids()
             for fixture_id, fixture in sorted(historical_fixtures.items()):
                 if fixture_id in cached_statistics:
+                    continue
+                # 增量补采：赛后 < 48h 的 FT 比赛 expected_goals 尚未延迟发布，
+                # 立即补采必白采；跳过，下次 tick（每 6h）再试，不浪费 Provider 额度。
+                _fixture_data = fixture.get("fixture") if isinstance(fixture, dict) else None
+                _kickoff = parse_utc(_fixture_data.get("date")) if isinstance(_fixture_data, dict) else None
+                if _kickoff is not None and self.now - _kickoff < XG_POSTMATCH_MIN_AGE:
                     continue
                 if statistics_requests_today >= self.config.statistics_daily_hard_cap:
                     blockers.append("STATISTICS_DAILY_HARD_CAP_REACHED")
@@ -1289,16 +1295,17 @@ class ProStatisticsBackfillService:
         Part 2 (2025) is the xG probe source: capped at 60 finished fixtures per
         league (newest-first), and the 3-fixture pilot is drawn from its newest
         rows. Part 1 (2026) is never probed: only finished fixtures at least
-        PRO_BACKFILL_2026_MIN_AGE_DAYS old with no complete two-sided xG evidence
-        yet. The skip key is ``raw_statistics_fixture_ids`` (complete numeric
-        two-sided expected_goals), NOT ``_statistics_fixture_ids_any`` (any
-        statistics raw): a raw captured on the day of the match with empty
-        expected_goals is "fetched but not complete", so it must be re-captured
-        after the 3-day publish lag instead of being silently skipped.
+        XG_POSTMATCH_MIN_AGE old with no complete two-sided xG evidence yet. The
+        skip key is ``raw_statistics_fixture_ids`` (complete numeric two-sided
+        expected_goals), NOT ``_statistics_fixture_ids_any`` (any statistics raw):
+        a raw captured on the day of the match with empty expected_goals is
+        "fetched but not complete", so it must be re-captured after the publish
+        lag instead of being silently skipped. 增量补采：窗口从「固定 3 天」缩短为
+        48h（2 天），一周双赛时上一场 xG 一旦发布即在下一次 tick 补上。
         Part 2 precedes part 1 so the pilot picks the 2025 rows.
         """
         already_fetched = self.repository.raw_statistics_fixture_ids()
-        min_age = timedelta(days=PRO_BACKFILL_2026_MIN_AGE_DAYS)
+        min_age = XG_POSTMATCH_MIN_AGE
         part2: list[dict[str, Any]] = []
         part1: list[dict[str, Any]] = []
         for fixture in fixtures:
