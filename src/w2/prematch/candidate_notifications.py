@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from math import isfinite
@@ -68,6 +68,9 @@ VALIDATION_SIGNAL_WATERMARK = "验证期信号 · 非正式推荐 · 不计入�
 DAILY_SETTLEMENT = "DAILY_SETTLEMENT"
 V3_DAILY_SETTLEMENT = "AH_OU_V3_DAILY_SETTLEMENT"
 TODAY_RECOMMEND_HEALTH = "TODAY_RECOMMEND_HEALTH"
+
+# 累计命中率分母口径（与 Dashboard 战绩复盘一致）：已结算且非走盘的决策。
+_DECISIVE_SETTLEMENTS = frozenset({"WIN", "HALF_WIN", "HALF_LOSS", "LOSS"})
 
 PENDING = "PENDING"
 RETRY_PENDING = "RETRY_PENDING"
@@ -1514,6 +1517,29 @@ def enqueue_scheduled_notifications_in_session(session: Session, *, now: datetim
     return inserted
 
 
+def _cumulative_validation(
+    rows: Sequence[Mapping[str, Any]],
+) -> tuple[int, int, float | None, str]:
+    """累计验证（从破冰以来），复用 Dashboard 战绩复盘的累计口径。
+
+    hit_rate 分母 = 已结算且非走盘（PUSH）的决策；分子 = WIN 计 1、HALF_WIN 计 0.5。
+    net_units = 所有已结算决策的净单位之和。
+    """
+    settled = [row for row in rows if row.get("state") == "SETTLED"]
+    decisive = [row for row in settled if row.get("settlement") in _DECISIVE_SETTLEMENTS]
+    wins = sum(
+        (
+            Decimal("0.5") if row.get("settlement") == "HALF_WIN"
+            else Decimal("1") if row.get("settlement") == "WIN"
+            else Decimal("0")
+        )
+        for row in decisive
+    )
+    hit_rate = float(wins / len(decisive)) if decisive else None
+    net_units = sum((Decimal(str(row["net_units"])) for row in settled), Decimal(0))
+    return len(rows), len(settled), hit_rate, str(net_units)
+
+
 def _v3_daily_payload(
     session: Session, *, day: date, created_at: datetime
 ) -> dict[str, Any]:
@@ -1533,6 +1559,9 @@ def _v3_daily_payload(
     ]
     settled = [row for row in rows if row["state"] == "SETTLED"]
     net_units = sum((Decimal(str(row["net_units"])) for row in settled), Decimal(0))
+    cumulative_selected, cumulative_settled, cumulative_hit_rate, cumulative_net_units = (
+        _cumulative_validation(snapshot["rows"])
+    )
     return {
         "schema_version": "w2.ah_ou_v3_daily_settlement.v1",
         "event_type": V3_DAILY_SETTLEMENT,
@@ -1543,6 +1572,10 @@ def _v3_daily_payload(
         "void": sum(row["state"] == "VOID" for row in rows),
         "settled": len(settled),
         "net_units": str(net_units),
+        "cumulative_selected": cumulative_selected,
+        "cumulative_settled": cumulative_settled,
+        "cumulative_hit_rate": cumulative_hit_rate,
+        "cumulative_net_units": cumulative_net_units,
         "items": items,
         "dashboard_url": _dashboard_day_url(day.isoformat()),
         "created_at": _iso(created_at),
@@ -2083,15 +2116,22 @@ def _message_body(payload: Mapping[str, Any]) -> str:
             f"v3.1 冻结决策 {payload.get('selected')} 条 · "
             f"已结算 {payload.get('settled')} 条 · "
             f"待赛果 {payload.get('pending')} 条 · "
-            f"净单位 {payload.get('net_units')}"
+            f"净单位 {_format_settlement_units(payload.get('net_units'))}"
         ]
         for row in payload.get("items") or []:
             if isinstance(row, Mapping):
                 lines.append(
-                    f"{row.get('market')} {row.get('selection')} "
-                    f"{row.get('exact_line')} · {row.get('state')} · "
-                    f"{row.get('net_units')} 单位 · 决策 {row.get('decision_id')}"
+                    f"{_market_label(row.get('market'))} "
+                    f"{_direction_label(row.get('selection'))} "
+                    f"{_format_line(row.get('exact_line'))} · "
+                    f"{_state_label(row.get('state'))} · "
+                    f"{_format_settlement_units(row.get('net_units'))} 单位"
                 )
+        lines.append(
+            f"累计：{payload.get('cumulative_settled', 0)} 场 · "
+            f"命中 {_format_hit_rate(payload.get('cumulative_hit_rate'))} · "
+            f"净 {_format_settlement_units(payload.get('cumulative_net_units'))} 单位"
+        )
         return "\n".join(lines)
     if event_type == DAILY_SETTLEMENT:
         v3 = payload.get("ah_ou_v3")
@@ -2246,6 +2286,23 @@ def _settlement_label(value: Any) -> str:
         "RESULT_NOT_COLLECTED": "赛果未采集",
         "SETTLEMENT_ERROR": "无法结算",
     }.get(str(value or ""), str(value or "未知"))
+
+
+def _state_label(value: Any) -> str:
+    """结算状态中文映射（SETTLED/PENDING/BLOCKED/VOID）。"""
+    return {
+        "SETTLED": "已结算",
+        "PENDING": "待赛果",
+        "BLOCKED": "阻断",
+        "VOID": "作废",
+    }.get(str(value or ""), str(value or "未知"))
+
+
+def _format_hit_rate(value: Any) -> str:
+    number = _float(value)
+    if number is None:
+        return "—"
+    return f"{number * 100:.0f}%"
 
 
 def _settlement_short_label(value: Any) -> str:

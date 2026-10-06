@@ -1342,3 +1342,69 @@ def test_dashboard_projection_does_not_detach_capture_at() -> None:
 
     result = ReadModelRepository(engine=engine).dashboard_model_forecast_validation_progress()
     assert result["official_recommendations"] == []
+
+
+def test_cumulative_validation_matches_dashboard_denominator() -> None:
+    """任务2：累计口径与 Dashboard 战绩复盘一致（分母 = 已结算非走盘，HALF_WIN 计 0.5）。"""
+    rows = [
+        {"state": "SETTLED", "settlement": "WIN", "net_units": "0.98"},
+        {"state": "SETTLED", "settlement": "HALF_WIN", "net_units": "0.49"},
+        {"state": "SETTLED", "settlement": "PUSH", "net_units": "0"},
+        {"state": "SETTLED", "settlement": "LOSS", "net_units": "-1.0"},
+        {"state": "VOID", "settlement": "VOID", "net_units": None},
+        {"state": "PENDING", "settlement": None, "net_units": None},
+    ]
+    selected, settled, hit_rate, net_units = candidate_notifications._cumulative_validation(rows)
+    assert selected == 6
+    assert settled == 4  # WIN + HALF_WIN + PUSH + LOSS（VOID/PENDING 不计入已结算）
+    # 分母 = settled - PUSH = 3；分子 = WIN(1) + HALF_WIN(0.5) = 1.5
+    assert hit_rate == pytest.approx(1.5 / 3)
+    assert net_units == str(Decimal("0.98") + Decimal("0.49") + Decimal("0") + Decimal("-1.0"))
+
+
+def test_v3_daily_settlement_body_friendly_and_cumulative() -> None:
+    """任务1/2：结算推送 items 行中文友好 + 去哈希，且含累计验证行。"""
+    payload = {
+        "event_type": candidate_notifications.V3_DAILY_SETTLEMENT,
+        "football_day": "2026-08-19",
+        "selected": 2,
+        "settled": 1,
+        "pending": 1,
+        "blocked": 0,
+        "void": 0,
+        "net_units": "0.4",
+        "cumulative_selected": 8,
+        "cumulative_settled": 8,
+        "cumulative_hit_rate": 0.5,
+        "cumulative_net_units": "1.26",
+        "items": [
+            {
+                "decision_id": "bc29b1a2" * 8,
+                "market": "TOTALS",
+                "selection": "OVER",
+                "exact_line": "1.75",
+                "state": "SETTLED",
+                "net_units": "0.4",
+            },
+            {
+                "decision_id": "a18a8680" * 8,
+                "market": "ASIAN_HANDICAP",
+                "selection": "HOME",
+                "exact_line": "-0.5",
+                "state": "PENDING",
+                "net_units": None,
+            },
+        ],
+    }
+    rendered = render_bark_message(payload)
+    body = rendered["body"]
+    # 任务1：中文友好 + 去哈希
+    assert "大小球 大 1.75 · 已结算 · +0.40 单位" in body
+    assert "让球 主 -0.5 · 待赛果 · 未知 单位" in body
+    assert "TOTALS" not in body
+    assert "OVER" not in body
+    assert "SETTLED" not in body
+    assert "bc29b1a2" not in body
+    assert "a18a8680" not in body
+    # 任务2：累计验证行
+    assert "累计：8 场 · 命中 50% · 净 +1.26 单位" in body
