@@ -21,6 +21,7 @@ from w2.api.repository import ReadModelService as ApiReadModelService
 from w2.dashboard.date_window import FOOTBALL_DAY_TZ, football_day_for_kickoff
 from w2.domain.canonical_serialization import HashDomain
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
+from w2.domain.profit import profit_units_with_rebate
 from w2.infrastructure.persistence.ah_ou_decision_ledger_models import AhOuDecisionLedgerModel
 from w2.infrastructure.persistence.ah_ou_monitoring_models import AhOuV3MonitoringFactModel
 from w2.infrastructure.persistence.ah_ou_postmatch_models import (
@@ -199,6 +200,18 @@ def test_v3_selected_ft_capture_natural_result_worker_and_validation(chain):
     )
     assert http.json()["cumulative_profit_units"] == pytest.approx(
         home_after.json()["performance_summary"]["total_profit_units"]
+    )
+    # 任务1：冻结选择列中文（与推送口径一致），无 raw market/selection。
+    samples = http.json()["samples"]
+    assert samples, "validation samples should be non-empty"
+    for row in samples:
+        recommendation = row.get("recommendation") or ""
+        assert "TOTALS" not in recommendation and "OVER" not in recommendation
+        assert any(label in recommendation for label in ("让球", "大小球"))
+    # 任务2：含反水 = profit_units_with_rebate（逐行绝对利润 0.025），非纯净单位。
+    settled_units = [row["net_units"] for row in public["rows"] if row["state"] == "SETTLED"]
+    assert http.json()["cumulative_profit_units_with_rebate"] == pytest.approx(
+        float(profit_units_with_rebate(settled_units))
     )
     kickoff = datetime.fromisoformat(future["fixture"]["date"]).astimezone(UTC)
     football_day = football_day_for_kickoff(kickoff)

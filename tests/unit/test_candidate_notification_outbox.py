@@ -1354,12 +1354,18 @@ def test_cumulative_validation_matches_dashboard_denominator() -> None:
         {"state": "VOID", "settlement": "VOID", "net_units": None},
         {"state": "PENDING", "settlement": None, "net_units": None},
     ]
-    selected, settled, hit_rate, net_units = candidate_notifications._cumulative_validation(rows)
+    selected, settled, hit_rate, net_units, net_units_with_rebate = (
+        candidate_notifications._cumulative_validation(rows)
+    )
     assert selected == 6
     assert settled == 4  # WIN + HALF_WIN + PUSH + LOSS（VOID/PENDING 不计入已结算）
     # 分母 = settled - PUSH = 3；分子 = WIN(1) + HALF_WIN(0.5) = 1.5
     assert hit_rate == pytest.approx(1.5 / 3)
     assert net_units == str(Decimal("0.98") + Decimal("0.49") + Decimal("0") + Decimal("-1.0"))
+    # 含反水：绝对利润 = 0.98+0.49+0+1.0 = 2.47，反水 = 2.47 * 0.025 = 0.06175
+    assert net_units_with_rebate == str(
+        Decimal("0.98") + Decimal("0.49") + Decimal("0") + Decimal("-1.0") + Decimal("0.06175")
+    )
 
 
 def test_v3_daily_settlement_body_friendly_and_cumulative() -> None:
@@ -1377,6 +1383,7 @@ def test_v3_daily_settlement_body_friendly_and_cumulative() -> None:
         "cumulative_settled": 8,
         "cumulative_hit_rate": 0.5,
         "cumulative_net_units": "1.26",
+        "cumulative_net_units_with_rebate": "1.31",
         "items": [
             {
                 "decision_id": "bc29b1a2" * 8,
@@ -1406,5 +1413,5 @@ def test_v3_daily_settlement_body_friendly_and_cumulative() -> None:
     assert "SETTLED" not in body
     assert "bc29b1a2" not in body
     assert "a18a8680" not in body
-    # 任务2：累计验证行
-    assert "累计：8 场 · 命中 50% · 净 +1.26 单位" in body
+    # 任务2：累计验证行（含反水）
+    assert "累计：8 场 · 命中 50% · 净 +1.26 · 含反水 +1.31 单位" in body

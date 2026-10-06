@@ -87,7 +87,11 @@ from w2.infrastructure.persistence.matchday_intake_models import MatchdayFixture
 from w2.infrastructure.persistence.models import ResultModel
 from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
-from w2.prematch.candidate_notifications import notification_health
+from w2.prematch.candidate_notifications import (
+    _direction_label,
+    _market_label,
+    notification_health,
+)
 from w2.replay.front_door import build_replay_front_door
 from w2.tracking.outcome_ledger_runtime import outcome_ledger_runtime_health
 
@@ -678,16 +682,17 @@ def dashboard_intelligence_validation(
         "date": str(row["kickoff_utc"])[:10],
         "league": row.get("competition_id"),
         "match": f"{row['home']} vs {row['away']}",
-        "recommendation": f"{row['market']} {row['selection']} {row['exact_line']}",
+        "recommendation": f"{_market_label(row['market'])} {_direction_label(row['selection'])} {row['exact_line']}",
         "market": row["market"],
         "decimal_odds": row["decimal_odds"],
         "score": row.get("score"),
         "result": row["settlement"] if row["state"] == "SETTLED" else row["state"],
         "profit_units": float(row["net_units"]) if row["state"] == "SETTLED" else None,
     } for row in page]
-    net_units = sum(
+    settled_units = [
         float(row["net_units"]) for row in all_public_rows if row["state"] == "SETTLED"
-    )
+    ]
+    net_units = sum(settled_units)
     return {
         "request_id": request_id(request),
         "schema_version": "w2.dashboard-intelligence-validation.v1",
@@ -695,7 +700,7 @@ def dashboard_intelligence_validation(
         "validation": validation,
         "samples": samples,
         "cumulative_profit_units": net_units,
-        "cumulative_profit_units_with_rebate": net_units,
+        "cumulative_profit_units_with_rebate": float(profit_units_with_rebate(settled_units)),
         "validation_signals": {},
         "ah_ou_v3": v3,
         "pagination": {"days": days, "limit": limit, "offset": offset, "total": total},

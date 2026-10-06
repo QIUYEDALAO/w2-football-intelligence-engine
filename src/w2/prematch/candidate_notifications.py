@@ -1519,11 +1519,12 @@ def enqueue_scheduled_notifications_in_session(session: Session, *, now: datetim
 
 def _cumulative_validation(
     rows: Sequence[Mapping[str, Any]],
-) -> tuple[int, int, float | None, str]:
+) -> tuple[int, int, float | None, str, str]:
     """累计验证（从破冰以来），复用 Dashboard 战绩复盘的累计口径。
 
     hit_rate 分母 = 已结算且非走盘（PUSH）的决策；分子 = WIN 计 1、HALF_WIN 计 0.5。
-    net_units = 所有已结算决策的净单位之和。
+    net_units = 所有已结算决策的净单位之和；with_rebate 复用 profit_units_with_rebate
+    （REBATE_RATE=0.025，逐行按绝对利润计反水）。
     """
     settled = [row for row in rows if row.get("state") == "SETTLED"]
     decisive = [row for row in settled if row.get("settlement") in _DECISIVE_SETTLEMENTS]
@@ -1537,7 +1538,10 @@ def _cumulative_validation(
     )
     hit_rate = float(wins / len(decisive)) if decisive else None
     net_units = sum((Decimal(str(row["net_units"])) for row in settled), Decimal(0))
-    return len(rows), len(settled), hit_rate, str(net_units)
+    net_units_with_rebate = profit_units_with_rebate(
+        [Decimal(str(row["net_units"])) for row in settled]
+    )
+    return len(rows), len(settled), hit_rate, str(net_units), str(net_units_with_rebate)
 
 
 def _v3_daily_payload(
@@ -1559,9 +1563,13 @@ def _v3_daily_payload(
     ]
     settled = [row for row in rows if row["state"] == "SETTLED"]
     net_units = sum((Decimal(str(row["net_units"])) for row in settled), Decimal(0))
-    cumulative_selected, cumulative_settled, cumulative_hit_rate, cumulative_net_units = (
-        _cumulative_validation(snapshot["rows"])
-    )
+    (
+        cumulative_selected,
+        cumulative_settled,
+        cumulative_hit_rate,
+        cumulative_net_units,
+        cumulative_net_units_with_rebate,
+    ) = _cumulative_validation(snapshot["rows"])
     return {
         "schema_version": "w2.ah_ou_v3_daily_settlement.v1",
         "event_type": V3_DAILY_SETTLEMENT,
@@ -1576,6 +1584,7 @@ def _v3_daily_payload(
         "cumulative_settled": cumulative_settled,
         "cumulative_hit_rate": cumulative_hit_rate,
         "cumulative_net_units": cumulative_net_units,
+        "cumulative_net_units_with_rebate": cumulative_net_units_with_rebate,
         "items": items,
         "dashboard_url": _dashboard_day_url(day.isoformat()),
         "created_at": _iso(created_at),
@@ -2130,7 +2139,8 @@ def _message_body(payload: Mapping[str, Any]) -> str:
         lines.append(
             f"累计：{payload.get('cumulative_settled', 0)} 场 · "
             f"命中 {_format_hit_rate(payload.get('cumulative_hit_rate'))} · "
-            f"净 {_format_settlement_units(payload.get('cumulative_net_units'))} 单位"
+            f"净 {_format_settlement_units(payload.get('cumulative_net_units'))} · "
+            f"含反水 {_format_settlement_units(payload.get('cumulative_net_units_with_rebate'))} 单位"
         )
         return "\n".join(lines)
     if event_type == DAILY_SETTLEMENT:
