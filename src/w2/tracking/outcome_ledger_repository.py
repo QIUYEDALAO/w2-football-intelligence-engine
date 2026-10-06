@@ -463,7 +463,11 @@ class OutcomeLedgerRepository:
                         identity.payload,
                     )
                 )
-                outcome = _authoritative_result(identity.fixture_id, candidates)
+                outcome = _authoritative_result(
+                    identity.fixture_id,
+                    candidates,
+                    preferred_source_hashes=frozenset(captures),
+                )
                 if outcome["status"] == "RESULT_NOT_FINISHED":
                     counts["result_not_finished_count"] += 1
                     continue
@@ -925,6 +929,7 @@ def _stream_fixture_payload_candidates(
 def _authoritative_result(
     fixture_id: str,
     candidates: Sequence[tuple[datetime, str, Mapping[str, Any]]],
+    preferred_source_hashes: set[str] | frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     terminal: list[tuple[datetime, str, str, int, int]] = []
     invalid_terminal = False
@@ -953,8 +958,17 @@ def _authoritative_result(
     scores = {(home, away) for _, _, _, home, away in terminal}
     if len(scores) != 1:
         return {"status": "RESULT_SOURCE_CONFLICT"}
+    # 比分一致时，优先选「有 matchday capture 映射」的 source，再按 captured_at 最早。
+    # 否则可能选中 future_refresh 单独采集的 fixtures raw（无 matchday capture），
+    # 导致 source_capture_id 解析不到 → V3_RESULT_CAPTURE_MISSING（结算 BLOCKED 复发）。
     captured_at, source_hash, status, home, away = sorted(
-        terminal, key=lambda item: (item[0], item[1], item[2])
+        terminal,
+        key=lambda item: (
+            0 if item[1] in preferred_source_hashes else 1,
+            item[0],
+            item[1],
+            item[2],
+        ),
     )[0]
     return {
         "status": "PASS",

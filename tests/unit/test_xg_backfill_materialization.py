@@ -1605,3 +1605,99 @@ def test_pro_statistics_backfill_tolerates_deduplicated_payloads(
     # 3 场都 fetch，但 payload 去重（不新增），不得误报 PRO_STATISTICS_RAW_COUNT_MISMATCH
     assert len(client.calls) == 3
     assert result.raw_statistics_added == 0
+
+
+def test_pro_backfill_run_materializes_after_capture(monkeypatch: Any) -> None:
+    """任务 A：延迟重采后补触发物化（team_xg_match + F9 快照重算），闭环重采 → F9 放行。"""
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+
+    captured: dict[str, Any] = {}
+
+    class _Materialized:
+        team_xg_match_rows = 2
+        rolling_snapshot_rows = 2
+
+    def fake_materialize(*, repository, now, persist):
+        captured["called"] = True
+        captured["persist"] = persist
+        return _Materialized()
+
+    monkeypatch.setattr("w2.ingestion.xg_backfill.materialize_saved_xg", fake_materialize)
+
+    fixtures = [
+        pro_fixture_season(
+            "ec-2026-new",
+            league_id=40,
+            season="2026",
+            kickoff=NOW - timedelta(days=30),
+        ),
+    ]
+    repository = ProBackfillRepository(fixtures)
+    client = ProBackfillClient()
+
+    result = ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=4,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    # 有重采（requested 非空）→ 物化被触发，物化行数回填结果。
+    assert client.calls == ["ec-2026-new"]
+    assert captured["called"] is True
+    assert captured["persist"] is True
+    assert result.team_xg_match_rows == 2
+    assert result.rolling_snapshot_rows == 2
+
+
+def test_pro_backfill_run_skips_materialize_when_no_capture(monkeypatch: Any) -> None:
+    """反向控制：全部已完整 xG（无重采）→ 不触发物化，避免无谓快照重算。"""
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+
+    captured: dict[str, Any] = {}
+
+    class _Materialized:
+        team_xg_match_rows = 0
+        rolling_snapshot_rows = 0
+
+    def fake_materialize(*, repository, now, persist):
+        captured["called"] = True
+        return _Materialized()
+
+    monkeypatch.setattr("w2.ingestion.xg_backfill.materialize_saved_xg", fake_materialize)
+
+    class CompleteRepository(ProBackfillRepository):
+        def raw_statistics_fixture_ids(self) -> set[str]:
+            return {"ec-2026-done"}
+
+    fixtures = [
+        pro_fixture_season(
+            "ec-2026-done",
+            league_id=40,
+            season="2026",
+            kickoff=NOW - timedelta(days=30),
+        ),
+    ]
+    repository = CompleteRepository(fixtures)
+    client = ProBackfillClient()
+
+    result = ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=4,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    # 全部已完整 xG → 无重采 → 不触发物化。
+    assert client.calls == []
+    assert "called" not in captured
+    assert result.team_xg_match_rows == 0
+    assert result.rolling_snapshot_rows == 0

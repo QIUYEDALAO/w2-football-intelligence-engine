@@ -244,6 +244,9 @@ class ProStatisticsBackfillResult:
     remaining_fixture_count: int
     remaining_quota: int | None
     blockers: tuple[str, ...]
+    # 延迟重采闭环：物化 team_xg_match 与重算 F9 快照的行数（0 表示本次无新增物化）。
+    team_xg_match_rows: int = 0
+    rolling_snapshot_rows: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -1124,6 +1127,19 @@ class ProStatisticsBackfillService:
             for fixture in rows
             if fixture_id_from_payload(fixture) not in requested_ids
         )
+        # 延迟重采闭环：把刚采的 statistics raw 物化成 team_xg_match，并重算
+        # team_xg_rolling_snapshot（与 XgHistoryBackfillService.run_saved_raw 同路径）。
+        # 否则重采的 xG 进不了快照 source_matches，F9 门还是 SKIP，推荐不恢复。
+        # 只在本次确有重采（requested 非空）时物化，纯检查不触发无谓快照重算。
+        materialized_rows = (0, 0)
+        if requested:
+            materialized = materialize_saved_xg(
+                repository=self.repository, now=self.now, persist=True
+            )
+            materialized_rows = (
+                materialized.team_xg_match_rows,
+                materialized.rolling_snapshot_rows,
+            )
         return ProStatisticsBackfillResult(
             generated_at_utc=self.now,
             batch=self.config.batch,
@@ -1143,6 +1159,8 @@ class ProStatisticsBackfillService:
             remaining_fixture_count=remaining,
             remaining_quota=remaining_quota,
             blockers=tuple(blockers),
+            team_xg_match_rows=materialized_rows[0],
+            rolling_snapshot_rows=materialized_rows[1],
         )
 
     def _ensure_fixture_manifests(self) -> tuple[int, int]:
