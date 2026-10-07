@@ -798,7 +798,7 @@ def v3_validation_snapshot(session: Session) -> dict[str, Any]:
                 "terms_hash": decision.terms_hash,
                 "result_hash": result.result_hash if result else None,
                 "result_capture_id": result.source_capture_id if result else None,
-                "score": (
+                "scoreline": (
                     f"{result.home_goals}-{result.away_goals}"
                     if result is not None
                     and result.home_goals is not None
