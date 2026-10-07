@@ -132,7 +132,7 @@ def _fact(
             select(MatchdayMarketObservationModel).where(
                 MatchdayMarketObservationModel.capture_id == decision.capture_id,
                 MatchdayMarketObservationModel.fixture_id == fixture.fixture_id,
-                MatchdayMarketObservationModel.bookmaker_id == "4",
+                MatchdayMarketObservationModel.bookmaker_id == str(terms.get("bookmaker_id") or ""),
                 MatchdayMarketObservationModel.canonical_market == decision.market,
                 MatchdayMarketObservationModel.canonical_selection == side.upper(),
             )

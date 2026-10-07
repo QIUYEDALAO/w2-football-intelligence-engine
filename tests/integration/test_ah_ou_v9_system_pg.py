@@ -27,7 +27,7 @@ from w2.providers.api_football import LiveApiFootballResponse
 
 
 def _build_chain(tmp_path, monkeypatch, *, existing_database_url=None, environment="test",
-                 market_prices=None, ah_line="-0.5"):
+                 market_prices=None, ah_line="-0.5", bookmaker_id=None):
     import os
     import subprocess
 
@@ -87,6 +87,10 @@ def _build_chain(tmp_path, monkeypatch, *, existing_database_url=None, environme
                     if str((observed.get("fixture") or {}).get("id")) == "1489404":
                         observed["fixture"]["date"] = kickoff.isoformat()
             if endpoint == "odds":
+                if bookmaker_id is not None:
+                    # P0: 非 Pinnacle 报价真实链——bookmaker 换成 Bet365（id=8）。
+                    raw["response"][0]["bookmakers"][0]["id"] = bookmaker_id
+                    raw["response"][0]["bookmakers"][0]["name"] = "Bet365"
                 values = raw["response"][0]["bookmakers"][0]["bets"][0]["values"]
                 values[0]["odd"] = "1.25"
                 values[1]["odd"] = "4.50"
@@ -265,6 +269,31 @@ def test_quarter_increment_line_selected_full_chain(tmp_path, monkeypatch, ah_li
     assert rows["ASIAN_HANDICAP"].selected is True
     assert rows["ASIAN_HANDICAP"].skip_reason is None
     assert rows["ASIAN_HANDICAP"].direction in {"HOME", "AWAY"}
+
+
+def test_non_pinnacle_bookmaker_selected_full_chain(tmp_path, monkeypatch):
+    """P0 真实链：非 Pinnacle（Bet365 id=8）双侧报价落账本 selected=true，
+    不再因账本记录路径硬编码 "4" 而 TERMS_INCOMPLETE；frozen_terms.bookmaker_id 读回实际 8。"""
+    from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+        AhOuDecisionLedgerModel,
+    )
+
+    repo, item, _, _ = next(_build_chain(tmp_path, monkeypatch, bookmaker_id=8))
+    kickoff = datetime.fromisoformat(item["fixture"]["date"])
+    card = ReadModelService().public_analysis_card_bounded(
+        "1489404", use_frozen_canary=False, evaluation_time=kickoff
+    )
+    assert card["ah_ou_result"]["recording"]["status"] == "COMMITTED"
+    with Session(repo.engine) as session:
+        rows = list(session.scalars(select(AhOuDecisionLedgerModel)))
+    assert len(rows) == 2, [(r.market, r.skip_reason) for r in rows]
+    assert all(row.selected for row in rows), [
+        (r.market, r.selected, r.skip_reason) for r in rows
+    ]
+    for row in rows:
+        dist = row.full_distribution or {}
+        terms = dist.get("monitoring_terms") or {}
+        assert terms.get("bookmaker_id") == "8", terms
 
 
 def test_selected_full_chain_and_source_four_steps(chain):

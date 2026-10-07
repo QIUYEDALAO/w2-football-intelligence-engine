@@ -605,13 +605,21 @@ def dashboard_intelligence_workspace_list(
             if str(row["fixture_id"]).removeprefix("api_football:")
             == str(match["fixture_id"]).removeprefix("api_football:")
         ]
+    # P1: 精确语义——「运行状态·数据」未就绪态按原因区分（推荐阻断/数据陈旧/额度/
+    # 无比赛），避免「数据未就绪」与「系统健康·数据新鲜度（绿）」在「数据」一词打架。
+    _data_not_ready_label = {
+        "BLOCKED_DAY": "推荐阻断",
+        "STALE_DATA": "数据陈旧",
+        "PROVIDER_BUDGET_EXHAUSTED": "额度耗尽",
+        "EMPTY_DAY": "今日无比赛",
+    }
+    data_state = workspace["data_operations"]["system_health"]
     workspace["system_status"] = {
         "data": (
             "实时数据"
             if workspace["freshness"]["domains"]["odds_prematch"]["status"] == "AVAILABLE"
-            and workspace["data_operations"]["system_health"]
-            not in {"STALE_DATA", "PROVIDER_BUDGET_EXHAUSTED", "BLOCKED_DAY", "EMPTY_DAY"}
-            else "数据未就绪"
+            and data_state not in _data_not_ready_label
+            else _data_not_ready_label.get(data_state, "数据未就绪")
         ),
         "recommendations": (
             "今日有 v3 推荐" if workspace["today_recommendations"] else "今日无 v3 推荐"

@@ -273,12 +273,15 @@ def _verify_v3_frozen_decision_in_session(
         or _times_differ(raw.captured_at, capture.provider_captured_at)
     ):
         raise DecisionContractViolation("V3_PUBLIC_QUOTE_RAW_BINDING_INVALID")
+    # P0: 删 Pinnacle 门槛——bookmaker 从冻结条款读回（selector 已 any bookmaker），
+    # 不再硬编码 "4"。
+    frozen_bookmaker = str(terms.get("bookmaker_id") or "")
     observations = list(
         session.scalars(
             select(MatchdayMarketObservationModel).where(
                 MatchdayMarketObservationModel.capture_id == decision.capture_id,
                 MatchdayMarketObservationModel.fixture_id == fixture.fixture_id,
-                MatchdayMarketObservationModel.bookmaker_id == "4",
+                MatchdayMarketObservationModel.bookmaker_id == frozen_bookmaker,
                 MatchdayMarketObservationModel.canonical_market == decision.market,
                 MatchdayMarketObservationModel.canonical_selection == direction,
             )
@@ -297,7 +300,7 @@ def _verify_v3_frozen_decision_in_session(
         for item in raw.payload.get("response", [])
         if str((item.get("fixture") or {}).get("id")) == fixture.provider_fixture_id
         for company in item.get("bookmakers", [])
-        if str(company.get("id")) == "4"
+        if str(company.get("id")) == frozen_bookmaker
         for bet in company.get("bets", [])
         if str(bet.get("id")) == observed.provider_bet_id
         for value in bet.get("values", [])
@@ -312,7 +315,7 @@ def _verify_v3_frozen_decision_in_session(
         or observed.captured_at != capture.provider_captured_at
         or observed.live
         or observed.suspended
-        or terms.get("bookmaker_id") != "4"
+        or not frozen_bookmaker
         or terms.get("captured_at") != capture.provider_captured_at.isoformat()
     ):
         raise DecisionContractViolation("V3_PUBLIC_QUOTE_TERMS_CONFLICT")
@@ -376,7 +379,7 @@ def _verify_v3_frozen_decision_in_session(
                 select(MatchdayMarketObservationModel).where(
                     MatchdayMarketObservationModel.capture_id == decision.capture_id,
                     MatchdayMarketObservationModel.fixture_id == fixture.fixture_id,
-                    MatchdayMarketObservationModel.bookmaker_id == "4",
+                    MatchdayMarketObservationModel.bookmaker_id == frozen_bookmaker,
                     MatchdayMarketObservationModel.canonical_market == decision.market,
                     MatchdayMarketObservationModel.canonical_selection == side,
                 )

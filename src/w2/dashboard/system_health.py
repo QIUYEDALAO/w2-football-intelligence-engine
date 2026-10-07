@@ -148,8 +148,18 @@ def _recommendation_chain(session: Session, *, now: datetime, day: Any) -> dict[
         )
     )
     match_count = len({row.fixture_id for row in rows})
-    due = [row for row in rows if _utc(row.decision_at) <= now]
-    decision_due_count = len({row.fixture_id for row in due})
+    # P2: 「到决策点」不卡足球日窗口上界，直接判 decision_at <= now（下界 lo 仅用于
+    # 排除历史场次）——避免足球日边界（12:00 截断 / 最后 2h 滚动）把已到决策点的
+    # 场次（如 MLS 早场）漏计成「到决策点 0 场」。
+    due_rows = list(
+        session.scalars(
+            select(AhOuDecisionLedgerModel).where(
+                AhOuDecisionLedgerModel.decision_at >= lo,
+                AhOuDecisionLedgerModel.decision_at <= now,
+            )
+        )
+    )
+    decision_due_count = len({row.fixture_id for row in due_rows})
     selected = [row for row in rows if row.selected]
     skips = [row for row in rows if not row.selected and row.skip_reason]
     stale_f9 = sum(row.skip_reason == "F9_SNAPSHOT_STALE" for row in skips)
@@ -263,7 +273,7 @@ def build_system_health(session: Session, *, now: datetime | None = None) -> dic
             "severity": "YELLOW",
             "detail": (
                 f"今日 {chain['match_count']} 场、{chain['decision_due_count']} 场已到决策点，"
-                f"推荐 0 场（SKIP {chain['skip_count']}）"
+                f"推荐 0 条（SKIP {chain['skip_count']} 条）"
             ),
         })
     if not settlement["ok"]:

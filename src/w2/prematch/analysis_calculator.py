@@ -4120,12 +4120,13 @@ class ReadModelService:
                     side_prices = quote["side_prices"]
                     side_rows = quote["side_rows"]
                     selected_row = side_rows[selected_side.lower()]
+                    bookmaker_id = str(selected_row.get("bookmaker_id") or "")
                     entry_odds = Decimal(str(side_prices[selected_side.lower()]))
                     captured_at = parse_provider_time(quote["captured_at"])
                     if (line * 4 != (line * 4).to_integral_value() or
                             not entry_odds.is_finite() or entry_odds <= 1 or
                             captured_at is None or captured_at > decision_at or
-                            str(selected_row.get("bookmaker_id")) != "4" or
+                            not bookmaker_id or
                             str(selected_row.get("capture_id")) != capture_id or
                             not source_capture_sha256):
                         raise ValueError("TERMS_INCOMPLETE")
@@ -4140,7 +4141,7 @@ class ReadModelService:
                         "total_line": str(line) if market == "TOTALS" else None,
                         "selected_line": str(selected_line),
                         "entry_odds": str(entry_odds),
-                        "bookmaker_id": "4",
+                        "bookmaker_id": bookmaker_id,
                         "capture_id": capture_id,
                         "captured_at": captured_at.isoformat(),
                         "raw_payload_sha256": source_capture_sha256,
