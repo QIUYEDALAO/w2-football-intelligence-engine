@@ -403,6 +403,23 @@ def test_totals_empty_bookmaker_is_skipped_not_duplicate() -> None:
     assert result["ou"]["status"] == "TOTALS_QUOTE_SIDE_INCOMPLETE"
 
 
+def test_ah_empty_bookmaker_duplicate_is_not_duplicate() -> None:
+    """隐患①（AH 侧）：空 bookmaker 同盘口同侧不误判 DUPLICATE_SIDE，而是跳过
+    后配不出对 → SIDE_INCOMPLETE（与 TOTALS 分支「空 bookmaker 跳过」一致）。"""
+    raw = _raw()
+    rows = [
+        _row(market="ASIAN_HANDICAP", selection="HOME", line="-0.5", odds="1.80",
+             raw_payload=raw, bookmaker_id=""),
+        _row(market="ASIAN_HANDICAP", selection="HOME", line="-0.5", odds="1.85",
+             raw_payload=raw, bookmaker_id=""),
+    ]
+    result = select_v3_ah_ou_quotes(
+        rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+        raw_payloads={CAPTURE_ID: raw},
+    )
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_SIDE_INCOMPLETE"
+
+
 def test_source_content_matches_empty_rows_returns_false() -> None:
     """隐患②：_source_content_matches 空 rows 返回 False（不 IndexError）。"""
     from w2.strategy.ah_ou_quote_selector import _source_content_matches

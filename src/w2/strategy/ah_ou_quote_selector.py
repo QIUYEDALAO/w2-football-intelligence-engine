@@ -94,10 +94,15 @@ def _has_duplicate_line(rows: list[dict[str, Any]]) -> bool:
     (each bookmaker pairs its own two sides), so they are not duplicates."""
     seen: set[tuple[str, str]] = set()
     for row in rows:
+        bookmaker = str(row.get("bookmaker_id") or "")
+        if not bookmaker:
+            # 空 bookmaker 跳过（与 TOTALS 分支及 AH 配对一致）：空 bookmaker 行
+            # 无法成对，不应因两条空 bookmaker 同盘口同侧而误判 DUPLICATE_SIDE。
+            continue
         line = _decimal(row.get("line"))
         if line is None:
             continue
-        key = (str(row.get("bookmaker_id") or ""), str(line.normalize()))
+        key = (bookmaker, str(line.normalize()))
         if key in seen:
             return True
         seen.add(key)
