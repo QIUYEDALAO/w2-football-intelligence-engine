@@ -457,7 +457,7 @@ def main() -> None:
         "JOIN results r ON r.fixture_id = mfi.fixture_id "
         "AND r.result_status IN ('FT','AET','PEN'))"
         " - (SELECT MAX((m->>'kickoff_at')::timestamptz) FROM team_xg_rolling_snapshot, "
-        "jsonb_array_elements(source_matches) m)"
+        "jsonb_array_elements(source_matches::jsonb) m)"
         "))/3600.0, -1)::numeric(10,2) AS lag_hours"
     )
     deny_command = (
