@@ -105,6 +105,156 @@ def xg_stale_issue(
     return None
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 业务哨兵（T3）：B1-B4 纯读判定 + Bark 推送（幂等、按严重度、中文文案）。
+# 纯函数不依赖 DB/Provider，便于单测 importlib 加载后直接调用。
+# ─────────────────────────────────────────────────────────────────────────────
+SKIP_REASON_ANOMALY_THRESHOLD = 3
+XG_COVERAGE_LAG_THRESHOLD_HOURS = 48.0
+ANOMALOUS_SKIP_REASONS = frozenset(
+    {"QUOTE_DUPLICATE_SIDE", "TERMS_INCOMPLETE", "QUOTE_NOT_PINNACLE"}
+)
+DATA_NOT_READY_STATES = frozenset(
+    {"BLOCKED_DAY", "STALE_DATA", "PROVIDER_BUDGET_EXHAUSTED", "EMPTY_DAY"}
+)
+
+
+def recommendation_chain_issue(chain_rows: list[dict]) -> str | None:
+    """B1：今日 decision_at <= now 但 selected=0 → NO_RECOMMENDATION_TODAY。"""
+    if not chain_rows:
+        return None
+    row = chain_rows[0]
+    due = int(row.get("due_count") or 0)
+    selected = int(row.get("selected_count") or 0)
+    if due > 0 and selected == 0:
+        return "NO_RECOMMENDATION_TODAY:due=" + str(due)
+    return None
+
+
+def skip_reason_anomaly_issue(
+    reason_rows: list[dict],
+    threshold: int = SKIP_REASON_ANOMALY_THRESHOLD,
+) -> str | None:
+    """B2：近 24h 三类异常 SKIP 合计 >= 阈值 → SKIP_REASON_ANOMALY。"""
+    total = sum(int(row.get("count") or 0) for row in reason_rows)
+    if total >= threshold:
+        return "SKIP_REASON_ANOMALY:count=" + str(total)
+    return None
+
+
+def data_source_consistency_issue(
+    degradation_state: str | None,
+    data_freshness_ok: bool | None,
+) -> str | None:
+    """B3：degradation.state（数据阻断）与 data_freshness.ok（数据新鲜）冲突。"""
+    if degradation_state in DATA_NOT_READY_STATES and data_freshness_ok is True:
+        return "DATA_SOURCE_CONSISTENCY_CONFLICT:" + str(degradation_state)
+    return None
+
+
+def xg_coverage_lag_issue(
+    lag_rows: list[dict],
+    threshold_hours: float = XG_COVERAGE_LAG_THRESHOLD_HOURS,
+) -> str | None:
+    """B4：source_matches 最新 kickoff 落后已 FT 日历超阈值 → F9_SNAPSHOT_LAG。"""
+    if not lag_rows:
+        return None
+    raw = lag_rows[0].get("lag_hours")
+    if raw is None:
+        return None
+    lag = float(raw)
+    if lag > threshold_hours:
+        return "F9_SNAPSHOT_LAG:lag_hours=" + f"{lag:.2f}"
+    return None
+
+
+def bark_issue_severity(issue: str) -> str | None:
+    """🔴 B1/B4 立即推、🟡 B2/B3 推提示、其余静默（返回 None）。"""
+    if issue.startswith("NO_RECOMMENDATION_TODAY") or issue.startswith("F9_SNAPSHOT_LAG"):
+        return "RED"
+    if issue.startswith("SKIP_REASON_ANOMALY") or issue.startswith(
+        "DATA_SOURCE_CONSISTENCY_CONFLICT"
+    ):
+        return "YELLOW"
+    return None
+
+
+def bark_message(issue: str, severity: str) -> dict[str, str]:
+    if severity == "RED":
+        return {"title": "W2 业务哨兵·告警", "body": issue}
+    return {"title": "W2 业务哨兵·提示", "body": issue}
+
+
+def _bark_sent_path(out_dir: Path) -> Path:
+    return Path(out_dir) / "bark_sent.json"
+
+
+def _load_bark_sent(out_dir: Path) -> dict[str, str]:
+    path = _bark_sent_path(out_dir)
+    if path.exists():
+        try:
+            value = json.loads(path.read_text())
+            if isinstance(value, dict):
+                return {str(k): str(v) for k, v in value.items()}
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {}
+
+
+def _save_bark_sent(out_dir: Path, sent: dict[str, str]) -> None:
+    _bark_sent_path(out_dir).write_text(
+        json.dumps(sent, ensure_ascii=False, sort_keys=True), encoding="utf-8"
+    )
+
+
+def _post_bark(endpoint: str, payload: dict[str, str]) -> None:
+    import urllib.request
+
+    request = urllib.request.Request(
+        endpoint.rstrip("/") + "/push",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        body = json.loads(response.read(4096))
+    if not isinstance(body, dict) or body.get("code") != 200:
+        raise RuntimeError("BARK_REJECTED")
+
+
+def push_bark_alerts(
+    issues: list[str],
+    *,
+    out_dir: Path,
+    now: datetime | None = None,
+) -> int:
+    """按严重度推送 Bark；同 issue 一天一次（幂等）。返回本次实际推送条数。"""
+    endpoint = os.environ.get("W2_BARK_ENDPOINT", "").strip()
+    device_keys = [
+        key.strip() for key in os.environ.get("W2_BARK_DEVICE_KEY", "").split(",") if key.strip()
+    ]
+    if not endpoint or not device_keys:
+        return 0
+    resolved = now or datetime.now(UTC)
+    day = resolved.date().isoformat()
+    sent = _load_bark_sent(out_dir)
+    pushed = 0
+    for issue in sorted(set(issues)):
+        severity = bark_issue_severity(issue)
+        if severity is None:
+            continue
+        if sent.get(issue) == day:
+            continue  # 幂等：同 issue 一天一次
+        try:
+            _post_bark(endpoint, {**bark_message(issue, severity), "device_key": device_keys[0]})
+        except Exception:
+            continue  # 推送失败不阻断巡检（保持只读、不影响状态判定）
+        sent[issue] = day
+        pushed += 1
+    _save_bark_sent(out_dir, sent)
+    return pushed
+
+
 def main() -> None:
     global out, expected_sha, expected_schema
     out = Path(sys.argv[1])
@@ -283,6 +433,33 @@ def main() -> None:
         " - (SELECT MAX(captured_at) FROM team_xg_match)"
         "))/3600.0, -1)::numeric(10,2) AS lag_hours"
     )
+    # T3 业务哨兵只读聚合（Provider 请求=0、账本写入=false）。
+    # B1 推荐链路：今日（近 26h）decision_at <= now 但 selected=0。
+    state["business_recommendation_chain"] = rows(
+        "SELECT count(*) FILTER (WHERE selected) AS selected_count, "
+        "count(DISTINCT fixture_id) FILTER (WHERE decision_at <= now()) AS due_count "
+        "FROM ah_ou_decision_ledger "
+        "WHERE decision_contract='w2.ah_ou_decision.v3.1' "
+        "AND decision_at >= now() - interval '26 hours'"
+    )
+    # B2 SKIP 原因异常：近 24h 三类异常 SKIP 计数。
+    state["business_skip_reasons"] = rows(
+        "SELECT skip_reason, count(*) FROM ah_ou_decision_ledger "
+        "WHERE decision_contract='w2.ah_ou_decision.v3.1' "
+        "AND skip_reason IN ('QUOTE_DUPLICATE_SIDE','TERMS_INCOMPLETE','QUOTE_NOT_PINNACLE') "
+        "AND created_at >= now() - interval '24 hours' "
+        "GROUP BY skip_reason"
+    )
+    # B4 xG 覆盖边界滞后：快照 source_matches 最新 kickoff 落后已 FT 日历。
+    state["xg_coverage_lag"] = rows(
+        "SELECT COALESCE(EXTRACT(EPOCH FROM ("
+        "(SELECT MAX(mfi.kickoff_utc) FROM matchday_fixture_identities mfi "
+        "JOIN results r ON r.fixture_id = mfi.fixture_id "
+        "AND r.result_status IN ('FT','AET','PEN'))"
+        " - (SELECT MAX((m->>'kickoff_at')::timestamptz) FROM team_xg_rolling_snapshot, "
+        "jsonb_array_elements(source_matches) m)"
+        "))/3600.0, -1)::numeric(10,2) AS lag_hours"
+    )
     deny_command = (
         "docker exec w2-staging-postgres-1 psql -XqAt -v ON_ERROR_STOP=1 -U w2_user -d "
         "w2 -c 'BEGIN READ ONLY; SET LOCAL ROLE quant_asof_reader_role; SELECT count(*) "
@@ -305,6 +482,33 @@ def main() -> None:
     xg_stale = xg_stale_issue(state.get("xg_lag") or [])
     if xg_stale:
         issues.append(xg_stale)
+    # T3 业务哨兵判定：B1-B4 纯读聚合 → issue（B3 用 HTTP 只读 system-health/day-view）。
+    b1 = recommendation_chain_issue(state.get("business_recommendation_chain") or [])
+    if b1:
+        issues.append(b1)
+    b2 = skip_reason_anomaly_issue(state.get("business_skip_reasons") or [])
+    if b2:
+        issues.append(b2)
+    system_health = http("/v1/dashboard/system-health")
+    degradation = http("/v1/dashboard/day-view")
+    degradation_state = (
+        degradation["body"].get("degradation", {}).get("state")
+        if degradation["http"] == 200 and isinstance(degradation["body"], dict)
+        else None
+    )
+    data_freshness_ok = (
+        system_health["body"].get("data_freshness", {}).get("ok")
+        if system_health["http"] == 200 and isinstance(system_health["body"], dict)
+        else None
+    )
+    b3 = data_source_consistency_issue(degradation_state, data_freshness_ok)
+    if b3:
+        issues.append(b3)
+    b4 = xg_coverage_lag_issue(state.get("xg_coverage_lag") or [])
+    if b4:
+        issues.append(b4)
+    state["bark_pushed"] = push_bark_alerts(issues, out_dir=out.parent)
+    state["monitor_bark_calls"] = state["bark_pushed"]
     if state["schema"] != expected_schema:
         issues.append("SCHEMA_HEAD_CONFLICT")
     if any(
