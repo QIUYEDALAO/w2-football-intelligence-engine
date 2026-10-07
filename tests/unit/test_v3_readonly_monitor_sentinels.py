@@ -102,6 +102,52 @@ def test_push_bark_alerts_idempotent_once_per_day(tmp_path, monkeypatch) -> None
     assert len(posted) == 2
 
 
+def test_bark_issue_identity_strips_dynamic_suffix() -> None:
+    assert monitor.bark_issue_identity("NO_RECOMMENDATION_TODAY:due=1") == "NO_RECOMMENDATION_TODAY"
+    assert monitor.bark_issue_identity("NO_RECOMMENDATION_TODAY:due=6") == "NO_RECOMMENDATION_TODAY"
+    assert monitor.bark_issue_identity("SKIP_REASON_ANOMALY:count=3") == "SKIP_REASON_ANOMALY"
+    assert (
+        monitor.bark_issue_identity("DATA_SOURCE_CONSISTENCY_CONFLICT:BLOCKED_DAY")
+        == "DATA_SOURCE_CONSISTENCY_CONFLICT"
+    )
+    assert (
+        monitor.bark_issue_identity("F9_SNAPSHOT_LAG:lag_hours=48.10") == "F9_SNAPSHOT_LAG"
+    )
+    assert monitor.bark_issue_identity("CHECKPOINT_FAILED") == "CHECKPOINT_FAILED"
+
+
+def test_push_bark_alerts_dynamic_due_not_bombarded(tmp_path, monkeypatch) -> None:
+    """① due 1→6 递增同日只推 1 条；② 次日新足球日可再推（跨日不误伤）。"""
+    from datetime import UTC, datetime
+
+    monkeypatch.setenv("W2_BARK_ENDPOINT", "https://api.day.app/example")
+    monkeypatch.setenv("W2_BARK_DEVICE_KEY", "key1")
+    posted: list[dict] = []
+
+    def fake_post(endpoint: str, payload: dict) -> None:
+        posted.append({"endpoint": endpoint, "payload": payload})
+
+    monkeypatch.setattr(monitor, "_post_bark", fake_post)
+    now = datetime(2026, 10, 8, 12, 0, tzinfo=UTC)
+
+    # ① due 从 1 涨到 6，同一天只推 1 条（不再重复轰炸）
+    for due in range(1, 7):
+        assert monitor.push_bark_alerts(
+            [f"NO_RECOMMENDATION_TODAY:due={due}"], out_dir=tmp_path, now=now
+        ) == (1 if due == 1 else 0)
+    assert len(posted) == 1
+    assert posted[0]["payload"]["body"] == "NO_RECOMMENDATION_TODAY:due=1"
+
+    # ② 次日新足球日 → 可再推（跨日不误伤）
+    next_day = now.replace(day=9)
+    posted.clear()
+    assert monitor.push_bark_alerts(
+        ["NO_RECOMMENDATION_TODAY:due=6"], out_dir=tmp_path, now=next_day
+    ) == 1
+    assert len(posted) == 1
+    assert posted[0]["payload"]["body"] == "NO_RECOMMENDATION_TODAY:due=6"
+
+
 def test_push_bark_alerts_silent_without_config(tmp_path, monkeypatch) -> None:
     monkeypatch.delenv("W2_BARK_ENDPOINT", raising=False)
     monkeypatch.delenv("W2_BARK_DEVICE_KEY", raising=False)

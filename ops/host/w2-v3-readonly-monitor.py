@@ -185,6 +185,12 @@ def bark_message(issue: str, severity: str) -> dict[str, str]:
     return {"title": "W2 业务哨兵·提示", "body": issue}
 
 
+def bark_issue_identity(issue: str) -> str:
+    """幂等 identity：去掉动态数字/状态（due=N、count=N、lag_hours=X、:STATE），
+    只保留类型前缀。同类型 + 同足球日只推一次；动态数字仅体现在推送文案里。"""
+    return issue.split(":", 1)[0]
+
+
 def _bark_sent_path(out_dir: Path) -> Path:
     return Path(out_dir) / "bark_sent.json"
 
@@ -228,7 +234,9 @@ def push_bark_alerts(
     out_dir: Path,
     now: datetime | None = None,
 ) -> int:
-    """按严重度推送 Bark；同 issue 一天一次（幂等）。返回本次实际推送条数。"""
+    """按严重度推送 Bark；同类型 + 同足球日一次（幂等）。返回本次实际推送条数。
+    幂等 key 用 bark_issue_identity()（去掉动态 due/count/lag/状态），避免 due 从 1
+    涨到 6 时 identity 逐次变化导致重复轰炸；动态数字仅体现在推送文案里。"""
     endpoint = os.environ.get("W2_BARK_ENDPOINT", "").strip()
     device_keys = [
         key.strip() for key in os.environ.get("W2_BARK_DEVICE_KEY", "").split(",") if key.strip()
@@ -243,13 +251,14 @@ def push_bark_alerts(
         severity = bark_issue_severity(issue)
         if severity is None:
             continue
-        if sent.get(issue) == day:
-            continue  # 幂等：同 issue 一天一次
+        identity = bark_issue_identity(issue)
+        if sent.get(identity) == day:
+            continue  # 幂等：同类型同日一次
         try:
             _post_bark(endpoint, {**bark_message(issue, severity), "device_key": device_keys[0]})
         except Exception:
             continue  # 推送失败不阻断巡检（保持只读、不影响状态判定）
-        sent[issue] = day
+        sent[identity] = day
         pushed += 1
     _save_bark_sent(out_dir, sent)
     return pushed
