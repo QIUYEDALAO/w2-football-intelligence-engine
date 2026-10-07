@@ -1908,6 +1908,7 @@ class CalibratedValidationSample(BaseModel):
     settlement: str
     profit_units: float | None = None
     score: str | None = None
+    scoreline: str | None = None
     settled_at: datetime | str | None = None
     evaluated_at: datetime | str | None = None
     home_team_label: WorkspacePublicTeamLabel | dict[str, Any] = Field(default_factory=dict)

@@ -151,6 +151,8 @@ def _calibrated_sample_projection(
                 "calibrated_ev",
             )
         },
+        # 前端「比分」列统一读 scoreline（FT 比分）；score 保留兼容（模型分/历史语义）。
+        "scoreline": display["score"],
     }
 
 
@@ -694,6 +696,7 @@ def dashboard_intelligence_validation(
         "market": row["market"],
         "decimal_odds": row["decimal_odds"],
         "score": row.get("score"),
+        "scoreline": row.get("scoreline"),
         "result": row["settlement"] if row["state"] == "SETTLED" else row["state"],
         "profit_units": float(row["net_units"]) if row["state"] == "SETTLED" else None,
     } for row in page]

@@ -748,6 +748,7 @@ export interface ValidationReviewSample {
   display_state?: "RECOMMENDATION" | "MARKET_VIEW";
   decimal_odds: number | string | null;
   score: string | null;
+  scoreline?: string | null;
   result: string | null;
   profit_units?: number | null;
 }
@@ -766,6 +767,7 @@ export interface CalibratedValidationSample {
   settlement: string;
   profit_units: number | null;
   score: string | null;
+  scoreline?: string | null;
   settled_at: string | null;
   evaluated_at: string | null;
   home_team_label: WorkspacePublicTeamLabel | Record<string, unknown>;
