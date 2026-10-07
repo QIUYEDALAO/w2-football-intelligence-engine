@@ -23,6 +23,7 @@ from w2.features.xg_materialization import (
     TeamXgMatch,
     materialize_rolling_xg,
     parse_team_xg_matches,
+    source_matches_signature,
     statistics_xg_by_team,
 )
 from w2.identity import CanonicalIdentityRepository
@@ -3343,16 +3344,21 @@ class FutureRefreshDbRepository:
                 if existing is not None and (
                     existing.pit_proven or existing.first_committed_at is not None
                 ):
-                    # 已证明（或已提交可读）的快照不可变：字段漂移 → fail-closed。
-                    for key, value in values.items():
-                        actual = getattr(existing, key)
-                        if isinstance(value, datetime) and isinstance(actual, datetime):
-                            value, actual = iso_z(value), iso_z(actual)
-                        if actual != value:
-                            raise FutureRefreshPersistenceError(
-                                f"TEAM_XG_SNAPSHOT_FIELD_CONFLICT:{key}"
-                            )
-                    continue
+                    # 已证明（或已提交可读）的快照默认不可变：字段漂移 → fail-closed。
+                    # 例外：source_matches 覆盖边界推进（补采新历史 xG，id 集合变化）
+                    # 时允许走下方 DELETE+INSERT 重建重新证明；否则幂等 no-op。
+                    if source_matches_signature(existing.source_matches) == source_matches_signature(
+                        values["source_matches"]
+                    ):
+                        for key, value in values.items():
+                            actual = getattr(existing, key)
+                            if isinstance(value, datetime) and isinstance(actual, datetime):
+                                value, actual = iso_z(value), iso_z(actual)
+                            if actual != value:
+                                raise FutureRefreshPersistenceError(
+                                    f"TEAM_XG_SNAPSHOT_FIELD_CONFLICT:{key}"
+                                )
+                        continue
                 # existing is None → 新增；existing 是未证明遗留（pit_proven=false 且
                 # first_committed_at=NULL）→ 下方独立重建后覆盖重证。覆盖时
                 # first_captured_at / decision_at 用组件真实采集时刻 / 真实决策点，

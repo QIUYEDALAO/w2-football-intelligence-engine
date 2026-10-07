@@ -14,6 +14,7 @@ from w2.features.xg_materialization import (
     TeamXgMatch,
     materialize_rolling_xg,
     parse_team_xg_matches,
+    source_matches_signature,
 )
 from w2.ingestion.future_refresh import (
     LiveApiFootballPort,
@@ -827,8 +828,16 @@ class XgHistoryBackfillService:
             if existing["snapshot_id"] != row["snapshot_id"]:
                 raise FutureRefreshPersistenceError("TEAM_XG_SNAPSHOT_IDENTITY_CONFLICT")
             if existing.get("pit_proven"):
-                # 已证明（pit=true）快照是冻结事实，永不刷新。
-                no_ops += 1
+                # 已证明快照默认冻结；仅当补采新历史 xG 使 source_matches 覆盖边界
+                # 推进（id 集合变化）时刷新，否则幂等 no-op。刷新走 upsert 层
+                # DELETE+INSERT 重建并重新证明。
+                if source_matches_signature(existing.get("source_matches")) == source_matches_signature(
+                    row.get("source_matches")
+                ):
+                    no_ops += 1
+                    continue
+                unproven += 1
+                pending.append(row)
                 continue
             # 未证明遗留（pit=false）→ 纳入 pending，由 upsert 层 DELETE+INSERT 覆盖重证。
             unproven += 1

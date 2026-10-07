@@ -500,6 +500,30 @@ def test_later_saved_raw_run_preserves_proven_snapshot_reproves_unproven() -> No
     assert reprove.unproven_snapshot_no_ops == 2
 
 
+def test_proven_snapshot_refreshes_only_when_source_matches_advance() -> None:
+    """补采新历史 xG 使 source_matches 覆盖边界推进 → proven 快照纳入 pending 刷新；
+    source_matches 不变 → 幂等 no-op（冻结）。"""
+    repository = SavedRawRepository()
+    service = XgHistoryBackfillService(
+        client=NoCallClient(), repository=repository,
+        config=XgBackfillConfig(min_rolling_matches=3), now=NOW,
+    )
+    service.run_saved_raw()
+    assert repository.snapshots
+
+    snap = dict(repository.snapshots[0])
+    advanced = dict(snap)
+    advanced["source_matches"] = list(snap["source_matches"]) + [{"id": "new-advance"}]
+    unchanged = dict(snap)
+
+    pending, no_ops, unproven = service._unfrozen_snapshot_rows([advanced])
+    assert pending == [advanced]
+    assert no_ops == 0 and unproven == 1
+
+    pending, no_ops, unproven = service._unfrozen_snapshot_rows([unchanged])
+    assert pending == [] and no_ops == 1 and unproven == 0
+
+
 def test_saved_statistics_raw_materializes_registered_historical_season() -> None:
     repository = SavedRawRepository()
     for fixture in repository.fixture_payloads():

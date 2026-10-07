@@ -225,6 +225,22 @@ def materialize_rolling_xg(
     )
 
 
+def source_matches_signature(matches: Any) -> frozenset[str]:
+    """Canonical id-set of a snapshot's source_matches.
+
+    用于幂等比较与「source_matches 覆盖边界是否推进」判定：只比较每场比赛的
+    唯一 id（``fixture_id:team_id``）。新增/移除比赛即视为覆盖边界变化；
+    xg 数值漂移（append-only 不可变事实）不在本签名内。
+    """
+    if not matches:
+        return frozenset()
+    return frozenset(
+        str(item.get("id") or item.get("fixture_id") or "")
+        for item in matches
+        if isinstance(item, dict)
+    )
+
+
 def statistics_xg_by_team(payload: dict[str, Any]) -> dict[str, float]:
     """Return only Provider teams whose expected_goals value is numeric."""
     response = payload.get("response")
