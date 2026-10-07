@@ -88,14 +88,16 @@ def _complementary_sides(market: str) -> tuple[str, str]:
 
 
 def _has_duplicate_line(rows: list[dict[str, Any]]) -> bool:
-    """True when the same side carries two rows on the same line (a duplicate
-    side that must be refused, never silently deduplicated)."""
-    seen: set[str] = set()
+    """True when the same side carries two rows on the same line *within the
+    same bookmaker* (a true duplicate side that must be refused, never silently
+    deduplicated). Cross-bookmaker rows on the same line are independent facts
+    (each bookmaker pairs its own two sides), so they are not duplicates."""
+    seen: set[tuple[str, str]] = set()
     for row in rows:
         line = _decimal(row.get("line"))
         if line is None:
             continue
-        key = str(line.normalize())
+        key = (str(row.get("bookmaker_id") or ""), str(line.normalize()))
         if key in seen:
             return True
         seen.add(key)
@@ -320,7 +322,7 @@ def _select_one_market(
                 if pair is not None:
                     pairs.append(pair)
     else:
-        line_groups: dict[str, dict[str, dict[str, Any]]] = {}
+        line_groups: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
         for row in latest_rows:
             side = _side(row)
             if side not in {side_a, side_b}:
@@ -331,10 +333,13 @@ def _select_one_market(
             line = _decimal(row.get("line"))
             if line is None:
                 return {"status": f"{market}_QUOTE_LINE_INVALID", "quote": None}
-            group = line_groups.setdefault(str(line.normalize()), {})
+            # 按 (bookmaker, line) 独立分组：每个 bookmaker 各自配自己的 OVER/UNDER，
+            # 跨 bookmaker 的同盘口同侧不是重复（bookmaker 32 和 8 的 OVER@0.5 各自成对）。
+            group = line_groups.setdefault(
+                (str(row.get("bookmaker_id") or ""), str(line.normalize())), {}
+            )
             if side in group:
-                # C: a duplicate OVER/UNDER row on the same line (even same price)
-                # must be refused, never silently deduplicated.
+                # C: 同一 bookmaker 内同盘口同侧（即使同价）才是真重复，必须拒绝。
                 return {"status": f"{market}_QUOTE_DUPLICATE_SIDE", "quote": None}
             group[side] = row
         for group in line_groups.values():

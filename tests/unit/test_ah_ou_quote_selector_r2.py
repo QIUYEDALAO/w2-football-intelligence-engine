@@ -289,3 +289,98 @@ def test_t3_quote_exactly_24h_is_selected_boundary() -> None:
         raw_payloads={CAPTURE_ID: raw},
     )
     assert result["status"] == "READY"
+
+
+def _raw_multi_bookmaker_ou(*, home_line: str = "-0.5") -> dict:
+    """两个 bookmaker（32/8）各带一条同盘口 TOTALS 双侧，复现 1490326 回归。"""
+    return {
+        "response": [
+            {
+                "fixture": {"id": FIXTURE_ID},
+                "bookmakers": [
+                    {
+                        "id": 32,
+                        "name": "Bookmaker32",
+                        "bets": [
+                            {"id": 1, "name": "Asian Handicap", "values": [
+                                {"value": f"Home {home_line}", "odd": "1.80"},
+                                {"value": f"Away {home_line}", "odd": "2.05"},
+                            ]},
+                            {"id": 2, "name": "Goals Over/Under", "values": [
+                                {"value": "Over 0.5", "odd": "1.03"},
+                                {"value": "Under 0.5", "odd": "9.00"},
+                            ]},
+                        ],
+                    },
+                    {
+                        "id": 8,
+                        "name": "Bookmaker8",
+                        "bets": [
+                            {"id": 1, "name": "Asian Handicap", "values": [
+                                {"value": f"Home {home_line}", "odd": "1.82"},
+                                {"value": f"Away {home_line}", "odd": "2.02"},
+                            ]},
+                            {"id": 2, "name": "Goals Over/Under", "values": [
+                                {"value": "Over 0.5", "odd": "1.01"},
+                                {"value": "Under 0.5", "odd": "11.00"},
+                            ]},
+                        ],
+                    },
+                ],
+            }
+        ]
+    }
+
+
+def _rows_multi_bookmaker_ou(raw: dict) -> list[dict]:
+    rows: list[dict] = []
+    for bookmaker, over, under, ah_home, ah_away in (
+        ("32", "1.03", "9.00", "1.80", "2.05"),
+        ("8", "1.01", "11.00", "1.82", "2.02"),
+    ):
+        rows.append(_row(market="ASIAN_HANDICAP", selection="HOME", line="-0.5",
+                         odds=ah_home, raw_payload=raw, bookmaker_id=bookmaker))
+        rows.append(_row(market="ASIAN_HANDICAP", selection="AWAY", line="0.5",
+                         odds=ah_away, raw_payload=raw, bookmaker_id=bookmaker))
+        rows.append(_row(market="TOTALS", selection="OVER", line="0.5",
+                         odds=over, raw_payload=raw, bookmaker_id=bookmaker))
+        rows.append(_row(market="TOTALS", selection="UNDER", line="0.5",
+                         odds=under, raw_payload=raw, bookmaker_id=bookmaker))
+    return rows
+
+
+def test_totals_multi_bookmaker_same_line_is_not_duplicate() -> None:
+    """任务回归修复：多 bookmaker 同盘口同侧（32+8 的 OVER@0.5）各自独立成对，
+    不再误判 DUPLICATE_SIDE；推荐恢复（OU READY）。"""
+    raw = _raw_multi_bookmaker_ou()
+    result = select_v3_ah_ou_quotes(
+        _rows_multi_bookmaker_ou(raw), fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+        raw_payloads={CAPTURE_ID: raw},
+    )
+    assert result["ou"]["status"] == "READY"
+    # 选到价格最接近 1.90/1.90 的 bookmaker 32 主线（OVER 1.03 / UNDER 9.00）。
+    assert result["ou"]["quote"]["side_prices"] == {"over": 1.03, "under": 9.00}
+
+
+def test_ah_multi_bookmaker_same_line_is_not_duplicate() -> None:
+    """AH 同理：多 bookmaker 同盘口同侧各自配对，不再因跨 bookmaker 同侧判重。"""
+    raw = _raw_multi_bookmaker_ou()
+    result = select_v3_ah_ou_quotes(
+        _rows_multi_bookmaker_ou(raw), fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+        raw_payloads={CAPTURE_ID: raw},
+    )
+    assert result["ah"]["status"] == "READY"
+
+
+def test_totals_same_bookmaker_duplicate_side_still_refused() -> None:
+    """验收②：同一 bookmaker 内同盘口同侧真重复仍拒绝 QUOTE_DUPLICATE_SIDE。"""
+    raw = _raw_multi_bookmaker_ou()
+    rows = _rows_multi_bookmaker_ou(raw)
+    # 复制 bookmaker 32 的 OVER@0.5 一行（同 bookmaker 同盘口同侧真重复）。
+    rows.append(_row(market="TOTALS", selection="OVER", line="0.5", odds="1.03",
+                     raw_payload=raw, bookmaker_id="32"))
+    result = select_v3_ah_ou_quotes(
+        rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+        raw_payloads={CAPTURE_ID: raw},
+    )
+    assert result["ou"]["status"] == "TOTALS_QUOTE_DUPLICATE_SIDE"
