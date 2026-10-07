@@ -142,6 +142,8 @@ def _source_content_matches(
     different fixture (or tampered price/hash/line) therefore fails -- it is not
     enough that the raw payload merely exists.
     """
+    if not rows:
+        return False
     first = rows[0]
     captured = _parse_utc(first.get("captured_at") or first.get("captured_at_utc"))
     ingested = _parse_utc(first.get("ingested_at")) or captured
@@ -294,6 +296,12 @@ def _select_one_market(
         # C: a duplicate side on the same line (even same price) is a refusal.
         if _has_duplicate_line(home_rows) or _has_duplicate_line(away_rows):
             return {"status": f"{market}_QUOTE_DUPLICATE_SIDE", "quote": None}
+        # 按 bookmaker 分组 away，同 bookmaker 内配对（避免 O(H×A) 跨 bookmaker 无效比较）。
+        away_by_bookmaker: dict[str, list[dict[str, Any]]] = {}
+        for away_row in away_rows:
+            away_by_bookmaker.setdefault(
+                str(away_row.get("bookmaker_id") or ""), []
+            ).append(away_row)
         for home_row in home_rows:
             home_price = _float(home_row.get("decimal_odds") or home_row.get("executable_odds"))
             if home_price is None or home_price <= 1.0:
@@ -302,17 +310,15 @@ def _select_one_market(
             if home_line is None:
                 return {"status": f"{market}_QUOTE_LINE_INVALID", "quote": None}
             home_bookmaker = str(home_row.get("bookmaker_id") or "")
-            for away_row in away_rows:
+            if not home_bookmaker:
+                continue
+            for away_row in away_by_bookmaker.get(home_bookmaker, []):
                 away_price = _float(away_row.get("decimal_odds") or away_row.get("executable_odds"))
                 if away_price is None or away_price <= 1.0:
                     return {"status": f"{market}_QUOTE_PRICE_INVALID", "quote": None}
                 away_line = _decimal(away_row.get("line"))
                 if away_line is None:
                     return {"status": f"{market}_QUOTE_LINE_INVALID", "quote": None}
-                # 对齐回测 per-bookmaker 双侧配对：两侧必须来自同一 bookmaker，
-                # 且 bookmaker 非空（避免跨 bookmaker 报价漂移）。
-                if not home_bookmaker or home_bookmaker != str(away_row.get("bookmaker_id") or ""):
-                    continue
                 if away_line not in {home_line, -home_line}:
                     continue
                 pair = _make_pair(
@@ -333,11 +339,14 @@ def _select_one_market(
             line = _decimal(row.get("line"))
             if line is None:
                 return {"status": f"{market}_QUOTE_LINE_INVALID", "quote": None}
+            bookmaker = str(row.get("bookmaker_id") or "")
+            if not bookmaker:
+                # 空 bookmaker 跳过（与 AH 分支一致）：不参与分组，避免两条空
+                # bookmaker 同盘口同侧被误判 DUPLICATE_SIDE。
+                continue
             # 按 (bookmaker, line) 独立分组：每个 bookmaker 各自配自己的 OVER/UNDER，
             # 跨 bookmaker 的同盘口同侧不是重复（bookmaker 32 和 8 的 OVER@0.5 各自成对）。
-            group = line_groups.setdefault(
-                (str(row.get("bookmaker_id") or ""), str(line.normalize())), {}
-            )
+            group = line_groups.setdefault((bookmaker, str(line.normalize())), {})
             if side in group:
                 # C: 同一 bookmaker 内同盘口同侧（即使同价）才是真重复，必须拒绝。
                 return {"status": f"{market}_QUOTE_DUPLICATE_SIDE", "quote": None}

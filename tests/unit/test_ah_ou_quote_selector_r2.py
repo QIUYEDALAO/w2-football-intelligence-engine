@@ -384,3 +384,27 @@ def test_totals_same_bookmaker_duplicate_side_still_refused() -> None:
         raw_payloads={CAPTURE_ID: raw},
     )
     assert result["ou"]["status"] == "TOTALS_QUOTE_DUPLICATE_SIDE"
+
+
+def test_totals_empty_bookmaker_is_skipped_not_duplicate() -> None:
+    """隐患①：空 bookmaker 跳过（与 AH 一致），两条空 bookmaker 同盘口同侧不再误判
+    DUPLICATE_SIDE（而是无有效双侧 → SIDE_INCOMPLETE）。"""
+    raw = _raw()
+    rows = [
+        _row(market="TOTALS", selection="OVER", line="0.5", odds="1.50",
+             raw_payload=raw, bookmaker_id=""),
+        _row(market="TOTALS", selection="OVER", line="0.5", odds="1.40",
+             raw_payload=raw, bookmaker_id=""),
+    ]
+    result = select_v3_ah_ou_quotes(
+        rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+        raw_payloads={CAPTURE_ID: raw},
+    )
+    assert result["ou"]["status"] == "TOTALS_QUOTE_SIDE_INCOMPLETE"
+
+
+def test_source_content_matches_empty_rows_returns_false() -> None:
+    """隐患②：_source_content_matches 空 rows 返回 False（不 IndexError）。"""
+    from w2.strategy.ah_ou_quote_selector import _source_content_matches
+
+    assert _source_content_matches([], _raw(), capture_id=CAPTURE_ID) is False
