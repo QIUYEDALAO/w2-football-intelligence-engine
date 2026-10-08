@@ -60,10 +60,11 @@ scp "$source_file" "w2-hk:$remote_dir/monitor.py.incoming"
 scp "$temporary/wrapper" "w2-hk:$remote_dir/wrapper.incoming"
 ssh w2-hk "set -eu
 echo '$source_hash  $remote_dir/monitor.py.incoming' | sha256sum -c -
-if [ -f '$remote_dir/monitor.py' ]; then
-  echo '$source_hash  $remote_dir/monitor.py' | sha256sum -c -
+if [ -f '$remote_dir/monitor.py' ] && echo '$source_hash  $remote_dir/monitor.py' | sha256sum -c - >/dev/null 2>&1; then
+  # 已是目标版本 → 幂等丢弃 incoming
   rm '$remote_dir/monitor.py.incoming'
 else
+  # 不存在或旧版 → 用 incoming 覆盖（此前旧版走 sha256sum 失败退出，从未覆盖，导致脱节）
   mv '$remote_dir/monitor.py.incoming' '$remote_dir/monitor.py'
 fi
 python3 -m py_compile '$remote_dir/monitor.py'
