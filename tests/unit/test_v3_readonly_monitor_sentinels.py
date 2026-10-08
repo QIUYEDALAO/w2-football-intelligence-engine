@@ -164,3 +164,17 @@ def test_push_bark_alerts_silent_without_config(tmp_path, monkeypatch) -> None:
     monkeypatch.delenv("W2_BARK_ENDPOINT", raising=False)
     monkeypatch.delenv("W2_BARK_DEVICE_KEY", raising=False)
     assert monitor.push_bark_alerts(["NO_RECOMMENDATION_TODAY:due=1"], out_dir=tmp_path) == 0
+
+
+def test_football_day_decision_lo() -> None:
+    """F7：B1「今日」下界与 dashboard 足球日窗口同口径（北京 12:00 截断 - 2h 决策提前量）。"""
+    from datetime import UTC, datetime
+
+    # 北京 10-08 15:00（>=12:00）→ 足球日 10-08，lo = 10-08 04:00 UTC - 2h = 02:00 UTC
+    assert monitor._football_day_decision_lo(
+        datetime(2026, 10, 8, 7, 0, tzinfo=UTC)
+    ).isoformat() == "2026-10-08T02:00:00+00:00"
+    # 北京 10-08 08:00（<12:00）→ 足球日 10-07，lo = 10-07 04:00 UTC - 2h = 02:00 UTC
+    assert monitor._football_day_decision_lo(
+        datetime(2026, 10, 8, 0, 0, tzinfo=UTC)
+    ).isoformat() == "2026-10-07T02:00:00+00:00"

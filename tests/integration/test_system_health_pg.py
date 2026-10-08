@@ -125,3 +125,45 @@ def test_system_health_recommendation_chain(chain):
     assert chain_ok["skip_count"] >= 0
     assert set(chain_ok["skip_reasons"]) == {"F9_SNAPSHOT_STALE", "STALE_QUOTE", "other"}
     assert chain_ok["selected_count"] + chain_ok["skip_count"] <= len(rows) or len(rows) == 0
+
+
+def test_recommendation_chain_excludes_future_dated_rows(chain):
+    """F7：decision_at 未来的预评估遗留行不计入 selected/skip（只数 decision_at <= now）。"""
+    repo, _future, _plan, _producer = chain
+    from w2.infrastructure.persistence.ah_ou_decision_ledger_models import AhOuDecisionLedgerModel
+
+    now = datetime.now(UTC)
+    with Session(repo.engine) as session:
+        health_before = build_system_health(session, now=now)
+    before = health_before["recommendation_chain"]["skip_count"]
+
+    with Session(repo.engine) as session, session.begin():
+        session.add(
+            AhOuDecisionLedgerModel(
+                decision_id="future-probe-" + "0" * 32,
+                fixture_id="api_football:999999",
+                market="TOTALS",
+                decision_at=now + timedelta(hours=5),  # 未来：预评估遗留
+                model_version="m" * 32,
+                calibration_version="w2.ah_ou.softmax.calibrated.v3",
+                input_hash="i" * 64,
+                full_distribution={},
+                decision_contract="w2.ah_ou_decision.v3.1",
+                quote_identity_hash="q" * 64,
+                source_capture_sha256="s" * 64,
+                capture_id="cap-future",
+                source_id="src",
+                home_team_id="H",
+                away_team_id="A",
+                selected=False,
+                direction=None,
+                score="0",
+                skip_reason="F9_SNAPSHOT_STALE",
+                created_at=now,
+            )
+        )
+
+    with Session(repo.engine) as session:
+        health_after = build_system_health(session, now=now)
+    # future-dated 行（decision_at > now）不应污染 skip_count
+    assert health_after["recommendation_chain"]["skip_count"] == before, health_after

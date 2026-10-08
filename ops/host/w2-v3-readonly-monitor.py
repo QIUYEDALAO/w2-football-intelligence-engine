@@ -6,7 +6,7 @@ import os
 import shlex
 import subprocess
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -183,6 +183,28 @@ def fence_uncertain_stale_issue(
     if not uncertain_rows:
         return None
     return "FENCE_UNCERTAIN_STALE:count=" + str(len(uncertain_rows))
+
+
+FOOTBALL_DAY_TZ = ZoneInfo("Asia/Shanghai")
+FOOTBALL_DAY_CUTOFF_HOUR = 12
+
+
+def _football_day_decision_lo(now: datetime) -> datetime:
+    """今日足球日窗口下界（北京 12:00 截断）再减 2h 决策提前量。
+
+    与 dashboard system_health._recommendation_chain 的 lo 完全同口径，用于 B1
+    统一「今日」边界——消除「Dashboard due=0 vs 巡检 26h 滚动 due=1」的口径差异。
+    """
+    local = now.astimezone(FOOTBALL_DAY_TZ)
+    day = (
+        local.date()
+        if local.hour >= FOOTBALL_DAY_CUTOFF_HOUR
+        else local.date() - timedelta(days=1)
+    )
+    start_local = datetime.combine(
+        day, time(FOOTBALL_DAY_CUTOFF_HOUR, 0, 0), tzinfo=FOOTBALL_DAY_TZ
+    )
+    return start_local.astimezone(UTC) - timedelta(hours=2)
 
 
 def bark_issue_severity(issue: str) -> str | None:
@@ -477,13 +499,15 @@ def main() -> None:
         "))/3600.0, -1)::numeric(10,2) AS lag_hours"
     )
     # T3 业务哨兵只读聚合（Provider 请求=0、账本写入=false）。
-    # B1 推荐链路：今日（近 26h）decision_at <= now 但 selected=0。
+    # B1 推荐链路：今日（足球日窗口，与 dashboard system_health 同口径）decision_at <= now
+    # 但 selected=0。F7：用足球日窗口下界取代 26h 滚动，统一「今日」口径（Dashboard due == 巡检 due）。
+    _b1_lo = _football_day_decision_lo(datetime.now(UTC)).isoformat()
     state["business_recommendation_chain"] = rows(
         "SELECT count(*) FILTER (WHERE selected) AS selected_count, "
         "count(DISTINCT fixture_id) FILTER (WHERE decision_at <= now()) AS due_count "
         "FROM ah_ou_decision_ledger "
         "WHERE decision_contract='w2.ah_ou_decision.v3.1' "
-        "AND decision_at >= now() - interval '26 hours'"
+        "AND decision_at >= '" + _b1_lo + "'"  # noqa: S608 -- ISO 来自 datetime.isoformat()，非 CLI 输入
     )
     # B2 SKIP 原因异常：近 24h 三类异常 SKIP 计数。
     state["business_skip_reasons"] = rows(

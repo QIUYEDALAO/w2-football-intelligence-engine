@@ -167,8 +167,10 @@ def _recommendation_chain(session: Session, *, now: datetime, day: Any) -> dict[
         )
     )
     decision_due_count = len({row.fixture_id for row in due_rows})
-    selected = [row for row in rows if row.selected]
-    skips = [row for row in rows if not row.selected and row.skip_reason]
+    # F7：selected/skip 只统计已到决策点（decision_at <= now）的行——排除预评估遗留的
+    # future-dated 行（decision_at 在未来却已落账本），不再污染「今日推荐/SKIP」统计。
+    selected = [row for row in due_rows if row.selected]
+    skips = [row for row in due_rows if not row.selected and row.skip_reason]
     stale_f9 = sum(row.skip_reason == "F9_SNAPSHOT_STALE" for row in skips)
     stale_quote = sum("STALE_QUOTE" in (row.skip_reason or "") for row in skips)
     other = len(skips) - stale_f9 - stale_quote
