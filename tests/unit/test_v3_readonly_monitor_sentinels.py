@@ -71,6 +71,8 @@ def test_bark_issue_severity_mapping() -> None:
     assert monitor.bark_issue_severity("SKIP_REASON_ANOMALY:count=3") == "YELLOW"
     assert monitor.bark_issue_severity("DATA_SOURCE_CONSISTENCY_CONFLICT:X") == "YELLOW"
     assert monitor.bark_issue_severity("FENCE_UNCERTAIN_STALE:count=68") == "YELLOW"
+    assert monitor.bark_issue_severity("QUOTA_UNKNOWN") == "YELLOW"
+    assert monitor.bark_issue_severity("LOW_QUOTA:remaining=300") == "YELLOW"
     assert monitor.bark_issue_severity("SERVICE_NOT_HEALTHY") is None
 
 
@@ -82,6 +84,18 @@ def test_fence_uncertain_stale_issue() -> None:
     assert monitor.fence_uncertain_stale_issue(
         [{"stage": "xg"}, {"stage": "task"}, {"stage": "h2h"}]
     ) == "FENCE_UNCERTAIN_STALE:count=3"
+
+
+def test_quota_issue_unknown_and_low() -> None:
+    """R2：额度读不到 → QUOTA_UNKNOWN（提示，不误报）；触达保留桶 → LOW_QUOTA；充足 → None。"""
+    assert monitor.quota_issue([]) == "QUOTA_UNKNOWN"
+    assert monitor.quota_issue([{"remaining_quota": None}]) == "QUOTA_UNKNOWN"
+    assert monitor.quota_issue([{"remaining_quota": "UNKNOWN"}]) == "QUOTA_UNKNOWN"
+    assert monitor.quota_issue([{"remaining_quota": ""}]) == "QUOTA_UNKNOWN"
+    assert monitor.quota_issue([{"remaining_quota": "300"}]) == "LOW_QUOTA:remaining=300"
+    assert monitor.quota_issue([{"remaining_quota": "500"}]) == "LOW_QUOTA:remaining=500"
+    assert monitor.quota_issue([{"remaining_quota": "501"}]) is None
+    assert monitor.quota_issue([{"remaining_quota": "7000"}]) is None
 
 
 def test_push_bark_alerts_idempotent_once_per_day(tmp_path, monkeypatch) -> None:

@@ -115,6 +115,10 @@ SKIP_REASON_ANOMALY_THRESHOLD = 3
 XG_COVERAGE_LAG_THRESHOLD_HOURS = 48.0
 # F2：Provider 副作用状态 SIDE_EFFECT_UNCERTAIN 超期未处置即上浮告警（xG 断供常见根因）。
 FENCE_UNCERTAIN_STALE_THRESHOLD_HOURS = 12.0
+# R2：Provider 额度监控——读 read_model_checkpoint 的 provider_status 缓存（不新调 Provider），
+# 读不到额度 → QUOTA_UNKNOWN（提示，不误报 RED）。口径与 dashboard system_health._collection_quota 一致。
+QUOTA_CHECKPOINT_KEY = "dashboard:provider_status"
+API_FOOTBALL_RESERVE_BUCKET = 500
 # F10：与现行合同同步——QUOTE_NOT_PINNACLE 在删 Pinnacle 门槛后已不可能再产生（死原因），
 # 移除；补上删门槛后新出现的 QUOTE_SOURCE_CONTENT_MISMATCH（报价源内容无法从 raw 重放）。
 ANOMALOUS_SKIP_REASONS = frozenset(
@@ -189,6 +193,30 @@ def fence_uncertain_stale_issue(
     return "FENCE_UNCERTAIN_STALE:count=" + str(len(uncertain_rows))
 
 
+def quota_issue(
+    quota_rows: list[dict],
+    reserve_bucket: int = API_FOOTBALL_RESERVE_BUCKET,
+) -> str | None:
+    """R2：Provider 额度监控。入参来自 read_model_checkpoint 的 dashboard:provider_status
+    缓存（与 dashboard system_health._collection_quota 同口径），不新调 Provider。
+
+    读不到额度（checkpoint 缺失 / remaining_quota 为 None / 非数字）→ QUOTA_UNKNOWN，
+    降为提示（YELLOW）不误报 RED；读得到但已触达保留桶 → LOW_QUOTA（提示）。
+    """
+    if not quota_rows:
+        return "QUOTA_UNKNOWN"
+    remaining_raw = quota_rows[0].get("remaining_quota")
+    try:
+        remaining = int(remaining_raw) if remaining_raw is not None else None
+    except (TypeError, ValueError):
+        remaining = None
+    if remaining is None:
+        return "QUOTA_UNKNOWN"
+    if remaining <= reserve_bucket:
+        return "LOW_QUOTA:remaining=" + str(remaining)
+    return None
+
+
 FOOTBALL_DAY_TZ = ZoneInfo("Asia/Shanghai")
 FOOTBALL_DAY_CUTOFF_HOUR = 12
 
@@ -227,6 +255,8 @@ def bark_issue_severity(issue: str) -> str | None:
         issue.startswith("SKIP_REASON_ANOMALY")
         or issue.startswith("DATA_SOURCE_CONSISTENCY_CONFLICT")
         or issue.startswith("FENCE_UNCERTAIN_STALE")
+        or issue.startswith("QUOTA_UNKNOWN")
+        or issue.startswith("LOW_QUOTA")
     ):
         return "YELLOW"
     return None
@@ -470,6 +500,12 @@ def main() -> None:
         "WHERE state='SIDE_EFFECT_UNCERTAIN' AND updated_at<now()-interval '12 hours' "
         "ORDER BY updated_at LIMIT 100"
     )
+    # R2：Provider 额度监控（读 provider_status 缓存，不新调 Provider）。
+    state["collection_quota"] = rows(
+        "SELECT payload->>'remaining_quota' AS remaining_quota, "
+        "payload->>'provider' AS provider, payload->>'status' AS status "
+        "FROM read_model_checkpoint WHERE checkpoint_key='dashboard:provider_status'"
+    )
     state["done_without_forward"] = rows(
         "SELECT task_id FROM provider_side_effect_fence t WHERE t.stage='task' AND "
         "t.state='DONE' AND NOT EXISTS (SELECT 1 FROM provider_side_effect_fence f WHERE "
@@ -585,6 +621,9 @@ def main() -> None:
     b5 = fence_uncertain_stale_issue(state.get("fence_uncertain_stale") or [])
     if b5:
         issues.append(b5)
+    b6 = quota_issue(state.get("collection_quota") or [])
+    if b6:
+        issues.append(b6)
     state["bark_pushed"] = push_bark_alerts(issues, out_dir=out.parent)
     state["monitor_bark_calls"] = state["bark_pushed"]
     if state["schema"] != expected_schema:
