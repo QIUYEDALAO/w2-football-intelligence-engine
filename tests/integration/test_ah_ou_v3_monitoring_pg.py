@@ -195,6 +195,7 @@ def test_below_threshold_eligible_inputs_count_without_becoming_recommendations(
         assert result["result"]["validation_samples"]["v3"]["monitoring"] == {
             "created_facts": 2,
             "excluded_facts": 0,
+            "skipped_stale_facts": 0,
             "created_reports": 0,
         }
         with Session(repo.engine) as session:

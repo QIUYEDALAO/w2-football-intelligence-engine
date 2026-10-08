@@ -279,7 +279,7 @@ def append_monitoring_in_session(
         observed = session.scalar(text("SELECT clock_timestamp()"))
     else:
         observed = now or datetime.now(UTC)
-    created = excluded = reports = 0
+    created = excluded = skipped_stale = reports = 0
     decisions = list(
         session.scalars(
             select(AhOuDecisionLedgerModel)
@@ -352,6 +352,18 @@ def append_monitoring_in_session(
             )
             created += 1
         elif stored.payload != payload or stored.payload_hash != _digest(payload):
+            # F4：旧 fact 因缺投影被排除（PREMATCH_PROJECTION_MISSING），新代码补投影后
+            # payload 合法变化（eligible false→true）——fact 表 immutable 无法 UPDATE，
+            # 跳过并保留旧 fact（承认历史缺口），不阻塞 settlement sweep。其余 payload
+            # 变化仍是篡改，保留 CONFLICT 防线。
+            if (
+                stored.payload.get("eligible") is False
+                and stored.payload.get("exclusion_reason")
+                == "V3_MONITORING_PREMATCH_PROJECTION_MISSING"
+                and payload.get("eligible") is True
+            ):
+                skipped_stale += 1
+                continue
             raise ValueError("V3_MONITORING_FACT_CONFLICT")
         excluded += not payload["eligible"]
     session.flush()
@@ -394,4 +406,9 @@ def append_monitoring_in_session(
             elif stored_report.payload != payload or stored_report.payload_hash != _digest(payload):
                 raise ValueError("V3_MONITORING_REPORT_CONFLICT")
     session.flush()
-    return {"created_facts": created, "excluded_facts": excluded, "created_reports": reports}
+    return {
+        "created_facts": created,
+        "excluded_facts": excluded,
+        "skipped_stale_facts": skipped_stale,
+        "created_reports": reports,
+    }
