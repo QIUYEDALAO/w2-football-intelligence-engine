@@ -2484,29 +2484,52 @@ class FutureRefreshDbRepository:
         """每个球队在 ``before`` 之前最近一场已完赛 (FT) 比赛的 kickoff。
 
         F9 新鲜度门用「比赛日历最新 FT」对比「F9 快照 xG 覆盖到的最新比赛」，
-        区分「数据源断供（打了 FT 却无 xG）」和「休赛（本就无新 FT）」。AS-OF
-        口径下仍只读 canonical 比赛历史，不接触赛果/结算表。
+        区分「数据源断供（打了 FT 却无 xG）」和「休赛（本就无新 FT）」。
+
+        F1：对照基准改用 ``matchday_fixture_identities.fixture_status='FT'``（独立于
+        xG 链——生产证据：xG 断供时 canonical 表停在 10-04，而 fixture_status 照常
+        推进到 10-07）。AS-OF 角色经 migration 0093 只读授权赛程日历列（不含比分），
+        且 ``captured_at <= before`` 保证只读决策时点已可见的 FT，不引入前瞻偏差。
         """
         ids = [team_id for team_id in dict.fromkeys(team_ids) if team_id]
         if not ids:
             return {}
         with self._asof_scoped_session() as session:
-            rows = session.execute(
+            home = (
                 select(
-                    CanonicalTeamMatchHistoryModel.team_w2_id,
-                    func.max(CanonicalTeamMatchHistoryModel.kickoff_utc),
+                    MatchdayFixtureIdentityModel.home_w2_team_id.label("team_id"),
+                    MatchdayFixtureIdentityModel.kickoff_utc.label("kickoff"),
                 )
                 .where(
-                    CanonicalTeamMatchHistoryModel.team_w2_id.in_(ids),
-                    CanonicalTeamMatchHistoryModel.fixture_status == "FT",
-                    CanonicalTeamMatchHistoryModel.kickoff_utc < before,
+                    MatchdayFixtureIdentityModel.home_w2_team_id.in_(ids),
+                    MatchdayFixtureIdentityModel.fixture_status == "FT",
+                    MatchdayFixtureIdentityModel.kickoff_utc < before,
+                    MatchdayFixtureIdentityModel.captured_at <= before,
                 )
-                .group_by(CanonicalTeamMatchHistoryModel.team_w2_id)
+            )
+            away = (
+                select(
+                    MatchdayFixtureIdentityModel.away_w2_team_id.label("team_id"),
+                    MatchdayFixtureIdentityModel.kickoff_utc.label("kickoff"),
+                )
+                .where(
+                    MatchdayFixtureIdentityModel.away_w2_team_id.in_(ids),
+                    MatchdayFixtureIdentityModel.fixture_status == "FT",
+                    MatchdayFixtureIdentityModel.kickoff_utc < before,
+                    MatchdayFixtureIdentityModel.captured_at <= before,
+                )
+            )
+            combined = home.union_all(away).subquery()
+            rows = session.execute(
+                select(
+                    combined.c.team_id,
+                    func.max(combined.c.kickoff),
+                ).group_by(combined.c.team_id)
             )
             result = {
                 str(team_id): kickoff
                 for team_id, kickoff in rows
-                if kickoff is not None
+                if team_id is not None and kickoff is not None
             }
         return result
 
