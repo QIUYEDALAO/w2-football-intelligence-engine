@@ -113,8 +113,10 @@ SKIP_REASON_ANOMALY_THRESHOLD = 3
 XG_COVERAGE_LAG_THRESHOLD_HOURS = 48.0
 # F2：Provider 副作用状态 SIDE_EFFECT_UNCERTAIN 超期未处置即上浮告警（xG 断供常见根因）。
 FENCE_UNCERTAIN_STALE_THRESHOLD_HOURS = 12.0
+# F10：与现行合同同步——QUOTE_NOT_PINNACLE 在删 Pinnacle 门槛后已不可能再产生（死原因），
+# 移除；补上删门槛后新出现的 QUOTE_SOURCE_CONTENT_MISMATCH（报价源内容无法从 raw 重放）。
 ANOMALOUS_SKIP_REASONS = frozenset(
-    {"QUOTE_DUPLICATE_SIDE", "TERMS_INCOMPLETE", "QUOTE_NOT_PINNACLE"}
+    {"QUOTE_DUPLICATE_SIDE", "TERMS_INCOMPLETE", "QUOTE_SOURCE_CONTENT_MISMATCH"}
 )
 DATA_NOT_READY_STATES = frozenset(
     {"BLOCKED_DAY", "STALE_DATA", "PROVIDER_BUDGET_EXHAUSTED", "EMPTY_DAY"}
@@ -509,11 +511,15 @@ def main() -> None:
         "WHERE decision_contract='w2.ah_ou_decision.v3.1' "
         "AND decision_at >= '" + _b1_lo + "'"  # noqa: S608 -- ISO 来自 datetime.isoformat()，非 CLI 输入
     )
-    # B2 SKIP 原因异常：近 24h 三类异常 SKIP 计数。
+    # B2 SKIP 原因异常：近 24h 三类异常 SKIP 计数。skip_reason 带市场前缀
+    # （TOTALS_/ASIAN_HANDICAP_），故用后缀匹配；移除死原因 QUOTE_NOT_PINNACLE，
+    # 补上 QUOTE_SOURCE_CONTENT_MISMATCH（与 ANOMALOUS_SKIP_REASONS 同步）。
     state["business_skip_reasons"] = rows(
         "SELECT skip_reason, count(*) FROM ah_ou_decision_ledger "
         "WHERE decision_contract='w2.ah_ou_decision.v3.1' "
-        "AND skip_reason IN ('QUOTE_DUPLICATE_SIDE','TERMS_INCOMPLETE','QUOTE_NOT_PINNACLE') "
+        "AND (skip_reason = 'TERMS_INCOMPLETE' "
+        "     OR skip_reason LIKE '%QUOTE_DUPLICATE_SIDE' "
+        "     OR skip_reason LIKE '%QUOTE_SOURCE_CONTENT_MISMATCH') "
         "AND created_at >= now() - interval '24 hours' "
         "GROUP BY skip_reason"
     )

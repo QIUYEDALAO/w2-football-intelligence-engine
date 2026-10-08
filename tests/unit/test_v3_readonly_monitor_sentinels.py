@@ -166,6 +166,14 @@ def test_push_bark_alerts_silent_without_config(tmp_path, monkeypatch) -> None:
     assert monitor.push_bark_alerts(["NO_RECOMMENDATION_TODAY:due=1"], out_dir=tmp_path) == 0
 
 
+def test_anomalous_skip_reasons_synced() -> None:
+    """F10：死原因 QUOTE_NOT_PINNACLE 移除，补上现行合同的新原因 QUOTE_SOURCE_CONTENT_MISMATCH。"""
+    assert "QUOTE_NOT_PINNACLE" not in monitor.ANOMALOUS_SKIP_REASONS
+    assert "QUOTE_SOURCE_CONTENT_MISMATCH" in monitor.ANOMALOUS_SKIP_REASONS
+    assert "QUOTE_DUPLICATE_SIDE" in monitor.ANOMALOUS_SKIP_REASONS
+    assert "TERMS_INCOMPLETE" in monitor.ANOMALOUS_SKIP_REASONS
+
+
 def test_football_day_decision_lo() -> None:
     """F7：B1「今日」下界与 dashboard 足球日窗口同口径（北京 12:00 截断 - 2h 决策提前量）。"""
     from datetime import UTC, datetime
