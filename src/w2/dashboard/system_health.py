@@ -22,13 +22,14 @@ from w2.infrastructure.persistence.ah_ou_postmatch_models import (
     AhOuV3SettlementModel,
 )
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
-from w2.infrastructure.persistence.factor_model_models import (
-    CanonicalTeamMatchHistoryModel,
-)
 from w2.infrastructure.persistence.future_refresh_models import (
     TeamXgMatchModel,
     TeamXgRollingSnapshotModel,
 )
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayFixtureIdentityModel,
+)
+from w2.infrastructure.persistence.models import ResultModel
 from w2.infrastructure.persistence.provider_side_effect_fence_models import (
     STATE_SIDE_EFFECT_UNCERTAIN,
     ProviderSideEffectFenceModel,
@@ -83,19 +84,25 @@ def _latest_snapshot_source_kickoff(session: Session) -> datetime | None:
 
 
 def _xg_freshness(session: Session) -> dict[str, Any]:
-    """数据新鲜度：F9 快照覆盖边界落后于比赛日历最近 FT 的滞后（与 F9 门同源）。
+    """数据新鲜度：F9 快照覆盖边界落后于比赛日历最近 FT 的滞后。
 
-    之前查 ``team_xg_match``（原始组件表）——10-05 回填后即使 F9 快照仍停在旧日期，
-    原始表也显示「新鲜」，造成假健康。现改为与 ``F9_SNAPSHOT_STALE`` 同源：
+    比赛日历最近 FT 改用**独立赛果表 results 口径**（``matchday_fixture_identities``
+    JOIN ``results``，``result_status IN (FT/AET/PEN)``），与巡检 B4 及真实赛果同源。
+    之前查 ``canonical_team_match_history``（xG 链自己的表）——xG 断供时该表与快照
+    一起冻结，导致假健康（ok=true、显示「领先」）；改为 results 口径后，断供时
+    results 日历照常推进，红灯判定不再失明。
     - F9 快照覆盖边界 = ``team_xg_rolling_snapshot.source_matches`` 最新 kickoff_at；
-    - 比赛日历最近 FT = ``canonical_team_match_history`` 最新 FT kickoff（与
-      ``latest_finished_fixture_kickoffs_for_teams`` 同表同口径）。
+    - 比赛日历最近 FT = ``matchday_fixture_identities JOIN results`` 最新 kickoff_utc。
     同时返回「原始 xG 滞后」作参考（team_xg_match captured_at vs FT），红灯只看 F9 快照口径。
     """
     latest_ft_kickoff = session.scalar(
-        select(func.max(CanonicalTeamMatchHistoryModel.kickoff_utc)).where(
-            CanonicalTeamMatchHistoryModel.fixture_status == "FT"
+        select(func.max(MatchdayFixtureIdentityModel.kickoff_utc))
+        .select_from(MatchdayFixtureIdentityModel)
+        .join(
+            ResultModel,
+            ResultModel.fixture_id == MatchdayFixtureIdentityModel.fixture_id,
         )
+        .where(ResultModel.result_status.in_(FINISHED_RESULT_STATUSES))
     )
     latest_snapshot_kickoff = _latest_snapshot_source_kickoff(session)
     latest_xg_capture = session.scalar(select(func.max(TeamXgMatchModel.captured_at)))

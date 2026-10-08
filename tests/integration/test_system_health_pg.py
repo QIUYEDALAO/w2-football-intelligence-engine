@@ -8,35 +8,47 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from w2.dashboard.system_health import build_system_health
-from w2.infrastructure.persistence.factor_model_models import CanonicalTeamMatchHistoryModel
+from w2.infrastructure.persistence.matchday_intake_models import MatchdayFixtureIdentityModel
+from w2.infrastructure.persistence.models import ResultModel
 
 pytest_plugins = ["tests.integration.test_ah_ou_v9_system_pg"]
 
 
-def _insert_ft_history(session: Session, *, fixture_id: str, kickoff_utc: datetime) -> None:
-    """插入一条已完赛比赛到 canonical 比赛日历（真实 producer 落库的等价物）。"""
+def _insert_ft_result(session: Session, *, fixture_id: str, kickoff_utc: datetime) -> None:
+    """插入一条已完赛比赛到独立赛果日历（results + matchday_fixture_identities）。
+
+    F1：系统健康的「比赛日历最近 FT」改用 results 口径——此处模拟真实赛果落库，
+    与 xG 链（team_xg_match / canonical_team_match_history）完全独立。
+    """
+    fid = f"api_football:{fixture_id}"
     session.add(
-        CanonicalTeamMatchHistoryModel(
-            history_id=f"hist-{fixture_id}",
-            fixture_id=f"api_football:{fixture_id}",
+        MatchdayFixtureIdentityModel(
+            fixture_id=fid,
             provider="api_football",
             provider_fixture_id=fixture_id,
             competition_id="allsvenskan",
+            provider_league_id="113",
             season="2026",
             kickoff_utc=kickoff_utc,
             fixture_status="FT",
-            team_side="HOME",
-            team_provider_id="10",
-            opponent_provider_id="20",
-            team_w2_id="H",
-            opponent_w2_id="A",
-            goals_for=1,
-            goals_against=0,
-            result_identity_hash="r" * 64,
-            source_raw_hash="s" * 64,
+            home_provider_team_id="10",
+            away_provider_team_id="20",
+            team_identity_status="RESOLVED",
+            raw_payload_sha256="s" * 64,
             captured_at=datetime.now(UTC),
-            history_hash=hashlib.sha256(f"hist|{fixture_id}".encode()).hexdigest(),
+            identity_hash=hashlib.sha256(f"ident|{fixture_id}".encode()).hexdigest(),
             payload={},
+        )
+    )
+    session.add(
+        ResultModel(
+            fixture_id=fid,
+            home_goals=1,
+            away_goals=0,
+            result_status="FT",
+            confirmed_at=datetime.now(UTC),
+            source_payload_sha256="r" * 64,
+            result_hash=hashlib.sha256(f"result|{fixture_id}".encode()).hexdigest(),
         )
     )
 
@@ -60,16 +72,18 @@ def test_system_health_baseline_structure(chain):
 
 
 def test_system_health_f9_stale_single_variable(chain):
-    """单变量攻击：比赛日历推进出更新的 FT，但 F9 快照 source_matches 覆盖边界未重算。
+    """单变量攻击：独立赛果日历（results）推进出更新的 FT，但 F9 快照 source_matches
+    覆盖边界未重算。
 
-    原始 team_xg_match 保持不动（模拟 10-05 回填原始表但快照仍停旧日期的场景），
-    面板必须如实红灯 + XG_STALE，不再假健康。核对 reason 精确落到 XG_STALE。
+    模拟 10-05 回填原始表但快照仍停旧日期、同时真实赛果已推进的场景——xG 断供时
+    results 日历照常推进，面板必须如实红灯 + XG_STALE，不再假健康。核对 reason
+    精确落到 XG_STALE。
     """
     repo, _future, _plan, _producer = chain
     now = datetime.now(UTC)
     with Session(repo.engine) as session, session.begin():
-        # 只插一条比快照覆盖边界（09-07 附近）更新的 FT 比赛 → 覆盖边界落后。
-        _insert_ft_history(session, fixture_id="999901", kickoff_utc=now - timedelta(days=1))
+        # 只插一条比快照覆盖边界更新的 FT 赛果（results 口径）→ 覆盖边界落后。
+        _insert_ft_result(session, fixture_id="999901", kickoff_utc=now - timedelta(days=1))
     with Session(repo.engine) as session:
         health = build_system_health(session, now=now)
     assert health["data_freshness"]["status"] == "STALE", health["data_freshness"]
