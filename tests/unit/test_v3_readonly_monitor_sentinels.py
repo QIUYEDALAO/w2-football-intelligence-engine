@@ -58,10 +58,11 @@ def test_b3_data_source_consistency_conflict() -> None:
 
 def test_b4_xg_coverage_lag_threshold() -> None:
     assert monitor.xg_coverage_lag_issue([]) is None
-    assert monitor.xg_coverage_lag_issue([{"lag_hours": 47.9}]) is None
+    assert monitor.xg_coverage_lag_issue([{"lag_hours": 50.5}]) is None  # 生产实际值，不再误报
+    assert monitor.xg_coverage_lag_issue([{"lag_hours": 119.9}]) is None
     assert monitor.xg_coverage_lag_issue(
-        [{"lag_hours": 48.1}]
-    ) == "F9_SNAPSHOT_LAG:lag_hours=48.10"
+        [{"lag_hours": 120.1}]
+    ) == "F9_SNAPSHOT_LAG:lag_hours=120.10"
 
 
 def test_bark_issue_severity_mapping() -> None:

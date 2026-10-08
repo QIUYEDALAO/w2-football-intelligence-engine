@@ -114,7 +114,9 @@ def xg_stale_issue(
 # 纯函数不依赖 DB/Provider，便于单测 importlib 加载后直接调用。
 # ─────────────────────────────────────────────────────────────────────────────
 SKIP_REASON_ANOMALY_THRESHOLD = 3
-XG_COVERAGE_LAG_THRESHOLD_HOURS = 48.0
+# B4：source_matches 最新 kickoff 落后已 FT 日历超阈值报 F9_SNAPSHOT_LAG。
+# 48h 太敏感（50.5h 即误报），与 XG_STALE（120h）统一；只改告警阈值，不碰 F9 决策门。
+XG_COVERAGE_LAG_THRESHOLD_HOURS = 120.0
 # F2：Provider 副作用状态 SIDE_EFFECT_UNCERTAIN 超期未处置即上浮告警（xG 断供常见根因）。
 FENCE_UNCERTAIN_STALE_THRESHOLD_HOURS = 12.0
 # R2：Provider 额度监控——读 read_model_checkpoint 的 provider_status 缓存（不新调 Provider），
