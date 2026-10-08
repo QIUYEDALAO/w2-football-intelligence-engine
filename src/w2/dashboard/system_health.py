@@ -35,6 +35,7 @@ from w2.infrastructure.persistence.provider_side_effect_fence_models import (
     ProviderSideEffectFenceModel,
 )
 from w2.providers.quota import API_FOOTBALL_RESERVE_BUCKET
+from w2.providers.status import fetch_provider_quota_live
 
 SCHEMA_VERSION = "w2.system_health.v1"
 # 与 ops/host/w2-xg-materialize 的 XG_LAG_THRESHOLD_HOURS 对齐：F9 快照覆盖边界
@@ -192,26 +193,47 @@ def _recommendation_chain(session: Session, *, now: datetime, day: Any) -> dict[
     }
 
 
-def _collection_quota(session: Session) -> dict[str, Any]:
-    """采集：Provider 额度（读 api-football status 缓存，不新调 Provider）。"""
-    row = session.scalar(
-        select(ReadModelCheckpointModel).where(
-            ReadModelCheckpointModel.checkpoint_key == PROVIDER_STATUS_CHECKPOINT
-        )
-    )
-    payload = row.payload if row is not None else {}
-    remaining_raw = payload.get("remaining_quota")
+def _coerce_int(value: Any) -> int | None:
     try:
-        remaining = int(remaining_raw) if remaining_raw is not None else None
+        return int(value) if value is not None else None
     except (TypeError, ValueError):
-        remaining = None
+        return None
+
+
+def _collection_quota(session: Session) -> dict[str, Any]:
+    """采集：Provider 额度——复用 status.py 实时 /status 查询（免费只读豁免，同一 live 源）。
+
+    remaining = limit_day - current 可读 → 真实额度；查不到 → 降级读
+    read_model_checkpoint 缓存 remaining_quota（status 标记 DEGRADED），缓存也无 →
+    remaining_quota=None（QUOTA_UNKNOWN）。不造假。
+    """
+    live = fetch_provider_quota_live()
+    if live.get("degraded") is False and live.get("remaining") is not None:
+        remaining = live["remaining"]
+        status = "READY"
+        current = live.get("current")
+        limit_day = live.get("limit_day")
+    else:
+        row = session.scalar(
+            select(ReadModelCheckpointModel).where(
+                ReadModelCheckpointModel.checkpoint_key == PROVIDER_STATUS_CHECKPOINT
+            )
+        )
+        payload = row.payload if row is not None else {}
+        remaining = _coerce_int(payload.get("remaining_quota"))
+        status = "DEGRADED" if remaining is not None else str(payload.get("status") or "NOT_READY")
+        current = None
+        limit_day = None
     ok = remaining is not None and remaining > API_FOOTBALL_RESERVE_BUCKET
     return {
-        "provider": str(payload.get("provider") or "api_football"),
-        "status": str(payload.get("status") or "NOT_READY"),
+        "provider": "api_football",
+        "status": status,
         "remaining_quota": remaining,
         "reserve_bucket": API_FOOTBALL_RESERVE_BUCKET,
         "ok": ok,
+        "current": current,
+        "limit_day": limit_day,
+        "source": "live" if status == "READY" else "cache",
     }
 
 
