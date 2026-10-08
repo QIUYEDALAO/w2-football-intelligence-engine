@@ -87,7 +87,13 @@ def _fact(
     if result.result_status != "FT":
         payload["exclusion_reason"] = "V3_MONITORING_NON_FT_VOID"
         return payload
-    if not isinstance(distribution.get("monitoring_terms"), dict):
+    # F4：selected 决策的投影权威是 frozen_terms（写入时 frozen_terms == monitoring_terms）；
+    # below-threshold（未 selected）决策才依赖 full_distribution.monitoring_terms。缺投影的
+    # selected 决策不再静默排除，而是用 frozen_terms + 动态重算补投影。
+    terms_source = (
+        decision.frozen_terms if decision.selected else distribution.get("monitoring_terms")
+    )
+    if not isinstance(terms_source, dict):
         payload["exclusion_reason"] = "V3_MONITORING_PREMATCH_PROJECTION_MISSING"
         return payload
     terms = verify_v3_monitoring_input_in_session(session, decision)
@@ -96,7 +102,11 @@ def _fact(
     ):
         raise ValueError("V3_MONITORING_MODEL_BINDING_CONFLICT")
     probabilities = distribution.get("monitoring_probabilities")
-    if probabilities != monitoring_class_probabilities(distribution["features"], decision.market):
+    recomputed = monitoring_class_probabilities(distribution["features"], decision.market)
+    if probabilities is None:
+        # F4：缺投影的 selected 决策动态重算概率（features 冻结在 full_distribution）。
+        probabilities = recomputed
+    elif probabilities != recomputed:
         raise ValueError("V3_MONITORING_PROBABILITIES_CONFLICT")
     states = dict.fromkeys(FIVE_STATES, 0.0)
     for row in probabilities:
@@ -120,8 +130,11 @@ def _fact(
     )
     pair = distribution.get("monitoring_pair_prices")
     sides = ("home", "away") if decision.market == "ASIAN_HANDICAP" else ("over", "under")
-    if not isinstance(pair, dict) or set(pair) != set(sides):
-        raise ValueError("V3_MONITORING_PAIR_PRICES_MISSING")
+    # F4：缺投影的 selected 决策从同一 capture 的 observation 重建双侧价格（原盘口，
+    # 非 FT 新价）；有投影则对比校验，两者都不静默排除。
+    pair_missing = not isinstance(pair, dict) or set(pair) != set(sides)
+    if pair_missing:
+        pair = {}
     # Bind both prices to the same original capture, rather than new FT odds.
     from w2.infrastructure.persistence.matchday_intake_models import MatchdayMarketObservationModel
 
@@ -137,15 +150,25 @@ def _fact(
                 MatchdayMarketObservationModel.canonical_selection == side.upper(),
             )
         ).all()
-        matches = [
-            row
-            for row in observations
-            if row.line is not None
-            and Decimal(row.line) == line
-            and Decimal(row.decimal_odds) == Decimal(str(pair[side]))
-        ]
-        if len(matches) != 1:
-            raise ValueError("V3_MONITORING_PAIR_PRICE_CONFLICT")
+        if pair_missing:
+            line_matches = [
+                row
+                for row in observations
+                if row.line is not None and Decimal(row.line) == line
+            ]
+            if len(line_matches) != 1:
+                raise ValueError("V3_MONITORING_PAIR_PRICE_CONFLICT")
+            pair[side] = float(line_matches[0].decimal_odds)
+        else:
+            matches = [
+                row
+                for row in observations
+                if row.line is not None
+                and Decimal(row.line) == line
+                and Decimal(row.decimal_odds) == Decimal(str(pair[side]))
+            ]
+            if len(matches) != 1:
+                raise ValueError("V3_MONITORING_PAIR_PRICE_CONFLICT")
     q = (1 / float(pair[sides[0]])) / sum(1 / float(pair[side]) for side in sides)
     pure_side = sides[0] if q >= 0.5 else sides[1]
     pure_line = -source_line if pure_side == "away" else source_line
