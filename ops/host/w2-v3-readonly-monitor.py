@@ -78,7 +78,9 @@ def pipeline_issues(state: dict) -> list[str]:
         stage, status = row["stage"], row["state"]
         if status in {"SIDE_EFFECT_UNCERTAIN", "BLOCKED"}:
             issues.append("PROVIDER_STAGE_BLOCKED:" + stage + ":" + status)
-        elif status not in {"ATTEMPTING", "DONE"}:
+        # RESOLVED 是 fence 人工裁决的终态（实际成功，已留痕），与 DONE 同属正常，
+        # 不应报 PROVIDER_STAGE_STATE_UNKNOWN。
+        elif status not in {"ATTEMPTING", "DONE", "RESOLVED"}:
             issues.append("PROVIDER_STAGE_STATE_UNKNOWN:" + stage + ":" + status)
     if any(row["state"] == "ATTEMPTING" for row in state.get("stale_provider_stages", [])):
         issues.append("PROVIDER_STAGE_STALE_ATTEMPTING")

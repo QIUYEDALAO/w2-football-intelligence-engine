@@ -21,6 +21,15 @@ def test_monitor_empty_change_control_and_completed_pipeline():
     assert monitor.pipeline_issues(dict(healthy)) == []
 
 
+def test_pipeline_issues_treats_resolved_as_terminal():
+    """RESOLVED 是 fence 人工裁决的终态（实际成功），与 DONE 同属正常，不报 UNKNOWN。"""
+    state = {"provider_stage_counts": [
+        {"stage": stage, "state": "RESOLVED", "count": 1}
+        for stage in ("h2h", "task", "xg")
+    ], "stale_provider_stages": [], "checkpoint_health": [], "done_without_forward": []}
+    assert monitor.pipeline_issues(state) == []
+
+
 @pytest.mark.parametrize("state,reason", [
     ({"provider_stage_counts": [{"stage": "xg", "state": "SIDE_EFFECT_UNCERTAIN"}]},
      "PROVIDER_STAGE_BLOCKED:xg:SIDE_EFFECT_UNCERTAIN"),
