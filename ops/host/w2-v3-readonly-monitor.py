@@ -1,4 +1,9 @@
-"""Read-only VPS reconciliation. No Provider, notification, migration or restart."""
+"""Read-only VPS reconciliation. No direct Provider, notification, migration or restart.
+
+口径说明：巡检不直接调用 Provider（不触发数据采集）。唯一例外是 /v1/provider/quota——由
+api 后端对 Football-API /status 做「免费只读豁免」查询（不消耗额度、不采集数据），巡检仅以
+只读 HTTP 读取该端点结果，属「status 免费只读豁免」同一豁免线，不触碰数据采集端点。
+"""
 
 import hashlib
 import json
@@ -119,9 +124,8 @@ SKIP_REASON_ANOMALY_THRESHOLD = 3
 XG_COVERAGE_LAG_THRESHOLD_HOURS = 120.0
 # F2：Provider 副作用状态 SIDE_EFFECT_UNCERTAIN 超期未处置即上浮告警（xG 断供常见根因）。
 FENCE_UNCERTAIN_STALE_THRESHOLD_HOURS = 12.0
-# R2：Provider 额度监控——读 read_model_checkpoint 的 provider_status 缓存（不新调 Provider），
-# 读不到额度 → QUOTA_UNKNOWN（提示，不误报 RED）。口径与 dashboard system_health._collection_quota 一致。
-QUOTA_CHECKPOINT_KEY = "dashboard:provider_status"
+# R2：Provider 额度监控——复用 /v1/provider/quota 实时 /status 查询（同一 live 源），
+# 读不到额度 → QUOTA_UNKNOWN（提示，不误报 RED）。见 quota_issue() 的 degraded 降级口径。
 API_FOOTBALL_RESERVE_BUCKET = 500
 # F10：与现行合同同步——QUOTE_NOT_PINNACLE 在删 Pinnacle 门槛后已不可能再产生（死原因），
 # 移除；补上删门槛后新出现的 QUOTE_SOURCE_CONTENT_MISMATCH（报价源内容无法从 raw 重放）。
