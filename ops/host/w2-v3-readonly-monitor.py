@@ -262,10 +262,50 @@ def bark_issue_severity(issue: str) -> str | None:
     return None
 
 
+def _issue_suffix(issue: str) -> str:
+    """issue 串冒号后的后缀（TYPE:SUFFIX），无冒号则空串。"""
+    return issue.split(":", 1)[1] if ":" in issue else ""
+
+
+def _issue_kv(issue: str, key: str) -> str | None:
+    """从 issue 后缀提取 ``key=value`` 的 value；无该 key 返回 None。"""
+    for part in _issue_suffix(issue).split(":"):
+        if part.startswith(key + "="):
+            return part[len(key) + 1 :]
+    return None
+
+
 def bark_message(issue: str, severity: str) -> dict[str, str]:
-    if severity == "RED":
-        return {"title": "W2 业务哨兵·告警", "body": issue}
-    return {"title": "W2 业务哨兵·提示", "body": issue}
+    """中文人话推送文案：body 由英文 issue 串映射为中文 + 动态数字，禁止英文裸推。
+
+    幂等 identity 仍走 bark_issue_identity()（去动态），动态数字只体现在文案里；
+    未知类型兜底「巡检新告警：{issue}（未翻译，请补映射）」，不英文裸推。
+    """
+    title = "W2 业务哨兵·告警" if severity == "RED" else "W2 业务哨兵·提示"
+    prefix = issue.split(":", 1)[0]
+    if prefix == "NO_RECOMMENDATION_TODAY":
+        body = (
+            f"今日已有 {_issue_kv(issue, 'due')} 场到决策点但推荐为 0，"
+            "疑似 xG 不足或报价门槛阻断"
+        )
+    elif prefix in ("F9_SNAPSHOT_LAG", "XG_STALE"):
+        body = (
+            f"xG 快照落后比赛日程 {_issue_kv(issue, 'lag_hours')} 小时，"
+            "xG 数据源可能断供/延迟"
+        )
+    elif prefix == "DATA_SOURCE_CONSISTENCY_CONFLICT":
+        body = f"数据状态判定冲突（{_issue_suffix(issue)}），两套口径结论不一致"
+    elif prefix == "SKIP_REASON_ANOMALY":
+        body = f"异常 SKIP 原因近 24h 出现 {_issue_kv(issue, 'count')} 次，疑似报价选择器回归"
+    elif prefix == "QUOTA_UNKNOWN":
+        body = "Provider 采集额度未知，无法确认剩余额度"
+    elif prefix == "FENCE_UNCERTAIN_STALE":
+        body = f"有 {_issue_kv(issue, 'count')} 条采集任务结果不确定且超期未处置，需人工裁决"
+    elif prefix == "LOW_QUOTA":
+        body = "采集剩余额度已触达保留桶"
+    else:
+        body = f"巡检新告警：{issue}（未翻译，请补映射）"
+    return {"title": title, "body": body}
 
 
 def bark_issue_identity(issue: str) -> str:

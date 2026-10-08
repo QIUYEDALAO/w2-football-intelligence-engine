@@ -142,6 +142,53 @@ def test_bark_issue_identity_strips_dynamic_suffix() -> None:
     assert monitor.bark_issue_identity("CHECKPOINT_FAILED") == "CHECKPOINT_FAILED"
 
 
+def test_bark_message_chinese_mapping_covers_all_types() -> None:
+    """Bark 中文化：body 全中文、映射覆盖全部类型、动态数字正确、未知兜底不英文裸推。"""
+    assert monitor.bark_message("NO_RECOMMENDATION_TODAY:due=6", "RED")["body"] == (
+        "今日已有 6 场到决策点但推荐为 0，疑似 xG 不足或报价门槛阻断"
+    )
+    assert monitor.bark_message("F9_SNAPSHOT_LAG:lag_hours=50.50", "RED")["body"] == (
+        "xG 快照落后比赛日程 50.50 小时，xG 数据源可能断供/延迟"
+    )
+    assert monitor.bark_message("XG_STALE:lag_hours=18.73", "RED")["body"] == (
+        "xG 快照落后比赛日程 18.73 小时，xG 数据源可能断供/延迟"
+    )
+    assert monitor.bark_message("DATA_SOURCE_CONSISTENCY_CONFLICT:BLOCKED_DAY", "YELLOW")["body"] == (
+        "数据状态判定冲突（BLOCKED_DAY），两套口径结论不一致"
+    )
+    assert monitor.bark_message("SKIP_REASON_ANOMALY:count=3", "YELLOW")["body"] == (
+        "异常 SKIP 原因近 24h 出现 3 次，疑似报价选择器回归"
+    )
+    assert monitor.bark_message("QUOTA_UNKNOWN", "YELLOW")["body"] == (
+        "Provider 采集额度未知，无法确认剩余额度"
+    )
+    assert monitor.bark_message("FENCE_UNCERTAIN_STALE:count=68", "YELLOW")["body"] == (
+        "有 68 条采集任务结果不确定且超期未处置，需人工裁决"
+    )
+    assert monitor.bark_message("LOW_QUOTA:remaining=300", "YELLOW")["body"] == (
+        "采集剩余额度已触达保留桶"
+    )
+    unknown = monitor.bark_message("SOME_UNKNOWN_ISSUE:x", "RED")["body"]
+    assert "未翻译" in unknown and "SOME_UNKNOWN_ISSUE:x" in unknown
+
+
+def test_bark_message_body_never_raw_english_issue() -> None:
+    """任何已知类型下 body 都不是原始英文 issue 串（禁止英文裸推）。"""
+    for issue in (
+        "NO_RECOMMENDATION_TODAY:due=6",
+        "F9_SNAPSHOT_LAG:lag_hours=50.50",
+        "XG_STALE:lag_hours=18.73",
+        "DATA_SOURCE_CONSISTENCY_CONFLICT:BLOCKED_DAY",
+        "SKIP_REASON_ANOMALY:count=3",
+        "QUOTA_UNKNOWN",
+        "FENCE_UNCERTAIN_STALE:count=68",
+        "LOW_QUOTA:remaining=300",
+    ):
+        for severity in ("RED", "YELLOW"):
+            body = monitor.bark_message(issue, severity)["body"]
+            assert body != issue, f"body 不应是英文裸串: {issue}"
+
+
 def test_push_bark_alerts_dynamic_due_not_bombarded(tmp_path, monkeypatch) -> None:
     """① due 1→6 递增同日只推 1 条；② 次日新足球日可再推（跨日不误伤）。"""
     from datetime import UTC, datetime
@@ -162,7 +209,9 @@ def test_push_bark_alerts_dynamic_due_not_bombarded(tmp_path, monkeypatch) -> No
             [f"NO_RECOMMENDATION_TODAY:due={due}"], out_dir=tmp_path, now=now
         ) == (1 if due == 1 else 0)
     assert len(posted) == 1
-    assert posted[0]["payload"]["body"] == "NO_RECOMMENDATION_TODAY:due=1"
+    assert posted[0]["payload"]["body"] == (
+        "今日已有 1 场到决策点但推荐为 0，疑似 xG 不足或报价门槛阻断"
+    )
 
     # ② 次日新足球日 → 可再推（跨日不误伤）
     next_day = now.replace(day=9)
@@ -171,7 +220,9 @@ def test_push_bark_alerts_dynamic_due_not_bombarded(tmp_path, monkeypatch) -> No
         ["NO_RECOMMENDATION_TODAY:due=6"], out_dir=tmp_path, now=next_day
     ) == 1
     assert len(posted) == 1
-    assert posted[0]["payload"]["body"] == "NO_RECOMMENDATION_TODAY:due=6"
+    assert posted[0]["payload"]["body"] == (
+        "今日已有 6 场到决策点但推荐为 0，疑似 xG 不足或报价门槛阻断"
+    )
 
 
 def test_push_bark_alerts_silent_without_config(tmp_path, monkeypatch) -> None:
