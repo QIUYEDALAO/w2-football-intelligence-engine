@@ -1274,3 +1274,17 @@ def test_offline_baseline_uses_verified_candidate_repository_without_public_rest
     assert 'SAFE_PAUSE_DASHBOARD_BASELINE_FAILED' in offline
     assert 'curl' not in offline and ' up ' not in offline
     assert 'matches=[]' not in offline
+
+
+def test_monitor_sync_after_release_id_readback_before_push() -> None:
+    """R3：巡检脚本同步（5d）必须在推送前回读（5c）之后、推送（6）之前，
+    且调用 w2-update-v3-monitor——根治「release 已推进、巡检脚本仍停在旧版」
+    导致 fence 超期告警等新哨兵不上线的脱离 release 问题。"""
+    source = SCRIPT.read_text(encoding="utf-8")
+    readback = source.index("== 5c. 推送前独立回读 /v1/version ==")
+    sync = source.index("== 5d. 同步巡检脚本 ==")
+    push = source.index("== 6. 推送 ==")
+    assert readback < sync < push
+    assert "ops/host/w2-update-v3-monitor" in source
+    assert '"$TARGET" "$target_head"' in source
+    assert "巡检脚本同步失败" in source
