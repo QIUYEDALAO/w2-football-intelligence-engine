@@ -12,7 +12,7 @@ RESOLVED 不再产生 FENCE_UNCERTAIN_STALE / SIDE_EFFECT_UNCERTAIN 告警。
 
 用法：
   python scripts/resolve_fence_uncertain.py --dry-run   # 只核对，输出裁决依据 + UPDATE SQL
-  python scripts/resolve_fence_uncertain.py --apply     # 执行 UPDATE（逐条 WHERE 主键）+ 写留痕 JSON
+  python scripts/resolve_fence_uncertain.py --apply     # 执行 UPDATE + 写留痕 JSON
 
 裁决人通过环境变量 W2_FENCE_ADJUDICATOR 指定（默认 codex-agent）。
 """
@@ -114,9 +114,26 @@ def build_updates(rows: list[dict], adjudicator: str) -> tuple[list[str], list[d
         task_id = row["task_id"]
         stage = row["stage"]
         attempt = row["attempt"]
+        if verdict.startswith("实际失败"):
+            # fail-closed：实际失败的行不得置 RESOLVED，保持 SIDE_EFFECT_UNCERTAIN 待人工复核
+            records.append(
+                {
+                    "adjudicator": adjudicator,
+                    "adjudicated_at": now,
+                    "task_id": task_id,
+                    "stage": stage,
+                    "attempt": attempt,
+                    "original_state": row.get("state"),
+                    "new_state": row.get("state"),
+                    "verdict": verdict,
+                    "original_error": row.get("error"),
+                    "skipped": True,
+                }
+            )
+            continue
         # 主键 (task_id, stage, attempt) 精确定位；只动 state，不动其他表。
         statements.append(
-            "UPDATE provider_side_effect_fence SET state='RESOLVED', "
+            "UPDATE provider_side_effect_fence SET state='RESOLVED', "  # noqa: S608 -- 逐条 WHERE 主键精确更新，task_id/stage 来自只读查询
             f"error='RESOLVED:{verdict}'::text, updated_at=now() "
             f"WHERE task_id='{task_id}' AND stage='{stage}' AND attempt={attempt};"
         )

@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 # Update only the existing read-only monitor; never invoke Provider or release.
 set -euo pipefail
+
+# F3 闸门（业务代码 tree sha 口径）：允许「业务代码 tree sha 与已部署 release 一致」的 commit 上巡检，
+# 即纯运维变更（ops/host、tests 等）可领先 release，但业务代码（src/migrations/config/apps）未部署仍拒绝。
+# 语义：防巡检跑「未部署的业务代码」，而非「巡检 commit sha == release sha」。
+biz_tree_of() {
+  local commit="$1" trees
+  trees="$(git rev-parse "$commit:src" "$commit:migrations" "$commit:config" "$commit:apps")" || return 1
+  printf '%s\n' "$trees" | git hash-object --stdin
+}
+
+# 被 source 时（单元测试），只暴露纯函数，不执行主流程。
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 0 2>/dev/null || exit 0
+fi
+
 target_sha="${1:-}"
 schema="${2:-}"
 mode="${3:-}"
@@ -19,14 +34,6 @@ source_file="$repo_root/ops/host/w2-v3-readonly-monitor.py"
 # head it must reconcile are read at run time from release.env's W2_GIT_SHA /
 # W2_SCHEMA_HEAD (deploy intent), never hard-coded.
 remote_dir="/opt/w2/deploy/v3-monitor"
-# F3 闸门（业务代码 tree sha 口径）：允许「业务代码 tree sha 与已部署 release 一致」的 commit 上巡检，
-# 即纯运维变更（ops/host、tests 等）可领先 release，但业务代码（src/migrations/config/apps）未部署仍拒绝。
-# 语义：防巡检跑「未部署的业务代码」，而非「巡检 commit sha == release sha」。
-biz_tree_of() {
-  local commit="$1" trees
-  trees="$(git rev-parse "$commit:src" "$commit:migrations" "$commit:config" "$commit:apps")" || return 1
-  printf '%s\n' "$trees" | git hash-object --stdin
-}
 deployed_sha="$(ssh w2-hk "grep -E '^W2_GIT_SHA=' /opt/w2/shared/release.env 2>/dev/null | cut -d= -f2")"
 if ! git cat-file -e "$deployed_sha^{commit}" 2>/dev/null; then
   git fetch origin "$deployed_sha" >/dev/null 2>&1 || { echo "MONITOR_DEPLOYED_SHA_NOT_FOUND deployed=$deployed_sha" >&2; exit 2; }

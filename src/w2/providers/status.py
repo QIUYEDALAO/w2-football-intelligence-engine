@@ -17,7 +17,9 @@
 真实响应结构（2026-10-08 实测）：:
 
     {"response": {"account": {...},
-                  "subscription": {"plan": "Pro", "end": "2026-10-16T16:10:05+00:00", "active": true},
+                  "subscription": {"plan": "Pro",
+                                   "end": "2026-10-16T16:10:05+00:00",
+                                   "active": true},
                   "requests": {"current": 3128, "limit_day": 7500}}}
 
 注意：真实字段是 ``requests.current``（已用）与 ``requests.limit_day``（日限），
