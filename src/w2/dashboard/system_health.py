@@ -1,13 +1,17 @@
 """Read-only system health aggregation for the dashboard「系统健康」panel.
 
 Aggregates five signals that answer "can today's recommendations run, and is
-data flowing" — all from already-persisted evidence. Zero Provider calls, zero
-writes: every query below reads the append-only ledgers / checkpoints / fences
-that the background pipelines already maintain.
+data flowing" — all from already-persisted evidence. Zero writes, and zero
+*direct* Provider calls except the「采集额度」signal: it reads Football-API
+/status live（免费只读豁免，不消耗额度、不触发数据采集）with a short 60s TTL,
+and falls back to the persisted checkpoint cache when the status query fails.
+Every other query reads the append-only ledgers / checkpoints / fences that the
+background pipelines already maintain.
 """
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -193,6 +197,25 @@ def _recommendation_chain(session: Session, *, now: datetime, day: Any) -> dict[
     }
 
 
+_STATUS_QUOTA_TTL_SECONDS = 60.0
+_status_quota_cache: dict[str, Any] = {}
+
+
+def _fetch_quota_live_cached() -> dict[str, Any]:
+    """实时 /status 查询加短 TTL（60s）——避免每次 dashboard 刷新都同步外呼。
+
+    验收：连续两次请求，第二次命中缓存（60s 内不重复外呼 /status）。
+    """
+    now = time.monotonic()
+    cached_ts = _status_quota_cache.get("ts")
+    if cached_ts is not None and now - cached_ts < _STATUS_QUOTA_TTL_SECONDS:
+        return _status_quota_cache["result"]
+    result = fetch_provider_quota_live()
+    _status_quota_cache["ts"] = now
+    _status_quota_cache["result"] = result
+    return result
+
+
 def _coerce_int(value: Any) -> int | None:
     try:
         return int(value) if value is not None else None
@@ -207,7 +230,7 @@ def _collection_quota(session: Session) -> dict[str, Any]:
     read_model_checkpoint 缓存 remaining_quota（status 标记 DEGRADED），缓存也无 →
     remaining_quota=None（QUOTA_UNKNOWN）。不造假。
     """
-    live = fetch_provider_quota_live()
+    live = _fetch_quota_live_cached()
     if live.get("degraded") is False and live.get("remaining") is not None:
         remaining = live["remaining"]
         status = "READY"
@@ -298,7 +321,10 @@ def build_system_health(session: Session, *, now: datetime | None = None) -> dic
         alerts.append({
             "type": "LOW_QUOTA",
             "severity": "YELLOW",
-            "detail": f"Provider 剩余额度 {quota['remaining_quota']} 已触达保留桶 {quota['reserve_bucket']}",
+            "detail": (
+                f"Provider 剩余额度 {quota['remaining_quota']} "
+                f"已触达保留桶 {quota['reserve_bucket']}"
+            ),
         })
     if not chain["ok"]:
         alerts.append({
