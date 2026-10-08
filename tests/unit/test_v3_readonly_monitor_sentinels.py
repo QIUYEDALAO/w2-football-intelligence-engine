@@ -67,9 +67,21 @@ def test_b4_xg_coverage_lag_threshold() -> None:
 def test_bark_issue_severity_mapping() -> None:
     assert monitor.bark_issue_severity("NO_RECOMMENDATION_TODAY:due=1") == "RED"
     assert monitor.bark_issue_severity("F9_SNAPSHOT_LAG:lag_hours=50.00") == "RED"
+    assert monitor.bark_issue_severity("XG_STALE:lag_hours=18.73") == "RED"
     assert monitor.bark_issue_severity("SKIP_REASON_ANOMALY:count=3") == "YELLOW"
     assert monitor.bark_issue_severity("DATA_SOURCE_CONSISTENCY_CONFLICT:X") == "YELLOW"
+    assert monitor.bark_issue_severity("FENCE_UNCERTAIN_STALE:count=68") == "YELLOW"
     assert monitor.bark_issue_severity("SERVICE_NOT_HEALTHY") is None
+
+
+def test_fence_uncertain_stale_issue() -> None:
+    assert monitor.fence_uncertain_stale_issue([]) is None
+    assert monitor.fence_uncertain_stale_issue(
+        [{"task_id": "t1", "stage": "xg", "state": "SIDE_EFFECT_UNCERTAIN"}]
+    ) == "FENCE_UNCERTAIN_STALE:count=1"
+    assert monitor.fence_uncertain_stale_issue(
+        [{"stage": "xg"}, {"stage": "task"}, {"stage": "h2h"}]
+    ) == "FENCE_UNCERTAIN_STALE:count=3"
 
 
 def test_push_bark_alerts_idempotent_once_per_day(tmp_path, monkeypatch) -> None:

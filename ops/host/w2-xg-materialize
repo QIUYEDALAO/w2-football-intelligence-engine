@@ -89,12 +89,15 @@ if [ "$visible" != "$after_rows" ]; then
   exit 2
 fi
 
-# T2 C2：数据滞后超阈值报 XG_STALE 并 exit 3，避免断供静默（旧 stale_teams 恒 0 假健康）。
+# T2 C2：数据滞后超阈值报 XG_STALE。断供是采集侧（fence UNCERTAIN）的产物，不是本
+# 守护的故障：不再 exit 3 让 systemd 长期 failed（那会让运维误判「物化服务坏了」）。
+# 断供上浮由巡检哨兵承担（w2-v3-readonly-monitor 的 XG_STALE issue 写 latest.json +
+# 推 Bark），本守护正常退出，靠 timer 每 6h 周期重跑——断供解除后自动恢复物化。
 if [ -n "$lag_hours" ] && awk -v lag="$lag_hours" -v thr="$XG_LAG_THRESHOLD_HOURS" \
     'BEGIN{exit !(lag+0 > thr+0)}'; then
   echo "XG_STALE lag_hours=$lag_hours threshold=$XG_LAG_THRESHOLD_HOURS"
-  logger -t w2-xg-materialize "xG data lag ${lag_hours}h exceeds threshold ${XG_LAG_THRESHOLD_HOURS}h"
-  exit 3
+  logger -t w2-xg-materialize "xG data lag ${lag_hours}h exceeds threshold ${XG_LAG_THRESHOLD_HOURS}h; recovery deferred to next timer cycle"
+  exit 0
 fi
 
 echo "XG_MATERIALIZE_OK rc=$rc snapshots=${before_rows}->${after_rows} visible=$visible team_xg_match=$after_match stale_teams=$stale lag_hours=$lag_hours"

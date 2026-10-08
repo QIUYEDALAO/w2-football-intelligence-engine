@@ -111,6 +111,8 @@ def xg_stale_issue(
 # ─────────────────────────────────────────────────────────────────────────────
 SKIP_REASON_ANOMALY_THRESHOLD = 3
 XG_COVERAGE_LAG_THRESHOLD_HOURS = 48.0
+# F2：Provider 副作用状态 SIDE_EFFECT_UNCERTAIN 超期未处置即上浮告警（xG 断供常见根因）。
+FENCE_UNCERTAIN_STALE_THRESHOLD_HOURS = 12.0
 ANOMALOUS_SKIP_REASONS = frozenset(
     {"QUOTE_DUPLICATE_SIDE", "TERMS_INCOMPLETE", "QUOTE_NOT_PINNACLE"}
 )
@@ -168,12 +170,37 @@ def xg_coverage_lag_issue(
     return None
 
 
+def fence_uncertain_stale_issue(
+    uncertain_rows: list[dict],
+    threshold_hours: float = FENCE_UNCERTAIN_STALE_THRESHOLD_HOURS,
+) -> str | None:
+    """F2：SIDE_EFFECT_UNCERTAIN 超期未处置 → FENCE_UNCERTAIN_STALE。
+
+    入参已由 SQL 过滤为「updated_at 早于阈值」的行；UNCERTAIN 表示 Provider 可能已
+    产生副作用但无法确认，按运营规则须人工裁决，挂起超阈值说明无人处置（xG 断供
+    的常见根因），必须上浮（YELLOW）。幂等 identity 由 bark_issue_identity 去动态。
+    """
+    if not uncertain_rows:
+        return None
+    return "FENCE_UNCERTAIN_STALE:count=" + str(len(uncertain_rows))
+
+
 def bark_issue_severity(issue: str) -> str | None:
-    """🔴 B1/B4 立即推、🟡 B2/B3 推提示、其余静默（返回 None）。"""
-    if issue.startswith("NO_RECOMMENDATION_TODAY") or issue.startswith("F9_SNAPSHOT_LAG"):
+    """🔴 XG_STALE/B1/B4 立即推、🟡 B2/B3/fence 超期 推提示、其余静默（None）。
+
+    F2：XG_STALE 是 NO_RECOMMENDATION_TODAY 的根因，必须推送，不能只推症状；
+    FENCE_UNCERTAIN_STALE 是 xG 断供的常见根因，也须上浮。
+    """
+    if (
+        issue.startswith("XG_STALE")
+        or issue.startswith("NO_RECOMMENDATION_TODAY")
+        or issue.startswith("F9_SNAPSHOT_LAG")
+    ):
         return "RED"
-    if issue.startswith("SKIP_REASON_ANOMALY") or issue.startswith(
-        "DATA_SOURCE_CONSISTENCY_CONFLICT"
+    if (
+        issue.startswith("SKIP_REASON_ANOMALY")
+        or issue.startswith("DATA_SOURCE_CONSISTENCY_CONFLICT")
+        or issue.startswith("FENCE_UNCERTAIN_STALE")
     ):
         return "YELLOW"
     return None
@@ -410,6 +437,13 @@ def main() -> None:
         "('ATTEMPTING','SIDE_EFFECT_UNCERTAIN','BLOCKED') AND updated_at<now()-interval "
         "'30 minutes' ORDER BY updated_at LIMIT 100"
     )
+    # F2：SIDE_EFFECT_UNCERTAIN 超期未处置（xG 断供常见根因）。阈值对齐
+    # FENCE_UNCERTAIN_STALE_THRESHOLD_HOURS（12h）。
+    state["fence_uncertain_stale"] = rows(
+        "SELECT task_id,stage,state,updated_at FROM provider_side_effect_fence "
+        "WHERE state='SIDE_EFFECT_UNCERTAIN' AND updated_at<now()-interval '12 hours' "
+        "ORDER BY updated_at LIMIT 100"
+    )
     state["done_without_forward"] = rows(
         "SELECT task_id FROM provider_side_effect_fence t WHERE t.stage='task' AND "
         "t.state='DONE' AND NOT EXISTS (SELECT 1 FROM provider_side_effect_fence f WHERE "
@@ -516,6 +550,9 @@ def main() -> None:
     b4 = xg_coverage_lag_issue(state.get("xg_coverage_lag") or [])
     if b4:
         issues.append(b4)
+    b5 = fence_uncertain_stale_issue(state.get("fence_uncertain_stale") or [])
+    if b5:
+        issues.append(b5)
     state["bark_pushed"] = push_bark_alerts(issues, out_dir=out.parent)
     state["monitor_bark_calls"] = state["bark_pushed"]
     if state["schema"] != expected_schema:
