@@ -19,11 +19,22 @@ source_file="$repo_root/ops/host/w2-v3-readonly-monitor.py"
 # head it must reconcile are read at run time from release.env's W2_GIT_SHA /
 # W2_SCHEMA_HEAD (deploy intent), never hard-coded.
 remote_dir="/opt/w2/deploy/v3-monitor"
-# F3 闸门：巡检脚本必须与线上已部署 release 同 sha——拒绝用未部署 commit 更新巡检，
-# 消除「release=deaebeb0 但巡检跑 63042828」的脱离 release 问题（脚本 sha == release sha）。
+# F3 闸门（业务代码 tree sha 口径）：允许「业务代码 tree sha 与已部署 release 一致」的 commit 上巡检，
+# 即纯运维变更（ops/host、tests 等）可领先 release，但业务代码（src/migrations/config/apps）未部署仍拒绝。
+# 语义：防巡检跑「未部署的业务代码」，而非「巡检 commit sha == release sha」。
+biz_tree_of() {
+  local commit="$1" trees
+  trees="$(git rev-parse "$commit:src" "$commit:migrations" "$commit:config" "$commit:apps")" || return 1
+  printf '%s\n' "$trees" | git hash-object --stdin
+}
 deployed_sha="$(ssh w2-hk "grep -E '^W2_GIT_SHA=' /opt/w2/shared/release.env 2>/dev/null | cut -d= -f2")"
-if [ "$target_sha" != "$deployed_sha" ]; then
-  echo "MONITOR_SHA_NOT_DEPLOYED_RELEASE target=$target_sha deployed=$deployed_sha" >&2
+if ! git cat-file -e "$deployed_sha^{commit}" 2>/dev/null; then
+  git fetch origin "$deployed_sha" >/dev/null 2>&1 || { echo "MONITOR_DEPLOYED_SHA_NOT_FOUND deployed=$deployed_sha" >&2; exit 2; }
+fi
+target_biz_tree="$(biz_tree_of "$target_sha")"
+deployed_biz_tree="$(biz_tree_of "$deployed_sha")"
+if [ "$target_biz_tree" != "$deployed_biz_tree" ]; then
+  echo "MONITOR_BIZ_TREE_NOT_DEPLOYED target=$target_sha target_biz=$target_biz_tree deployed=$deployed_sha deployed_biz=$deployed_biz_tree" >&2
   exit 2
 fi
 if [ "$mode" = '--dry-run' ]; then
