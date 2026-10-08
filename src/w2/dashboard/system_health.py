@@ -39,7 +39,9 @@ from w2.providers.quota import API_FOOTBALL_RESERVE_BUCKET
 SCHEMA_VERSION = "w2.system_health.v1"
 # 与 ops/host/w2-xg-materialize 的 XG_LAG_THRESHOLD_HOURS 对齐：F9 快照覆盖边界
 # 落后于比赛日历最近 FT 超过该小时数即视为断供（与 F9 新鲜度门 F9_SNAPSHOT_STALE 同源）。
-XG_LAG_THRESHOLD_HOURS = 12.0
+# R1：12h 太敏感，休赛期/比赛稀疏时覆盖边界自然落后超 12h 造成误报；放宽到 120h（5 天）
+# 只报真正长期断供。注意：这是「告警」阈值，不碰 ah_ou_decision 的 F9 决策门（相对比较）。
+XG_LAG_THRESHOLD_HOURS = 120.0
 PROVIDER_STATUS_CHECKPOINT = "dashboard:provider_status"
 FINISHED_RESULT_STATUSES = ("FT", "AET", "PEN")
 

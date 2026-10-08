@@ -65,7 +65,7 @@ def test_system_health_baseline_structure(chain):
         assert "ok" in health[key], health[key]
     assert isinstance(health["alerts"], list)
     assert health["overall"] in {"OK", "DEGRADED", "STALE"}
-    assert health["data_freshness"]["threshold_hours"] == 12.0
+    assert health["data_freshness"]["threshold_hours"] == 120.0
     # 数据新鲜度必须同时暴露 F9 快照口径与原始 xG 口径（同源可对照）。
     assert "f9_snapshot_lag_hours" in health["data_freshness"]
     assert "raw_xg_lag_hours" in health["data_freshness"]
@@ -89,7 +89,7 @@ def test_system_health_f9_stale_single_variable(chain):
     assert health["data_freshness"]["status"] == "STALE", health["data_freshness"]
     assert health["data_freshness"]["ok"] is False
     assert health["data_freshness"]["f9_snapshot_lag_hours"] is not None
-    assert health["data_freshness"]["f9_snapshot_lag_hours"] > 12.0
+    assert health["data_freshness"]["f9_snapshot_lag_hours"] > 120.0
     alert_types = {alert["type"] for alert in health["alerts"]}
     assert "XG_STALE" in alert_types, health["alerts"]
     xg_alert = next(alert for alert in health["alerts"] if alert["type"] == "XG_STALE")
@@ -106,7 +106,7 @@ def test_system_health_f9_fresh_control(chain):
     assert health["data_freshness"]["ok"] is True, health["data_freshness"]
     assert health["data_freshness"]["status"] == "OK"
     assert health["data_freshness"]["f9_snapshot_lag_hours"] is not None
-    assert health["data_freshness"]["f9_snapshot_lag_hours"] <= 12.0
+    assert health["data_freshness"]["f9_snapshot_lag_hours"] <= 120.0
     assert "XG_STALE" not in {alert["type"] for alert in health["alerts"]}
 
 

@@ -18,7 +18,9 @@ commands: list[dict] = []
 
 #: T2 xG 新鲜度阈值：team_xg_match 最新 captured_at 落后于最近已 FT 比赛 kickoff
 #: 的小时数超过此值即报 XG_STALE（断供静默检测，旧 stale_teams 恒为 0 假健康）。
-XG_STALE_LAG_THRESHOLD_HOURS = 12.0
+#: R1：12h 太敏感，休赛期/比赛稀疏（如周中无早场）时 captured_at 停在上一比赛日，
+#: 滞后自然超过 12h 造成误报 XG_STALE 红灯；放宽到 120h（5 天）只报真正长期断供。
+XG_STALE_LAG_THRESHOLD_HOURS = 120.0
 
 
 def ssh(command):

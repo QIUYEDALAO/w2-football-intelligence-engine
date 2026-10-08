@@ -1352,7 +1352,7 @@ def test_xg_lag_stale_and_fresh(chain):
         c.execute(text("UPDATE team_xg_match SET captured_at = captured_at - interval '30 days'"))
 
     lag = lag_sql()
-    assert lag > 12, lag  # 冻结 30 天 ≈ 719 小时
+    assert lag > 120, lag  # 冻结 30 天 ≈ 719 小时（> 阈值 120）
     assert monitor.xg_stale_issue([{"lag_hours": lag}]) == f"XG_STALE:lag_hours={lag:.2f}"
 
 

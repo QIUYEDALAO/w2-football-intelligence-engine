@@ -41,12 +41,12 @@ def test_monitor_no_selected_rows_cannot_hide_pipeline_fault(state, reason):
 
 
 def test_xg_stale_issue_frozen_data_reports_stale():
-    # 冻结场景：最新 xG 抓取落后 100 小时 → XG_STALE。
-    assert monitor.xg_stale_issue([{"lag_hours": 100}]) == "XG_STALE:lag_hours=100.00"
+    # 冻结场景：最新 xG 抓取落后 200 小时（> 阈值 120）→ XG_STALE。
+    assert monitor.xg_stale_issue([{"lag_hours": 200}]) == "XG_STALE:lag_hours=200.00"
 
 
 def test_xg_stale_issue_fresh_data_reports_none():
-    # 正常场景：滞后 1 小时（< 阈值 12）→ 无 issue。
+    # 正常场景：滞后 1 小时（< 阈值 120）→ 无 issue。
     assert monitor.xg_stale_issue([{"lag_hours": 1}]) is None
 
 
