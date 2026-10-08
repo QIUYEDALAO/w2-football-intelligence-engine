@@ -572,7 +572,8 @@ def main() -> None:
         "stored_result->'result'->'blockers' AS blockers,updated_at FROM "
         "provider_side_effect_fence WHERE stage='task' AND state='DONE' AND "
         "(stored_result->>'status' LIKE 'BLOCKED%' OR stored_result->>'status' "
-        "IN ('FAILED','PARTIAL_FAILED')) ORDER BY updated_at DESC LIMIT 100"
+        "IN ('FAILED','PARTIAL_FAILED')) AND stored_result->'adjudicated' IS NULL "
+        "ORDER BY updated_at DESC LIMIT 100"
     )
     state["old_events_pending"] = rows(
         "SELECT event_type,count(*) FROM candidate_notification_outbox WHERE event_type "
