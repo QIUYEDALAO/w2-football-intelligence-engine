@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime
@@ -43,6 +44,10 @@ STATUS_API_KEY_ENV = "W2_API_FOOTBALL_API_KEY"
 STATUS_AUTH_HEADER = "x-apisports-key"
 # Dashboard 刷新路径上的只读查询，短超时避免拖垮面板；失败即降级缓存。
 STATUS_TIMEOUT_SECONDS = 8.0
+# /status 免费只读查询的进程内缓存 TTL（秒）——system_health 与 /v1/provider/quota
+# 共用同一缓存，避免每次请求都同步外呼 /status（免费，但外呼仍有网络延迟）。
+STATUS_QUOTA_TTL_SECONDS = 60.0
+_status_quota_cache: dict[str, Any] = {}
 
 
 def _parse_int(value: Any) -> int | None:
@@ -157,3 +162,19 @@ def fetch_provider_quota_live() -> dict[str, Any]:
         **parsed,
         "observed_at": observed_at.isoformat(),
     }
+
+
+def fetch_provider_quota_live_cached() -> dict[str, Any]:
+    """实时 /status 查询加短 TTL（60s）——进程内共享缓存，避免重复外呼。
+
+    system_health 与 /v1/provider/quota 两处统一复用此函数：TTL 内互相命中缓存，
+    不重复外呼 /status；缓存过期后重新外呼。
+    """
+    now = time.monotonic()
+    cached_ts = _status_quota_cache.get("ts")
+    if cached_ts is not None and now - cached_ts < STATUS_QUOTA_TTL_SECONDS:
+        return _status_quota_cache["result"]
+    result = fetch_provider_quota_live()
+    _status_quota_cache["ts"] = now
+    _status_quota_cache["result"] = result
+    return result

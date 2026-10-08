@@ -4,8 +4,10 @@ import json
 import urllib.error
 from unittest.mock import patch
 
+import w2.providers.status as status_module
 from w2.providers.status import (
     fetch_provider_quota_live,
+    fetch_provider_quota_live_cached,
     parse_status_quota,
 )
 
@@ -126,3 +128,47 @@ def test_fetch_live_schema_drift_is_degraded(monkeypatch) -> None:
     assert result["source"] == "cache"
     assert result["error"] == "PROVIDER_STATUS_SCHEMA_DRIFT"
     assert result["remaining"] is None
+
+
+def test_fetch_quota_live_cached_hits_ttl(monkeypatch) -> None:
+    """连续两次调用，第二次命中缓存（60s TTL 内不重复外呼 /status）。"""
+    status_module._status_quota_cache.clear()
+    calls: list[int] = []
+
+    def fake_fetch() -> dict:
+        calls.append(1)
+        return {
+            "degraded": False,
+            "current": 3128,
+            "limit_day": 7500,
+            "remaining": 4372,
+        }
+
+    monkeypatch.setattr(status_module, "fetch_provider_quota_live", fake_fetch)
+    first = fetch_provider_quota_live_cached()
+    second = fetch_provider_quota_live_cached()
+    assert first["remaining"] == 4372
+    assert second["remaining"] == 4372
+    assert len(calls) == 1  # 第二次命中缓存，不重复外呼
+
+
+def test_fetch_quota_live_cached_expires_and_refetches(monkeypatch) -> None:
+    """缓存过期后重新外呼 /status。"""
+    status_module._status_quota_cache.clear()
+    calls: list[int] = []
+
+    def fake_fetch() -> dict:
+        calls.append(1)
+        return {
+            "degraded": False,
+            "current": 3128,
+            "limit_day": 7500,
+            "remaining": 4372,
+        }
+
+    monkeypatch.setattr(status_module, "fetch_provider_quota_live", fake_fetch)
+    fetch_provider_quota_live_cached()
+    # 模拟缓存过期：把 ts 往前拨超过 TTL
+    status_module._status_quota_cache["ts"] -= status_module.STATUS_QUOTA_TTL_SECONDS + 1
+    fetch_provider_quota_live_cached()
+    assert len(calls) == 2  # 过期后重新外呼

@@ -4513,10 +4513,10 @@ class ReadModelService:
         }
 
     def provider_quota_live(self) -> dict[str, Any]:
-        """实时查 Football-API /status 额度（免费只读）；失败回退读缓存并打 degraded。"""
-        from w2.providers.status import fetch_provider_quota_live
+        """实时查 Football-API /status 额度（免费只读，60s TTL）；失败回退读缓存并打 degraded。"""
+        from w2.providers.status import fetch_provider_quota_live_cached
 
-        live = fetch_provider_quota_live()
+        live = fetch_provider_quota_live_cached()
         cached = self.repository.dashboard_provider()
         cached_remaining = (
             parse_int(cached.get("remaining_quota")) if cached else None

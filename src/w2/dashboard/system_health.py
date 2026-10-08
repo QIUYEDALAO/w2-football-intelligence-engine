@@ -11,7 +11,6 @@ background pipelines already maintain.
 
 from __future__ import annotations
 
-import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -39,7 +38,7 @@ from w2.infrastructure.persistence.provider_side_effect_fence_models import (
     ProviderSideEffectFenceModel,
 )
 from w2.providers.quota import API_FOOTBALL_RESERVE_BUCKET
-from w2.providers.status import fetch_provider_quota_live
+from w2.providers.status import fetch_provider_quota_live_cached
 
 SCHEMA_VERSION = "w2.system_health.v1"
 # 与 ops/host/w2-xg-materialize 的 XG_LAG_THRESHOLD_HOURS 对齐：F9 快照覆盖边界
@@ -197,25 +196,6 @@ def _recommendation_chain(session: Session, *, now: datetime, day: Any) -> dict[
     }
 
 
-_STATUS_QUOTA_TTL_SECONDS = 60.0
-_status_quota_cache: dict[str, Any] = {}
-
-
-def _fetch_quota_live_cached() -> dict[str, Any]:
-    """实时 /status 查询加短 TTL（60s）——避免每次 dashboard 刷新都同步外呼。
-
-    验收：连续两次请求，第二次命中缓存（60s 内不重复外呼 /status）。
-    """
-    now = time.monotonic()
-    cached_ts = _status_quota_cache.get("ts")
-    if cached_ts is not None and now - cached_ts < _STATUS_QUOTA_TTL_SECONDS:
-        return _status_quota_cache["result"]
-    result = fetch_provider_quota_live()
-    _status_quota_cache["ts"] = now
-    _status_quota_cache["result"] = result
-    return result
-
-
 def _coerce_int(value: Any) -> int | None:
     try:
         return int(value) if value is not None else None
@@ -230,7 +210,7 @@ def _collection_quota(session: Session) -> dict[str, Any]:
     read_model_checkpoint 缓存 remaining_quota（status 标记 DEGRADED），缓存也无 →
     remaining_quota=None（QUOTA_UNKNOWN）。不造假。
     """
-    live = _fetch_quota_live_cached()
+    live = fetch_provider_quota_live_cached()
     if live.get("degraded") is False and live.get("remaining") is not None:
         remaining = live["remaining"]
         status = "READY"
