@@ -78,6 +78,7 @@ class HashDomain(StrEnum):
     PREMATCH_READ_MODEL_DYNAMIC_EVALUATION = "prematch_read_model.dynamic_evaluation"
     PREMATCH_READ_MODEL_SIMULATION_RECONCILIATION = "prematch_read_model.simulation_reconciliation"
     EVAL_02B_PAIR_IDENTITY = "eval_02b.pair_identity"
+    BACKTEST_LATEST = "backtest.latest"
     EVAL_02B_BOOTSTRAP_SEED = "eval_02b.bootstrap_seed"
 
 

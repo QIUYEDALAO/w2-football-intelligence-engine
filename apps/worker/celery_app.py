@@ -1295,6 +1295,76 @@ def forward_outcome_ledger(
     }
 
 
+@celery_app.task(name="w2.backtest", bind=True)
+def backtest(
+    self: object,
+    queued_at_utc: str | None = None,
+    settled_lock_sample_count: int | None = None,
+) -> dict[str, object]:
+    """回测执行任务：门达标后执行 walk-forward，产出写 checkpoint（幂等）。
+
+    全程 0 Provider 调用、0 决策链写入；db_writes 仅限 read_model_checkpoint。
+    同水位线重入（should_dispatch False）直接返回已有结果。
+    """
+    from w2.backtest.backtest_runtime import (
+        BACKTESTS_LATEST_KEY,
+        BACKTESTS_WATERMARK_KEY,
+        build_backtest_gate_report,
+        build_watermark_payload,
+        count_settled_lock_samples,
+        read_checkpoint_payload,
+        run_backtest_execution,
+        should_dispatch,
+        upsert_checkpoint,
+        utc_now_iso,
+    )
+    from w2.infrastructure.database import create_engine
+
+    engine = create_engine()
+    sample_count = (
+        settled_lock_sample_count
+        if settled_lock_sample_count is not None
+        else count_settled_lock_samples()
+    )
+    generated_at = queued_at_utc or utc_now_iso()
+    gate = build_backtest_gate_report(
+        settled_lock_sample_count=sample_count,
+        generated_at=generated_at,
+    )
+    watermark = read_checkpoint_payload(engine, BACKTESTS_WATERMARK_KEY)
+    if not should_dispatch(gate=gate, watermark=watermark):
+        latest = read_checkpoint_payload(engine, BACKTESTS_LATEST_KEY)
+        return {
+            "status": "ALREADY_CONSUMED_OR_BLOCKED",
+            "settled_lock_sample_count": sample_count,
+            "gate_status": gate.get("status"),
+            "latest": latest,
+            "provider_calls": 0,
+            "db_writes": 0,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    result = run_backtest_execution(generated_at=generated_at)
+    source_hash = result.pop("source_hash")
+    upsert_checkpoint(engine, BACKTESTS_LATEST_KEY, source_hash, result)
+    upsert_checkpoint(
+        engine,
+        BACKTESTS_WATERMARK_KEY,
+        source_hash,
+        build_watermark_payload(sample_count=sample_count, at=generated_at),
+    )
+    return {
+        "status": "COMPLETED",
+        "settled_lock_sample_count": sample_count,
+        "gate_status": gate.get("status"),
+        "latest": result,
+        "provider_calls": 0,
+        "db_writes": 2,
+        "candidate": False,
+        "formal_recommendation": False,
+    }
+
+
 @celery_app.task(name="w2.result_materialize", bind=True)
 def result_materialize(
     self: object,

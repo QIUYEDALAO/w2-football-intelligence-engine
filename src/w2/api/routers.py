@@ -1275,15 +1275,8 @@ def provider_quota(request: Request) -> dict[str, Any]:
 
 @public_router.get("/backtests/latest", response_model=BacktestLatestResponse)
 def backtests_latest(request: Request) -> dict[str, Any]:
-    return {
-        "request_id": request_id(request),
-        "status": "NOT_READY",
-        "gate4_national_1x2": "PROVISIONAL_FORWARD_HOLDOUT_PENDING",
-        "metrics": {
-            "status": "NOT_READY",
-            "reason": "BACKTEST_READ_MODEL_UNAVAILABLE",
-        },
-    }
+    """读 backtests:latest checkpoint；缺失 → NOT_READY（fail-closed 语义保留）。"""
+    return {"request_id": request_id(request), **service.backtests_latest()}
 
 
 @public_router.get("/forward-holdout/status", response_model=ForwardHoldoutStatusResponse)

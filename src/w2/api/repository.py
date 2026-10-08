@@ -4534,6 +4534,28 @@ class ReadModelService:
             "target_n": int((payload or {}).get("target_n") or 50),
         }
 
+    def backtests_latest(self) -> dict[str, Any]:
+        """读 backtests:latest checkpoint（缺失 → NOT_READY，fail-closed 语义保留）。"""
+        row = self.repository.checkpoint("backtests:latest")
+        if row is None:
+            return {
+                "status": "NOT_READY",
+                "gate4_national_1x2": "PROVISIONAL_FORWARD_HOLDOUT_PENDING",
+                "metrics": {
+                    "status": "NOT_READY",
+                    "reason": "BACKTEST_READ_MODEL_UNAVAILABLE",
+                },
+            }
+        payload = row.payload
+        return {
+            "status": str(payload.get("status") or "NOT_READY"),
+            "gate4_national_1x2": str(
+                (payload.get("report") or {}).get("gate", {}).get("status")
+                or "PROVISIONAL_FORWARD_HOLDOUT_PENDING"
+            ),
+            "metrics": payload,
+        }
+
     def system_health(self) -> dict[str, Any]:
         return self.repository.system_health()
 

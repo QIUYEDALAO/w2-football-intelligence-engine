@@ -29,6 +29,7 @@ DEFAULT_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS = 7
 DEFAULT_CANDIDATE_NOTIFICATION_POLL_SECONDS = 5
 DEFAULT_FACTOR_READINESS_INTERVAL_SECONDS = 24 * 60 * 60
 DEFAULT_AH_OU_DECISION_FORWARD_INTERVAL_SECONDS = 60
+DEFAULT_BACKTEST_INTERVAL_SECONDS = 24 * 60 * 60
 
 
 @dataclass(frozen=True)
@@ -89,6 +90,25 @@ def ah_ou_decision_forward_enabled() -> bool:
     return os.environ.get("W2_AH_OU_DECISION_FORWARD_ENABLED", "false").lower() == "true"
 
 
+def backtest_enabled() -> bool:
+    return os.environ.get("W2_BACKTEST_ENABLED", "false").lower() == "true"
+
+
+def backtest_interval_seconds() -> int:
+    try:
+        return max(
+            int(
+                os.environ.get(
+                    "W2_BACKTEST_INTERVAL_SECONDS",
+                    str(DEFAULT_BACKTEST_INTERVAL_SECONDS),
+                )
+            ),
+            60 * 60,
+        )
+    except ValueError:
+        return DEFAULT_BACKTEST_INTERVAL_SECONDS
+
+
 def ah_ou_decision_forward_interval_seconds() -> int:
     try:
         return max(
@@ -127,6 +147,55 @@ def factor_readiness_tick() -> dict[str, object]:
         "status": "REPORTED",
         "fixture_total": result["report"]["fixture_total"],
         "alert_count": len(result["alerts"]),
+        "provider_calls": 0,
+        "candidate": False,
+        "formal_recommendation": False,
+    }
+
+
+def backtest_tick() -> dict[str, object]:
+    """回测接线 tick：计数 → 门 → 水位线 → 达标派 celery 任务（每日 1 次，off-peak）。
+
+    全程 0 Provider 调用；水位线幂等由 should_dispatch 保证（199→200 触发一次）。
+    """
+    from apps.worker.celery_app import celery_app
+    from w2.api.repository import ReadModelRepository
+    from w2.backtest.backtest_runtime import (
+        BACKTESTS_WATERMARK_KEY,
+        build_backtest_gate_report,
+        count_settled_lock_samples,
+        should_dispatch,
+        utc_now_iso,
+    )
+
+    sample_count = count_settled_lock_samples()
+    generated_at = utc_now_iso()
+    gate = build_backtest_gate_report(
+        settled_lock_sample_count=sample_count,
+        generated_at=generated_at,
+    )
+    watermark_row = ReadModelRepository().checkpoint(BACKTESTS_WATERMARK_KEY)
+    watermark = watermark_row.payload if watermark_row is not None else None
+    if not should_dispatch(gate=gate, watermark=watermark):
+        return {
+            "status": "GATE_BLOCKED_OR_CONSUMED",
+            "settled_lock_sample_count": sample_count,
+            "gate_status": gate.get("status"),
+            "provider_calls": 0,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    celery_app.send_task(
+        "w2.backtest",
+        kwargs={
+            "queued_at_utc": generated_at,
+            "settled_lock_sample_count": sample_count,
+        },
+    )
+    return {
+        "status": "DISPATCHED",
+        "settled_lock_sample_count": sample_count,
+        "gate_status": gate.get("status"),
         "provider_calls": 0,
         "candidate": False,
         "formal_recommendation": False,
@@ -923,6 +992,7 @@ def run_forever() -> None:
     next_fixture_discovery_at = datetime.now(UTC)
     next_factor_readiness_at = datetime.now(UTC)
     next_ah_ou_decision_forward_at = datetime.now(UTC)
+    next_backtest_at = datetime.now(UTC)
     Thread(
         target=candidate_notification_delivery_loop,
         name="candidate-notification-delivery",
@@ -1033,6 +1103,17 @@ def run_forever() -> None:
             next_ah_ou_decision_forward_at = next_ah_ou_decision_forward_at.fromtimestamp(
                 next_ah_ou_decision_forward_at.timestamp()
                 + ah_ou_decision_forward_interval_seconds(),
+                tz=UTC,
+            )
+        if backtest_enabled() and datetime.now(UTC) >= next_backtest_at:
+            try:
+                result = backtest_tick()
+                logger.info("w2 backtest %s", result)
+            except Exception:
+                logger.exception("w2 backtest failed")
+            next_backtest_at = datetime.now(UTC).replace(tzinfo=UTC)
+            next_backtest_at = next_backtest_at.fromtimestamp(
+                next_backtest_at.timestamp() + backtest_interval_seconds(),
                 tz=UTC,
             )
         # CAP-MISS 验收：记录每轮主循环耗时，确认 CPU 不再被全量推送排程占用。
