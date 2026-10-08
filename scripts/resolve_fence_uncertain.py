@@ -202,7 +202,11 @@ def main() -> None:
             ensure_ascii=False,
             indent=2,
         )
-    print(f"\nAPPLY_OK：{len(records)} 条已置 RESOLVED，留痕写入 {record_path}")
+    skipped_count = sum(1 for r in records if r.get("skipped"))
+    print(
+        f"\nAPPLY_OK：{len(statements)} 条已置 RESOLVED，"
+        f"skipped={skipped_count} 条保持 SIDE_EFFECT_UNCERTAIN，留痕写入 {record_path}"
+    )
 
 
 if __name__ == "__main__":
