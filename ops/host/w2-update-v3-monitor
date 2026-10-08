@@ -19,6 +19,13 @@ source_file="$repo_root/ops/host/w2-v3-readonly-monitor.py"
 # head it must reconcile are read at run time from release.env's W2_GIT_SHA /
 # W2_SCHEMA_HEAD (deploy intent), never hard-coded.
 remote_dir="/opt/w2/deploy/v3-monitor"
+# F3 闸门：巡检脚本必须与线上已部署 release 同 sha——拒绝用未部署 commit 更新巡检，
+# 消除「release=deaebeb0 但巡检跑 63042828」的脱离 release 问题（脚本 sha == release sha）。
+deployed_sha="$(ssh w2-hk "grep -E '^W2_GIT_SHA=' /opt/w2/shared/release.env 2>/dev/null | cut -d= -f2")"
+if [ "$target_sha" != "$deployed_sha" ]; then
+  echo "MONITOR_SHA_NOT_DEPLOYED_RELEASE target=$target_sha deployed=$deployed_sha" >&2
+  exit 2
+fi
 if [ "$mode" = '--dry-run' ]; then
   echo "MONITOR_UPDATE_PLAN sha=$target_sha schema=$schema directory=$remote_dir"
   exit 0
