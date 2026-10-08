@@ -4512,6 +4512,18 @@ class ReadModelService:
             "quota_policy": api_football_quota_policy(quota),
         }
 
+    def provider_quota_live(self) -> dict[str, Any]:
+        """实时查 Football-API /status 额度（免费只读）；失败回退读缓存并打 degraded。"""
+        from w2.providers.status import fetch_provider_quota_live
+
+        live = fetch_provider_quota_live()
+        cached = self.repository.dashboard_provider()
+        cached_remaining = (
+            parse_int(cached.get("remaining_quota")) if cached else None
+        )
+        live["cached_remaining_quota"] = cached_remaining
+        return live
+
     def forward_status(self) -> dict[str, Any]:
         payload = self.repository.dashboard_forward_status()
         return {

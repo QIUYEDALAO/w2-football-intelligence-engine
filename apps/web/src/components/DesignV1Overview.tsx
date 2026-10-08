@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { fetchIntelligenceMatch, fetchSystemHealth } from "../lib/intelligenceWorkspaceApi";
+import { fetchIntelligenceMatch, fetchProviderQuota, fetchSystemHealth } from "../lib/intelligenceWorkspaceApi";
 import { footballDayShanghai, translateCompetition } from "../lib/formatters";
 import { publicPresentation } from "../lib/publicPresentation";
 import { formatAhMarketHandicap } from "../lib/pricingDisplay";
-import type { IntelligenceWorkspaceList, PerformanceSummary, SystemHealth, TodayRecommendation, WorkspaceMatch, WorkspaceMatchItem, WorkspaceMatchProjectionError } from "../types/intelligenceWorkspace";
+import type { IntelligenceWorkspaceList, PerformanceSummary, ProviderQuota, SystemHealth, TodayRecommendation, WorkspaceMatch, WorkspaceMatchItem, WorkspaceMatchProjectionError } from "../types/intelligenceWorkspace";
 
 type Tab = "matches" | "validation" | "validation-calibrated" | "replay";
 type Props = {
@@ -137,6 +137,7 @@ function recommendations(workspace: IntelligenceWorkspaceList): TodayRecommendat
 
 function SystemHealthPanel() {
   const [health, setHealth] = useState<SystemHealth | null>(null);
+  const [quota, setQuota] = useState<ProviderQuota | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   useEffect(() => {
     const controller = new AbortController();
@@ -149,6 +150,12 @@ function SystemHealthPanel() {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setState("error");
       });
+    fetchProviderQuota(controller.signal)
+      .then((payload) => setQuota(payload))
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        // 静默失败：quota 保持 null，面板回退 system-health 的 collection_quota 缓存口径
+      });
     return () => controller.abort();
   }, []);
   if (state === "loading") {
@@ -157,10 +164,16 @@ function SystemHealthPanel() {
   if (state === "error" || !health) {
     return <details className="w2-system-health"><summary>系统健康 <span>只读 · 不调用 Provider</span></summary><p className="w2-system-health__empty">系统健康状态暂不可用。</p></details>;
   }
+  const reserveBucket = health.collection_quota.reserve_bucket;
+  const quotaItem = quota && !quota.degraded
+    ? { label: "采集额度", ok: quota.remaining !== null && quota.remaining > reserveBucket, detail: `当前 ${quota.current} / 限值 ${quota.limit_day} · 剩余 ${quota.remaining}` }
+    : quota && quota.degraded
+      ? { label: "采集额度", ok: health.collection_quota.ok, detail: `额度查询超时 · 缓存剩余 ${quota.cached_remaining_quota ?? "未知"}（缓存）` }
+      : { label: "采集额度", ok: health.collection_quota.ok, detail: health.collection_quota.remaining_quota === null ? "额度未知" : `Provider 剩余 ${health.collection_quota.remaining_quota} · 保留桶 ${health.collection_quota.reserve_bucket}` };
   const items = [
     { label: "数据新鲜度", ok: health.data_freshness.ok, detail: health.data_freshness.f9_snapshot_lag_hours === null ? "F9 快照断供（无快照）" : `${formatF9Lag(health.data_freshness.f9_snapshot_lag_hours)} · 阈值 ${health.data_freshness.threshold_hours}h` },
     { label: "推荐链路", ok: health.recommendation_chain.ok, detail: `今日 ${health.recommendation_chain.match_count} 场 · 到决策点 ${health.recommendation_chain.decision_due_count} 场 · 推荐 ${health.recommendation_chain.selected_count} 条 · SKIP ${health.recommendation_chain.skip_count} 条` },
-    { label: "采集额度", ok: health.collection_quota.ok, detail: health.collection_quota.remaining_quota === null ? "额度未知" : `Provider 剩余 ${health.collection_quota.remaining_quota} · 保留桶 ${health.collection_quota.reserve_bucket}` },
+    quotaItem,
     { label: "结算", ok: health.settlement.ok, detail: `已结算 ${health.settlement.settled_count} 场 · 异常 ${health.settlement.anomaly_count} 场` },
     { label: "告警", ok: health.alerts.length === 0, detail: health.alerts.length ? `${health.alerts.length} 条活跃告警` : "无活跃告警" },
   ];

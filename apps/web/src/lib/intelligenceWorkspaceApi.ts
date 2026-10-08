@@ -3,6 +3,7 @@ import type {
   IntelligenceValidationResponse,
   IntelligenceCalibratedValidationResponse,
   IntelligenceWorkspaceList,
+  ProviderQuota,
   SystemHealth,
   WorkspaceMatch,
 } from "../types/intelligenceWorkspace";
@@ -38,6 +39,19 @@ export async function fetchSystemHealth(
     throw new Error(`system-health -> HTTP ${response.status}`);
   }
   return response.json() as Promise<SystemHealth>;
+}
+
+export async function fetchProviderQuota(
+  signal?: AbortSignal,
+): Promise<ProviderQuota> {
+  const response = await fetch(
+    `${API_BASE}/provider/quota`,
+    { headers: { Accept: "application/json" }, signal },
+  );
+  if (!response.ok) {
+    throw new Error(`provider-quota -> HTTP ${response.status}`);
+  }
+  return response.json() as Promise<ProviderQuota>;
 }
 
 export async function fetchIntelligenceValidation(

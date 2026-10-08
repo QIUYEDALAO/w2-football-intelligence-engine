@@ -2298,6 +2298,22 @@ class ProviderStatusResponse(BaseModel):
     quota_policy: dict[str, Any] = Field(default_factory=dict)
 
 
+class ProviderQuotaResponse(BaseModel):
+    """GET /v1/provider/quota：Football-API /status 实时额度（免费只读，fail-closed）。"""
+
+    request_id: str
+    source: str
+    degraded: bool
+    error: str | None
+    current: int | None
+    limit_day: int | None
+    remaining: int | None
+    plan: str | None
+    plan_end: str | None
+    cached_remaining_quota: int | None
+    observed_at: str
+
+
 class SystemHealthResponse(BaseModel):
     request_id: str
     schema_version: str

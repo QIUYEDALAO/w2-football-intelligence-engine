@@ -46,6 +46,7 @@ from w2.api.schemas import (
     PageMeta,
     PerformanceResponse,
     ProbabilityResponse,
+    ProviderQuotaResponse,
     ProviderStatusResponse,
     ReleaseReadinessResponse,
     SystemHealthResponse,
@@ -1264,6 +1265,12 @@ def dashboard_system_health(request: Request) -> dict[str, Any]:
 @public_router.get("/providers/status", response_model=ProviderStatusResponse)
 def providers_status(request: Request) -> dict[str, Any]:
     return {"request_id": request_id(request), **service.provider_status()}
+
+
+@public_router.get("/provider/quota", response_model=ProviderQuotaResponse)
+def provider_quota(request: Request) -> dict[str, Any]:
+    """实时查 Football-API /status 额度（免费只读豁免点）；失败降级缓存，不造假。"""
+    return {"request_id": request_id(request), **service.provider_quota_live()}
 
 
 @public_router.get("/backtests/latest", response_model=BacktestLatestResponse)

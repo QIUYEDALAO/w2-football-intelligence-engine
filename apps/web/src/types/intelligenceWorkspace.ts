@@ -1021,6 +1021,19 @@ export interface SystemHealth {
   alerts: Array<{ type: string; severity: string; detail: string }>;
 }
 
+export interface ProviderQuota {
+  source: string;
+  degraded: boolean;
+  error: string | null;
+  current: number | null;
+  limit_day: number | null;
+  remaining: number | null;
+  plan: string | null;
+  plan_end: string | null;
+  cached_remaining_quota: number | null;
+  observed_at: string;
+}
+
 export interface PerformanceWindow {
   match_count: number;
   hit_rate: number | null;
