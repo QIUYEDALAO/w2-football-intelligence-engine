@@ -88,15 +88,20 @@ def test_fence_uncertain_stale_issue() -> None:
 
 
 def test_quota_issue_unknown_and_low() -> None:
-    """R2：额度读不到 → QUOTA_UNKNOWN（提示，不误报）；触达保留桶 → LOW_QUOTA；充足 → None。"""
-    assert monitor.quota_issue([]) == "QUOTA_UNKNOWN"
-    assert monitor.quota_issue([{"remaining_quota": None}]) == "QUOTA_UNKNOWN"
-    assert monitor.quota_issue([{"remaining_quota": "UNKNOWN"}]) == "QUOTA_UNKNOWN"
-    assert monitor.quota_issue([{"remaining_quota": ""}]) == "QUOTA_UNKNOWN"
-    assert monitor.quota_issue([{"remaining_quota": "300"}]) == "LOW_QUOTA:remaining=300"
-    assert monitor.quota_issue([{"remaining_quota": "500"}]) == "LOW_QUOTA:remaining=500"
-    assert monitor.quota_issue([{"remaining_quota": "501"}]) is None
-    assert monitor.quota_issue([{"remaining_quota": "7000"}]) is None
+    """R2：实时额度可读 → 真实额度（不误报）；读不到 → QUOTA_UNKNOWN（降级，不误报真实额度）。"""
+    # 读不到（空 / degraded 无缓存兜底 / 缓存非数字）→ QUOTA_UNKNOWN
+    assert monitor.quota_issue({}) == "QUOTA_UNKNOWN"
+    assert monitor.quota_issue({"degraded": True}) == "QUOTA_UNKNOWN"
+    assert monitor.quota_issue({"degraded": True, "cached_remaining_quota": None}) == "QUOTA_UNKNOWN"
+    assert monitor.quota_issue({"degraded": True, "cached_remaining_quota": "UNKNOWN"}) == "QUOTA_UNKNOWN"
+    # live 真实额度：触达保留桶 → LOW_QUOTA；充足 → None（不告警）
+    assert monitor.quota_issue({"degraded": False, "remaining": 300}) == "LOW_QUOTA:remaining=300"
+    assert monitor.quota_issue({"degraded": False, "remaining": 500}) == "LOW_QUOTA:remaining=500"
+    assert monitor.quota_issue({"degraded": False, "remaining": 501}) is None
+    assert monitor.quota_issue({"degraded": False, "remaining": 7000}) is None
+    # degraded 但缓存兜底有值 → 按缓存判定
+    assert monitor.quota_issue({"degraded": True, "cached_remaining_quota": 300}) == "LOW_QUOTA:remaining=300"
+    assert monitor.quota_issue({"degraded": True, "cached_remaining_quota": 7000}) is None
 
 
 def test_push_bark_alerts_idempotent_once_per_day(tmp_path, monkeypatch) -> None:
