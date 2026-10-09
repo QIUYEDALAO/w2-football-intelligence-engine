@@ -58,6 +58,7 @@ def fetch_expired_failed() -> list[dict]:
         "FROM matchday_checkpoint_plans mcp "
         "JOIN matchday_fixture_identities mfi ON mfi.fixture_id = mcp.fixture_id "
         "WHERE mcp.status='FAILED' AND mfi.fixture_status IN ('FT','AET','PEN') "
+        "AND blockers::text NOT LIKE '%EXPIRED_FIXTURE_FT%' "
         "ORDER BY mcp.scheduled_at) t"
     )
     return _json_rows(raw)
