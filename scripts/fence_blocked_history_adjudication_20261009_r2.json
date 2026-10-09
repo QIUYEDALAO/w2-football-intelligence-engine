@@ -1,0 +1,840 @@
+{
+  "adjudicated_at": "2026-10-09T11:40:33.665756+00:00",
+  "records": [
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:brasileirao_serie_a:2026:fba88e5178f15ccd",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "实际失败：未识别 blocker 类型，需人工复核——FutureRefreshPersistenceError",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1492390",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1492393",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1492394",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1492396",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1492398",
+        "FutureRefreshPersistenceError"
+      ],
+      "skipped": true
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:mls:2026:39e63ad9f5626949",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1490463）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:mls:2026:513ea38cf395356d",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1490463 pass_at=2026-10-09 02:32:04.578133+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:4cc68f698a789d91",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1569953）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:1ead45b33e7d92d4",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1551819）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:72d71db8b8fce268",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1569953 pass_at=2026-10-08 19:06:18.495003+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:2cf4678d10d29a15",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "实际失败：ValueError 但缺「fixture 已 FT + 后续 PASS」证据——需人工复核",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": true
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:brasileirao_serie_a:2026:59457ed78f128ebf",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1492318）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:ee059dead6727e28",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1493155）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:8d75bc1801608a6c",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1493161 pass_at=2026-10-09 11:32:07.182876+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:brasileirao_serie_a:2026:c7039c0060f82d0f",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "实际失败：ValueError 但缺「fixture 已 FT + 后续 PASS」证据——需人工复核",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": true
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:bc15da68140afddf",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1493155 pass_at=2026-10-09 11:32:07.182876+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:26575be23547ec5b",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1493162 pass_at=2026-10-09 11:32:07.182876+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:9aee8d8476089feb",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=api_football:1569948,api_football:1569948）",
+      "original_status": "BLOCKED",
+      "original_blockers": [
+        "LINEUP_MATERIALIZATION_FAILED:STARTING_XI_INCOMPLETE"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:b6a45dfa49ad02f4",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=api_football:1551820,api_football:1551820,api_football:1551824,api_football:1551824）",
+      "original_status": "BLOCKED",
+      "original_blockers": [
+        "LINEUP_MATERIALIZATION_FAILED:STARTING_XI_INCOMPLETE"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:41a9f12cee2ecf98",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1569948 pass_at=2026-10-08 19:06:18.495003+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:4754ee1e2db77f6d",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1569950）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:d780e33e4991e08f",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1569949 pass_at=2026-10-08 19:06:18.495003+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:07034faf8e16af94",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "实际失败：ValueError 但缺「fixture 已 FT + 后续 PASS」证据——需人工复核",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": true
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:3b3363dc72943ad0",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1551824 pass_at=2026-10-09 06:04:29.827277+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:c4464693c33d6b02",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1493156）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:c8ba5b63b10e3bcb",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1551821,1551822,1551823,1551825）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:82da9dca65ba47d8",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1551822,1551823,1551825）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:b48adf53df98f215",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1551823,1551825）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:88ac04cf55d8627d",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1551825）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:0cf13ae8c3baa7ca",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1569950 pass_at=2026-10-08 19:06:18.495003+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:c45a431fa4cca69d",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1569958 pass_at=2026-10-08 19:06:18.495003+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:5d259e63640da546",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1493156 pass_at=2026-10-09 11:32:07.182876+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:22c257f1b6ba7cf0",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1551821 pass_at=2026-10-09 06:04:29.827277+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:ec9a10f2082798be",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1551822 pass_at=2026-10-09 06:04:29.827277+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:6710bf78f8ee21de",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1551823 pass_at=2026-10-09 06:04:29.827277+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:76793637e8287a67",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1551825 pass_at=2026-10-09 06:04:29.827277+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:60e1acdcc8331e95",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1493153 pass_at=2026-10-09 11:32:07.182876+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:f0a82c195d3c3205",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1493163 pass_at=2026-10-09 11:32:07.182876+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:def347f2f272a8f8",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=api_football:1569957,api_football:1569957）",
+      "original_status": "BLOCKED",
+      "original_blockers": [
+        "LINEUP_MATERIALIZATION_FAILED:STARTING_XI_INCOMPLETE"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:f461f9f97dd630e2",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1551826）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:588d598f5c794527",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1569957 pass_at=2026-10-08 19:06:18.495003+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:netherlands_eerste_divisie:2026:4de664e2874ccca7",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1551826 pass_at=2026-10-09 06:04:29.827277+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:55cf6170c3c91e7d",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "实际失败：payload 缺失且未修复——1569961, 1569969 仍缺、未完赛，不得处置",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1569961",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1569967",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1569968",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1569969"
+      ],
+      "skipped": true
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:primeira_liga:2026:598bf2ba341db52c",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "实际失败：payload 缺失且未修复——1575514 仍缺、未完赛，不得处置",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1575514"
+      ],
+      "skipped": true
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:619577188fcc6fdc",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "实际失败：ValueError 但缺「fixture 已 FT + 后续 PASS」证据——需人工复核",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": true
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:07e1280c47b22526",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1569951 pass_at=2026-10-08 19:06:18.495003+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:91eba649e73b051e",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1569956 pass_at=2026-10-08 19:06:18.495003+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:534b7198fa369c76",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "实际失败：ValueError 但缺「fixture 已 FT + 后续 PASS」证据——需人工复核",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": true
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:brasileirao_serie_a:2026:cdf77c2afe36fb8e",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "实际失败：payload 缺失且未修复——1492402, 1492403, 1492404 仍缺、未完赛，不得处置",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1492402",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1492403",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1492404"
+      ],
+      "skipped": true
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:7a716b54cb4dabb2",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1569955 pass_at=2026-10-08 19:06:18.495003+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:42325a391790b1d8",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1493165 pass_at=2026-10-09 11:32:07.182876+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:e325efca745bdc29",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=api_football:1493159）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "LINEUP_MATERIALIZATION_FAILED:STARTING_XI_INCOMPLETE"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:1fce6ebc6169bfff",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1493159 pass_at=2026-10-09 11:32:07.182876+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:spain_segunda_division:2026:cd262b3244f868a4",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1569952）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:57294509e1c4fdb2",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1493157）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:1d3bf4300342246b",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=api_football:1493158,api_football:1493158,api_football:1493166,api_football:1493166）",
+      "original_status": "BLOCKED",
+      "original_blockers": [
+        "LINEUP_MATERIALIZATION_FAILED:STARTING_XI_INCOMPLETE"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:argentina_primera:2026:99b6505a258de52a",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1493154）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:mls:2026:46c8979e2ad6dfb2",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1490326）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:brasileirao_serie_a:2026:acf17d58d43f583d",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1492393）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:mls:2026:147df69fe5316532",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "实际失败：payload 缺失且未修复——1490532, 1490533, 1490534, 1490535 仍缺、未完赛，不得处置",
+      "original_status": "BLOCKED",
+      "original_blockers": [
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1490532",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1490533",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1490534",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1490535"
+      ],
+      "skipped": true
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:mls:2026:9090c1efce66c20d",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "实际失败：payload 缺失且未修复——1490536, 1490537 仍缺、未完赛，不得处置",
+      "original_status": "BLOCKED",
+      "original_blockers": [
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1490536",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1490537"
+      ],
+      "skipped": true
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:mls:2026:542316e6c51c51fe",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "实际失败：payload 缺失且未修复——1490538, 1490539, 1490540 仍缺、未完赛，不得处置",
+      "original_status": "BLOCKED",
+      "original_blockers": [
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1490538",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1490539",
+        "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:1490540"
+      ],
+      "skipped": true
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:brasileirao_serie_a:2026:75b9549f8699d9ce",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS（fixtures=api_football:1492393 pass_at=2026-10-09 00:18:45.995475+00）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ValueError"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:brasileirao_serie_a:2026:8ccbbd74742c4932",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1492398）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:brasileirao_serie_a:2026:4b2d50adec307e52",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1492390）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:brasileirao_serie_a:2026:17e9e5ce26c5b4e7",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1492394,1492396）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    },
+    {
+      "adjudicator": "kimi-acceptor",
+      "adjudicated_at": "2026-10-09T11:39:36.846786+00:00",
+      "task_id": "checkpoint-refresh:brasileirao_serie_a:2026:1f7428ebcdc23cfb",
+      "stage": "task",
+      "attempt": 1,
+      "verdict": "已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED（fixtures=1492396）",
+      "original_status": "BLOCKED_WITH_RECORDING_INCOMPLETE",
+      "original_blockers": [
+        "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+      ],
+      "skipped": false
+    }
+  ]
+}
