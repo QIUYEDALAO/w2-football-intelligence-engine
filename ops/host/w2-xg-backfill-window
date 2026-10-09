@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# 在 prematch 闸门空档内执行 xG 补采 —— 守闸，不绕闸。
+#
+# 背景（E1，2026-10-09）：xG 采集链因 OOM 断供 40h+，需要补采；但
+# w2-xg-refresh 自带 prematch guard（窗口内不得与 live collection 抢 Provider），
+# 比赛日 15:35Z 起 due=27…82 连续占用，直接跑会被 DEFERRED 并 exit 0。
+#
+# 本脚本**不做任何闸门放行**，只是把「等闸门开」这件事自动化：
+# 用与 w2-xg-refresh 完全相同的 guard 查询轮询（同一 SQL、同一 45 分钟前瞻、
+# 同一 checkpoint 白名单），为空档才调用 w2-xg-refresh；由后者再自查一次 guard，
+# 因此即使空档中途关闭也会安全退出，不会硬闯。
+#
+# 用法：
+#   w2-xg-backfill-window [--deadline <ISO8601 UTC>] [比赛列表]
+# 环境变量：
+#   W2_XG_BACKFILL_DEADLINE         ISO8601 截止时刻（默认 now+8h）
+#   W2_XG_BACKFILL_POLL_SECONDS     轮询间隔（默认 60）
+#   W2_XG_BACKFILL_BUDGET           每联赛 statistics 预算（默认透传 80）
+#   W2_XG_BACKFILL_COMPETITIONS     显式指定联赛（默认按「未来 48h 有比赛」动态排序）
+set -uo pipefail
+
+BACKFILL=${W2_XG_BACKFILL_SCRIPT:-/usr/local/bin/w2-xg-refresh}
+POLL=${W2_XG_BACKFILL_POLL_SECONDS:-60}
+BUDGET=${W2_XG_BACKFILL_BUDGET:-80}
+GUARD_MINUTES=${W2_XG_REFRESH_PREMATCH_GUARD_MINUTES:-45}
+PSQL="docker exec -i w2-staging-postgres-1 psql -XAt -U w2_user -d w2"
+
+DEADLINE=""
+EXPLICIT=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --deadline) DEADLINE="$2"; shift 2 ;;
+    *) EXPLICIT="$EXPLICIT $1"; shift ;;
+  esac
+done
+[ -n "$DEADLINE" ] || DEADLINE=$(date -u -d "+${W2_XG_BACKFILL_MAX_HOURS:-8} hours" +%Y-%m-%dT%H:%M:%SZ)
+DEADLINE_EPOCH=$(date -u -d "$DEADLINE" +%s)
+
+# guard 查询与 w2-xg-refresh 保持逐字一致（同一判据不得出现第二处定义）
+guard_due() {
+  $PSQL -c "SELECT count(*) FROM matchday_checkpoint_plans
+    WHERE status IN ('PLANNED','DUE') AND window_end > now()
+      AND window_start < now() + interval '$GUARD_MINUTES minutes'
+      AND checkpoint IN ('T60_ODDS_LINEUPS','T45_ODDS','T45_LINEUPS_RETRY',
+                         'T30_LINEUPS_RETRY','T-30m_VALIDATION_LOCK','T15_ODDS');" \
+    2>/dev/null | tr -d ' '
+}
+
+# 默认优先级：未来 48h 内开赛的联赛，按最早开赛时间排序（今晚/周末比赛联赛优先）
+if [ -n "$EXPLICIT" ]; then
+  COMPS="$EXPLICIT"
+else
+  COMPS=$($PSQL -c "SELECT competition_id FROM (
+      SELECT f.competition_id, min(f.kickoff_utc) AS first_ko
+        FROM matchday_fixture_identities f
+       WHERE f.kickoff_utc > now() AND f.kickoff_utc <= now() + interval '48 hours'
+       GROUP BY f.competition_id) q ORDER BY first_ko;" 2>/dev/null | tr '\n' ' ')
+fi
+if [ -z "${COMPS// /}" ]; then
+  echo "XG_BACKFILL_WINDOW_NO_COMPETITIONS"
+  exit 0
+fi
+
+echo "XG_BACKFILL_WINDOW_START deadline=$DEADLINE poll=${POLL}s budget=$BUDGET"
+echo "XG_BACKFILL_WINDOW_COMPETITIONS:$(printf ' %s' $COMPS)"
+
+ran=0
+deferred_timeout=0
+for comp in $COMPS; do
+  waited=0
+  while :; do
+    now_epoch=$(date -u +%s)
+    if [ "$now_epoch" -ge "$DEADLINE_EPOCH" ]; then
+      echo "XG_BACKFILL_WINDOW_DEADLINE_REACHED comp=$comp waited=${waited}s"
+      deferred_timeout=1
+      break 2
+    fi
+    due=$(guard_due)
+    if [ "${due:-1}" = "0" ]; then break; fi
+    if [ "$waited" -eq 0 ]; then
+      echo "[$(date -u +%FT%TZ)] gate CLOSED (due=$due) —— 等待空档，不绕闸"
+    fi
+    sleep "$POLL"
+    waited=$((waited + POLL))
+  done
+  echo "[$(date -u +%FT%TZ)] gate OPEN → backfill $comp"
+  W2_XG_REFRESH_COMPETITIONS="$comp" \
+  W2_XG_REFRESH_BUDGET_PER_COMPETITION="$BUDGET" \
+    "$BACKFILL"
+  rc=$?
+  ran=$((ran + 1))
+  echo "[$(date -u +%FT%TZ)] backfill $comp rc=$rc"
+  maxcap=$($PSQL -c "SELECT max(captured_at)::text FROM team_xg_match;" 2>/dev/null | tr -d ' ')
+  echo "  after $comp: team_xg_match max(captured_at)=$maxcap"
+done
+
+echo "XG_BACKFILL_WINDOW_DONE ran=$ran deferred_timeout=$deferred_timeout"
+[ "$deferred_timeout" -eq 0 ] || exit 4
+exit 0
