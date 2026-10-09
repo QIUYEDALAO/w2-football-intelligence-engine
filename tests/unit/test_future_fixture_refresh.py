@@ -1423,7 +1423,7 @@ def test_timeout_retries_once_with_bounded_backoff(
     ).run()
 
     assert result.status == "BLOCKED"
-    assert result.blockers == ["TimeoutError"]
+    assert result.blockers == ["TimeoutError: uncertain"]  # C3：类型名 + 消息，不再裸类型名
     assert client.calls == 2
     assert sleeps == [2]
     assert "competition_id=world_cup_2026 endpoint=status" in caplog.text
@@ -1461,9 +1461,35 @@ def test_url_error_retries_once_without_retrying_http_statuses(
         sleep=sleeps.append,
     ).run()
 
-    assert result.blockers == ["URLError"]
+    assert result.blockers[0].startswith("URLError: ")  # C3：类型名 + 消息，不再裸类型名
     assert calls == 2
     assert sleeps == [2]
+
+
+def test_value_error_blocker_includes_message(tmp_path: Path, monkeypatch) -> None:
+    """C3：ValueError 裸记录改为 f'{type(exc).__name__}: {exc}'，保留错误消息。"""
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+    monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
+
+    class ValueErrorProvider:
+        def request_live(
+            self, endpoint: str, params: dict[str, str]
+        ) -> LiveApiFootballResponse:
+            raise ValueError("bad odds line")
+
+    result = FutureFixtureRefreshService(
+        client=ValueErrorProvider(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="file",
+            request_budget=2,
+        ),
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+
+    assert result.status == "BLOCKED"
+    assert result.blockers == ["ValueError: bad odds line"]
 
 
 def test_gate_a_uncertain_delivery_reserves_once_and_never_retries(

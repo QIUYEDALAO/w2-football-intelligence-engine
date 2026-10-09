@@ -1668,7 +1668,7 @@ class FutureFixtureRefreshService:
                     )
                     self.sleep(delay * (2 ** (attempt - 1)))
                     continue
-                raise FutureRefreshError(exc.__class__.__name__) from exc
+                raise FutureRefreshError(f"{type(exc).__name__}: {exc}"[:200]) from exc
             if self.provider_call_reservation is not None and call_ordinal is not None:
                 self.provider_call_reservation.record_provider_outcome(
                     call_ordinal,
@@ -1821,7 +1821,9 @@ class FutureFixtureRefreshService:
                     allow_empty_response=allow_empty_response,
                 )
             return response
-        raise FutureRefreshError(last_error.__class__.__name__ if last_error else "REQUEST_FAILED")
+        raise FutureRefreshError(
+            f"{type(last_error).__name__}: {last_error}"[:200] if last_error else "REQUEST_FAILED"
+        )
 
     @staticmethod
     def _validate_gate_a_response(
