@@ -161,6 +161,24 @@ def _fixture_provider_id(fixture_id: str) -> str:
     return fixture_id.split(":", 1)[-1] if ":" in fixture_id else fixture_id
 
 
+_UTC_MIN = datetime.min.replace(tzinfo=UTC)
+
+
+def _parse_ts(value: str | None) -> datetime:
+    """解析时间戳（T/空格分隔均兼容）；失败返回 UTC 最小值 = 按无证据 fail-closed。
+
+    D2'：fence updated_at 是 jsonb 序列化（T 分隔），证据 window_end::text / PASS
+    updated_at::text 是空格分隔，直接字符串比较在同日会失效（0x20 < 0x54）。统一走
+    datetime 比较。
+    """
+    if not value:
+        return _UTC_MIN
+    try:
+        return datetime.fromisoformat(value)
+    except (ValueError, TypeError):
+        return _UTC_MIN
+
+
 def _payload_verdict(
     fixture_id: str,
     fixture_status: dict[str, list[dict]],
@@ -241,7 +259,7 @@ def adjudicate_row(
     # 3. 额度保护 → 附后续 PASS 证据
     if quota:
         pass_at = pass_evidence.get(task_scope, "")
-        if pass_at and pass_at > updated_at:
+        if pass_at and _parse_ts(pass_at) > _parse_ts(updated_at):
             return (
                 f"实际失败：当日额度保护拦截，后续同日 DONE PASS 已覆盖（pass_at={pass_at}）",
                 True,
@@ -266,7 +284,7 @@ def adjudicate_row(
             _fixture_provider_id(f) in finished for f in fixture_ids
         )
         pass_at = pass_evidence.get(task_scope, "")
-        if finished_ok and pass_at and pass_at > updated_at:
+        if finished_ok and pass_at and _parse_ts(pass_at) > _parse_ts(updated_at):
             return (
                 f"已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS"
                 f"（fixtures={','.join(fixture_ids)} pass_at={pass_at}）",
@@ -278,7 +296,7 @@ def adjudicate_row(
     #    附「同 fixture LINEUPS_RETRY CAPTURED 且晚于 BLOCKED」时间序证据
     if capture_mismatch or lineup_failed:
         captured_late = bool(fixture_ids) and all(
-            (lineups_captured.get(_fixture_provider_id(f)) or "") > updated_at
+            _parse_ts(lineups_captured.get(_fixture_provider_id(f))) > _parse_ts(updated_at)
             for f in fixture_ids
         )
         if captured_late:

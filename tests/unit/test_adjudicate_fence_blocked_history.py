@@ -17,7 +17,12 @@ def _load():
     return mod
 
 
-def _row(task_id: str, blockers: list[str], fixture_ids: list[str] | None = None) -> dict:
+def _row(
+    task_id: str,
+    blockers: list[str],
+    fixture_ids: list[str] | None = None,
+    updated_at: str = "2026-10-04T00:00:00Z",
+) -> dict:
     result: dict = {"blockers": blockers}
     if fixture_ids is not None:
         result["checkpoint_fixture_ids"] = fixture_ids
@@ -27,7 +32,7 @@ def _row(task_id: str, blockers: list[str], fixture_ids: list[str] | None = None
         "attempt": 1,
         "state": "DONE",
         "error": None,
-        "updated_at": "2026-10-04T00:00:00Z",
+        "updated_at": updated_at,
         "stored_result_text": json.dumps(
             {
                 "task_key": "checkpoint-refresh:brasileirao_serie_a:2026:abc",
@@ -211,3 +216,58 @@ def test_build_updates_mixed_applies_and_skips() -> None:
     assert len(records) == 3
     skipped = [r for r in records if r.get("skipped")]
     assert [r["task_id"] for r in skipped] == ["t2"]
+
+
+def test_time_order_same_day_t_vs_space_late_evidence_applies() -> None:
+    """D2'：规则 7 同日混合格式——fence updated_at 用 T 分隔、证据 window_end 用空格分隔，
+    同日证据晚 7 分钟 → 时间序成立，可处置（字符串比较会误判 False）。"""
+    mod = _load()
+    lineups_captured = {"1490463": "2026-10-09 00:15:00+00"}  # 空格分隔，同日 00:15
+    verdict, apply = mod.adjudicate_row(
+        _row(
+            "t1",
+            ["ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"],
+            ["1490463"],
+            updated_at="2026-10-09T00:08:33+00:00",  # T 分隔，同日 00:08
+        ),
+        {}, {}, set(), lineups_captured,
+    )
+    assert apply is True
+    assert "已过期" in verdict
+
+
+def test_time_order_same_day_t_vs_space_early_evidence_skips() -> None:
+    """D2'：同日证据更早（空格 00:05 < T 00:08）→ skipped，防反向放行。"""
+    mod = _load()
+    lineups_captured = {"1490463": "2026-10-09 00:05:00+00"}  # 空格，更早
+    verdict, apply = mod.adjudicate_row(
+        _row(
+            "t1",
+            ["ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"],
+            ["1490463"],
+            updated_at="2026-10-09T00:08:33+00:00",  # T，更晚
+        ),
+        {}, {}, set(), lineups_captured,
+    )
+    assert apply is False
+    assert "LINEUPS_RETRY" in verdict
+
+
+def test_value_error_same_day_t_vs_space_late_pass_applies() -> None:
+    """D2'：规则 6 同日混合格式——PASS（空格格式）晚于 fence updated_at（T 格式）→ 可处置。"""
+    mod = _load()
+    pass_evidence = {
+        "checkpoint-refresh:brasileirao_serie_a:2026": "2026-10-09 00:15:00+00"  # 空格
+    }
+    finished = {"1490463"}
+    verdict, apply = mod.adjudicate_row(
+        _row(
+            "t1",
+            ["ValueError"],
+            ["api_football:1490463"],
+            updated_at="2026-10-09T00:08:33+00:00",  # T
+        ),
+        pass_evidence, {}, finished, {},
+    )
+    assert apply is True
+    assert "已过期" in verdict
