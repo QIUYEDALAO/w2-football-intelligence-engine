@@ -88,7 +88,7 @@ def build_updates(rows: list[dict], adjudicator: str) -> tuple[list[str], list[d
         )
         statements.append(
             "UPDATE matchday_checkpoint_plans SET blockers = "  # noqa: S608 -- 逐条主键精确更新
-            f"(blockers || '{json.dumps([mark], ensure_ascii=False)}'::jsonb) "
+            f"(blockers::jsonb || '{json.dumps([mark], ensure_ascii=False)}'::jsonb)::json "
             f"WHERE plan_id='{plan_id}' AND status='FAILED';"
         )
         records.append(record)

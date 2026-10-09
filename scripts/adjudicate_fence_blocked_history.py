@@ -45,7 +45,9 @@ PAYLOAD_MISSING_PREFIX = "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:"
 # C4 扩展：ValueError / CAPTURE_PLAN_FIXTURE_MISMATCH / LINEUP_MATERIALIZATION 从
 # 未识别改为「附时间序证据可处置」；仅保留其余未知变体。
 UNKNOWN_BLOCKER_PREFIXES = ("FutureRefreshPersistenceError",)
-CAPTURE_PLAN_FIXTURE_MISMATCH_BLOCKER = "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+CAPTURE_PLAN_FIXTURE_MISMATCH_BLOCKER = (
+    "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+)
 VALUE_ERROR_BLOCKER = "ValueError"
 LINEUP_MATERIALIZATION_PREFIX = "LINEUP_MATERIALIZATION_FAILED"
 
@@ -128,15 +130,22 @@ def fetch_finished_fixtures() -> set[str]:
 
 
 def fetch_lineups_retry_captured() -> dict[str, str]:
-    """fixture → T45_LINEUPS_RETRY CAPTURED 的最晚 window_end（时间序证据）。"""
+    """fixture（裸 provider_id）→ LINEUPS_RETRY CAPTURED 的最晚 window_end（时间序证据）。
+
+    D2：checkpoint 扩到 T45/T30 两种 LINEUPS_RETRY，key 统一用 _fixture_provider_id 归一化，
+    与规则 7 的 fixture id 同口径。
+    """
     raw = sql(
         "SELECT coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) FROM ("
         "SELECT fixture_id, max(window_end)::text AS captured_at "
         "FROM matchday_checkpoint_plans "
-        "WHERE checkpoint='T45_LINEUPS_RETRY' AND status='CAPTURED' "
+        "WHERE checkpoint IN ('T45_LINEUPS_RETRY','T30_LINEUPS_RETRY') AND status='CAPTURED' "
         "GROUP BY fixture_id) t"
     )
-    return {str(r["fixture_id"]): (r.get("captured_at") or "") for r in _json_rows(raw)}
+    return {
+        _fixture_provider_id(str(r["fixture_id"])): (r.get("captured_at") or "")
+        for r in _json_rows(raw)
+    }
 
 
 def _extract_checkpoint_fixture_ids(stored: dict) -> list[str]:
@@ -269,7 +278,8 @@ def adjudicate_row(
     #    附「同 fixture LINEUPS_RETRY CAPTURED 且晚于 BLOCKED」时间序证据
     if capture_mismatch or lineup_failed:
         captured_late = bool(fixture_ids) and all(
-            (lineups_captured.get(f) or "") > updated_at for f in fixture_ids
+            (lineups_captured.get(_fixture_provider_id(f)) or "") > updated_at
+            for f in fixture_ids
         )
         if captured_late:
             return (

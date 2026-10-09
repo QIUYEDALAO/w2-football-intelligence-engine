@@ -123,7 +123,7 @@ def test_adjudicate_value_error_with_evidence_applies() -> None:
 def test_adjudicate_capture_plan_mismatch_with_lineups_retry_applies() -> None:
     """C4：CAPTURE_PLAN_FIXTURE_MISMATCH 附「LINEUPS_RETRY CAPTURED 晚于 BLOCKED」→ 处置。"""
     mod = _load()
-    lineups_captured = {"api_football:1490463": "2026-10-05T00:00:00Z"}
+    lineups_captured = {"1490463": "2026-10-05T00:00:00Z"}  # D2①：key 归一化为裸 provider_id
     verdict, apply = mod.adjudicate_row(
         _row("t1", ["ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"], ["api_football:1490463"]),
         {},
@@ -147,6 +147,52 @@ def test_adjudicate_lineup_materialization_without_evidence_skips() -> None:
     )
     assert apply is False
     assert "LINEUPS_RETRY" in verdict
+
+
+def test_adjudicate_capture_plan_mismatch_without_evidence_skips() -> None:
+    """规则 7：CAPTURE_PLAN_FIXTURE_MISMATCH 缺 LINEUPS_RETRY 时间序证据 → skipped。"""
+    mod = _load()
+    verdict, apply = mod.adjudicate_row(
+        _row("t1", ["ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"], ["api_football:1490463"]),
+        {},
+        {},
+        set(),
+        {},
+    )
+    assert apply is False
+    assert "LINEUPS_RETRY" in verdict
+
+
+def test_adjudicate_lineup_materialization_with_evidence_applies() -> None:
+    """规则 7：LINEUP_MATERIALIZATION 附 LINEUPS_RETRY CAPTURED 晚于 BLOCKED → 处置。"""
+    mod = _load()
+    lineups_captured = {"1490463": "2026-10-05T00:00:00Z"}
+    verdict, apply = mod.adjudicate_row(
+        _row("t1", ["LINEUP_MATERIALIZATION_FAILED:STARTING_XI_INCOMPLETE"], ["api_football:1490463"]),
+        {},
+        {},
+        set(),
+        lineups_captured,
+    )
+    assert apply is True
+    assert "已过期" in verdict
+
+
+def test_adjudicate_capture_plan_mismatch_bare_id_t30_captured_applies() -> None:
+    """规则 7「裸 id + T30 CAPTURED」形态（照抄生产实查）：fixture 裸 id + T30_LINEUPS_RETRY CAPTURED。"""
+    mod = _load()
+    # 生产 checkpoint_fixture_ids 可为裸 id；lineups_captured key 归一化为裸 provider_id，
+    # 值来自 T30_LINEUPS_RETRY CAPTURED 的 window_end。
+    lineups_captured = {"1490463": "2026-10-05T00:00:00Z"}
+    verdict, apply = mod.adjudicate_row(
+        _row("t1", ["ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"], ["1490463"]),
+        {},
+        {},
+        set(),
+        lineups_captured,
+    )
+    assert apply is True
+    assert "已过期" in verdict
 
 
 def test_build_updates_mixed_applies_and_skips() -> None:
