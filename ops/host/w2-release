@@ -53,7 +53,10 @@ VPS_RELEASE_ENV="$VPS_DEPLOY_ROOT/shared/release.env"
 VPS_REPORTS_DIR="$VPS_DEPLOY_ROOT/shared/runtime/reports"
 
 # Mac 侧固定路径
-BACKUP_ROTATE_SCRIPT="${HOME}/Documents/Projects/W2-workspaces/w2-authority-20260916/ops/host/w2-mac-backup-rotate"
+# 轮转脚本改为从当前仓库根解析，不再硬编码某个 worktree 路径：
+# 硬编码会在 worktree 被 move/remove 后静默失效（步骤 7 只 warn，不易察觉），
+# 与第 5d 步 monitor_update_script 的动态写法保持一致。
+BACKUP_ROTATE_SCRIPT="$("$GIT_CMD" rev-parse --show-toplevel)/ops/host/w2-mac-backup-rotate"
 RECEIPT_DIR="${HOME}/Desktop/W2文档"
 
 API_PORT=18000
