@@ -2,6 +2,15 @@
 
 2026-09-25 Owner 后续授权已使 Candidate C R0 前向时钟启动：`2026-09-25T09:43:11.620864Z`，生产实现 `d4ef36edebe66e4e3c7f279adbf37c9b51d947a9`，只开放 R1 追加证据与 Dashboard 只读监测。下方 Freeze A0 限制保留为独立 quant 平台的历史边界；不得据此误判该已登记时钟为未启动，也不得推论 Freeze A1 Provider 实时采集已获授权。
 
+## 🔴 验收铁律（每次验收/下结论前必读，硬性）
+
+任何「验收 / 复验 / 回执 / 6ol / 总验收 / CHANGES_REQUIRED / VERIFIED_LOCAL_ONLY / BLOCKED_NOT_VERIFIED」出现时：
+
+1. **必须先调用** `Skill: acceptance-rules`（`~/.workbuddy/skills/acceptance-rules/SKILL.md`），逐条走 11 条强约束。
+2. **10 条硬条件全满足才签 `VERIFIED_LOCAL_ONLY`**；有实际缺陷 → `CHANGES_REQUIRED`；因环境/材料无法执行 → `BLOCKED_NOT_VERIFIED`（列明未验项）。
+3. 🔴 三条最易踩的红线（禁止再犯）：①不得把未完成的核心要求改名为「边界」「覆盖不足」「历史债」；②不得用「安全通过」掩盖错误放行、用「覆盖恢复」掩盖正常重试失败；③「亲跑脚本重算一致」只证可复现、不证公式正确——必须独立核对脚本核心公式/口径，不得把实施方脚本当唯一 oracle。
+4. 发现合同内缺陷直接交实施方整改并复验，全部硬条件满足后再交总验收；不得把未解决问题包装成已收口。
+
 Before any W2 change, read:
 
 - `NEXT_ACTION.md`
@@ -87,14 +96,18 @@ Local workspace layout:
   consolidating directories.
 
 ```bash
-git remote -v
-git fetch --all --prune --tags
+git worktree list
 git status --porcelain=v1
-git rev-parse origin/main
-git show -s --format='%H %P %an <%ae> %cn <%ce> %s' origin/main
+git rev-parse codex/w2-authority-20260916
+git show -s --format='%H %P %an <%ae> %cn <%ce> %s' codex/w2-authority-20260916
 ```
 
-- start from the latest trusted `origin/main` in a clean worktree;
+- the single source of truth is the local branch `codex/w2-authority-20260916`; start from its
+  latest commit in a clean worktree;
+- the GitHub remote is legacy and outside the workflow: it carries only this one branch and has
+  never had a `main`, so `git rev-parse origin/main` fails by construction. Do not reintroduce a
+  remote-based precondition that cannot be satisfied locally, and do not treat a stale
+  `origin/*` ref as the authority;
 - stop on source drift or a dirty workspace;
 - do not use PR #453, `agent/eval-02b-c9-*`, `e875050f...` or automation-authored remediation;
 - one bounded task per PR; merge commit only; no squash or auto-merge.
