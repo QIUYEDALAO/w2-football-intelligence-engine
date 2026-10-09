@@ -270,6 +270,16 @@ services:
       W2_BARK_DEVICE_KEY: ${W2_BARK_DEVICE_KEY:-}
       W2_DASHBOARD_PUBLIC_BASE_URL: ${W2_DASHBOARD_PUBLIC_BASE_URL:-}
       W2_AH_OU_DECISION_FORWARD_ENABLED: "${W2_AH_OU_DECISION_FORWARD_ENABLED:-false}"
+      # D2 止血临时值（指令书 D2 §一 / 修订裁决1，2026-10-10）：60s → 900s。
+      # 背景：scheduler 每 tick 重派全部「未选中」due 场次且 task_id 带 uuid4 不去重
+      # （AH 永不 selected ⇒ 永不离开重派集），20 场 × 60/hr ≈ 1200 条/hr 灌入与
+      # future_fixture_refresh（110s/条）共享并发 1 的 worker，真决策排队 1-4h，
+      # 16/40 行开球后落账（废单）。900s 使洪泛量 ÷15，单 worker 可消化。
+      # ⚠️ 顺序锁死：必须等 D2.1（同构去重门）+ D2.2（决策路由 heavy）部署且
+      # 实测 24h 正常之后，才允许删除本行恢复 60s（DEFAULT_...=60）；提前删除会
+      # 使洪泛回归。写入 repo（而非 VPS 本地 override）是为了让它随 release 文件集
+      # 一起走——VPS override 会被下一次 release 静默移除。
+      W2_AH_OU_DECISION_FORWARD_INTERVAL_SECONDS: "${W2_AH_OU_DECISION_FORWARD_INTERVAL_SECONDS:-900}"
     depends_on:
       redis:
         condition: service_healthy

@@ -197,6 +197,17 @@ celery_app.conf.update(
     task_routes={
         "w2.forward_outcome_ledger": {"queue": "heavy"},
         "w2.candidate_notification_schedule": {"queue": "heavy"},
+        # D2.2（指令书 D2 §二，2026-10-10）：决策与结算任务从默认队列分离到 heavy。
+        # 根因：决策任务此前与 w2.future_fixture_refresh（110s/条，无 queue 参数 ⇒ 默认队列）
+        # 共抢 worker 的 concurrency=1，真决策被排在刷新之后 → 迟到 1-4h → 开球后落账（废单）。
+        # 依据：worker-heavy 专属消费 heavy 队列（CAP-MISS 既有设计：时效任务不被重任务阻塞）。
+        # 部署前实测余量（2026-10-09 19:3xZ 亲测）：heavy 积压 0；6h 内 54 个任务
+        # （candidate_notification_schedule 46 + forward_outcome_ledger 8）；耗时 p50=0.2s、
+        # p90=519s；按 ~19% 利用率估算余量约 80% ⇒ 容纳决策任务可行。
+        # 注意：heavy 也是 concurrency=1，某次 forward_outcome_ledger 最长 ~520s 会把决策
+        # 顺延 ≤9min；决策窗口是 kickoff-2h，该顺延不破坏时效（且远优于原先 1-4h 排队）。
+        "w2.ah_ou_decision_forward": {"queue": "heavy"},
+        "w2.ah_ou_v3_settlement_sweep": {"queue": "heavy"},
     },
     # 推送排程（每日名单 / 验证样本推送 / 每日结算）从 scheduler 主循环移出，
     # 由 worker 的 beat 每 2 分钟调度一次，读 validation_samples 表，不再占用

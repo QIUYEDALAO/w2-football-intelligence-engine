@@ -351,3 +351,68 @@ def test_b7_b8_bark_severity_and_chinese_message() -> None:
     )
     assert "Pinnacle 半球合规报价" in m2["body"]
     assert "未翻译" not in m2["body"]
+
+
+def test_b9_decision_late_three_states() -> None:
+    """D2.3 三态：无迟到场次静默 / 决策点已过且账本无行上浮 / 已落账静默。
+
+    口径：决策点 = kickoff-2h（与 scheduler tick 同源），「账本无行」含 selected=false 的
+    SKIP 行（NOT EXISTS），因此「已落账」一态在 SQL 侧就判为 late_n=0。
+    """
+    # ① 正常：窗口内没有「决策点已过 >15min」的场次 → 静默
+    assert monitor.decision_late_issue([]) is None
+    assert (
+        monitor.decision_late_issue(
+            [{"late_n": 0, "started_no_row": 0, "max_late_minutes": None}]
+        )
+        is None
+    )
+    # ② 迟到：决策点已过、账本无任何行 → 上浮（含已开球的子集与最长迟到分钟数）
+    issue = monitor.decision_late_issue(
+        [{"late_n": 3, "started_no_row": 2, "max_late_minutes": 171.4}]
+    )
+    assert issue is not None
+    assert issue.startswith(
+        "DECISION_LATE:late=3:started_no_row=2:max_late_min=171.4:grace_min=15"
+    )
+    # ③ 已落账：账本有行 ⇒ NOT EXISTS 不命中 ⇒ late_n=0 ⇒ 静默
+    assert (
+        monitor.decision_late_issue(
+            [{"late_n": 0, "started_no_row": 0, "max_late_minutes": 0}]
+        )
+        is None
+    )
+
+
+def test_b9_decision_late_severity_and_chinese_message() -> None:
+    """B9 必须进 Bark 映射（YELLOW）、文案为中文、幂等 identity 去动态。"""
+    issue = "DECISION_LATE:late=3:started_no_row=2:max_late_min=171.4:grace_min=15"
+
+    assert monitor.bark_issue_severity(issue) == "YELLOW"
+    body = monitor.bark_message(issue, "YELLOW")["body"]
+    assert "决策点已过" in body and "账本仍无任何决策行" in body
+    assert "3" in body and "15" in body and "171.4" in body
+    assert "未翻译" not in body
+    assert body != issue
+    assert monitor.bark_issue_identity(issue) == "DECISION_LATE"
+
+
+def test_b9_constants_and_report_protection() -> None:
+    """宽限/观察窗常量与「报告治理不得裁掉判定输入」的登记。"""
+    assert monitor.DECISION_LATE_GRACE_MINUTES == 15
+    assert monitor.DECISION_LATE_LOOKBACK_HOURS == 6
+    assert "decision_late" in monitor.REPORT_PROTECTED_KEYS
+
+
+def test_b8_sql_maps_ledger_to_observations_through_identities() -> None:
+    """口径回归：账本(provider id) 与观测(内部 id) 不在同一 id 空间，必须经 identities 映射。
+
+    原实现 `o.fixture_id = due.fixture_id` 永不匹配 ⇒ compliant_n 恒 0 ⇒ 该哨兵恒报
+    rate=0（生产实测 due=25/compliant=0，均为误报；修正后同口径 29/29 = 100%）。
+    恒真的误报会淹没真实告警，故用结构性断言钉死修法。
+    """
+    source = SOURCE.read_text(encoding="utf-8")
+
+    assert "JOIN matchday_market_observations o ON o.fixture_id = mfi.fixture_id" in source
+    assert "mfi.provider_fixture_id = due.fixture_id" in source
+    assert "WHERE o.fixture_id = due.fixture_id" not in source

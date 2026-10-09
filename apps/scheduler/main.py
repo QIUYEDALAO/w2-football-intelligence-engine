@@ -11,6 +11,8 @@ from typing import Any, cast
 from uuid import uuid4
 
 from w2.providers.control import (
+    DUPLICATE_TASK_KEY_SUPPRESSED,
+    PROVIDER_SCHEDULER_DEDUP_UNAVAILABLE,
     PROVIDER_SCHEDULER_DISABLED,
     provider_refresh_tick_hard_cap,
     provider_scheduler_enabled,
@@ -29,6 +31,13 @@ DEFAULT_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS = 7
 DEFAULT_CANDIDATE_NOTIFICATION_POLL_SECONDS = 5
 DEFAULT_FACTOR_READINESS_INTERVAL_SECONDS = 24 * 60 * 60
 DEFAULT_AH_OU_DECISION_FORWARD_INTERVAL_SECONDS = 60
+# D2.1（指令书 D2 修订裁决2，2026-10-10）：决策派发的去重窗口。
+# 复用 providers/control.py 的 task-key 去重门（同一 gate 类、同一 redis 后端），
+# 只换 key 命名空间——禁止另起 NX 实现（两套去重 = 语义漂移源）。
+# 900s 兼顾两件事：赔率在窗口内有变动需要重估，同时把「每 tick 重派全部未选中场次」
+# 的洪泛压下来（60s tick × 20 场 ≈ 1200 条/hr → ≈80 条/hr）。
+DECISION_TASK_KEY_NAMESPACE = "w2:decision-task-key"
+DECISION_DISPATCH_DEDUP_TTL_SECONDS = 900
 DEFAULT_BACKTEST_INTERVAL_SECONDS = 24 * 60 * 60
 
 
@@ -961,7 +970,41 @@ def ah_ou_decision_forward_tick() -> dict[str, object]:
             "db_writes": 0,
         }
     task_ids = []
+    suppressed = 0
     for fixture_id in due_ids:
+        # D2.1（指令书 D2 修订裁决2）：派发前去重。
+        # 根因：task_id 带 uuid4（跨 tick 不去重）+「已决策」只认 selected=true，
+        # 而 AH 当前永不 selected ⇒ 该 fixture 永不离开重派集，60s 一 tick 反复派发，
+        # 与 110s/条的 future_fixture_refresh 共抢并发 1 的 worker，真决策排队 1-4h。
+        # 这里复用 providers/control.py 的同一 gate 类与同一 redis 后端，仅换命名空间。
+        gate = provider_task_key_gate(
+            task_key=fixture_id,
+            namespace=DECISION_TASK_KEY_NAMESPACE,
+            ttl_seconds=DECISION_DISPATCH_DEDUP_TTL_SECONDS,
+        )
+        if gate.status == PROVIDER_SCHEDULER_DEDUP_UNAVAILABLE:
+            # fail-closed：去重后端不可用时不派发（沿用既有 gate 语义，不新造）。
+            # 绝不退化为「无门直派」——那会让 redis 故障期的洪泛反而放大。
+            logger.warning(
+                "w2 ah-ou decision forward suppressed: dedup backend unavailable %s",
+                gate.backend,
+            )
+            return {
+                "status": PROVIDER_SCHEDULER_DEDUP_UNAVAILABLE,
+                "task_id": task_ids[0] if task_ids else None,
+                "task_ids": task_ids,
+                "fixture_ids": due_ids,
+                "dispatched": len(task_ids),
+                "suppressed": suppressed,
+                "dedup_backend": gate.backend,
+                "candidate": False,
+                "formal_recommendation": False,
+                "provider_calls": 0,
+                "db_writes": 0,
+            }
+        if not gate.allowed:
+            suppressed += 1
+            continue
         task_id = f"ah-ou-decision-forward:{fixture_id}:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
         celery_app.send_task(
             "w2.ah_ou_decision_forward",
@@ -973,10 +1016,15 @@ def ah_ou_decision_forward_tick() -> dict[str, object]:
         )
         task_ids.append(task_id)
     return {
-        "status": "QUEUED",
-        "task_id": task_ids[0],
+        # 全部被去重挡下时给独立状态：让巡检能区分「无场次可派」与「都在去重窗口内」，
+        # 否则 900s 窗口下的正常抑制会看起来像 tick 静默。
+        "status": "QUEUED" if task_ids else DUPLICATE_TASK_KEY_SUPPRESSED,
+        "task_id": task_ids[0] if task_ids else None,
         "task_ids": task_ids,
         "fixture_ids": due_ids,
+        "dispatched": len(task_ids),
+        "suppressed": suppressed,
+        "dedup_backend": "redis",
         "candidate": False,
         "formal_recommendation": False,
         "provider_calls": 0,

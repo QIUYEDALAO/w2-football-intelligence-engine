@@ -97,6 +97,27 @@ noticing.
 - **顶层散件轮转修复本身列入 E5 运维项**（让 `w2-backup` 或独立轮转脚本覆盖顶层，
   而不只是 `db/`）。
 
+**coverage 插桩 override 不属于 release 文件集——误带将同时打挂 api+worker+scheduler（2026-10-10 登记）.**
+
+`production-coverage.override.yml` 把 api / worker / scheduler 的 `command` 覆盖成
+`coverage run …`，而当前镜像不含 `coverage` 可执行文件。**它不在 `w2-release:642` 的
+compose 文件集内**（那行只有 `compose.staging.yml` + `controlled-future-refresh.override.yml`），
+任何手工 `compose up` 多带一个 `-f production-coverage.override.yml` 会让三个容器一起
+`exec: "coverage": executable file not found in $PATH`。2026-10-10 曾因此打挂 scheduler
+约 7 分钟（`docker compose up -d scheduler` 误带该文件，已恢复、零业务影响）。
+
+处置（指令书 D2 修订裁决3，2026-10-10）：文件已移出部署目录 →
+`/opt/w2/shared/evidence/production-coverage.override.yml.RETIRED-20261010`（内容保留可回溯）；
+同族第二份 `production-coverage.override.pre-concurrency2-20260824T090414Z.yml` 一并移出。
+**规则：compose 文件集以 `w2-release:642` 为唯一真源，任何手工 compose 命令先对照该行。**
+
+连带修复（同批发现，P0）：`ops/host/w2-xg-refresh` 的 compose 文件集里**无条件**带着
+`-f /opt/w2/deploy/production-coverage.override.yml` ⇒ 文件一旦移出，该脚本
+（由 `w2-xg-refresh.timer` 驱动）会直接 `open …: no such file or directory` 而整体失败
+（已实测）。该行对本脚本**从无功能作用**（`compose run --entrypoint python` + 显式参数
+已覆盖服务自身 `command`），属残留硬依赖，已移除并同步上机（VPS == repo）。
+**不得再把它加回任何 compose 文件集。**
+
 **w2-release（下次发布一律用它）.** 把发布收敛成一条命令，在 Mac 本机运行：
 
 ```bash

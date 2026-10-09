@@ -13,6 +13,9 @@ PROVIDER_CALLS_DISABLED = "PROVIDER_CALLS_DISABLED"
 PROVIDER_SCHEDULER_DISABLED = "SKIPPED_PROVIDER_SCHEDULER_DISABLED"
 PROVIDER_SCHEDULER_DEDUP_UNAVAILABLE = "PROVIDER_SCHEDULER_DEDUP_UNAVAILABLE"
 DUPLICATE_TASK_KEY_SUPPRESSED = "DUPLICATE_TASK_KEY_SUPPRESSED"
+# 去重键的默认命名空间。调用方可传 namespace 复用同一 gate 机制做**别的**队列去重
+# （如决策派发），从而不必另造一套 NX 门——两套去重实现是语义漂移源。
+DEFAULT_TASK_KEY_NAMESPACE = "w2:provider-task-key"
 MAX_PROVIDER_HTTP_ATTEMPTS = 3
 MAX_PROVIDER_REQUEST_TIMEOUT_SECONDS = 60
 
@@ -173,9 +176,10 @@ def provider_task_key_gate(
     settings: Settings | None = None,
     redis_client: Any | None = None,
     ttl_seconds: int | None = None,
+    namespace: str = DEFAULT_TASK_KEY_NAMESPACE,
 ) -> ProviderTaskKeyGate:
     ttl = ttl_seconds or env_int("W2_PROVIDER_TASK_KEY_DEDUP_TTL_SECONDS", default=1800)
-    key = f"w2:provider-task-key:{task_key}"
+    key = f"{namespace}:{task_key}"
     client = redis_client
     if client is None:
         resolved = settings or get_settings()

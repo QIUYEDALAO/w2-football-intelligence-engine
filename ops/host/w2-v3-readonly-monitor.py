@@ -131,6 +131,13 @@ AH_CHANNEL_MIN_ROWS = 10
 AH_SELECTION_CUTOFF = 0.04346830297815201
 # 指令书 C §二 B8：当日 due 场次的 Pinnacle 合规半球报价覆盖率下限（建议值 50%）。
 PINNACLE_COMPLIANT_COVERAGE_THRESHOLD = 0.50
+# 指令书 D2 §二 D2.3：决策迟到哨兵。decision_at(=kickoff-2h) 已过超过该分钟数而账本
+# 仍无该 fixture 任何行 → 上浮（YELLOW）。防的是「派发洪泛 → 真决策排队 1-4h →
+# 开球后落账（废单）」再次静默——2026-10-09 那次 16/40 行开球后才落账，巡检全绿。
+DECISION_LATE_GRACE_MINUTES = 15
+# 迟到哨兵的观察窗：只统计「决策点落在近 N 小时内」的场次。账本启用（2026-09-30）之前的
+# 历史比赛本就不该有账本行，不加窗会把计数灌成永久红灯。
+DECISION_LATE_LOOKBACK_HOURS = 6
 # R2：Provider 额度监控——复用 /v1/provider/quota 实时 /status 查询（同一 live 源），
 # 读不到额度 → QUOTA_UNKNOWN（提示，不误报 RED）。见 quota_issue() 的 degraded 降级口径。
 API_FOOTBALL_RESERVE_BUCKET = 500
@@ -292,6 +299,45 @@ def pinnacle_compliant_coverage_issue(
     return None
 
 
+def decision_late_issue(
+    late_rows: list[dict],
+    *,
+    grace_minutes: int = DECISION_LATE_GRACE_MINUTES,
+) -> str | None:
+    """D2.3（指令书 D2 §二）：decision_at 已过 >15min 且账本无该 fixture 任何行 → 上浮（YELLOW）。
+
+    与 B1 NO_RECOMMENDATION_TODAY 的分工：B1 是聚合视角（今日 due 场次里推荐数为 0，
+    事后才发现）；本哨兵逐场定位「决策点已过、账本连 SKIP 行都没有」，在开球前就能发现，
+    正是 2026-10-09 洪泛事故「巡检全绿而真决策排队 1-4h」缺的那一条。
+
+    口径（与 scheduler tick 同源）：`matchday_fixture_identities.kickoff_utc - 2h` 即
+    decision_at；「无任何行」用 NOT EXISTS 表达（含 selected=false 的 SKIP 行）。
+    观察窗 DECISION_LATE_LOOKBACK_HOURS 只用于避开账本启用前的历史比赛。
+    """
+    if not late_rows:
+        return None
+    row = late_rows[0]
+    count = _coerce_int(row.get("late_n")) or 0
+    if count <= 0:
+        return None
+    started = _coerce_int(row.get("started_no_row")) or 0
+    raw_max = row.get("max_late_minutes")
+    try:
+        max_late = float(raw_max) if raw_max is not None else 0.0
+    except (TypeError, ValueError):
+        max_late = 0.0
+    return (
+        "DECISION_LATE:late="
+        + str(count)
+        + ":started_no_row="
+        + str(started)
+        + ":max_late_min="
+        + f"{max_late:.1f}"
+        + ":grace_min="
+        + str(grace_minutes)
+    )
+
+
 def _coerce_int(value) -> int | None:
     try:
         return int(value) if value is not None else None
@@ -319,7 +365,8 @@ REPORT_TRIMMED_LISTS = ("decisions", "commands")
 # 绝不截断的顶层键（即便未来变大也不动）：哨兵判定与状态结论的权威字段。
 REPORT_PROTECTED_KEYS = frozenset(
     {"issues", "real_event_status", "schema", "expected_sha", "role_result_denied",
-     "ah_channel_today", "pinnacle_compliant_coverage", "provider_quota_live"}
+     "ah_channel_today", "pinnacle_compliant_coverage", "provider_quota_live",
+     "decision_late"}
 )
 
 
@@ -462,6 +509,7 @@ def bark_issue_severity(issue: str) -> str | None:
         or issue.startswith("QUOTA_UNKNOWN")
         or issue.startswith("LOW_QUOTA")
         or issue.startswith("PINNACLE_COMPLIANT_COVERAGE")
+        or issue.startswith("DECISION_LATE")
     ):
         return "YELLOW"
     return None
@@ -520,6 +568,14 @@ def bark_message(issue: str, severity: str) -> dict[str, str]:
             f"{_issue_kv(issue, 'compliant')} 场有 Pinnacle 半球合规报价"
             f"（覆盖率 {_issue_kv(issue, 'rate')} 低于 {_issue_kv(issue, 'threshold')}），"
             "采集时刻可能未覆盖决策窗口"
+        )
+    elif prefix == "DECISION_LATE":
+        body = (
+            f"有 {_issue_kv(issue, 'late')} 场决策点已过超过 "
+            f"{_issue_kv(issue, 'grace_min')} 分钟，账本仍无任何决策行"
+            f"（其中 {_issue_kv(issue, 'started_no_row')} 场已开球，"
+            f"最长迟到 {_issue_kv(issue, 'max_late_min')} 分钟）——"
+            "决策可能被队列积压阻塞，需查 worker 队列/派发"
         )
     else:
         body = f"巡检新告警：{issue}（未翻译，请补映射）"
@@ -850,6 +906,15 @@ def main() -> None:
     # （小数部分恰为 .5）且非 suspended/live 的 AH 观测 —— 即 AH 通道恢复后能否取到价
     # 的前置条件；历史合规率偏低的主因是「抓取时刻与决策窗口错位」，本哨兵把它可观测化。
     # ⚠️ line 列是 character varying，必须 cast 后才能做算术（不 cast 直接报 operator 错误）。
+    # ⚠️ 2026-10-10 口径更正（D2 实施期间发现，附实测证据）：两张表的 fixture_id
+    # **不在同一 id 空间**：
+    #   ah_ou_decision_ledger.fixture_id        = provider id（如 '1601544'）
+    #   matchday_market_observations.fixture_id = 内部 id   （如 'api_football:1601544'）
+    # 原实现直接 `o.fixture_id = due.fixture_id` 永不匹配 ⇒ compliant_n 恒为 0 ⇒ 该哨兵
+    # **恒报** rate=0。生产实测：原 SQL due=25/compliant=0（rate 0.0000，一直挂在 issues 里），
+    # 改为经 identities 映射后同一口径 due=29/compliant=29（真实覆盖率 100%）。
+    # 恒真的误报会淹没真实告警（与 D2.3 新增的 B9 混在一起没法判读），故必须修。
+    # 用 identities 映射而非硬编码 'api_football:' 前缀：provider 无关，换源不会静默失配。
     state["pinnacle_compliant_coverage"] = rows(
         "WITH due AS ("
         "SELECT fixture_id, max(decision_at) AS decision_at "
@@ -860,14 +925,34 @@ def main() -> None:
         "GROUP BY fixture_id) "
         "SELECT count(*) AS due_n, "
         "count(*) FILTER (WHERE EXISTS ("
-        "SELECT 1 FROM matchday_market_observations o "
-        "WHERE o.fixture_id = due.fixture_id "
+        "SELECT 1 FROM matchday_fixture_identities mfi "
+        "JOIN matchday_market_observations o ON o.fixture_id = mfi.fixture_id "
+        "WHERE mfi.provider_fixture_id = due.fixture_id "
         "AND o.canonical_market='ASIAN_HANDICAP' "
         "AND o.bookmaker_id='4' AND NOT o.suspended AND NOT o.live "
         "AND o.captured_at <= due.decision_at "
         "AND (o.line::numeric*2)=floor(o.line::numeric*2) "
         "AND o.line::numeric <> floor(o.line::numeric))) AS compliant_n "
         "FROM due"
+    )
+    # D2.3 指令书 D2 §二：决策迟到 —— decision_at(=kickoff-2h，与 scheduler tick 同口径)
+    # 已过超过宽限分钟数，而账本仍无该 fixture 任何行（含 selected=false 的 SKIP 行）。
+    # ⚠️ 用 NOT EXISTS 而不是 JOIN + DISTINCT：要判的是「一场行都没有」，不是「行的去重计数」。
+    # max_late_minutes 用 EXTRACT/60 转分钟，::numeric(10,1) 只为报告可读（不改判定）。
+    state["decision_late"] = rows(
+        "SELECT count(*) AS late_n, "
+        "count(*) FILTER (WHERE mfi.kickoff_utc <= now()) AS started_no_row, "
+        "max((EXTRACT(EPOCH FROM (now() - (mfi.kickoff_utc - interval '2 hours')))/60.0)"
+        "::numeric(10,1)) AS max_late_minutes "
+        "FROM matchday_fixture_identities mfi "
+        "WHERE mfi.kickoff_utc - interval '2 hours' <= now() - interval '"
+        + str(DECISION_LATE_GRACE_MINUTES)
+        + " minutes' "
+        "AND mfi.kickoff_utc - interval '2 hours' >= now() - interval '"
+        + str(DECISION_LATE_LOOKBACK_HOURS)
+        + " hours' "
+        "AND NOT EXISTS (SELECT 1 FROM ah_ou_decision_ledger l "
+        "WHERE l.fixture_id = mfi.provider_fixture_id)"
     )
     deny_command = (
         "docker exec w2-staging-postgres-1 psql -XqAt -v ON_ERROR_STOP=1 -U w2_user -d "
@@ -931,6 +1016,10 @@ def main() -> None:
     )
     if b8:
         issues.append(b8)
+    # B9（指令书 D2 §二 D2.3）：决策迟到——决策点已过而账本无行。
+    b9 = decision_late_issue(state.get("decision_late") or [])
+    if b9:
+        issues.append(b9)
     b5 = fence_uncertain_stale_issue(state.get("fence_uncertain_stale") or [])
     if b5:
         issues.append(b5)
