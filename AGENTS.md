@@ -109,8 +109,10 @@ git show -s --format='%H %P %an <%ae> %cn <%ce> %s' codex/w2-authority-20260916
   remote-based precondition that cannot be satisfied locally, and do not treat a stale
   `origin/*` ref as the authority;
 - stop on source drift or a dirty workspace;
-- do not use PR #453, `agent/eval-02b-c9-*`, `e875050f...` or automation-authored remediation;
-- one bounded task per PR; merge commit only; no squash or auto-merge.
+- do not use PR #453, `agent/eval-02b-c9-*`, `e875050f...` or automation-authored remediation
+  (the prohibition is on the content and lineage, not on GitHub PR mechanics — the remote is legacy);
+- one bounded task per commit and per worktree; integrate with a merge commit only, never squash,
+  never rewrite history that is already recorded, and never auto-merge.
 
 ## Operational safety rules retained
 
