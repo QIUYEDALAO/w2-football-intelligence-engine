@@ -48,11 +48,16 @@ def test_b2_skip_reason_anomaly_threshold() -> None:
 
 
 def test_b3_data_source_consistency_conflict() -> None:
-    assert monitor.data_source_consistency_issue("OK", True) is None
-    assert monitor.data_source_consistency_issue("BLOCKED_DAY", False) is None
-    assert monitor.data_source_consistency_issue(None, True) is None
+    # C1 三态：决策点前不报 / 决策点后仍 BLOCKED 才报 / freshness 不 OK 不报。
+    assert monitor.data_source_consistency_issue("OK", True, True) is None
+    assert monitor.data_source_consistency_issue(None, True, True) is None
+    # 决策点前：日间 BLOCKED 是正常模式，不报。
+    assert monitor.data_source_consistency_issue("BLOCKED_DAY", True, False) is None
+    # freshness 不 OK：不报。
+    assert monitor.data_source_consistency_issue("BLOCKED_DAY", False, True) is None
+    # 决策点后仍 BLOCKED 且 freshness OK：报 CONFLICT。
     assert monitor.data_source_consistency_issue(
-        "BLOCKED_DAY", True
+        "BLOCKED_DAY", True, True
     ) == "DATA_SOURCE_CONSISTENCY_CONFLICT:BLOCKED_DAY"
 
 

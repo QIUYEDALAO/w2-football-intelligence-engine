@@ -163,8 +163,17 @@ def skip_reason_anomaly_issue(
 def data_source_consistency_issue(
     degradation_state: str | None,
     data_freshness_ok: bool | None,
+    past_first_decision: bool,
 ) -> str | None:
-    """B3：degradation.state（数据阻断）与 data_freshness.ok（数据新鲜）冲突。"""
+    """B3：degradation.state（数据阻断）与 data_freshness.ok（数据新鲜）冲突，
+    仅在「当日首场决策点之后」上浮（C1 日间噪音收敛）。
+
+    决策点前日间 BLOCKED 是正常模式（数据尚未到决策点），不报；决策点后仍 BLOCKED
+    且 freshness OK 才报（两套口径结论不一致）。决策点口径与 recommendation_chain
+    同源（due_count > 0 即已过首场决策点）。
+    """
+    if not past_first_decision:
+        return None
     if degradation_state in DATA_NOT_READY_STATES and data_freshness_ok is True:
         return "DATA_SOURCE_CONSISTENCY_CONFLICT:" + str(degradation_state)
     return None
@@ -669,7 +678,13 @@ def main() -> None:
         if system_health["http"] == 200 and isinstance(system_health["body"], dict)
         else None
     )
-    b3 = data_source_consistency_issue(degradation_state, data_freshness_ok)
+    chain_rows = state.get("business_recommendation_chain") or []
+    past_first_decision = any(
+        int(row.get("due_count") or 0) > 0 for row in chain_rows
+    )
+    b3 = data_source_consistency_issue(
+        degradation_state, data_freshness_ok, past_first_decision
+    )
     if b3:
         issues.append(b3)
     b4 = xg_coverage_lag_issue(state.get("xg_coverage_lag") or [])
