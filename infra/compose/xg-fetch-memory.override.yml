@@ -1,0 +1,16 @@
+# xG 采集专用内存 override —— 仅供 w2-xg-refresh 的一次性抓取容器使用。
+#
+# 背景（E1，2026-10-09）：xG 抓取此前以 `compose run … scheduler` 起一次性容器，
+# 继承 scheduler 服务的 mem_limit: 768m；run_xg_history_backfill() 实测 anon-rss
+# 峰值 736–747MB，在 768m 限额下被 cgroup OOM SIGKILL（内核日志 2026-10-09
+# 09:49–10:03 连续 18 次 + 我复现的 14:10/14:11 两次），且被杀后服务仍报 SUCCESS。
+#
+# 限额取值：736MB（实测峰值）× 2.5 ≈ 1.84GB → 取 2g。
+#
+# ⚠️ 本文件**只在 w2-xg-refresh 的 `compose run` 里用 `-f` 显式加载**，
+#    不得加入 `w2-release` 的常规 `compose up` 文件集——否则常驻 scheduler
+#    主容器也会被抬到 2g，超出 Owner 的授权范围（授权对象只是"一次性抓取容器"）。
+#    compose 仅在显式 -f 时应用 override，因此常驻容器不受影响。
+services:
+  scheduler:
+    mem_limit: 2g
