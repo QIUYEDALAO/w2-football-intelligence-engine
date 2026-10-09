@@ -42,12 +42,12 @@ CLAIM_BLOCKER_PREFIXES = (
 )
 PAYLOAD_MISSING_PREFIX = "CHECKPOINT_FIXTURE_PAYLOAD_MISSING:"
 # 未识别类型 → skipped（fail-closed，需人工逐条复核）。
-UNKNOWN_BLOCKER_PREFIXES = (
-    "ENDPOINT_CAPTURE_WRITE_FAILED",
-    "ValueError",
-    "LINEUP_MATERIALIZATION_FAILED",
-    "FutureRefreshPersistenceError",
-)
+# C4 扩展：ValueError / CAPTURE_PLAN_FIXTURE_MISMATCH / LINEUP_MATERIALIZATION 从
+# 未识别改为「附时间序证据可处置」；仅保留其余未知变体。
+UNKNOWN_BLOCKER_PREFIXES = ("FutureRefreshPersistenceError",)
+CAPTURE_PLAN_FIXTURE_MISMATCH_BLOCKER = "ENDPOINT_CAPTURE_WRITE_FAILED:CAPTURE_PLAN_FIXTURE_MISMATCH"
+VALUE_ERROR_BLOCKER = "ValueError"
+LINEUP_MATERIALIZATION_PREFIX = "LINEUP_MATERIALIZATION_FAILED"
 
 
 def ssh(command: str) -> str:
@@ -127,6 +127,31 @@ def fetch_finished_fixtures() -> set[str]:
     return {str(r["provider_fixture_id"]) for r in _json_rows(raw)}
 
 
+def fetch_lineups_retry_captured() -> dict[str, str]:
+    """fixture → T45_LINEUPS_RETRY CAPTURED 的最晚 window_end（时间序证据）。"""
+    raw = sql(
+        "SELECT coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) FROM ("
+        "SELECT fixture_id, max(window_end)::text AS captured_at "
+        "FROM matchday_checkpoint_plans "
+        "WHERE checkpoint='T45_LINEUPS_RETRY' AND status='CAPTURED' "
+        "GROUP BY fixture_id) t"
+    )
+    return {str(r["fixture_id"]): (r.get("captured_at") or "") for r in _json_rows(raw)}
+
+
+def _extract_checkpoint_fixture_ids(stored: dict) -> list[str]:
+    """从 stored_result.result.checkpoint_fixture_ids 提取 fixture 列表。"""
+    ids = (stored.get("result") or {}).get("checkpoint_fixture_ids") or []
+    if not isinstance(ids, list):
+        return []
+    return [str(i) for i in ids]
+
+
+def _fixture_provider_id(fixture_id: str) -> str:
+    """去掉 'api_football:' 前缀，得到 provider_fixture_id。"""
+    return fixture_id.split(":", 1)[-1] if ":" in fixture_id else fixture_id
+
+
 def _payload_verdict(
     fixture_id: str,
     fixture_status: dict[str, list[dict]],
@@ -154,6 +179,7 @@ def adjudicate_row(
     pass_evidence: dict[str, str],
     fixture_status: dict[str, list[dict]],
     finished: set[str],
+    lineups_captured: dict[str, str],
 ) -> tuple[str, bool]:
     """逐条裁决一行。返回 (verdict, apply)。apply=False 表示 skipped（fail-closed）。"""
     try:
@@ -166,9 +192,23 @@ def adjudicate_row(
     task_key = stored.get("task_key") or ""
     task_scope = task_key.rsplit(":", 1)[0]
     updated_at = str(row.get("updated_at") or "")
+    fixture_ids = _extract_checkpoint_fixture_ids(stored)
 
-    # 1. 存在未识别 blocker → 整行 skipped（fail-closed）
-    unknown = [b for b in blockers if isinstance(b, str) and b.startswith(UNKNOWN_BLOCKER_PREFIXES)]
+    # 1. 存在未识别 blocker → 整行 skipped（fail-closed）。C4 三类（ValueError /
+    #    CAPTURE_PLAN_FIXTURE_MISMATCH / LINEUP_MATERIALIZATION）已从 unknown 排除，
+    #    走下方附证据裁决；ENDPOINT_CAPTURE_WRITE_FAILED 其余变体仍未知。
+    unknown = [
+        b
+        for b in blockers
+        if isinstance(b, str)
+        and (
+            b.startswith(UNKNOWN_BLOCKER_PREFIXES)
+            or (
+                b.startswith("ENDPOINT_CAPTURE_WRITE_FAILED")
+                and b != CAPTURE_PLAN_FIXTURE_MISMATCH_BLOCKER
+            )
+        )
+    ]
     if unknown:
         return f"实际失败：未识别 blocker 类型，需人工复核——{', '.join(unknown[:3])}", False
 
@@ -207,6 +247,38 @@ def adjudicate_row(
     if payloads:
         return "实际失败：payload 缺失已被后续采集修复/已过期不再相关", True
 
+    value_errors = [b for b in blockers if b == VALUE_ERROR_BLOCKER]
+    capture_mismatch = [b for b in blockers if b == CAPTURE_PLAN_FIXTURE_MISMATCH_BLOCKER]
+    lineup_failed = [b for b in blockers if b.startswith(LINEUP_MATERIALIZATION_PREFIX)]
+
+    # 6. C4：ValueError → 附「fixture 已 FT 且后续同 scope PASS」证据
+    if value_errors:
+        finished_ok = bool(fixture_ids) and all(
+            _fixture_provider_id(f) in finished for f in fixture_ids
+        )
+        pass_at = pass_evidence.get(task_scope, "")
+        if finished_ok and pass_at and pass_at > updated_at:
+            return (
+                f"已过期：ValueError 前 fixture 已 FT 且后续同 scope PASS"
+                f"（fixtures={','.join(fixture_ids)} pass_at={pass_at}）",
+                True,
+            )
+        return "实际失败：ValueError 但缺「fixture 已 FT + 后续 PASS」证据——需人工复核", False
+
+    # 7. C4：CAPTURE_PLAN_FIXTURE_MISMATCH / LINEUP_MATERIALIZATION →
+    #    附「同 fixture LINEUPS_RETRY CAPTURED 且晚于 BLOCKED」时间序证据
+    if capture_mismatch or lineup_failed:
+        captured_late = bool(fixture_ids) and all(
+            (lineups_captured.get(f) or "") > updated_at for f in fixture_ids
+        )
+        if captured_late:
+            return (
+                f"已过期：同 fixture LINEUPS_RETRY 已 CAPTURED 且晚于 BLOCKED"
+                f"（fixtures={','.join(fixture_ids)}）",
+                True,
+            )
+        return "实际失败：缺「LINEUPS_RETRY CAPTURED 晚于 BLOCKED」时间序证据——需人工复核", False
+
     return "实际失败：空 blocker，需人工复核", False
 
 
@@ -217,12 +289,15 @@ def build_updates(
     pass_evidence: dict[str, str],
     fixture_status: dict[str, list[dict]],
     finished: set[str],
+    lineups_captured: dict[str, str],
 ) -> tuple[list[str], list[dict]]:
     statements: list[str] = []
     records: list[dict] = []
     now = datetime.now(UTC).isoformat()
     for row in rows:
-        verdict, apply = adjudicate_row(row, pass_evidence, fixture_status, finished)
+        verdict, apply = adjudicate_row(
+            row, pass_evidence, fixture_status, finished, lineups_captured
+        )
         task_id = row["task_id"]
         stage = row["stage"]
         attempt = row["attempt"]
@@ -273,6 +348,7 @@ def main() -> None:
     pass_evidence = fetch_pass_evidence()
     fixture_status = fetch_fixture_checkpoint_status()
     finished = fetch_finished_fixtures()
+    lineups_captured = fetch_lineups_retry_captured()
 
     statements, records = build_updates(
         rows,
@@ -280,6 +356,7 @@ def main() -> None:
         pass_evidence=pass_evidence,
         fixture_status=fixture_status,
         finished=finished,
+        lineups_captured=lineups_captured,
     )
 
     applied = [r for r in records if not r.get("skipped")]
