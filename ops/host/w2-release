@@ -1384,6 +1384,22 @@ fi
 log "巡检脚本已同步到 ${TARGET}"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 步骤 5e：同步 xG 主机脚本
+# ─────────────────────────────────────────────────────────────────────────────
+# w2-xg-materialize / w2-xg-refresh 与巡检脚本同属「不随 release 同步就会报错口径」的主机侧
+# 产物。历史教训（E3/H3）：VPS w2-xg-materialize 停在 52a637f4（该 sha 等于仓库历史版本，
+# 非手改），R1 的 12h→120h 阈值修复与 f2 断供闭环从未上线，导致「materialize 按 12h 连续
+# exit 3 报 XG_STALE、巡检与面板按 120h 报绿」的长期双阈值矛盾。w2-update-xg-scripts 的
+# F3 闸门与 w2-update-v3-monitor 同源，保证此处只能用已部署 release 的 sha 更新运维脚本。
+log ""
+log "== 5e. 同步 xG 主机脚本 =="
+xg_update_script="$("$GIT_CMD" rev-parse --show-toplevel)/ops/host/w2-update-xg-scripts"
+if ! bash "$xg_update_script" "$TARGET" "$target_head"; then
+  fail_release "xG 主机脚本同步失败（xG 阈值将脱离 release）"
+fi
+log "xG 主机脚本已同步到 ${TARGET}"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 步骤 6：推送
 # ─────────────────────────────────────────────────────────────────────────────
 log ""

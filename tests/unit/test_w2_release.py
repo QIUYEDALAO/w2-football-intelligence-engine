@@ -1288,3 +1288,16 @@ def test_monitor_sync_after_release_id_readback_before_push() -> None:
     assert "ops/host/w2-update-v3-monitor" in source
     assert '"$TARGET" "$target_head"' in source
     assert "巡检脚本同步失败" in source
+
+
+def test_xg_scripts_sync_after_release_id_readback_before_push() -> None:
+    """E3：xG 主机脚本同步（5e）必须在推送前回读（5c）之后、推送（6）之前，
+    且调用 w2-update-xg-scripts——根治「materialize 阈值脱离 release」：VPS 停在
+    52a637f4 时按 12h 连续 exit 3 报 XG_STALE，而巡检与面板按 120h 报绿，双阈值长期矛盾。"""
+    source = SCRIPT.read_text(encoding="utf-8")
+    readback = source.index("== 5c. 推送前独立回读 /v1/version ==")
+    xg_sync = source.index("== 5e. 同步 xG 主机脚本 ==")
+    push = source.index("== 6. 推送 ==")
+    assert readback < xg_sync < push
+    assert "ops/host/w2-update-xg-scripts" in source
+    assert "xG 主机脚本同步失败" in source

@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Update only the xG host scripts (w2-xg-materialize / w2-xg-refresh) on the VPS.
+# Never invoke Provider, never restart a service, never run a release.
+set -euo pipefail
+
+# F3 闸门（业务代码 tree sha 口径），与 w2-update-v3-monitor 逐字同源：允许「业务代码 tree sha
+# 与已部署 release 一致」的 commit 上同步运维脚本，即纯运维变更（ops/host 等）可领先 release，
+# 但业务代码（src/migrations/config/apps）未部署仍拒绝。
+# 语义：防同步「未部署的业务代码对应的 ops 版本」，而非「脚本 commit sha == release sha」。
+# 历史教训（E3/H3）：VPS w2-xg-materialize 停在 52a637f4，R1 的 120h 阈值修复从未上线，
+# 与巡检/面板的 120h 口径长期矛盾（双阈值）。本通道即该缺陷的根治手段。
+biz_tree_of() {
+  local commit="$1" trees
+  trees="$(git rev-parse "$commit:src" "$commit:migrations" "$commit:config" "$commit:apps")" || return 1
+  printf '%s\n' "$trees" | git hash-object --stdin
+}
+
+# 同步清单：显式白名单，避免「顺手多同步一个」扩大影响面。
+XG_SYNC_SCRIPTS=(w2-xg-materialize w2-xg-refresh)
+
+# 被 source 时（单元测试），只暴露纯函数与清单，不执行主流程。
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 0 2>/dev/null || exit 0
+fi
+
+target_sha="${1:-}"
+schema="${2:-}"
+mode="${3:-}"
+if ! [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]] || ! [[ "$schema" =~ ^[a-z0-9_]{1,64}$ ]]; then
+  echo 'XG_SYNC_TARGET_IDENTITY_INVALID' >&2
+  exit 2
+fi
+# mode 是纯输入校验，先于任何 git/ssh 动作 fail-fast（--dry-run 的实际动作留在闸门之后，
+# 这样 dry-run 仍然会真正走一遍 F3 闸门）。
+if [ -n "$mode" ] && [ "$mode" != '--dry-run' ]; then
+  echo 'XG_SYNC_MODE_INVALID' >&2
+  exit 2
+fi
+repo_root="$(git rev-parse --show-toplevel)"
+if [ "$(git rev-parse HEAD)" != "$target_sha" ] || [ -n "$(git status --porcelain)" ]; then
+  echo 'XG_SYNC_SOURCE_NOT_FIXED_CLEAN_HEAD' >&2
+  exit 2
+fi
+remote_dir="/usr/local/bin"
+deployed_sha="$(ssh w2-hk "grep -E '^W2_GIT_SHA=' /opt/w2/shared/release.env 2>/dev/null | cut -d= -f2")"
+if ! git cat-file -e "$deployed_sha^{commit}" 2>/dev/null; then
+  git fetch origin "$deployed_sha" >/dev/null 2>&1 || { echo "XG_SYNC_DEPLOYED_SHA_NOT_FOUND deployed=$deployed_sha" >&2; exit 2; }
+fi
+target_biz_tree="$(biz_tree_of "$target_sha")"
+deployed_biz_tree="$(biz_tree_of "$deployed_sha")"
+if [ "$target_biz_tree" != "$deployed_biz_tree" ]; then
+  echo "XG_SYNC_BIZ_TREE_NOT_DEPLOYED target=$target_sha target_biz=$target_biz_tree deployed=$deployed_sha deployed_biz=$deployed_biz_tree" >&2
+  exit 2
+fi
+plan="$(printf '%s,' "${XG_SYNC_SCRIPTS[@]}")"
+plan="${plan%,}"
+if [ "$mode" = '--dry-run' ]; then
+  echo "XG_SYNC_PLAN sha=$target_sha schema=$schema directory=$remote_dir scripts=$plan"
+  exit 0
+fi
+
+for name in "${XG_SYNC_SCRIPTS[@]}"; do
+  source_file="$repo_root/ops/host/$name"
+  [ -f "$source_file" ] || { echo "XG_SYNC_SOURCE_MISSING name=$name" >&2; exit 2; }
+  source_hash="$(shasum -a 256 "$source_file" | cut -d ' ' -f 1)"
+  scp "$source_file" "w2-hk:$remote_dir/$name.incoming"
+  ssh w2-hk "set -eu
+echo '$source_hash  $remote_dir/$name.incoming' | sha256sum -c -
+if [ -f '$remote_dir/$name' ] && echo '$source_hash  $remote_dir/$name' | sha256sum -c - >/dev/null 2>&1; then
+  # 已是目标版本 → 幂等丢弃 incoming
+  rm '$remote_dir/$name.incoming'
+else
+  # 不存在或旧版 → 用 incoming 覆盖（旧版若走校验失败退出则永远同步不上，即 E3 的脱节成因）
+  chmod 755 '$remote_dir/$name.incoming'
+  mv '$remote_dir/$name.incoming' '$remote_dir/$name'
+fi
+bash -n '$remote_dir/$name'
+test \"\$(sha256sum '$remote_dir/$name' | cut -d ' ' -f 1)\" = '$source_hash'"
+  echo "XG_SYNCED name=$name source_sha256=$source_hash"
+done
+echo "XG_SYNC_UPDATED sha=$target_sha schema=$schema scripts=$plan"

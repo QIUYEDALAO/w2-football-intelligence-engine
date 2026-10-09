@@ -26,6 +26,9 @@ here so a new host can be brought up without reconstructing it from memory.
 | `w2-staging-release-sync.conf` | `/etc/systemd/system/w2-staging.service.d/` | Run release-sync before stack activation |
 | `registry-config.yml` | `/opt/w2/deploy/registry/` | Registry with manifest deletion enabled |
 | `journald-w2-retention.conf` | `/etc/systemd/journald.conf.d/` | Journal size cap |
+| `w2-update-v3-monitor` | Mac 本机（repo 侧，由发布 5d 步调用） | Sync the read-only monitor to `/opt/w2/deploy/v3-monitor/` behind the F3 gate |
+| `w2-update-xg-scripts` | Mac 本机（repo 侧，由发布 5e 步调用） | Sync `w2-xg-materialize` / `w2-xg-refresh` to `/usr/local/bin/` behind the F3 gate |
+| `w2-xg-backfill-window` | `/usr/local/bin/` | Backfill xG only inside prematch guard gaps, never bypassing the gate |
 
 `w2-xg-ingest-guard` is deliberately narrower than xG freshness monitoring. It
 alarms only when saved raw contains numeric xG for both teams but
@@ -33,6 +36,13 @@ alarms only when saved raw contains numeric xG for both teams but
 not-yet-published, and disabled-competition fixtures do not trigger this guard.
 The query is read-only and discovers the enabled set from
 `league_season.payload.enabled` at runtime.
+
+🔴 **部署状态不一致（2026-10-10 实测，登记待处置）**：上表声称
+`w2-xg-ingest-guard` 装在 `/usr/local/bin/`、由 hourly timer 驱动，但 VPS 上
+**脚本实体与 timer 均不存在**（`systemctl list-timers --all` 无该项，
+`find / -name 'w2-xg-ingest-guard*'` 无结果）。该守卫恰好覆盖
+「saved raw 已有数值 xG、`team_xg_match` 却没有两行非空」这一失效模式——
+即 E1 发现② 中「存量 raw 物化 0 行」的形态。补部署或显式废弃需决策。
 
 ## Why each exists
 
@@ -62,6 +72,30 @@ separate directories of database backups and an orphan PostgreSQL install
 accumulated with nothing watching. The guard reports registry storage and
 `pg_wal` size alongside the usual figures, because both grow without anyone
 noticing.
+
+**备份顶层散件无轮转——磁盘泄漏源（登记 E4 哨兵输入 / E5 运维项）。**
+`w2-backup` 的 `KEEP=8` **只轮转 `$DEST/*/` 子目录**（即 `db/`）；落在
+`/opt/w2/backups/` **顶层**的 `*.dump` / `*.sql.gz` / `*-predeploy-*` 目录
+**不在任何轮转范围内，只增不减**——这是磁盘长期上涨的泄漏源之一。
+
+2026-10-10 实测顶层散件合计 3.24GB，其中 ≥3 周前的 4 项 1.65GB：
+
+```text
+2026-09-13  dashboard-predeploy-20260913T182233Z/     542MiB  deploy-config.tar.gz + release.env（非 DB）
+2026-09-15  w2_dump_20260915T171510Z.dump             362MiB  pg_dump 自定义格式，dbname=w2，440 TOC ✅
+2026-09-15  w2_dump_20260915T194551Z.dump             363MiB  pg_dump 自定义格式，dbname=w2，440 TOC ✅
+2026-09-17  w2-notif04-pre-20260917T161002Z.sql.gz    384MiB  明文 SQL，2,741,089 行，结束标记完整 ✅
+```
+
+处置记录：①（deploy 配置快照，非 DB）2026-10-10 已删，df 87%→85%。
+②③④ 经完整性校验**均完好可用**，且 `db/` 轮转只留 8 份（2026-10-07 起）——
+2026-09-15 / 09-17 的库状态**只有这三份**，删除需单独授权，本 README 登记为
+**保留**（未删）。
+
+- **E4 磁盘哨兵必须把「顶层散件无轮转」计入泄漏源**，否则哨兵装了仍会反复触发
+  （这是本次 93% 无告警的另一半原因：告警通路缺失 + 泄漏源未被识别）。
+- **顶层散件轮转修复本身列入 E5 运维项**（让 `w2-backup` 或独立轮转脚本覆盖顶层，
+  而不只是 `db/`）。
 
 **w2-release（下次发布一律用它）.** 把发布收敛成一条命令，在 Mac 本机运行：
 
