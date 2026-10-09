@@ -59,6 +59,32 @@ cat > "$temporary/wrapper" <<EOF
 #!/usr/bin/env bash
 set -uo pipefail
 report_root=/opt/w2/shared/runtime/reports/v3-monitor
+# ── 报告轮转（指令书 D1，2026-10-10）────────────────────────────────────────
+# 轮转前实测：该目录 1746 份 / 5.1G，零轮转、日增约 1.1G（单份从 1.17MB 膨胀到
+# 23.7MB）——是当时的主要磁盘泄漏源（df 89%，约 3 天打满）。
+# 策略：保留最近 48 份原文（≈1 天，足够比对「治理前/后」与近期诊断）+ latest.json；
+#       48 份之前且 7 天以内 → gzip 归档；7 天以上 → 删除。
+# 铁律：轮转任何失败都只 warn，**绝不阻断巡检主流程**（轮转失败本身也是哨兵关注点）。
+rotate_reports() {
+  local d="\$report_root"
+  [ -d "\$d" ] || return 0
+  # ① 删除 7 天以上（不含 latest* 符号链接；先删归档再删原文，避免半截）
+  find "\$d" -maxdepth 1 -type f -name '*.json.gz' -mtime +7 -delete 2>/dev/null || true
+  find "\$d" -maxdepth 1 -type f -mtime +7 \
+       \( -name '[0-9]*.json' -o -name '[0-9]*.stdout' -o -name '[0-9]*.stderr' -o -name '[0-9]*.exitcode' \) \
+       -delete 2>/dev/null || true
+  # ② 48 份之前、7 天以内 → gzip（按 .json 的时间序定位同批次文件）
+  local keep=48 idx=0 f base
+  while IFS= read -r f; do
+    idx=\$((idx + 1))
+    [ "\$idx" -le "\$keep" ] && continue
+    case "\$f" in *.gz) continue ;; esac
+    base="\${f%.json}"
+    for suffix in .json .stdout .stderr .exitcode; do
+      [ -f "\$base\$suffix" ] && gzip -9 -f "\$base\$suffix" 2>/dev/null || true
+    done
+  done < <(ls -1t "\$d"/[0-9]*.json 2>/dev/null)
+}
 stamp="\$(date -u +%Y%m%dT%H%M%SZ)-\$\$"
 report="\$report_root/\$stamp.json"
 export W2_MONITOR_LOCAL=1
@@ -69,6 +95,8 @@ result=\$?
 printf '%s\n' "\$result" > "\$report_root/\$stamp.exitcode"
 ln -sfn "\$stamp.exitcode" "\$report_root/latest.exitcode"
 if [ -f "\$report" ]; then ln -sfn "\$stamp.json" "\$report_root/latest.json"; fi
+# 轮转在所有产出落盘之后执行；失败只记录，不影响 result
+rotate_reports || echo "REPORT_ROTATE_WARN failed (非阻断)" >&2
 cat "\$report_root/\$stamp.stdout"
 if [ "\$result" -ne 0 ]; then cat "\$report_root/\$stamp.stderr" >&2; fi
 exit "\$result"

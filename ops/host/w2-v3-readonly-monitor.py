@@ -299,6 +299,102 @@ def _coerce_int(value) -> int | None:
         return None
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# D1 报告体积治理（2026-10-10，指令书 D1）
+# ─────────────────────────────────────────────────────────────────────────────
+# 实测（10-09 最大报告）：文件 23MB / 序列化 13.7MB，构成为
+#   commands 53%（单个子命令 stdout 达 6.01MB） + decisions 38%（302 行，单行
+#   fixture_identity 45.4KB）。治本两招：命令输出截断到 N 字节（保留全长 + sha256
+#   以便事后核证完整性），明细列表封顶行数 + 单字段截断。
+#
+# 铁律（指令书 D1 §1「禁删字段」）：issues / real_event_status / schema / expected_sha /
+# quota / 哨兵判定所需属性 一律不得被治理裁掉 —— 治理**只作用于序列化视图**，
+# 内存中的 state 原样保留（`_trim_*` 走深拷贝），因此 B1-B8 的判定输入不受影响。
+REPORT_MAX_CMD_OUTPUT_BYTES = 1024
+REPORT_MAX_DETAIL_ROWS = 20
+REPORT_MAX_FIELD_BYTES = 512
+# 只治理体积确认过大的“明细”列表；哨兵输入列表（checkpoint_health / failed_task_results /
+# v3_daily / reasons 等）体量在 KB 级，不动，避免改坏判定口径。
+REPORT_TRIMMED_LISTS = ("decisions", "commands")
+# 绝不截断的顶层键（即便未来变大也不动）：哨兵判定与状态结论的权威字段。
+REPORT_PROTECTED_KEYS = frozenset(
+    {"issues", "real_event_status", "schema", "expected_sha", "role_result_denied",
+     "ah_channel_today", "pinnacle_compliant_coverage", "provider_quota_live"}
+)
+
+
+def _truncate_text(value: str, limit: int) -> object:
+    """超长字符串 → ``{"truncated": true, "len": N, "sha256": ..., "head": 前 limit 字节}``。
+
+    保留 sha256 与原始长度，使「截断」不等于「丢证据」：事后可用同源命令重算校验。
+    未超限则原样返回，不改变既有消费者看到的类型。
+    """
+    if not isinstance(value, str) or len(value.encode("utf-8")) <= limit:
+        return value
+    encoded = value.encode("utf-8")
+    return {
+        "truncated": True,
+        "len": len(encoded),
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+        "head": encoded[:limit].decode("utf-8", errors="ignore"),
+    }
+
+
+def _trim_fields(row: dict, limit: int) -> dict:
+    return {key: _truncate_text(value, limit) for key, value in row.items()}
+
+
+def report_payload(state: dict) -> dict:
+    """构造报告的序列化视图：明细封顶 + 长文本截断，判定字段原样保留。
+
+    不改内存 state（浅拷贝顶层 + 只替换被治理的两个列表），故哨兵判定不受影响。
+    """
+    payload = dict(state)
+    for name in REPORT_TRIMMED_LISTS:
+        rows_in = state.get(name)
+        if not isinstance(rows_in, list) or name in REPORT_PROTECTED_KEYS:
+            continue
+        total = len(rows_in)
+        rows_out = []
+        for row in rows_in[:REPORT_MAX_DETAIL_ROWS]:
+            if name == "commands" and isinstance(row, dict):
+                trimmed = dict(row)
+                for stream in ("stdout", "stderr"):
+                    if stream in trimmed:
+                        trimmed[stream] = _truncate_text(
+                            str(trimmed.get(stream) or ""), REPORT_MAX_CMD_OUTPUT_BYTES
+                        )
+                rows_out.append(trimmed)
+            elif isinstance(row, dict):
+                rows_out.append(_trim_fields(row, REPORT_MAX_FIELD_BYTES))
+            else:
+                rows_out.append(row)
+        payload[name] = {
+            "shown": len(rows_out),
+            "total": total,
+            "rows": rows_out,
+        }
+    # 未列入治理清单的键：只做「深层长文本截断」，不改列表长度、顺序与任何非字符串值。
+    # 目的：http（各端点响应体）/ public_details 这类结构本身不大但含长串，不裁它们
+    # 到不了 ≤2MB；裁的是**序列化视图**，哨兵判定早已在内存里消费完，故不影响口径。
+    for name, value in payload.items():
+        if name in REPORT_TRIMMED_LISTS or name in REPORT_PROTECTED_KEYS:
+            continue
+        payload[name] = _trim_deep(value, REPORT_MAX_FIELD_BYTES)
+    return payload
+
+
+def _trim_deep(value, limit: int):
+    """递归截断超长字符串；列表长度与字典键集一律不动。"""
+    if isinstance(value, str):
+        return _truncate_text(value, limit)
+    if isinstance(value, list):
+        return [_trim_deep(item, limit) for item in value]
+    if isinstance(value, dict):
+        return {key: _trim_deep(item, limit) for key, item in value.items()}
+    return value
+
+
 def quota_issue(
     quota: dict,
     reserve_bucket: int = API_FOOTBALL_RESERVE_BUCKET,
@@ -1027,7 +1123,8 @@ def main() -> None:
         else "REAL_EVENTS_REQUIRE_PAGE_DAILY_RECONCILIATION"
     )
     state["commands"] = commands
-    out.write_text(json.dumps(state, ensure_ascii=False, sort_keys=True, indent=2) + "\n")
+    payload = report_payload(state)
+    out.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n")
     print(
         json.dumps(
             {
