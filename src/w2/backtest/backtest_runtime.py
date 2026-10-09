@@ -4,7 +4,7 @@
 - 门唯一权威：``MIN_LAMBDA_FIT_SETTLED_LOCK_SAMPLES=200`` 只在 ``lambda_fit_gate.py`` 定义，
   本模块只 import 不复制、不新写阈值；
 - 全程 0 Provider 调用、0 决策链写入（``enabled_for_online_path`` 恒 False）；
-- 水位线幂等：199→200 翻转触发一次，同水位线重跑不重复触发，199 不触发（门 BLOCKED）；
+- 水位线周期语义：每新跨 200 整数倍触发一次（199→200、399→400），同水位线重跑不重复，199 不触发（门 BLOCKED）；
 - 结果 canonical hash（w2.canonical-json.v2，``HashDomain.BACKTEST_LATEST``）可重复。
 """
 
@@ -23,11 +23,35 @@ BACKTESTS_LATEST_KEY = "backtests:latest"
 BACKTESTS_WATERMARK_KEY = "backtests:watermark"
 
 
-def count_settled_lock_samples(repository=None) -> int:
-    """settled lock 样本数——复用 formal_results.endpoint_summary（唯一权威口径）。"""
-    from w2.tracking.formal_results import endpoint_summary
+def count_settled_lock_samples(engine=None) -> int:
+    """settled lock 样本数 = 选中推荐（selected=true）且已结算（ah_ou_v3_settlement 有行）的决策数。
 
-    return int(endpoint_summary(repository=repository).get("sample_count", 0) or 0)
+    B-整改：原复用 formal_results.endpoint_summary（Formal/Lock 管道，生产 Formal OFF、
+    锁表 0 行恒 0），计数源与 handicap 回测执行目标不是同一条链 → 200 门永不触发。
+    改为 AH/OU 真实结算链：ah_ou_decision_ledger.selected=true JOIN ah_ou_v3_settlement。
+    formal_results.endpoint_summary 保留（评分链权威），此处仅换回测计数源，不删除。
+    """
+    from sqlalchemy import func, select
+    from sqlalchemy.orm import Session
+
+    from w2.infrastructure.database import create_engine
+    from w2.infrastructure.persistence.ah_ou_decision_ledger_models import (
+        AhOuDecisionLedgerModel,
+    )
+    from w2.infrastructure.persistence.ah_ou_postmatch_models import AhOuV3SettlementModel
+
+    eng = engine or create_engine()
+    with Session(eng) as session:
+        count = session.scalar(
+            select(func.count())
+            .select_from(AhOuDecisionLedgerModel)
+            .join(
+                AhOuV3SettlementModel,
+                AhOuV3SettlementModel.decision_id == AhOuDecisionLedgerModel.decision_id,
+            )
+            .where(AhOuDecisionLedgerModel.selected.is_(True))
+        )
+    return int(count or 0)
 
 
 def build_backtest_gate_report(
@@ -47,11 +71,16 @@ def gate_is_ready(gate: dict[str, Any]) -> bool:
 
 
 def should_dispatch(*, gate: dict[str, Any], watermark: dict[str, Any] | None) -> bool:
-    """门 READY 且水位线未消费 200 门槛 → 触发；同水位线重跑不重复触发。"""
+    """门 READY 且 sample_count >= consumed + 200（周期语义）→ 触发；同水位线不重复。
+
+    Boss 裁决：每新跨 200 整数倍触发一次。199→200 触发（consumed 0→200）；
+    消费后 399（<400）不触发，400 再触发（consumed 200→400）；同水位线重跑不重复。
+    """
     if not gate_is_ready(gate):
         return False
+    sample_count = int(gate.get("settled_lock_sample_count", 0) or 0)
     consumed = int((watermark or {}).get("consumed_sample_count", 0) or 0)
-    return consumed < MIN_LAMBDA_FIT_SETTLED_LOCK_SAMPLES
+    return sample_count >= consumed + MIN_LAMBDA_FIT_SETTLED_LOCK_SAMPLES
 
 
 def build_watermark_payload(*, sample_count: int, at: str) -> dict[str, Any]:
