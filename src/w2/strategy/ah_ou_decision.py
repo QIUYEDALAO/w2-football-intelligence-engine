@@ -28,6 +28,7 @@ from decimal import Decimal
 from typing import Any, Protocol
 
 from w2.strategy.ah_ou_features import build_features
+from w2.strategy.ah_ou_quote_selector import UNSUPPORTED_AH_LINE_V1
 from w2.strategy.ah_ou_softmax import ah_select, ou_select
 
 DECISION_LEAD_TIME = timedelta(hours=2)
@@ -90,8 +91,12 @@ def market_reasons_for_status(status: str) -> dict[str, str]:
     AH-specific statuses (``AH_*``) blame only the Asian handicap; the totals
     market is recorded as a dependency block, never as the AH reason. Symmetric
     for ``OU_*``. Common statuses blame both markets equally.
+
+    ``UNSUPPORTED_AH_LINE_V1``（指令书 C §一）不带 ``AH_`` 前缀，但语义上只怪让球
+    （其他线型在 AH 上不可用），故显式登记为 AH-only —— 否则它会走下面「共同状态」
+    分支把 OU 一起标成阻断，把只属于 AH 的线型问题变成两条通道一起 SKIP。
     """
-    if status.startswith("AH_"):
+    if status.startswith("AH_") or status == UNSUPPORTED_AH_LINE_V1:
         return {"ASIAN_HANDICAP": status, "TOTALS": "DEPENDENCY_BLOCKED"}
     if status.startswith("OU_"):
         return {"ASIAN_HANDICAP": "DEPENDENCY_BLOCKED", "TOTALS": status}

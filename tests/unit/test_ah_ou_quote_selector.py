@@ -100,17 +100,24 @@ def test_same_capture_two_sided_quotes_ready() -> None:
 
 
 def test_bookmaker_mismatch_against_raw_is_refused() -> None:
-    """任务1：bookmaker 不再是拒绝门槛，但 rows 与 raw 不一致仍 fail closed。
+    """指令书 C：AH/OU 准入口径分叉后的定点回归。
 
-    rows 改成 bookmaker 8 而 raw 仍是 Pinnacle(4) → SOURCE_CONTENT_MISMATCH
-    （数据不一致拒绝，而非旧的 QUOTE_NOT_PINNACLE）。
+    - AH 侧 bookmaker 非 Pinnacle → 直接 NOT_PINNACLE（AH 只认 Pinnacle）。
+    - OU 侧 rows 与 raw 不一致 → 仍 fail closed（SOURCE_CONTENT_MISMATCH）。
     """
     rows = _observations()
-    for row in rows[:2]:  # AH 两侧 bookmaker 与 raw 不一致
+    for row in rows[:2]:  # AH 两侧 bookmaker 改成非 Pinnacle
         row["bookmaker_id"] = "8"
     result = select_v3_ah_ou_quotes(rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
                                      raw_payloads=RAW_PAYLOADS)
-    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_SOURCE_CONTENT_MISMATCH"
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_NOT_PINNACLE"
+
+    rows = _observations()
+    for row in rows[2:]:  # OU 两侧 bookmaker 与 raw 不一致
+        row["bookmaker_id"] = "8"
+    result = select_v3_ah_ou_quotes(rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+                                     raw_payloads=RAW_PAYLOADS)
+    assert result["ou"]["status"] == "TOTALS_QUOTE_SOURCE_CONTENT_MISMATCH"
 
 
 def test_live_is_refused() -> None:

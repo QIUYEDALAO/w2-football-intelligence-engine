@@ -3834,7 +3834,10 @@ class ReadModelService:
                         status=f"{label}_QUOTE_ROW_INVALID",
                     )
                     return None, None, f"{label}_QUOTE_ROW_INVALID"
-                if not str(row.get("bookmaker_id") or ""):
+                from w2.strategy.ah_ou_quote_selector import AH_PINNACLE_BOOKMAKER_ID
+
+                bookmaker_id = str(row.get("bookmaker_id") or "")
+                if not bookmaker_id:
                     self._persist_ah_ou_skip(
                         repository=repository, fixture_id=fixture_id, home_id=home_id,
                         away_id=away_id, kickoff=kickoff,
@@ -3842,6 +3845,19 @@ class ReadModelService:
                         status=f"{label}_QUOTE_BOOKMAKER_MISSING",
                     )
                     return None, None, f"{label}_QUOTE_BOOKMAKER_MISSING"
+                # 指令书 C §一：AH 报价准入只认 Pinnacle（bookmaker_id == "4"）。
+                # 本处是账本冻结条款 bookmaker_id 的唯一来源；赛后验证
+                # (ah_ou_v3_postmatch) 与监控 (ah_ou_v3_monitoring) 都从条款读回该值去
+                # match observations —— 此处若放任任意 bookmaker，AH 的赛后验证与监控
+                # 会跟着漂到非 Pinnacle 群体（口径分裂）。OU 保持现口径不动。
+                if label == "AH" and bookmaker_id != AH_PINNACLE_BOOKMAKER_ID:
+                    self._persist_ah_ou_skip(
+                        repository=repository, fixture_id=fixture_id, home_id=home_id,
+                        away_id=away_id, kickoff=kickoff,
+                        mainline_selection=mainline_selection,
+                        status=f"{label}_QUOTE_NOT_PINNACLE",
+                    )
+                    return None, None, f"{label}_QUOTE_NOT_PINNACLE"
                 captured = parse_provider_time(
                     row.get("captured_at") or row.get("captured_at_utc")
                 )

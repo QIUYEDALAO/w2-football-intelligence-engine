@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 
@@ -174,8 +175,13 @@ def test_late_price_is_refused() -> None:
     assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_CAPTURED_AFTER_DECISION"
 
 
-def test_non_pinnacle_same_bookmaker_is_accepted() -> None:
-    """任务1：非 Pinnacle 但属主流主线的报价 → 正常准入（不再 QUOTE_NOT_PINNACLE）。"""
+def test_non_pinnacle_accepted_for_ou_only() -> None:
+    """指令书 C：AH/OU 口径分叉的定点回归。
+
+    非 Pinnacle 同 bookmaker 报价 → **OU 准入**（保持现口径不动），**AH 拒绝**
+    （AH 只认 Pinnacle）。2026-10-06 把两个市场一起放宽到任意 bookmaker，导致 AH
+    取价群体迁移而阈值 0.043468 未迁移、让球通道被构造性关闭；本次只把 AH 收回来。
+    """
     raw = _raw()
     raw["response"][0]["bookmakers"][0]["id"] = 8
     raw["response"][0]["bookmakers"][0]["name"] = "Bet365"
@@ -186,9 +192,9 @@ def test_non_pinnacle_same_bookmaker_is_accepted() -> None:
         rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
         raw_payloads={CAPTURE_ID: raw},
     )
-    assert result["status"] == "READY"
-    assert result["ah"]["status"] == "READY"
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_NOT_PINNACLE"
     assert result["ou"]["status"] == "READY"
+    assert result["status"] == "QUOTE_SELECTION_FAILED"
 
 
 def test_cross_bookmaker_pair_is_refused() -> None:
@@ -239,6 +245,12 @@ def test_same_capture_two_ou_lines_selects_mainline() -> None:
 def test_ah_away_repeated_home_perspective_line_is_accepted() -> None:
     # API-Football 会在两侧重复 home 视角同线（away 值带 home 的盘口符号），
     # 采集归一后 away 落库为 team 视角（取反），canonical 仍是 home 视角 L。
+    #
+    # ⚠️ 2026-10-10：此「取负形状」经生产实测证伪——50992 个 Pinnacle
+    # fixture/capture 组中 0 组仅有取负形状（98.1% 只有同线形状），即这一支从不
+    # 承担配对，只制造跨线伪配对（把 +0.5 的 HOME 与 −0.5 的 AWAY 拼成一对），
+    # 其价格更接近 1.90/1.90 会被排序键优先选中，|q−0.5| 塌到 0.02 量级。
+    # 已在 ah_ou_quote_selector.py 配对处登记为待裁定缺陷，本用例暂保持原契约。
     raw = _raw(ah=[("Home -0.5", "1.80"), ("Away -0.5", "2.05")])
     rows = _obs(raw)
     rows[1]["line"] = "0.5"  # away 归一为 team 视角（home -0.5 → away +0.5）
@@ -362,14 +374,16 @@ def test_totals_multi_bookmaker_same_line_is_not_duplicate() -> None:
     assert result["ou"]["quote"]["side_prices"] == {"over": 1.03, "under": 9.00}
 
 
-def test_ah_multi_bookmaker_same_line_is_not_duplicate() -> None:
-    """AH 同理：多 bookmaker 同盘口同侧各自配对，不再因跨 bookmaker 同侧判重。"""
+def test_ah_multi_bookmaker_regime_is_refused_under_pinnacle_only() -> None:
+    """指令书 C：AH 只认 Pinnacle，「多 bookmaker 同盘口同侧各自配对」在 AH 上已不可达
+    —— 直接以 NOT_PINNACLE 拒绝；同一份数据在 OU 上仍各自成对（保持现口径）。"""
     raw = _raw_multi_bookmaker_ou()
     result = select_v3_ah_ou_quotes(
         _rows_multi_bookmaker_ou(raw), fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
         raw_payloads={CAPTURE_ID: raw},
     )
-    assert result["ah"]["status"] == "READY"
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_NOT_PINNACLE"
+    assert result["ou"]["status"] == "READY"
 
 
 def test_totals_same_bookmaker_duplicate_side_still_refused() -> None:
@@ -403,9 +417,12 @@ def test_totals_empty_bookmaker_is_skipped_not_duplicate() -> None:
     assert result["ou"]["status"] == "TOTALS_QUOTE_SIDE_INCOMPLETE"
 
 
-def test_ah_empty_bookmaker_duplicate_is_not_duplicate() -> None:
-    """隐患①（AH 侧）：空 bookmaker 同盘口同侧不误判 DUPLICATE_SIDE，而是跳过
-    后配不出对 → SIDE_INCOMPLETE（与 TOTALS 分支「空 bookmaker 跳过」一致）。"""
+def test_ah_empty_bookmaker_is_refused_as_not_pinnacle() -> None:
+    """指令书 C：空 bookmaker 在 AH 上不再是「跳过参与配对」，而是直接 NOT_PINNACLE。
+
+    AH 只认 Pinnacle，空 bookmaker 天然不合格，拒绝理由比 SIDE_INCOMPLETE 更准确。
+    （「空 bookmaker 不误判 DUPLICATE_SIDE」的语义仍由 OU 侧覆盖。）
+    """
     raw = _raw()
     rows = [
         _row(market="ASIAN_HANDICAP", selection="HOME", line="-0.5", odds="1.80",
@@ -417,7 +434,151 @@ def test_ah_empty_bookmaker_duplicate_is_not_duplicate() -> None:
         rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
         raw_payloads={CAPTURE_ID: raw},
     )
-    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_SIDE_INCOMPLETE"
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_NOT_PINNACLE"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 指令书 C §一（AH 通道恢复）：Pinnacle 准入 + 只收半球线 + 非半球线留档
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _ah_rows(raw: dict, values: list[tuple[str, str]]) -> list[dict]:
+    """按 raw 的 AH values 构造对应的投影行（bookmaker 固定 Pinnacle = "4"）。
+
+    provider 的 away 侧线以 away 视角给出，投影到 canonical（home 视角）时取负：
+    与 ``_obs`` 一致（raw ``Away -0.5`` ↔ 行 ``line="0.5"``）。
+    """
+    rows: list[dict] = []
+    for value, odds in values:
+        side, _, line = value.partition(" ")
+        canonical_line = line if side == "Home" else str(-Decimal(line))
+        rows.append(
+            _row(
+                market="ASIAN_HANDICAP",
+                selection="HOME" if side == "Home" else "AWAY",
+                line=canonical_line,
+                odds=odds,
+                raw_payload=raw,
+            )
+        )
+    return rows
+
+
+def test_ah_selects_only_half_line_and_archives_the_others() -> None:
+    """指令书 C §一（核心）：AH 选线范围只收小数部分 = .5 的线。
+
+    raw 同时挂四分之一球线（-0.25/+0.25）与半球线（-0.5/+0.5）：只从半球线选，
+    四分之一线以 ``UNSUPPORTED_AH_LINE_V1`` 留档，不参与选线。
+    """
+    values = [("Home -0.25", "1.60"), ("Away 0.25", "2.30"),
+              ("Home -0.5", "1.80"), ("Away 0.5", "2.05")]
+    raw = _raw(ah=values)
+    result = select_v3_ah_ou_quotes(
+        _ah_rows(raw, values), fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+        raw_payloads={CAPTURE_ID: raw},
+    )
+    assert result["ah"]["status"] == "READY"
+    assert result["ah"]["quote"]["line"] == -0.5
+    assert {item["archive_code"] for item in result["ah"]["archived"]} == {
+        "UNSUPPORTED_AH_LINE_V1"
+    }
+    # 两条四分之一球线（home -0.25 与 away 归一到 -0.25）都在留档里
+    assert [item["line"] for item in result["ah"]["archived"]] == ["-0.25", "-0.25"]
+    assert {item["selection"] for item in result["ah"]["archived"]} == {"HOME", "AWAY"}
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        [("Home -0.25", "1.90"), ("Away 0.25", "1.90")],   # 只有四分之一线
+        [("Home -1", "1.90"), ("Away 1", "1.90")],          # 只有整数线
+        [("Home 0", "1.90"), ("Away 0", "1.90")],           # 只有平手盘（整数）
+    ],
+)
+def test_ah_without_any_half_line_skips_as_unsupported(values) -> None:
+    """指令书 C §一 fail-closed：有 Pinnacle 报价但无一条半球线 → SKIP 留档。
+
+    绝不 fallback 到 f9 快照报价（那是口径分裂的根源）。
+    """
+    raw = _raw(ah=values)
+    result = select_v3_ah_ou_quotes(
+        _ah_rows(raw, values), fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+        raw_payloads={CAPTURE_ID: raw},
+    )
+    assert result["ah"]["status"] == "UNSUPPORTED_AH_LINE_V1"
+    assert result["ah"]["quote"] is None
+    assert len(result["ah"]["archived"]) == len(values)
+    assert result["status"] == "QUOTE_SELECTION_FAILED"
+
+
+def test_ah_picks_the_half_line_closest_to_1_9_1_9() -> None:
+    """指令书 C §一 选线键：在 .5 线集合内取 |home−1.9|+|away−1.9| 最小者。
+
+    −0.5 挂 (1.90, 1.90) → 距离和 0.00；−1.5 挂 (1.85, 1.95) → 0.05+0.05。
+    严格取小者 → −0.5。
+    """
+    values = [("Home -1.5", "1.85"), ("Away 1.5", "1.95"),
+              ("Home -0.5", "1.90"), ("Away 0.5", "1.90")]
+    raw = _raw(ah=values)
+    result = select_v3_ah_ou_quotes(
+        _ah_rows(raw, values), fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
+        raw_payloads={CAPTURE_ID: raw},
+    )
+    assert result["ah"]["status"] == "READY"
+    assert result["ah"]["quote"]["line"] == -0.5
+
+
+def test_pair_sort_key_primary_dominates_then_absolute_line() -> None:
+    """指令书 C §一 排序键逐层验证（与研究口径逐字一致）。
+
+    ``(primary, |line|, price_gap, |line|)``：主键 ``|p1−1.9|+|p2−1.9|`` 优先于
+    |line|；主键完全相同时才由 |line| 决定。
+    """
+    from w2.strategy.ah_ou_quote_selector import _pair_sort_key
+
+    def key(price_a, price_b, line, gap=0.0):
+        return _pair_sort_key(
+            {"price_a": price_a, "price_b": price_b, "line": line, "price_gap": gap},
+            market="ASIAN_HANDICAP",
+        )
+
+    # 主键优先：A（0.02，|line|=1.5）胜过 B（0.03，|line|=0.5）
+    assert key(1.91, 1.91, -1.5) < key(1.93, 1.90, -0.5)
+    # 主键完全相同（同价格）→ 次键 |line| 取小
+    assert key(1.95, 1.95, -0.5) < key(1.95, 1.95, -1.5)
+    # 价格完全相同时才落到 |line|，与 line 符号无关（取绝对值）
+    assert key(1.95, 1.95, 0.5) == key(1.95, 1.95, -0.5)
+
+
+@pytest.mark.parametrize(
+    "line,expected",
+    [
+        ("-0.5", True), ("0.5", True), ("-1.5", True), ("2.5", True),
+        ("-0.25", False), ("0.75", False), ("-1", False), ("0", False), ("1", False),
+        ("-2.25", False),
+    ],
+)
+def test_is_half_line(line, expected) -> None:
+    """半球线判定：小数部分恰为 .5。整数线有走盘、四分之一线半赢半输，都不可用。"""
+    from decimal import Decimal
+
+    from w2.strategy.ah_ou_quote_selector import _is_half_line
+
+    assert _is_half_line(Decimal(line)) is expected
+    assert _is_half_line(None) is False
+
+
+def test_unsupported_ah_line_status_blames_ah_only() -> None:
+    """``UNSUPPORTED_AH_LINE_V1`` 不带 AH_ 前缀，必须显式登记为 AH-only。
+
+    否则它会走「共同状态」分支把 OU 也标成阻断，让只属于 AH 的线型问题把两条
+    通道一起 SKIP。
+    """
+    from w2.strategy.ah_ou_decision import market_reasons_for_status
+
+    reasons = market_reasons_for_status("UNSUPPORTED_AH_LINE_V1")
+    assert reasons["ASIAN_HANDICAP"] == "UNSUPPORTED_AH_LINE_V1"
+    assert reasons["TOTALS"] == "DEPENDENCY_BLOCKED"
 
 
 def test_source_content_matches_empty_rows_returns_false() -> None:

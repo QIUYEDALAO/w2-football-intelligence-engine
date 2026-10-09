@@ -1,12 +1,19 @@
 """v3 专用同源双侧盘口选择器（AH/OU 终验 S2）。
 
-对齐回测「主流 bookmaker 主线」（``select_canonical_ah_mainline`` /
-``select_canonical_totals_mainline``）——不再只认 Pinnacle：任一双侧来自同一
-bookmaker 且同一时点（同 capture）的报价都可准入，避免「回测多 bookmaker 投票、
-生产只认 Pinnacle」的报价源自相矛盾。
+**AH 与 OU 的报价准入口径不同（指令书 C，2026-10-10）：**
+
+- **AH**：只认 Pinnacle（``bookmaker_id == "4"``），且只接受**半球线**（小数部分
+  恰为 ``.5``）。阈值 ``0.04346830297815201`` 是在「Pinnacle 半球线群体」上定标的
+  （``|q−0.5|`` 中位 0.066）；2026-10-06 把报价源放宽到任意 bookmaker 后，选线规则
+  「挑最平衡那条」必然挑到 Pinnacle 自己挂的四分之一球线（``|q−0.5|`` 被压到 0.017），
+  阈值就此够不到 —— 取价群体迁移而未同步迁移阈值，通道被构造性关闭（136 行 0 入选）。
+  非半球线按 ``UNSUPPORTED_AH_LINE_V1`` 留档，不参与选线。无合规 Pinnacle 半球报价
+  即 SKIP 留档，**绝不 fallback 到 f9 快照报价**（那是口径分裂的根源）。
+- **OU**：保持现口径（任一双侧来自同一 bookmaker 且同一时点即可准入）不动 —— OU 当前
+  为正单位，整体回退会把它一起改掉。
 
 Selection contract (all fail closed):
-1. canonical fixture + any bookmaker + not live/suspended.
+1. canonical fixture + not live/suspended. AH 额外要求 Pinnacle 且线型为半球线.
 2. ``captured_at <= decision_at``, and only the *latest* capture before the
    decision instant is considered.
 3. Both complementary sides must come from the exact same
@@ -38,6 +45,14 @@ OU_MARKET = "TOTALS"
 # T3 报价新鲜度上界：决策点前「最新」报价不能太旧（Owner 拍板 24h），否则
 # 7 天前的报价也会被当成当前可执行盘口进入决策。超阈值按 STALE_QUOTE SKIP。
 QUOTE_MAX_AGE = timedelta(hours=24)
+
+# 指令书 C §一：AH 报价准入只认 Pinnacle；阈值 0.04346830297815201 的定标群体就是它。
+# OU 不受此约束（保持现口径，见模块 docstring）。
+AH_PINNACLE_BOOKMAKER_ID = "4"
+# 指令书 C §一：非半球线（整数线有走盘、四分之一线半赢半输，而模型按二元赢盘/输盘训练）
+# 的留档码。它必须以 AH_ 前缀之外的形式进入 status，故在 ah_ou_decision 的
+# market_reasons_for_status 里显式登记为「只怪 AH」。
+UNSUPPORTED_AH_LINE_V1 = "UNSUPPORTED_AH_LINE_V1"
 
 
 def _parse_utc(value: Any) -> datetime | None:
@@ -107,6 +122,20 @@ def _has_duplicate_line(rows: list[dict[str, Any]]) -> bool:
             return True
         seen.add(key)
     return False
+
+
+def _is_half_line(line: Decimal | None) -> bool:
+    """True only for a hemisphere line: the fractional part is exactly ``.5``.
+
+    ``−0.5 / +0.5 / −1.5 / +1.5 …`` qualify. Integer lines (``−1 / 0 / +1``) can
+    push and quarter lines (``−0.25 / +0.75``) split the stake in half; the frozen
+    model is trained on a binary win/lose label, so neither is admissible. A
+    non-finite or missing line is never a hemisphere line (fail closed).
+    """
+    if line is None or not line.is_finite():
+        return False
+    doubled = line * 2
+    return doubled == doubled.to_integral_value() and line != line.to_integral_value()
 
 
 def _source_capture_sha256(
@@ -295,9 +324,36 @@ def _select_one_market(
     #    line is always the home/over perspective. A capture may carry multiple
     #    legal lines; they are ranked below, never refused as DUPLICATE_SIDE.
     pairs: list[dict[str, Any]] = []
+    archived: list[dict[str, Any]] = []
     if market == AH_MARKET:
-        home_rows = [row for row in latest_rows if _side(row) == side_a]
-        away_rows = [row for row in latest_rows if _side(row) == side_b]
+        # 指令书 C §一：AH 报价准入只认 Pinnacle（bookmaker_id == "4"）。
+        # 无合规 Pinnacle 报价 → SKIP 留档，绝不 fallback 到 f9 快照报价。
+        pinnacle_rows = [
+            row
+            for row in latest_rows
+            if str(row.get("bookmaker_id") or "") == AH_PINNACLE_BOOKMAKER_ID
+        ]
+        if not pinnacle_rows:
+            return {"status": f"{market}_QUOTE_NOT_PINNACLE", "quote": None, "archived": []}
+        # 指令书 C §一：选线范围只收小数部分 = .5 的线；其他线型留档，不参与选线。
+        candidate_rows = [
+            row for row in pinnacle_rows if _is_half_line(_decimal(row.get("line")))
+        ]
+        archived = [
+            {
+                "bookmaker_id": AH_PINNACLE_BOOKMAKER_ID,
+                "line": _decimal_text(row.get("line")),
+                "selection": _side(row),
+                "archive_code": UNSUPPORTED_AH_LINE_V1,
+            }
+            for row in pinnacle_rows
+            if not _is_half_line(_decimal(row.get("line")))
+        ]
+        if not candidate_rows:
+            # 有 Pinnacle 报价但无一条半球线：原因就是线型，直接以留档码 SKIP。
+            return {"status": UNSUPPORTED_AH_LINE_V1, "quote": None, "archived": archived}
+        home_rows = [row for row in candidate_rows if _side(row) == side_a]
+        away_rows = [row for row in candidate_rows if _side(row) == side_b]
         # C: a duplicate side on the same line (even same price) is a refusal.
         if _has_duplicate_line(home_rows) or _has_duplicate_line(away_rows):
             return {"status": f"{market}_QUOTE_DUPLICATE_SIDE", "quote": None}
@@ -324,6 +380,14 @@ def _select_one_market(
                 away_line = _decimal(away_row.get("line"))
                 if away_line is None:
                     return {"status": f"{market}_QUOTE_LINE_INVALID", "quote": None}
+                # ⚠️ 已登记的缺陷（2026-10-10，指令书 C 实施期发现，未修，待 Owner 裁定）：
+                # `-home_line` 这一支允许**跨线伪配对**——把 +0.5 的 HOME 价与 −0.5 的
+                # AWAY 价拼成一对。那不是任何一条线的双侧报价，且两侧价格天然更接近
+                # 1.90/1.90，会被排序键优先选中，使 |q−0.5| 塌到 0.02 量级、AH 阈值永远
+                # 够不到。生产实测（50992 个 Pinnacle fixture/capture 组）：50,022 组只
+                # 有同线形状、970 组两种都有、**0 组仅取负形状** ⇒ 取负分支从不承担配对。
+                # 727 场生产选择器回放：允许跨线 达阈值 122/642 = 19.0%（与研究选线同线
+                # 89.3%）；只收同线 达阈值 241/642 = 37.5%（同线率 100.0%）。
                 if away_line not in {home_line, -home_line}:
                     continue
                 pair = _make_pair(
@@ -419,6 +483,9 @@ def _select_one_market(
             "source_capture_sha256": source_capture_sha256,
             "raw_payload_sha256s": sorted(raw_hashes),
         },
+        # AH：本次 capture 内被排除（非半球线）的 Pinnacle 行留档，供诊断与
+        # 「为什么选到这条线」回溯；OU 恒为空列表。
+        "archived": archived,
     }
 
 
