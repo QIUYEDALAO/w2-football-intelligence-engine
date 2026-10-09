@@ -503,12 +503,17 @@ def main() -> None:
         "provider_captured_at>now()-interval '1 hour' GROUP BY endpoint,capture_status "
         "ORDER BY endpoint,capture_status"
     )
+    # C2：CHECKPOINT_FAILED 只对 GRACE 内真实 FAILED 上浮——fixture 已 FT 的 FAILED
+    # 是「已过期」（赛前开放赔率在完赛后失去意义），不再计入 checkpoint_health。
     state["checkpoint_health"] = rows(
         "SELECT checkpoint,status,count(*),min(scheduled_at) AS "
         "earliest_scheduled_at,max(claim_expires_at) AS latest_claim_expiry FROM "
-        "matchday_checkpoint_plans WHERE status IN ('DUE','RUNNING','FAILED') "
-        "AND window_end>now()-interval '1 hour' GROUP BY "
-        "checkpoint,status ORDER BY checkpoint,status"
+        "matchday_checkpoint_plans mcp WHERE status IN ('DUE','RUNNING','FAILED') "
+        "AND window_end>now()-interval '1 hour' "
+        "AND NOT (status='FAILED' AND EXISTS ("
+        "SELECT 1 FROM matchday_fixture_identities mfi "
+        "WHERE mfi.fixture_id=mcp.fixture_id AND mfi.fixture_status IN ('FT','AET','PEN')"
+        ")) GROUP BY checkpoint,status ORDER BY checkpoint,status"
     )
     state["f9_proof_counts"] = rows(
         "SELECT pit_proven, count(*) FROM team_xg_rolling_snapshot GROUP BY pit_proven"
