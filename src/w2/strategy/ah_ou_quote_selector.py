@@ -380,15 +380,18 @@ def _select_one_market(
                 away_line = _decimal(away_row.get("line"))
                 if away_line is None:
                     return {"status": f"{market}_QUOTE_LINE_INVALID", "quote": None}
-                # ⚠️ 已登记的缺陷（2026-10-10，指令书 C 实施期发现，未修，待 Owner 裁定）：
-                # `-home_line` 这一支允许**跨线伪配对**——把 +0.5 的 HOME 价与 −0.5 的
-                # AWAY 价拼成一对。那不是任何一条线的双侧报价，且两侧价格天然更接近
-                # 1.90/1.90，会被排序键优先选中，使 |q−0.5| 塌到 0.02 量级、AH 阈值永远
-                # 够不到。生产实测（50992 个 Pinnacle fixture/capture 组）：50,022 组只
-                # 有同线形状、970 组两种都有、**0 组仅取负形状** ⇒ 取负分支从不承担配对。
-                # 727 场生产选择器回放：允许跨线 达阈值 122/642 = 19.0%（与研究选线同线
-                # 89.3%）；只收同线 达阈值 241/642 = 37.5%（同线率 100.0%）。
-                if away_line not in {home_line, -home_line}:
+                # 指令书 C 补充裁定①（2026-10-10，验收方批准）：AH 的双侧必须来自
+                # **同一条 canonical 线**。旧规则 `away_line not in {home_line, -home_line}`
+                # 允许把 +0.5 的 HOME 价与 −0.5 的 AWAY 价拼成一对（跨线伪配对）——那不是
+                # 任何一条线的双侧报价；且其两侧价格天然更接近 1.90/1.90，会被下面的排序键
+                # **优先选中**，把 |q−0.5| 压到 0.02 量级，AH 阈值永远够不到（通道即使
+                # 恢复 Pinnacle 与 .5 线仍被构造性关闭）。
+                # 证据（两方独立复算一致）：生产 50,992 个 Pinnacle fixture/capture 组中
+                # 仅同线 50,022 / 两种都有 970 / **仅取负 0**；研究报价池 6,999 组中
+                # 仅同线 1,080 / 两种都有 5,919 / **仅取负 0** ⇒ 取负分支从不承担配对，
+                # 删除零损失。727 场生产回放：允许跨线 达阈值 122/642 = 19.0%、与研究选线
+                # 同线 89.3%；只收同线 241/642 = 37.5%、同线率 100.0%。
+                if away_line != home_line:
                     continue
                 pair = _make_pair(
                     side_a=side_a, side_b=side_b, line=home_line,

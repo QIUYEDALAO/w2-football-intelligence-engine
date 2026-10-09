@@ -262,3 +262,92 @@ def test_football_day_decision_lo() -> None:
     assert monitor._football_day_decision_lo(
         datetime(2026, 10, 8, 0, 0, tzinfo=UTC)
     ).isoformat() == "2026-10-07T02:00:00+00:00"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# B7/B8（指令书 C §二/§三）：AH 通道可达性 + Pinnacle 合规覆盖率
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_b7_ah_channel_unreachable_thresholds() -> None:
+    """AH_CHANNEL_UNREACHABLE：当日 AH 行 ≥10 且 max(score) < cutoff 才上浮。
+
+    这是「通道在跑但选不中」的哨兵 —— 2026-10-06 → 10-09 让球通道静默零推荐
+    而无人知晓，就是缺它。
+    """
+    assert monitor.ah_channel_unreachable_issue([]) is None
+    # 行数不足下限 → 静默
+    assert monitor.ah_channel_unreachable_issue([{"ah_rows": 9, "max_score": 0.0}]) is None
+    # 行数够但最高分低于阈值 → 上浮，且带上 score/cutoff 便于定位量纲脱节
+    issue = monitor.ah_channel_unreachable_issue([{"ah_rows": 10, "max_score": 0.0123}])
+    assert issue is not None
+    assert issue.startswith(
+        "AH_CHANNEL_UNREACHABLE:ah_rows=10:max_score=0.012300:cutoff=0.043468"
+    )
+    # 恰好等于阈值 → 不上浮（>= cutoff 视为可达）
+    assert (
+        monitor.ah_channel_unreachable_issue(
+            [{"ah_rows": 12, "max_score": monitor.AH_SELECTION_CUTOFF}]
+        )
+        is None
+    )
+    assert monitor.ah_channel_unreachable_issue([{"ah_rows": 40, "max_score": 0.5}]) is None
+    # 读不到分数（NULL）→ 静默，不误报
+    assert monitor.ah_channel_unreachable_issue([{"ah_rows": 40, "max_score": None}]) is None
+
+
+def test_b7_cutoff_matches_frozen_model_authority() -> None:
+    """阈值类哨兵必须与权威同源：AH_SELECTION_CUTOFF == 冻结模型 selection_cutoff。
+
+    验收方 2026-10-10 裁定② 登记的口径教训：阈值必须注明作用域（score 侧，非 quote
+    侧 |q−0.5|），且必须与权威同源；本用例锁死同源关系，防未来单边改阈值。
+    """
+    import json
+
+    model = json.loads(
+        (
+            Path(__file__).resolve().parents[2]
+            / "config/models/ah_ou/xg_f9_f6_validation_selected_model.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert monitor.AH_SELECTION_CUTOFF == model["selection_cutoff"]
+
+
+def test_b8_pinnacle_compliant_coverage_threshold() -> None:
+    """PINNACLE_COMPLIANT_COVERAGE：当日 due 场次合规覆盖率低于阈值即上浮。"""
+    assert monitor.pinnacle_compliant_coverage_issue([]) is None
+    # 没有到点场次 → 静默（避免盘前误报）
+    assert monitor.pinnacle_compliant_coverage_issue([{"due_n": 0, "compliant_n": 0}]) is None
+    issue = monitor.pinnacle_compliant_coverage_issue([{"due_n": 10, "compliant_n": 3}])
+    assert issue is not None
+    assert issue.startswith("PINNACLE_COMPLIANT_COVERAGE:due=10:compliant=3:rate=0.3000")
+    # 恰好 50% → 不上浮（只有严格低于才算）
+    assert monitor.pinnacle_compliant_coverage_issue([{"due_n": 10, "compliant_n": 5}]) is None
+    assert monitor.pinnacle_compliant_coverage_issue([{"due_n": 4, "compliant_n": 4}]) is None
+
+
+def test_b7_b8_bark_severity_and_chinese_message() -> None:
+    """两个新哨兵必须进 Bark 映射，且文案为中文（禁英文裸推）。"""
+    assert (
+        monitor.bark_issue_severity(
+            "AH_CHANNEL_UNREACHABLE:ah_rows=10:max_score=0.01:cutoff=0.04"
+        )
+        == "RED"
+    )
+    assert (
+        monitor.bark_issue_severity(
+            "PINNACLE_COMPLIANT_COVERAGE:due=10:compliant=3:rate=0.3:threshold=0.5"
+        )
+        == "YELLOW"
+    )
+    m1 = monitor.bark_message(
+        "AH_CHANNEL_UNREACHABLE:ah_rows=10:max_score=0.012300:cutoff=0.043468", "RED"
+    )
+    assert "让球通道不可达" in m1["body"]
+    assert "10" in m1["body"] and "0.043468" in m1["body"]
+    m2 = monitor.bark_message(
+        "PINNACLE_COMPLIANT_COVERAGE:due=10:compliant=3:rate=0.3000:threshold=0.5000",
+        "YELLOW",
+    )
+    assert "Pinnacle 半球合规报价" in m2["body"]
+    assert "未翻译" not in m2["body"]

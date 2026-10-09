@@ -20,7 +20,7 @@ CAPTURE_ID = "cap-1"
 
 def _raw(*, fixture: str = FIXTURE_ID, ah: list[tuple[str, str]] | None = None,
           ou: list[tuple[str, str]] | None = None) -> dict:
-    ah = ah or [("Home -0.5", "1.80"), ("Away -0.5", "2.05")]
+    ah = ah or [("Home -0.5", "1.80"), ("Away +0.5", "2.05")]
     ou = ou or [("Over 2.5", "1.90"), ("Under 2.5", "1.90")]
     return {
         "response": [
@@ -71,7 +71,7 @@ def _row(*, market, selection, line, odds, capture_id=CAPTURE_ID, raw_payload, *
 def _obs(raw: dict) -> list[dict]:
     return [
         _row(market="ASIAN_HANDICAP", selection="HOME", line="-0.5", odds="1.80", raw_payload=raw),
-        _row(market="ASIAN_HANDICAP", selection="AWAY", line="0.5", odds="2.05", raw_payload=raw),
+        _row(market="ASIAN_HANDICAP", selection="AWAY", line="-0.5", odds="2.05", raw_payload=raw),
         _row(market="TOTALS", selection="OVER", line="2.5", odds="1.90", raw_payload=raw),
         _row(market="TOTALS", selection="UNDER", line="2.5", odds="1.90", raw_payload=raw),
     ]
@@ -212,7 +212,7 @@ def test_cross_bookmaker_pair_is_refused() -> None:
 
 
 def test_ah_wrong_line_is_refused() -> None:
-    raw = _raw(ah=[("Home -0.5", "1.80"), ("Away -0.25", "2.05")])
+    raw = _raw(ah=[("Home -0.5", "1.80"), ("Away +0.25", "2.05")])
     rows = _obs(raw)
     rows[1]["line"] = "0.25"  # away 线与 home 线既不相等也不互补
     result = select_v3_ah_ou_quotes(
@@ -242,24 +242,27 @@ def test_same_capture_two_ou_lines_selects_mainline() -> None:
     assert result["ou"]["quote"]["side_prices"] == {"over": 1.90, "under": 1.90}
 
 
-def test_ah_away_repeated_home_perspective_line_is_accepted() -> None:
-    # API-Football 会在两侧重复 home 视角同线（away 值带 home 的盘口符号），
-    # 采集归一后 away 落库为 team 视角（取反），canonical 仍是 home 视角 L。
-    #
-    # ⚠️ 2026-10-10：此「取负形状」经生产实测证伪——50992 个 Pinnacle
-    # fixture/capture 组中 0 组仅有取负形状（98.1% 只有同线形状），即这一支从不
-    # 承担配对，只制造跨线伪配对（把 +0.5 的 HOME 与 −0.5 的 AWAY 拼成一对），
-    # 其价格更接近 1.90/1.90 会被排序键优先选中，|q−0.5| 塌到 0.02 量级。
-    # 已在 ah_ou_quote_selector.py 配对处登记为待裁定缺陷，本用例暂保持原契约。
+def test_ah_cross_line_pair_is_never_accepted() -> None:
+    """指令书 C 补充裁定①：AH 双侧必须来自**同一条 canonical 线**，禁止跨线配对。
+
+    本用例原为 `test_ah_away_repeated_home_perspective_line_is_accepted`，断言「取负
+    形状合法」。该契约经两方独立复算证伪并**锁定的是一个 bug 而非设计意图**：
+      · 生产 50,992 个 Pinnacle fixture/capture 组：仅同线 50,022 / 两种都有 970 /
+        **仅取负 0**；
+      · 研究报价池 6,999 组：仅同线 1,080 / 两种都有 5,919 / **仅取负 0**。
+    取负分支从不承担配对，只制造跨线伪配对——把 +L 的 HOME 价与 −L 的 AWAY 价拼成
+    一对，其两侧价天然更接近 1.90/1.90，会被排序键优先选中，把 |q−0.5| 压到 0.02
+    量级，AH 阈值永远够不到（通道即使恢复 Pinnacle 与 .5 线仍被构造性关闭）。
+    故按裁定改为同线契约：不同线的两侧配不出对 → SIDE_INCOMPLETE。
+    """
     raw = _raw(ah=[("Home -0.5", "1.80"), ("Away -0.5", "2.05")])
     rows = _obs(raw)
-    rows[1]["line"] = "0.5"  # away 归一为 team 视角（home -0.5 → away +0.5）
+    rows[1]["line"] = "0.5"  # away 与 home 不同线（跨线形状）
     result = select_v3_ah_ou_quotes(
         rows, fixture_id=FIXTURE_ID, decision_at=DECISION_AT,
         raw_payloads={CAPTURE_ID: raw},
     )
-    assert result["ah"]["status"] == "READY"
-    assert result["ah"]["quote"]["line"] == __import__("decimal").Decimal("-0.5")
+    assert result["ah"]["status"] == "ASIAN_HANDICAP_QUOTE_SIDE_INCOMPLETE"
 
 
 def test_t3_stale_quote_over_24h_is_refused() -> None:
@@ -316,7 +319,7 @@ def _raw_multi_bookmaker_ou(*, home_line: str = "-0.5") -> dict:
                         "bets": [
                             {"id": 1, "name": "Asian Handicap", "values": [
                                 {"value": f"Home {home_line}", "odd": "1.80"},
-                                {"value": f"Away {home_line}", "odd": "2.05"},
+                                {"value": f"Away {(-Decimal(home_line)) if home_line.startswith("-") else "+" + home_line}", "odd": "2.05"},
                             ]},
                             {"id": 2, "name": "Goals Over/Under", "values": [
                                 {"value": "Over 0.5", "odd": "1.03"},
@@ -352,7 +355,7 @@ def _rows_multi_bookmaker_ou(raw: dict) -> list[dict]:
     ):
         rows.append(_row(market="ASIAN_HANDICAP", selection="HOME", line="-0.5",
                          odds=ah_home, raw_payload=raw, bookmaker_id=bookmaker))
-        rows.append(_row(market="ASIAN_HANDICAP", selection="AWAY", line="0.5",
+        rows.append(_row(market="ASIAN_HANDICAP", selection="AWAY", line="-0.5",
                          odds=ah_away, raw_payload=raw, bookmaker_id=bookmaker))
         rows.append(_row(market="TOTALS", selection="OVER", line="0.5",
                          odds=over, raw_payload=raw, bookmaker_id=bookmaker))

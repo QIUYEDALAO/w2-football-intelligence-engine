@@ -236,6 +236,26 @@ def _bookmaker_mainline_votes(rows: list[dict[str, Any]]) -> list[dict[str, Any]
                 # repeat one home-perspective line on both selections, while
                 # others expose complementary team-perspective lines.  Convert
                 # either shape to the one canonical contract used downstream.
+                #
+                # ⚠️ 登记（2026-10-10，指令书 C 补充裁定①-3，**本函数未施加同补丁**）：
+                # 这里的取负分支与 `strategy/ah_ou_quote_selector.py` 的同名分支是同一
+                # 模式，同样允许**跨线伪配对**（把 +L 的 HOME 价与 −L 的 AWAY 价拼成一对，
+                # 其两侧价天然更接近 1.90/1.90，会被 balance_distance 升序优先选中）。
+                # 生产与验收方两方独立复算均得「取负形状 0 组需要」（生产 50,992 组 /
+                # 研究报价池 6,999 组中仅取负均为 0）。
+                #
+                # 为什么本函数不改：**Pinnacle AH 的推荐决策与推荐结算路径都不经此函数** ——
+                #  · 推荐决策：`prematch/analysis_calculator.py::_mainline_market_selection`
+                #    在 `decision_at is not None` 时走 `_v3_mainline_market_selection`
+                #    （v3 选择器），本函数仅由 `_select_mainline_observations` 用于
+                #    「无决策点的展示快照」；
+                #  · 推荐结算：`tracking/ah_ou_v3_postmatch.py:462-466` 用账本冻结条款
+                #    `terms["selected_line"]` 结算（同源一致），不重选线。
+                # 本函数的实际服务对象是：legacy 展示面（上条）、F5「近期 AH 覆盖」因子的
+                # 结算事实（`markets/ah_settlement_fact.py:260` → runtime_ah_settlement_facts）、
+                # market_timeline / round3_intelligence —— 这些链路的观测集**不做 Pinnacle
+                # 准入**（多 bookmaker 多数投票），故指令书 C 的 Pinnacle 恢复不改变它们。
+                # 该取负分支的同类修复若要做，须单独授权（影响 legacy 展示与 F5 因子）。
                 if away_provider_line not in {home_line, -home_line}:
                     continue
                 prices = [float(home["price"]), float(away["price"])]

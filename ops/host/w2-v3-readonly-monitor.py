@@ -124,6 +124,13 @@ SKIP_REASON_ANOMALY_THRESHOLD = 3
 XG_COVERAGE_LAG_THRESHOLD_HOURS = 120.0
 # F2：Provider 副作用状态 SIDE_EFFECT_UNCERTAIN 超期未处置即上浮告警（xG 断供常见根因）。
 FENCE_UNCERTAIN_STALE_THRESHOLD_HOURS = 12.0
+# 指令书 C §三 B7：当日 AH 账本行数下限与入选阈值。cutoff 必须与冻结模型同源 ——
+# config/models/ah_ou/xg_f9_f6_validation_selected_model.json::selection_cutoff
+# （巡检脚本随 release 5d 步同步，故该常量随 release 一起走，不会单独漂移）。
+AH_CHANNEL_MIN_ROWS = 10
+AH_SELECTION_CUTOFF = 0.04346830297815201
+# 指令书 C §二 B8：当日 due 场次的 Pinnacle 合规半球报价覆盖率下限（建议值 50%）。
+PINNACLE_COMPLIANT_COVERAGE_THRESHOLD = 0.50
 # R2：Provider 额度监控——复用 /v1/provider/quota 实时 /status 查询（同一 live 源），
 # 读不到额度 → QUOTA_UNKNOWN（提示，不误报 RED）。见 quota_issue() 的 degraded 降级口径。
 API_FOOTBALL_RESERVE_BUCKET = 500
@@ -210,6 +217,81 @@ def fence_uncertain_stale_issue(
     return "FENCE_UNCERTAIN_STALE:count=" + str(len(uncertain_rows))
 
 
+def ah_channel_unreachable_issue(
+    ah_rows: list[dict],
+    *,
+    min_rows: int = AH_CHANNEL_MIN_ROWS,
+    cutoff: float = AH_SELECTION_CUTOFF,
+) -> str | None:
+    """B7（指令书 C §三）：当日 AH 行 ≥10 且 max(score) < cutoff → AH_CHANNEL_UNREACHABLE。
+
+    2026-10-06 → 10-09 让球通道静默零推荐而无人知晓，就是缺这个哨兵：AH 账本行照常
+    写入（SKIP 行），但没有任何一行达到入选阈值，即「通道在跑但永远选不中」。
+    与 XG_STALE / NO_RECOMMENDATION_TODAY 的分工：那两条只看「有没有推荐」，
+    本哨兵定位到**具体是 AH 通道不可达**（阈值 vs 实际分数量纲脱节）。
+
+    **口径（必须与阈值同源）**：`score = |q−0.5| × support`，cutoff 取自冻结模型
+    `config/models/ah_ou/xg_f9_f6_validation_selected_model.json::selection_cutoff`。
+    阈值类哨兵必须注明作用域（score 侧，不是 quote 侧 |q−0.5|）—— 验收方 2026-10-10
+    裁定② 登记的口径教训。
+    """
+    if not ah_rows:
+        return None
+    row = ah_rows[0]
+    count = _coerce_int(row.get("ah_rows")) or 0
+    if count < min_rows:
+        return None
+    raw_max = row.get("max_score")
+    if raw_max is None:
+        # 有行却读不到分数：不能判「不可达」，也不放行，留零值由上游 SQL 保证非空。
+        return None
+    max_score = float(raw_max)
+    if max_score < cutoff:
+        return (
+            "AH_CHANNEL_UNREACHABLE:ah_rows="
+            + str(count)
+            + ":max_score="
+            + f"{max_score:.6f}"
+            + ":cutoff="
+            + f"{cutoff:.6f}"
+        )
+    return None
+
+
+def pinnacle_compliant_coverage_issue(
+    coverage_rows: list[dict],
+    *,
+    threshold: float = PINNACLE_COMPLIANT_COVERAGE_THRESHOLD,
+) -> str | None:
+    """B8（指令书 C §二）：当日 due 场次的 Pinnacle 合规报价覆盖率低于阈值即上浮。
+
+    「合规」= 该场在该决策点之前存在至少一条 **Pinnacle(bookmaker_id='4') 且半球线
+    （小数部分 .5）且非 suspended/live** 的 AH 观测。这正是 AH 通道恢复后能不能取到价
+    的前置条件：历史合规率偏低的主因是「抓取时刻与决策窗口错位」，本哨兵把它变成可观测。
+    阈值为建议值 50%（指令书 §二），可按实测定标后调整。
+    """
+    if not coverage_rows:
+        return None
+    row = coverage_rows[0]
+    due = _coerce_int(row.get("due_n")) or 0
+    if due <= 0:
+        return None
+    compliant = _coerce_int(row.get("compliant_n")) or 0
+    rate = compliant / due
+    if rate < threshold:
+        return (
+            "PINNACLE_COMPLIANT_COVERAGE:due="
+            + str(due)
+            + ":compliant="
+            + str(compliant)
+            + ":rate="
+            + f"{rate:.4f}"
+            + ":threshold="
+            + f"{threshold:.4f}"
+        )
+    return None
+
+
 def _coerce_int(value) -> int | None:
     try:
         return int(value) if value is not None else None
@@ -274,6 +356,7 @@ def bark_issue_severity(issue: str) -> str | None:
         issue.startswith("XG_STALE")
         or issue.startswith("NO_RECOMMENDATION_TODAY")
         or issue.startswith("F9_SNAPSHOT_LAG")
+        or issue.startswith("AH_CHANNEL_UNREACHABLE")
     ):
         return "RED"
     if (
@@ -282,6 +365,7 @@ def bark_issue_severity(issue: str) -> str | None:
         or issue.startswith("FENCE_UNCERTAIN_STALE")
         or issue.startswith("QUOTA_UNKNOWN")
         or issue.startswith("LOW_QUOTA")
+        or issue.startswith("PINNACLE_COMPLIANT_COVERAGE")
     ):
         return "YELLOW"
     return None
@@ -328,6 +412,19 @@ def bark_message(issue: str, severity: str) -> dict[str, str]:
         body = f"有 {_issue_kv(issue, 'count')} 条采集任务结果不确定且超期未处置，需人工裁决"
     elif prefix == "LOW_QUOTA":
         body = "采集剩余额度已触达保留桶"
+    elif prefix == "AH_CHANNEL_UNREACHABLE":
+        body = (
+            f"让球通道不可达：今日 {_issue_kv(issue, 'ah_rows')} 行 AH 决策，"
+            f"最高分 {_issue_kv(issue, 'max_score')} 低于入选阈值 "
+            f"{_issue_kv(issue, 'cutoff')}，通道在跑但选不中"
+        )
+    elif prefix == "PINNACLE_COMPLIANT_COVERAGE":
+        body = (
+            f"今日 {_issue_kv(issue, 'due')} 场到决策点，其中仅 "
+            f"{_issue_kv(issue, 'compliant')} 场有 Pinnacle 半球合规报价"
+            f"（覆盖率 {_issue_kv(issue, 'rate')} 低于 {_issue_kv(issue, 'threshold')}），"
+            "采集时刻可能未覆盖决策窗口"
+        )
     else:
         body = f"巡检新告警：{issue}（未翻译，请补映射）"
     return {"title": title, "body": body}
@@ -642,6 +739,40 @@ def main() -> None:
         "jsonb_array_elements(source_matches::jsonb) m)"
         "))/3600.0, -1)::numeric(10,2) AS lag_hours"
     )
+    # B7 指令书 C §三：当日 AH 通道可达性 —— AH 账本行 ≥10 且 max(score) < cutoff。
+    # ⚠️ score 列是 character varying，必须显式 cast：不 cast 时 max() 走字符串序
+    # （'0.9' > '0.12'），静默给出与阈值不可比的「最大值」。NULLIF 防空串崩 cast。
+    state["ah_channel_today"] = rows(
+        "SELECT count(*) AS ah_rows, max(NULLIF(score, '')::numeric) AS max_score "
+        "FROM ah_ou_decision_ledger "
+        "WHERE decision_contract='w2.ah_ou_decision.v3.1' "
+        "AND market='ASIAN_HANDICAP' "
+        "AND decision_at >= '" + _b1_lo + "'"  # noqa: S608 -- ISO 来自 datetime.isoformat()，非 CLI 输入
+    )
+    # B8 指令书 C §二：当日 due 场次的 Pinnacle 合规半球报价覆盖率。
+    # 「合规」= 该场决策点之前存在至少一条 Pinnacle(bookmaker_id='4') 且半球线
+    # （小数部分恰为 .5）且非 suspended/live 的 AH 观测 —— 即 AH 通道恢复后能否取到价
+    # 的前置条件；历史合规率偏低的主因是「抓取时刻与决策窗口错位」，本哨兵把它可观测化。
+    # ⚠️ line 列是 character varying，必须 cast 后才能做算术（不 cast 直接报 operator 错误）。
+    state["pinnacle_compliant_coverage"] = rows(
+        "WITH due AS ("
+        "SELECT fixture_id, max(decision_at) AS decision_at "
+        "FROM ah_ou_decision_ledger "
+        "WHERE decision_contract='w2.ah_ou_decision.v3.1' "
+        "AND market='ASIAN_HANDICAP' AND decision_at <= now() "
+        "AND decision_at >= '" + _b1_lo + "' "  # noqa: S608 -- ISO 来自 datetime.isoformat()
+        "GROUP BY fixture_id) "
+        "SELECT count(*) AS due_n, "
+        "count(*) FILTER (WHERE EXISTS ("
+        "SELECT 1 FROM matchday_market_observations o "
+        "WHERE o.fixture_id = due.fixture_id "
+        "AND o.canonical_market='ASIAN_HANDICAP' "
+        "AND o.bookmaker_id='4' AND NOT o.suspended AND NOT o.live "
+        "AND o.captured_at <= due.decision_at "
+        "AND (o.line::numeric*2)=floor(o.line::numeric*2) "
+        "AND o.line::numeric <> floor(o.line::numeric))) AS compliant_n "
+        "FROM due"
+    )
     deny_command = (
         "docker exec w2-staging-postgres-1 psql -XqAt -v ON_ERROR_STOP=1 -U w2_user -d "
         "w2 -c 'BEGIN READ ONLY; SET LOCAL ROLE quant_asof_reader_role; SELECT count(*) "
@@ -695,6 +826,15 @@ def main() -> None:
     b4 = xg_coverage_lag_issue(state.get("xg_coverage_lag") or [])
     if b4:
         issues.append(b4)
+    # B7/B8 指令书 C：AH 通道可达性 + Pinnacle 合规覆盖率（防再次静默）。
+    b7 = ah_channel_unreachable_issue(state.get("ah_channel_today") or [])
+    if b7:
+        issues.append(b7)
+    b8 = pinnacle_compliant_coverage_issue(
+        state.get("pinnacle_compliant_coverage") or []
+    )
+    if b8:
+        issues.append(b8)
     b5 = fence_uncertain_stale_issue(state.get("fence_uncertain_stale") or [])
     if b5:
         issues.append(b5)
