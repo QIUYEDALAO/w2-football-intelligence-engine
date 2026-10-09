@@ -91,7 +91,7 @@ read_release_id_with_retry() {
   local attempt response release_id
   for attempt in 1 2 3; do
     release_id=""
-    if response="$(vps "curl -fsS --max-time 10 http://127.0.0.1:${API_PORT}/v1/version" 2>/dev/null)"; then
+    if response="$(vps "curl -fsS --max-time 30 http://127.0.0.1:${API_PORT}/v1/version" 2>/dev/null)"; then
       release_id="$(printf '%s' "$response" | python3 -c 'import json,sys; value=json.load(sys.stdin).get("release_id"); print(value.strip() if isinstance(value,str) else "")' 2>/dev/null || true)"
     fi
     if [ -n "$release_id" ]; then
@@ -307,7 +307,7 @@ log "目标提交存在：$TARGET"
 # 1d. 当前线上 release 可读
 online_release=""
 SAFE_PAUSE_RESUME=0
-if vps "curl -fsS --max-time 10 http://127.0.0.1:${API_PORT}/v1/version" > /tmp/w2-release-version.json 2>/dev/null; then
+if vps "curl -fsS --max-time 30 http://127.0.0.1:${API_PORT}/v1/version" > /tmp/w2-release-version.json 2>/dev/null; then
   online_release="$(python3 -c 'import json,sys; print(json.load(open("/tmp/w2-release-version.json")).get("release_id",""))' 2>/dev/null || echo "")"
 fi
 if [ -z "$online_release" ]; then
