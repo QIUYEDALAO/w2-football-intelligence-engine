@@ -204,16 +204,57 @@ PRO_BACKFILL_SEASONS_BY_BATCH: dict[int, frozenset[str]] = {
 # Per-season target cap applied inside a batch.  Batch 4 caps the 2025 season at
 # 60 finished fixtures per league (newest-first); every batch 1-3 season stays
 # uncapped. The 2026 season in batch 4 is bounded separately by a minimum age and
-# a "no complete xG" gate (see XG_POSTMATCH_MIN_AGE).
+# a "no complete xG" gate (see xg_postmatch_min_age / raw_statistics_fixture_ids).
 PRO_BACKFILL_SEASON_LIMIT_BY_BATCH: dict[int, dict[str, int]] = {
     4: {"2025": 60},
 }
 # 增量补采最小等待：实时采集 tick（XgHistoryBackfillService）与 batch 4 扫
 # 「FT 但缺完整 xG」的比赛时，赛后不足该时长的比赛不急于补采（expected_goals
-# 延迟发布，Football-API 实测：4 天全有 / 3 天大部分有 / 2 天全无），下次 tick
-# 再试，避免白采浪费 Provider 额度。48h（2 天）比「固定延迟 3 天」更早尝试，
-# 一周双赛时上一场 xG 一旦发布（约 3 天）即在下一决策点前补上。
-XG_POSTMATCH_MIN_AGE = timedelta(hours=48)
+# 延迟发布），下次窗口再试，避免白采浪费 Provider 额度。
+#
+# F1（指令书 G 修订，2026-10-10）：原硬编码 48h **过保守约一倍**。
+# 验收方亲证（2026-10-10，1 次实调）：25.5h 前完赛的 1492390，Provider 的
+# expected_goals 已发布（2.67 / 1.74）⇒ 48h 门使 22:35Z 窗口内 46-48h 的缺口场次
+# 被 design-skip —— 当时观测到的 `statistics_calls=0` 是**设计性跳过**而非采集链故障。
+# 改读 env `W2_XG_POSTMATCH_MIN_AGE_HOURS`，默认 24（对 25.5h 实测留 ~1.5h 安全边）。
+# ⚠️ 唯一入口：本文件所有「赛后最小年龄」判定都只调本函数，禁止出现第二处定义
+# （历史上正是硬编码常量被复制成两处）。
+def xg_postmatch_min_age() -> timedelta:
+    """赛后 xG 采集的最小年龄门（env 可调，默认 24h）。"""
+    hours = env_int("W2_XG_POSTMATCH_MIN_AGE_HOURS", default=24)
+    if hours < 0:
+        raise XgBackfillError("XG_POSTMATCH_MIN_AGE_INVALID")
+    return timedelta(hours=hours)
+
+
+# F3c（指令书 G 修订，2026-10-10）：超过该天数仍无完整双侧 xG ⇒ 判为 Provider 侧
+# 未发布，标 PROVIDER_XG_UNAVAILABLE 留档并停止重试（避免无限重试烧额度，
+# 同时把「Provider 没有」这一事实留在证据里，而不是让缺口无声无息地一直悬着）。
+def xg_provider_unavailable_archive_age() -> timedelta:
+    """无 xG 留档阈值（env 可调，默认 7 天）。"""
+    days = env_int("W2_XG_UNAVAILABLE_ARCHIVE_DAYS", default=7)
+    if days < 0:
+        raise XgBackfillError("XG_UNAVAILABLE_ARCHIVE_AGE_INVALID")
+    return timedelta(days=days)
+
+
+def xg_unavailable_archived(
+    kickoff: datetime | None,
+    now: datetime,
+    *,
+    already_attempted: bool,
+) -> bool:
+    """F3c：**已尝试过**（该场已有 statistics raw）且 kickoff 已超留档阈值 ⇒ 停止重试。
+
+    ⚠️ `already_attempted` 是关键限定：只对「试过但 provider 仍无 xG」的场次归档。
+    对**从未抓过**的旧场次必须继续采——各队 `last=5` 覆盖 2-5 周，一律按年龄归档会把
+    射程剪掉（实测：把年龄判据单独使用时，FakeClient 的 10 场里 6 场被误归档，
+    `statistics_request_count` 从 10 掉到 4）。
+    只用于赛后新鲜度链（`XgHistoryBackfillService.run()`）；batch4 历史回补不走此判据。
+    """
+    if not already_attempted or kickoff is None:
+        return False
+    return now - kickoff > xg_provider_unavailable_archive_age()
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -299,6 +340,23 @@ class XgHistoryBackfillService:
                 )
             self._competition_by_provider_scope[scope] = competition_id
 
+    def _statistics_attempted_fixture_ids(self) -> set[str]:
+        """已有**任意** statistics raw 的 fixture（无论 xG 是否完整）。
+
+        F3c 的「已尝试过」判据来源，与「已有完整 xG」(`raw_statistics_fixture_ids`)
+        刻意区分：前者用于判断「试过但 provider 没给」，后者用于判断「已拿到、不必再采」。
+        """
+        attempted: set[str] = set()
+        for raw in self.repository.raw_payloads("statistics"):
+            payload = raw.get("payload") if isinstance(raw, dict) else None
+            parameters = payload.get("parameters") if isinstance(payload, dict) else None
+            fixture_id = (
+                str(parameters.get("fixture") or "") if isinstance(parameters, dict) else ""
+            )
+            if fixture_id:
+                attempted.add(fixture_id)
+        return attempted
+
     def run(self) -> XgBackfillResult:
         future_fixtures = [
             item
@@ -375,15 +433,44 @@ class XgHistoryBackfillService:
                 for item in self._finished_fixture_items(response.payload):
                     historical_fixtures[fixture_id_from_payload(item)] = item
             xg_rows: list[TeamXgMatch] = []
+            # F2（指令书 G 修订）：此处的「已缓存」= **完整双侧 expected_goals**，不是
+            # 「存在任何 statistics raw」。空壳 payload（xG 发布前抓到的）因此保持可重抓，
+            # 不再毒化缓存 —— 判据唯一来自 repository，不在此处重写。
             cached_statistics = self.repository.raw_statistics_fixture_ids()
+            min_age = xg_postmatch_min_age()
+            # F3c 的「已尝试过」判据：该场是否已有任意 statistics raw（无论 xG 是否完整）。
+            attempted_statistics = self._statistics_attempted_fixture_ids()
             for fixture_id, fixture in sorted(historical_fixtures.items()):
                 if fixture_id in cached_statistics:
                     continue
-                # 增量补采：赛后 < 48h 的 FT 比赛 expected_goals 尚未延迟发布，
-                # 立即补采必白采；跳过，下次 tick（每 6h）再试，不浪费 Provider 额度。
+                # 增量补采：赛后不足 min_age 的 FT 比赛 expected_goals 尚未延迟发布，
+                # 立即补采必白采；跳过，下次窗口再试，不浪费 Provider 额度。
                 _fixture_data = fixture.get("fixture") if isinstance(fixture, dict) else None
                 _kickoff = parse_utc(_fixture_data.get("date")) if isinstance(_fixture_data, dict) else None
-                if _kickoff is not None and self.now - _kickoff < XG_POSTMATCH_MIN_AGE:
+                if _kickoff is not None and self.now - _kickoff < min_age:
+                    continue
+                # F3c（指令书 G 修订，2026-10-10）：已超过留档阈值仍无完整 xG ⇒ 判 Provider
+                # 侧未发布，**留档并停止重试**（不再每 6h 白采一次）。用独立 endpoint 名，
+                # 避免污染 statistics_request_count（这条不是一次请求）。
+                if xg_unavailable_archived(
+                    _kickoff,
+                    self.now,
+                    already_attempted=fixture_id in attempted_statistics,
+                ):
+                    self._audit.append(
+                        {
+                            "endpoint": "xg_unavailable_archive",
+                            "params": sanitize_params({"fixture": fixture_id}),
+                            "status_code": None,
+                            "elapsed_ms": 0,
+                            "captured_at_utc": iso(self.now),
+                            "payload_sha256": None,
+                            "remaining_quota": self._remaining_quota,
+                            "error_code": "PROVIDER_XG_UNAVAILABLE",
+                            "candidate": False,
+                            "formal_recommendation": False,
+                        }
+                    )
                     continue
                 if statistics_requests_today >= self.config.statistics_daily_hard_cap:
                     blockers.append("STATISTICS_DAILY_HARD_CAP_REACHED")
@@ -1303,30 +1390,36 @@ class ProStatisticsBackfillService:
 
         Part 2 (2025) is the xG probe source: capped at 60 finished fixtures per
         league (newest-first), and the 3-fixture pilot is drawn from its newest
-        rows. Part 1 (2026) is never probed: only finished fixtures at least
-        XG_POSTMATCH_MIN_AGE old with no complete two-sided xG evidence yet. The
-        skip key is ``raw_statistics_fixture_ids`` (complete numeric two-sided
-        expected_goals), NOT ``_statistics_fixture_ids_any`` (any statistics raw):
-        a raw captured on the day of the match with empty expected_goals is
-        "fetched but not complete", so it must be re-captured after the publish
-        lag instead of being silently skipped. 增量补采：窗口从「固定 3 天」缩短为
-        48h（2 天），一周双赛时上一场 xG 一旦发布即在下一次 tick 补上。
+        rows. Part 1 (2026) is never probed: finished fixtures with no complete
+        two-sided xG evidence yet. The skip key is ``raw_statistics_fixture_ids``
+        (complete numeric two-sided expected_goals), NOT
+        ``_statistics_fixture_ids_any`` (any statistics raw): a raw captured on
+        the day of the match with empty expected_goals is "fetched but not
+        complete", so it must be re-captured after the publish lag instead of
+        being silently skipped.
+
+        F4（指令书 G 修订，2026-10-10）：**去掉年龄门**，只以「是否已有完整双侧 xG」
+        为判据（能采就采，不看年龄）。owner 设计明确「赛后每个采集窗口都尝试采 xG，
+        不管有没有」；年龄门会把刚完赛的场次挡在窗口外，正是 22:35Z 那轮
+        `statistics_calls=0` 的成因之一。额度由既有 request_budget 兜底。
+
+        ⚠️ F3c 的「>7 天留档」**不在本方法**：batch4 是**历史回补**（2025 赛季 + 2026 赛季
+        旧场次正是它的目标，实测测试里就是 20-30 天前的场次），在此归档等于把它的射程剪掉。
+        F3c 按规格归「赛后新鲜度链」，实现于 `XgHistoryBackfillService.run()`
+        （每 6h 窗口扫各队 last-5，那才是「赛后每窗尝试」的延续段）。
         Part 2 precedes part 1 so the pilot picks the 2025 rows.
         """
         already_fetched = self.repository.raw_statistics_fixture_ids()
-        min_age = XG_POSTMATCH_MIN_AGE
         part2: list[dict[str, Any]] = []
         part1: list[dict[str, Any]] = []
         for fixture in fixtures:
             league = fixture.get("league") if isinstance(fixture, dict) else None
             season = str(league.get("season") or "") if isinstance(league, dict) else ""
             if season == "2026":
-                fixture_data = fixture.get("fixture") if isinstance(fixture, dict) else None
-                date = fixture_data.get("date") if isinstance(fixture_data, dict) else None
-                kickoff = parse_utc(date)
-                if kickoff is not None and kickoff <= self.now - min_age:
-                    if fixture_id_from_payload(fixture) not in already_fetched:
-                        part1.append(fixture)
+                fixture_key = fixture_id_from_payload(fixture)
+                if fixture_key in already_fetched:
+                    continue
+                part1.append(fixture)
             else:
                 # 2025 部分只取 Regular Season，附加赛/季后赛一律排除。
                 if self._is_regular_season(fixture):

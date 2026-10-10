@@ -2480,6 +2480,29 @@ class FutureFixtureRefreshService:
             ),
             1,
         )
+        # F3b（指令书 G 修订，2026-10-10）：statistics 的**幂等**判据 = 已有完整双侧 xG。
+        # 空壳 payload（xG 发布前抓到的）不算已缓存 ⇒ 下一窗口自动重抓，缺口会自己愈合。
+        # 判据唯一来自 repository（raw_statistics_fixture_ids = complete two-sided xG），
+        # 不在本文件重写第二处。查询失败时按「未知」处理并在 audit 留痕——宁可多采一次，
+        # 也不因缓存查询故障而永久跳过（那正是毒化缓存的老毛病）。
+        complete_xg_fixtures: set[str] = set()
+        if "statistics" in endpoints:
+            try:
+                complete_xg_fixtures = self._db_repository().raw_statistics_fixture_ids()
+            except Exception:  # noqa: BLE001 - 缓存不可用不应阻塞采集，留痕后按未缓存处理
+                self._audit.append(
+                    {
+                        "endpoint": "statistics",
+                        "params": {},
+                        "attempt": 0,
+                        "status_code": None,
+                        "elapsed_ms": 0,
+                        "captured_at_utc": iso(utc_now()),
+                        "remaining_quota": self._latest_remaining,
+                        "payload_sha256": None,
+                        "error_code": "STATISTICS_XG_CACHE_UNAVAILABLE",
+                    }
+                )
         pending: list[tuple[str, str, LiveApiFootballResponse]] = []
         for item in fixtures:
             fixture_id = fixture_id_from_payload(item)
@@ -2508,6 +2531,22 @@ class FutureFixtureRefreshService:
                             "remaining_quota": self._latest_remaining,
                             "payload_sha256": None,
                             "error_code": "STATISTICS_NOT_POSTMATCH",
+                        }
+                    )
+                    continue
+                if endpoint == "statistics" and fixture_id in complete_xg_fixtures:
+                    # F3b：已有完整双侧 xG ⇒ 本窗口跳过（幂等），不发请求、不占额度。
+                    self._audit.append(
+                        {
+                            "endpoint": endpoint,
+                            "params": {"fixture": fixture_id},
+                            "attempt": 0,
+                            "status_code": None,
+                            "elapsed_ms": 0,
+                            "captured_at_utc": iso(utc_now()),
+                            "remaining_quota": self._latest_remaining,
+                            "payload_sha256": None,
+                            "error_code": "STATISTICS_XG_COMPLETE",
                         }
                     )
                     continue
@@ -3570,6 +3609,19 @@ def run_future_fixture_refresh(
         lineups_count = sum(
             1 for item in refresh_checkpoints if "lineups" in set(item.get("endpoints") or [])
         )
+        # F3a（指令书 G 修订，2026-10-10）：POSTMATCH_RESULT 的**每场 FT 比赛**都要在本窗口
+        # 尝试 statistics。此前该分支只允许 lineups（`lineups_count > 0`），而 POSTMATCH 计划
+        # 的 endpoints 是 {status, fixtures}（见 checkpoint_refresh.postmatch_result_checkpoint_plan）
+        # ⇒ enrichment 整体关闭 ⇒ 赛后从不尝试 xG，只能等 6h timer 的 backfill，
+        # 而 backfill 又受年龄门限制 ⇒ 缺口长期不愈（22:35Z 那轮 statistics_calls=0）。
+        # 注意：这里只扩 enrichment endpoints，**不动计划自身的 endpoints** ——
+        # `_checkpoint_mode()` 靠 `endpoints == {"status","fixtures"}` 识别 POSTMATCH，
+        # 动它会连带改掉 checkpoint 模式判定（历史上这是最脆的一段）。
+        postmatch_count = sum(
+            1
+            for item in refresh_checkpoints
+            if str(item.get("checkpoint") or "") == "POSTMATCH_RESULT"
+        )
         config = replace(
             config,
             checkpoint_fixture_ids=tuple(dict.fromkeys(checkpoint_fixture_ids)),
@@ -3579,9 +3631,12 @@ def run_future_fixture_refresh(
             max_odds_requests=sum(
                 1 for item in refresh_checkpoints if "odds" in set(item.get("endpoints") or [])
             ),
-            feature_enrichment_enabled=lineups_count > 0,
-            feature_enrichment_endpoints=("lineups",),
-            feature_enrichment_request_budget=lineups_count,
+            feature_enrichment_enabled=(lineups_count > 0 or postmatch_count > 0),
+            feature_enrichment_endpoints=(
+                (("lineups",) if lineups_count > 0 else ())
+                + (("statistics",) if postmatch_count > 0 else ())
+            ),
+            feature_enrichment_request_budget=lineups_count + postmatch_count,
             request_budget=max(
                 config.request_budget,
                 logical_calls * provider_request_max_attempts(),

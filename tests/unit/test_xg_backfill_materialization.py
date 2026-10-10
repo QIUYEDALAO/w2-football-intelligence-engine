@@ -1182,8 +1182,9 @@ def test_pro_backfill_batch_4_targets_two_parts(
         now=NOW,
     ).run()
 
-    # 2024 与 2026-recent（<7 天）被过滤；2025（第2部分）在前，2026-old（第1部分）在后
-    assert client.calls == ["ec-2025", "ec-2026-old"]
+    # F4（指令书 G 修订）：2026 部分**不再按年龄过滤** ⇒ ec-2026-recent（1 天前）也是目标；
+    # 2024 仍被过滤。次序：2025（第 2 部分）在前，2026 按 kickoff 新→旧（第 1 部分）在后。
+    assert client.calls == ["ec-2025", "ec-2026-recent", "ec-2026-old"]
 
 
 def test_pro_backfill_batch_4_processes_newest_fixtures_first(
@@ -1728,7 +1729,15 @@ def test_pro_backfill_run_skips_materialize_when_no_capture(monkeypatch: Any) ->
 
 
 class RecentFinishedFakeClient(FakeClient):
-    """fixtures 返回赛后 < 48h 的 FT（expected_goals 延迟发布，2 天内全无）。"""
+    """fixtures 返回指定年龄的 FT（expected_goals 延迟发布，早期抓取为空壳）。
+
+    `age` 可调：F1 把「赛后最小年龄门」由 48h 降到 24h（env 可调），
+    F3c 的「>7 天留档」也按年龄判定，故需要可变年龄的单变量构造。
+    """
+
+    def __init__(self, *, age: timedelta = timedelta(days=1)) -> None:
+        super().__init__()
+        self.age = age
 
     def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
         self.calls.append((endpoint, params))
@@ -1739,7 +1748,7 @@ class RecentFinishedFakeClient(FakeClient):
                 "response": [
                     finished_fixture(
                         f"{team}-recent",
-                        NOW - timedelta(days=1),
+                        NOW - self.age,
                         home=team,
                         away=opponent,
                     )
@@ -1758,14 +1767,17 @@ class RecentFinishedFakeClient(FakeClient):
         )
 
 
-def test_xg_backfill_skips_recent_finished_before_postmatch_min_age() -> None:
-    """任务2 验收①③：赛后 < 48h 的 FT 缺 xG → 跳过补采，避免 expected_goals 未发布时白采。
+def test_xg_backfill_skips_recent_finished_before_postmatch_min_age(
+    monkeypatch: Any,
+) -> None:
+    """F1：赛后不足 min_age（env 默认 24h）的 FT 缺 xG → 跳过补采，下次窗口再试。
 
-    单变量攻击：fixtures 只返回 1 场 1 天前 FT（< 48h），其它变量不变；
-    核对 statistics 端点零调用（下次 tick 再试）。
+    单变量攻击：fixtures 只返回 1 场 12h 前 FT（< 24h），其它变量不变；
+    核对 statistics 端点零调用（下次窗口再试）。
     """
+    monkeypatch.delenv("W2_XG_POSTMATCH_MIN_AGE_HOURS", raising=False)
     repository = FakeRepository()
-    client = RecentFinishedFakeClient()
+    client = RecentFinishedFakeClient(age=timedelta(hours=12))
     XgHistoryBackfillService(
         client=client,
         repository=repository,
@@ -1776,3 +1788,78 @@ def test_xg_backfill_skips_recent_finished_before_postmatch_min_age() -> None:
     assert statistics_calls == []
     # fixtures 端点仍被调用（为 future fixtures 扫历史），只是不补采 statistics。
     assert any(e == "fixtures" for e, _p in client.calls)
+
+
+def test_xg_backfill_fetches_after_min_age_with_24h_default(monkeypatch: Any) -> None:
+    """F1：默认门槛 48h → 24h ⇒ 30h 前完赛的场次必须被采（旧 48h 会跳过它）。
+
+    验收方亲证：25.5h 前完赛的 1492390，Provider 的 expected_goals 已发布（2.67/1.74）。
+    """
+    monkeypatch.delenv("W2_XG_POSTMATCH_MIN_AGE_HOURS", raising=False)
+    repository = FakeRepository()
+    client = RecentFinishedFakeClient(age=timedelta(hours=30))
+    XgHistoryBackfillService(
+        client=client,
+        repository=repository,
+        config=XgBackfillConfig(request_budget=20, min_rolling_matches=3),
+        now=NOW,
+    ).run()
+    assert [p["fixture"] for e, p in client.calls if e == "statistics"], (
+        "30h 前完赛的场次必须被采（新默认 24h）"
+    )
+
+
+def test_xg_backfill_archives_provider_unavailable_after_archive_age(
+    monkeypatch: Any,
+) -> None:
+    """F3c：**已尝试过**（已有 statistics raw）且 >7 天仍无完整 xG ⇒ 停止重试并留档。"""
+    monkeypatch.delenv("W2_XG_UNAVAILABLE_ARCHIVE_DAYS", raising=False)
+
+    class AttemptedRepository(FakeRepository):
+        """这两场此前抓过（raw 存在但 xG 为空壳）⇒ 满足「已尝试过」。"""
+
+        def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+            if endpoint != "statistics":
+                return []
+            return [
+                {"payload": {"parameters": {"fixture": fid}, "response": []}}
+                for fid in ("10-recent", "20-recent")
+            ]
+
+    repository = AttemptedRepository()
+    client = RecentFinishedFakeClient(age=timedelta(days=9))
+    service = XgHistoryBackfillService(
+        client=client,
+        repository=repository,
+        config=XgBackfillConfig(request_budget=20, min_rolling_matches=3),
+        now=NOW,
+    )
+    service.run()
+
+    assert [p for e, p in client.calls if e == "statistics"] == [], "留档后不得再重试"
+    archived = [
+        row for row in service._audit if row.get("error_code") == "PROVIDER_XG_UNAVAILABLE"
+    ]
+    assert archived, "必须留档（事实留痕），而不是无声跳过"
+    assert archived[0]["endpoint"] == "xg_unavailable_archive"
+
+
+def test_xg_backfill_still_fetches_never_attempted_old_fixture(monkeypatch: Any) -> None:
+    """F3c 的关键边界：**从未抓过**的旧场次必须继续采。
+
+    各队 `last=5` 覆盖 2-5 周，若只按年龄归档，等于把补采射程剪掉
+    （实测：单独用年龄判据时 statistics_request_count 从 10 掉到 4）。
+    """
+    monkeypatch.delenv("W2_XG_UNAVAILABLE_ARCHIVE_DAYS", raising=False)
+    repository = FakeRepository()  # raw_payloads("statistics") → [] ⇒ 从未尝试
+    client = RecentFinishedFakeClient(age=timedelta(days=9))
+    XgHistoryBackfillService(
+        client=client,
+        repository=repository,
+        config=XgBackfillConfig(request_budget=20, min_rolling_matches=3),
+        now=NOW,
+    ).run()
+
+    assert [p["fixture"] for e, p in client.calls if e == "statistics"], (
+        "从未抓过的旧场次必须采（补采射程不能被年龄剪掉）"
+    )
