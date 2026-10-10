@@ -85,7 +85,14 @@ def test_sync_scope_is_explicit_whitelist() -> None:
     """E3：同步清单必须是显式白名单，恰好两项——防「顺手多同步一个」扩大影响面。"""
     result = _bash(f'source "{SCRIPT}"; printf "%s\\n" "${{XG_SYNC_SCRIPTS[@]}}"')
     assert result.returncode == 0, result.stderr
-    assert result.stdout.split() == ["w2-xg-materialize", "w2-xg-refresh"]
+    assert result.stdout.split() == [
+        "w2-xg-materialize",
+        "w2-xg-refresh",
+        # G（指令书 G，2026-10-10）：补采守闸执行器也必须随发布同步。
+        # 它原先不在白名单里 ⇒ 仓库修了执行器（零调用留痕 + 额度让位提前结束）也上不了机，
+        # 只能手工 scp，属「文档说该同步、通道不管」的漂移源。
+        "w2-xg-backfill-window",
+    ]
 
 
 def test_sync_script_has_no_side_effect_actions() -> None:

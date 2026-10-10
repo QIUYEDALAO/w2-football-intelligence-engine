@@ -16,7 +16,7 @@ biz_tree_of() {
 }
 
 # 同步清单：显式白名单，避免「顺手多同步一个」扩大影响面。
-XG_SYNC_SCRIPTS=(w2-xg-materialize w2-xg-refresh)
+XG_SYNC_SCRIPTS=(w2-xg-materialize w2-xg-refresh w2-xg-backfill-window)
 
 # 被 source 时（单元测试），只暴露纯函数与清单，不执行主流程。
 if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
