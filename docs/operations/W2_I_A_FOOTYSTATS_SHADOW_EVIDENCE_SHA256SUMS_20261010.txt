@@ -1,0 +1,11 @@
+# 指令书 I 任务 A 证据完整性清单
+#
+# 下列前两项体积过大（37MB / 44MB）且 matchday_fixture_identities.sql 含生产表数据，
+# 不入库。它们位于实施机 A 工作树的 .local/snapshot/ 下，验收方复现 §6.3 replay 时必需。
+# 第三项已随仓库提交为 docs/operations/W2_I_A_FOOTYSTATS_SHADOW_PILOT_REPORT_20261010.json。
+#
+# 复算：shasum -a 256 <file>  与下表逐行比对
+#
+  52fe6773a1a02612082be87c9b3721c149273e7fb86bfa79009d51749d4ec1d4  .local/pilot/pilot_report.json
+  ac99c69b2c13b3b2f8b75c220b9660d911cacbf9e1e02483895b4e5ffc9f9a06  .local/snapshot/fs_evidence.sql
+  2cff0006faf071b34e3f4f557fda5d484e5370036d856cdf87be45f99e76e581  .local/snapshot/matchday_fixture_identities.sql

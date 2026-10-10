@@ -1,0 +1,2932 @@
+{
+  "mapping_collisions": [],
+  "crosswalk_report": {
+    "production_teams": 488,
+    "fs_teams": 638,
+    "crosswalk_resolved": 488,
+    "team_resolution_rate": 1.0,
+    "method_breakdown": {
+      "TEAM_NAME:TOKEN_PREFIX": 44,
+      "TEAM_NAME:EXACT": 381,
+      "TEAM_NAME:TOKEN_EQ": 2,
+      "TEAM_NAME:REVIEWED_ALIAS": 29,
+      "TEAM_NAME:TOKEN_SUBSET": 26,
+      "TEAM_NAME:ALIAS": 4,
+      "TEAM_NAME:ACRONYM": 2
+    },
+    "per_competition": {
+      "allsvenskan": {
+        "production_teams": 16,
+        "footystats_teams": 16,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "argentina_primera": {
+        "production_teams": 30,
+        "footystats_teams": 30,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "austria_bundesliga": {
+        "production_teams": 12,
+        "footystats_teams": 12,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "belgium_jupiler_pro_league": {
+        "production_teams": 18,
+        "footystats_teams": 18,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "brasileirao_serie_a": {
+        "production_teams": 20,
+        "footystats_teams": 20,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "bundesliga": {
+        "production_teams": 18,
+        "footystats_teams": 18,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "chinese_super_league": {
+        "production_teams": 16,
+        "footystats_teams": 16,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "croatia_hnl": {
+        "production_teams": 10,
+        "footystats_teams": 10,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "czech_republic_liga": {
+        "production_teams": 16,
+        "footystats_teams": 16,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "denmark_superliga": {
+        "production_teams": 12,
+        "footystats_teams": 12,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "eliteserien": {
+        "production_teams": 16,
+        "footystats_teams": 16,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "england_championship": {
+        "production_teams": 24,
+        "footystats_teams": 24,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "eredivisie": {
+        "production_teams": 18,
+        "footystats_teams": 18,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "germany_2_bundesliga": {
+        "production_teams": 18,
+        "footystats_teams": 18,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "greece_super_league_1": {
+        "production_teams": 14,
+        "footystats_teams": 14,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "italy_serie_b": {
+        "production_teams": 20,
+        "footystats_teams": 20,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "la_liga": {
+        "production_teams": 20,
+        "footystats_teams": 20,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "ligue_1": {
+        "production_teams": 18,
+        "footystats_teams": 18,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "mls": {
+        "production_teams": 30,
+        "footystats_teams": 30,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "netherlands_eerste_divisie": {
+        "production_teams": 20,
+        "footystats_teams": 20,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "premier_league": {
+        "production_teams": 20,
+        "footystats_teams": 20,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "primeira_liga": {
+        "production_teams": 18,
+        "footystats_teams": 18,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "scotland_premiership": {
+        "production_teams": 12,
+        "footystats_teams": 12,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "serie_a": {
+        "production_teams": 20,
+        "footystats_teams": 20,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "spain_segunda_division": {
+        "production_teams": 22,
+        "footystats_teams": 22,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "switzerland_super_league": {
+        "production_teams": 12,
+        "footystats_teams": 12,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      },
+      "turkey_super_lig": {
+        "production_teams": 18,
+        "footystats_teams": 18,
+        "counts_equal": true,
+        "unresolved_production": [],
+        "unresolved_footystats": [],
+        "residual_forced_pairing": false
+      }
+    }
+  },
+  "generated_at": "2026-10-10T12:17:19.423721+00:00",
+  "sync": [
+    {
+      "endpoint": "remap",
+      "fixtures_seen": 0,
+      "fixtures_written": 0,
+      "fixtures_rejected": 0,
+      "teams_written": 0,
+      "teams_conflicted": [],
+      "matched": 1292,
+      "unmatched": 7065,
+      "ambiguous": 0,
+      "season_unmapped": 0,
+      "blockers": []
+    }
+  ],
+  "quota": {
+    "calls_total": 186,
+    "calls_failed": 0,
+    "first_requested_at": "2026-10-10T10:17:38.609563+00:00",
+    "last_requested_at": "2026-10-10T10:44:20.281339+00:00",
+    "first_remaining": 1669,
+    "last_remaining": 1428,
+    "provider_limit": 1800,
+    "by_endpoint": {
+      "league-list": 2,
+      "league-matches": 27,
+      "todays-matches": 2,
+      "match": 155
+    }
+  },
+  "profile_report": {
+    "contract": "w2.footystats_profile_report.v1",
+    "fixtures": 8432,
+    "distinct_seasons": 44,
+    "distinct_competitions": 27,
+    "status_breakdown": {
+      "suspended": 7,
+      "incomplete": 5519,
+      "complete": 2906
+    },
+    "unknown_statuses": [],
+    "known_statuses": [
+      "complete",
+      "incomplete",
+      "suspended"
+    ]
+  },
+  "mapping_report": {
+    "contract": "w2.footystats_mapping_report.v3",
+    "denominator": "PRODUCTION_FIXTURE_IDENTITIES_IN_MAPPED_COMPETITIONS",
+    "sample_seed": 20261010,
+    "sample_size": 100,
+    "footystats_fixtures_in_scope": 8357,
+    "footystats_fixtures_matched": 1292,
+    "production_reference_fixtures": 1297,
+    "production_fixtures_total": 1297,
+    "production_competitions_not_in_scope": [],
+    "production_recall": 0.9961449498843485,
+    "unmatched_reason_breakdown": {
+      "NS_NO_FOOTYSTATS_COUNTERPART": 3,
+      "PST_NO_FOOTYSTATS_COUNTERPART": 2
+    },
+    "unmatched": [
+      {
+        "fixture_id": "api_football:1490439",
+        "competition_id": "mls",
+        "kickoff_utc": "2026-09-05T23:30:00+00:00",
+        "production_status": "NS",
+        "production_home": "FC Cincinnati",
+        "production_away": "DC United",
+        "reason": "NS_NO_FOOTYSTATS_COUNTERPART"
+      },
+      {
+        "fixture_id": "api_football:1523230",
+        "competition_id": "chinese_super_league",
+        "kickoff_utc": "2026-08-08T11:35:00+00:00",
+        "production_status": "NS",
+        "production_home": "Hangzhou Greentown",
+        "production_away": "Wuhan Three Towns",
+        "reason": "NS_NO_FOOTYSTATS_COUNTERPART"
+      },
+      {
+        "fixture_id": "api_football:1552735",
+        "competition_id": "ligue_1",
+        "kickoff_utc": "2026-08-23T18:45:00+00:00",
+        "production_status": "NS",
+        "production_home": "Paris Saint Germain",
+        "production_away": "Rennes",
+        "reason": "NS_NO_FOOTYSTATS_COUNTERPART"
+      },
+      {
+        "fixture_id": "api_football:1570389",
+        "competition_id": "la_liga",
+        "kickoff_utc": "2026-09-16T19:30:00+00:00",
+        "production_status": "PST",
+        "production_home": "Levante",
+        "production_away": "Athletic Club",
+        "reason": "PST_NO_FOOTYSTATS_COUNTERPART"
+      },
+      {
+        "fixture_id": "api_football:1575458",
+        "competition_id": "primeira_liga",
+        "kickoff_utc": "2026-08-16T19:30:00+00:00",
+        "production_status": "PST",
+        "production_home": "SC Braga",
+        "production_away": "GIL Vicente",
+        "reason": "PST_NO_FOOTYSTATS_COUNTERPART"
+      }
+    ],
+    "sampled": 100,
+    "sampled_matched": 100,
+    "sampled_accuracy": 1.0,
+    "pass_threshold": 0.99,
+    "pass": true,
+    "sample_score_verdicts": {
+      "AGREES": 69,
+      "SCORE_UNKNOWN": 31
+    },
+    "sample_score_agree_rate": 0.69,
+    "confidence_breakdown": {
+      "SCORE_AGREES": 69,
+      "SCORE_UNKNOWN": 31
+    },
+    "method_breakdown": {
+      "DATE_TEAM_KEY": 100
+    },
+    "mismatches": [],
+    "sample": [
+      {
+        "fixture_id": "api_football:1490376",
+        "competition_id": "mls",
+        "kickoff_utc": "2026-08-15T23:30:00+00:00",
+        "production_home": "Orlando City SC",
+        "production_away": "FC Cincinnati",
+        "production_goals": [
+          1,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8390801,
+        "footystats_home": "Orlando City",
+        "footystats_away": "FC Cincinnati",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1490378",
+        "competition_id": "mls",
+        "kickoff_utc": "2026-08-15T23:30:00+00:00",
+        "production_home": "Charlotte",
+        "production_away": "Columbus Crew",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8390821,
+        "footystats_home": "Charlotte",
+        "footystats_away": "Columbus Crew",
+        "footystats_goals": [
+          3,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1490402",
+        "competition_id": "mls",
+        "kickoff_utc": "2026-08-20T01:30:00+00:00",
+        "production_home": "Real Salt Lake",
+        "production_away": "FC Dallas",
+        "production_goals": [
+          3,
+          4
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8390653,
+        "footystats_home": "Real Salt Lake",
+        "footystats_away": "FC Dallas",
+        "footystats_goals": [
+          3,
+          4
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1490433",
+        "competition_id": "mls",
+        "kickoff_utc": "2026-08-30T02:30:00+00:00",
+        "production_home": "San Diego",
+        "production_away": "Los Angeles Galaxy",
+        "production_goals": [
+          3,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8390827,
+        "footystats_home": "San Diego",
+        "footystats_away": "LA Galaxy",
+        "footystats_goals": [
+          3,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1490441",
+        "competition_id": "mls",
+        "kickoff_utc": "2026-09-05T23:30:00+00:00",
+        "production_home": "Columbus Crew",
+        "production_away": "Colorado Rapids",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8391093,
+        "footystats_home": "Columbus Crew",
+        "footystats_away": "Colorado Rapids",
+        "footystats_goals": [
+          3,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1490459",
+        "competition_id": "mls",
+        "kickoff_utc": "2026-09-10T00:30:00+00:00",
+        "production_home": "Austin",
+        "production_away": "Colorado Rapids",
+        "production_goals": [
+          1,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8390832,
+        "footystats_home": "Austin",
+        "footystats_away": "Colorado Rapids",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1490462",
+        "competition_id": "mls",
+        "kickoff_utc": "2026-09-10T02:30:00+00:00",
+        "production_home": "Vancouver Whitecaps",
+        "production_away": "Los Angeles Galaxy",
+        "production_goals": [
+          3,
+          0
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8390886,
+        "footystats_home": "Vancouver Whitecaps",
+        "footystats_away": "LA Galaxy",
+        "footystats_goals": [
+          3,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1490465",
+        "competition_id": "mls",
+        "kickoff_utc": "2026-09-10T02:30:00+00:00",
+        "production_home": "Portland Timbers",
+        "production_away": "St. Louis City",
+        "production_goals": [
+          2,
+          2
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8390837,
+        "footystats_home": "Portland Timbers",
+        "footystats_away": "St. Louis City",
+        "footystats_goals": [
+          2,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1490485",
+        "competition_id": "mls",
+        "kickoff_utc": "2026-09-19T23:30:00+00:00",
+        "production_home": "DC United",
+        "production_away": "Charlotte",
+        "production_goals": [
+          1,
+          2
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8391073,
+        "footystats_home": "DC United",
+        "footystats_away": "Charlotte",
+        "footystats_goals": [
+          1,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1490497",
+        "competition_id": "mls",
+        "kickoff_utc": "2026-09-26T23:30:00+00:00",
+        "production_home": "Atlanta United FC",
+        "production_away": "New York City FC",
+        "production_goals": [
+          2,
+          2
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8390862,
+        "footystats_home": "Atlanta United FC",
+        "footystats_away": "New York City",
+        "footystats_goals": [
+          2,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1490499",
+        "competition_id": "mls",
+        "kickoff_utc": "2026-09-26T23:30:00+00:00",
+        "production_home": "Charlotte",
+        "production_away": "Chicago Fire",
+        "production_goals": [
+          0,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8390891,
+        "footystats_home": "Charlotte",
+        "footystats_away": "Chicago Fire",
+        "footystats_goals": [
+          0,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1490519",
+        "competition_id": "mls",
+        "kickoff_utc": "2026-10-10T23:30:00+00:00",
+        "production_home": "Charlotte",
+        "production_away": "FC Dallas",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8390895,
+        "footystats_home": "Charlotte",
+        "footystats_away": "FC Dallas",
+        "footystats_goals": [
+          null,
+          null
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1490536",
+        "competition_id": "mls",
+        "kickoff_utc": "2026-10-15T01:30:00+00:00",
+        "production_home": "Colorado Rapids",
+        "production_away": "Minnesota United FC",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8390869,
+        "footystats_home": "Colorado Rapids",
+        "footystats_away": "Minnesota United",
+        "footystats_goals": [
+          null,
+          null
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1492294",
+        "competition_id": "brasileirao_serie_a",
+        "kickoff_utc": "2026-07-22T22:30:00+00:00",
+        "production_home": "Coritiba",
+        "production_away": "Palmeiras",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8409704,
+        "footystats_home": "Coritiba",
+        "footystats_away": "Palmeiras",
+        "footystats_goals": [
+          1,
+          3
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1492320",
+        "competition_id": "brasileirao_serie_a",
+        "kickoff_utc": "2026-08-09T19:00:00+00:00",
+        "production_home": "Bahia",
+        "production_away": "Vasco DA Gama",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8409690,
+        "footystats_home": "Bahia",
+        "footystats_away": "Vasco da Gama",
+        "footystats_goals": [
+          0,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1492335",
+        "competition_id": "brasileirao_serie_a",
+        "kickoff_utc": "2026-08-17T23:00:00+00:00",
+        "production_home": "Internacional",
+        "production_away": "Remo",
+        "production_goals": [
+          1,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8409679,
+        "footystats_home": "Internacional",
+        "footystats_away": "Remo",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1492351",
+        "competition_id": "brasileirao_serie_a",
+        "kickoff_utc": "2026-08-29T21:30:00+00:00",
+        "production_home": "Atletico-MG",
+        "production_away": "Vitoria",
+        "production_goals": [
+          2,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8409657,
+        "footystats_home": "Atlético Mineiro",
+        "footystats_away": "Vitória",
+        "footystats_goals": [
+          2,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1492367",
+        "competition_id": "brasileirao_serie_a",
+        "kickoff_utc": "2026-09-06T19:00:00+00:00",
+        "production_home": "Remo",
+        "production_away": "Flamengo",
+        "production_goals": [
+          0,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8409662,
+        "footystats_home": "Remo",
+        "footystats_away": "Flamengo",
+        "footystats_goals": [
+          0,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1493061",
+        "competition_id": "argentina_primera",
+        "kickoff_utc": "2026-08-11T00:15:00+00:00",
+        "production_home": "Union Santa Fe",
+        "production_away": "Central Cordoba de Santiago",
+        "production_goals": [
+          1,
+          2
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8419395,
+        "footystats_home": "Unión Santa Fe",
+        "footystats_away": "Central Córdoba SdE",
+        "footystats_goals": [
+          1,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1493081",
+        "competition_id": "argentina_primera",
+        "kickoff_utc": "2026-08-21T23:00:00+00:00",
+        "production_home": "Estudiantes de Rio Cuarto",
+        "production_away": "San Lorenzo",
+        "production_goals": [
+          0,
+          0
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8419466,
+        "footystats_home": "Estudiantes Río Cuarto",
+        "footystats_away": "San Lorenzo",
+        "footystats_goals": [
+          0,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1493094",
+        "competition_id": "argentina_primera",
+        "kickoff_utc": "2026-08-30T18:00:00+00:00",
+        "production_home": "Banfield",
+        "production_away": "River Plate",
+        "production_goals": [
+          2,
+          3
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8419314,
+        "footystats_home": "Banfield",
+        "footystats_away": "River Plate",
+        "footystats_goals": [
+          2,
+          3
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1493096",
+        "competition_id": "argentina_primera",
+        "kickoff_utc": "2026-08-31T22:00:00+00:00",
+        "production_home": "Defensa Y Justicia",
+        "production_away": "Platense",
+        "production_goals": [
+          1,
+          0
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8419387,
+        "footystats_home": "Defensa y Justicia",
+        "footystats_away": "Platense",
+        "footystats_goals": [
+          1,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1493112",
+        "competition_id": "argentina_primera",
+        "kickoff_utc": "2026-09-05T17:30:00+00:00",
+        "production_home": "Gimnasia L.P.",
+        "production_away": "Tigre",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8419384,
+        "footystats_home": "Gimnasia La Plata",
+        "footystats_away": "Tigre",
+        "footystats_goals": [
+          2,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1493124",
+        "competition_id": "argentina_primera",
+        "kickoff_utc": "2026-09-14T22:00:00+00:00",
+        "production_home": "Banfield",
+        "production_away": "Barracas Central",
+        "production_goals": [
+          1,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8419059,
+        "footystats_home": "Banfield",
+        "footystats_away": "Barracas Central",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1493132",
+        "competition_id": "argentina_primera",
+        "kickoff_utc": "2026-09-15T00:15:00+00:00",
+        "production_home": "Instituto Cordoba",
+        "production_away": "Estudiantes de Rio Cuarto",
+        "production_goals": [
+          2,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8419354,
+        "footystats_home": "Instituto",
+        "footystats_away": "Estudiantes Río Cuarto",
+        "footystats_goals": [
+          2,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1493139",
+        "competition_id": "argentina_primera",
+        "kickoff_utc": "2026-09-20T22:15:00+00:00",
+        "production_home": "Belgrano Cordoba",
+        "production_away": "Estudiantes de Rio Cuarto",
+        "production_goals": [
+          2,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8419458,
+        "footystats_home": "Belgrano",
+        "footystats_away": "Estudiantes Río Cuarto",
+        "footystats_goals": [
+          2,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1493152",
+        "competition_id": "argentina_primera",
+        "kickoff_utc": "2026-10-04T22:15:00+00:00",
+        "production_home": "Argentinos JRS",
+        "production_away": "Tigre",
+        "production_goals": [
+          2,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8419326,
+        "footystats_home": "Argentinos Juniors",
+        "footystats_away": "Tigre",
+        "footystats_goals": [
+          2,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1493165",
+        "competition_id": "argentina_primera",
+        "kickoff_utc": "2026-10-04T20:00:00+00:00",
+        "production_home": "Talleres Cordoba",
+        "production_away": "Belgrano Cordoba",
+        "production_goals": [
+          0,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8419380,
+        "footystats_home": "Talleres Córdoba",
+        "footystats_away": "Belgrano",
+        "footystats_goals": [
+          0,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1493177",
+        "competition_id": "argentina_primera",
+        "kickoff_utc": "2026-10-11T20:00:00+00:00",
+        "production_home": "Rosario Central",
+        "production_away": "Independ. Rivadavia",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8419239,
+        "footystats_home": "Rosario Central",
+        "footystats_away": "Independiente Rivadavia",
+        "footystats_goals": [
+          null,
+          null
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1494251",
+        "competition_id": "allsvenskan",
+        "kickoff_utc": "2026-08-23T12:00:00+00:00",
+        "production_home": "IFK Goteborg",
+        "production_away": "IF Elfsborg",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8420444,
+        "footystats_home": "IFK Göteborg",
+        "footystats_away": "Elfsborg",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1494259",
+        "competition_id": "allsvenskan",
+        "kickoff_utc": "2026-08-29T13:00:00+00:00",
+        "production_home": "IF Elfsborg",
+        "production_away": "Degerfors IF",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8420312,
+        "footystats_home": "Elfsborg",
+        "footystats_away": "Degerfors",
+        "footystats_goals": [
+          2,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1494611",
+        "competition_id": "eliteserien",
+        "kickoff_utc": "2026-07-22T17:00:00+00:00",
+        "production_home": "Bodo/Glimt",
+        "production_away": "Ham-Kam",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8411959,
+        "footystats_home": "FK Bodo - Glimt",
+        "footystats_away": "HamKam",
+        "footystats_goals": [
+          3,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1494710",
+        "competition_id": "eliteserien",
+        "kickoff_utc": "2026-07-26T12:30:00+00:00",
+        "production_home": "Brann",
+        "production_away": "Valerenga",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8411864,
+        "footystats_home": "Brann",
+        "footystats_away": "Vålerenga",
+        "footystats_goals": [
+          2,
+          3
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1494736",
+        "competition_id": "eliteserien",
+        "kickoff_utc": "2026-08-15T14:00:00+00:00",
+        "production_home": "KFUM Oslo",
+        "production_away": "Lillestrom",
+        "production_goals": [
+          1,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8411837,
+        "footystats_home": "KFUM",
+        "footystats_away": "Lillestrøm",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1494751",
+        "competition_id": "eliteserien",
+        "kickoff_utc": "2026-09-06T17:15:00+00:00",
+        "production_home": "Kristiansund BK",
+        "production_away": "Tromso",
+        "production_goals": [
+          2,
+          0
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8411783,
+        "footystats_home": "Kristiansund",
+        "footystats_away": "Tromsø",
+        "footystats_goals": [
+          2,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1494770",
+        "competition_id": "eliteserien",
+        "kickoff_utc": "2026-09-20T12:30:00+00:00",
+        "production_home": "Valerenga",
+        "production_away": "Fredrikstad",
+        "production_goals": [
+          1,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8411805,
+        "footystats_home": "Vålerenga",
+        "footystats_away": "Fredrikstad",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1523227",
+        "competition_id": "chinese_super_league",
+        "kickoff_utc": "2026-08-07T11:35:00+00:00",
+        "production_home": "Beijing Guoan",
+        "production_away": "Sichuan Jiuniu",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8471142,
+        "footystats_home": "Beijing Guoan",
+        "footystats_away": "Sichuan Jiuniu",
+        "footystats_goals": [
+          4,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1523234",
+        "competition_id": "chinese_super_league",
+        "kickoff_utc": "2026-08-09T12:00:00+00:00",
+        "production_home": "Shandong Luneng",
+        "production_away": "Tianjin Teda",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8471285,
+        "footystats_home": "Shandong Luneng",
+        "footystats_away": "Tianjin Teda",
+        "footystats_goals": [
+          2,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1523239",
+        "competition_id": "chinese_super_league",
+        "kickoff_utc": "2026-08-15T11:35:00+00:00",
+        "production_home": "Tianjin Teda",
+        "production_away": "Beijing Guoan",
+        "production_goals": [
+          2,
+          4
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8471280,
+        "footystats_home": "Tianjin Teda",
+        "footystats_away": "Beijing Guoan",
+        "footystats_goals": [
+          2,
+          4
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1523245",
+        "competition_id": "chinese_super_league",
+        "kickoff_utc": "2026-08-22T11:35:00+00:00",
+        "production_home": "Sichuan Jiuniu",
+        "production_away": "Hangzhou Greentown",
+        "production_goals": [
+          1,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8471276,
+        "footystats_home": "Sichuan Jiuniu",
+        "footystats_away": "Zhejiang FC",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1523253",
+        "competition_id": "chinese_super_league",
+        "kickoff_utc": "2026-08-29T11:00:00+00:00",
+        "production_home": "Tianjin Teda",
+        "production_away": "Qingdao Youth Island",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8471135,
+        "footystats_home": "Tianjin Teda",
+        "footystats_away": "Qingdao Youth Island",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1523255",
+        "competition_id": "chinese_super_league",
+        "kickoff_utc": "2026-08-29T11:35:00+00:00",
+        "production_home": "Chengdu Better City",
+        "production_away": "Shenyang Urban",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8471261,
+        "footystats_home": "Chengdu Better City FC",
+        "footystats_away": "Shenyang Urban",
+        "footystats_goals": [
+          2,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1523257",
+        "competition_id": "chinese_super_league",
+        "kickoff_utc": "2026-08-29T12:00:00+00:00",
+        "production_home": "Henan Jianye",
+        "production_away": "Chongqing Tongliang Long",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8471264,
+        "footystats_home": "Henan Jianye",
+        "footystats_away": "Chongqing Tongliang Long",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1549033",
+        "competition_id": "denmark_superliga",
+        "kickoff_utc": "2026-10-11T12:00:00+00:00",
+        "production_home": "Silkeborg",
+        "production_away": "AC Horsens",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8546654,
+        "footystats_home": "Silkeborg",
+        "footystats_away": "Horsens",
+        "footystats_goals": [
+          null,
+          null
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1550107",
+        "competition_id": "serie_a",
+        "kickoff_utc": "2026-09-05T18:45:00+00:00",
+        "production_home": "AS Roma",
+        "production_away": "Atalanta",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8545224,
+        "footystats_home": "Roma",
+        "footystats_away": "Atalanta",
+        "footystats_goals": [
+          2,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1550115",
+        "competition_id": "serie_a",
+        "kickoff_utc": "2026-09-06T13:00:00+00:00",
+        "production_home": "Parma",
+        "production_away": "Monza",
+        "production_goals": [
+          1,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8545076,
+        "footystats_home": "Parma",
+        "footystats_away": "Monza",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1550117",
+        "competition_id": "serie_a",
+        "kickoff_utc": "2026-09-12T18:45:00+00:00",
+        "production_home": "Atalanta",
+        "production_away": "Cagliari",
+        "production_goals": [
+          1,
+          2
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8545077,
+        "footystats_home": "Atalanta",
+        "footystats_away": "Cagliari",
+        "footystats_goals": [
+          1,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1550124",
+        "competition_id": "serie_a",
+        "kickoff_utc": "2026-09-13T18:45:00+00:00",
+        "production_home": "Sassuolo",
+        "production_away": "Juventus",
+        "production_goals": [
+          3,
+          2
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8545039,
+        "footystats_home": "Sassuolo",
+        "footystats_away": "Juventus",
+        "footystats_goals": [
+          3,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1550125",
+        "competition_id": "serie_a",
+        "kickoff_utc": "2026-09-14T16:30:00+00:00",
+        "production_home": "Torino",
+        "production_away": "AS Roma",
+        "production_goals": [
+          0,
+          2
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8544875,
+        "footystats_home": "Torino",
+        "footystats_away": "Roma",
+        "footystats_goals": [
+          0,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1550136",
+        "competition_id": "serie_a",
+        "kickoff_utc": "2026-09-19T18:45:00+00:00",
+        "production_home": "Venezia",
+        "production_away": "Lazio",
+        "production_goals": [
+          0,
+          2
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8545038,
+        "footystats_home": "Venezia",
+        "footystats_away": "Lazio",
+        "footystats_goals": [
+          0,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1551806",
+        "competition_id": "netherlands_eerste_divisie",
+        "kickoff_utc": "2026-09-20T14:45:00+00:00",
+        "production_home": "De Graafschap",
+        "production_away": "NAC Breda",
+        "production_goals": [
+          1,
+          2
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8550153,
+        "footystats_home": "De Graafschap",
+        "footystats_away": "NAC Breda",
+        "footystats_goals": [
+          1,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1551815",
+        "competition_id": "netherlands_eerste_divisie",
+        "kickoff_utc": "2026-09-26T18:00:00+00:00",
+        "production_home": "Roda",
+        "production_away": "Waalwijk",
+        "production_goals": [
+          2,
+          0
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8549906,
+        "footystats_home": "Roda JC",
+        "footystats_away": "RKC Waalwijk",
+        "footystats_goals": [
+          2,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1551834",
+        "competition_id": "netherlands_eerste_divisie",
+        "kickoff_utc": "2026-10-09T18:00:00+00:00",
+        "production_home": "NAC Breda",
+        "production_away": "MVV",
+        "production_goals": [
+          1,
+          0
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8550166,
+        "footystats_home": "NAC Breda",
+        "footystats_away": "MVV",
+        "footystats_goals": [
+          1,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1551835",
+        "competition_id": "netherlands_eerste_divisie",
+        "kickoff_utc": "2026-10-09T18:00:00+00:00",
+        "production_home": "FC OSS",
+        "production_away": "Helmond Sport",
+        "production_goals": [
+          3,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8550037,
+        "footystats_home": "Oss",
+        "footystats_away": "Helmond Sport",
+        "footystats_goals": [
+          3,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1551839",
+        "competition_id": "netherlands_eerste_divisie",
+        "kickoff_utc": "2026-10-16T18:00:00+00:00",
+        "production_home": "Helmond Sport",
+        "production_away": "NAC Breda",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8550141,
+        "footystats_home": "Helmond Sport",
+        "footystats_away": "NAC Breda",
+        "footystats_goals": [
+          null,
+          null
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1552129",
+        "competition_id": "eredivisie",
+        "kickoff_utc": "2026-08-15T18:00:00+00:00",
+        "production_home": "Excelsior",
+        "production_away": "PSV Eindhoven",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8547695,
+        "footystats_home": "Excelsior",
+        "footystats_away": "PSV",
+        "footystats_goals": [
+          1,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1552148",
+        "competition_id": "eredivisie",
+        "kickoff_utc": "2026-08-30T10:15:00+00:00",
+        "production_home": "Utrecht",
+        "production_away": "PSV Eindhoven",
+        "production_goals": [
+          1,
+          6
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8547624,
+        "footystats_home": "Utrecht",
+        "footystats_away": "PSV",
+        "footystats_goals": [
+          1,
+          6
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1552151",
+        "competition_id": "eredivisie",
+        "kickoff_utc": "2026-08-30T14:45:00+00:00",
+        "production_home": "Telstar",
+        "production_away": "Ajax",
+        "production_goals": [
+          0,
+          4
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8547803,
+        "footystats_home": "Telstar",
+        "footystats_away": "Ajax",
+        "footystats_goals": [
+          0,
+          4
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1552159",
+        "competition_id": "eredivisie",
+        "kickoff_utc": "2026-09-06T12:30:00+00:00",
+        "production_home": "Heerenveen",
+        "production_away": "AZ Alkmaar",
+        "production_goals": [
+          2,
+          3
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8547620,
+        "footystats_home": "Heerenveen",
+        "footystats_away": "AZ",
+        "footystats_goals": [
+          2,
+          3
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1552172",
+        "competition_id": "eredivisie",
+        "kickoff_utc": "2026-09-19T14:30:00+00:00",
+        "production_home": "ADO Den Haag",
+        "production_away": "Cambuur",
+        "production_goals": [
+          1,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8547612,
+        "footystats_home": "ADO Den Haag",
+        "footystats_away": "Cambuur",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1552772",
+        "competition_id": "ligue_1",
+        "kickoff_utc": "2026-09-19T18:45:00+00:00",
+        "production_home": "Toulouse",
+        "production_away": "Le Havre",
+        "production_goals": [
+          3,
+          2
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8548626,
+        "footystats_home": "Toulouse",
+        "footystats_away": "Le Havre",
+        "footystats_goals": [
+          3,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1555369",
+        "competition_id": "switzerland_super_league",
+        "kickoff_utc": "2026-09-16T17:00:00+00:00",
+        "production_home": "FC Lugano",
+        "production_away": "FC ST. Gallen",
+        "production_goals": [
+          4,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8554516,
+        "footystats_home": "Lugano",
+        "footystats_away": "St. Gallen",
+        "footystats_goals": [
+          4,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1555395",
+        "competition_id": "switzerland_super_league",
+        "kickoff_utc": "2026-09-19T16:00:00+00:00",
+        "production_home": "FC Luzern",
+        "production_away": "Grasshoppers",
+        "production_goals": [
+          5,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8554475,
+        "footystats_home": "Luzern",
+        "footystats_away": "Grasshopper",
+        "footystats_goals": [
+          5,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1555397",
+        "competition_id": "switzerland_super_league",
+        "kickoff_utc": "2026-09-19T16:00:00+00:00",
+        "production_home": "FC Sion",
+        "production_away": "FC Zurich",
+        "production_goals": [
+          1,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8554528,
+        "footystats_home": "Sion",
+        "footystats_away": "Zürich",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1556665",
+        "competition_id": "scotland_premiership",
+        "kickoff_utc": "2026-09-19T14:00:00+00:00",
+        "production_home": "Hibernian",
+        "production_away": "Aberdeen",
+        "production_goals": [
+          1,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8558399,
+        "footystats_home": "Hibernian",
+        "footystats_away": "Aberdeen",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1556667",
+        "competition_id": "scotland_premiership",
+        "kickoff_utc": "2026-09-19T14:00:00+00:00",
+        "production_home": "ST Johnstone",
+        "production_away": "Falkirk",
+        "production_goals": [
+          1,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8558485,
+        "footystats_home": "St. Johnstone",
+        "footystats_away": "Falkirk",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1557374",
+        "competition_id": "premier_league",
+        "kickoff_utc": "2026-08-23T13:00:00+00:00",
+        "production_home": "Manchester City",
+        "production_away": "Bournemouth",
+        "production_goals": [
+          2,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8558091,
+        "footystats_home": "Manchester City",
+        "footystats_away": "AFC Bournemouth",
+        "footystats_goals": [
+          2,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1557379",
+        "competition_id": "premier_league",
+        "kickoff_utc": "2026-08-30T13:00:00+00:00",
+        "production_home": "Chelsea",
+        "production_away": "Brighton",
+        "production_goals": [
+          4,
+          3
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8558074,
+        "footystats_home": "Chelsea",
+        "footystats_away": "Brighton & Hove Albion",
+        "footystats_goals": [
+          4,
+          3
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1557389",
+        "competition_id": "premier_league",
+        "kickoff_utc": "2026-09-05T14:00:00+00:00",
+        "production_home": "Brighton",
+        "production_away": "Leeds",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8557843,
+        "footystats_home": "Brighton & Hove Albion",
+        "footystats_away": "Leeds United",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1557391",
+        "competition_id": "premier_league",
+        "kickoff_utc": "2026-09-05T14:00:00+00:00",
+        "production_home": "Fulham",
+        "production_away": "Crystal Palace",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8557829,
+        "footystats_home": "Fulham",
+        "footystats_away": "Crystal Palace",
+        "footystats_goals": [
+          2,
+          3
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1557399",
+        "competition_id": "premier_league",
+        "kickoff_utc": "2026-09-12T14:00:00+00:00",
+        "production_home": "Chelsea",
+        "production_away": "Hull City",
+        "production_goals": [
+          2,
+          2
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8558018,
+        "footystats_home": "Chelsea",
+        "footystats_away": "Hull City",
+        "footystats_goals": [
+          2,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1557414",
+        "competition_id": "premier_league",
+        "kickoff_utc": "2026-09-19T14:00:00+00:00",
+        "production_home": "Newcastle",
+        "production_away": "Hull City",
+        "production_goals": [
+          2,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8557996,
+        "footystats_home": "Newcastle United",
+        "footystats_away": "Hull City",
+        "footystats_goals": [
+          2,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1558644",
+        "competition_id": "belgium_jupiler_pro_league",
+        "kickoff_utc": "2026-10-09T18:45:00+00:00",
+        "production_home": "SK Beveren",
+        "production_away": "Lommel United",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8562383,
+        "footystats_home": "Waasland-Beveren",
+        "footystats_away": "Lommel United",
+        "footystats_goals": [
+          1,
+          3
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1561930",
+        "competition_id": "austria_bundesliga",
+        "kickoff_utc": "2026-09-19T15:00:00+00:00",
+        "production_home": "Austria Lustenau",
+        "production_away": "SCR Altach",
+        "production_goals": [
+          2,
+          0
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8565849,
+        "footystats_home": "Austria Lustenau",
+        "footystats_away": "Rheindorf Altach",
+        "footystats_goals": [
+          2,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1561932",
+        "competition_id": "austria_bundesliga",
+        "kickoff_utc": "2026-09-20T12:30:00+00:00",
+        "production_home": "TSV Hartberg",
+        "production_away": "Lask Linz",
+        "production_goals": [
+          3,
+          3
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8565838,
+        "footystats_home": "Hartberg",
+        "footystats_away": "LASK Linz",
+        "footystats_goals": [
+          3,
+          3
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1569939",
+        "competition_id": "spain_segunda_division",
+        "kickoff_utc": "2026-09-26T12:00:00+00:00",
+        "production_home": "AD Ceuta FC",
+        "production_away": "Real Sociedad II",
+        "production_goals": [
+          3,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8584399,
+        "footystats_home": "Ceuta",
+        "footystats_away": "Real Sociedad II",
+        "footystats_goals": [
+          3,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1569945",
+        "competition_id": "spain_segunda_division",
+        "kickoff_utc": "2026-09-27T19:00:00+00:00",
+        "production_home": "Oviedo",
+        "production_away": "Sporting Gijon",
+        "production_goals": [
+          2,
+          0
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8584388,
+        "footystats_home": "Real Oviedo",
+        "footystats_away": "Sporting Gijón",
+        "footystats_goals": [
+          2,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1569951",
+        "competition_id": "spain_segunda_division",
+        "kickoff_utc": "2026-10-04T16:30:00+00:00",
+        "production_home": "Castellón",
+        "production_away": "AD Ceuta FC",
+        "production_goals": [
+          1,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8584377,
+        "footystats_home": "CD Castellón",
+        "footystats_away": "Ceuta",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1570358",
+        "competition_id": "la_liga",
+        "kickoff_utc": "2026-08-31T17:30:00+00:00",
+        "production_home": "Osasuna",
+        "production_away": "Getafe",
+        "production_goals": [
+          1,
+          0
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8570432,
+        "footystats_home": "CA Osasuna",
+        "footystats_away": "Getafe CF",
+        "footystats_goals": [
+          1,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1570373",
+        "competition_id": "la_liga",
+        "kickoff_utc": "2026-09-12T16:30:00+00:00",
+        "production_home": "Athletic Club",
+        "production_away": "Elche",
+        "production_goals": [
+          1,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8570414,
+        "footystats_home": "Athletic Club Bilbao",
+        "footystats_away": "Elche CF",
+        "footystats_goals": [
+          1,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1570387",
+        "competition_id": "la_liga",
+        "kickoff_utc": "2026-09-16T17:00:00+00:00",
+        "production_home": "Deportivo La Coruna",
+        "production_away": "Sevilla",
+        "production_goals": [
+          0,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8570376,
+        "footystats_home": "Deportivo La Coruña",
+        "footystats_away": "Sevilla FC",
+        "footystats_goals": [
+          0,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1570392",
+        "competition_id": "la_liga",
+        "kickoff_utc": "2026-09-03T19:00:00+00:00",
+        "production_home": "Real Sociedad",
+        "production_away": "Celta Vigo",
+        "production_goals": [
+          0,
+          0
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8570372,
+        "footystats_home": "Real Sociedad",
+        "footystats_away": "Celta de Vigo",
+        "footystats_goals": [
+          0,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1570410",
+        "competition_id": "la_liga",
+        "kickoff_utc": "2026-10-10T12:00:00+00:00",
+        "production_home": "Rayo Vallecano",
+        "production_away": "Athletic Club",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8570360,
+        "footystats_home": "Rayo Vallecano",
+        "footystats_away": "Athletic Club Bilbao",
+        "footystats_goals": [
+          null,
+          null
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1575142",
+        "competition_id": "bundesliga",
+        "kickoff_utc": "2026-08-29T16:30:00+00:00",
+        "production_home": "Borussia Dortmund",
+        "production_away": "Hamburger SV",
+        "production_goals": [
+          2,
+          0
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8572548,
+        "footystats_home": "Borussia Dortmund",
+        "footystats_away": "Hamburger SV",
+        "footystats_goals": [
+          2,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1575147",
+        "competition_id": "bundesliga",
+        "kickoff_utc": "2026-08-29T13:30:00+00:00",
+        "production_home": "RB Leipzig",
+        "production_away": "Borussia Mönchengladbach",
+        "production_goals": [
+          3,
+          0
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8572289,
+        "footystats_home": "RB Leipzig",
+        "footystats_away": "Borussia M'gladbach",
+        "footystats_goals": [
+          3,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1575152",
+        "competition_id": "bundesliga",
+        "kickoff_utc": "2026-09-06T15:30:00+00:00",
+        "production_home": "Eintracht Frankfurt",
+        "production_away": "FC Augsburg",
+        "production_goals": [
+          1,
+          4
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8572515,
+        "footystats_home": "Eintracht Frankfurt",
+        "footystats_away": "Augsburg",
+        "footystats_goals": [
+          1,
+          4
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1575160",
+        "competition_id": "bundesliga",
+        "kickoff_utc": "2026-09-12T13:30:00+00:00",
+        "production_home": "1899 Hoffenheim",
+        "production_away": "VfB Stuttgart",
+        "production_goals": [
+          2,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8572533,
+        "footystats_home": "Hoffenheim",
+        "footystats_away": "Stuttgart",
+        "footystats_goals": [
+          2,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1575182",
+        "competition_id": "bundesliga",
+        "kickoff_utc": "2026-10-10T13:30:00+00:00",
+        "production_home": "Union Berlin",
+        "production_away": "SV Elversberg",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8572313,
+        "footystats_home": "Union Berlin",
+        "footystats_away": "Elversberg",
+        "footystats_goals": [
+          null,
+          null
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1575184",
+        "competition_id": "bundesliga",
+        "kickoff_utc": "2026-10-10T13:30:00+00:00",
+        "production_home": "SC Paderborn 07",
+        "production_away": "VfB Stuttgart",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8572484,
+        "footystats_home": "Paderborn",
+        "footystats_away": "Stuttgart",
+        "footystats_goals": [
+          null,
+          null
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1575450",
+        "competition_id": "primeira_liga",
+        "kickoff_utc": "2026-08-09T19:30:00+00:00",
+        "production_home": "GIL Vicente",
+        "production_away": "Rio Ave",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8574264,
+        "footystats_home": "Gil Vicente",
+        "footystats_away": "Rio Ave FC",
+        "footystats_goals": [
+          1,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1575456",
+        "competition_id": "primeira_liga",
+        "kickoff_utc": "2026-08-15T14:30:00+00:00",
+        "production_home": "Alverca",
+        "production_away": "Estrela",
+        "production_goals": [
+          2,
+          2
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8574401,
+        "footystats_home": "Alverca",
+        "footystats_away": "Estrela Amadora",
+        "footystats_goals": [
+          2,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1575465",
+        "competition_id": "primeira_liga",
+        "kickoff_utc": "2026-09-10T19:15:00+00:00",
+        "production_home": "Estrela",
+        "production_away": "SC Braga",
+        "production_goals": [
+          2,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8574265,
+        "footystats_home": "Estrela Amadora",
+        "footystats_away": "Sporting Braga",
+        "footystats_goals": [
+          2,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1575502",
+        "competition_id": "primeira_liga",
+        "kickoff_utc": "2026-09-20T14:30:00+00:00",
+        "production_home": "Estrela",
+        "production_away": "Academico Viseu",
+        "production_goals": [
+          0,
+          2
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8574240,
+        "footystats_home": "Estrela Amadora",
+        "footystats_away": "Academico Viseu",
+        "footystats_goals": [
+          0,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1575506",
+        "competition_id": "primeira_liga",
+        "kickoff_utc": "2026-09-20T17:00:00+00:00",
+        "production_home": "Santa Clara",
+        "production_away": "SC Braga",
+        "production_goals": [
+          0,
+          0
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8574373,
+        "footystats_home": "Santa Clara",
+        "footystats_away": "Sporting Braga",
+        "footystats_goals": [
+          0,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1576189",
+        "competition_id": "germany_2_bundesliga",
+        "kickoff_utc": "2026-10-09T16:30:00+00:00",
+        "production_home": "Eintracht Braunschweig",
+        "production_away": "Holstein Kiel",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8572758,
+        "footystats_home": "Eintracht Braunschweig",
+        "footystats_away": "Holstein Kiel",
+        "footystats_goals": [
+          1,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1576194",
+        "competition_id": "germany_2_bundesliga",
+        "kickoff_utc": "2026-10-10T18:30:00+00:00",
+        "production_home": "1. FC Nürnberg",
+        "production_away": "VfL Wolfsburg",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8572828,
+        "footystats_home": "Nürnberg",
+        "footystats_away": "Wolfsburg",
+        "footystats_goals": [
+          null,
+          null
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1584412",
+        "competition_id": "turkey_super_lig",
+        "kickoff_utc": "2026-09-20T17:00:00+00:00",
+        "production_home": "Amed",
+        "production_away": "Beşiktaş",
+        "production_goals": [
+          3,
+          2
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8583560,
+        "footystats_home": "Amed",
+        "footystats_away": "Beşiktaş",
+        "footystats_goals": [
+          3,
+          2
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1584415",
+        "competition_id": "turkey_super_lig",
+        "kickoff_utc": "2026-09-20T14:00:00+00:00",
+        "production_home": "Erzurumspor FK",
+        "production_away": "Samsunspor",
+        "production_goals": [
+          1,
+          0
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8583553,
+        "footystats_home": "BB Erzurumspor",
+        "footystats_away": "Samsunspor",
+        "footystats_goals": [
+          1,
+          0
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      },
+      {
+        "fixture_id": "api_football:1593326",
+        "competition_id": "greece_super_league_1",
+        "kickoff_utc": "2026-10-10T16:30:00+00:00",
+        "production_home": "Asteras Tripolis",
+        "production_away": "Atromitos",
+        "production_goals": [
+          null,
+          null
+        ],
+        "production_status": "NS",
+        "fs_match_id": 8603824,
+        "footystats_home": "Asteras Tripolis",
+        "footystats_away": "Atromitos",
+        "footystats_goals": [
+          null,
+          null
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_UNKNOWN",
+        "score_verdict": "SCORE_UNKNOWN"
+      },
+      {
+        "fixture_id": "api_football:1601541",
+        "competition_id": "italy_serie_b",
+        "kickoff_utc": "2026-09-19T15:15:00+00:00",
+        "production_home": "Sampdoria",
+        "production_away": "Catanzaro",
+        "production_goals": [
+          2,
+          1
+        ],
+        "production_status": "FT",
+        "fs_match_id": 8614480,
+        "footystats_home": "Sampdoria",
+        "footystats_away": "Catanzaro",
+        "footystats_goals": [
+          2,
+          1
+        ],
+        "match_method": "DATE_TEAM_KEY",
+        "match_confidence": "SCORE_AGREES",
+        "score_verdict": "AGREES"
+      }
+    ]
+  },
+  "coverage_report": [
+    {
+      "competition_id": "allsvenskan",
+      "fixtures": 240,
+      "complete_fixtures": 177,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 42,
+      "production_overlap_rate": 0.175
+    },
+    {
+      "competition_id": "argentina_primera",
+      "fixtures": 495,
+      "complete_fixtures": 423,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 0.0,
+      "pinnacle_in_comparison": 0.0,
+      "matched_fixtures": 133,
+      "production_overlap_rate": 0.2686868686868687
+    },
+    {
+      "competition_id": "austria_bundesliga",
+      "fixtures": 132,
+      "complete_fixtures": 42,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 13,
+      "production_overlap_rate": 0.09848484848484848
+    },
+    {
+      "competition_id": "belgium_jupiler_pro_league",
+      "fixtures": 306,
+      "complete_fixtures": 64,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 18,
+      "production_overlap_rate": 0.058823529411764705
+    },
+    {
+      "competition_id": "brasileirao_serie_a",
+      "fixtures": 380,
+      "complete_fixtures": 289,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 103,
+      "production_overlap_rate": 0.2710526315789474
+    },
+    {
+      "competition_id": "bundesliga",
+      "fixtures": 306,
+      "complete_fixtures": 37,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 46,
+      "production_overlap_rate": 0.1503267973856209
+    },
+    {
+      "competition_id": "chinese_super_league",
+      "fixtures": 240,
+      "complete_fixtures": 211,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 44,
+      "production_overlap_rate": 0.18333333333333332
+    },
+    {
+      "competition_id": "croatia_hnl",
+      "fixtures": 180,
+      "complete_fixtures": 40,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 11,
+      "production_overlap_rate": 0.06111111111111111
+    },
+    {
+      "competition_id": "czech_republic_liga",
+      "fixtures": 240,
+      "complete_fixtures": 72,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 17,
+      "production_overlap_rate": 0.07083333333333333
+    },
+    {
+      "competition_id": "denmark_superliga",
+      "fixtures": 132,
+      "complete_fixtures": 55,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 13,
+      "production_overlap_rate": 0.09848484848484848
+    },
+    {
+      "competition_id": "eliteserien",
+      "fixtures": 240,
+      "complete_fixtures": 169,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 66,
+      "production_overlap_rate": 0.275
+    },
+    {
+      "competition_id": "england_championship",
+      "fixtures": 552,
+      "complete_fixtures": 96,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 39,
+      "production_overlap_rate": 0.07065217391304347
+    },
+    {
+      "competition_id": "eredivisie",
+      "fixtures": 306,
+      "complete_fixtures": 64,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 72,
+      "production_overlap_rate": 0.23529411764705882
+    },
+    {
+      "competition_id": "germany_2_bundesliga",
+      "fixtures": 306,
+      "complete_fixtures": 56,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 20,
+      "production_overlap_rate": 0.06535947712418301
+    },
+    {
+      "competition_id": "greece_super_league_1",
+      "fixtures": 182,
+      "complete_fixtures": 35,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 14,
+      "production_overlap_rate": 0.07692307692307693
+    },
+    {
+      "competition_id": "italy_serie_b",
+      "fixtures": 380,
+      "complete_fixtures": 51,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 21,
+      "production_overlap_rate": 0.05526315789473684
+    },
+    {
+      "competition_id": "la_liga",
+      "fixtures": 380,
+      "complete_fixtures": 70,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 80,
+      "production_overlap_rate": 0.21052631578947367
+    },
+    {
+      "competition_id": "ligue_1",
+      "fixtures": 306,
+      "complete_fixtures": 46,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 54,
+      "production_overlap_rate": 0.17647058823529413
+    },
+    {
+      "competition_id": "mls",
+      "fixtures": 510,
+      "complete_fixtures": 405,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 0.2,
+      "pinnacle_in_comparison": 0.2,
+      "matched_fixtures": 161,
+      "production_overlap_rate": 0.3156862745098039
+    },
+    {
+      "competition_id": "netherlands_eerste_divisie",
+      "fixtures": 380,
+      "complete_fixtures": 100,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 9,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 40,
+      "production_overlap_rate": 0.10526315789473684
+    },
+    {
+      "competition_id": "premier_league",
+      "fixtures": 380,
+      "complete_fixtures": 50,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 60,
+      "production_overlap_rate": 0.15789473684210525
+    },
+    {
+      "competition_id": "primeira_liga",
+      "fixtures": 306,
+      "complete_fixtures": 64,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 70,
+      "production_overlap_rate": 0.22875816993464052
+    },
+    {
+      "competition_id": "scotland_premiership",
+      "fixtures": 198,
+      "complete_fixtures": 42,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 15,
+      "production_overlap_rate": 0.07575757575757576
+    },
+    {
+      "competition_id": "serie_a",
+      "fixtures": 380,
+      "complete_fixtures": 50,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 61,
+      "production_overlap_rate": 0.16052631578947368
+    },
+    {
+      "competition_id": "spain_segunda_division",
+      "fixtures": 462,
+      "complete_fixtures": 88,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 45,
+      "production_overlap_rate": 0.09740259740259741
+    },
+    {
+      "competition_id": "switzerland_super_league",
+      "fixtures": 132,
+      "complete_fixtures": 54,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 15,
+      "production_overlap_rate": 0.11363636363636363
+    },
+    {
+      "competition_id": "turkey_super_lig",
+      "fixtures": 306,
+      "complete_fixtures": 55,
+      "xg_non_null_on_complete": 1.0,
+      "ft_result_odds_non_null": 1.0,
+      "ou25_odds_non_null": 1.0,
+      "odds_comparison_observed": 5,
+      "odds_comparison_non_null": 1.0,
+      "pinnacle_in_comparison": 1.0,
+      "matched_fixtures": 19,
+      "production_overlap_rate": 0.06209150326797386
+    }
+  ],
+  "xg_lag_report": {
+    "contract": "w2.footystats_xg_lag_report.v1",
+    "complete_observed": 2906,
+    "tracked_with_xg": 2906,
+    "p50_seconds": 0.0,
+    "p90_seconds": 0.0,
+    "min_seconds": 0.0,
+    "max_seconds": 0.0,
+    "still_without_xg": [],
+    "last_observed_at": "2026-10-10T10:45:42.539492+00:00",
+    "resolution_caveat": "时滞是「首次观测到完赛」到「首次观测到两队 xG 齐」的差，因此它是 Provider 真实发布延迟的**上界**，精度受轮询间隔限制；同一轮抓取里既完赛又有 xG 的场次其真实延迟不可分辨，记 0。"
+  }
+}
