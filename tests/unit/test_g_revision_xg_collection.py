@@ -369,6 +369,10 @@ def test_postmatch_checkpoint_enables_statistics_enrichment() -> None:
     assert "feature_enrichment_enabled=(lineups_count > 0 or postmatch_count > 0)" in source
     assert '(("statistics",) if postmatch_count > 0 else ())' in source
     assert "feature_enrichment_request_budget=lineups_count + postmatch_count" in source
+    # 预算口径必须把新增的 statistics 尝试算进去：只按 status+fixtures(=2) 算的话，
+    # 两次基础请求就用光预算，enrichment 会被 FEATURE_ENRICHMENT_SKIPPED_REQUEST_BUDGET
+    # 静默挡掉 —— F3a 会变成「改了但没生效」。
+    assert "2 + postmatch_count" in source
     # 计划自身 endpoints 必须保持 {status, fixtures}
     plan_source = (
         Path(fr.__file__).resolve().parents[1] / "ingestion" / "checkpoint_refresh.py"

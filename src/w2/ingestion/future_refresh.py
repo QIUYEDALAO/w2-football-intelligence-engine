@@ -3581,9 +3581,18 @@ def run_future_fixture_refresh(
             request_budget=max(config.request_budget, provider_request_max_attempts()),
         )
     if checkpoint_fixture_ids or refresh_checkpoints:
+        # F3a（指令书 G 修订，2026-10-10）：POSTMATCH 窗口要为每场 FT 追加一次 statistics
+        # 尝试，必须计入 logical_calls —— 否则 request_budget 只按 status+fixtures(=2) 算，
+        # 两次基础请求就把预算用光，enrichment 会被
+        # FEATURE_ENRICHMENT_SKIPPED_REQUEST_BUDGET 静默挡掉，F3a 等于没做。
+        postmatch_count = sum(
+            1
+            for item in refresh_checkpoints
+            if str(item.get("checkpoint") or "") == "POSTMATCH_RESULT"
+        )
         endpoint_sets = [set(item.get("endpoints") or []) for item in refresh_checkpoints]
         logical_calls = (
-            2
+            2 + postmatch_count
             if endpoint_sets
             and all(
                 endpoints == {"status", "fixtures"}
@@ -3617,11 +3626,7 @@ def run_future_fixture_refresh(
         # 注意：这里只扩 enrichment endpoints，**不动计划自身的 endpoints** ——
         # `_checkpoint_mode()` 靠 `endpoints == {"status","fixtures"}` 识别 POSTMATCH，
         # 动它会连带改掉 checkpoint 模式判定（历史上这是最脆的一段）。
-        postmatch_count = sum(
-            1
-            for item in refresh_checkpoints
-            if str(item.get("checkpoint") or "") == "POSTMATCH_RESULT"
-        )
+        # postmatch_count 已在上面算过（并计入 logical_calls）。
         config = replace(
             config,
             checkpoint_fixture_ids=tuple(dict.fromkeys(checkpoint_fixture_ids)),
