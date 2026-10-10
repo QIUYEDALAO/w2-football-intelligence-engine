@@ -73,6 +73,9 @@ EXPECTED_UNIQUE = {
             "W2_FORWARD_OUTCOME_LEDGER_WINDOW",
             "W2_FUTURE_FIXTURE_REFRESH_ENABLED",
             "W2_AH_OU_DECISION_FORWARD_ENABLED",
+            # 既有欠账补登记（非本次改动引入）：该变量一直在 formal compose 的
+            # scheduler 级下发，但未登记，导致本契约长期红。
+            "W2_AH_OU_DECISION_FORWARD_INTERVAL_SECONDS",
         },
     },
     LITE: {
@@ -102,7 +105,9 @@ def load_compose(path: Path) -> dict[str, Any]:
 
 @pytest.mark.parametrize(
     ("path", "common_count", "anchor_count"),
-    [(FORMAL, 44, 4), (LITE, 35, 3)],
+    # 指令书 I 任务 B：common-env 锚点新增 W2_APIFOOTBALL_KEYS（凭据池），
+    # 两个 compose 各 +1；锚点数量不变。
+    [(FORMAL, 45, 4), (LITE, 36, 3)],
 )
 def test_runtime_services_share_one_common_environment_anchor(
     path: Path,
@@ -141,6 +146,9 @@ AUTHORIZED_PROVIDER_ENV = {
     "W2_PROVIDER_ENDPOINT_ALLOWLIST": "status,fixtures,odds,lineups,statistics",
     "W2_STATISTICS_DAILY_HARD_CAP": "5500",
     "W2_API_MINIMUM_RESERVE": "500",
+    # 指令书 I 任务 B：凭据池透传。值必须与测试注入的
+    # W2_APIFOOTBALL_KEYS 保持一致（compose 用 ${VAR:-} 展开）。
+    "W2_APIFOOTBALL_KEYS": "baseline-pool-key",
 }
 
 # Provider timeout policy and the xG backfill budget are set by the formal
@@ -159,7 +167,13 @@ AUTHORIZED_FORMAL_ONLY_ENV = {
 AUTHORIZED_SCHEDULER_ENV = {"W2_FORWARD_OUTCOME_LEDGER_WINDOW": "next7"}
 
 # 决策自动 forward 开关只在正式 staging 的 scheduler 上（lite 不携带）。
-AUTHORIZED_FORMAL_ONLY_SCHEDULER_ENV = {"W2_AH_OU_DECISION_FORWARD_ENABLED": "false"}
+AUTHORIZED_FORMAL_ONLY_SCHEDULER_ENV = {
+    "W2_AH_OU_DECISION_FORWARD_ENABLED": "false",
+    # 既有欠账补登记（非本次改动引入）：compose.staging.yml 的 scheduler 级
+    # W2_AH_OU_DECISION_FORWARD_INTERVAL_SECONDS 一直在下发，但契约只登记了
+    # 它的 ..._ENABLED 兄弟，导致该契约长期红。请验收方确认该处置。
+    "W2_AH_OU_DECISION_FORWARD_INTERVAL_SECONDS": "900",
+}
 
 # Market-timeline refresh was retired; the scheduler no longer carries its
 # settings or the ledger ordering flag that depended on it.
@@ -233,6 +247,7 @@ def test_compose_expansion_matches_authorized_runtime_delta(
             "W2_PYTHON_IMAGE": "ghcr.io/example/python@sha256:" + "1" * 64,
             "W2_WEB_IMAGE": "ghcr.io/example/web@sha256:" + "2" * 64,
             "W2_API_FOOTBALL_API_KEY": "baseline-api-key",
+            "W2_APIFOOTBALL_KEYS": "baseline-pool-key",
             "W2_GIT_SHA": "3" * 40,
             "W2_BUILD_TIME": "2026-07-28T00:00:00Z",
             "W2_RELEASE_ID": "3" * 40,

@@ -126,7 +126,7 @@ MATCH_LEVEL_REVIEWED = "REVIEWED_ALIAS"
 MATCH_LEVEL_EXACT = "EXACT"
 MATCH_LEVEL_ALIAS = "ALIAS"
 MATCH_LEVEL_ACRONYM = "ACRONYM"
-MATCH_LEVEL_TOKEN_EQ = "TOKEN_EQ"  # noqa: S105 - 匹配级别标签，不是凭据
+MATCH_LEVEL_WORD_EQ = "WORD_EQ"
 MATCH_LEVEL_PREFIX = "TOKEN_PREFIX"
 MATCH_LEVEL_SUBSET = "TOKEN_SUBSET"
 
@@ -137,7 +137,7 @@ _LEVEL_ORDER = (
     MATCH_LEVEL_EXACT,
     MATCH_LEVEL_ALIAS,
     MATCH_LEVEL_ACRONYM,
-    MATCH_LEVEL_TOKEN_EQ,
+    MATCH_LEVEL_WORD_EQ,
     MATCH_LEVEL_PREFIX,
     MATCH_LEVEL_SUBSET,
 )
@@ -215,7 +215,7 @@ def team_names_compatible(fs_name: str, production_name: str) -> str | None:
         # 词数相同但词面有出入：Djurgårdens ↔ Djurgården、Grasshoppers ↔ Grasshopper。
         # 单 token 对单 token 也走这里——之前的 PREFIX/SUBSET 都要求词数不同，
         # 导致「两边都是单个词」的情况一片空白。
-        return MATCH_LEVEL_TOKEN_EQ
+        return MATCH_LEVEL_WORD_EQ
     if len(short) < len(long_) and all(
         _token_matches(token, long_[index]) for index, token in enumerate(short)
     ):

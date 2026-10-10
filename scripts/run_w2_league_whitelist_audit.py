@@ -48,6 +48,7 @@ from w2.competitions.league_whitelist_scope import (
     load_league_whitelist_scope,
 )
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryEntry
+from w2.providers.key_pool import primary_credential
 
 ROOT = Path(__file__).resolve().parents[1]
 NATIONAL_LEAGUES_DIR = ROOT / "config/competitions/national_leagues"
@@ -214,7 +215,7 @@ def build_cli_payload(
             for entry in entries
         ]
         status = "NEED_USER_APPROVAL"
-    elif execute_provider_audit and "W2_API_FOOTBALL_API_KEY" not in os.environ:
+    elif execute_provider_audit and primary_credential() is None:
         results = [
             build_provider_key_missing_result(
                 entry,
@@ -403,7 +404,7 @@ def _build_real_provider_payload(
             endpoint_allowlist=endpoint_allowlist,
             message="NEED_USER_APPROVAL: LEAGUE_WHITELIST_PROVIDER_AUDIT",
         )
-    if "W2_API_FOOTBALL_API_KEY" not in os.environ:
+    if primary_credential() is None:
         results = [
             build_provider_key_missing_result(
                 entry,

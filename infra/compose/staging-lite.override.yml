@@ -51,6 +51,9 @@ x-common-env: &common-env
   CELERY_WORKER_CONCURRENCY: "1"
   W2_SERVICE_VERSION: staging-0.1.0
   W2_API_FOOTBALL_API_KEY: ${W2_API_FOOTBALL_API_KEY:?required}
+  # 指令书 I 任务 B：凭据池透传。刻意**不加** :?required —— 池为空时
+  # request_live 会回退到上面那把单 key，加硬门只会制造无谓的启动失败。
+  W2_APIFOOTBALL_KEYS: ${W2_APIFOOTBALL_KEYS:-}
 
 services:
 

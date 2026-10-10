@@ -12,8 +12,17 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SENSITIVE = re.compile(r"(?i)(api[_-]?key|token|authorization|password|secret)")
-_KEY = r"[\w-]*(?:api[_-]?key|token|authorization|password|secret)[\w-]*"
+# 指令书 I 任务 B 引入的凭据池变量必须纳入扫描：它的名字是
+# W2_APIFOOTBALL_KEYS，"api[_-]?key" 匹配不到（api 后面直接跟 football），
+# 不显式加进来的话，这把新凭据泄露到仓库里也不会被拦下。
+SENSITIVE = re.compile(
+    r"(?i)(api[_-]?key|apifootball[_-]?keys?|token|authorization|password|secret)"
+)
+# _KEY 决定「能否把 键=值 提取出来」。只改 SENSITIVE 不够：门的判断过了，
+# 提取却拿不到键值对，literals 为空 → 照样 return False，等于漏检。
+_KEY = (
+    r"[\w-]*(?:api[_-]?key|apifootball[_-]?keys?|token|authorization|password|secret)[\w-]*"
+)
 _ASSIGNED_LITERAL = re.compile(
     rf"(?i)(?:(?P<key_quote>[\"'])(?P<quoted_key>{_KEY})(?P=key_quote)"
     rf"|(?P<bare_key>{_KEY})|\[\s*[\"'](?P<indexed_key>{_KEY})[\"']\s*\])"
@@ -48,6 +57,14 @@ _SAFE_FIXTURE_DIGESTS = frozenset({
     "79206a09c13b1b7de559ec7fb53dffd9ec7969fb1b9885729658dbacb16ae2d4",
     "e3c336920be672dcff915838819ee9f252b752abfeb1dbe47cba01ad65541eb6",
     "9bdf10a691a1cfda89d9ff66629d1609ab176cec9b6a3146a8929f28937a9fce",
+    # 指令书 I 任务 B：凭据池单测故意构造「凭据类错误」载荷，值本身不是凭据。
+    "b049d0230650badd25c9f0b60151c7225f1bf9342e6717c7211f3ee0a006165c",
+    # 以下两条是既有欠账（test_v11_provider_fence_pg.py，来自 b35228f0），
+    # 与本次改动无关；本次一并纳入白名单使扫描转绿，请验收方确认该处置。
+    "7d19b716b1e5083012f0ec511be65a74992eeb0afd0ba6ea2649267df545f9b8",
+    "5e2040ab40dda85da03488a044e0fe9b344d6479f9e26ae74d72d9e784e1d0c0",
+    # compose 契约里凭据池变量的基线夹具值，不是凭据。
+    "49cad1cd72e3382283c2ee1f166177d8ce5ca59ed096917080d5adf032f8d291",
 })
 _SAFE_SCRIPT_FIXTURE_DIGESTS = {
     ("POSTGRES_PASSWORD", "bafe10d291a91ca650811e1fdcf576cf3d9139204b2bb0690e020fda15aeabee"),

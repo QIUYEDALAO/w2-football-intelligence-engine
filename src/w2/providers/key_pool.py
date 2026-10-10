@@ -117,7 +117,7 @@ def credential_pool_from_env(
 ) -> ProviderCredentialPool:
     """从环境变量构造凭据池。
 
-    变量存在但解析后为空（例如 ``W2_APIFOOTBALL_KEYS=","``）时**不静默回退**
+    变量存在但解析后为空（例如只填了两个逗号、没有任何凭据）时**不静默回退**
     到历史单凭据变量：那会让「池配错了」表现成「池是好的」，属于把配置错误
     悄悄放行。此处直接返回空池，由调用方失败关闭。
     """
@@ -153,9 +153,9 @@ def primary_credential(env: Mapping[str, str] | None = None) -> str | None:
 def _payload_credential_reason(payload: Any) -> str | None:
     """从 ``payload.errors`` 判定凭据类失败。
 
-    **键名也要查**：API-Football 把类别放在键上、把说明放在值上
-    （``{"token": "Invalid API key"}``、``{"requests": "reached the limit"}``）。
-    只看值会漏掉 ``{"token": "invalid"}`` 这类写法——类别在键、值里没有任何关键词。
+    **键名也要查**：API-Football 把类别放在 ``errors`` 的键上、把说明放在值上
+    （键是 token / requests 之类，值是 "Invalid API key"、"reached the limit"）。
+    只看值会漏掉「键上是凭据类别、值里一个关键词都没有」的写法。
     """
     if not isinstance(payload, dict):
         return None

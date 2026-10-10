@@ -143,7 +143,13 @@ def test_rate_limited_primary_falls_over(monkeypatch) -> None:
 def test_payload_credential_error_falls_over(monkeypatch) -> None:
     """HTTP 200 但 payload 点名 token 失效，同样属于凭据类失败。"""
     recorder = _Recorder(
-        [_FakeResponse(200, {"response": [], "errors": {"token": "invalid"}}), _ok()]
+        [
+            _FakeResponse(
+                200,
+                {"response": [], "errors": {"token": "invalid-api-token-value"}},
+            ),
+            _ok(),
+        ]
     )
     client = _client(recorder, monkeypatch)
 

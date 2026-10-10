@@ -50,6 +50,9 @@ x-common-env: &common-env
   W2_SERVICE_VERSION: staging-0.1.0
   W2_LINEUP_POLICY_PATH: /app/image_config/policies/lineup_market_policy.v1.json
   W2_API_FOOTBALL_API_KEY: ${W2_API_FOOTBALL_API_KEY}
+  # 指令书 I 任务 B：凭据池（有序，第一个为主号）。留空即回退上面那把单 key，
+  # 因此本行是纯透传、不构成新的启动硬门。
+  W2_APIFOOTBALL_KEYS: ${W2_APIFOOTBALL_KEYS:-}
 
 services:
 
