@@ -74,6 +74,46 @@ def _times_differ(left: Any, right: Any) -> bool:
     return abs((left_dt - right_dt).total_seconds()) > 1.0
 
 
+def _raw_time_binding_invalid(
+    session: Session,
+    capture: MatchdayEndpointCaptureModel,
+    raw: RawPayloadModel,
+) -> bool:
+    """raw.captured_at 与 capture.provider_captured_at 的时间绑定校验（F 修复，2026-10-10）。
+
+    **为什么需要它**：`raw_payload` 以**内容 sha256 为主键**（内容寻址 + 去重）。当 provider
+    在数小时后返回**逐字节相同**的 odds 时，后来的 capture 复用同一 raw 行，该行的
+    `captured_at` 永远停留在**首次**入库时刻 ⇒ `_times_differ(raw.captured_at,
+    capture.provider_captured_at)` 对第二次及以后的 capture **必然为真**，而被判的却是
+    「决策契约违规」。这是**校验与实际数据形态不兼容**，不是数据缺陷。
+
+    生产实测（2026-10-09，指令书 F 的 6 条触发决策 = 3 个 fixture × 2 market）：
+    三者形态完全一致——同一 raw sha 被**恰好 2 个** capture 引用，首发 capture 的
+    `provider_captured_at` 与 `raw.captured_at` 秒级一致（如 18:32:28 == 18:32:28.944），
+    决策绑定的第二个 capture 相差 ~3h（odds 内容 3h 内未变）。
+
+    **修法**：判据改为「`raw.captured_at` 必须能被引用该 raw 的**最早** capture 解释」：
+      · raw 仅被本 capture 引用（len < 2）→ 退回原严格比较，**反篡改防线不放松**；
+      · raw 被多个 capture 共享 → 允许与最早那个 capture 的时间匹配；内容仍被三段 sha
+        校验（legacy sha / current sha / 决策冻结的 source_capture_sha256）钉死。
+    只平移 `raw.captured_at` 而不动任何 capture（集成测试
+    `test_v3_large_raw_capture_time_diff_is_refused` 的构造）仍被拒——没有任何 capture
+    的时间能解释新值。
+    """
+    if not _times_differ(raw.captured_at, capture.provider_captured_at):
+        return False
+    sharers = list(
+        session.scalars(
+            select(MatchdayEndpointCaptureModel.provider_captured_at).where(
+                MatchdayEndpointCaptureModel.raw_payload_sha256 == raw.sha256
+            )
+        )
+    )
+    if len(sharers) < 2:
+        return True
+    return _times_differ(raw.captured_at, min(sharers))
+
+
 def _result_source(session: Session, result: ResultModel) -> dict[str, Any]:
     if result.result_status not in {"FT", "AET", "PEN"}:
         raise ValueError("V3_RESULT_STATUS_INVALID")
@@ -270,7 +310,7 @@ def _verify_v3_frozen_decision_in_session(
         != raw.sha256
         or canonical_sha256(raw.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
         != decision.source_capture_sha256
-        or _times_differ(raw.captured_at, capture.provider_captured_at)
+        or _raw_time_binding_invalid(session, capture, raw)
     ):
         raise DecisionContractViolation("V3_PUBLIC_QUOTE_RAW_BINDING_INVALID")
     # P0: 删 Pinnacle 门槛——bookmaker 从冻结条款读回（selector 已 any bookmaker），

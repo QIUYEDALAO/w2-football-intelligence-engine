@@ -66,6 +66,7 @@ echo "XG_BACKFILL_WINDOW_COMPETITIONS:$(printf ' %s' $COMPS)"
 
 ran=0
 deferred_timeout=0
+quota_guarded=0
 for comp in $COMPS; do
   waited=0
   while :; do
@@ -84,16 +85,29 @@ for comp in $COMPS; do
     waited=$((waited + POLL))
   done
   echo "[$(date -u +%FT%TZ)] gate OPEN → backfill $comp"
-  W2_XG_REFRESH_COMPETITIONS="$comp" \
+  refresh_out="$(W2_XG_REFRESH_COMPETITIONS="$comp" \
   W2_XG_REFRESH_BUDGET_PER_COMPETITION="$BUDGET" \
-    "$BACKFILL"
+    "$BACKFILL" 2>&1)"
   rc=$?
+  printf '%s\n' "$refresh_out"
   ran=$((ran + 1))
   echo "[$(date -u +%FT%TZ)] backfill $comp rc=$rc"
+  # G1（指令书 G，2026-10-10）：额度让位 → **提前结束本窗口**，不把余下联赛逐个空跑。
+  # 实测 10-09 22:30 起 24 个联赛各跑 ~55s（每个都要把 6.4 万条 raw fixture 载入做选择），
+  # 全部因 BACKFILL_QUOTA_GUARD（当日 provider 剩余 771 < backfill_stop=int(7500×0.15)=1125）
+  # 零调用返回——即 E1 验收所指的「空烧」。额度是**当日累计**口径，同一次窗口里剩下的联赛
+  # 必然同样被挡，继续跑不产生任何数据，只消耗时间与 DB 负载。
+  case "$refresh_out" in
+    *XG_REFRESH_QUOTA_GUARDED*)
+      echo "[$(date -u +%FT%TZ)] QUOTA_GUARDED：当日剩余额度低于 backfill 停止线，结束本窗口（不空转）"
+      quota_guarded=1
+      break
+      ;;
+  esac
   maxcap=$($PSQL -c "SELECT max(captured_at)::text FROM team_xg_match;" 2>/dev/null | tr -d ' ')
   echo "  after $comp: team_xg_match max(captured_at)=$maxcap"
 done
 
-echo "XG_BACKFILL_WINDOW_DONE ran=$ran deferred_timeout=$deferred_timeout"
+echo "XG_BACKFILL_WINDOW_DONE ran=$ran deferred_timeout=$deferred_timeout quota_guarded=$quota_guarded"
 [ "$deferred_timeout" -eq 0 ] || exit 4
 exit 0

@@ -6,6 +6,7 @@ facts and descriptive reports; it cannot send recommendations or fit a model.
 
 from __future__ import annotations
 
+import logging
 import math
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
@@ -37,6 +38,8 @@ from w2.tracking.ah_ou_v3_postmatch import (
 
 REPORT_INTERVAL = 200
 FIVE_STATES = ("LOSS", "HALF_LOSS", "PUSH", "HALF_WIN", "WIN")
+
+logger = logging.getLogger(__name__)
 FACT_SCHEMA = "w2.ah_ou_v3_monitoring_fact.v1"
 REPORT_SCHEMA = "w2.ah_ou_v3_monitoring_report.v1"
 
@@ -279,7 +282,7 @@ def append_monitoring_in_session(
         observed = session.scalar(text("SELECT clock_timestamp()"))
     else:
         observed = now or datetime.now(UTC)
-    created = excluded = skipped_stale = reports = 0
+    created = excluded = skipped_stale = reports = quarantined = 0
     decisions = list(
         session.scalars(
             select(AhOuDecisionLedgerModel)
@@ -331,9 +334,31 @@ def append_monitoring_in_session(
         try:
             payload = _fact(session, decision, result)
         except ValueError as exc:
+            code = str(exc)
             # 逐 fixture 隔离：赛果溯源失败（V3_RESULT_*）跳过该场监控 fact，
             # 不阻塞其余场次；与结算隔离口径一致。
-            if str(exc).startswith("V3_RESULT_"):
+            if code.startswith("V3_RESULT_"):
+                continue
+            # F（指令书 F，2026-10-10）：决策契约类失败（V3_PUBLIC_QUOTE_*）同样逐条隔离。
+            # 现状（修复前）：一条违规决策让整个 append_monitoring_in_session 抛错 →
+            #   ① 外层事务回滚，连 settlement 一起丢（违背 _settle_v3_postmatch 注释里
+            #      「blocked 只表示部分场次未结算…必须 commit 而非整轮回滚，否则又变成
+            #      一坏全滚连坐」的既有口径）；
+            #   ② 每 300s 的 sweep 必然复发 → 结果后端积累 FAILURE 元数据，
+            #      且 release 回读 f 项（部署后 Traceback=0）每次都红。
+            # 隔离后：该决策进入 quarantine（不落 fact + 计数 + WARNING 留痕），
+            # 其余场次照常落 fact，sweep 整体成功 ⇒ 不再产生 FAILURE，也不再阻塞发布。
+            # 注：quarantine 是**跳过**而非豁免——欠下的 fact 在缺陷修好后由同一次幂等
+            # sweep 自然补算（不存在「静默丢失」）。
+            if code.startswith("V3_PUBLIC_QUOTE_"):
+                quarantined += 1
+                logger.warning(
+                    "v3 monitoring fact quarantined: code=%s decision_id=%s fixture=%s market=%s",
+                    code,
+                    decision.decision_id,
+                    decision.fixture_id,
+                    decision.market,
+                )
                 continue
             raise
         stored = session.get(AhOuV3MonitoringFactModel, decision.decision_id)
@@ -410,5 +435,6 @@ def append_monitoring_in_session(
         "created_facts": created,
         "excluded_facts": excluded,
         "skipped_stale_facts": skipped_stale,
+        "quarantined_facts": quarantined,
         "created_reports": reports,
     }

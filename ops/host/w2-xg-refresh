@@ -71,6 +71,8 @@ before=$($PSQL -c "SELECT count(*) FROM team_xg_match;" 2>/dev/null | tr -d ' ')
 calls=0
 fetch_failed=0
 oom_killed=0
+quota_guarded=0
+no_calls_blocker=""
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 FAIL_DIR=/opt/w2/shared/runtime/reports
 for comp in $COMPS; do
@@ -109,10 +111,25 @@ print("OK %s %s %s" % (d["statistics_request_count"], d["team_xg_match_rows"], "
   fi
   set -- $out
   calls=$((calls + $2))
-  [ "$2" != "0" ] && echo "  $comp statistics=$2 rows=$3 blockers=$4"
+  # G1（指令书 G，2026-10-10）：**零调用时也必须留痕**。
+  # 历史实现只在 statistics!=0 时打印，于是「24 个窗口全部 statistics_calls=0」时
+  # blocker 完全不可见（日志里只剩 rc=0），把 G 的根因定位挡在日志之外。
+  # 实测当时的真实 blocker 是 BACKFILL_QUOTA_GUARD（当日 provider 剩余 771 <
+  # backfill 停止线 int(7500×0.15)=1125）——即 backfill 按设计让位于核心实时采集，
+  # 不是采集链坏掉。零调用必须显式可见，故改为无条件打印并单列额度闸门。
+  echo "  $comp statistics=$2 rows=$3 blockers=$4"
+  if [ "$2" = "0" ]; then
+    no_calls_blocker="$4"
+    case "$4" in
+      *BACKFILL_QUOTA_GUARD*|*QUOTA_BELOW_RESERVE*|*QUOTA_CRITICAL_CORE_ONLY*|*DAILY_QUOTA_EXHAUSTED*)
+        quota_guarded=$((quota_guarded + 1))
+        echo "XG_REFRESH_QUOTA_GUARDED comp=$comp blocker=$4"
+        ;;
+    esac
+  fi
 done
 after=$($PSQL -c "SELECT count(*) FROM team_xg_match;" 2>/dev/null | tr -d ' ')
-echo "XG_REFRESH_SUMMARY team_xg_match=${before}->${after} statistics_calls=$calls fetch_failed=${fetch_failed} oom_killed=${oom_killed}"
+echo "XG_REFRESH_SUMMARY team_xg_match=${before}->${after} statistics_calls=$calls fetch_failed=${fetch_failed} oom_killed=${oom_killed} quota_guarded=${quota_guarded}"
 
 # Coverage over matches that have actually finished recently.  A competition
 # whose season has not started yet reports IDLE rather than an alarm: absent
@@ -158,6 +175,14 @@ fi
 if [ "$fetch_failed" -gt 0 ]; then
   echo "XG_REFRESH_FAILED_FETCH count=$fetch_failed" >&2
   exit 2
+fi
+# G1：**零统计调用**必须显式区分「额度让位」与「无新可采」，否则两者在日志里都只是
+# statistics_calls=0（把根因藏在成功码后面）。退出码保持 0：额度让位是按设计的正常让位，
+# 不是失败；由上层执行器（w2-xg-backfill-window）据该 marker 提前结束窗口，避免空转。
+if [ "$calls" -eq 0 ] && [ "$quota_guarded" -gt 0 ]; then
+  echo "XG_REFRESH_QUOTA_GUARDED_ALL count=$quota_guarded blocker=$no_calls_blocker"
+elif [ "$calls" -eq 0 ]; then
+  echo "XG_REFRESH_NO_CALLS blocker=$no_calls_blocker"
 fi
 echo "XG_REFRESH_OK team_xg_match=${before}->${after} statistics_calls=$calls"
 exit 0

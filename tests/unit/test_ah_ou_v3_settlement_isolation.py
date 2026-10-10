@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine, select
@@ -18,6 +18,10 @@ from w2.domain.decision_contract import DecisionContractViolation
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.ah_ou_decision_ledger_models import AhOuDecisionLedgerModel
 from w2.infrastructure.persistence.ah_ou_monitoring_models import AhOuV3MonitoringFactModel
+from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayEndpointCaptureModel,
+)
 from w2.infrastructure.persistence.ah_ou_postmatch_models import (
     AhOuV3SettlementModel,
     AhOuV3ValidationSampleModel,
@@ -274,3 +278,181 @@ def test_monitoring_dedupes_same_slot_decisions(monkeypatch):
         facts = list(session.scalars(select(AhOuV3MonitoringFactModel)))
         assert len(facts) == 1
         assert facts[0].decision_id == "d-new"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 指令书 F（2026-10-10）：raw binding 时间子条件与 content-addressed 去重不兼容
+#   + monitoring 对 V3_PUBLIC_QUOTE_* 逐决策隔离（quarantine）
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _capture(capture_id, sha, provider_captured_at):
+    return MatchdayEndpointCaptureModel(
+        capture_id=capture_id,
+        fixture_id="api_football:FIX1",
+        competition_id="c1",
+        checkpoint="T60_ODDS_LINEUPS",
+        endpoint="odds",
+        sanitized_params={},
+        params_hash=capture_id + "-params",
+        request_task_key="tk-" + capture_id,
+        attempt=1,
+        requested_at=provider_captured_at,
+        provider_captured_at=provider_captured_at,
+        status_code=200,
+        elapsed_ms=10,
+        response_count=1,
+        quota_values={},
+        raw_payload_sha256=sha,
+        provider_event_time=None,
+        capture_status="CAPTURED",
+        error_code=None,
+    )
+
+
+def _raw(sha, captured_at):
+    return RawPayloadModel(
+        sha256=sha,
+        endpoint="odds",
+        captured_at=captured_at,
+        storage_uri="memory://raw",
+        payload={"response": []},
+    )
+
+
+def test_raw_time_binding_shared_payload_origin_is_accepted():
+    """F 根因：raw_payload 内容寻址去重 ⇒ 后来的 capture 复用首发 raw 行（captured_at 停在首发）。
+
+    生产实测形态：同一 sha 被恰好 2 个 capture 引用，首发时间与 raw.captured_at 秒级一致，
+    决策绑定的第二个 capture 相差 ~3h（odds 内容未变）。此形态必须放行，否则每条都判
+    V3_PUBLIC_QUOTE_RAW_BINDING_INVALID，monitoring 链整轮抛错 + 每 300s 复发。
+    """
+    engine = _engine()
+    sha = "f" * 64
+    first_at = datetime(2026, 10, 7, 18, 32, 28, tzinfo=UTC)
+    second_at = datetime(2026, 10, 7, 21, 32, 26, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add(_capture("cap-first", sha, first_at))
+        session.add(_capture("cap-second", sha, second_at))
+        session.add(_raw(sha, first_at + timedelta(microseconds=944_103)))
+        session.commit()
+        capture = session.get(MatchdayEndpointCaptureModel, "cap-second")
+        raw = session.get(RawPayloadModel, sha)
+        assert postmatch._raw_time_binding_invalid(session, capture, raw) is False
+
+
+def test_raw_time_binding_single_capture_shift_is_refused():
+    """反篡改防线不放松：raw 只被本 capture 引用且时间被平移 → 仍判违规。
+
+    对应集成测试 test_v3_large_raw_capture_time_diff_is_refused 的构造（只平移 raw）。
+    """
+    engine = _engine()
+    sha = "e" * 64
+    at = datetime(2026, 10, 7, 18, 32, 28, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add(_capture("cap-only", sha, at))
+        session.add(_raw(sha, at + timedelta(minutes=5)))
+        session.commit()
+        capture = session.get(MatchdayEndpointCaptureModel, "cap-only")
+        raw = session.get(RawPayloadModel, sha)
+        assert postmatch._raw_time_binding_invalid(session, capture, raw) is True
+
+
+def test_raw_time_binding_shared_payload_without_origin_is_refused():
+    """共享 raw 但其时间**任何** capture 都解释不了（真篡改）→ 仍判违规。"""
+    engine = _engine()
+    sha = "d" * 64
+    first_at = datetime(2026, 10, 7, 18, 32, 28, tzinfo=UTC)
+    second_at = datetime(2026, 10, 7, 21, 32, 26, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add(_capture("cap-first", sha, first_at))
+        session.add(_capture("cap-second", sha, second_at))
+        session.add(_raw(sha, second_at + timedelta(hours=5)))
+        session.commit()
+        capture = session.get(MatchdayEndpointCaptureModel, "cap-second")
+        raw = session.get(RawPayloadModel, sha)
+        assert postmatch._raw_time_binding_invalid(session, capture, raw) is True
+
+
+def test_monitoring_quarantines_public_quote_violation(monkeypatch):
+    """F 要求 2：V3_PUBLIC_QUOTE_* 逐决策隔离 —— 不抛错（不整轮回滚），其余场次照常落 fact。
+
+    修复前语义：一条违规决策让 append_monitoring_in_session 抛错 → 外层事务回滚
+    （settlement 一起丢）+ sweep 每 300s 产生一条 FAILURE + release 闸 f 项常红。
+    """
+    engine = _engine()
+    with Session(engine) as session:
+        for fixture_id, decision_id in (("FIXA", "d-a"), ("FIXB", "d-b")):
+            session.add(
+                AhOuDecisionLedgerModel(
+                    decision_id=decision_id,
+                    fixture_id=fixture_id,
+                    market="TOTALS",
+                    decision_at=DECISION_AT,
+                    model_version="m1",
+                    calibration_version="c1",
+                    input_hash="i" * 64,
+                    full_distribution={"selection": {"selected": False, "edge": 0.1}},
+                    decision_contract="w2.ah_ou_decision.v3.1",
+                    frozen_terms=None,
+                    terms_hash=None,
+                    quote_identity_hash="q" * 64,
+                    source_capture_sha256="s" * 64,
+                    capture_id="cap-" + fixture_id,
+                    source_id="src-1",
+                    home_team_id="H",
+                    away_team_id="A",
+                    selected=False,
+                    direction=None,
+                    score="0.1",
+                    skip_reason=None,
+                    created_at=CREATED_AT,
+                )
+            )
+            session.add(
+                ResultModel(
+                    id="r-" + fixture_id,
+                    fixture_id="api_football:" + fixture_id,
+                    home_goals=2,
+                    away_goals=1,
+                    result_status="FT",
+                    confirmed_at=CREATED_AT,
+                    source_payload_sha256="p" * 64,
+                    source_capture_id=None,
+                    result_hash="rh-" + fixture_id,
+                )
+            )
+        session.commit()
+
+    def fake_fact(session, decision, result):
+        if decision.fixture_id == "FIXA":
+            raise DecisionContractViolation("V3_PUBLIC_QUOTE_RAW_BINDING_INVALID")
+        return {
+            "schema_version": monitoring.FACT_SCHEMA,
+            "decision_id": decision.decision_id,
+            "fixture_id": decision.fixture_id,
+            "market": decision.market,
+            "model_version": decision.model_version,
+            "calibration_version": decision.calibration_version,
+            "selected": decision.selected,
+            "eligible": True,
+            "exclusion_reason": None,
+            "result_hash": result.result_hash,
+            "result_source": {"raw_sha256": "r", "capture_id": "c"},
+            "home_goals": result.home_goals,
+            "away_goals": result.away_goals,
+            "competition": "c",
+            "month": "2026-08",
+        }
+
+    monkeypatch.setattr(monitoring, "_fact", fake_fact)
+
+    with Session(engine) as session:
+        report = monitoring.append_monitoring_in_session(session)
+        session.commit()
+
+    assert report["quarantined_facts"] == 1, report
+    assert report["created_facts"] == 1, report
+    with Session(engine) as session:
+        facts = list(session.scalars(select(AhOuV3MonitoringFactModel)))
+        assert [f.fixture_id for f in facts] == ["FIXB"]

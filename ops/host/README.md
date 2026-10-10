@@ -118,6 +118,19 @@ compose 文件集内**（那行只有 `compose.staging.yml` + `controlled-future
 已覆盖服务自身 `command`），属残留硬依赖，已移除并同步上机（VPS == repo）。
 **不得再把它加回任何 compose 文件集。**
 
+**`current-recommendations-paused.override.yml` 同族处置（2026-10-10 登记）.**
+
+它是发布脚本失败路径（`w2-release` 的 EXIT trap `rollback()`）生成的**恢复用 override**：
+把 worker / worker-heavy / scheduler 的 `W2_CURRENT_RECOMMENDATIONS_PAUSED` 置为 `true`，
+关闭当前推荐写入/发布出口。它同样**不在 `w2-release:642` 的 compose 文件集内**，
+被 `-f` 误带会让推荐静默停摆（与 coverage override 同族：可被 `-f` 误带的部署目录残留件）。
+
+处置：2026-10-10 移出部署目录 →
+`/opt/w2/shared/evidence/current-recommendations-paused.override.yml.RETIRED-20261010`。
+注意**下一次发布失败时该文件会被脚本重新生成**在 `/opt/w2/deploy/`（其路径写死在第 690 行附近）；
+若要根治，应把该路径改为非部署目录（未改，属发布安全网路径，建议由发布负责人评估）。
+**规则同前：compose 文件集只认 `w2-release:642` 的两文件，任何其它 `-f` 都必须有明确出处。**
+
 **w2-release（下次发布一律用它）.** 把发布收敛成一条命令，在 Mac 本机运行：
 
 ```bash
