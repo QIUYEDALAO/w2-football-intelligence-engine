@@ -1,0 +1,207 @@
+{
+  "schema_version": "w2.footystats_team_alias.v1",
+  "generated_at": "2026-10-10",
+  "authority": "FootyStats ↔ api_football 球队对齐的人工复核表（指令书 I 任务 A 三层身份映射之 team 层）",
+  "purpose": "只收录字符串规则**无法安全推导**的残余项。每一条都必须写出判据。规则优先命中，本表只在规则全部失败后作为兜底。",
+  "constraints": [
+    "同一 (competition_id, footystats_name) 只能有一条，且 provider_name 在该联赛内唯一，否则加载即报错",
+    "本表不得用于掩盖两侧队数不一致：报表会同时输出每联赛的 production/fs 队数与残余数",
+    "新增条目必须附判据；判据为“残余 N:N 强制配对”时，必须核对两侧队数相等且其余项已被规则锁定"
+  ],
+  "residual_context": {
+    "measured_at": "2026-10-10",
+    "rule_based_resolution": "464/488",
+    "note": "下列联赛在规则匹配后两侧队数相等且残余数相等，构成强制配对的结构性佐证",
+    "per_competition": {
+      "argentina_primera": "30:30，残余 3:3",
+      "austria_bundesliga": "12:12，残余 2:2",
+      "belgium_jupiler_pro_league": "18:18，残余 2:2",
+      "brasileirao_serie_a": "20:20，残余 1:1",
+      "bundesliga": "18:18，残余 1:1",
+      "chinese_super_league": "16:16，残余 1:1",
+      "croatia_hnl": "10:10，残余 1:1",
+      "czech_republic_liga": "16:16，残余 1:1",
+      "denmark_superliga": "12:12，残余 3:3",
+      "eliteserien": "16:16，残余 1:1",
+      "greece_super_league_1": "14:14，残余 1:1",
+      "mls": "30:30，残余 3:3",
+      "netherlands_eerste_divisie": "20:20，残余 4:4"
+    }
+  },
+  "entries": [
+    {
+      "competition_id": "argentina_primera",
+      "footystats_name": "Central Córdoba SdE",
+      "provider_name": "Central Cordoba de Santiago",
+      "evidence": "SdE = Santiago del Estero；残余 3:3 中唯一共享 \"Central Córdoba\" 的一对"
+    },
+    {
+      "competition_id": "argentina_primera",
+      "footystats_name": "Gimnasia La Plata",
+      "provider_name": "Gimnasia L.P.",
+      "evidence": "L.P. = La Plata；与 Gimnasia Mendoza（M.）互斥区分"
+    },
+    {
+      "competition_id": "argentina_primera",
+      "footystats_name": "Gimnasia Mendoza",
+      "provider_name": "Gimnasia M.",
+      "evidence": "M. = Mendoza；与 Gimnasia La Plata（L.P.）互斥区分"
+    },
+    {
+      "competition_id": "austria_bundesliga",
+      "footystats_name": "Austria Wien",
+      "provider_name": "Austria Vienna",
+      "evidence": "Wien 的英文名 Vienna；残余 2:2 中共享 \"Austria\""
+    },
+    {
+      "competition_id": "austria_bundesliga",
+      "footystats_name": "Rapid Wien",
+      "provider_name": "Rapid Vienna",
+      "evidence": "同上；残余 2:2 中共享 \"Rapid\""
+    },
+    {
+      "competition_id": "belgium_jupiler_pro_league",
+      "footystats_name": "Union Saint-Gilloise",
+      "provider_name": "Union St. Gilloise",
+      "evidence": "Saint 在 api_football 写作 St.；残余 2:2 中共享 \"Union\""
+    },
+    {
+      "competition_id": "belgium_jupiler_pro_league",
+      "footystats_name": "Sint-Truiden",
+      "provider_name": "St. Truiden",
+      "evidence": "Sint 在 api_football 写作 St.；残余 2:2 中共享 \"Truiden\""
+    },
+    {
+      "competition_id": "brasileirao_serie_a",
+      "footystats_name": "Atlético PR",
+      "provider_name": "Atletico Paranaense",
+      "evidence": "PR = Paraná 州缩写；残余 1:1 强制配对"
+    },
+    {
+      "competition_id": "bundesliga",
+      "footystats_name": "Borussia M'gladbach",
+      "provider_name": "Borussia Mönchengladbach",
+      "evidence": "M'gladbach 是 Mönchengladbach 的通用缩写；残余 1:1 强制配对"
+    },
+    {
+      "competition_id": "chinese_super_league",
+      "footystats_name": "Zhejiang FC",
+      "provider_name": "Hangzhou Greentown",
+      "evidence": "同一俱乐部的更名（杭州绿城 → 浙江队）；残余 1:1 强制配对"
+    },
+    {
+      "competition_id": "croatia_hnl",
+      "footystats_name": "Slaven Koprivnica",
+      "provider_name": "NK Slaven Belupo",
+      "evidence": "同一俱乐部：Slaven Belupo 位于 Koprivnica；残余 1:1 强制配对"
+    },
+    {
+      "competition_id": "czech_republic_liga",
+      "footystats_name": "Líšeň",
+      "provider_name": "Artis",
+      "evidence": "残余 1:1 强制配对（两侧 16:16，其余 15 对已由规则锁定）。**判据是结构而非命名**，建议验收方人工复核这一条"
+    },
+    {
+      "competition_id": "denmark_superliga",
+      "footystats_name": "København",
+      "provider_name": "FC Copenhagen",
+      "evidence": "FC København 的本地写法 vs 英文写法"
+    },
+    {
+      "competition_id": "denmark_superliga",
+      "footystats_name": "OB",
+      "provider_name": "Odense",
+      "evidence": "OB = Odense Boldklub 的官方缩写"
+    },
+    {
+      "competition_id": "denmark_superliga",
+      "footystats_name": "AGF",
+      "provider_name": "Aarhus",
+      "evidence": "AGF = Aarhus Gymnastikforening 的官方缩写"
+    },
+    {
+      "competition_id": "eliteserien",
+      "footystats_name": "HamKam",
+      "provider_name": "Ham-Kam",
+      "evidence": "同一名称的连字符差异；残余 1:1 强制配对"
+    },
+    {
+      "competition_id": "greece_super_league_1",
+      "footystats_name": "Panaitolikos",
+      "provider_name": "Panetolikos",
+      "evidence": "同一俱乐部的两种拉丁转写；残余 1:1 强制配对"
+    },
+    {
+      "competition_id": "mls",
+      "footystats_name": "SJ Earthquakes",
+      "provider_name": "San Jose Earthquakes",
+      "evidence": "SJ = San Jose；共享 \"Earthquakes\""
+    },
+    {
+      "competition_id": "mls",
+      "footystats_name": "New York RB",
+      "provider_name": "New York Red Bulls",
+      "evidence": "RB = Red Bulls；共享 \"New York\""
+    },
+    {
+      "competition_id": "mls",
+      "footystats_name": "Sporting KC",
+      "provider_name": "Sporting Kansas City",
+      "evidence": "KC = Kansas City；共享 \"Sporting\""
+    },
+    {
+      "competition_id": "netherlands_eerste_divisie",
+      "footystats_name": "PSV II",
+      "provider_name": "Jong PSV U21",
+      "evidence": "荷甲预备队命名：Jong X ≡ X II；残余 4:4 中共享 \"PSV\""
+    },
+    {
+      "competition_id": "netherlands_eerste_divisie",
+      "footystats_name": "AZ II",
+      "provider_name": "Jong AZ",
+      "evidence": "同上；残余 4:4 中共享 \"AZ\""
+    },
+    {
+      "competition_id": "netherlands_eerste_divisie",
+      "footystats_name": "Ajax II",
+      "provider_name": "Jong Ajax",
+      "evidence": "同上；残余 4:4 中共享 \"Ajax\""
+    },
+    {
+      "competition_id": "netherlands_eerste_divisie",
+      "footystats_name": "Utrecht II",
+      "provider_name": "Jong Utrecht",
+      "evidence": "同上；残余 4:4 中共享 \"Utrecht\""
+    },
+    {
+      "competition_id": "argentina_primera",
+      "footystats_name": "Independiente Rivadavia",
+      "provider_name": "Independ. Rivadavia",
+      "evidence": "api_football 用 \"Independ.\" 缩写；残余 2:2 中共享 \"Rivadavia\"，与 Estudiantes L.P. 互斥"
+    },
+    {
+      "competition_id": "argentina_primera",
+      "footystats_name": "Estudiantes",
+      "provider_name": "Estudiantes L.P.",
+      "evidence": "L.P. = La Plata（Estudiantes de La Plata）；同联赛另一支 Estudiantes Río Cuarto 已由规则锁定，两者互斥"
+    },
+    {
+      "competition_id": "england_championship",
+      "footystats_name": "West Bromwich Albion",
+      "provider_name": "West Brom",
+      "evidence": "残余 1:1 强制配对；\"West Brom\" 是 \"West Bromwich\" 的通用短写"
+    },
+    {
+      "competition_id": "ligue_1",
+      "footystats_name": "Olympique Lyonnais",
+      "provider_name": "Lyon",
+      "evidence": "同一俱乐部，Lyon 为城市名简称；残余 2:2 中与 Brest 互斥"
+    },
+    {
+      "competition_id": "ligue_1",
+      "footystats_name": "Brest",
+      "provider_name": "Stade Brestois 29",
+      "evidence": "Stade Brestois 29 即 Brest；残余 2:2 中与 Lyon 互斥"
+    }
+  ]
+}
