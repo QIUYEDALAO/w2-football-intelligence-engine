@@ -33,6 +33,7 @@ from w2.competitions.league_whitelist_audit import (
 )
 from w2.competitions.odds_market_mapping import bookmaker_observed_evidence
 from w2.competitions.registry import CompetitionRegistryEntry
+from w2.providers.key_pool import primary_credential
 from w2.providers.quota import parse_api_football_quota
 
 AUDIT_PROVIDER_ENDPOINT_ALLOWLIST = frozenset(AUDIT_ENDPOINT_ALLOWLIST)
@@ -1230,7 +1231,7 @@ def _ensure_provider_key_http_safe(api_key_env_name: str) -> None:
 
 
 def _normalized_provider_key(api_key_env_name: str) -> str:
-    api_key = os.environ.get(api_key_env_name)
+    api_key = primary_credential() or os.environ.get(api_key_env_name)
     if not api_key:
         raise ProviderAuditStopped("PROVIDER_KEY_MISSING")
     normalized = api_key.strip()

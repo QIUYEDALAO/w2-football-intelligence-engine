@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import time
 import urllib.error
 import urllib.parse
@@ -18,6 +17,15 @@ from w2.providers.control import (
     provider_calls_disabled,
     provider_endpoint_allowlist,
     provider_request_timeout_seconds,
+)
+from w2.providers.key_pool import (
+    REASON_POOL_EXHAUSTED,
+    ProviderCredential,
+    ProviderCredentialPool,
+    ProviderCredentialPoolExhausted,
+    credential_failure_error,
+    credential_pool_from_env,
+    failover_reason,
 )
 from w2.providers.ledger import ProviderRequestLedger, provider_request_ledger_from_env
 
@@ -57,6 +65,8 @@ class ApiFootballClient:
     base_url: str = "https://v3.football.api-sports.io"
     auth_header_name: str = "x-apisports-key"
     request_ledger: ProviderRequestLedger | None = None
+    #: 显式注入凭据池（测试与本地演练用）。为 None 时从环境变量构造。
+    credential_pool: ProviderCredentialPool | None = None
 
     def fetch(self, request: ProviderRequest) -> ProviderResponse:
         if request.endpoint not in API_FOOTBALL_ENDPOINTS:
@@ -94,15 +104,46 @@ class ApiFootballClient:
         if provider_calls_disabled():
             raise ProviderCallsDisabledError(PROVIDER_CALLS_DISABLED)
         self._require_endpoint_allowed(endpoint)
-        api_key = os.environ.get(self.api_key_env_name)
-        if not api_key:
+        pool = self.credential_pool or credential_pool_from_env()
+        if not pool.size:
             raise LiveNetworkDisabledError("provider credential is not visible to the process")
+        attempts: list[str] = []
+        for credential in pool:
+            response = self._request_with_credential(credential, endpoint, params)
+            reason = failover_reason(
+                status_code=response.status_code, payload=response.payload
+            )
+            if reason is None:
+                return response
+            attempts.append(
+                f"slot={credential.slot}({credential.fingerprint}):{reason}:"
+                f"http={response.status_code}"
+            )
+            default_metric_registry().inc(
+                "w2_provider_credential_failover_total",
+                labels={
+                    "endpoint": endpoint,
+                    "provider": self.provider,
+                    "reason": reason,
+                },
+            )
+        raise ProviderCredentialPoolExhausted(
+            f"{REASON_POOL_EXHAUSTED}: all {pool.size} credential slots failed: "
+            + "; ".join(attempts)
+        )
+
+    def _request_with_credential(
+        self,
+        credential: ProviderCredential,
+        endpoint: str,
+        params: dict[str, str],
+    ) -> LiveApiFootballResponse:
         query = urllib.parse.urlencode(params)
         suffix = f"?{query}" if query else ""
         path = API_FOOTBALL_HTTP_PATHS.get(endpoint, endpoint)
         request = urllib.request.Request(  # noqa: S310
             f"{self.base_url}/{path}{suffix}",
-            headers={self.auth_header_name: api_key},
+            headers={self.auth_header_name: credential.secret},
         )
         started = time.monotonic()
         requested_at = datetime.now(UTC)
@@ -191,11 +232,24 @@ class ApiFootballClient:
                 "w2_provider_failures_total",
                 labels={"endpoint": endpoint, "provider": self.provider},
             )
+        credential_failure = failover_reason(status_code=status_code, payload=payload)
+        if status_code < 400 and credential_failure is None:
+            error = None
+        elif credential_failure is not None:
+            # slot 写进 error 描述：这样「主号被拒 → 备用号接管」在
+            # provider_request_logs 里是可查的持久证据（无需新表新列）。
+            error = credential_failure_error(
+                status_code=status_code,
+                reason=credential_failure,
+                slot=credential.slot,
+            )
+        else:
+            error = f"PROVIDER_HTTP_{status_code}"
         completed_at = record(
             status_code=status_code,
             headers=headers,
             payload=payload,
-            error=None if status_code < 400 else f"PROVIDER_HTTP_{status_code}",
+            error=error,
         )
         return LiveApiFootballResponse(
             endpoint=endpoint,

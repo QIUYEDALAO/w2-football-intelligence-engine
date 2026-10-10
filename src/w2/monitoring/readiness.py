@@ -20,6 +20,7 @@ from w2.providers.control import (
     provider_endpoint_allowlist,
     provider_scheduler_enabled,
 )
+from w2.providers.key_pool import primary_credential
 
 
 class ReadinessCheck(BaseModel):
@@ -213,7 +214,7 @@ def _provider_intake_readiness(settings: Settings) -> ProviderIntakeOperationalR
     except CompetitionRegistryError:
         competition_ids = []
         allsvenskan_registered = False
-    api_key_visible = bool(os.environ.get("W2_API_FOOTBALL_API_KEY"))
+    api_key_visible = bool(primary_credential())
     db_persistence = os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db").strip().lower() == "db"
     redis_dedupe = settings.redis_url is not None
     worker_task_registered = True

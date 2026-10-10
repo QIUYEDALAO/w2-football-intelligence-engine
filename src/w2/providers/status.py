@@ -31,16 +31,17 @@
 from __future__ import annotations
 
 import json
-import os
 import time
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime
 from typing import Any
 
+from w2.providers.key_pool import primary_credential
+
 STATUS_BASE_URL = "https://v3.football.api-sports.io"
 STATUS_PATH = "status"
-STATUS_API_KEY_ENV = "W2_API_FOOTBALL_API_KEY"
+# 凭据来源的权威在 w2.providers.key_pool（池内第一把优先，否则回退历史单变量）。
 STATUS_AUTH_HEADER = "x-apisports-key"
 # Dashboard 刷新路径上的只读查询，短超时避免拖垮面板；失败即降级缓存。
 STATUS_TIMEOUT_SECONDS = 8.0
@@ -116,7 +117,7 @@ def fetch_provider_quota_live() -> dict[str, Any]:
         "plan_end": None,
         "observed_at": observed_at.isoformat(),
     }
-    api_key = os.environ.get(STATUS_API_KEY_ENV)
+    api_key = primary_credential()
     if not api_key:
         degraded_base["error"] = "PROVIDER_CREDENTIAL_MISSING"
         return degraded_base
